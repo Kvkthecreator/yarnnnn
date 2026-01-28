@@ -4,39 +4,29 @@ import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api/client";
 import type { Project, ProjectCreate, ProjectWithCounts } from "@/types";
 
-export function useProjects(workspaceId: string | null) {
+export function useProjects() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
   const load = useCallback(async () => {
-    if (!workspaceId) {
-      setProjects([]);
-      setIsLoading(false);
-      return;
-    }
-
     setIsLoading(true);
     setError(null);
     try {
-      const data = await api.projects.list(workspaceId);
+      const data = await api.projects.list();
       setProjects(data);
     } catch (err) {
       setError(err as Error);
     } finally {
       setIsLoading(false);
     }
-  }, [workspaceId]);
+  }, []);
 
-  const create = useCallback(
-    async (data: ProjectCreate) => {
-      if (!workspaceId) throw new Error("No workspace selected");
-      const created = await api.projects.create(workspaceId, data);
-      setProjects((prev) => [...prev, created]);
-      return created;
-    },
-    [workspaceId]
-  );
+  const create = useCallback(async (data: ProjectCreate) => {
+    const created = await api.projects.create(data);
+    setProjects((prev) => [...prev, created]);
+    return created;
+  }, []);
 
   useEffect(() => {
     load();
