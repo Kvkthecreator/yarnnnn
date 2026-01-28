@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
+import { Analytics } from "@vercel/analytics/react";
+import { getBaseMetadata } from "@/lib/metadata";
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "YARNNN",
-  description: "Context-aware AI work platform",
-};
+export const metadata: Metadata = getBaseMetadata();
 
 export default function RootLayout({
   children,
@@ -15,6 +14,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="min-h-screen bg-background antialiased">
         {children}
+        <Analytics />
       </body>
     </html>
   );
