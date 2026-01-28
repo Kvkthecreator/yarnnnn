@@ -41,11 +41,11 @@ export async function updateSession(request: NextRequest) {
   // Protected routes - redirect to login if not authenticated
   const isProtectedRoute =
     path.startsWith("/dashboard") || path.startsWith("/projects");
-  const isAuthRoute = path.startsWith("/login") || path.startsWith("/signup");
+  const isAuthRoute = path.startsWith("/auth/login") || path.startsWith("/auth/signup");
 
   if (isProtectedRoute && !user) {
     const url = request.nextUrl.clone();
-    url.pathname = "/login";
+    url.pathname = "/auth/login";
     return NextResponse.redirect(url);
   }
 
