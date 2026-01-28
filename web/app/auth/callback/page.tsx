@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
@@ -9,10 +9,10 @@ function CallbackHandler() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const supabase = createClient();
+  const [status, setStatus] = useState("Completing sign in...");
 
   useEffect(() => {
     const handleCallback = async () => {
-      const code = searchParams.get("code");
       const error = searchParams.get("error");
       const errorDescription = searchParams.get("error_description");
       const next = searchParams.get("next") ?? "/dashboard";
@@ -24,24 +24,42 @@ function CallbackHandler() {
         return;
       }
 
-      if (code) {
-        const { error: exchangeError } =
-          await supabase.auth.exchangeCodeForSession(code);
+      // Wait for Supabase to process the OAuth callback
+      // The auth-helpers automatically detect hash fragments and exchange them
+      setStatus("Verifying session...");
 
-        if (exchangeError) {
-          router.replace(
-            `/auth/login?error=session_error&message=${encodeURIComponent(exchangeError.message)}`
-          );
-          return;
-        }
+      // Give Supabase client time to process the callback
+      // It auto-detects the hash fragment or code parameter
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
 
-        // Successful login
-        router.replace(next);
+      if (sessionError) {
+        router.replace(
+          `/auth/login?error=session_error&message=${encodeURIComponent(sessionError.message)}`
+        );
         return;
       }
 
-      // No code provided
-      router.replace("/auth/login?error=no_code");
+      if (session) {
+        // Session exists - redirect to dashboard
+        // Use window.location for full page reload to ensure cookies are set
+        window.location.href = next;
+        return;
+      }
+
+      // No session yet - the callback might still be processing
+      // Check one more time after a short delay
+      setStatus("Finalizing...");
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const { data: { session: retrySession } } = await supabase.auth.getSession();
+
+      if (retrySession) {
+        window.location.href = next;
+        return;
+      }
+
+      // Still no session
+      router.replace("/auth/login?error=no_session&message=Could not establish session");
     };
 
     handleCallback();
@@ -51,7 +69,7 @@ function CallbackHandler() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
         <h1 className="text-2xl font-bold mb-2">YARNNN</h1>
-        <p className="text-gray-600">Completing sign in...</p>
+        <p className="text-gray-600">{status}</p>
       </div>
     </div>
   );
