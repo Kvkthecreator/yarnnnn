@@ -56,10 +56,10 @@ class ProjectWithCounts(ProjectResponse):
 # --- Routes ---
 
 @router.get("/workspaces", response_model=list[WorkspaceResponse])
-async def list_workspaces(db: UserClient):
+async def list_workspaces(auth: UserClient):
     """List all workspaces for authenticated user."""
     try:
-        result = db.table("workspaces")\
+        result = auth.client.table("workspaces")\
             .select("*")\
             .order("created_at", desc=False)\
             .execute()
@@ -69,19 +69,12 @@ async def list_workspaces(db: UserClient):
 
 
 @router.post("/workspaces", response_model=WorkspaceResponse)
-async def create_workspace(workspace: WorkspaceCreate, db: UserClient):
+async def create_workspace(workspace: WorkspaceCreate, auth: UserClient):
     """Create a new workspace."""
     try:
-        # Get current user ID from auth
-        user_response = db.auth.get_user()
-        if not user_response or not user_response.user:
-            raise HTTPException(status_code=401, detail="Could not get user from token")
-
-        user_id = user_response.user.id
-
-        result = db.table("workspaces").insert({
+        result = auth.client.table("workspaces").insert({
             "name": workspace.name,
-            "owner_id": user_id
+            "owner_id": auth.user_id
         }).execute()
 
         if not result.data:
@@ -98,10 +91,10 @@ async def create_workspace(workspace: WorkspaceCreate, db: UserClient):
 
 
 @router.get("/workspaces/{workspace_id}/projects", response_model=list[ProjectResponse])
-async def list_projects(workspace_id: UUID, db: UserClient):
+async def list_projects(workspace_id: UUID, auth: UserClient):
     """List all projects in a workspace."""
     try:
-        result = db.table("projects")\
+        result = auth.client.table("projects")\
             .select("*")\
             .eq("workspace_id", str(workspace_id))\
             .order("created_at", desc=False)\
@@ -114,10 +107,10 @@ async def list_projects(workspace_id: UUID, db: UserClient):
 
 
 @router.post("/workspaces/{workspace_id}/projects", response_model=ProjectResponse)
-async def create_project(workspace_id: UUID, project: ProjectCreate, db: UserClient):
+async def create_project(workspace_id: UUID, project: ProjectCreate, auth: UserClient):
     """Create a new project in a workspace."""
     try:
-        result = db.table("projects").insert({
+        result = auth.client.table("projects").insert({
             "name": project.name,
             "description": project.description,
             "workspace_id": str(workspace_id)
@@ -135,11 +128,11 @@ async def create_project(workspace_id: UUID, project: ProjectCreate, db: UserCli
 
 
 @router.get("/projects/{project_id}", response_model=ProjectWithCounts)
-async def get_project(project_id: UUID, db: UserClient):
+async def get_project(project_id: UUID, auth: UserClient):
     """Get project details with counts."""
     try:
         # Get project
-        project_result = db.table("projects")\
+        project_result = auth.client.table("projects")\
             .select("*")\
             .eq("id", str(project_id))\
             .single()\
@@ -149,13 +142,13 @@ async def get_project(project_id: UUID, db: UserClient):
             raise HTTPException(status_code=404, detail="Project not found")
 
         # Get block count
-        blocks_result = db.table("blocks")\
+        blocks_result = auth.client.table("blocks")\
             .select("id", count="exact")\
             .eq("project_id", str(project_id))\
             .execute()
 
         # Get ticket count
-        tickets_result = db.table("work_tickets")\
+        tickets_result = auth.client.table("work_tickets")\
             .select("id", count="exact")\
             .eq("project_id", str(project_id))\
             .execute()

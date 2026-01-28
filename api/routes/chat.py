@@ -75,7 +75,7 @@ async def save_agent_session(
 async def send_message(
     project_id: UUID,
     request: ChatRequest,
-    client: UserClient,
+    auth: UserClient,
 ):
     """
     Send message to Thinking Partner with streaming response.
@@ -83,12 +83,12 @@ async def send_message(
     Loads project context (blocks) and streams the response via SSE.
     """
     # Verify project access
-    project_result = client.table("projects").select("id").eq("id", str(project_id)).single().execute()
+    project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
     if not project_result.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Load context
-    context = await load_context(client, project_id)
+    context = await load_context(auth.client, project_id)
 
     # Create agent
     agent = ThinkingPartnerAgent()
@@ -122,7 +122,7 @@ async def send_message(
                     {"role": "assistant", "content": full_response},
                 ]
                 await save_agent_session(
-                    client,
+                    auth.client,
                     project_id,
                     "thinking_partner",
                     messages,
@@ -152,7 +152,7 @@ async def send_message(
 @router.get("/projects/{project_id}/chat/history")
 async def get_chat_history(
     project_id: UUID,
-    client: UserClient,
+    auth: UserClient,
     limit: int = 10,
 ):
     """
@@ -161,13 +161,13 @@ async def get_chat_history(
     Returns the most recent agent sessions with their messages.
     """
     # Verify project access
-    project_result = client.table("projects").select("id").eq("id", str(project_id)).single().execute()
+    project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
     if not project_result.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Fetch recent sessions
     result = (
-        client.table("agent_sessions")
+        auth.client.table("agent_sessions")
         .select("*")
         .eq("project_id", str(project_id))
         .eq("agent_type", "thinking_partner")
@@ -185,7 +185,7 @@ async def get_chat_history(
 @router.get("/projects/{project_id}/context/stats")
 async def get_context_stats(
     project_id: UUID,
-    client: UserClient,
+    auth: UserClient,
 ):
     """
     Get context statistics for a project.
@@ -193,12 +193,12 @@ async def get_context_stats(
     Returns block count and types available.
     """
     # Verify project access
-    project_result = client.table("projects").select("id").eq("id", str(project_id)).single().execute()
+    project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
     if not project_result.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
     # Count blocks by type
-    result = client.table("blocks").select("block_type").eq("project_id", str(project_id)).execute()
+    result = auth.client.table("blocks").select("block_type").eq("project_id", str(project_id)).execute()
 
     blocks = result.data or []
     type_counts = {}

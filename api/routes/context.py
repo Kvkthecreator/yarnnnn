@@ -57,10 +57,10 @@ class ContextBundle(BaseModel):
 # --- Routes ---
 
 @router.post("/projects/{project_id}/blocks", response_model=BlockResponse)
-async def create_block(project_id: UUID, block: BlockCreate, db: UserClient):
+async def create_block(project_id: UUID, block: BlockCreate, auth: UserClient):
     """Add a new block to project context."""
     try:
-        result = db.table("blocks").insert({
+        result = auth.client.table("blocks").insert({
             "project_id": str(project_id),
             "content": block.content,
             "block_type": block.block_type,
@@ -79,10 +79,10 @@ async def create_block(project_id: UUID, block: BlockCreate, db: UserClient):
 
 
 @router.get("/projects/{project_id}/blocks", response_model=list[BlockResponse])
-async def list_blocks(project_id: UUID, db: UserClient):
+async def list_blocks(project_id: UUID, auth: UserClient):
     """List all blocks in project."""
     try:
-        result = db.table("blocks")\
+        result = auth.client.table("blocks")\
             .select("*")\
             .eq("project_id", str(project_id))\
             .order("created_at", desc=False)\
@@ -97,10 +97,10 @@ async def list_blocks(project_id: UUID, db: UserClient):
 
 
 @router.delete("/blocks/{block_id}")
-async def delete_block(block_id: UUID, db: UserClient):
+async def delete_block(block_id: UUID, auth: UserClient):
     """Delete a block."""
     try:
-        result = db.table("blocks")\
+        result = auth.client.table("blocks")\
             .delete()\
             .eq("id", str(block_id))\
             .execute()
@@ -117,18 +117,18 @@ async def delete_block(block_id: UUID, db: UserClient):
 
 
 @router.get("/projects/{project_id}/context", response_model=ContextBundle)
-async def get_context_bundle(project_id: UUID, db: UserClient):
+async def get_context_bundle(project_id: UUID, auth: UserClient):
     """Get full context bundle (blocks + documents) for agent execution."""
     try:
         # Fetch blocks
-        blocks_result = db.table("blocks")\
+        blocks_result = auth.client.table("blocks")\
             .select("*")\
             .eq("project_id", str(project_id))\
             .order("created_at", desc=False)\
             .execute()
 
         # Fetch documents
-        docs_result = db.table("documents")\
+        docs_result = auth.client.table("documents")\
             .select("*")\
             .eq("project_id", str(project_id))\
             .order("created_at", desc=False)\
