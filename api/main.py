@@ -18,7 +18,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import context, projects
+from routes import context, projects, chat
 
 app = FastAPI(
     title="YARNNN API",
@@ -29,8 +29,10 @@ app = FastAPI(
 # CORS - allow frontend origins
 allowed_origins = [
     "http://localhost:3000",
+    "https://yarnnn.com",
+    "https://www.yarnnn.com",
     "https://yarnnnn.vercel.app",
-    "https://yarnnnn-ep-0.vercel.app",
+    "https://yarnnnn-*.vercel.app",
 ]
 
 app.add_middleware(
@@ -50,9 +52,9 @@ async def health():
 # Mount routers
 app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(context.router, prefix="/api/context", tags=["context"])
+app.include_router(chat.router, prefix="/api", tags=["chat"])
 
 # TODO: Uncomment as implemented
-# from routes import work, agents, chat
+# from routes import work, agents
 # app.include_router(work.router, prefix="/api/work", tags=["work"])
 # app.include_router(agents.router, prefix="/api/agents", tags=["agents"])
-# app.include_router(chat.router, prefix="/api/chat", tags=["chat"])
