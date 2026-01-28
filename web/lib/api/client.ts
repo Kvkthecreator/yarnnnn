@@ -35,16 +35,30 @@ export class APIError extends Error {
 
 async function getAuthHeaders(): Promise<HeadersInit> {
   const supabase = createClient();
+
+  // Try getSession first, fall back to refresh if needed
+  let token: string | undefined;
+
   const {
     data: { session },
   } = await supabase.auth.getSession();
+
+  if (session?.access_token) {
+    token = session.access_token;
+  } else {
+    // Session might not be available, try to refresh
+    const { data: refreshData } = await supabase.auth.refreshSession();
+    token = refreshData.session?.access_token;
+  }
 
   const headers: HeadersInit = {
     "Content-Type": "application/json",
   };
 
-  if (session?.access_token) {
-    headers["Authorization"] = `Bearer ${session.access_token}`;
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  } else {
+    console.warn("No auth token available for API request");
   }
 
   return headers;
@@ -58,6 +72,7 @@ async function request<T>(
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,
+    credentials: "include",
     headers: {
       ...headers,
       ...options.headers,
