@@ -1,20 +1,74 @@
 "use client";
 
 import { useState, useRef, useEffect, FormEvent } from "react";
-import { FileText, Briefcase, MessageSquare, Send, Loader2 } from "lucide-react";
+import {
+  FileText,
+  Briefcase,
+  MessageSquare,
+  Send,
+  Loader2,
+} from "lucide-react";
 import { useChat } from "@/hooks/useChat";
+import { api } from "@/lib/api/client";
 
 type Tab = "context" | "work" | "chat";
 
+interface Project {
+  id: string;
+  name: string;
+  description?: string;
+}
+
 export default function ProjectPage({ params }: { params: { id: string } }) {
   const [activeTab, setActiveTab] = useState<Tab>("context");
+  const [project, setProject] = useState<Project | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchProject() {
+      try {
+        const data = await api.projects.get(params.id);
+        setProject(data);
+      } catch (err) {
+        console.error("Failed to fetch project:", err);
+        setError("Failed to load project");
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchProject();
+  }, [params.id]);
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <div className="min-h-screen p-8">
+        <div className="p-4 bg-destructive/10 text-destructive rounded-lg">
+          {error || "Project not found"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen">
       {/* Header */}
       <header className="border-b border-border">
         <div className="container mx-auto px-4 py-4">
-          <h1 className="text-xl font-semibold">Project {params.id}</h1>
+          <h1 className="text-xl font-semibold">{project.name}</h1>
+          {project.description && (
+            <p className="text-sm text-muted-foreground mt-1">
+              {project.description}
+            </p>
+          )}
         </div>
       </header>
 

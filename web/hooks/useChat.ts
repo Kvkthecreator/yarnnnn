@@ -84,10 +84,24 @@ export function useChat({
         );
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}));
-          throw new Error(
-            errorData.detail || `Request failed: ${response.status}`
-          );
+          const errorData = await response.json().catch(() => null);
+          // Handle FastAPI validation errors which have a detail array
+          let errorMessage = `Request failed: ${response.status}`;
+          if (errorData?.detail) {
+            if (Array.isArray(errorData.detail)) {
+              // FastAPI validation error format
+              errorMessage = errorData.detail
+                .map((e: { msg?: string; loc?: string[] }) =>
+                  e.msg || JSON.stringify(e)
+                )
+                .join(", ");
+            } else if (typeof errorData.detail === "string") {
+              errorMessage = errorData.detail;
+            } else {
+              errorMessage = JSON.stringify(errorData.detail);
+            }
+          }
+          throw new Error(errorMessage);
         }
 
         // Handle SSE stream
