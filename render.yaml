@@ -1,0 +1,44 @@
+# YARNNN v5 - Render Blueprint
+# https://render.com/docs/blueprint-spec
+
+services:
+  # FastAPI Backend
+  - type: web
+    name: yarnnn-api
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r api/requirements.txt
+    startCommand: uvicorn api.main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: "YARNNN <noreply@yarnnn.com>"
+    healthCheckPath: /health
+
+# Cron Jobs
+crons:
+  # Weekly Digest Scheduler
+  # Runs every hour to check for workspaces due for their digest
+  - name: digest-scheduler
+    schedule: "0 * * * *"  # Every hour at :00
+    command: python -m api.jobs.scheduler
+    region: oregon
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM_EMAIL
+        value: "YARNNN <noreply@yarnnn.com>"
