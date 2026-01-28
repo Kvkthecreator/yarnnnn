@@ -14,9 +14,9 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime
 
-from ..services.supabase import UserClient
-from ..agents.base import ContextBundle, Block
-from ..agents.thinking_partner import ThinkingPartnerAgent
+from services.supabase import UserClient
+from agents.base import ContextBundle, Block
+from agents.thinking_partner import ThinkingPartnerAgent
 
 router = APIRouter()
 

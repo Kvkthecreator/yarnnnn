@@ -3,8 +3,8 @@ Thinking Partner Agent - Conversational assistant with context
 """
 
 from typing import AsyncGenerator, Optional
-from .base import BaseAgent, AgentResult, ContextBundle
-from ..services.anthropic import chat_completion, chat_completion_stream
+from agents.base import BaseAgent, AgentResult, ContextBundle
+from services.anthropic import chat_completion, chat_completion_stream
 
 
 class ThinkingPartnerAgent(BaseAgent):
