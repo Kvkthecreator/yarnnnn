@@ -5,8 +5,6 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type {
-  Workspace,
-  WorkspaceCreate,
   Project,
   ProjectCreate,
   ProjectWithCounts,
@@ -98,22 +96,11 @@ async function request<T>(
 }
 
 export const api = {
-  // Workspace endpoints
-  workspaces: {
-    list: () => request<Workspace[]>("/api/workspaces"),
-    create: (data: WorkspaceCreate) =>
-      request<Workspace>("/api/workspaces", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-  },
-
-  // Project endpoints
+  // Project endpoints (workspace is auto-managed)
   projects: {
-    list: (workspaceId: string) =>
-      request<Project[]>(`/api/workspaces/${workspaceId}/projects`),
-    create: (workspaceId: string, data: ProjectCreate) =>
-      request<Project>(`/api/workspaces/${workspaceId}/projects`, {
+    list: () => request<Project[]>("/api/projects"),
+    create: (data: ProjectCreate) =>
+      request<Project>("/api/projects", {
         method: "POST",
         body: JSON.stringify(data),
       }),

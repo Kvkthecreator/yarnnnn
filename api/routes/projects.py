@@ -2,10 +2,9 @@
 Project and Workspace routes
 
 Endpoints:
-- GET /workspaces - List user's workspaces
-- POST /workspaces - Create workspace
-- GET /workspaces/:id/projects - List projects in workspace
-- POST /workspaces/:id/projects - Create project
+- GET /workspace - Get or create user's default workspace
+- GET /projects - List all projects (uses default workspace)
+- POST /projects - Create project (uses default workspace)
 - GET /projects/:id - Get project details
 """
 
@@ -21,10 +20,6 @@ router = APIRouter()
 
 
 # --- Pydantic Models ---
-
-class WorkspaceCreate(BaseModel):
-    name: str
-
 
 class WorkspaceResponse(BaseModel):
     id: UUID
@@ -53,32 +48,78 @@ class ProjectWithCounts(ProjectResponse):
     ticket_count: int = 0
 
 
+# --- Helper Functions ---
+
+async def get_or_create_workspace(auth: UserClient) -> dict:
+    """Get user's default workspace, creating one if it doesn't exist."""
+    # Try to get existing workspace
+    result = auth.client.table("workspaces")\
+        .select("*")\
+        .eq("owner_id", auth.user_id)\
+        .limit(1)\
+        .execute()
+
+    if result.data and len(result.data) > 0:
+        return result.data[0]
+
+    # Create default workspace
+    create_result = auth.client.table("workspaces").insert({
+        "name": "My Workspace",
+        "owner_id": auth.user_id
+    }).execute()
+
+    if not create_result.data:
+        raise HTTPException(status_code=500, detail="Failed to create default workspace")
+
+    return create_result.data[0]
+
+
 # --- Routes ---
 
-@router.get("/workspaces", response_model=list[WorkspaceResponse])
-async def list_workspaces(auth: UserClient):
-    """List all workspaces for authenticated user."""
+@router.get("/workspace", response_model=WorkspaceResponse)
+async def get_workspace(auth: UserClient):
+    """Get user's default workspace (auto-creates if needed)."""
     try:
-        result = auth.client.table("workspaces")\
-            .select("*")\
-            .order("created_at", desc=False)\
-            .execute()
-        return result.data
+        workspace = await get_or_create_workspace(auth)
+        return workspace
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/workspaces", response_model=WorkspaceResponse)
-async def create_workspace(workspace: WorkspaceCreate, auth: UserClient):
-    """Create a new workspace."""
+@router.get("/projects", response_model=list[ProjectResponse])
+async def list_projects(auth: UserClient):
+    """List all projects for user (uses default workspace)."""
     try:
-        result = auth.client.table("workspaces").insert({
-            "name": workspace.name,
-            "owner_id": auth.user_id
+        workspace = await get_or_create_workspace(auth)
+
+        result = auth.client.table("projects")\
+            .select("*")\
+            .eq("workspace_id", workspace["id"])\
+            .order("created_at", desc=False)\
+            .execute()
+        return result.data
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/projects", response_model=ProjectResponse)
+async def create_project(project: ProjectCreate, auth: UserClient):
+    """Create a new project (uses default workspace)."""
+    try:
+        workspace = await get_or_create_workspace(auth)
+
+        result = auth.client.table("projects").insert({
+            "name": project.name,
+            "description": project.description,
+            "workspace_id": workspace["id"]
         }).execute()
 
         if not result.data:
-            raise HTTPException(status_code=400, detail="Failed to create workspace")
+            raise HTTPException(status_code=400, detail="Failed to create project")
 
         return result.data[0]
 
@@ -87,43 +128,6 @@ async def create_workspace(workspace: WorkspaceCreate, auth: UserClient):
     except Exception as e:
         if "violates row-level security" in str(e):
             raise HTTPException(status_code=403, detail="Access denied")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.get("/workspaces/{workspace_id}/projects", response_model=list[ProjectResponse])
-async def list_projects(workspace_id: UUID, auth: UserClient):
-    """List all projects in a workspace."""
-    try:
-        result = auth.client.table("projects")\
-            .select("*")\
-            .eq("workspace_id", str(workspace_id))\
-            .order("created_at", desc=False)\
-            .execute()
-        return result.data
-    except Exception as e:
-        if "violates row-level security" in str(e):
-            raise HTTPException(status_code=403, detail="Access denied to this workspace")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@router.post("/workspaces/{workspace_id}/projects", response_model=ProjectResponse)
-async def create_project(workspace_id: UUID, project: ProjectCreate, auth: UserClient):
-    """Create a new project in a workspace."""
-    try:
-        result = auth.client.table("projects").insert({
-            "name": project.name,
-            "description": project.description,
-            "workspace_id": str(workspace_id)
-        }).execute()
-
-        if not result.data:
-            raise HTTPException(status_code=400, detail="Failed to create project")
-
-        return result.data[0]
-
-    except Exception as e:
-        if "violates row-level security" in str(e):
-            raise HTTPException(status_code=403, detail="Access denied to this workspace")
         raise HTTPException(status_code=500, detail=str(e))
 
 
