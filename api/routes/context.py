@@ -4,6 +4,7 @@ Context routes - Block and document management
 Endpoints:
 - POST /projects/:id/blocks - Add block
 - GET /projects/:id/blocks - List blocks
+- DELETE /blocks/:id - Delete block
 - POST /projects/:id/documents - Upload document
 - GET /projects/:id/context - Get full context bundle
 """
@@ -12,9 +13,14 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
+from datetime import datetime
+
+from services.supabase import UserClient
 
 router = APIRouter()
 
+
+# --- Pydantic Models ---
 
 class BlockCreate(BaseModel):
     content: str
@@ -26,26 +32,115 @@ class BlockResponse(BaseModel):
     id: UUID
     content: str
     block_type: str
+    metadata: Optional[dict]
     project_id: UUID
-    created_at: str
+    created_at: datetime
+    updated_at: datetime
 
 
-@router.post("/projects/{project_id}/blocks")
-async def create_block(project_id: UUID, block: BlockCreate) -> BlockResponse:
+class DocumentResponse(BaseModel):
+    id: UUID
+    filename: str
+    file_url: str
+    file_type: Optional[str]
+    file_size: Optional[int]
+    project_id: UUID
+    created_at: datetime
+
+
+class ContextBundle(BaseModel):
+    project_id: UUID
+    blocks: list[BlockResponse]
+    documents: list[DocumentResponse]
+
+
+# --- Routes ---
+
+@router.post("/projects/{project_id}/blocks", response_model=BlockResponse)
+async def create_block(project_id: UUID, block: BlockCreate, db: UserClient):
     """Add a new block to project context."""
-    # TODO: Implement with Supabase
-    raise HTTPException(status_code=501, detail="Not implemented")
+    try:
+        result = db.table("blocks").insert({
+            "project_id": str(project_id),
+            "content": block.content,
+            "block_type": block.block_type,
+            "metadata": block.metadata or {}
+        }).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=400, detail="Failed to create block")
+
+        return result.data[0]
+
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this project")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/projects/{project_id}/blocks")
-async def list_blocks(project_id: UUID) -> list[BlockResponse]:
+@router.get("/projects/{project_id}/blocks", response_model=list[BlockResponse])
+async def list_blocks(project_id: UUID, db: UserClient):
     """List all blocks in project."""
-    # TODO: Implement with Supabase
-    raise HTTPException(status_code=501, detail="Not implemented")
+    try:
+        result = db.table("blocks")\
+            .select("*")\
+            .eq("project_id", str(project_id))\
+            .order("created_at", desc=False)\
+            .execute()
+
+        return result.data
+
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this project")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.get("/projects/{project_id}/context")
-async def get_context_bundle(project_id: UUID) -> dict:
+@router.delete("/blocks/{block_id}")
+async def delete_block(block_id: UUID, db: UserClient):
+    """Delete a block."""
+    try:
+        result = db.table("blocks")\
+            .delete()\
+            .eq("id", str(block_id))\
+            .execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Block not found")
+
+        return {"deleted": True, "id": str(block_id)}
+
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this block")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/projects/{project_id}/context", response_model=ContextBundle)
+async def get_context_bundle(project_id: UUID, db: UserClient):
     """Get full context bundle (blocks + documents) for agent execution."""
-    # TODO: Implement with Supabase
-    raise HTTPException(status_code=501, detail="Not implemented")
+    try:
+        # Fetch blocks
+        blocks_result = db.table("blocks")\
+            .select("*")\
+            .eq("project_id", str(project_id))\
+            .order("created_at", desc=False)\
+            .execute()
+
+        # Fetch documents
+        docs_result = db.table("documents")\
+            .select("*")\
+            .eq("project_id", str(project_id))\
+            .order("created_at", desc=False)\
+            .execute()
+
+        return ContextBundle(
+            project_id=project_id,
+            blocks=blocks_result.data,
+            documents=docs_result.data
+        )
+
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this project")
+        raise HTTPException(status_code=500, detail=str(e))
