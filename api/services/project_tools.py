@@ -3,10 +3,9 @@ Project tools for Thinking Partner (ADR-007)
 
 Defines tools and handlers that give TP authority to manage projects.
 Phase 1-2: Read-only tools (list_projects)
-Phase 3+: Mutation tools (create_project, etc.)
+Phase 3: Mutation tools (create_project)
 """
 
-import json
 from typing import Callable, Any
 
 # Type alias for tool handlers
@@ -28,33 +27,29 @@ LIST_PROJECTS_TOOL = {
     }
 }
 
-# Phase 3: Create project tool (commented out for now)
-# CREATE_PROJECT_TOOL = {
-#     "name": "create_project",
-#     "description": "Create a new project when a distinct topic/goal emerges that warrants separate context. Use sparingly - only when conversation clearly indicates a new domain.",
-#     "input_schema": {
-#         "type": "object",
-#         "properties": {
-#             "name": {
-#                 "type": "string",
-#                 "description": "Short, descriptive project name"
-#             },
-#             "description": {
-#                 "type": "string",
-#                 "description": "Brief description of project scope"
-#             },
-#             "reason": {
-#                 "type": "string",
-#                 "description": "Why this warrants a new project (shown to user)"
-#             }
-#         },
-#         "required": ["name", "reason"]
-#     }
-# }
+CREATE_PROJECT_TOOL = {
+    "name": "create_project",
+    "description": "Create a new project when the user explicitly asks to create one, or when a distinct topic/goal emerges that clearly warrants separate context. Always explain to the user why you're creating the project.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "name": {
+                "type": "string",
+                "description": "Short, descriptive project name (2-5 words)"
+            },
+            "description": {
+                "type": "string",
+                "description": "Brief description of project scope and purpose"
+            }
+        },
+        "required": ["name"]
+    }
+}
 
-# Tools available to Thinking Partner (Phase 2: read-only)
+# Tools available to Thinking Partner
 THINKING_PARTNER_TOOLS = [
     LIST_PROJECTS_TOOL,
+    CREATE_PROJECT_TOOL,
 ]
 
 
@@ -101,50 +96,49 @@ async def handle_list_projects(auth, input: dict) -> dict:
     }
 
 
-# Phase 3: Create project handler (commented out for now)
-# async def handle_create_project(auth, input: dict) -> dict:
-#     """
-#     Create a new project on behalf of TP.
-#
-#     Args:
-#         auth: UserClient with authenticated Supabase client
-#         input: Tool input with name, description, reason
-#
-#     Returns:
-#         Dict with created project details
-#     """
-#     from routes.projects import get_or_create_workspace
-#
-#     workspace = await get_or_create_workspace(auth)
-#
-#     result = auth.client.table("projects").insert({
-#         "name": input["name"],
-#         "description": input.get("description", ""),
-#         "workspace_id": workspace["id"],
-#     }).execute()
-#
-#     if not result.data:
-#         return {
-#             "success": False,
-#             "error": "Failed to create project"
-#         }
-#
-#     project = result.data[0]
-#     return {
-#         "success": True,
-#         "project": {
-#             "id": project["id"],
-#             "name": project["name"],
-#             "description": project.get("description", ""),
-#         },
-#         "message": f"Created project '{input['name']}'"
-#     }
+async def handle_create_project(auth, input: dict) -> dict:
+    """
+    Create a new project on behalf of TP.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with name and optional description
+
+    Returns:
+        Dict with created project details
+    """
+    from routes.projects import get_or_create_workspace
+
+    workspace = await get_or_create_workspace(auth)
+
+    result = auth.client.table("projects").insert({
+        "name": input["name"],
+        "description": input.get("description", ""),
+        "workspace_id": workspace["id"],
+    }).execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Failed to create project"
+        }
+
+    project = result.data[0]
+    return {
+        "success": True,
+        "project": {
+            "id": project["id"],
+            "name": project["name"],
+            "description": project.get("description", ""),
+        },
+        "message": f"Created project '{input['name']}'"
+    }
 
 
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     "list_projects": handle_list_projects,
-    # "create_project": handle_create_project,  # Phase 3
+    "create_project": handle_create_project,
 }
 
 
