@@ -39,7 +39,7 @@ export function Chat({
   emptyMessage,
   heightClass = "h-[calc(100vh-240px)]",
 }: ChatProps) {
-  const { messages, isLoading, error, sendMessage } = useChat({
+  const { messages, isLoading, isLoadingHistory, error, sendMessage } = useChat({
     projectId,
     includeContext,
   });
@@ -68,7 +68,13 @@ export function Chat({
     <div className={`flex flex-col ${heightClass}`}>
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4">
-        {messages.length === 0 && (
+        {isLoadingHistory && (
+          <div className="flex justify-center py-4">
+            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+          </div>
+        )}
+
+        {!isLoadingHistory && messages.length === 0 && (
           <div className="p-4 bg-muted rounded-lg max-w-[80%]">
             <p className="text-sm">{emptyMessage || defaultEmptyMessage}</p>
           </div>

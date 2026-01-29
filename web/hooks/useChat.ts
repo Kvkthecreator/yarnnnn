@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 const API_BASE_URL =
@@ -19,6 +19,7 @@ interface UseChatOptions {
 interface UseChatReturn {
   messages: ChatMessage[];
   isLoading: boolean;
+  isLoadingHistory: boolean;
   error: string | null;
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
@@ -30,6 +31,8 @@ interface UseChatReturn {
  * Two modes:
  * - Project chat: Pass projectId to use project + user context
  * - Global chat: Omit projectId to use user context only
+ *
+ * Automatically loads chat history on mount for project chats.
  */
 export function useChat({
   projectId,
@@ -37,8 +40,63 @@ export function useChat({
 }: UseChatOptions = {}): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const historyLoadedRef = useRef(false);
+
+  // Load chat history on mount (for project chats)
+  useEffect(() => {
+    if (!projectId || historyLoadedRef.current) return;
+
+    const loadHistory = async () => {
+      setIsLoadingHistory(true);
+      try {
+        const supabase = createClient();
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+
+        if (!session?.access_token) return;
+
+        const response = await fetch(
+          `${API_BASE_URL}/api/projects/${projectId}/chat/history?limit=1`,
+          {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          // Load the most recent session's messages
+          if (data.sessions?.length > 0) {
+            const latestSession = data.sessions[0];
+            const sessionMessages: ChatMessage[] = (latestSession.messages || [])
+              .filter((m: { role: string; content: string }) =>
+                m.role === "user" || m.role === "assistant"
+              )
+              .map((m: { role: string; content: string }) => ({
+                role: m.role as "user" | "assistant",
+                content: m.content,
+              }));
+
+            if (sessionMessages.length > 0) {
+              setMessages(sessionMessages);
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to load chat history:", err);
+      } finally {
+        setIsLoadingHistory(false);
+        historyLoadedRef.current = true;
+      }
+    };
+
+    loadHistory();
+  }, [projectId]);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -199,6 +257,7 @@ export function useChat({
   return {
     messages,
     isLoading,
+    isLoadingHistory,
     error,
     sendMessage,
     clearMessages,
