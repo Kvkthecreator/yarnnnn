@@ -1,7 +1,7 @@
 # Database Schema
 
 **Supabase Project**: `noxgqcwynkzqabljjyon`
-**Tables**: 8 core tables
+**Tables**: 9 core tables (+ user_context from ADR-004)
 **RLS**: Enabled on all tables
 
 ---
@@ -9,6 +9,7 @@
 ## Entity Relationship
 
 ```
+user      1──n user_context     (ADR-004: user-level memory)
 workspace 1──n project
 project   1──n block
 project   1──n document
@@ -22,6 +23,37 @@ work_ticket 1──1 agent_session
 ---
 
 ## Tables
+
+### 0. user_context (ADR-004)
+
+User-level memory that persists across all projects. Captures what YARNNN knows about YOU.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK, auto-generated |
+| user_id | UUID | FK → auth.users |
+| category | TEXT | `preference`, `business_fact`, `work_pattern`, `communication_style`, `goal`, `constraint`, `relationship` |
+| key | TEXT | Unique identifier within category (for upsert) |
+| content | TEXT | The actual context item |
+| importance | FLOAT | 0-1, retrieval priority |
+| confidence | FLOAT | 0-1, how confident in extraction |
+| source_type | TEXT | `extracted`, `explicit`, `inferred` |
+| source_project_id | UUID | FK → projects (where it was learned) |
+| last_referenced_at | TIMESTAMPTZ | When last used |
+| reference_count | INTEGER | How often referenced |
+| created_at | TIMESTAMPTZ | Auto |
+| updated_at | TIMESTAMPTZ | Auto |
+
+**Constraints**: UNIQUE (user_id, category, key) for upsert deduplication
+
+**RLS Policies**: Users can only manage their own context items.
+
+**Indexes**:
+- `idx_user_context_user` (user_id)
+- `idx_user_context_category` (category)
+- `idx_user_context_importance` (importance DESC)
+
+---
 
 ### 1. workspaces
 
@@ -183,6 +215,7 @@ Execution logs for provenance.
 |------|-------------|---------|
 | `001_initial_schema.sql` | 8 tables, base RLS | Yes |
 | `002_fix_rls_policies.sql` | Missing policies, GRANTs | Yes |
+| `003_user_context.sql` | ADR-004 user_context table | **Pending** |
 
 ---
 

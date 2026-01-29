@@ -1,6 +1,6 @@
 # ADR-004: Two-Layer Memory Architecture
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2025-01-29
 **Supersedes:** Partially supersedes ADR-003 (extends, doesn't replace)
 **Decision Makers:** Kevin Kim
@@ -274,14 +274,15 @@ async def assemble_work_agent_context(user_id: str, project_id: str, include_use
 
 ## Implementation Checklist
 
-- [ ] Create `user_context` table with RLS
-- [ ] Extend extraction service with dual-stream logic
-- [ ] Update extraction prompt for layer classification
-- [ ] Modify ThinkingPartner context assembly
-- [ ] Update chat route to pass user_id for extraction
-- [ ] Add user context retrieval service
-- [ ] (Future) Add global chat endpoint
-- [ ] (Future) Add user context management UI
+- [x] Create `user_context` table with RLS → `docs/database/003_user_context.sql`
+- [x] Extend extraction service with dual-stream logic → `api/services/extraction.py`
+- [x] Update extraction prompt for layer classification → `DUAL_EXTRACTION_PROMPT`
+- [x] Modify ThinkingPartner context assembly → `api/agents/thinking_partner.py`
+- [x] Update chat route to pass user_id for extraction → `api/routes/chat.py`
+- [x] Add user context retrieval service → `load_user_context_only()`
+- [x] Add global chat endpoint → `POST /api/chat`
+- [x] Add user context management UI → `web/components/UserContextPanel.tsx`
+- [x] Add user context API endpoints → `api/routes/context.py` (list, update, delete)
 
 ## References
 
