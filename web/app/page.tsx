@@ -9,97 +9,127 @@ export default function LandingPage() {
       <LandingHeader />
 
       {/* Hero Section */}
-      <section className="flex-1 flex flex-col items-center justify-center px-6 py-24">
-        <div className="max-w-4xl mx-auto text-center">
-          <Image
-            src="/assets/logos/circleonly_yarnnn.png"
-            alt="YARNNN"
-            width={80}
-            height={80}
-            className="mx-auto mb-8"
-          />
-          <h1 className="text-4xl md:text-6xl font-bold mb-6">
-            Your AI understands your world
+      <section className="flex-1 flex flex-col items-center justify-center px-6 py-24 md:py-32">
+        <div className="max-w-3xl mx-auto text-center">
+          <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight mb-6">
+            Your AI team runs on autopilot
           </h1>
-          <p className="text-xl md:text-2xl text-muted-foreground mb-4">
-            Context-aware AI work platform
+          <p className="text-xl md:text-2xl text-muted-foreground mb-8 max-w-2xl mx-auto">
+            Build context. Schedule agents. Get work delivered.
           </p>
-          <p className="text-lg text-muted-foreground max-w-2xl mx-auto mb-8">
-            Accumulate knowledge. Let AI agents read from your context.
-            Get work outputs that actually understand your business.
-          </p>
-          <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
-              href="/auth/login"
-              className="px-8 py-3 bg-primary text-primary-foreground rounded-lg text-lg font-medium hover:bg-primary/90 transition-colors"
-            >
-              Get Started
-            </Link>
-            <Link
-              href="/about"
-              className="px-8 py-3 border border-border rounded-lg text-lg font-medium hover:bg-muted transition-colors"
-            >
-              Learn More
-            </Link>
+          <Link
+            href="/auth/login"
+            className="inline-block px-8 py-4 bg-primary text-primary-foreground rounded-lg text-lg font-medium hover:bg-primary/90 transition-colors"
+          >
+            Start your first project
+          </Link>
+        </div>
+      </section>
+
+      {/* How It Works */}
+      <section className="border-t border-border px-6 py-24">
+        <div className="max-w-4xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold mb-16 text-center">
+            How it works
+          </h2>
+
+          <div className="space-y-16">
+            {/* Step 1 */}
+            <div className="flex flex-col md:flex-row gap-6 md:gap-12 items-start">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-xl">
+                1
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-3">Create projects</h3>
+                <p className="text-muted-foreground text-lg">
+                  Each client, initiative, or domain gets its own context space.
+                  Your thinking partner can also create projects for you as conversations evolve.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="flex flex-col md:flex-row gap-6 md:gap-12 items-start">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-xl">
+                2
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-3">Accumulate knowledge</h3>
+                <p className="text-muted-foreground text-lg">
+                  Chat naturally. Upload documents. Memories form automatically from your conversations
+                  and stay with the project. No manual tagging or organization required.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="flex flex-col md:flex-row gap-6 md:gap-12 items-start">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-xl">
+                3
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-3">Schedule agents</h3>
+                <p className="text-muted-foreground text-lg">
+                  Set up recurring work: weekly reports, research digests, content drafts.
+                  Agents run on your schedule, not when you remember to ask.
+                </p>
+              </div>
+            </div>
+
+            {/* Step 4 */}
+            <div className="flex flex-col md:flex-row gap-6 md:gap-12 items-start">
+              <div className="flex-shrink-0 w-12 h-12 rounded-full bg-primary text-primary-foreground flex items-center justify-center font-bold text-xl">
+                4
+              </div>
+              <div>
+                <h3 className="text-xl font-semibold mb-3">Work arrives</h3>
+                <p className="text-muted-foreground text-lg">
+                  Outputs delivered on schedule, grounded in your project context.
+                  See exactly what memories informed each deliverable.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="border-t border-border px-6 py-24">
-        <div className="max-w-6xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold mb-4 text-center">
-            Why YARNNN?
+      {/* Key Differentiators */}
+      <section className="border-t border-border px-6 py-24 bg-muted/30">
+        <div className="max-w-5xl mx-auto">
+          <h2 className="text-3xl md:text-4xl font-bold mb-16 text-center">
+            Built for multi-project work
           </h2>
-          <p className="text-lg text-muted-foreground text-center max-w-2xl mx-auto mb-16">
-            In the age of AI, brilliant insights from chats and meetings are lost in digital noise.
-            YARNNN gives you persistent, intelligent context that grows with your work.
-          </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            {/* Feature 1 */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
-                <span className="text-2xl">🧠</span> End AI Amnesia
-              </h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-12">
+            <div className="p-6 bg-background rounded-lg border border-border">
+              <h3 className="text-lg font-semibold mb-3">Isolated project context</h3>
               <p className="text-muted-foreground">
-                Stop re-explaining your business to AI every conversation. YARNNN maintains
-                persistent context that your agents read from, so every output reflects
-                your accumulated knowledge.
+                Switch between clients without cross-contamination. Each project has its own
+                memories, its own agents, its own outputs.
               </p>
             </div>
 
-            {/* Feature 2 */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
-                <span className="text-2xl">🔗</span> Structured Knowledge
-              </h3>
+            <div className="p-6 bg-background rounded-lg border border-border">
+              <h3 className="text-lg font-semibold mb-3">Scheduled execution</h3>
               <p className="text-muted-foreground">
-                Not just notes—blocks of knowledge that connect. Upload documents, add insights,
-                and watch your context grow into an interconnected web your AI can navigate.
+                Not chat. Work that runs without you. Weekly summaries, daily digests,
+                research on cadence—delivered, not requested.
               </p>
             </div>
 
-            {/* Feature 3 */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
-                <span className="text-2xl">🤖</span> Specialized Agents
-              </h3>
+            <div className="p-6 bg-background rounded-lg border border-border">
+              <h3 className="text-lg font-semibold mb-3">Multi-agent orchestration</h3>
               <p className="text-muted-foreground">
-                Research agents for deep investigation. Content agents for creation.
-                Reporting agents for structured deliverables. Each reads your context
-                and produces real work outputs.
+                Research, writing, analysis—each agent specialized for its task,
+                all reading from shared project context.
               </p>
             </div>
 
-            {/* Feature 4 */}
-            <div>
-              <h3 className="text-xl font-semibold mb-3 flex items-center gap-2">
-                <span className="text-2xl">📋</span> Provenance & Trust
-              </h3>
+            <div className="p-6 bg-background rounded-lg border border-border">
+              <h3 className="text-lg font-semibold mb-3">Full provenance</h3>
               <p className="text-muted-foreground">
-                Every output traces back to source context. Know exactly what information
-                informed each report, research summary, or content draft. Full transparency.
+                Every output traces back to source memories. Know exactly what context
+                informed each report, draft, or summary.
               </p>
             </div>
           </div>
@@ -107,19 +137,20 @@ export default function LandingPage() {
       </section>
 
       {/* CTA Section */}
-      <section className="border-t border-border px-6 py-16 bg-muted/30">
-        <div className="max-w-4xl mx-auto text-center">
+      <section className="border-t border-border px-6 py-20">
+        <div className="max-w-3xl mx-auto text-center">
           <h2 className="text-2xl md:text-3xl font-bold mb-4">
-            Ready to give your AI real context?
+            Stop driving every conversation
           </h2>
-          <p className="text-muted-foreground mb-8">
-            Start building your knowledge base today. Your AI agents will thank you.
+          <p className="text-lg text-muted-foreground mb-8 max-w-xl mx-auto">
+            Build the context once. Let agents do the recurring work.
+            Focus on what actually needs you.
           </p>
           <Link
             href="/auth/login"
-            className="inline-block px-8 py-3 bg-primary text-primary-foreground rounded-lg text-lg font-medium hover:bg-primary/90 transition-colors"
+            className="inline-block px-8 py-4 bg-primary text-primary-foreground rounded-lg text-lg font-medium hover:bg-primary/90 transition-colors"
           >
-            Start Free
+            Start your first project
           </Link>
         </div>
       </section>

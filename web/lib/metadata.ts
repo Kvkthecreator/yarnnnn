@@ -12,9 +12,9 @@ import type { Metadata } from "next";
 
 export const BRAND = {
   name: "yarnnn",
-  tagline: "Context-aware AI work platform",
+  tagline: "AI agents that run on autopilot",
   description:
-    "Your AI agents understand your world because they read from your accumulated context.",
+    "Build context. Schedule agents. Get work delivered. AI that works on schedule, grounded in your project context.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/yarn-logo-light.png",
 };
