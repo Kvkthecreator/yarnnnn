@@ -1,79 +1,129 @@
 # Database Schema
 
 **Supabase Project**: `noxgqcwynkzqabljjyon`
-**Tables**: 9 core tables (+ user_context from ADR-004)
-**RLS**: Enabled on all tables
+**Architecture**: ADR-005 Unified Memory with Embeddings
+**Extensions**: pgvector (for embeddings)
 
 ---
 
 ## Entity Relationship
 
 ```
-user      1──n user_context     (ADR-004: user-level memory)
-workspace 1──n project
-project   1──n block
-project   1──n document
-project   1──n work_ticket
-project   1──n agent_session
-block     n──n block (via block_relation)
-work_ticket 1──n work_output
-work_ticket 1──1 agent_session
+user      1──n memories      (unified memory: user + project scoped)
+project   1──n memories      (project-scoped memories)
+project   1──n documents
+document  1──n chunks        (semantic segments with embeddings)
+project   1──n work_tickets
+work_ticket 1──n work_outputs
+project   1──n agent_sessions
 ```
 
 ---
 
-## Tables
+## Core Tables
 
-### 0. user_context (ADR-004)
+### 1. memories
 
-User-level memory that persists across all projects. Captures what YARNNN knows about YOU.
+Unified memory storage. Replaces the previous `user_context` and `blocks` tables.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK, auto-generated |
-| user_id | UUID | FK → auth.users |
-| category | TEXT | `preference`, `business_fact`, `work_pattern`, `communication_style`, `goal`, `constraint`, `relationship` |
-| key | TEXT | Unique identifier within category (for upsert) |
-| content | TEXT | The actual context item |
+| user_id | UUID | FK → auth.users, required |
+| project_id | UUID | FK → projects, **NULL = user-scoped** |
+| content | TEXT | The actual memory content |
+| embedding | vector(1536) | For semantic retrieval |
+| tags | TEXT[] | Emergent tags, LLM-extracted or user-added |
+| entities | JSONB | `{people: [], companies: [], concepts: []}` |
 | importance | FLOAT | 0-1, retrieval priority |
-| confidence | FLOAT | 0-1, how confident in extraction |
-| source_type | TEXT | `extracted`, `explicit`, `inferred` |
-| source_project_id | UUID | FK → projects (where it was learned) |
-| last_referenced_at | TIMESTAMPTZ | When last used |
-| reference_count | INTEGER | How often referenced |
+| source_type | TEXT | `chat`, `document`, `manual`, `import` |
+| source_ref | JSONB | `{session_id, chunk_id, document_id, etc.}` |
+| is_active | BOOLEAN | Soft-delete flag (default true) |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto |
 
-**Constraints**: UNIQUE (user_id, category, key) for upsert deduplication
+**Scope Logic:**
+- `project_id IS NULL` → User-scoped (portable across all projects)
+- `project_id IS NOT NULL` → Project-scoped (isolated to specific work)
 
-**RLS Policies**: Users can only manage their own context items.
+**Indexes:**
+- `idx_memories_user` (user_id) WHERE is_active
+- `idx_memories_project` (project_id) WHERE is_active
+- `idx_memories_importance` (importance DESC) WHERE is_active
+- `idx_memories_tags` GIN(tags) WHERE is_active
+- `idx_memories_embedding` ivfflat(embedding) WHERE is_active AND embedding IS NOT NULL
 
-**Indexes**:
-- `idx_user_context_user` (user_id)
-- `idx_user_context_category` (category)
-- `idx_user_context_importance` (importance DESC)
+**RLS:** Users can only manage their own memories.
 
 ---
 
-### 1. workspaces
+### 2. documents
+
+Uploaded files (PDF, DOCX, etc). Parsed into chunks.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| filename | TEXT | Required |
+| file_url | TEXT | Supabase Storage URL |
+| file_type | TEXT | `pdf`, `docx`, `xlsx`, etc |
+| file_size | INTEGER | Bytes |
+| project_id | UUID | FK → projects |
+| processing_status | TEXT | `pending`, `processing`, `completed`, `failed` |
+| processed_at | TIMESTAMPTZ | When processing completed |
+| error_message | TEXT | On failure |
+| page_count | INTEGER | For PDFs |
+| word_count | INTEGER | Approximate |
+| created_at | TIMESTAMPTZ | Auto |
+
+**RLS:** Users can manage documents in their projects.
+
+---
+
+### 3. chunks
+
+Document segments for retrieval. Intermediate layer between raw documents and derived memories.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| document_id | UUID | FK → documents |
+| content | TEXT | Chunk text (~400 tokens) |
+| embedding | vector(1536) | For semantic retrieval |
+| chunk_index | INTEGER | 0-based order in document |
+| page_number | INTEGER | For PDFs |
+| metadata | JSONB | `{section_title, heading_level, etc.}` |
+| token_count | INTEGER | Actual token count |
+| created_at | TIMESTAMPTZ | Auto |
+
+**Indexes:**
+- `idx_chunks_document` (document_id)
+- `idx_chunks_order` (document_id, chunk_index)
+- `idx_chunks_embedding` ivfflat(embedding) WHERE embedding IS NOT NULL
+
+**RLS:** Inherits from documents via project ownership.
+
+---
+
+### 4. workspaces
 
 Multi-tenancy root. One per user/org.
 
 | Column | Type | Notes |
 |--------|------|-------|
-| id | UUID | PK, auto-generated |
+| id | UUID | PK |
 | name | TEXT | Required |
 | owner_id | UUID | FK → auth.users |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto (trigger) |
 
-**RLS Policies**: Owner can SELECT, INSERT, UPDATE, DELETE own workspaces.
+**RLS:** Owner can manage own workspaces.
 
 ---
 
-### 2. projects
+### 5. projects
 
-User's work container. Contains context and work tickets.
+User's work container.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -84,65 +134,7 @@ User's work container. Contains context and work tickets.
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto (trigger) |
 
-**RLS Policies**: Users can manage projects in their workspaces.
-
----
-
-### 3. blocks
-
-Atomic knowledge units. The core of context.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| content | TEXT | Required |
-| block_type | TEXT | `text`, `structured`, `extracted` |
-| metadata | JSONB | Flexible attributes |
-| project_id | UUID | FK → projects |
-| created_at | TIMESTAMPTZ | Auto |
-| updated_at | TIMESTAMPTZ | Auto (trigger) |
-
-**RLS Policies**: Users can manage blocks in their projects.
-
-**Indexes**:
-- `idx_blocks_project` (project_id)
-- `idx_blocks_type` (block_type)
-
----
-
-### 4. documents
-
-Uploaded files (PDF, DOCX, etc). Parsed into blocks.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| filename | TEXT | Required |
-| file_url | TEXT | Supabase Storage URL |
-| file_type | TEXT | `pdf`, `docx`, `xlsx`, etc |
-| file_size | INTEGER | Bytes |
-| project_id | UUID | FK → projects |
-| created_at | TIMESTAMPTZ | Auto |
-
-**RLS Policies**: Users can manage documents in their projects.
-
----
-
-### 5. block_relations
-
-Semantic links between blocks.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| source_id | UUID | FK → blocks |
-| target_id | UUID | FK → blocks |
-| relation_type | TEXT | `supports`, `contradicts`, `extends`, `references` |
-| created_at | TIMESTAMPTZ | Auto |
-
-**Constraints**: UNIQUE (source_id, target_id, relation_type)
-
-**RLS Policies**: Users can manage relations for their blocks.
+**RLS:** Users can manage projects in their workspaces.
 
 ---
 
@@ -163,11 +155,11 @@ Work request lifecycle.
 | started_at | TIMESTAMPTZ | When agent started |
 | completed_at | TIMESTAMPTZ | When agent finished |
 
-**RLS Policies**: Users can manage tickets in their projects.
-
-**Indexes**:
+**Indexes:**
 - `idx_tickets_project` (project_id)
 - `idx_tickets_status` (status)
+
+**RLS:** Users can manage tickets in their projects.
 
 ---
 
@@ -186,7 +178,7 @@ Agent deliverables.
 | ticket_id | UUID | FK → work_tickets |
 | created_at | TIMESTAMPTZ | Auto |
 
-**RLS Policies**: Users can view and create outputs for their tickets.
+**RLS:** Users can view and create outputs for their tickets.
 
 ---
 
@@ -201,31 +193,93 @@ Execution logs for provenance.
 | messages | JSONB | Full conversation history |
 | metadata | JSONB | Model, tokens, timing |
 | ticket_id | UUID | FK → work_tickets (nullable) |
-| project_id | UUID | FK → projects |
+| project_id | UUID | FK → projects (nullable for global chat) |
+| user_id | UUID | FK → auth.users |
 | created_at | TIMESTAMPTZ | Auto |
 | completed_at | TIMESTAMPTZ | When session ended |
 
-**RLS Policies**: Users can view and create sessions in their projects.
+**RLS:** Users can view and create sessions.
 
 ---
 
 ## Migrations
 
-| File | Description | Applied |
-|------|-------------|---------|
-| `001_initial_schema.sql` | 8 tables, base RLS | Yes |
-| `002_fix_rls_policies.sql` | Missing policies, GRANTs | Yes |
-| `003_user_context.sql` | ADR-004 user_context table | Yes |
+| File | Description | Status |
+|------|-------------|--------|
+| `001_initial_schema.sql` | Base tables | Applied |
+| `002_fix_rls_policies.sql` | RLS fixes | Applied |
+| `003_user_context.sql` | ADR-004 user_context (superseded) | Applied |
+| `004_extend_blocks_for_extraction.sql` | Block extensions (superseded) | Applied |
+| `005_user_context_layer.sql` | User context layer (superseded) | Applied |
+| `006_unified_memory.sql` | ADR-005 unified memory | **Pending** |
 
 ---
 
-## Future Columns (When Needed)
+## Deprecated Tables (Removed in 006)
 
-As per [ADR-001](../adr/ADR-001-memory-simplicity.md), these may be added later:
+These tables are removed by ADR-005:
+
+- `user_context` → Replaced by `memories` with `project_id IS NULL`
+- `blocks` → Replaced by `memories` with `project_id IS NOT NULL`
+- `block_relations` → Deferred; entity relationships stored in `memories.entities`
+- `extraction_logs` → Simplified; tracking via `memories.source_ref`
+
+---
+
+## Key Design Decisions (ADR-005)
+
+1. **Unified table**: Single `memories` table instead of separate user_context + blocks
+2. **Scope via nullable FK**: `project_id IS NULL` = user-scoped, else project-scoped
+3. **Embeddings first-class**: vector(1536) column with ivfflat index for semantic search
+4. **Emergent structure**: Tags and entities extracted by LLM, not forced into enum categories
+5. **Soft-delete**: `is_active` flag instead of hard delete for auditability
+6. **Document pipeline**: documents → chunks → memories (three-tier)
+
+---
+
+## Retrieval Patterns
+
+### Semantic Search (Primary)
 
 ```sql
--- blocks table
-ALTER TABLE blocks ADD COLUMN importance_score FLOAT DEFAULT 0.5;
-ALTER TABLE blocks ADD COLUMN expires_at TIMESTAMPTZ;
-ALTER TABLE blocks ADD COLUMN embedding vector(1536);
+-- Find memories similar to a query
+SELECT *,
+       (1 - (embedding <=> $query_embedding)) * 0.7 + importance * 0.3 AS relevance
+FROM memories
+WHERE user_id = $user_id
+  AND is_active = true
+  AND (project_id IS NULL OR project_id = $project_id)
+  AND embedding IS NOT NULL
+ORDER BY relevance DESC
+LIMIT 20;
+```
+
+### Tag-Based Filtering
+
+```sql
+-- Find memories with specific tags
+SELECT * FROM memories
+WHERE user_id = $user_id
+  AND is_active = true
+  AND tags @> ARRAY['client', 'deadline']
+ORDER BY importance DESC;
+```
+
+### Document Chunk Retrieval
+
+```sql
+-- Find relevant chunks from a document
+SELECT * FROM chunks
+WHERE document_id = $document_id
+ORDER BY (1 - (embedding <=> $query_embedding)) DESC
+LIMIT 5;
+```
+
+---
+
+## Extension Requirements
+
+```sql
+-- Required for embeddings
+CREATE EXTENSION IF NOT EXISTS vector;
 ```

@@ -1,9 +1,11 @@
 # ADR-004: Two-Layer Memory Architecture
 
-**Status:** Implemented
+**Status:** Superseded by ADR-005
 **Date:** 2025-01-29
-**Supersedes:** Partially supersedes ADR-003 (extends, doesn't replace)
+**Superseded By:** [ADR-005: Unified Memory with Embeddings](ADR-005-unified-memory-with-embeddings.md)
 **Decision Makers:** Kevin Kim
+
+> **Note:** This ADR implemented a categorical taxonomy (7 user categories, 6 project types) that was found to be underutilized. Categories were extracted but retrieval ignored them. ADR-005 replaces this with emergent structure (tags/entities) and semantic retrieval via embeddings.
 
 ## Context
 

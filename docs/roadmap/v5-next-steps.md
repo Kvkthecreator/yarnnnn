@@ -1,177 +1,208 @@
-# YARNNN v5 Next Steps: Comprehensive Roadmap
+# YARNNN v5 Roadmap
 
-**Date:** 2025-01-29
-**Status:** Phase 1 & 2 Complete
-**Context:** Two-layer memory architecture fully implemented and deployed
-**Approach:** Singular, streamlined - restructure Dashboard into Console
-
----
-
-## The Core Insight
-
-Current YARNNN forces users into projects before they can chat. This contradicts:
-1. **ADR-004**: User context should be available *before* project context
-2. **Brand promise**: "Your AI understands YOUR world" - not "your project's world"
-3. **Industry benchmark** (Claude Cowork): Chat is user-level, projects are optional organization
-
-**The fix isn't just adding features - it's restructuring the user journey.**
+**Date:** 2026-01-29
+**Current Phase:** Architecture Pivot (ADR-005)
+**Status:** Phases 1-2 complete, pivoting to unified memory model
 
 ---
 
-## User Journey Redesign
+## Architecture Evolution
 
-### Current Flow (Project-First)
-```
-Login → Dashboard (project list) → Select Project → Chat Tab → Start talking
-                                                              ↓
-                                          Context: project blocks only
-```
+### What Changed
 
-### Target Flow (User-First)
-```
-Login → Dashboard (chat-first) → Chat immediately OR select project
-              ↓                            ↓
-    Context: user memory         Context: user + project memory
-```
+ADR-004 (Two-Layer Memory) implemented rigid categorical taxonomies:
+- 7 user context categories (preference, business_fact, etc.)
+- 6 project block types (requirement, fact, guideline, etc.)
 
-**Single approach:** Transform existing `/dashboard` - no new routes, no duplication.
+**Problem discovered:** Categories were extracted and stored but **never used for retrieval**. They served only as UI decoration. Research showed this pattern fails at scale.
+
+**ADR-005 (Unified Memory)** replaces this with:
+- Single `memories` table with embeddings for semantic retrieval
+- Scope via nullable `project_id` (NULL = user, non-NULL = project)
+- Emergent structure via tags/entities (not forced categories)
+- Document pipeline: documents → chunks → memories
 
 ---
 
-## Implementation Plan
+## Phase Status
 
-### Phase 1: Dashboard Transformation
-**Goal:** Dashboard becomes chat-first with projects in sidebar
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1 | ✅ Complete | Dashboard transformation, global chat |
+| Phase 2 | ✅ Complete | User context panel (will be rebuilt for new model) |
+| **Phase 2.5** | 🔄 **Current** | **Architecture pivot: ADR-005 implementation** |
+| Phase 3 | 🔲 Blocked | Work Agents (depends on new memory model) |
+| Phase 4 | 🔲 Planned | Document upload + external imports |
+| Phase 5 | 🔲 Future | Proactive features |
 
-#### 1.1 Backend: Global Chat Endpoint
-- [x] New route: `POST /api/chat` (no project_id required)
-- [x] `load_user_context_only(user_id)` function
-- [x] Extraction writes to user_context only (no project blocks when no project)
-- [x] Session saved to agent_sessions with project_id = NULL
+---
 
-#### 1.2 Frontend: Dashboard Restructure
-- [x] Replace project grid with chat-first layout
-- [x] ThinkingPartner chat as primary content area
-- [x] Projects list in left sidebar (collapsible)
-- [x] "About You" panel in right sidebar (user context)
-- [x] Quick actions row: "New Project", "Import"
+## Phase 2.5: Architecture Pivot (Current)
 
-#### 1.3 Shared Chat Component
-- [x] Extract chat logic from project page into reusable component
-- [x] Props: `projectId?: string` (optional = user-level chat)
-- [x] Conditional context loading based on projectId presence
+### Goal
+Implement ADR-005 unified memory architecture with embeddings.
 
-### Phase 2: Context Visibility & Management
-**Goal:** User can see and manage what YARNNN knows
+### Database Migration
 
-#### 2.1 User Context Panel (Dashboard Sidebar)
-- [x] "About You" section grouped by category
-- [x] Edit/delete individual items
-- [x] Confidence indicator
+- [ ] Enable pgvector extension in Supabase
+- [ ] Write `006_unified_memory.sql` migration
+  - [ ] Drop deprecated tables (user_context, blocks, block_relations)
+  - [ ] Create `memories` table with embedding column
+  - [ ] Create `chunks` table for document segments
+  - [ ] Extend `documents` table with processing columns
+  - [ ] Set up RLS policies
+  - [ ] Create indexes (including ivfflat for vectors)
 
-#### 2.2 Project Context Enhancement
-- [ ] Filter by semantic type in Context tab
-- [ ] Importance/recency sorting
-- [ ] Inline editing
+### Backend Changes
 
-### Phase 3: Work Agents
-**Goal:** Execute structured work
+- [ ] Add embedding service (`api/services/embeddings.py`)
+  - [ ] OpenAI ada-002 integration (or alternative)
+  - [ ] Batch embedding for efficiency
+- [ ] Rewrite extraction service (`api/services/extraction.py`)
+  - [ ] Remove forced category extraction
+  - [ ] Implement emergent tag/entity extraction
+  - [ ] Scope classification (user vs project)
+  - [ ] Generate embeddings on extraction
+- [ ] Update memory retrieval (`api/services/memory.py`)
+  - [ ] Semantic search with vector similarity
+  - [ ] Hybrid scoring (similarity + importance)
+  - [ ] Scope-aware retrieval
+- [ ] Update ThinkingPartner context assembly
+  - [ ] Query-based retrieval (not fetch-all)
+  - [ ] Format memories for LLM consumption
+- [ ] Update chat routes for new retrieval pattern
 
-#### 3.1 Activation
+### Frontend Changes
+
+- [ ] Update "About You" panel for new data model
+  - [ ] Display tags instead of categories
+  - [ ] Show entities
+- [ ] Update project context view
+- [ ] Memory management UI (edit, soft-delete)
+
+### Document Pipeline (Foundation)
+
+- [ ] Document upload endpoint
+- [ ] Basic parsing (PDF, DOCX)
+- [ ] Semantic chunking (~400 tokens)
+- [ ] Chunk storage with embeddings
+- [ ] Memory extraction from chunks
+
+---
+
+## Phase 3: Work Agents (Next)
+
+**Blocked on:** Phase 2.5 completion
+
+### Goal
+Activate work agents that leverage the new memory architecture.
+
+### Tasks
+
 - [ ] Uncomment work/agents routes in main.py
-- [ ] Basic research, content, reporting agents
-- [ ] Status tracking in UI
+- [ ] Update agents to use semantic memory retrieval
+- [ ] Research agent: query memories for facts
+- [ ] Content agent: query memories for style/guidelines
+- [ ] Reporting agent: aggregate memories into outputs
+- [ ] Work ticket UI in dashboard
 
-#### 3.2 Output Delivery
-- [ ] Outputs tab in project view
-- [ ] Download/export functionality
+---
 
-### Phase 4: External Context
-**Goal:** Ingest from other sources
+## Phase 4: External Context
 
-- [ ] Document upload + parsing (PDF, DOCX)
-- [ ] Claude/ChatGPT export import
-- [ ] MCP connectors (Notion, Linear)
+### Goal
+Ingest context from external sources.
 
-### Phase 5: Proactive Features
-**Goal:** YARNNN reaches out
+### Tasks
+
+- [ ] Full document processing pipeline
+  - [ ] PDF parsing with page tracking
+  - [ ] DOCX/DOC parsing
+  - [ ] Image OCR (optional)
+- [ ] Conversation imports
+  - [ ] Claude export format
+  - [ ] ChatGPT export format
+  - [ ] Parse → chunk → extract memories
+- [ ] MCP integrations (future)
+  - [ ] Notion connector
+  - [ ] Linear connector
+
+---
+
+## Phase 5: Proactive Features
+
+### Goal
+YARNNN reaches out to users.
+
+### Tasks
 
 - [ ] Weekly digest emails (Render cron + Resend)
-- [ ] Stale context detection
+- [ ] Stale memory detection
+- [ ] Memory consolidation/summarization
 
 ---
 
-## UI/UX: Dashboard Layout (Chat-First)
+## Technical Architecture (Post-ADR-005)
+
+### Data Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  YARNNN                                              [Settings] [User]  │
-├────────────────┬──────────────────────────────────────┬─────────────────┤
-│                │                                      │                 │
-│  [+ New Project]  ✨ What's on your mind?            │  ABOUT YOU      │
-│                │                                      │  ───────────    │
-│  ───────────── │  ┌────────┐ ┌────────┐ ┌────────┐   │  Business:      │
-│  PROJECTS      │  │New proj│ │Import  │ │Settings│   │  B2B SaaS       │
-│                │  └────────┘ └────────┘ └────────┘   │                 │
-│  Project A     │                                      │  Goal:          │
-│  Project B     │  ─────────────────────────────────  │  Series A       │
-│  Project C     │                                      │                 │
-│                │  [Chat messages area]                │  Style:         │
-│                │                                      │  Bullet points  │
-│                │                                      │                 │
-│                │                                      │  [Edit →]       │
-│                │  ─────────────────────────────────  │                 │
-│                │  [Type a message...]          [Send] │                 │
-└────────────────┴──────────────────────────────────────┴─────────────────┘
+Input Sources                Processing              Storage
+─────────────               ──────────              ───────
+
+Chat ────────────┐
+                 │
+Document ────────┼──→ LLM Extraction ──→ Memories (+ embeddings)
+                 │    - content
+Manual ──────────┤    - tags (emergent)
+                 │    - entities
+Import ──────────┘    - importance
+                      - scope (user/project)
+
+
+
+Query ──→ Embedding ──→ Vector Search ──→ Relevant Memories
+                        + importance weighting
 ```
 
-**Key changes from current:**
-- Chat is center stage, not hidden in project tabs
-- Projects are sidebar navigation, not the main content
-- User context visible at all times (right panel)
-- Quick actions for common tasks
+### Retrieval Pattern
+
+```python
+# Semantic search with hybrid scoring
+async def get_relevant_memories(user_id, project_id, query):
+    query_embedding = await get_embedding(query)
+
+    return await db.query("""
+        SELECT *,
+               (1 - (embedding <=> $1)) * 0.7 + importance * 0.3 AS relevance
+        FROM memories
+        WHERE user_id = $2
+          AND is_active = true
+          AND (project_id IS NULL OR project_id = $3)
+        ORDER BY relevance DESC
+        LIMIT 20
+    """, query_embedding, user_id, project_id)
+```
 
 ---
 
-## Technical Changes
+## Key Files to Modify
 
-### Backend
-| Change | File | Notes |
-|--------|------|-------|
-| Global chat endpoint | `routes/chat.py` | `POST /api/chat` (no project_id) |
-| User-only context loader | `routes/chat.py` | New function |
-| Nullable project in sessions | Already supported | - |
-
-### Frontend
-| Change | File | Notes |
-|--------|------|-------|
-| Dashboard restructure | `app/dashboard/page.tsx` | Chat-first layout |
-| Shared chat component | `components/Chat.tsx` | Extract from project page |
-| User context panel | `components/UserContextPanel.tsx` | New component |
-| Project sidebar | `components/ProjectSidebar.tsx` | New component |
-
-### Database
-| Change | File | Notes |
-|--------|------|-------|
-| user_context table | `003_user_context.sql` | Applied 2025-01-29 |
-| blocks.semantic_type | `003_user_context.sql` | Added column |
-| blocks.importance | `003_user_context.sql` | Added column |
-| Nullable project_id | `003_user_context.sql` | agent_sessions, extraction_logs |
-
----
-
-## Execution Order
-
-1. **Backend: Global chat endpoint** - Enables user-level chat
-2. **Frontend: Extract chat component** - Reusable for dashboard + project
-3. **Frontend: Dashboard restructure** - The main UX change
-4. **Frontend: User context panel** - Visibility into what YARNNN knows
-5. **Polish: Onboarding detection** - First-time user experience
+| File | Changes |
+|------|---------|
+| `supabase/migrations/006_unified_memory.sql` | New migration |
+| `api/services/extraction.py` | Complete rewrite |
+| `api/services/embeddings.py` | New file |
+| `api/services/memory.py` | New file (retrieval) |
+| `api/agents/thinking_partner.py` | Update context assembly |
+| `api/routes/chat.py` | Update retrieval calls |
+| `api/routes/context.py` | Update for memories table |
+| `web/components/UserContextPanel.tsx` | Adapt for new model |
 
 ---
 
 ## References
 
-- [ADR-004: Two-Layer Memory Architecture](../adr/ADR-004-two-layer-memory-architecture.md)
-- Claude Cowork UI (benchmark)
-- Current dashboard: `web/app/dashboard/page.tsx`
+- [ADR-005: Unified Memory with Embeddings](../adr/ADR-005-unified-memory-with-embeddings.md)
+- [Database Schema](../database/SCHEMA.md)
+- [ADR-004: Two-Layer Memory](../adr/ADR-004-two-layer-memory-architecture.md) (superseded)
