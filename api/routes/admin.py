@@ -7,9 +7,13 @@ Endpoints:
 - GET /memory-stats - Memory system health metrics
 - GET /document-stats - Document pipeline statistics
 - GET /chat-stats - Chat engagement metrics
+- GET /export/users - Export users data as Excel
 """
 
+from io import BytesIO
+
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timedelta, timezone
@@ -389,3 +393,135 @@ async def get_chat_stats(admin: AdminAuth):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch chat stats: {str(e)}")
+
+
+@router.get("/export/users")
+async def export_users_excel(admin: AdminAuth):
+    """Export users data as Excel file."""
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+
+        # Fetch users data (reuse logic from list_users)
+        client = admin.client
+
+        workspaces_result = client.table("workspaces")\
+            .select("owner_id, owner_email, created_at")\
+            .order("created_at", desc=True)\
+            .execute()
+
+        users_data = []
+        for workspace in (workspaces_result.data or []):
+            user_id = workspace["owner_id"]
+            user_email = workspace.get("owner_email") or "unknown"
+            user_created = workspace["created_at"]
+
+            # Get project count
+            workspaces = client.table("workspaces")\
+                .select("id")\
+                .eq("owner_id", user_id)\
+                .execute()
+
+            project_count = 0
+            if workspaces.data:
+                workspace_ids = [w["id"] for w in workspaces.data]
+                projects = client.table("projects")\
+                    .select("id", count="exact")\
+                    .in_("workspace_id", workspace_ids)\
+                    .execute()
+                project_count = projects.count or 0
+
+            # Get memory count
+            memories = client.table("memories")\
+                .select("id", count="exact")\
+                .eq("user_id", user_id)\
+                .eq("is_active", True)\
+                .execute()
+            memory_count = memories.count or 0
+
+            # Get session count and last activity
+            sessions = client.table("chat_sessions")\
+                .select("id, created_at", count="exact")\
+                .eq("user_id", user_id)\
+                .order("created_at", desc=True)\
+                .limit(1)\
+                .execute()
+            session_count = sessions.count or 0
+            last_activity = sessions.data[0].get("created_at") if sessions.data else None
+
+            users_data.append({
+                "id": user_id,
+                "email": user_email,
+                "created_at": user_created,
+                "project_count": project_count,
+                "memory_count": memory_count,
+                "session_count": session_count,
+                "last_activity": last_activity,
+            })
+
+        # Create Excel workbook
+        wb = Workbook()
+        ws = wb.active
+        ws.title = "Users"
+
+        # Header styling
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+        header_alignment = Alignment(horizontal="center", vertical="center")
+        thin_border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
+        )
+
+        # Headers
+        headers = ["Email", "User ID", "Projects", "Memories", "Sessions", "Last Activity", "Joined"]
+        for col, header in enumerate(headers, 1):
+            cell = ws.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.alignment = header_alignment
+            cell.border = thin_border
+
+        # Data rows
+        for row, user in enumerate(users_data, 2):
+            ws.cell(row=row, column=1, value=user["email"]).border = thin_border
+            ws.cell(row=row, column=2, value=user["id"]).border = thin_border
+            ws.cell(row=row, column=3, value=user["project_count"]).border = thin_border
+            ws.cell(row=row, column=4, value=user["memory_count"]).border = thin_border
+            ws.cell(row=row, column=5, value=user["session_count"]).border = thin_border
+            ws.cell(row=row, column=6, value=user["last_activity"] or "—").border = thin_border
+            ws.cell(row=row, column=7, value=user["created_at"]).border = thin_border
+
+        # Auto-adjust column widths
+        column_widths = [35, 40, 10, 10, 10, 25, 25]
+        for col, width in enumerate(column_widths, 1):
+            ws.column_dimensions[get_column_letter(col)].width = width
+
+        # Freeze header row
+        ws.freeze_panes = "A2"
+
+        # Save to bytes
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        # Generate filename with timestamp
+        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+        filename = f"yarnnn_users_{timestamp}.xlsx"
+
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="openpyxl not installed. Run: pip install openpyxl"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export users: {str(e)}")

@@ -20,17 +20,31 @@ import {
   Activity,
   Loader2,
   AlertCircle,
+  Download,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
 
   const [overviewStats, setOverviewStats] = useState<AdminOverviewStats | null>(null);
   const [memoryStats, setMemoryStats] = useState<AdminMemoryStats | null>(null);
   const [documentStats, setDocumentStats] = useState<AdminDocumentStats | null>(null);
   const [chatStats, setChatStats] = useState<AdminChatStats | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
+
+  const handleExportUsers = async () => {
+    try {
+      setExporting(true);
+      await api.admin.exportUsers();
+    } catch (err) {
+      console.error("Failed to export users:", err);
+    } finally {
+      setExporting(false);
+    }
+  };
 
   useEffect(() => {
     const fetchAllStats = async () => {
@@ -262,11 +276,24 @@ export default function AdminDashboardPage() {
 
       {/* Users Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base flex items-center gap-2">
             <Users className="w-4 h-4" />
             Recent Users
           </CardTitle>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportUsers}
+            disabled={exporting || users.length === 0}
+          >
+            {exporting ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <Download className="w-4 h-4 mr-2" />
+            )}
+            Export Excel
+          </Button>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">

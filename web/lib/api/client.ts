@@ -263,6 +263,33 @@ export const api = {
     memoryStats: () => request<AdminMemoryStats>("/api/admin/memory-stats"),
     documentStats: () => request<AdminDocumentStats>("/api/admin/document-stats"),
     chatStats: () => request<AdminChatStats>("/api/admin/chat-stats"),
+    exportUsers: async () => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/admin/export/users`, {
+        credentials: "include",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new APIError(response.status, response.statusText);
+      }
+
+      // Get filename from Content-Disposition header or use default
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename=(.+)/);
+      const filename = filenameMatch ? filenameMatch[1] : "yarnnn_users.xlsx";
+
+      // Create blob and trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
   },
 };
 
