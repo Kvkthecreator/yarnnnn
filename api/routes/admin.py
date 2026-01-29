@@ -525,3 +525,291 @@ async def export_users_excel(admin: AdminAuth):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to export users: {str(e)}")
+
+
+@router.get("/export/report")
+async def export_full_report(admin: AdminAuth):
+    """
+    Export comprehensive report as multi-sheet Excel file.
+
+    Sheets:
+    - Summary: Key metrics for VC/IR reporting
+    - Users: User list with engagement metrics
+    - Activity: Weekly signup and engagement trends
+    """
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+        from openpyxl.utils import get_column_letter
+        from collections import defaultdict
+
+        client = admin.client
+        now = datetime.now(timezone.utc)
+
+        # --- Styling ---
+        header_font = Font(bold=True, color="FFFFFF")
+        header_fill = PatternFill(start_color="4F46E5", end_color="4F46E5", fill_type="solid")
+        metric_label_font = Font(bold=True, size=11)
+        metric_value_font = Font(size=14, bold=True)
+        section_font = Font(bold=True, size=12, color="4F46E5")
+        thin_border = Border(
+            left=Side(style="thin"),
+            right=Side(style="thin"),
+            top=Side(style="thin"),
+            bottom=Side(style="thin"),
+        )
+
+        # --- Fetch all data ---
+
+        # Users from workspaces
+        workspaces_result = client.table("workspaces")\
+            .select("owner_id, owner_email, created_at")\
+            .order("created_at", desc=True)\
+            .execute()
+
+        # Projects
+        projects_result = client.table("projects")\
+            .select("id, created_at", count="exact")\
+            .execute()
+        total_projects = projects_result.count or 0
+
+        # Memories
+        memories_result = client.table("memories")\
+            .select("id, created_at", count="exact")\
+            .eq("is_active", True)\
+            .execute()
+        total_memories = memories_result.count or 0
+
+        # Documents
+        docs_result = client.table("documents")\
+            .select("id, file_size, processing_status", count="exact")\
+            .execute()
+        total_documents = docs_result.count or 0
+        total_storage = sum(d.get("file_size", 0) or 0 for d in (docs_result.data or []))
+
+        # Chat sessions
+        sessions_result = client.table("chat_sessions")\
+            .select("id, created_at, user_id", count="exact")\
+            .execute()
+        total_sessions = sessions_result.count or 0
+
+        # Messages
+        messages_result = client.table("session_messages")\
+            .select("id", count="exact")\
+            .execute()
+        total_messages = messages_result.count or 0
+
+        # Build users data with metrics
+        users_data = []
+        for workspace in (workspaces_result.data or []):
+            user_id = workspace["owner_id"]
+            user_email = workspace.get("owner_email") or "unknown"
+            user_created = workspace["created_at"]
+
+            # Project count
+            user_workspaces = client.table("workspaces")\
+                .select("id")\
+                .eq("owner_id", user_id)\
+                .execute()
+            project_count = 0
+            if user_workspaces.data:
+                workspace_ids = [w["id"] for w in user_workspaces.data]
+                projects = client.table("projects")\
+                    .select("id", count="exact")\
+                    .in_("workspace_id", workspace_ids)\
+                    .execute()
+                project_count = projects.count or 0
+
+            # Memory count
+            memories = client.table("memories")\
+                .select("id", count="exact")\
+                .eq("user_id", user_id)\
+                .eq("is_active", True)\
+                .execute()
+            memory_count = memories.count or 0
+
+            # Session count
+            sessions = client.table("chat_sessions")\
+                .select("id, created_at", count="exact")\
+                .eq("user_id", user_id)\
+                .order("created_at", desc=True)\
+                .limit(1)\
+                .execute()
+            session_count = sessions.count or 0
+            last_activity = sessions.data[0].get("created_at") if sessions.data else None
+
+            users_data.append({
+                "id": user_id,
+                "email": user_email,
+                "created_at": user_created,
+                "project_count": project_count,
+                "memory_count": memory_count,
+                "session_count": session_count,
+                "last_activity": last_activity,
+            })
+
+        total_users = len(users_data)
+
+        # Calculate growth metrics
+        seven_days_ago = (now - timedelta(days=7)).isoformat()
+        thirty_days_ago = (now - timedelta(days=30)).isoformat()
+
+        users_7d = sum(1 for u in users_data if u["created_at"] >= seven_days_ago)
+        users_30d = sum(1 for u in users_data if u["created_at"] >= thirty_days_ago)
+
+        # Active users (had session in last 7 days)
+        active_users_7d = sum(1 for u in users_data if u["last_activity"] and u["last_activity"] >= seven_days_ago)
+
+        # Weekly cohort data for Activity sheet
+        weekly_signups = defaultdict(int)
+        weekly_sessions = defaultdict(int)
+
+        for user in users_data:
+            week = datetime.fromisoformat(user["created_at"].replace("Z", "+00:00")).strftime("%Y-W%W")
+            weekly_signups[week] += 1
+
+        for session in (sessions_result.data or []):
+            week = datetime.fromisoformat(session["created_at"].replace("Z", "+00:00")).strftime("%Y-W%W")
+            weekly_sessions[week] += 1
+
+        # --- Create Workbook ---
+        wb = Workbook()
+
+        # ==================== SUMMARY SHEET ====================
+        ws_summary = wb.active
+        ws_summary.title = "Summary"
+
+        # Title
+        ws_summary.merge_cells("A1:D1")
+        title_cell = ws_summary["A1"]
+        title_cell.value = "yarnnn - Platform Metrics Report"
+        title_cell.font = Font(bold=True, size=16)
+        title_cell.alignment = Alignment(horizontal="left")
+
+        # Generated date
+        ws_summary["A2"] = f"Generated: {now.strftime('%B %d, %Y at %H:%M UTC')}"
+        ws_summary["A2"].font = Font(italic=True, color="666666")
+
+        # Key Metrics Section
+        row = 4
+        ws_summary[f"A{row}"] = "KEY METRICS"
+        ws_summary[f"A{row}"].font = section_font
+        row += 2
+
+        metrics = [
+            ("Total Users", total_users),
+            ("Users (Last 7 Days)", users_7d),
+            ("Users (Last 30 Days)", users_30d),
+            ("Active Users (7 Day)", active_users_7d),
+            ("Total Projects", total_projects),
+            ("Total Memories", total_memories),
+            ("Total Documents", total_documents),
+            ("Total Chat Sessions", total_sessions),
+            ("Total Messages", total_messages),
+        ]
+
+        for i, (label, value) in enumerate(metrics):
+            ws_summary[f"A{row + i}"] = label
+            ws_summary[f"A{row + i}"].font = metric_label_font
+            ws_summary[f"B{row + i}"] = value
+            ws_summary[f"B{row + i}"].font = metric_value_font
+            ws_summary[f"B{row + i}"].alignment = Alignment(horizontal="right")
+
+        row += len(metrics) + 2
+
+        # Engagement Metrics
+        ws_summary[f"A{row}"] = "ENGAGEMENT"
+        ws_summary[f"A{row}"].font = section_font
+        row += 2
+
+        avg_projects_per_user = total_projects / total_users if total_users > 0 else 0
+        avg_memories_per_user = total_memories / total_users if total_users > 0 else 0
+        avg_sessions_per_user = total_sessions / total_users if total_users > 0 else 0
+        avg_messages_per_session = total_messages / total_sessions if total_sessions > 0 else 0
+
+        engagement_metrics = [
+            ("Avg Projects/User", f"{avg_projects_per_user:.1f}"),
+            ("Avg Memories/User", f"{avg_memories_per_user:.1f}"),
+            ("Avg Sessions/User", f"{avg_sessions_per_user:.1f}"),
+            ("Avg Messages/Session", f"{avg_messages_per_session:.1f}"),
+            ("Total Storage (MB)", f"{total_storage / (1024*1024):.1f}"),
+        ]
+
+        for i, (label, value) in enumerate(engagement_metrics):
+            ws_summary[f"A{row + i}"] = label
+            ws_summary[f"A{row + i}"].font = metric_label_font
+            ws_summary[f"B{row + i}"] = value
+            ws_summary[f"B{row + i}"].alignment = Alignment(horizontal="right")
+
+        # Adjust column widths
+        ws_summary.column_dimensions["A"].width = 25
+        ws_summary.column_dimensions["B"].width = 15
+
+        # ==================== USERS SHEET ====================
+        ws_users = wb.create_sheet("Users")
+
+        headers = ["Email", "User ID", "Projects", "Memories", "Sessions", "Last Activity", "Joined"]
+        for col, header in enumerate(headers, 1):
+            cell = ws_users.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = thin_border
+
+        for row_idx, user in enumerate(users_data, 2):
+            ws_users.cell(row=row_idx, column=1, value=user["email"]).border = thin_border
+            ws_users.cell(row=row_idx, column=2, value=user["id"]).border = thin_border
+            ws_users.cell(row=row_idx, column=3, value=user["project_count"]).border = thin_border
+            ws_users.cell(row=row_idx, column=4, value=user["memory_count"]).border = thin_border
+            ws_users.cell(row=row_idx, column=5, value=user["session_count"]).border = thin_border
+            ws_users.cell(row=row_idx, column=6, value=user["last_activity"] or "—").border = thin_border
+            ws_users.cell(row=row_idx, column=7, value=user["created_at"]).border = thin_border
+
+        column_widths = [35, 40, 10, 10, 10, 25, 25]
+        for col, width in enumerate(column_widths, 1):
+            ws_users.column_dimensions[get_column_letter(col)].width = width
+        ws_users.freeze_panes = "A2"
+
+        # ==================== ACTIVITY SHEET ====================
+        ws_activity = wb.create_sheet("Activity")
+
+        # Get sorted weeks
+        all_weeks = sorted(set(weekly_signups.keys()) | set(weekly_sessions.keys()))
+
+        headers = ["Week", "New Users", "Chat Sessions"]
+        for col, header in enumerate(headers, 1):
+            cell = ws_activity.cell(row=1, column=col, value=header)
+            cell.font = header_font
+            cell.fill = header_fill
+            cell.border = thin_border
+
+        for row_idx, week in enumerate(all_weeks, 2):
+            ws_activity.cell(row=row_idx, column=1, value=week).border = thin_border
+            ws_activity.cell(row=row_idx, column=2, value=weekly_signups.get(week, 0)).border = thin_border
+            ws_activity.cell(row=row_idx, column=3, value=weekly_sessions.get(week, 0)).border = thin_border
+
+        ws_activity.column_dimensions["A"].width = 15
+        ws_activity.column_dimensions["B"].width = 12
+        ws_activity.column_dimensions["C"].width = 15
+        ws_activity.freeze_panes = "A2"
+
+        # --- Save and return ---
+        output = BytesIO()
+        wb.save(output)
+        output.seek(0)
+
+        timestamp = now.strftime("%Y%m%d_%H%M%S")
+        filename = f"yarnnn_report_{timestamp}.xlsx"
+
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}"}
+        )
+
+    except ImportError:
+        raise HTTPException(
+            status_code=500,
+            detail="openpyxl not installed. Run: pip install openpyxl"
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to export report: {str(e)}")

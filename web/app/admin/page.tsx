@@ -28,6 +28,7 @@ export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [exportingReport, setExportingReport] = useState(false);
 
   const [overviewStats, setOverviewStats] = useState<AdminOverviewStats | null>(null);
   const [memoryStats, setMemoryStats] = useState<AdminMemoryStats | null>(null);
@@ -43,6 +44,17 @@ export default function AdminDashboardPage() {
       console.error("Failed to export users:", err);
     } finally {
       setExporting(false);
+    }
+  };
+
+  const handleExportReport = async () => {
+    try {
+      setExportingReport(true);
+      await api.admin.exportReport();
+    } catch (err) {
+      console.error("Failed to export report:", err);
+    } finally {
+      setExportingReport(false);
     }
   };
 
@@ -112,11 +124,25 @@ export default function AdminDashboardPage() {
 
   return (
     <div className="space-y-8">
-      <div>
-        <h1 className="text-2xl font-semibold">Dashboard Overview</h1>
-        <p className="text-muted-foreground mt-1">
-          System-wide metrics and user activity
-        </p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Dashboard Overview</h1>
+          <p className="text-muted-foreground mt-1">
+            System-wide metrics and user activity
+          </p>
+        </div>
+        <Button
+          variant="default"
+          onClick={handleExportReport}
+          disabled={exportingReport || loading}
+        >
+          {exportingReport ? (
+            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+          ) : (
+            <Download className="w-4 h-4 mr-2" />
+          )}
+          Export Full Report
+        </Button>
       </div>
 
       {/* Overview Stats */}

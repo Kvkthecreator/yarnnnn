@@ -23,6 +23,7 @@ import type {
   WorkTicketCreate,
   WorkOutput,
   DeleteResponse,
+  OnboardingStateResponse,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -131,6 +132,11 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    importBulk: (data: BulkImportRequest) =>
+      request<{ memories_extracted: number }>("/api/context/user/memories/import", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
   },
 
   // Project memories (project-scoped)
@@ -169,6 +175,12 @@ export const api = {
   context: {
     getBundle: (projectId: string) =>
       request<ContextBundle>(`/api/context/projects/${projectId}/context`),
+  },
+
+  // Onboarding state
+  onboarding: {
+    getState: () =>
+      request<OnboardingStateResponse>("/api/context/user/onboarding-state"),
   },
 
   // Document endpoints (ADR-008: Document Pipeline)
@@ -280,6 +292,31 @@ export const api = {
       const filename = filenameMatch ? filenameMatch[1] : "yarnnn_users.xlsx";
 
       // Create blob and trigger download
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    },
+    exportReport: async () => {
+      const headers = await getAuthHeaders();
+      const response = await fetch(`${API_BASE_URL}/api/admin/export/report`, {
+        credentials: "include",
+        headers,
+      });
+
+      if (!response.ok) {
+        throw new APIError(response.status, response.statusText);
+      }
+
+      const contentDisposition = response.headers.get("Content-Disposition");
+      const filenameMatch = contentDisposition?.match(/filename=(.+)/);
+      const filename = filenameMatch ? filenameMatch[1] : "yarnnn_report.xlsx";
+
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
