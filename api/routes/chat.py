@@ -100,7 +100,7 @@ async def load_memories(
                     ))
             except Exception as e:
                 # Fallback to simple importance-based query
-                print(f"Semantic search failed, falling back to importance: {e}")
+                print(f"[CONTEXT DEBUG] Semantic search failed, falling back to importance: {e}")
                 query = None  # Force fallback
 
         if not query:
@@ -158,11 +158,22 @@ async def load_memories(
     except Exception as e:
         print(f"Failed to load memories: {e}")
 
-    return ContextBundle(
+    bundle = ContextBundle(
         memories=memories,
         documents=[],
         project_id=project_id,
     )
+
+    # Debug: Log what we loaded
+    print(f"[CONTEXT DEBUG] Loaded {len(memories)} total memories for project={project_id}")
+    print(f"[CONTEXT DEBUG] Bundle project_id: {bundle.project_id} (type: {type(bundle.project_id)})")
+    print(f"[CONTEXT DEBUG] User memories: {len(bundle.user_memories)}")
+    print(f"[CONTEXT DEBUG] Project memories: {len(bundle.project_memories)}")
+    if memories:
+        for m in memories[:3]:  # Show first 3
+            print(f"[CONTEXT DEBUG]   - Memory {m.id}: project_id={m.project_id} (type: {type(m.project_id)}), content={m.content[:50]}...")
+
+    return bundle
 
 
 async def save_agent_session(
