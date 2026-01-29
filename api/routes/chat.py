@@ -73,8 +73,7 @@ async def get_or_create_session(
         if result.data:
             return result.data
         raise Exception("No session returned from RPC")
-    except Exception as e:
-        print(f"[SESSION] RPC failed, falling back to direct insert: {e}")
+    except Exception:
         # Fallback: create session directly
         data = {
             "user_id": user_id,
@@ -107,8 +106,7 @@ async def append_message(
             }
         ).execute()
         return result.data
-    except Exception as e:
-        print(f"[SESSION] RPC append failed, falling back to direct insert: {e}")
+    except Exception:
         # Fallback: direct insert with manual sequence
         seq_result = client.table("session_messages")\
             .select("sequence_number")\
@@ -191,9 +189,7 @@ async def load_memories(
                         source_type=row.get("source_type", "chat"),
                         project_id=UUID(row["project_id"]) if row.get("project_id") else None,
                     ))
-                print(f"[CONTEXT] Semantic search returned {len(memories)} memories")
-            except Exception as e:
-                print(f"[CONTEXT] Semantic search failed, falling back: {e}")
+            except Exception:
                 use_semantic = False
 
         if not use_semantic:
@@ -243,17 +239,14 @@ async def load_memories(
                     project_id=UUID(row["project_id"]) if row.get("project_id") else None,
                 ))
 
-    except Exception as e:
-        print(f"[CONTEXT] Failed to load memories: {e}")
+    except Exception:
+        pass  # Continue with empty memories on error
 
-    bundle = ContextBundle(
+    return ContextBundle(
         memories=memories,
         documents=[],
         project_id=project_id,
     )
-
-    print(f"[CONTEXT] Loaded {len(memories)} memories (user={len(bundle.user_memories)}, project={len(bundle.project_memories)})")
-    return bundle
 
 
 # =============================================================================
@@ -275,13 +268,8 @@ async def _background_extraction(
             project_id=project_id,
             source_type="chat"
         )
-        user_count = result.get("user_memories_inserted", 0)
-        project_count = result.get("project_memories_inserted", 0)
-        if user_count > 0 or project_count > 0:
-            context_type = f"project {project_id}" if project_id else "global"
-            print(f"[EXTRACTION] {user_count} user + {project_count} project memories from {context_type}")
-    except Exception as e:
-        print(f"[EXTRACTION] Failed: {e}")
+    except Exception:
+        pass  # Background extraction failures are non-critical
 
 
 # =============================================================================
