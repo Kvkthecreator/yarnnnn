@@ -44,7 +44,7 @@ class ProjectResponse(BaseModel):
 
 
 class ProjectWithCounts(ProjectResponse):
-    block_count: int = 0
+    memory_count: int = 0
     ticket_count: int = 0
 
 
@@ -145,10 +145,11 @@ async def get_project(project_id: UUID, auth: UserClient):
         if not project_result.data:
             raise HTTPException(status_code=404, detail="Project not found")
 
-        # Get block count
-        blocks_result = auth.client.table("blocks")\
+        # Get memory count (ADR-005: unified memories table)
+        memories_result = auth.client.table("memories")\
             .select("id", count="exact")\
             .eq("project_id", str(project_id))\
+            .eq("is_active", True)\
             .execute()
 
         # Get ticket count
@@ -159,7 +160,7 @@ async def get_project(project_id: UUID, auth: UserClient):
 
         return ProjectWithCounts(
             **project_result.data,
-            block_count=blocks_result.count or 0,
+            memory_count=memories_result.count or 0,
             ticket_count=tickets_result.count or 0
         )
 
