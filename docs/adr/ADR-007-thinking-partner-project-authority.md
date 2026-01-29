@@ -1,6 +1,6 @@
 # ADR-007: Thinking Partner Project Authority
 
-**Status:** Proposed
+**Status:** Accepted (Phase 1-2 Implemented)
 **Date:** 2026-01-29
 **Related:** ADR-005 (Unified Memory), ADR-006 (Session Architecture)
 **Decision Makers:** Kevin Kim
