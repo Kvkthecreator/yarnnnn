@@ -4,6 +4,7 @@ Project tools for Thinking Partner (ADR-007)
 Defines tools and handlers that give TP authority to manage projects.
 Phase 1-2: Read-only tools (list_projects)
 Phase 3: Mutation tools (create_project)
+Phase 3.5: Update tools (rename_project, update_project)
 """
 
 from typing import Callable, Any
@@ -46,10 +47,50 @@ CREATE_PROJECT_TOOL = {
     }
 }
 
+RENAME_PROJECT_TOOL = {
+    "name": "rename_project",
+    "description": "Rename an existing project. Use when the user asks to change a project's name or when you identify that a project name could be clearer.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "The UUID of the project to rename"
+            },
+            "new_name": {
+                "type": "string",
+                "description": "The new name for the project (2-5 words)"
+            }
+        },
+        "required": ["project_id", "new_name"]
+    }
+}
+
+UPDATE_PROJECT_TOOL = {
+    "name": "update_project",
+    "description": "Update a project's description. Use when the user wants to clarify or change what a project is about.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "The UUID of the project to update"
+            },
+            "description": {
+                "type": "string",
+                "description": "The new description for the project"
+            }
+        },
+        "required": ["project_id", "description"]
+    }
+}
+
 # Tools available to Thinking Partner
 THINKING_PARTNER_TOOLS = [
     LIST_PROJECTS_TOOL,
     CREATE_PROJECT_TOOL,
+    RENAME_PROJECT_TOOL,
+    UPDATE_PROJECT_TOOL,
 ]
 
 
@@ -135,10 +176,88 @@ async def handle_create_project(auth, input: dict) -> dict:
     }
 
 
+async def handle_rename_project(auth, input: dict) -> dict:
+    """
+    Rename an existing project.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with project_id and new_name
+
+    Returns:
+        Dict with updated project details
+    """
+    project_id = input["project_id"]
+    new_name = input["new_name"]
+
+    # Update the project name
+    result = auth.client.table("projects")\
+        .update({"name": new_name})\
+        .eq("id", project_id)\
+        .execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": f"Project not found or access denied"
+        }
+
+    project = result.data[0]
+    return {
+        "success": True,
+        "project": {
+            "id": project["id"],
+            "name": project["name"],
+            "description": project.get("description", ""),
+        },
+        "message": f"Renamed project to '{new_name}'"
+    }
+
+
+async def handle_update_project(auth, input: dict) -> dict:
+    """
+    Update a project's description.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with project_id and description
+
+    Returns:
+        Dict with updated project details
+    """
+    project_id = input["project_id"]
+    description = input["description"]
+
+    # Update the project description
+    result = auth.client.table("projects")\
+        .update({"description": description})\
+        .eq("id", project_id)\
+        .execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": f"Project not found or access denied"
+        }
+
+    project = result.data[0]
+    return {
+        "success": True,
+        "project": {
+            "id": project["id"],
+            "name": project["name"],
+            "description": project.get("description", ""),
+        },
+        "message": f"Updated description for '{project['name']}'"
+    }
+
+
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     "list_projects": handle_list_projects,
     "create_project": handle_create_project,
+    "rename_project": handle_rename_project,
+    "update_project": handle_update_project,
 }
 
 
