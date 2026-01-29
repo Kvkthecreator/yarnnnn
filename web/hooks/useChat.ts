@@ -28,11 +28,14 @@ interface UseChatReturn {
 /**
  * Hook for chat with Thinking Partner.
  *
+ * ADR-006: Session management is handled server-side.
+ * - Sessions are reused daily (one session per project per day)
+ * - Messages are persisted to session_messages table
+ * - History is loaded from server on mount
+ *
  * Two modes:
  * - Project chat: Pass projectId to use project + user context
  * - Global chat: Omit projectId to use user context only
- *
- * Automatically loads chat history on mount for project chats.
  */
 export function useChat({
   projectId,
@@ -45,9 +48,9 @@ export function useChat({
   const abortControllerRef = useRef<AbortController | null>(null);
   const historyLoadedRef = useRef(false);
 
-  // Load chat history on mount (for project chats)
+  // Load chat history on mount
   useEffect(() => {
-    if (!projectId || historyLoadedRef.current) return;
+    if (historyLoadedRef.current) return;
 
     const loadHistory = async () => {
       setIsLoadingHistory(true);
@@ -59,14 +62,16 @@ export function useChat({
 
         if (!session?.access_token) return;
 
-        const response = await fetch(
-          `${API_BASE_URL}/api/projects/${projectId}/chat/history?limit=1`,
-          {
-            headers: {
-              Authorization: `Bearer ${session.access_token}`,
-            },
-          }
-        );
+        // Use project or global history endpoint
+        const endpoint = projectId
+          ? `${API_BASE_URL}/api/projects/${projectId}/chat/history?limit=1`
+          : `${API_BASE_URL}/api/chat/history?limit=1`;
+
+        const response = await fetch(endpoint, {
+          headers: {
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        });
 
         if (response.ok) {
           const data = await response.json();
@@ -102,7 +107,7 @@ export function useChat({
     async (content: string) => {
       if (!content.trim()) return;
 
-      // Add user message immediately
+      // Add user message immediately (optimistic update)
       const userMessage: ChatMessage = { role: "user", content };
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
@@ -125,17 +130,12 @@ export function useChat({
           throw new Error("Not authenticated");
         }
 
-        // Build request with history (excluding the message we just added)
-        const history = messages.map((m) => ({
-          role: m.role,
-          content: m.content,
-        }));
-
         // Use project endpoint or global endpoint based on projectId
         const endpoint = projectId
           ? `${API_BASE_URL}/api/projects/${projectId}/chat`
           : `${API_BASE_URL}/api/chat`;
 
+        // Note: No longer sending history - server manages session history
         const response = await fetch(endpoint, {
           method: "POST",
           headers: {
@@ -145,18 +145,15 @@ export function useChat({
           body: JSON.stringify({
             content,
             include_context: includeContext,
-            history,
           }),
           signal: abortControllerRef.current.signal,
         });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => null);
-          // Handle FastAPI validation errors which have a detail array
           let errorMessage = `Request failed: ${response.status}`;
           if (errorData?.detail) {
             if (Array.isArray(errorData.detail)) {
-              // FastAPI validation error format
               errorMessage = errorData.detail
                 .map((e: { msg?: string; loc?: string[] }) =>
                   e.msg || JSON.stringify(e)
@@ -213,7 +210,7 @@ export function useChat({
                 }
 
                 if (data.done) {
-                  // Stream complete
+                  // Stream complete - session_id is returned but we don't need it
                   break;
                 }
               } catch (parseError) {
@@ -246,12 +243,14 @@ export function useChat({
         abortControllerRef.current = null;
       }
     },
-    [projectId, includeContext, messages]
+    [projectId, includeContext]
   );
 
   const clearMessages = useCallback(() => {
     setMessages([]);
     setError(null);
+    // Reset history loaded flag so next mount will reload
+    historyLoadedRef.current = false;
   }, []);
 
   return {
