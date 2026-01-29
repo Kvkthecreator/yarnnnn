@@ -23,14 +23,25 @@ export interface ProjectWithCounts extends Project {
   ticket_count: number;
 }
 
-// Block semantic types
+// Block semantic types (project-level, ADR-004)
 export type SemanticType =
   | "fact"
   | "guideline"
   | "requirement"
   | "insight"
   | "note"
-  | "question";
+  | "question"
+  | "assumption";
+
+// User context categories (user-level, ADR-004)
+export type UserContextCategory =
+  | "preference"
+  | "business_fact"
+  | "work_pattern"
+  | "communication_style"
+  | "goal"
+  | "constraint"
+  | "relationship";
 
 export type SourceType = "manual" | "chat" | "document" | "import" | "bulk";
 
@@ -124,6 +135,23 @@ export interface AgentSession {
   project_id: string;
   created_at: string;
   completed_at?: string;
+}
+
+// User Context (ADR-004 two-layer memory)
+export interface UserContext {
+  id: string;
+  user_id: string;
+  category: UserContextCategory;
+  key: string;
+  content: string;
+  importance?: number;
+  confidence?: number;
+  source_type?: "extracted" | "explicit" | "inferred";
+  source_project_id?: string;
+  last_referenced_at?: string;
+  reference_count?: number;
+  created_at: string;
+  updated_at: string;
 }
 
 // API Response types

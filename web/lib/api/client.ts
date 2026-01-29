@@ -154,16 +154,16 @@ export const api = {
       }),
   },
 
-  // Chat endpoints (TODO: implement when API routes ready)
+  // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
     send: (projectId: string, message: string) =>
-      request<{ response: string }>(`/api/chat/projects/${projectId}`, {
+      request<{ response: string }>(`/api/projects/${projectId}/chat`, {
         method: "POST",
         body: JSON.stringify({ message }),
       }),
     history: (projectId: string) =>
       request<Array<{ role: string; content: string }>>(
-        `/api/chat/projects/${projectId}`
+        `/api/projects/${projectId}/chat/history`
       ),
   },
 };

@@ -178,6 +178,11 @@ const SEMANTIC_TYPE_CONFIG: Record<
     icon: <HelpCircle className="w-3 h-3" />,
     color: "text-green-600 bg-green-50",
   },
+  assumption: {
+    label: "Assumption",
+    icon: <Lightbulb className="w-3 h-3" />,
+    color: "text-orange-600 bg-orange-50",
+  },
 };
 
 const SOURCE_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {

@@ -17,7 +17,7 @@ from datetime import datetime
 
 from services.supabase import UserClient
 from services.extraction import extract_from_conversation
-from agents.base import ContextBundle, Block
+from agents.base import ContextBundle, Block, UserContextItem
 from agents.thinking_partner import ThinkingPartnerAgent
 
 router = APIRouter()
@@ -34,25 +34,66 @@ class ChatRequest(BaseModel):
     history: list[ChatHistoryMessage] = []
 
 
-async def load_context(client, project_id: UUID) -> ContextBundle:
-    """Load project blocks as context."""
-    # Fetch blocks for this project
-    result = client.table("blocks").select("*").eq("project_id", str(project_id)).execute()
+async def load_context(client, project_id: UUID, user_id: str, include_user_context: bool = True) -> ContextBundle:
+    """
+    Load context for ThinkingPartner (ADR-004 two-layer architecture).
+
+    Args:
+        client: Supabase client
+        project_id: Project UUID
+        user_id: User UUID for user context
+        include_user_context: Whether to include user-level context
+
+    Returns:
+        ContextBundle with both user and project context
+    """
+    # Fetch project blocks
+    blocks_result = client.table("blocks").select("*").eq("project_id", str(project_id)).execute()
 
     blocks = [
         Block(
             id=UUID(row["id"]),
             content=row["content"],
             block_type=row["block_type"],
+            semantic_type=row.get("semantic_type"),
             metadata=row.get("metadata"),
         )
-        for row in (result.data or [])
+        for row in (blocks_result.data or [])
     ]
+
+    # Fetch user context (sorted by importance)
+    user_context = []
+    if include_user_context:
+        try:
+            user_result = (
+                client.table("user_context")
+                .select("*")
+                .eq("user_id", user_id)
+                .order("importance", desc=True)
+                .limit(20)  # Top 20 most important items
+                .execute()
+            )
+
+            user_context = [
+                UserContextItem(
+                    id=UUID(row["id"]),
+                    category=row["category"],
+                    key=row["key"],
+                    content=row["content"],
+                    importance=row.get("importance", 0.5),
+                    confidence=row.get("confidence", 0.8),
+                )
+                for row in (user_result.data or [])
+            ]
+        except Exception as e:
+            # Don't fail if user_context table doesn't exist yet
+            print(f"Failed to load user context: {e}")
 
     return ContextBundle(
         project_id=project_id,
         blocks=blocks,
         documents=[],  # TODO: Add document support
+        user_context=user_context,
     )
 
 
@@ -73,20 +114,24 @@ async def save_agent_session(
     }).execute()
 
 
-async def _background_extraction(project_id: str, messages: list[dict], client):
+async def _background_extraction(project_id: str, user_id: str, messages: list[dict], client):
     """
-    Background task for context extraction.
+    Background task for dual-stream context extraction (ADR-004).
+    Extracts both user context and project blocks.
     Runs after response streaming completes, doesn't block user.
     """
     try:
-        count = await extract_from_conversation(
+        result = await extract_from_conversation(
             project_id=project_id,
+            user_id=user_id,
             messages=messages,
             db_client=client,
             source_type="chat"
         )
-        if count > 0:
-            print(f"Extracted {count} blocks from chat in project {project_id}")
+        user_count = result.get("user_items_inserted", 0)
+        project_count = result.get("project_items_inserted", 0)
+        if user_count > 0 or project_count > 0:
+            print(f"Extracted {user_count} user items and {project_count} project blocks from chat in project {project_id}")
     except Exception as e:
         # Log but don't fail - extraction is best-effort
         print(f"Background extraction failed for project {project_id}: {e}")
@@ -108,8 +153,13 @@ async def send_message(
     if not project_result.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Load context
-    context = await load_context(auth.client, project_id)
+    # Load two-layer context (user + project)
+    context = await load_context(
+        auth.client,
+        project_id,
+        user_id=auth.user_id,
+        include_user_context=request.include_context
+    )
 
     # Create agent
     agent = ThinkingPartnerAgent()
@@ -158,9 +208,9 @@ async def send_message(
             except Exception as e:
                 print(f"Failed to save agent session: {e}")
 
-            # Fire-and-forget context extraction from conversation
+            # Fire-and-forget dual-stream context extraction from conversation
             asyncio.create_task(
-                _background_extraction(str(project_id), messages, auth.client)
+                _background_extraction(str(project_id), auth.user_id, messages, auth.client)
             )
 
         except Exception as e:

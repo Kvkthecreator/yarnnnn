@@ -10,19 +10,42 @@ from uuid import UUID
 
 @dataclass
 class Block:
-    """Atomic knowledge unit"""
+    """Atomic knowledge unit (project-scoped)"""
     id: UUID
     content: str
     block_type: str
+    semantic_type: Optional[str] = None
     metadata: Optional[dict] = None
 
 
 @dataclass
+class UserContextItem:
+    """User context item (user-scoped, portable across projects)"""
+    id: UUID
+    category: str  # preference, business_fact, work_pattern, communication_style, goal, constraint, relationship
+    key: str
+    content: str
+    importance: float = 0.5
+    confidence: float = 0.8
+
+
+@dataclass
 class ContextBundle:
-    """Context provided to agents"""
+    """
+    Context provided to agents.
+
+    Two-layer architecture (ADR-004):
+    - user_context: User-level memory (portable, about the user)
+    - blocks: Project-level memory (isolated, about this project)
+    """
     project_id: UUID
     blocks: list[Block]
     documents: list[dict]  # {id, filename, content_preview}
+    user_context: list[UserContextItem] = None  # Optional user-level context
+
+    def __post_init__(self):
+        if self.user_context is None:
+            self.user_context = []
 
 
 @dataclass
