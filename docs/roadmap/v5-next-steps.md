@@ -1,8 +1,8 @@
 # YARNNN v5 Next Steps: Comprehensive Roadmap
 
 **Date:** 2025-01-29
-**Status:** Phase 1 Complete
-**Context:** Post two-layer memory architecture implementation
+**Status:** Phase 1 & 2 Complete
+**Context:** Two-layer memory architecture fully implemented and deployed
 **Approach:** Singular, streamlined - restructure Dashboard into Console
 
 ---
@@ -151,7 +151,12 @@ Login → Dashboard (chat-first) → Chat immediately OR select project
 | Project sidebar | `components/ProjectSidebar.tsx` | New component |
 
 ### Database
-No changes needed - schema already supports nullable project_id.
+| Change | File | Notes |
+|--------|------|-------|
+| user_context table | `003_user_context.sql` | Applied 2025-01-29 |
+| blocks.semantic_type | `003_user_context.sql` | Added column |
+| blocks.importance | `003_user_context.sql` | Added column |
+| Nullable project_id | `003_user_context.sql` | agent_sessions, extraction_logs |
 
 ---
 

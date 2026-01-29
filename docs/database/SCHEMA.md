@@ -215,7 +215,7 @@ Execution logs for provenance.
 |------|-------------|---------|
 | `001_initial_schema.sql` | 8 tables, base RLS | Yes |
 | `002_fix_rls_policies.sql` | Missing policies, GRANTs | Yes |
-| `003_user_context.sql` | ADR-004 user_context table | **Pending** |
+| `003_user_context.sql` | ADR-004 user_context table | Yes |
 
 ---
 
