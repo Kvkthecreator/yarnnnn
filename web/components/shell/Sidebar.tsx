@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -40,6 +40,8 @@ export default function Sidebar({
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoadingProjects, setIsLoadingProjects] = useState(true);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Fetch projects
   useEffect(() => {
@@ -65,6 +67,17 @@ export default function Sidebar({
     // Emit event for dashboard to open create modal
     window.dispatchEvent(new CustomEvent("openCreateProject"));
   };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (dropdownOpen && dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setDropdownOpen(false);
+      }
+    }
+    document.addEventListener("click", handleClickOutside);
+    return () => document.removeEventListener("click", handleClickOutside);
+  }, [dropdownOpen]);
 
   if (collapsed) {
     return null;
@@ -150,33 +163,41 @@ export default function Sidebar({
       </div>
 
       {/* Footer */}
-      <div className="border-t border-border p-2 space-y-0.5">
-        <Link
-          href="/settings"
-          className={cn(
-            "flex items-center gap-3 px-3 py-2 text-sm rounded-md transition-colors",
-            pathname === "/settings"
-              ? "bg-primary/10 text-primary font-medium"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <Settings className="h-4 w-4" />
-          Settings
-        </Link>
-
-        {userEmail && (
-          <p className="text-xs text-muted-foreground truncate px-3 py-1">
-            {userEmail}
-          </p>
+      <div className="relative border-t border-border px-4 py-3">
+        {userEmail ? (
+          <div className="relative w-full" ref={dropdownRef}>
+            <button
+              onClick={() => setDropdownOpen(!dropdownOpen)}
+              className="text-sm text-muted-foreground hover:text-foreground w-full text-left truncate"
+            >
+              {userEmail}
+            </button>
+            {dropdownOpen && (
+              <div className="absolute bottom-12 left-0 w-48 rounded-md border border-border bg-background shadow-md z-50 py-1 text-sm">
+                <Link
+                  href="/settings"
+                  onClick={() => setDropdownOpen(false)}
+                  className="flex w-full items-center gap-2 px-4 py-2 hover:bg-muted text-muted-foreground hover:text-foreground"
+                >
+                  <Settings className="h-4 w-4" />
+                  Settings
+                </Link>
+                <button
+                  onClick={() => {
+                    setDropdownOpen(false);
+                    handleSignOut();
+                  }}
+                  className="flex w-full items-center gap-2 px-4 py-2 text-muted-foreground hover:bg-muted hover:text-foreground"
+                >
+                  <LogOut className="h-4 w-4" />
+                  Sign out
+                </button>
+              </div>
+            )}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">Not signed in</p>
         )}
-
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-3 px-3 py-2 text-sm text-muted-foreground hover:bg-muted hover:text-foreground rounded-md transition-colors w-full"
-        >
-          <LogOut className="h-4 w-4" />
-          Sign out
-        </button>
       </div>
     </aside>
   );
