@@ -72,21 +72,10 @@ const CATEGORY_ORDER: UserContextCategory[] = [
 ];
 
 interface UserContextPanelProps {
-  /**
-   * Whether the panel is open/visible
-   */
   isOpen: boolean;
-  /**
-   * Callback to close the panel
-   */
   onClose: () => void;
 }
 
-/**
- * Responsive user context panel.
- * - Mobile: Slide-in drawer from right with overlay
- * - Desktop: Inline sidebar
- */
 export function UserContextPanel({ isOpen, onClose }: UserContextPanelProps) {
   const [items, setItems] = useState<UserContext[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -147,16 +136,7 @@ export function UserContextPanel({ isOpen, onClose }: UserContextPanelProps) {
   }
 
   return (
-    <aside
-      className={`
-        fixed md:relative inset-y-0 right-0 z-40 md:z-0
-        w-80 md:w-72 lg:w-80
-        border-l border-border bg-background md:bg-muted/30
-        flex flex-col
-        transform transition-transform duration-200 ease-in-out
-      `}
-      style={{ top: "56px" }} // Below header on mobile
-    >
+    <aside className="w-72 lg:w-80 border-l border-border bg-muted/30 flex flex-col shrink-0">
       {/* Header */}
       <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
         <span className="text-sm font-medium">About You</span>
@@ -233,7 +213,7 @@ export function UserContextPanel({ isOpen, onClose }: UserContextPanelProps) {
                           )}
                           <button
                             onClick={() => handleDelete(item.id)}
-                            className="absolute top-2 right-2 p-1.5 opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                            className="absolute top-2 right-2 p-1.5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                             title="Remove this"
                           >
                             <Trash2 className="w-3.5 h-3.5" />

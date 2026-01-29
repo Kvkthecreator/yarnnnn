@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { PanelLeft } from "lucide-react";
 import Sidebar from "./Sidebar";
 
 interface AuthenticatedLayoutProps {
@@ -12,6 +13,7 @@ interface AuthenticatedLayoutProps {
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -53,10 +55,30 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 
   return (
     <div className="flex min-h-screen">
-      <Sidebar userEmail={userEmail} />
-      <main className="flex-1 overflow-hidden">
-        {children}
-      </main>
+      {/* Sidebar */}
+      <Sidebar
+        userEmail={userEmail}
+        collapsed={sidebarCollapsed}
+        onCollapsedChange={setSidebarCollapsed}
+      />
+
+      {/* Main content area */}
+      <div className="flex-1 flex flex-col min-w-0">
+        {/* Expand button when sidebar is collapsed */}
+        {sidebarCollapsed && (
+          <button
+            onClick={() => setSidebarCollapsed(false)}
+            className="fixed top-3 left-3 z-50 p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors shadow-sm"
+            aria-label="Expand sidebar"
+          >
+            <PanelLeft className="w-5 h-5" />
+          </button>
+        )}
+
+        <main className="flex-1 overflow-hidden">
+          {children}
+        </main>
+      </div>
     </div>
   );
 }
