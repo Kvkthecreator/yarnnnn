@@ -6,21 +6,21 @@ export function ShaderBackground() {
   return (
     <div className="fixed inset-0 z-0" style={{ contain: "strict" }}>
       <Shader className="h-full w-full">
-        {/* Base fluid animation - muted blues/grays */}
+        {/* Base fluid animation - deep blues/grays */}
         <Swirl
-          colorA="#2a3f5f"
-          colorB="#4a3f5f"
+          colorA="#1a2f4a"
+          colorB="#2a4a6a"
           speed={0.8}
           detail={0.8}
           blend={50}
         />
         {/* Mouse-reactive color flow */}
         <ChromaFlow
-          baseColor="#1a2a3a"
-          upColor="#2a3f5f"
-          downColor="#1a1a2a"
-          leftColor="#3a2f4f"
-          rightColor="#2a3f5f"
+          baseColor="#0f1a2a"
+          upColor="#1a3a5a"
+          downColor="#0a1520"
+          leftColor="#15253a"
+          rightColor="#1a3a5a"
           intensity={0.9}
           radius={1.8}
           momentum={25}
