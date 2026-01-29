@@ -84,6 +84,83 @@ class ContextBundleResponse(BaseModel):
     documents: list[DocumentResponse]
 
 
+# --- User Onboarding State ---
+
+class OnboardingStateResponse(BaseModel):
+    """Response for onboarding state detection."""
+    state: str  # "cold_start", "minimal_context", or "active"
+    memory_count: int
+    document_count: int
+    has_recent_chat: bool
+
+
+@router.get("/user/onboarding-state", response_model=OnboardingStateResponse)
+async def get_onboarding_state(auth: UserClient):
+    """
+    Detect user's onboarding state for welcome UX.
+
+    States:
+    - cold_start: No memories, no documents, no recent chat
+    - minimal_context: <3 memories, no recent chat
+    - active: Has context, ready to chat
+    """
+    from datetime import timedelta
+
+    try:
+        # Count user memories (user-scoped, not project-specific)
+        memory_result = auth.client.table("memories")\
+            .select("id", count="exact")\
+            .eq("user_id", auth.user_id)\
+            .is_("project_id", "null")\
+            .eq("is_active", True)\
+            .execute()
+        memory_count = memory_result.count or 0
+
+        # Count documents (across all user's projects)
+        # First get user's projects, then count documents
+        projects_result = auth.client.table("projects")\
+            .select("id")\
+            .execute()
+        project_ids = [p["id"] for p in (projects_result.data or [])]
+
+        document_count = 0
+        if project_ids:
+            doc_result = auth.client.table("documents")\
+                .select("id", count="exact")\
+                .in_("project_id", project_ids)\
+                .execute()
+            document_count = doc_result.count or 0
+
+        # Check for recent chat (within last 7 days)
+        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+        session_result = auth.client.table("chat_sessions")\
+            .select("id")\
+            .gte("updated_at", seven_days_ago)\
+            .limit(1)\
+            .execute()
+        has_recent_chat = len(session_result.data or []) > 0
+
+        # Determine state
+        if memory_count == 0 and document_count == 0:
+            state = "cold_start"
+        elif memory_count < 3 and not has_recent_chat:
+            state = "minimal_context"
+        else:
+            state = "active"
+
+        return OnboardingStateResponse(
+            state=state,
+            memory_count=memory_count,
+            document_count=document_count,
+            has_recent_chat=has_recent_chat,
+        )
+
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # --- User Memory Routes ---
 
 @router.get("/user/memories", response_model=list[MemoryResponse])
@@ -103,6 +180,38 @@ async def list_user_memories(auth: UserClient):
             .execute()
 
         return result.data or []
+
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class UserBulkImportResponse(BaseModel):
+    """Response for user-level bulk import."""
+    memories_extracted: int
+
+
+@router.post("/user/memories/import", response_model=UserBulkImportResponse)
+async def import_user_memories(request: BulkImportRequest, auth: UserClient):
+    """
+    Bulk import: paste text → extract user-scoped memories.
+
+    Takes raw text (notes, bios, preferences) and uses LLM to extract
+    memories. For onboarding and context bootstrapping.
+    """
+    if not request.text or len(request.text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Text too short (minimum 50 characters)")
+
+    try:
+        count = await extract_from_bulk_text(
+            user_id=auth.user_id,
+            project_id=None,  # User-scoped (no project)
+            text=request.text,
+            db_client=auth.client
+        )
+
+        return UserBulkImportResponse(memories_extracted=count)
 
     except Exception as e:
         if "violates row-level security" in str(e):

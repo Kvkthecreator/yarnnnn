@@ -159,6 +159,16 @@ export interface AgentSession {
   completed_at?: string;
 }
 
+// Onboarding State
+export type OnboardingState = "cold_start" | "minimal_context" | "active";
+
+export interface OnboardingStateResponse {
+  state: OnboardingState;
+  memory_count: number;
+  document_count: number;
+  has_recent_chat: boolean;
+}
+
 // API Response types
 export interface DeleteResponse {
   deleted: boolean;

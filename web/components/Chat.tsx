@@ -4,6 +4,9 @@ import { useState, useRef, useEffect, FormEvent } from "react";
 import { Send, Loader2, Upload, FileText, X, Paperclip } from "lucide-react";
 import { useChat } from "@/hooks/useChat";
 import { useDocuments } from "@/hooks/useDocuments";
+import { useOnboardingState } from "@/hooks/useOnboardingState";
+import { WelcomePrompt, MinimalContextBanner } from "@/components/WelcomePrompt";
+import { BulkImportModal } from "@/components/BulkImportModal";
 
 interface ChatProps {
   /**
@@ -84,16 +87,26 @@ export function Chat({
     onProjectChange: handleProjectChange,
   });
   const { uploadProgress, upload, clearProgress } = useDocuments(projectId);
+  const {
+    state: onboardingState,
+    isLoading: isLoadingOnboarding,
+    memoryCount,
+    dismiss: dismissWelcome,
+    isDismissed: isWelcomeDismissed,
+    reload: reloadOnboardingState,
+  } = useOnboardingState();
 
   const [input, setInput] = useState("");
   const [isDragOver, setIsDragOver] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
   const [pendingMessage, setPendingMessage] = useState<string | null>(null); // Optimistic message during upload
+  const [showBulkImportModal, setShowBulkImportModal] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -215,6 +228,48 @@ export function Chat({
 
   const isSubmitDisabled = isLoading || (!input.trim() && !attachedFile);
 
+  // Welcome prompt handlers
+  const handleWelcomeUpload = () => {
+    dismissWelcome();
+    fileInputRef.current?.click();
+  };
+
+  const handleWelcomePaste = () => {
+    dismissWelcome();
+    setShowBulkImportModal(true);
+  };
+
+  const handleWelcomeStart = () => {
+    dismissWelcome();
+    inputRef.current?.focus();
+  };
+
+  const handleSelectPrompt = (prompt: string) => {
+    dismissWelcome();
+    setInput(prompt);
+    inputRef.current?.focus();
+  };
+
+  const handleBulkImportSuccess = () => {
+    setShowBulkImportModal(false);
+    reloadOnboardingState();
+  };
+
+  // Determine if we should show welcome UI
+  const showWelcome =
+    !isLoadingOnboarding &&
+    !isWelcomeDismissed &&
+    onboardingState === "cold_start" &&
+    messages.length === 0 &&
+    !isLoadingHistory;
+
+  const showMinimalContextBanner =
+    !isLoadingOnboarding &&
+    !isWelcomeDismissed &&
+    onboardingState === "minimal_context" &&
+    messages.length === 0 &&
+    !isLoadingHistory;
+
   return (
     <div
       className={`flex flex-col ${heightClass} relative`}
@@ -243,6 +298,14 @@ export function Chat({
         className="hidden"
       />
 
+      {/* Bulk Import Modal */}
+      <BulkImportModal
+        isOpen={showBulkImportModal}
+        onClose={() => setShowBulkImportModal(false)}
+        onSuccess={handleBulkImportSuccess}
+        projectId={projectId}
+      />
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4">
         {isLoadingHistory && (
@@ -251,7 +314,26 @@ export function Chat({
           </div>
         )}
 
-        {!isLoadingHistory && messages.length === 0 && (
+        {/* Welcome Prompt for cold_start users */}
+        {showWelcome && (
+          <WelcomePrompt
+            onUpload={handleWelcomeUpload}
+            onPaste={handleWelcomePaste}
+            onStart={handleWelcomeStart}
+            onSelectPrompt={handleSelectPrompt}
+          />
+        )}
+
+        {/* Minimal Context Banner for users with few memories */}
+        {showMinimalContextBanner && (
+          <MinimalContextBanner
+            memoryCount={memoryCount}
+            onDismiss={dismissWelcome}
+          />
+        )}
+
+        {/* Default empty message for active users */}
+        {!isLoadingHistory && messages.length === 0 && !showWelcome && !showMinimalContextBanner && (
           <div className="p-4 bg-muted rounded-lg max-w-[80%]">
             <p className="text-sm">{emptyMessage || defaultEmptyMessage}</p>
           </div>
@@ -357,6 +439,7 @@ export function Chat({
               <Paperclip className="w-4 h-4" />
             </button>
             <input
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
