@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect } from "react";
 
 interface LandingFooterProps {
   inverted?: boolean;
@@ -7,6 +10,18 @@ interface LandingFooterProps {
 export default function LandingFooter({ inverted }: LandingFooterProps) {
   const mutedClass = inverted ? "text-background/50" : "text-muted-foreground";
   const hoverClass = inverted ? "hover:text-background" : "hover:text-foreground";
+
+  // Load Tally embed script
+  useEffect(() => {
+    const script = document.createElement("script");
+    script.src = "https://tally.so/widgets/embed.js";
+    script.async = true;
+    document.body.appendChild(script);
+
+    return () => {
+      document.body.removeChild(script);
+    };
+  }, []);
 
   return (
     <footer
@@ -26,6 +41,19 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
               Terms
             </Link>
           </div>
+        </div>
+
+        {/* Feedback - Tally Form */}
+        <div className="flex flex-col items-center md:items-start gap-2">
+          <button
+            data-tally-open="pbD88B"
+            data-tally-width="400"
+            data-tally-overlay="1"
+            data-tally-emoji-animation="none"
+            className={`text-sm font-medium ${hoverClass} transition-colors underline underline-offset-4`}
+          >
+            Share feedback
+          </button>
         </div>
 
         {/* Contact */}
