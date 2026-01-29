@@ -435,6 +435,217 @@ async def extract_from_bulk_text(
         raise
 
 
+# =============================================================================
+# USER-ONLY EXTRACTION PROMPT (for global chat without project)
+# =============================================================================
+
+USER_ONLY_EXTRACTION_PROMPT = """Analyze this conversation and extract USER CONTEXT - things about the USER that would be true across any project:
+
+Categories:
+- preference: How they like things done (format, style, presentation)
+- business_fact: About their company/domain (industry, scale, stage)
+- work_pattern: How they work (timing, rhythm, behavior)
+- communication_style: Tone/format preferences (voice, audience-aware)
+- goal: What they're trying to achieve (aspirations, strategy)
+- constraint: Persistent limitations (scarcity, boundaries)
+- relationship: People in their professional orbit (colleagues, mentors)
+
+For each item, specify:
+- category: the specific classification from above
+- key: a unique identifier (for deduplication, e.g., "format_preference", "company_type")
+- content: the actual information (1-2 concise sentences)
+- importance: 0.0-1.0 (how important; 0.8+ for critical items)
+- confidence: 0.0-1.0 (how confident in this extraction; 0.9+ for explicit statements)
+
+Rules:
+- Only extract genuinely useful, specific information about the USER
+- Skip greetings, acknowledgments, and filler
+- Items should be portable truths about the person (not task-specific)
+- Be conservative - only extract what's clearly about the user themselves
+- Generate stable keys that allow deduplication across sessions
+- Return empty array if nothing worth extracting
+
+Content to analyze:
+---
+{content}
+---
+
+Return JSON array:
+[
+  {{"category": "preference", "key": "format_preference", "content": "Prefers bullet points over prose", "importance": 0.8, "confidence": 0.9}}
+]
+
+Extract:"""
+
+
+async def extract_user_only(
+    text: str,
+    model: str = "claude-3-haiku-20240307"
+) -> list[dict]:
+    """
+    Use LLM to extract user context only from text (no project blocks).
+    Used for global chat where there's no project context.
+
+    Returns list of dicts with: category, key, content, importance, confidence
+    """
+    if not text or len(text.strip()) < 50:
+        return []
+
+    client = Anthropic()
+
+    try:
+        response = client.messages.create(
+            model=model,
+            max_tokens=2000,
+            messages=[{
+                "role": "user",
+                "content": USER_ONLY_EXTRACTION_PROMPT.format(content=text[:8000])
+            }]
+        )
+
+        response_text = response.content[0].text.strip()
+
+        # Handle markdown code blocks
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            response_text = "\n".join(lines[1:-1])
+
+        extracted = json.loads(response_text)
+
+        # Validate items
+        validated = []
+        for item in extracted:
+            if isinstance(item, dict) and "category" in item and "content" in item and "key" in item:
+                item["category"] = item["category"] if item["category"] in USER_CATEGORIES else "preference"
+                item["importance"] = float(item.get("importance", 0.5))
+                item["importance"] = max(0.0, min(1.0, item["importance"]))
+                item["confidence"] = float(item.get("confidence", 0.8))
+                item["confidence"] = max(0.0, min(1.0, item["confidence"]))
+                validated.append(item)
+
+        return validated
+
+    except json.JSONDecodeError:
+        print(f"Failed to parse user-only extraction response as JSON")
+        return []
+    except Exception as e:
+        print(f"User-only extraction failed: {e}")
+        return []
+
+
+async def extract_user_context_only(
+    user_id: str,
+    messages: list[dict],
+    db_client,
+    source_type: str = "global_chat",
+    source_ref: Optional[str] = None
+) -> int:
+    """
+    Extract user context from conversation (no project blocks).
+    Used for global chat where there's no project.
+
+    Args:
+        user_id: User UUID
+        messages: List of {role, content} message dicts
+        db_client: Supabase client with auth
+        source_type: Source identifier (global_chat, onboarding)
+        source_ref: Optional reference UUID
+
+    Returns:
+        Number of user context items inserted/updated
+    """
+    start_time = datetime.utcnow()
+
+    # Format conversation for extraction
+    formatted_messages = []
+    for msg in messages[-20:]:  # Last 20 messages max
+        role = msg.get("role", "user").upper()
+        content = msg.get("content", "")
+        if content:
+            formatted_messages.append(f"{role}: {content}")
+
+    if not formatted_messages:
+        return 0
+
+    text = "\n\n".join(formatted_messages)
+
+    try:
+        # User-only extraction
+        user_items = await extract_user_only(text)
+
+        if not user_items:
+            # Log with null project_id
+            await log_extraction_user_only(
+                db_client, user_id, source_type, source_ref,
+                "completed", 0, None, start_time
+            )
+            return 0
+
+        # Save USER CONTEXT items (with upsert on user_id + category + key)
+        user_inserted = 0
+        for item in user_items:
+            try:
+                db_client.table("user_context").upsert({
+                    "user_id": user_id,
+                    "category": item["category"],
+                    "key": item["key"],
+                    "content": item["content"],
+                    "importance": item["importance"],
+                    "confidence": item["confidence"],
+                    "source_type": "extracted",
+                    "source_project_id": None,  # No project for global chat
+                    "updated_at": datetime.utcnow().isoformat()
+                }, on_conflict="user_id,category,key").execute()
+                user_inserted += 1
+            except Exception as e:
+                print(f"Failed to upsert user context item: {e}")
+
+        # Log successful extraction
+        await log_extraction_user_only(
+            db_client, user_id, source_type, source_ref,
+            "completed", user_inserted, None, start_time
+        )
+
+        return user_inserted
+
+    except Exception as e:
+        await log_extraction_user_only(
+            db_client, user_id, source_type, source_ref,
+            "failed", 0, str(e), start_time
+        )
+        raise
+
+
+async def log_extraction_user_only(
+    db_client,
+    user_id: str,
+    source_type: str,
+    source_ref: Optional[str],
+    status: str,
+    user_items_extracted: int,
+    error_message: Optional[str],
+    start_time: datetime
+):
+    """Log user-only extraction attempt for observability."""
+    duration_ms = int((datetime.utcnow() - start_time).total_seconds() * 1000)
+
+    try:
+        db_client.table("extraction_logs").insert({
+            "project_id": None,  # No project for global chat
+            "user_id": user_id,
+            "source_type": source_type,
+            "source_ref": source_ref,
+            "status": status,
+            "items_extracted": 0,
+            "user_items_extracted": user_items_extracted,
+            "error_message": error_message,
+            "duration_ms": duration_ms
+        }).execute()
+    except Exception as e:
+        # Don't fail the main operation if logging fails
+        print(f"Failed to log user-only extraction: {e}")
+
+
 async def log_extraction(
     db_client,
     project_id: str,

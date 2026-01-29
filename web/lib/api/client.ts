@@ -17,6 +17,7 @@ import type {
   WorkTicketCreate,
   WorkOutput,
   DeleteResponse,
+  UserContext,
 } from "@/types";
 
 const API_BASE_URL =
@@ -165,6 +166,20 @@ export const api = {
       request<Array<{ role: string; content: string }>>(
         `/api/projects/${projectId}/chat/history`
       ),
+  },
+
+  // User context endpoints (ADR-004 two-layer memory)
+  userContext: {
+    list: () => request<UserContext[]>("/api/context/user/context"),
+    update: (itemId: string, data: { content?: string; importance?: number }) =>
+      request<UserContext>(`/api/context/user/context/${itemId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    delete: (itemId: string) =>
+      request<DeleteResponse>(`/api/context/user/context/${itemId}`, {
+        method: "DELETE",
+      }),
   },
 };
 

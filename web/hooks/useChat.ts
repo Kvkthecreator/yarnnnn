@@ -12,7 +12,7 @@ interface ChatMessage {
 }
 
 interface UseChatOptions {
-  projectId: string;
+  projectId?: string; // Optional - omit for global (user-level) chat
   includeContext?: boolean;
 }
 
@@ -24,10 +24,17 @@ interface UseChatReturn {
   clearMessages: () => void;
 }
 
+/**
+ * Hook for chat with Thinking Partner.
+ *
+ * Two modes:
+ * - Project chat: Pass projectId to use project + user context
+ * - Global chat: Omit projectId to use user context only
+ */
 export function useChat({
   projectId,
   includeContext = true,
-}: UseChatOptions): UseChatReturn {
+}: UseChatOptions = {}): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -66,22 +73,24 @@ export function useChat({
           content: m.content,
         }));
 
-        const response = await fetch(
-          `${API_BASE_URL}/api/projects/${projectId}/chat`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              content,
-              include_context: includeContext,
-              history,
-            }),
-            signal: abortControllerRef.current.signal,
-          }
-        );
+        // Use project endpoint or global endpoint based on projectId
+        const endpoint = projectId
+          ? `${API_BASE_URL}/api/projects/${projectId}/chat`
+          : `${API_BASE_URL}/api/chat`;
+
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            content,
+            include_context: includeContext,
+            history,
+          }),
+          signal: abortControllerRef.current.signal,
+        });
 
         if (!response.ok) {
           const errorData = await response.json().catch(() => null);

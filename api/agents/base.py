@@ -37,10 +37,12 @@ class ContextBundle:
     Two-layer architecture (ADR-004):
     - user_context: User-level memory (portable, about the user)
     - blocks: Project-level memory (isolated, about this project)
+
+    For user-level chat (no project), project_id is None and blocks is empty.
     """
-    project_id: UUID
     blocks: list[Block]
     documents: list[dict]  # {id, filename, content_preview}
+    project_id: Optional[UUID] = None  # None for user-level chat
     user_context: list[UserContextItem] = None  # Optional user-level context
 
     def __post_init__(self):

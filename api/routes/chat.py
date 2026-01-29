@@ -2,7 +2,8 @@
 Chat routes - Thinking Partner conversations
 
 Endpoints:
-- POST /projects/:id/chat - Send message (streaming)
+- POST /chat - Global chat (user-level, no project required)
+- POST /projects/:id/chat - Project chat (user + project context)
 - GET /projects/:id/chat/history - Get chat history
 """
 
@@ -16,7 +17,7 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
-from services.extraction import extract_from_conversation
+from services.extraction import extract_from_conversation, extract_user_context_only
 from agents.base import ContextBundle, Block, UserContextItem
 from agents.thinking_partner import ThinkingPartnerAgent
 
@@ -90,51 +91,187 @@ async def load_context(client, project_id: UUID, user_id: str, include_user_cont
             print(f"Failed to load user context: {e}")
 
     return ContextBundle(
-        project_id=project_id,
         blocks=blocks,
         documents=[],  # TODO: Add document support
+        project_id=project_id,
+        user_context=user_context,
+    )
+
+
+async def load_user_context_only(client, user_id: str) -> ContextBundle:
+    """
+    Load user context only (for global chat without project).
+
+    Args:
+        client: Supabase client
+        user_id: User UUID
+
+    Returns:
+        ContextBundle with user context only (no blocks, no project)
+    """
+    user_context = []
+    try:
+        user_result = (
+            client.table("user_context")
+            .select("*")
+            .eq("user_id", user_id)
+            .order("importance", desc=True)
+            .limit(20)
+            .execute()
+        )
+
+        user_context = [
+            UserContextItem(
+                id=UUID(row["id"]),
+                category=row["category"],
+                key=row["key"],
+                content=row["content"],
+                importance=row.get("importance", 0.5),
+                confidence=row.get("confidence", 0.8),
+            )
+            for row in (user_result.data or [])
+        ]
+    except Exception as e:
+        print(f"Failed to load user context: {e}")
+
+    return ContextBundle(
+        blocks=[],
+        documents=[],
+        project_id=None,
         user_context=user_context,
     )
 
 
 async def save_agent_session(
     client,
-    project_id: UUID,
+    project_id: Optional[UUID],
     agent_type: str,
     messages: list[dict],
     metadata: dict,
 ):
-    """Save agent session for provenance."""
-    client.table("agent_sessions").insert({
-        "project_id": str(project_id),
+    """Save agent session for provenance. project_id can be None for global chat."""
+    data = {
         "agent_type": agent_type,
         "messages": messages,
         "metadata": metadata,
         "completed_at": datetime.utcnow().isoformat(),
-    }).execute()
+    }
+    if project_id:
+        data["project_id"] = str(project_id)
+    client.table("agent_sessions").insert(data).execute()
 
 
-async def _background_extraction(project_id: str, user_id: str, messages: list[dict], client):
+async def _background_extraction(project_id: Optional[str], user_id: str, messages: list[dict], client):
     """
-    Background task for dual-stream context extraction (ADR-004).
-    Extracts both user context and project blocks.
+    Background task for context extraction (ADR-004).
+    If project_id is provided, extracts both user context and project blocks.
+    If project_id is None (global chat), extracts only user context.
     Runs after response streaming completes, doesn't block user.
     """
     try:
-        result = await extract_from_conversation(
-            project_id=project_id,
-            user_id=user_id,
-            messages=messages,
-            db_client=client,
-            source_type="chat"
-        )
-        user_count = result.get("user_items_inserted", 0)
-        project_count = result.get("project_items_inserted", 0)
-        if user_count > 0 or project_count > 0:
-            print(f"Extracted {user_count} user items and {project_count} project blocks from chat in project {project_id}")
+        if project_id:
+            # Dual-stream extraction (user + project)
+            result = await extract_from_conversation(
+                project_id=project_id,
+                user_id=user_id,
+                messages=messages,
+                db_client=client,
+                source_type="chat"
+            )
+            user_count = result.get("user_items_inserted", 0)
+            project_count = result.get("project_items_inserted", 0)
+            if user_count > 0 or project_count > 0:
+                print(f"Extracted {user_count} user items and {project_count} project blocks from chat in project {project_id}")
+        else:
+            # User-only extraction (global chat)
+            user_count = await extract_user_context_only(
+                user_id=user_id,
+                messages=messages,
+                db_client=client,
+                source_type="global_chat"
+            )
+            if user_count > 0:
+                print(f"Extracted {user_count} user items from global chat")
     except Exception as e:
         # Log but don't fail - extraction is best-effort
-        print(f"Background extraction failed for project {project_id}: {e}")
+        print(f"Background extraction failed: {e}")
+
+
+@router.post("/chat")
+async def global_chat(
+    request: ChatRequest,
+    auth: UserClient,
+):
+    """
+    Global chat with Thinking Partner (no project required).
+
+    Uses user context only. Ideal for onboarding, general questions,
+    or conversations that don't belong to a specific project.
+    """
+    # Load user context only
+    context = await load_user_context_only(auth.client, auth.user_id)
+
+    # Create agent
+    agent = ThinkingPartnerAgent()
+
+    # Convert history to dict format
+    history = [{"role": msg.role, "content": msg.content} for msg in request.history]
+
+    async def response_stream():
+        full_response = ""
+
+        try:
+            async for chunk in agent.execute_stream(
+                task=request.content,
+                context=context,
+                parameters={
+                    "include_context": request.include_context,
+                    "history": history,
+                },
+            ):
+                full_response += chunk
+                yield f"data: {json.dumps({'content': chunk})}\n\n"
+
+            yield f"data: {json.dumps({'done': True, 'full_content': full_response})}\n\n"
+
+            # Build full message list
+            messages = history + [
+                {"role": "user", "content": request.content},
+                {"role": "assistant", "content": full_response},
+            ]
+
+            # Save session (no project)
+            try:
+                await save_agent_session(
+                    auth.client,
+                    None,  # No project
+                    "thinking_partner",
+                    messages,
+                    {
+                        "model": agent.model,
+                        "context_type": "user_only",
+                        "user_context_items": len(context.user_context),
+                    },
+                )
+            except Exception as e:
+                print(f"Failed to save agent session: {e}")
+
+            # Fire-and-forget user-only extraction
+            asyncio.create_task(
+                _background_extraction(None, auth.user_id, messages, auth.client)
+            )
+
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        response_stream(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        },
+    )
 
 
 @router.post("/projects/{project_id}/chat")

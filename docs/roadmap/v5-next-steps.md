@@ -1,7 +1,7 @@
 # YARNNN v5 Next Steps: Comprehensive Roadmap
 
 **Date:** 2025-01-29
-**Status:** Planning
+**Status:** Phase 1 Complete
 **Context:** Post two-layer memory architecture implementation
 **Approach:** Singular, streamlined - restructure Dashboard into Console
 
@@ -44,30 +44,30 @@ Login → Dashboard (chat-first) → Chat immediately OR select project
 **Goal:** Dashboard becomes chat-first with projects in sidebar
 
 #### 1.1 Backend: Global Chat Endpoint
-- [ ] New route: `POST /api/chat` (no project_id required)
-- [ ] `load_user_context_only(user_id)` function
-- [ ] Extraction writes to user_context only (no project blocks when no project)
-- [ ] Session saved to agent_sessions with project_id = NULL
+- [x] New route: `POST /api/chat` (no project_id required)
+- [x] `load_user_context_only(user_id)` function
+- [x] Extraction writes to user_context only (no project blocks when no project)
+- [x] Session saved to agent_sessions with project_id = NULL
 
 #### 1.2 Frontend: Dashboard Restructure
-- [ ] Replace project grid with chat-first layout
-- [ ] ThinkingPartner chat as primary content area
-- [ ] Projects list in left sidebar (collapsible)
-- [ ] "About You" panel in right sidebar (user context)
-- [ ] Quick actions row: "New Project", "Import"
+- [x] Replace project grid with chat-first layout
+- [x] ThinkingPartner chat as primary content area
+- [x] Projects list in left sidebar (collapsible)
+- [x] "About You" panel in right sidebar (user context)
+- [x] Quick actions row: "New Project", "Import"
 
 #### 1.3 Shared Chat Component
-- [ ] Extract chat logic from project page into reusable component
-- [ ] Props: `projectId?: string` (optional = user-level chat)
-- [ ] Conditional context loading based on projectId presence
+- [x] Extract chat logic from project page into reusable component
+- [x] Props: `projectId?: string` (optional = user-level chat)
+- [x] Conditional context loading based on projectId presence
 
 ### Phase 2: Context Visibility & Management
 **Goal:** User can see and manage what YARNNN knows
 
 #### 2.1 User Context Panel (Dashboard Sidebar)
-- [ ] "About You" section grouped by category
-- [ ] Edit/delete individual items
-- [ ] Confidence indicator
+- [x] "About You" section grouped by category
+- [x] Edit/delete individual items
+- [x] Confidence indicator
 
 #### 2.2 Project Context Enhancement
 - [ ] Filter by semantic type in Context tab

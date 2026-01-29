@@ -68,6 +68,23 @@ class ContextBundle(BaseModel):
     documents: list[DocumentResponse]
 
 
+class UserContextItemResponse(BaseModel):
+    id: UUID
+    category: str
+    key: str
+    content: str
+    importance: float
+    confidence: float
+    source_type: Optional[str] = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class UserContextItemUpdate(BaseModel):
+    content: Optional[str] = None
+    importance: Optional[float] = None
+
+
 # --- Routes ---
 
 @router.post("/projects/{project_id}/blocks", response_model=BlockResponse)
@@ -194,4 +211,90 @@ async def get_context_bundle(project_id: UUID, auth: UserClient):
     except Exception as e:
         if "violates row-level security" in str(e):
             raise HTTPException(status_code=403, detail="Access denied to this project")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- User Context Routes (ADR-004) ---
+
+@router.get("/user/context", response_model=list[UserContextItemResponse])
+async def list_user_context(auth: UserClient):
+    """
+    List all user context items for the authenticated user.
+
+    Returns items grouped and sorted by importance (highest first).
+    """
+    try:
+        result = auth.client.table("user_context")\
+            .select("*")\
+            .eq("user_id", auth.user_id)\
+            .order("importance", desc=True)\
+            .execute()
+
+        return result.data or []
+
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/user/context/{item_id}", response_model=UserContextItemResponse)
+async def update_user_context_item(
+    item_id: UUID,
+    update: UserContextItemUpdate,
+    auth: UserClient
+):
+    """Update a user context item (content or importance)."""
+    try:
+        # Build update dict with only provided fields
+        update_data = {}
+        if update.content is not None:
+            update_data["content"] = update.content
+        if update.importance is not None:
+            update_data["importance"] = max(0.0, min(1.0, update.importance))
+
+        if not update_data:
+            raise HTTPException(status_code=400, detail="No update fields provided")
+
+        update_data["updated_at"] = datetime.utcnow().isoformat()
+
+        result = auth.client.table("user_context")\
+            .update(update_data)\
+            .eq("id", str(item_id))\
+            .eq("user_id", auth.user_id)\
+            .execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="User context item not found")
+
+        return result.data[0]
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/user/context/{item_id}")
+async def delete_user_context_item(item_id: UUID, auth: UserClient):
+    """Delete a user context item."""
+    try:
+        result = auth.client.table("user_context")\
+            .delete()\
+            .eq("id", str(item_id))\
+            .eq("user_id", auth.user_id)\
+            .execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="User context item not found")
+
+        return {"deleted": True, "id": str(item_id)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied")
         raise HTTPException(status_code=500, detail=str(e))
