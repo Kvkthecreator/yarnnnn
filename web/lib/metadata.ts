@@ -32,8 +32,10 @@ export function getBaseMetadata(): Metadata {
     description: BRAND.description,
     metadataBase: new URL(BRAND.url),
     icons: {
-      icon: "/favicon.svg",
-      shortcut: "/favicon.ico",
+      icon: [
+        { url: "/favicon.ico", sizes: "any" },
+        { url: "/favicon.svg", type: "image/svg+xml" },
+      ],
       apple: "/assets/logos/circleonly_yarnnn.png",
     },
     openGraph: {
