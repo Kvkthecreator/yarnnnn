@@ -3,14 +3,13 @@ Chat routes - Thinking Partner conversations
 
 ADR-005: Unified memory with embeddings
 ADR-006: Session and message architecture
-ADR-007: Tool use for project authority
+ADR-007: Tool use for project authority (unified streaming + tools)
 
 Endpoints:
-- POST /chat - Global chat (user-level, no project required)
-- POST /chat/tools - Global chat with tool use (ADR-007)
-- POST /projects/:id/chat - Project chat (user + project context)
-- GET /projects/:id/chat/history - Get chat history
+- POST /chat - Global chat with streaming + tools (user-level, no project required)
+- POST /projects/:id/chat - Project chat with streaming + tools
 - GET /chat/history - Get global chat history
+- GET /projects/:id/chat/history - Get project chat history
 """
 
 import json
@@ -286,6 +285,7 @@ async def global_chat(
     """
     Global chat with Thinking Partner (no project required).
     Uses user memories only. Session is reused daily.
+    Supports tool use with streaming (ADR-007).
     """
     # Get or create session (daily scope for global chat)
     session = await get_or_create_session(
@@ -312,21 +312,31 @@ async def global_chat(
 
     async def response_stream():
         full_response = ""
+        tools_used = []
 
         try:
             # Append user message to session
             await append_message(auth.client, session_id, "user", request.content)
 
-            async for chunk in agent.execute_stream(
+            async for event in agent.execute_stream_with_tools(
                 task=request.content,
                 context=context,
+                auth=auth,
                 parameters={
                     "include_context": request.include_context,
                     "history": history,
                 },
             ):
-                full_response += chunk
-                yield f"data: {json.dumps({'content': chunk})}\n\n"
+                if event.type == "text":
+                    full_response += event.content
+                    yield f"data: {json.dumps({'content': event.content})}\n\n"
+                elif event.type == "tool_use":
+                    tools_used.append(event.content["name"])
+                    yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
+                elif event.type == "tool_result":
+                    yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
+                elif event.type == "done":
+                    pass  # Will send done event after saving
 
             # Append assistant response to session
             await append_message(
@@ -334,10 +344,10 @@ async def global_chat(
                 session_id,
                 "assistant",
                 full_response,
-                {"model": agent.model}
+                {"model": agent.model, "tools_used": tools_used}
             )
 
-            yield f"data: {json.dumps({'done': True, 'session_id': session_id})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
 
             # Fire-and-forget extraction
             messages_for_extraction = history + [
@@ -367,6 +377,7 @@ async def project_chat(
     """
     Project chat with Thinking Partner.
     Loads both user and project memories. Session is reused daily per project.
+    Supports tool use with streaming (ADR-007).
     """
     # Verify project access
     project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
@@ -398,21 +409,31 @@ async def project_chat(
 
     async def response_stream():
         full_response = ""
+        tools_used = []
 
         try:
             # Append user message to session
             await append_message(auth.client, session_id, "user", request.content)
 
-            async for chunk in agent.execute_stream(
+            async for event in agent.execute_stream_with_tools(
                 task=request.content,
                 context=context,
+                auth=auth,
                 parameters={
                     "include_context": request.include_context,
                     "history": history,
                 },
             ):
-                full_response += chunk
-                yield f"data: {json.dumps({'content': chunk})}\n\n"
+                if event.type == "text":
+                    full_response += event.content
+                    yield f"data: {json.dumps({'content': event.content})}\n\n"
+                elif event.type == "tool_use":
+                    tools_used.append(event.content["name"])
+                    yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
+                elif event.type == "tool_result":
+                    yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
+                elif event.type == "done":
+                    pass  # Will send done event after saving
 
             # Append assistant response to session
             await append_message(
@@ -420,10 +441,10 @@ async def project_chat(
                 session_id,
                 "assistant",
                 full_response,
-                {"model": agent.model}
+                {"model": agent.model, "tools_used": tools_used}
             )
 
-            yield f"data: {json.dumps({'done': True, 'session_id': session_id})}\n\n"
+            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
 
             # Fire-and-forget extraction
             messages_for_extraction = history + [
@@ -442,93 +463,6 @@ async def project_chat(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
     )
-
-
-@router.post("/chat/tools")
-async def global_chat_with_tools(
-    request: ChatRequest,
-    auth: UserClient,
-):
-    """
-    Global chat with Thinking Partner using tools (ADR-007).
-
-    Non-streaming endpoint that supports tool use.
-    TP can use list_projects to understand user's workspace.
-    """
-    # Get or create session (daily scope for global chat)
-    session = await get_or_create_session(
-        auth.client,
-        auth.user_id,
-        project_id=None,
-        scope="daily"
-    )
-    session_id = session["id"]
-
-    # Load existing messages from session
-    existing_messages = await get_session_messages(auth.client, session_id)
-    history = [{"role": m["role"], "content": m["content"]} for m in existing_messages]
-
-    # Load user memories
-    context = await load_memories(
-        auth.client,
-        auth.user_id,
-        project_id=None,
-        query=request.content if request.include_context else None
-    )
-
-    agent = ThinkingPartnerAgent()
-
-    try:
-        # Append user message to session
-        await append_message(auth.client, session_id, "user", request.content)
-
-        # Execute with tools
-        response_text, tool_executions = await agent.execute_with_tools(
-            task=request.content,
-            context=context,
-            auth=auth,
-            parameters={
-                "include_context": request.include_context,
-                "history": history,
-            },
-        )
-
-        # Append assistant response to session
-        await append_message(
-            auth.client,
-            session_id,
-            "assistant",
-            response_text,
-            {
-                "model": agent.model,
-                "tools_used": [t.tool_name for t in tool_executions]
-            }
-        )
-
-        # Fire-and-forget extraction
-        messages_for_extraction = history + [
-            {"role": "user", "content": request.content},
-            {"role": "assistant", "content": response_text},
-        ]
-        asyncio.create_task(
-            _background_extraction(auth.user_id, messages_for_extraction, auth.client, None)
-        )
-
-        return {
-            "response": response_text,
-            "session_id": session_id,
-            "tools_used": [
-                {
-                    "name": t.tool_name,
-                    "input": t.tool_input,
-                    "result": t.result,
-                }
-                for t in tool_executions
-            ],
-        }
-
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.get("/chat/history")

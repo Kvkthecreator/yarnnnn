@@ -24,6 +24,11 @@ interface ChatProps {
    * Custom height class (default: h-[calc(100vh-240px)])
    */
   heightClass?: string;
+  /**
+   * Callback when a project is created/modified via TP.
+   * If not provided, dispatches 'refreshProjects' event.
+   */
+  onProjectChange?: () => void;
 }
 
 /**
@@ -32,16 +37,26 @@ interface ChatProps {
  * Supports two modes:
  * - Project chat: Pass projectId for project + user context
  * - Global chat: Omit projectId for user context only
+ *
+ * ADR-007: TP can use tools to manage projects. When a project is
+ * created/modified, the sidebar is automatically refreshed.
  */
 export function Chat({
   projectId,
   includeContext = true,
   emptyMessage,
   heightClass = "h-[calc(100vh-240px)]",
+  onProjectChange,
 }: ChatProps) {
+  const handleProjectChange = onProjectChange || (() => {
+    // Default behavior: dispatch event for sidebar to catch
+    window.dispatchEvent(new CustomEvent("refreshProjects"));
+  });
+
   const { messages, isLoading, isLoadingHistory, error, sendMessage } = useChat({
     projectId,
     includeContext,
+    onProjectChange: handleProjectChange,
   });
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);

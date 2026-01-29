@@ -13,7 +13,9 @@ from services.anthropic import (
     chat_completion,
     chat_completion_stream,
     chat_completion_with_tools,
+    chat_completion_stream_with_tools,
     ChatResponse,
+    StreamEvent,
 )
 from services.project_tools import THINKING_PARTNER_TOOLS, execute_tool
 
@@ -76,6 +78,8 @@ Guidelines:
 - If the context doesn't contain relevant information, say so honestly
 
 Project organization guidelines:
+- When the user asks to rename, update, or work with a project, USE YOUR TOOLS immediately
+- First call `list_projects` to get the project IDs, then use the appropriate tool
 - Create projects when the user explicitly asks, OR when a distinct topic/goal emerges
 - Before creating/renaming, check existing projects with list_projects to avoid duplicates
 - Always tell the user when you modify a project and why
@@ -295,7 +299,7 @@ Project organization guidelines:
         Process chat message with streaming response (no tools).
 
         Note: Tool use is not supported with streaming in this implementation.
-        Use execute_with_tools for tool-enabled conversations.
+        Use execute_stream_with_tools for tool-enabled streaming conversations.
 
         Args:
             task: User's message
@@ -323,3 +327,55 @@ Project organization guidelines:
             model=self.model,
         ):
             yield chunk
+
+    async def execute_stream_with_tools(
+        self,
+        task: str,
+        context: ContextBundle,
+        auth: Any,  # UserClient for tool execution
+        parameters: Optional[dict] = None,
+    ) -> AsyncGenerator[StreamEvent, None]:
+        """
+        Process chat message with streaming AND tool support (ADR-007).
+
+        This is the unified approach: streams text as it arrives, handles
+        tool calls inline, and continues streaming after tool execution.
+
+        Args:
+            task: User's message
+            context: Context bundle with memories
+            auth: UserClient for database access during tool execution
+            parameters:
+                - include_context: bool (default True)
+                - history: list of prior messages
+
+        Yields:
+            StreamEvent objects:
+                - type="text": Text chunk (content is the text)
+                - type="tool_use": Tool being called (content has id, name, input)
+                - type="tool_result": Tool result (content has tool_use_id, name, result)
+                - type="done": Stream complete
+        """
+        params = parameters or {}
+        include_context = params.get("include_context", True)
+        history = params.get("history", [])
+
+        system = self._build_system_prompt(context, include_context, with_tools=True)
+
+        # Build messages list
+        messages = list(history)
+        messages.append({"role": "user", "content": task})
+
+        # Create tool executor that uses our auth context
+        async def tool_executor(tool_name: str, tool_input: dict) -> dict:
+            return await execute_tool(auth, tool_name, tool_input)
+
+        # Use the streaming with tools function
+        async for event in chat_completion_stream_with_tools(
+            messages=messages,
+            system=system,
+            tools=self.tools,
+            tool_executor=tool_executor,
+            model=self.model,
+        ):
+            yield event

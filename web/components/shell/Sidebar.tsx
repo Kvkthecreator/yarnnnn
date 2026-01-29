@@ -73,18 +73,28 @@ export default function Sidebar({
   }, [isMobile, open]);
 
   // Fetch projects
-  useEffect(() => {
-    async function fetchProjects() {
-      try {
-        const data = await api.projects.list();
-        setProjects(data);
-      } catch (err) {
-        console.error("Failed to fetch projects:", err);
-      } finally {
-        setIsLoadingProjects(false);
-      }
+  const fetchProjects = async () => {
+    try {
+      const data = await api.projects.list();
+      setProjects(data);
+    } catch (err) {
+      console.error("Failed to fetch projects:", err);
+    } finally {
+      setIsLoadingProjects(false);
     }
+  };
+
+  useEffect(() => {
     fetchProjects();
+  }, []);
+
+  // Listen for project refresh events (e.g., when TP creates a project)
+  useEffect(() => {
+    const handleRefreshProjects = () => {
+      fetchProjects();
+    };
+    window.addEventListener("refreshProjects", handleRefreshProjects);
+    return () => window.removeEventListener("refreshProjects", handleRefreshProjects);
   }, []);
 
   const handleSignOut = async () => {

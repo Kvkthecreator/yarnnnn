@@ -155,3 +155,138 @@ async def chat_completion_stream(
     ) as stream:
         async for text in stream.text_stream:
             yield text
+
+
+@dataclass
+class StreamEvent:
+    """Event from streaming chat with tools."""
+    type: str  # "text", "tool_use", "tool_result", "done"
+    content: Any  # text chunk, tool use block, tool result, or None
+
+
+async def chat_completion_stream_with_tools(
+    messages: list[dict],
+    system: str,
+    tools: list[dict],
+    tool_executor: Any,  # Callable[[str, dict], Awaitable[dict]]
+    model: str = "claude-sonnet-4-20250514",
+    max_tokens: int = 4096,
+    max_tool_rounds: int = 5,
+) -> AsyncGenerator[StreamEvent, None]:
+    """
+    Streaming chat completion with tool support.
+
+    Yields StreamEvents for:
+    - text: Text chunks as they arrive
+    - tool_use: When Claude wants to use a tool (before execution)
+    - tool_result: After tool execution completes
+    - done: When conversation is complete
+
+    Args:
+        messages: List of conversation messages
+        system: System prompt
+        tools: List of tool definitions
+        tool_executor: Async function(tool_name, tool_input) -> result dict
+        model: Model ID
+        max_tokens: Maximum response tokens
+        max_tool_rounds: Maximum tool use cycles
+
+    Yields:
+        StreamEvent objects
+    """
+    client = get_anthropic_client()
+    working_messages = list(messages)
+
+    for round_num in range(max_tool_rounds):
+        # Accumulate the full response for this round
+        full_response = None
+
+        async with client.messages.stream(
+            model=model,
+            max_tokens=max_tokens,
+            system=system,
+            messages=working_messages,
+            tools=tools,
+        ) as stream:
+            # Stream text as it arrives
+            async for text in stream.text_stream:
+                yield StreamEvent(type="text", content=text)
+
+            # Get final response to check for tool use
+            full_response = await stream.get_final_message()
+
+        # Check if we need to handle tool use
+        if full_response.stop_reason == "tool_use":
+            # Extract tool use blocks
+            tool_uses = []
+            text_content = []
+
+            for block in full_response.content:
+                if block.type == "tool_use":
+                    tool_uses.append(block)
+                elif block.type == "text":
+                    text_content.append({"type": "text", "text": block.text})
+
+            # Add assistant message with tool use to history
+            assistant_content = text_content + [
+                {
+                    "type": "tool_use",
+                    "id": t.id,
+                    "name": t.name,
+                    "input": t.input
+                }
+                for t in tool_uses
+            ]
+            working_messages.append({
+                "role": "assistant",
+                "content": assistant_content
+            })
+
+            # Execute each tool and yield events
+            tool_results = []
+            for tool_use in tool_uses:
+                # Signal that tool is being used
+                yield StreamEvent(
+                    type="tool_use",
+                    content={
+                        "id": tool_use.id,
+                        "name": tool_use.name,
+                        "input": tool_use.input
+                    }
+                )
+
+                # Execute the tool
+                result = await tool_executor(tool_use.name, tool_use.input)
+
+                # Signal tool result
+                yield StreamEvent(
+                    type="tool_result",
+                    content={
+                        "tool_use_id": tool_use.id,
+                        "name": tool_use.name,
+                        "result": result
+                    }
+                )
+
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tool_use.id,
+                    "content": str(result) if not isinstance(result, str) else result
+                })
+
+            # Add tool results to messages
+            working_messages.append({
+                "role": "user",
+                "content": tool_results
+            })
+
+            # Continue to next round (will stream Claude's response to tool results)
+            continue
+
+        else:
+            # No tool use, we're done
+            yield StreamEvent(type="done", content=None)
+            return
+
+    # Reached max rounds
+    yield StreamEvent(type="done", content=None)

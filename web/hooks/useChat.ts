@@ -11,9 +11,24 @@ interface ChatMessage {
   content: string;
 }
 
+interface ToolUseEvent {
+  id: string;
+  name: string;
+  input: Record<string, unknown>;
+}
+
+interface ToolResultEvent {
+  tool_use_id: string;
+  name: string;
+  result: Record<string, unknown>;
+}
+
 interface UseChatOptions {
   projectId?: string; // Optional - omit for global (user-level) chat
   includeContext?: boolean;
+  onToolUse?: (tool: ToolUseEvent) => void; // Called when TP uses a tool
+  onToolResult?: (result: ToolResultEvent) => void; // Called with tool result
+  onProjectChange?: () => void; // Called when a project is created/modified
 }
 
 interface UseChatReturn {
@@ -21,6 +36,7 @@ interface UseChatReturn {
   isLoading: boolean;
   isLoadingHistory: boolean;
   error: string | null;
+  toolsUsed: string[]; // Tools used in the current response
   sendMessage: (content: string) => Promise<void>;
   clearMessages: () => void;
 }
@@ -33,6 +49,11 @@ interface UseChatReturn {
  * - Messages are persisted to session_messages table
  * - History is loaded from server on mount
  *
+ * ADR-007: Tool use with streaming.
+ * - TP can use tools (list_projects, create_project, etc.)
+ * - Tool events are streamed inline with text
+ * - onProjectChange callback triggers sidebar refresh
+ *
  * Two modes:
  * - Project chat: Pass projectId to use project + user context
  * - Global chat: Omit projectId to use user context only
@@ -40,11 +61,15 @@ interface UseChatReturn {
 export function useChat({
   projectId,
   includeContext = true,
+  onToolUse,
+  onToolResult,
+  onProjectChange,
 }: UseChatOptions = {}): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [toolsUsed, setToolsUsed] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const historyLoadedRef = useRef(false);
 
@@ -112,6 +137,7 @@ export function useChat({
       setMessages((prev) => [...prev, userMessage]);
       setIsLoading(true);
       setError(null);
+      setToolsUsed([]); // Reset tools for new message
 
       // Cancel any existing request
       if (abortControllerRef.current) {
@@ -176,6 +202,8 @@ export function useChat({
 
         const decoder = new TextDecoder();
         let assistantContent = "";
+        const currentToolsUsed: string[] = [];
+        let projectModified = false;
 
         // Add empty assistant message that we'll update
         setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
@@ -209,8 +237,34 @@ export function useChat({
                   });
                 }
 
+                // Handle tool use event (ADR-007)
+                if (data.tool_use) {
+                  const toolEvent = data.tool_use as ToolUseEvent;
+                  currentToolsUsed.push(toolEvent.name);
+                  setToolsUsed([...currentToolsUsed]);
+                  onToolUse?.(toolEvent);
+
+                  // Track if project-modifying tools are used
+                  if (["create_project", "rename_project", "update_project"].includes(toolEvent.name)) {
+                    projectModified = true;
+                  }
+                }
+
+                // Handle tool result event (ADR-007)
+                if (data.tool_result) {
+                  const resultEvent = data.tool_result as ToolResultEvent;
+                  onToolResult?.(resultEvent);
+                }
+
                 if (data.done) {
-                  // Stream complete - session_id is returned but we don't need it
+                  // Stream complete
+                  if (data.tools_used?.length > 0) {
+                    setToolsUsed(data.tools_used);
+                  }
+                  // Trigger sidebar refresh if project was modified
+                  if (projectModified) {
+                    onProjectChange?.();
+                  }
                   break;
                 }
               } catch (parseError) {
@@ -243,7 +297,7 @@ export function useChat({
         abortControllerRef.current = null;
       }
     },
-    [projectId, includeContext]
+    [projectId, includeContext, onToolUse, onToolResult, onProjectChange]
   );
 
   const clearMessages = useCallback(() => {
@@ -258,6 +312,7 @@ export function useChat({
     isLoading,
     isLoadingHistory,
     error,
+    toolsUsed,
     sendMessage,
     clearMessages,
   };

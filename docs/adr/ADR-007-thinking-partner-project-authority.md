@@ -1,6 +1,6 @@
 # ADR-007: Thinking Partner Project Authority
 
-**Status:** Accepted (Phase 1-3 Implemented)
+**Status:** Accepted (Phase 1-3.5 Implemented + Unified Streaming)
 **Date:** 2026-01-29
 **Related:** ADR-005 (Unified Memory), ADR-006 (Session Architecture)
 **Decision Makers:** Kevin Kim
@@ -108,23 +108,34 @@ You have the ability to help organize the user's workspace:
 
 ### Implementation Phases
 
-#### Phase 1: Tool Infrastructure (Foundation)
+#### Phase 1: Tool Infrastructure (Foundation) ✅
 - Add `tools` parameter to `chat_completion()`
-- Implement tool-use response parsing
+- Implement tool-use response parsing (`ChatResponse`, `ToolUseBlock`)
 - Add basic agentic loop to BaseAgent
 - Pass auth context through agent execution
 
-#### Phase 2: Read-Only Tools
+#### Phase 2: Read-Only Tools ✅
 - Implement `list_projects` tool
 - TP can reference projects in responses
 - No mutations yet, validates infrastructure
 
-#### Phase 3: Project Creation
+#### Phase 3: Project Creation ✅
 - Implement `create_project` tool
 - Add transparency logging (tool use shown in chat)
 - User can see "TP created project: X"
 
-#### Phase 4: Memory Organization
+#### Phase 3.5: Project Updates ✅
+- Implement `rename_project` and `update_project` tools
+- TP can manage project names and descriptions
+
+#### Phase 3.6: Unified Streaming + Tools ✅
+- Implement `chat_completion_stream_with_tools()` for streaming with inline tool use
+- `StreamEvent` pattern for text, tool_use, tool_result, done events
+- Updated `/chat` endpoint uses unified streaming (removed separate `/chat/tools`)
+- Frontend handles tool events in SSE stream
+- Sidebar auto-refreshes when projects are created/modified
+
+#### Phase 4: Memory Organization (Future)
 - Implement `suggest_project_for_memory`
 - Integrate with extraction pipeline
 - TP influences scope during memory creation
@@ -330,13 +341,16 @@ Users continue managing projects explicitly.
 
 ## Decision Checklist
 
-- [ ] Create ADR-007 (this document)
-- [ ] Implement tool infrastructure in anthropic.py
-- [ ] Add agentic loop to BaseAgent
-- [ ] Implement Phase 2: list_projects (read-only)
-- [ ] Test and validate infrastructure
-- [ ] Implement Phase 3: create_project
-- [ ] Add UI transparency for tool calls
+- [x] Create ADR-007 (this document)
+- [x] Implement tool infrastructure in anthropic.py
+- [x] Add agentic loop to ThinkingPartnerAgent
+- [x] Implement Phase 2: list_projects (read-only)
+- [x] Test and validate infrastructure
+- [x] Implement Phase 3: create_project
+- [x] Implement Phase 3.5: rename_project, update_project
+- [x] Implement unified streaming + tools (Phase 3.6)
+- [x] Add UI transparency for tool calls (SSE events)
+- [x] Add sidebar auto-refresh on project changes
 - [ ] Implement Phase 4: memory organization
 - [ ] User testing and iteration
 
