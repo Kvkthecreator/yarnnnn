@@ -19,17 +19,24 @@ export default function LandingPage() {
         {/* Hero Section */}
         <section className="flex flex-col items-center justify-center px-6 py-32 md:py-44 min-h-[80vh]">
           <div className="max-w-4xl mx-auto text-center">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-medium tracking-tight leading-[1.1] mb-8">
-              Your AI team
-              <br />
-              runs on autopilot
-            </h1>
-            <p className="text-lg md:text-xl text-white/50 mb-12 max-w-xl mx-auto font-light">
+            {/* Brand name */}
+            <div className="font-brand text-4xl md:text-5xl mb-8 text-white/90">
+              yarnnn
+            </div>
+
+            {/* Tagline - emphasized */}
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-white/80 mb-6">
               Build context. Schedule agents. Get work delivered.
+            </h1>
+
+            {/* Supporting headline */}
+            <p className="text-lg md:text-xl text-white/50 mb-12 max-w-xl mx-auto font-light">
+              Your AI team runs on autopilot
             </p>
+
             <Link
               href="/auth/login"
-              className="inline-block px-8 py-4 glass text-white text-lg font-medium hover:bg-white/20 transition-colors"
+              className="inline-block px-8 py-4 glass text-white text-lg font-medium hover:bg-white/20 transition-all"
             >
               Start your first project
             </Link>
@@ -43,8 +50,8 @@ export default function LandingPage() {
               How it works
             </h2>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-16 gap-y-12">
-              <div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              <div className="glass-card p-6">
                 <div className="text-sm text-white/30 mb-3 font-mono">01</div>
                 <h3 className="text-lg font-medium mb-2">Create projects</h3>
                 <p className="text-white/50 leading-relaxed text-sm">
@@ -53,7 +60,7 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              <div>
+              <div className="glass-card p-6">
                 <div className="text-sm text-white/30 mb-3 font-mono">02</div>
                 <h3 className="text-lg font-medium mb-2">Accumulate knowledge</h3>
                 <p className="text-white/50 leading-relaxed text-sm">
@@ -62,7 +69,7 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              <div>
+              <div className="glass-card p-6">
                 <div className="text-sm text-white/30 mb-3 font-mono">03</div>
                 <h3 className="text-lg font-medium mb-2">Schedule agents</h3>
                 <p className="text-white/50 leading-relaxed text-sm">
@@ -71,7 +78,7 @@ export default function LandingPage() {
                 </p>
               </div>
 
-              <div>
+              <div className="glass-card p-6">
                 <div className="text-sm text-white/30 mb-3 font-mono">04</div>
                 <h3 className="text-lg font-medium mb-2">Work arrives</h3>
                 <p className="text-white/50 leading-relaxed text-sm">
@@ -138,7 +145,7 @@ export default function LandingPage() {
             </p>
             <Link
               href="/auth/login"
-              className="inline-block px-8 py-4 glass text-white text-lg font-medium hover:bg-white/20 transition-colors"
+              className="inline-block px-8 py-4 glass text-white text-lg font-medium hover:bg-white/20 transition-all"
             >
               Start your first project
             </Link>
