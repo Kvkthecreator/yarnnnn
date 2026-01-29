@@ -1,6 +1,8 @@
 """
 Chat routes - Thinking Partner conversations
 
+ADR-005: Unified memory with embeddings
+
 Endpoints:
 - POST /chat - Global chat (user-level, no project required)
 - POST /projects/:id/chat - Project chat (user + project context)
@@ -17,8 +19,9 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
-from services.extraction import extract_from_conversation, extract_user_context_only
-from agents.base import ContextBundle, Block, UserContextItem
+from services.extraction import extract_from_conversation
+from services.embeddings import get_embedding
+from agents.base import ContextBundle, Memory
 from agents.thinking_partner import ThinkingPartnerAgent
 
 router = APIRouter()
@@ -35,115 +38,136 @@ class ChatRequest(BaseModel):
     history: list[ChatHistoryMessage] = []
 
 
-async def load_context(client, project_id: UUID, user_id: str, include_user_context: bool = True) -> ContextBundle:
+async def load_memories(
+    client,
+    user_id: str,
+    project_id: Optional[UUID] = None,
+    query: Optional[str] = None,
+    max_results: int = 20
+) -> ContextBundle:
     """
-    Load context for ThinkingPartner (ADR-004 two-layer architecture).
+    Load memories for context assembly (ADR-005).
 
-    Args:
-        client: Supabase client
-        project_id: Project UUID
-        user_id: User UUID for user context
-        include_user_context: Whether to include user-level context
-
-    Returns:
-        ContextBundle with both user and project context
-    """
-    # Fetch project blocks
-    blocks_result = client.table("blocks").select("*").eq("project_id", str(project_id)).execute()
-
-    blocks = [
-        Block(
-            id=UUID(row["id"]),
-            content=row["content"],
-            block_type=row["block_type"],
-            semantic_type=row.get("semantic_type"),
-            metadata=row.get("metadata"),
-        )
-        for row in (blocks_result.data or [])
-    ]
-
-    # Fetch user context (sorted by importance)
-    user_context = []
-    if include_user_context:
-        try:
-            user_result = (
-                client.table("user_context")
-                .select("*")
-                .eq("user_id", user_id)
-                .order("importance", desc=True)
-                .limit(20)  # Top 20 most important items
-                .execute()
-            )
-
-            user_context = [
-                UserContextItem(
-                    id=UUID(row["id"]),
-                    category=row["category"],
-                    key=row["key"],
-                    content=row["content"],
-                    importance=row.get("importance", 0.5),
-                    confidence=row.get("confidence", 0.8),
-                )
-                for row in (user_result.data or [])
-            ]
-        except Exception as e:
-            # Don't fail if user_context table doesn't exist yet
-            print(f"Failed to load user context: {e}")
-
-    return ContextBundle(
-        blocks=blocks,
-        documents=[],  # TODO: Add document support
-        project_id=project_id,
-        user_context=user_context,
-    )
-
-
-async def load_user_context_only(client, user_id: str) -> ContextBundle:
-    """
-    Load user context only (for global chat without project).
+    Uses semantic search if query provided, otherwise importance-based retrieval.
 
     Args:
         client: Supabase client
         user_id: User UUID
+        project_id: Optional project UUID (None = user memories only)
+        query: Optional query for semantic search
+        max_results: Maximum memories to return
 
     Returns:
-        ContextBundle with user context only (no blocks, no project)
+        ContextBundle with memories
     """
-    user_context = []
-    try:
-        user_result = (
-            client.table("user_context")
-            .select("*")
-            .eq("user_id", user_id)
-            .order("importance", desc=True)
-            .limit(20)
-            .execute()
-        )
+    memories = []
 
-        user_context = [
-            UserContextItem(
-                id=UUID(row["id"]),
-                category=row["category"],
-                key=row["key"],
-                content=row["content"],
-                importance=row.get("importance", 0.5),
-                confidence=row.get("confidence", 0.8),
-            )
-            for row in (user_result.data or [])
-        ]
+    try:
+        if query:
+            # Semantic search using embeddings
+            query_embedding = await get_embedding(query)
+
+            # Build scope filter
+            if project_id:
+                # User-scoped OR this project
+                scope_filter = f"(project_id IS NULL OR project_id = '{project_id}')"
+            else:
+                # User-scoped only
+                scope_filter = "project_id IS NULL"
+
+            # Use RPC for vector search with hybrid scoring
+            # Note: This requires a Supabase function, fallback to simple query
+            try:
+                result = client.rpc(
+                    "search_memories",
+                    {
+                        "query_embedding": query_embedding,
+                        "match_user_id": user_id,
+                        "match_project_id": str(project_id) if project_id else None,
+                        "match_count": max_results
+                    }
+                ).execute()
+
+                for row in (result.data or []):
+                    memories.append(Memory(
+                        id=UUID(row["id"]),
+                        content=row["content"],
+                        importance=row.get("importance", 0.5),
+                        tags=row.get("tags", []),
+                        entities=row.get("entities", {}),
+                        source_type=row.get("source_type", "chat"),
+                        project_id=UUID(row["project_id"]) if row.get("project_id") else None,
+                    ))
+            except Exception as e:
+                # Fallback to simple importance-based query
+                print(f"Semantic search failed, falling back to importance: {e}")
+                query = None  # Force fallback
+
+        if not query:
+            # Simple importance-based retrieval
+            if project_id:
+                # Get user memories + project memories
+                user_result = (
+                    client.table("memories")
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .is_("project_id", "null")
+                    .eq("is_active", True)
+                    .order("importance", desc=True)
+                    .limit(max_results // 2)
+                    .execute()
+                )
+
+                project_result = (
+                    client.table("memories")
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .eq("project_id", str(project_id))
+                    .eq("is_active", True)
+                    .order("importance", desc=True)
+                    .limit(max_results // 2)
+                    .execute()
+                )
+
+                rows = (user_result.data or []) + (project_result.data or [])
+            else:
+                # User memories only
+                result = (
+                    client.table("memories")
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .is_("project_id", "null")
+                    .eq("is_active", True)
+                    .order("importance", desc=True)
+                    .limit(max_results)
+                    .execute()
+                )
+                rows = result.data or []
+
+            for row in rows:
+                memories.append(Memory(
+                    id=UUID(row["id"]),
+                    content=row["content"],
+                    importance=row.get("importance", 0.5),
+                    tags=row.get("tags", []),
+                    entities=row.get("entities", {}),
+                    source_type=row.get("source_type", "chat"),
+                    project_id=UUID(row["project_id"]) if row.get("project_id") else None,
+                ))
+
     except Exception as e:
-        print(f"Failed to load user context: {e}")
+        print(f"Failed to load memories: {e}")
 
     return ContextBundle(
-        blocks=[],
+        memories=memories,
         documents=[],
-        project_id=None,
-        user_context=user_context,
+        project_id=project_id,
     )
 
 
 async def save_agent_session(
     client,
+    user_id: str,
     project_id: Optional[UUID],
     agent_type: str,
     messages: list[dict],
@@ -151,6 +175,7 @@ async def save_agent_session(
 ):
     """Save agent session for provenance. project_id can be None for global chat."""
     data = {
+        "user_id": user_id,
         "agent_type": agent_type,
         "messages": messages,
         "metadata": metadata,
@@ -161,39 +186,30 @@ async def save_agent_session(
     client.table("agent_sessions").insert(data).execute()
 
 
-async def _background_extraction(project_id: Optional[str], user_id: str, messages: list[dict], client):
+async def _background_extraction(
+    user_id: str,
+    messages: list[dict],
+    client,
+    project_id: Optional[str] = None
+):
     """
-    Background task for context extraction (ADR-004).
-    If project_id is provided, extracts both user context and project blocks.
-    If project_id is None (global chat), extracts only user context.
+    Background task for memory extraction (ADR-005).
     Runs after response streaming completes, doesn't block user.
     """
     try:
-        if project_id:
-            # Dual-stream extraction (user + project)
-            result = await extract_from_conversation(
-                project_id=project_id,
-                user_id=user_id,
-                messages=messages,
-                db_client=client,
-                source_type="chat"
-            )
-            user_count = result.get("user_items_inserted", 0)
-            project_count = result.get("project_items_inserted", 0)
-            if user_count > 0 or project_count > 0:
-                print(f"Extracted {user_count} user items and {project_count} project blocks from chat in project {project_id}")
-        else:
-            # User-only extraction (global chat)
-            user_count = await extract_user_context_only(
-                user_id=user_id,
-                messages=messages,
-                db_client=client,
-                source_type="global_chat"
-            )
-            if user_count > 0:
-                print(f"Extracted {user_count} user items from global chat")
+        result = await extract_from_conversation(
+            user_id=user_id,
+            messages=messages,
+            db_client=client,
+            project_id=project_id,
+            source_type="chat"
+        )
+        user_count = result.get("user_memories_inserted", 0)
+        project_count = result.get("project_memories_inserted", 0)
+        if user_count > 0 or project_count > 0:
+            context_type = f"project {project_id}" if project_id else "global"
+            print(f"Extracted {user_count} user + {project_count} project memories from {context_type} chat")
     except Exception as e:
-        # Log but don't fail - extraction is best-effort
         print(f"Background extraction failed: {e}")
 
 
@@ -205,11 +221,16 @@ async def global_chat(
     """
     Global chat with Thinking Partner (no project required).
 
-    Uses user context only. Ideal for onboarding, general questions,
+    Uses user memories only. Ideal for onboarding, general questions,
     or conversations that don't belong to a specific project.
     """
-    # Load user context only
-    context = await load_user_context_only(auth.client, auth.user_id)
+    # Load user memories only (with optional semantic search on the query)
+    context = await load_memories(
+        auth.client,
+        auth.user_id,
+        project_id=None,
+        query=request.content if request.include_context else None
+    )
 
     # Create agent
     agent = ThinkingPartnerAgent()
@@ -244,21 +265,22 @@ async def global_chat(
             try:
                 await save_agent_session(
                     auth.client,
+                    auth.user_id,
                     None,  # No project
                     "thinking_partner",
                     messages,
                     {
                         "model": agent.model,
                         "context_type": "user_only",
-                        "user_context_items": len(context.user_context),
+                        "memories_count": len(context.memories),
                     },
                 )
             except Exception as e:
                 print(f"Failed to save agent session: {e}")
 
-            # Fire-and-forget user-only extraction
+            # Fire-and-forget extraction
             asyncio.create_task(
-                _background_extraction(None, auth.user_id, messages, auth.client)
+                _background_extraction(auth.user_id, messages, auth.client, None)
             )
 
         except Exception as e:
@@ -283,19 +305,19 @@ async def send_message(
     """
     Send message to Thinking Partner with streaming response.
 
-    Loads project context (blocks) and streams the response via SSE.
+    Loads both user and project memories.
     """
     # Verify project access
     project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
     if not project_result.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Load two-layer context (user + project)
-    context = await load_context(
+    # Load memories (user + project)
+    context = await load_memories(
         auth.client,
-        project_id,
-        user_id=auth.user_id,
-        include_user_context=request.include_context
+        auth.user_id,
+        project_id=project_id,
+        query=request.content if request.include_context else None
     )
 
     # Create agent
@@ -317,37 +339,36 @@ async def send_message(
                 },
             ):
                 full_response += chunk
-                # SSE format
                 yield f"data: {json.dumps({'content': chunk})}\n\n"
 
-            # Send done event
             yield f"data: {json.dumps({'done': True, 'full_content': full_response})}\n\n"
 
-            # Build full message list for session save and extraction
+            # Build full message list
             messages = history + [
                 {"role": "user", "content": request.content},
                 {"role": "assistant", "content": full_response},
             ]
 
-            # Save session for provenance (fire and forget)
+            # Save session
             try:
                 await save_agent_session(
                     auth.client,
+                    auth.user_id,
                     project_id,
                     "thinking_partner",
                     messages,
                     {
                         "model": agent.model,
-                        "context_blocks": len(context.blocks),
-                        "include_context": request.include_context,
+                        "context_type": "user_and_project",
+                        "memories_count": len(context.memories),
                     },
                 )
             except Exception as e:
                 print(f"Failed to save agent session: {e}")
 
-            # Fire-and-forget dual-stream context extraction from conversation
+            # Fire-and-forget extraction
             asyncio.create_task(
-                _background_extraction(str(project_id), auth.user_id, messages, auth.client)
+                _background_extraction(auth.user_id, messages, auth.client, str(project_id))
             )
 
         except Exception as e:
@@ -404,24 +425,35 @@ async def get_context_stats(
     """
     Get context statistics for a project.
 
-    Returns block count and types available.
+    Returns memory counts by scope.
     """
     # Verify project access
     project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
     if not project_result.data:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    # Count blocks by type
-    result = auth.client.table("blocks").select("block_type").eq("project_id", str(project_id)).execute()
+    # Count project memories
+    project_mem_result = (
+        auth.client.table("memories")
+        .select("id", count="exact")
+        .eq("project_id", str(project_id))
+        .eq("is_active", True)
+        .execute()
+    )
 
-    blocks = result.data or []
-    type_counts = {}
-    for block in blocks:
-        bt = block["block_type"]
-        type_counts[bt] = type_counts.get(bt, 0) + 1
+    # Count user memories
+    user_result = (
+        auth.client.table("memories")
+        .select("id", count="exact")
+        .eq("user_id", auth.user_id)
+        .is_("project_id", "null")
+        .eq("is_active", True)
+        .execute()
+    )
 
     return {
         "project_id": str(project_id),
-        "total_blocks": len(blocks),
-        "blocks_by_type": type_counts,
+        "project_memories": project_mem_result.count or 0,
+        "user_memories": user_result.count or 0,
+        "total_memories": (project_mem_result.count or 0) + (user_result.count or 0),
     }
