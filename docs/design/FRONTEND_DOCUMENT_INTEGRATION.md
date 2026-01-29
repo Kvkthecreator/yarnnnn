@@ -261,14 +261,17 @@ YARNNN's core experience is the **Thinking Partner chat**. Documents should feel
 
 **Components:**
 - [x] Update `Chat.tsx` to handle file drops (inline, no separate component)
-- [x] Inline upload message in chat stream
+- [x] Attachment preview below input (attach-then-send pattern)
+- [x] Paperclip button for click-to-attach
 
 **UX:**
 - [x] Drag detection on chat container
 - [x] Visual feedback during drag (full-screen overlay with dashed border)
-- [x] Processing indicator in message stream
+- [x] Attach-then-send pattern (industry standard: Slack, Discord, etc.)
+- [x] User can add message before sending with attachment
+- [x] File type validation with error feedback
 
-**Commit:** `73aa014`
+**Commit:** `73aa014` (initial), updated with attach-then-send pattern
 
 ### Phase 3: Onboarding Flow
 
