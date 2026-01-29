@@ -3,6 +3,7 @@
 **Date:** 2025-01-29
 **Status:** Planning
 **Context:** Post two-layer memory architecture implementation
+**Approach:** Singular, streamlined - restructure Dashboard into Console
 
 ---
 
@@ -26,263 +27,146 @@ Login → Dashboard (project list) → Select Project → Chat Tab → Start tal
                                           Context: project blocks only
 ```
 
-### Proposed Flow (User-First)
+### Target Flow (User-First)
 ```
-Login → Console (ThinkingPartner ready) → Chat immediately OR enter project
-              ↓                                    ↓
-    Context: user memory                 Context: user + project memory
-              ↓                                    ↓
-    Can create project from chat         Full project workspace
+Login → Dashboard (chat-first) → Chat immediately OR select project
+              ↓                            ↓
+    Context: user memory         Context: user + project memory
 ```
 
-### Key UX Changes
-
-| Current | Proposed | Rationale |
-|---------|----------|-----------|
-| Dashboard shows project list | Console shows chat + quick actions | Chat is primary, projects are organization |
-| Must select project to chat | Can chat without project | User context is always available |
-| Context tab in project only | "What YARNNN knows" always visible | Transparency about memory |
-| No onboarding flow | First chat = onboarding conversation | Learn about user naturally |
+**Single approach:** Transform existing `/dashboard` - no new routes, no duplication.
 
 ---
 
-## Feature Roadmap (Workflow-Aware)
+## Implementation Plan
 
-### Phase 1: Console & User-Level Chat
-**Goal:** User can chat with ThinkingPartner without being in a project
+### Phase 1: Dashboard Transformation
+**Goal:** Dashboard becomes chat-first with projects in sidebar
 
 #### 1.1 Backend: Global Chat Endpoint
 - [ ] New route: `POST /api/chat` (no project_id required)
-- [ ] Modify ThinkingPartner to work with user_context only
-- [ ] Extraction writes to user_context (no project blocks)
+- [ ] `load_user_context_only(user_id)` function
+- [ ] Extraction writes to user_context only (no project blocks when no project)
 - [ ] Session saved to agent_sessions with project_id = NULL
 
-#### 1.2 Frontend: Console Page
-- [ ] New `/console` route (replaces or augments dashboard)
-- [ ] ThinkingPartner chat component (full-page, not tab)
-- [ ] "What YARNNN knows about you" sidebar panel
-- [ ] Quick actions: "New Project", "Import Context", "Settings"
-- [ ] Recent projects list (secondary, not primary)
+#### 1.2 Frontend: Dashboard Restructure
+- [ ] Replace project grid with chat-first layout
+- [ ] ThinkingPartner chat as primary content area
+- [ ] Projects list in left sidebar (collapsible)
+- [ ] "About You" panel in right sidebar (user context)
+- [ ] Quick actions row: "New Project", "Import"
 
-#### 1.3 Frontend: Navigation Restructure
-- [ ] Console as default post-login destination
-- [ ] Projects accessible from sidebar (like Claude Cowork's starred items)
-- [ ] Breadcrumb: Console → Project Name (when in project)
+#### 1.3 Shared Chat Component
+- [ ] Extract chat logic from project page into reusable component
+- [ ] Props: `projectId?: string` (optional = user-level chat)
+- [ ] Conditional context loading based on projectId presence
 
-#### 1.4 Onboarding Flow
-- [ ] First-time user detection
-- [ ] ThinkingPartner initiates onboarding conversation
-- [ ] Extract user context from onboarding chat
-- [ ] "Here's what I learned about you" summary
-
-### Phase 2: Enhanced Context Visibility
+### Phase 2: Context Visibility & Management
 **Goal:** User can see and manage what YARNNN knows
 
-#### 2.1 User Context Panel
-- [ ] "About You" section in Console sidebar
-- [ ] Grouped by category (7 categories from ADR-004)
+#### 2.1 User Context Panel (Dashboard Sidebar)
+- [ ] "About You" section grouped by category
 - [ ] Edit/delete individual items
-- [ ] Confidence indicator (how sure YARNNN is)
+- [ ] Confidence indicator
 
-#### 2.2 Project Context Panel
-- [ ] Enhanced Context tab (already exists, needs polish)
-- [ ] Filter by semantic type
-- [ ] Sort by importance, recency
-- [ ] Bulk operations (delete, reclassify)
+#### 2.2 Project Context Enhancement
+- [ ] Filter by semantic type in Context tab
+- [ ] Importance/recency sorting
+- [ ] Inline editing
 
-#### 2.3 Context Transparency
-- [ ] Show which context items were used in last response
-- [ ] "Why did you say that?" explainer (which context informed answer)
+### Phase 3: Work Agents
+**Goal:** Execute structured work
 
-### Phase 3: Work Agents Integration
-**Goal:** Execute structured work from Console or Project
+#### 3.1 Activation
+- [ ] Uncomment work/agents routes in main.py
+- [ ] Basic research, content, reporting agents
+- [ ] Status tracking in UI
 
-#### 3.1 Work Ticket Creation
-- [ ] "Create work ticket" from Console (creates project if needed)
-- [ ] ThinkingPartner can suggest work tickets during chat
-- [ ] Quick actions: "Write a report", "Research topic", "Draft content"
+#### 3.2 Output Delivery
+- [ ] Outputs tab in project view
+- [ ] Download/export functionality
 
-#### 3.2 Agent Execution
-- [ ] Activate work routes in main.py
-- [ ] Implement research, content, reporting agents
-- [ ] Output delivery to work_outputs table
-- [ ] Status tracking UI
+### Phase 4: External Context
+**Goal:** Ingest from other sources
 
-#### 3.3 Output Management
-- [ ] Outputs panel in Console (cross-project view)
-- [ ] Project-specific outputs in Work tab
-- [ ] Export/download functionality
+- [ ] Document upload + parsing (PDF, DOCX)
+- [ ] Claude/ChatGPT export import
+- [ ] MCP connectors (Notion, Linear)
 
-### Phase 4: Documents & External Context
-**Goal:** Ingest context from external sources
+### Phase 5: Proactive Features
+**Goal:** YARNNN reaches out
 
-#### 4.1 Document Upload
-- [ ] PDF, DOCX, TXT upload to Supabase Storage
-- [ ] Text extraction (pdf-parse, mammoth for docx)
-- [ ] Chunking and block creation
-- [ ] Associate with project or user-level
-
-#### 4.2 External LLM Import
-- [ ] Claude conversation export parser
-- [ ] ChatGPT export parser
-- [ ] Extract context from imported conversations
-
-#### 4.3 MCP Integrations
-- [ ] Notion connector (read pages as context)
-- [ ] Linear connector (read issues)
-- [ ] Framework for additional connectors
-
-### Phase 5: Scheduled & Proactive Features
-**Goal:** YARNNN reaches out, doesn't just respond
-
-#### 5.1 Weekly Digest
-- [ ] Implement Render cron job
-- [ ] Digest content generation (summary of week's work)
-- [ ] Email delivery via Resend
-- [ ] Digest preferences UI
-
-#### 5.2 Proactive Suggestions
-- [ ] "You might want to..." based on context patterns
-- [ ] Stale context detection and refresh prompts
-- [ ] Goal progress tracking
+- [ ] Weekly digest emails (Render cron + Resend)
+- [ ] Stale context detection
 
 ---
 
-## UI/UX Specifications
-
-### Console Page Layout (Claude Cowork-Inspired)
+## UI/UX: Dashboard Layout (Chat-First)
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────┐
-│  YARNNN                                    [Settings] [Profile]         │
-├────────────────┬────────────────────────────────────────────────────────┤
-│                │                                                        │
-│  [+ New Chat]  │  ✨ What would you like to work on?                   │
-│                │                                                        │
-│  ───────────── │  ┌──────────────┐ ┌──────────────┐ ┌──────────────┐   │
-│  PROJECTS      │  │ Start a chat │ │ New project  │ │ Import text  │   │
-│                │  └──────────────┘ └──────────────┘ └──────────────┘   │
-│  ★ Project A   │                                                        │
-│  ★ Project B   │  ───────────────────────────────────────────────────  │
-│                │                                                        │
-│  ───────────── │  💬 [Chat input area - full width]                    │
-│  RECENT        │                                                        │
-│                │  ───────────────────────────────────────────────────  │
-│  Project C     │                                                        │
-│  Project D     │  Recent chats / activity feed                          │
-│                │                                                        │
-├────────────────┼────────────────────────────────────────────────────────┤
-│                │  📋 ABOUT YOU              [Edit]                      │
-│                │  ────────────────────────                              │
-│                │  Business: B2B SaaS startup                            │
-│                │  Goal: Raising Series A                                │
-│                │  Style: Prefers bullet points                          │
-│                │  [Show all →]                                          │
-└────────────────┴────────────────────────────────────────────────────────┘
+│  YARNNN                                              [Settings] [User]  │
+├────────────────┬──────────────────────────────────────┬─────────────────┤
+│                │                                      │                 │
+│  [+ New Project]  ✨ What's on your mind?            │  ABOUT YOU      │
+│                │                                      │  ───────────    │
+│  ───────────── │  ┌────────┐ ┌────────┐ ┌────────┐   │  Business:      │
+│  PROJECTS      │  │New proj│ │Import  │ │Settings│   │  B2B SaaS       │
+│                │  └────────┘ └────────┘ └────────┘   │                 │
+│  Project A     │                                      │  Goal:          │
+│  Project B     │  ─────────────────────────────────  │  Series A       │
+│  Project C     │                                      │                 │
+│                │  [Chat messages area]                │  Style:         │
+│                │                                      │  Bullet points  │
+│                │                                      │                 │
+│                │                                      │  [Edit →]       │
+│                │  ─────────────────────────────────  │                 │
+│                │  [Type a message...]          [Send] │                 │
+└────────────────┴──────────────────────────────────────┴─────────────────┘
 ```
 
-### Project Page Layout (Enhanced)
-
-```
-┌─────────────────────────────────────────────────────────────────────────┐
-│  ← Console    Project Name                 [Settings] [Profile]         │
-├────────────────┬────────────────────────────────────────────────────────┤
-│                │  [Chat] [Context] [Work] [Outputs]                     │
-│  PROJECTS      │  ═══════════════════════════════════════════════════  │
-│  ...           │                                                        │
-│                │  (Tab content area - existing design)                  │
-│                │                                                        │
-│                │                                                        │
-│                │                                                        │
-│                │                                                        │
-├────────────────┼────────────────────────────────────────────────────────┤
-│                │  📋 PROJECT CONTEXT        [Edit]                      │
-│                │  ────────────────────────                              │
-│                │  Requirements: 3 items                                 │
-│                │  Facts: 5 items                                        │
-│                │  Assumptions: 2 items                                  │
-│                │  [Show all →]                                          │
-└────────────────┴────────────────────────────────────────────────────────┘
-```
+**Key changes from current:**
+- Chat is center stage, not hidden in project tabs
+- Projects are sidebar navigation, not the main content
+- User context visible at all times (right panel)
+- Quick actions for common tasks
 
 ---
 
-## Technical Dependencies
+## Technical Changes
 
-### Backend Changes Required
+### Backend
+| Change | File | Notes |
+|--------|------|-------|
+| Global chat endpoint | `routes/chat.py` | `POST /api/chat` (no project_id) |
+| User-only context loader | `routes/chat.py` | New function |
+| Nullable project in sessions | Already supported | - |
 
-| Change | Files | Complexity |
-|--------|-------|------------|
-| Global chat endpoint | `routes/chat.py`, `main.py` | Low |
-| User-only context assembly | `routes/chat.py` | Low |
-| Nullable project_id in sessions | Already supported | None |
-| Work routes activation | `main.py`, `routes/work.py`, `routes/agents.py` | Medium |
-| Document parsing | New `services/documents.py` | Medium |
-| Cron job | New Render config, `services/digest.py` | Medium |
+### Frontend
+| Change | File | Notes |
+|--------|------|-------|
+| Dashboard restructure | `app/dashboard/page.tsx` | Chat-first layout |
+| Shared chat component | `components/Chat.tsx` | Extract from project page |
+| User context panel | `components/UserContextPanel.tsx` | New component |
+| Project sidebar | `components/ProjectSidebar.tsx` | New component |
 
-### Frontend Changes Required
-
-| Change | Files | Complexity |
-|--------|-------|------------|
-| Console page | New `app/console/page.tsx` | Medium |
-| Navigation restructure | `components/Sidebar.tsx`, layouts | Medium |
-| User context panel | New component | Low |
-| Chat component extraction | Refactor from project page | Medium |
-| Onboarding flow | New components, state management | Medium |
-
-### Database Changes Required
-
-| Change | Migration | Complexity |
-|--------|-----------|------------|
-| None for Phase 1-2 | Schema already supports | None |
-| Document metadata | May need enhancement | Low |
+### Database
+No changes needed - schema already supports nullable project_id.
 
 ---
 
-## Priority Recommendation
+## Execution Order
 
-### Immediate (This Week)
-1. **Console page with user-level chat** - Biggest UX impact
-2. **Navigation restructure** - Enables the new flow
-3. **User context panel** - Transparency, builds trust
-
-### Next (Following Week)
-4. **Onboarding flow** - First-time user experience
-5. **Work agents activation** - Core value proposition
-6. **Enhanced context visibility** - Polish
-
-### Later (Following Weeks)
-7. **Document upload** - Expands context sources
-8. **External imports** - Claude/ChatGPT migration
-9. **Weekly digest** - Retention feature
-10. **MCP integrations** - Power user features
-
----
-
-## Success Metrics
-
-| Metric | Current | Target |
-|--------|---------|--------|
-| Time to first chat | ~30s (create project first) | <5s (immediate) |
-| User context items after 1 week | 0 (new feature) | 10+ per user |
-| Projects per user | Required | Optional |
-| Return rate (week 2) | Unknown | 40%+ |
-
----
-
-## Open Questions
-
-1. **Console vs Dashboard naming?** - "Console" feels more tool-like, "Dashboard" is generic
-2. **Sidebar always visible or collapsible?** - Cowork has it always visible
-3. **Mobile experience?** - Console-first design needs mobile consideration
-4. **Project creation from chat?** - "Let's start a project for this" flow
-5. **Multi-project context?** - Should user context from Project A inform Project B chat? (Currently yes via user_context, but should it be configurable?)
+1. **Backend: Global chat endpoint** - Enables user-level chat
+2. **Frontend: Extract chat component** - Reusable for dashboard + project
+3. **Frontend: Dashboard restructure** - The main UX change
+4. **Frontend: User context panel** - Visibility into what YARNNN knows
+5. **Polish: Onboarding detection** - First-time user experience
 
 ---
 
 ## References
 
 - [ADR-004: Two-Layer Memory Architecture](../adr/ADR-004-two-layer-memory-architecture.md)
-- [First Principles Analysis](../analysis/memory-architecture-first-principles.md)
-- Claude Cowork UI (user-provided screenshot)
-- Current YARNNN dashboard implementation
+- Claude Cowork UI (benchmark)
+- Current dashboard: `web/app/dashboard/page.tsx`
