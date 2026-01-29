@@ -10,15 +10,12 @@ import {
   Upload,
   X,
   MessageCircle,
-  FileQuestion,
-  Lightbulb,
-  CheckCircle,
-  BookOpen,
-  HelpCircle,
+  Tag,
+  Star,
 } from "lucide-react";
 import { Chat } from "@/components/Chat";
 import { api } from "@/lib/api/client";
-import type { Block, SemanticType } from "@/types";
+import type { Memory } from "@/types";
 
 type Tab = "context" | "work" | "chat";
 
@@ -143,47 +140,6 @@ function TabButton({
   );
 }
 
-const SEMANTIC_TYPE_CONFIG: Record<
-  SemanticType,
-  { label: string; icon: React.ReactNode; color: string }
-> = {
-  fact: {
-    label: "Fact",
-    icon: <CheckCircle className="w-3 h-3" />,
-    color: "text-blue-600 bg-blue-50",
-  },
-  guideline: {
-    label: "Guideline",
-    icon: <BookOpen className="w-3 h-3" />,
-    color: "text-purple-600 bg-purple-50",
-  },
-  requirement: {
-    label: "Requirement",
-    icon: <FileQuestion className="w-3 h-3" />,
-    color: "text-red-600 bg-red-50",
-  },
-  insight: {
-    label: "Insight",
-    icon: <Lightbulb className="w-3 h-3" />,
-    color: "text-yellow-600 bg-yellow-50",
-  },
-  note: {
-    label: "Note",
-    icon: <FileText className="w-3 h-3" />,
-    color: "text-gray-600 bg-gray-50",
-  },
-  question: {
-    label: "Question",
-    icon: <HelpCircle className="w-3 h-3" />,
-    color: "text-green-600 bg-green-50",
-  },
-  assumption: {
-    label: "Assumption",
-    icon: <Lightbulb className="w-3 h-3" />,
-    color: "text-orange-600 bg-orange-50",
-  },
-};
-
 const SOURCE_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode }> = {
   manual: { label: "manual", icon: <FileText className="w-3 h-3" /> },
   chat: { label: "from chat", icon: <MessageCircle className="w-3 h-3" /> },
@@ -193,44 +149,44 @@ const SOURCE_TYPE_LABELS: Record<string, { label: string; icon: React.ReactNode 
 };
 
 function ContextTab({ projectId }: { projectId: string }) {
-  const [blocks, setBlocks] = useState<Block[]>([]);
+  const [memories, setMemories] = useState<Memory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [showImportModal, setShowImportModal] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
 
-  // Fetch blocks
+  // Fetch memories
   useEffect(() => {
-    async function fetchBlocks() {
+    async function fetchMemories() {
       try {
-        const data = await api.context.listBlocks(projectId);
-        setBlocks(data);
+        const data = await api.projectMemories.list(projectId);
+        setMemories(data);
       } catch (err) {
-        console.error("Failed to fetch blocks:", err);
+        console.error("Failed to fetch memories:", err);
       } finally {
         setIsLoading(false);
       }
     }
-    fetchBlocks();
+    fetchMemories();
   }, [projectId]);
 
-  const handleDelete = async (blockId: string) => {
+  const handleDelete = async (memoryId: string) => {
     try {
-      await api.context.deleteBlock(blockId);
-      setBlocks((prev) => prev.filter((b) => b.id !== blockId));
+      await api.memories.delete(memoryId);
+      setMemories((prev) => prev.filter((m) => m.id !== memoryId));
     } catch (err) {
-      console.error("Failed to delete block:", err);
+      console.error("Failed to delete memory:", err);
     }
   };
 
   const handleImport = async (text: string) => {
     setIsImporting(true);
     try {
-      const result = await api.context.importBulk(projectId, { text });
-      // Refresh blocks list
-      const updated = await api.context.listBlocks(projectId);
-      setBlocks(updated);
+      const result = await api.projectMemories.importBulk(projectId, { text });
+      // Refresh memories list
+      const updated = await api.projectMemories.list(projectId);
+      setMemories(updated);
       setShowImportModal(false);
-      alert(`Extracted ${result.blocks_extracted} blocks from your text.`);
+      alert(`Extracted ${result.memories_extracted} memories from your text.`);
     } catch (err) {
       console.error("Failed to import:", err);
       alert("Failed to import text. Please try again.");
@@ -262,7 +218,7 @@ function ContextTab({ projectId }: { projectId: string }) {
         </div>
       </div>
 
-      {blocks.length === 0 ? (
+      {memories.length === 0 ? (
         <div className="text-center py-12 border border-dashed border-border rounded-lg">
           <FileText className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">No context yet</h3>
@@ -280,39 +236,48 @@ function ContextTab({ projectId }: { projectId: string }) {
         </div>
       ) : (
         <div className="space-y-3">
-          {blocks.map((block) => {
-            const semanticConfig = block.semantic_type
-              ? SEMANTIC_TYPE_CONFIG[block.semantic_type]
-              : SEMANTIC_TYPE_CONFIG.note;
-            const sourceConfig = block.source_type
-              ? SOURCE_TYPE_LABELS[block.source_type]
+          {memories.map((memory) => {
+            const sourceConfig = memory.source_type
+              ? SOURCE_TYPE_LABELS[memory.source_type]
               : SOURCE_TYPE_LABELS.manual;
 
             return (
               <div
-                key={block.id}
+                key={memory.id}
                 className="p-4 border border-border rounded-lg hover:border-muted-foreground/30 transition-colors group"
               >
                 <div className="flex justify-between items-start gap-2">
                   <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-2">
-                      <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${semanticConfig.color}`}
-                      >
-                        {semanticConfig.icon}
-                        {semanticConfig.label}
-                      </span>
+                    <div className="flex items-center gap-2 mb-2 flex-wrap">
+                      {/* Tags */}
+                      {memory.tags.map((tag) => (
+                        <span
+                          key={tag}
+                          className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-primary bg-primary/10"
+                        >
+                          <Tag className="w-3 h-3" />
+                          {tag}
+                        </span>
+                      ))}
+                      {/* Importance indicator */}
+                      {memory.importance >= 0.8 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium text-yellow-600 bg-yellow-50">
+                          <Star className="w-3 h-3" />
+                          Important
+                        </span>
+                      )}
+                      {/* Source type */}
                       <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
                         {sourceConfig.icon}
                         {sourceConfig.label}
                       </span>
                     </div>
-                    <p className="text-sm">{block.content}</p>
+                    <p className="text-sm">{memory.content}</p>
                   </div>
                   <button
-                    onClick={() => handleDelete(block.id)}
+                    onClick={() => handleDelete(memory.id)}
                     className="p-1 text-muted-foreground hover:text-destructive opacity-0 group-hover:opacity-100 transition-opacity"
-                    title="Delete block"
+                    title="Delete memory"
                   >
                     <Trash2 className="w-4 h-4" />
                   </button>
@@ -398,7 +363,7 @@ function ImportModal({
                 className="px-4 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50 inline-flex items-center gap-2"
               >
                 {isImporting && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isImporting ? "Extracting..." : "Extract Blocks"}
+                {isImporting ? "Extracting..." : "Extract Memories"}
               </button>
             </div>
           </div>

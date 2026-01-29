@@ -1,2 +1,2 @@
 export { useProjects, useProject } from "./useProjects";
-export { useBlocks, useContextBundle } from "./useBlocks";
+export { useProjectMemories, useUserMemories, useContextBundle } from "./useMemories";
