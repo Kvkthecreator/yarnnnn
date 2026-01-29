@@ -15,6 +15,7 @@ venv/
 out/
 dist/
 build/
+*.tsbuildinfo
 
 # IDE
 .idea/
