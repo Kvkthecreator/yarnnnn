@@ -15,6 +15,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { ModeToggle } from "@/components/mode-toggle";
 
 interface Project {
   id: string;
@@ -145,13 +146,16 @@ export default function Sidebar({
           >
             yarnnn
           </Link>
-          <button
-            onClick={() => onOpenChange?.(false)}
-            className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
-            aria-label="Close sidebar"
-          >
-            <ChevronLeft className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-1">
+            <ModeToggle />
+            <button
+              onClick={() => onOpenChange?.(false)}
+              className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground transition-colors"
+              aria-label="Close sidebar"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+          </div>
         </div>
 
         {/* Main Navigation */}
