@@ -215,11 +215,13 @@ DECLARE
     v_next_seq INTEGER;
     v_message session_messages;
 BEGIN
-    -- Get next sequence number (with lock to prevent race conditions)
+    -- Lock the session row to prevent race conditions
+    PERFORM id FROM chat_sessions WHERE id = p_session_id FOR UPDATE;
+
+    -- Get next sequence number
     SELECT COALESCE(MAX(sequence_number), 0) + 1 INTO v_next_seq
     FROM session_messages
-    WHERE session_id = p_session_id
-    FOR UPDATE;
+    WHERE session_id = p_session_id;
 
     -- Insert message
     INSERT INTO session_messages (session_id, role, content, sequence_number, metadata)
