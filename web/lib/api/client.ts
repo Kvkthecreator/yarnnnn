@@ -14,6 +14,7 @@ import type {
   BulkImportRequest,
   BulkImportResponse,
   ContextBundle,
+  Document,
   WorkTicket,
   WorkTicketCreate,
   WorkOutput,
@@ -157,6 +158,42 @@ export const api = {
   context: {
     getBundle: (projectId: string) =>
       request<ContextBundle>(`/api/context/projects/${projectId}/context`),
+  },
+
+  // Document endpoints
+  documents: {
+    list: (projectId: string) =>
+      request<Document[]>(`/api/context/projects/${projectId}/documents`),
+    upload: async (projectId: string, file: File) => {
+      const headers = await getAuthHeaders();
+      delete (headers as Record<string, string>)["Content-Type"]; // Let browser set for FormData
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/context/projects/${projectId}/documents`,
+        {
+          method: "POST",
+          credentials: "include",
+          headers,
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const data = await response.json().catch(() => null);
+        throw new APIError(response.status, response.statusText, data);
+      }
+
+      return response.json();
+    },
+    get: (documentId: string) =>
+      request<Document>(`/api/context/documents/${documentId}`),
+    delete: (documentId: string) =>
+      request<DeleteResponse>(`/api/context/documents/${documentId}`, {
+        method: "DELETE",
+      }),
   },
 
   // Work endpoints
