@@ -42,7 +42,7 @@ export default function LandingPage() {
         </section>
 
         {/* How It Works */}
-        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
+        <section id="how-it-works" className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-medium mb-16 text-[#1a1a1a]">
               How it works
