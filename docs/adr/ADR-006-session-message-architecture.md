@@ -1,6 +1,6 @@
 # ADR-006: Session and Message Architecture
 
-**Status:** Proposed
+**Status:** Accepted (Implemented)
 **Date:** 2026-01-29
 **Related:** ADR-005 (Unified Memory with Embeddings)
 **Decision Makers:** Kevin Kim
@@ -355,16 +355,15 @@ POST /api/projects/:id/chat              # Send message (uses get_or_create)
 
 ## Decision Checklist
 
-- [ ] Create ADR-006 (this document)
-- [ ] Design migration `007_chat_sessions.sql`
-- [ ] Update chat routes to use new tables
-- [ ] Add global chat history endpoint
-- [ ] Update frontend `useChat` hook for new API
-- [ ] Add session management UI (optional)
-- [ ] Test migration with production data patterns
-- [ ] Deploy Phase 1 (add tables)
-- [ ] Deploy Phase 2 (migrate agents)
-- [ ] Deploy Phase 3 (cleanup)
+- [x] Create ADR-006 (this document)
+- [x] Design migration `008_chat_sessions.sql`
+- [x] Update chat routes to use new tables
+- [x] Add global chat history endpoint (`GET /chat/history`)
+- [x] Update frontend `useChat` hook for new API
+- [ ] Add session management UI (optional - future)
+- [x] Deploy Phase 1 (add tables)
+- [ ] Deploy Phase 2 (migrate agent_sessions) - deferred
+- [ ] Deploy Phase 3 (cleanup agent_sessions) - deferred
 
 ## References
 

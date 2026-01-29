@@ -368,17 +368,18 @@ The user/project scope distinction from ADR-004 is preserved, but simplified:
 
 ## Migration Checklist
 
-- [ ] Enable pgvector extension in Supabase
-- [ ] Create migration `006_unified_memory.sql`
-- [ ] Drop old tables (user_context, blocks, block_relations)
-- [ ] Create new tables (memories, chunks)
-- [ ] Extend documents table
-- [ ] Update extraction service for emergent extraction
-- [ ] Add embedding generation service
-- [ ] Update ThinkingPartner context assembly
-- [ ] Update chat routes for new retrieval
-- [ ] Add document upload + processing endpoint
-- [ ] Update frontend components
+- [x] Enable pgvector extension in Supabase
+- [x] Create migration `006_unified_memory.sql`
+- [x] Drop old tables (user_context, blocks, block_relations)
+- [x] Create new tables (memories, chunks)
+- [x] Extend documents table
+- [x] Update extraction service for emergent extraction
+- [x] Add embedding generation service (`api/services/embeddings.py`)
+- [x] Add semantic search RPC (`007_search_memories_rpc.sql`)
+- [x] Update ThinkingPartner context assembly
+- [x] Update chat routes for semantic retrieval
+- [ ] Add document upload + processing endpoint (Phase 4)
+- [ ] Update frontend components (partial - context panel needs refresh)
 
 ## References
 

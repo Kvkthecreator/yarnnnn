@@ -8,9 +8,12 @@ ADRs document significant architectural decisions made during development.
 |-----|-------|--------|------|
 | [001](ADR-001-memory-simplicity.md) | Keep Memory Simple for MVP | Accepted | 2026-01-28 |
 | [002](ADR-002-scheduling-first-class.md) | Scheduling as First-Class Feature | Accepted | 2026-01-28 |
-| [003](ADR-003-context-memory-architecture.md) | Context & Memory Architecture | Proposed | 2025-01-29 |
-| [004](ADR-004-two-layer-memory-architecture.md) | Two-Layer Memory Architecture | Superseded | 2025-01-29 |
-| [005](ADR-005-unified-memory-with-embeddings.md) | **Unified Memory with Embeddings** | **Accepted** | 2026-01-29 |
+| [003](ADR-003-context-memory-architecture.md) | Context & Memory Architecture | Superseded by 005 | 2025-01-29 |
+| [004](ADR-004-two-layer-memory-architecture.md) | Two-Layer Memory Architecture | Superseded by 005 | 2025-01-29 |
+| [005](ADR-005-unified-memory-with-embeddings.md) | **Unified Memory with Embeddings** | **Implemented** | 2026-01-29 |
+| [006](ADR-006-session-message-architecture.md) | Session and Message Architecture | Implemented | 2026-01-29 |
+| [007](ADR-007-thinking-partner-project-authority.md) | Thinking Partner Project Authority | Implemented | 2026-01-29 |
+| [008](ADR-008-document-pipeline.md) | Document Pipeline Architecture | Implemented | 2026-01-29 |
 
 ## Template
 

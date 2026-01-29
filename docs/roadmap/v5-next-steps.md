@@ -1,26 +1,41 @@
 # YARNNN v5 Roadmap
 
 **Date:** 2026-01-29
-**Current Phase:** Architecture Pivot (ADR-005)
-**Status:** Phases 1-2 complete, pivoting to unified memory model
+**Current Phase:** Phase 3 - Work Agents
+**Status:** Architecture complete (ADR-005/006/007), ready for work agents
 
 ---
 
-## Architecture Evolution
+## Architecture Summary
 
-### What Changed
+The core architecture is now complete:
 
-ADR-004 (Two-Layer Memory) implemented rigid categorical taxonomies:
-- 7 user context categories (preference, business_fact, etc.)
-- 6 project block types (requirement, fact, guideline, etc.)
+| ADR | Status | Description |
+|-----|--------|-------------|
+| ADR-005 | ✅ Implemented | Unified Memory with Embeddings |
+| ADR-006 | ✅ Implemented | Session and Message Architecture |
+| ADR-007 | ✅ Implemented | Thinking Partner Project Authority (Tools) |
+| ADR-008 | ✅ Implemented | Document Pipeline Architecture |
 
-**Problem discovered:** Categories were extracted and stored but **never used for retrieval**. They served only as UI decoration. Research showed this pattern fails at scale.
+### What's Built
 
-**ADR-005 (Unified Memory)** replaces this with:
-- Single `memories` table with embeddings for semantic retrieval
-- Scope via nullable `project_id` (NULL = user, non-NULL = project)
-- Emergent structure via tags/entities (not forced categories)
-- Document pipeline: documents → chunks → memories
+**Memory System (ADR-005):**
+- Single `memories` table with pgvector embeddings
+- Semantic search via `search_memories()` RPC
+- Hybrid scoring (70% similarity + 30% importance)
+- Emergent structure (tags/entities, not forced categories)
+- Automatic extraction from chat conversations
+
+**Session System (ADR-006):**
+- Normalized `chat_sessions` + `session_messages` tables
+- Daily session reuse (one session per project per day)
+- Global chat support (no project required)
+- RPC functions for session management
+
+**Thinking Partner Tools (ADR-007):**
+- `list_projects`, `create_project`, `rename_project`, `update_project`
+- Streaming with inline tool use
+- Frontend handles tool events, auto-refreshes sidebar
 
 ---
 
@@ -29,107 +44,93 @@ ADR-004 (Two-Layer Memory) implemented rigid categorical taxonomies:
 | Phase | Status | Description |
 |-------|--------|-------------|
 | Phase 1 | ✅ Complete | Dashboard transformation, global chat |
-| Phase 2 | ✅ Complete | User context panel (will be rebuilt for new model) |
-| **Phase 2.5** | 🔄 **Current** | **Architecture pivot: ADR-005 implementation** |
-| Phase 3 | 🔲 Blocked | Work Agents (depends on new memory model) |
-| Phase 4 | 🔲 Planned | Document upload + external imports |
-| Phase 5 | 🔲 Future | Proactive features |
+| Phase 2 | ✅ Complete | User context panel |
+| Phase 2.5 | ✅ Complete | Architecture pivot (ADR-005/006/007) |
+| Phase 3 | ✅ Complete | Work Agents skeleton, deferred for Document Pipeline |
+| **Phase 4** | ✅ **Complete** | **Document Pipeline (ADR-008)** |
+| Phase 5 | 🔲 Planned | Frontend integration, onboarding UX |
+| Phase 6 | 🔲 Future | Proactive features |
 
 ---
 
-## Phase 2.5: Architecture Pivot (Current)
+## Phase 3: Work Agents (Current)
 
 ### Goal
-Implement ADR-005 unified memory architecture with embeddings.
-
-### Database Migration
-
-- [ ] Enable pgvector extension in Supabase
-- [ ] Write `006_unified_memory.sql` migration
-  - [ ] Drop deprecated tables (user_context, blocks, block_relations)
-  - [ ] Create `memories` table with embedding column
-  - [ ] Create `chunks` table for document segments
-  - [ ] Extend `documents` table with processing columns
-  - [ ] Set up RLS policies
-  - [ ] Create indexes (including ivfflat for vectors)
-
-### Backend Changes
-
-- [ ] Add embedding service (`api/services/embeddings.py`)
-  - [ ] OpenAI ada-002 integration (or alternative)
-  - [ ] Batch embedding for efficiency
-- [ ] Rewrite extraction service (`api/services/extraction.py`)
-  - [ ] Remove forced category extraction
-  - [ ] Implement emergent tag/entity extraction
-  - [ ] Scope classification (user vs project)
-  - [ ] Generate embeddings on extraction
-- [ ] Update memory retrieval (`api/services/memory.py`)
-  - [ ] Semantic search with vector similarity
-  - [ ] Hybrid scoring (similarity + importance)
-  - [ ] Scope-aware retrieval
-- [ ] Update ThinkingPartner context assembly
-  - [ ] Query-based retrieval (not fetch-all)
-  - [ ] Format memories for LLM consumption
-- [ ] Update chat routes for new retrieval pattern
-
-### Frontend Changes
-
-- [ ] Update "About You" panel for new data model
-  - [ ] Display tags instead of categories
-  - [ ] Show entities
-- [ ] Update project context view
-- [ ] Memory management UI (edit, soft-delete)
-
-### Document Pipeline (Foundation)
-
-- [ ] Document upload endpoint
-- [ ] Basic parsing (PDF, DOCX)
-- [ ] Semantic chunking (~400 tokens)
-- [ ] Chunk storage with embeddings
-- [ ] Memory extraction from chunks
-
----
-
-## Phase 3: Work Agents (Next)
-
-**Blocked on:** Phase 2.5 completion
-
-### Goal
-Activate work agents that leverage the new memory architecture.
+Activate work agents that leverage the semantic memory architecture.
 
 ### Tasks
 
-- [ ] Uncomment work/agents routes in main.py
-- [ ] Update agents to use semantic memory retrieval
-- [ ] Research agent: query memories for facts
-- [ ] Content agent: query memories for style/guidelines
-- [ ] Reporting agent: aggregate memories into outputs
-- [ ] Work ticket UI in dashboard
+- [ ] Enable work/agents routes in main.py
+- [ ] Research Agent
+  - [ ] Query memories semantically for facts
+  - [ ] Produce research summaries
+- [ ] Content Agent
+  - [ ] Query memories for style/voice preferences
+  - [ ] Generate content drafts
+- [ ] Reporting Agent
+  - [ ] Aggregate memories into structured outputs
+  - [ ] Generate PPTX/PDF reports
+- [ ] Work Ticket UI
+  - [ ] Create work ticket from dashboard
+  - [ ] View ticket status and outputs
+  - [ ] Download generated files
+
+### Key Files
+
+| File | Status | Purpose |
+|------|--------|---------|
+| `api/routes/work.py` | Exists (commented) | Work ticket endpoints |
+| `api/routes/agents.py` | Exists (commented) | Agent execution endpoints |
+| `api/agents/research.py` | To implement | Research agent |
+| `api/agents/content.py` | To implement | Content agent |
+| `api/agents/reporting.py` | To implement | Reporting agent |
 
 ---
 
-## Phase 4: External Context
+## Phase 4: Document Pipeline (ADR-008) ✅ Complete
 
 ### Goal
-Ingest context from external sources.
+Ingest context from documents to avoid cold starts.
+
+### Completed
+
+- [x] Document processing pipeline
+  - [x] Storage bucket with RLS (`documents` bucket)
+  - [x] PDF parsing with `pypdf`
+  - [x] DOCX parsing with `python-docx`
+  - [x] Semantic chunking (~400 tokens)
+  - [x] Chunk storage with embeddings
+  - [x] Memory extraction from chunks
+- [x] API endpoints (`api/routes/documents.py`)
+  - [x] `POST /api/documents/upload` - Upload and process
+  - [x] `GET /api/documents` - List documents
+  - [x] `GET /api/documents/{id}` - Get with stats
+  - [x] `GET /api/documents/{id}/download` - Signed URL
+  - [x] `DELETE /api/documents/{id}` - Delete with cascade
+
+### Pending (Future)
+- [ ] Conversation imports (Claude, ChatGPT export formats)
+- [ ] MCP integrations (Notion, Linear)
+
+---
+
+## Phase 5: Frontend Integration
+
+### Goal
+Surface document upload in the user experience.
 
 ### Tasks
 
-- [ ] Full document processing pipeline
-  - [ ] PDF parsing with page tracking
-  - [ ] DOCX/DOC parsing
-  - [ ] Image OCR (optional)
-- [ ] Conversation imports
-  - [ ] Claude export format
-  - [ ] ChatGPT export format
-  - [ ] Parse → chunk → extract memories
-- [ ] MCP integrations (future)
-  - [ ] Notion connector
-  - [ ] Linear connector
+- [ ] Upload integration (options to explore):
+  - [ ] Chat interface ("drop a file")
+  - [ ] Context panel
+  - [ ] Dashboard for onboarding
+- [ ] Document management UI
+- [ ] Progress indicators for processing
 
 ---
 
-## Phase 5: Proactive Features
+## Phase 6: Proactive Features
 
 ### Goal
 YARNNN reaches out to users.
@@ -142,7 +143,7 @@ YARNNN reaches out to users.
 
 ---
 
-## Technical Architecture (Post-ADR-005)
+## Technical Architecture
 
 ### Data Flow
 
@@ -165,44 +166,22 @@ Query ──→ Embedding ──→ Vector Search ──→ Relevant Memories
                         + importance weighting
 ```
 
-### Retrieval Pattern
+### Key Services
 
-```python
-# Semantic search with hybrid scoring
-async def get_relevant_memories(user_id, project_id, query):
-    query_embedding = await get_embedding(query)
-
-    return await db.query("""
-        SELECT *,
-               (1 - (embedding <=> $1)) * 0.7 + importance * 0.3 AS relevance
-        FROM memories
-        WHERE user_id = $2
-          AND is_active = true
-          AND (project_id IS NULL OR project_id = $3)
-        ORDER BY relevance DESC
-        LIMIT 20
-    """, query_embedding, user_id, project_id)
-```
-
----
-
-## Key Files to Modify
-
-| File | Changes |
-|------|---------|
-| `supabase/migrations/006_unified_memory.sql` | New migration |
-| `api/services/extraction.py` | Complete rewrite |
-| `api/services/embeddings.py` | New file |
-| `api/services/memory.py` | New file (retrieval) |
-| `api/agents/thinking_partner.py` | Update context assembly |
-| `api/routes/chat.py` | Update retrieval calls |
-| `api/routes/context.py` | Update for memories table |
-| `web/components/UserContextPanel.tsx` | Adapt for new model |
+| Service | File | Purpose |
+|---------|------|---------|
+| Embeddings | `api/services/embeddings.py` | OpenAI text-embedding-3-small |
+| Extraction | `api/services/extraction.py` | LLM-based memory extraction |
+| Anthropic | `api/services/anthropic.py` | Streaming + tools |
+| Project Tools | `api/services/project_tools.py` | TP project management |
+| Documents | `api/services/documents.py` | PDF/DOCX parsing, chunking |
 
 ---
 
 ## References
 
 - [ADR-005: Unified Memory with Embeddings](../adr/ADR-005-unified-memory-with-embeddings.md)
+- [ADR-006: Session and Message Architecture](../adr/ADR-006-session-message-architecture.md)
+- [ADR-007: Thinking Partner Project Authority](../adr/ADR-007-thinking-partner-project-authority.md)
+- [ADR-008: Document Pipeline Architecture](../adr/ADR-008-document-pipeline.md)
 - [Database Schema](../database/SCHEMA.md)
-- [ADR-004: Two-Layer Memory](../adr/ADR-004-two-layer-memory-architecture.md) (superseded)

@@ -59,16 +59,18 @@ Unified memory storage. Replaces the previous `user_context` and `blocks` tables
 
 ### 2. documents
 
-Uploaded files (PDF, DOCX, etc). Parsed into chunks.
+Uploaded files (PDF, DOCX, etc). Parsed into chunks. (ADR-008)
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
+| user_id | UUID | FK → auth.users, direct ownership |
+| project_id | UUID | FK → projects, **nullable** (user-scoped if NULL) |
 | filename | TEXT | Required |
 | file_url | TEXT | Supabase Storage URL |
-| file_type | TEXT | `pdf`, `docx`, `xlsx`, etc |
+| storage_path | TEXT | Bucket path: `{user_id}/{doc_id}/original.{ext}` |
+| file_type | TEXT | `pdf`, `docx`, `txt`, `md` |
 | file_size | INTEGER | Bytes |
-| project_id | UUID | FK → projects |
 | processing_status | TEXT | `pending`, `processing`, `completed`, `failed` |
 | processed_at | TIMESTAMPTZ | When processing completed |
 | error_message | TEXT | On failure |
@@ -76,7 +78,14 @@ Uploaded files (PDF, DOCX, etc). Parsed into chunks.
 | word_count | INTEGER | Approximate |
 | created_at | TIMESTAMPTZ | Auto |
 
-**RLS:** Users can manage documents in their projects.
+**Indexes:**
+- `idx_documents_user` (user_id)
+- `idx_documents_project` (project_id)
+- `idx_documents_status` (processing_status)
+
+**RLS:** Users can manage their own documents (via user_id).
+
+**Storage:** `documents` bucket with user-folder RLS.
 
 ---
 
@@ -208,10 +217,13 @@ Execution logs for provenance.
 |------|-------------|--------|
 | `001_initial_schema.sql` | Base tables | Applied |
 | `002_fix_rls_policies.sql` | RLS fixes | Applied |
-| `003_user_context.sql` | ADR-004 user_context (superseded) | Applied |
+| `003_scheduling_tables.sql` | Scheduling tables | Applied |
 | `004_extend_blocks_for_extraction.sql` | Block extensions (superseded) | Applied |
 | `005_user_context_layer.sql` | User context layer (superseded) | Applied |
-| `006_unified_memory.sql` | ADR-005 unified memory | **Pending** |
+| `006_unified_memory.sql` | ADR-005 unified memory | Applied |
+| `007_search_memories_rpc.sql` | Semantic search RPCs | Applied |
+| `008_chat_sessions.sql` | ADR-006 sessions | Applied |
+| `009_document_pipeline.sql` | ADR-008 document storage | Applied |
 
 ---
 
