@@ -24,6 +24,13 @@ import type {
   WorkOutput,
   DeleteResponse,
 } from "@/types";
+import type {
+  AdminOverviewStats,
+  AdminMemoryStats,
+  AdminDocumentStats,
+  AdminChatStats,
+  AdminUserRow,
+} from "@/types/admin";
 
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -247,6 +254,15 @@ export const api = {
       request<Array<{ role: string; content: string }>>(
         `/api/projects/${projectId}/chat/history`
       ),
+  },
+
+  // Admin endpoints (requires admin access)
+  admin: {
+    stats: () => request<AdminOverviewStats>("/api/admin/stats"),
+    users: () => request<AdminUserRow[]>("/api/admin/users"),
+    memoryStats: () => request<AdminMemoryStats>("/api/admin/memory-stats"),
+    documentStats: () => request<AdminDocumentStats>("/api/admin/document-stats"),
+    chatStats: () => request<AdminChatStats>("/api/admin/chat-stats"),
   },
 };
 
