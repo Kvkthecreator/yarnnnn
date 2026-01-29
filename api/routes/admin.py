@@ -236,21 +236,26 @@ async def get_memory_stats(admin: AdminAuth):
             by_source[source] = result.count or 0
 
         # By scope (user vs project)
+        # Get total active memories first
+        total_result = client.table("memories")\
+            .select("id", count="exact")\
+            .eq("is_active", True)\
+            .execute()
+        total_active_memories = total_result.count or 0
+
         user_scoped = client.table("memories")\
             .select("id", count="exact")\
             .is_("project_id", "null")\
             .eq("is_active", True)\
             .execute()
+        user_scoped_count = user_scoped.count or 0
 
-        project_scoped = client.table("memories")\
-            .select("id", count="exact")\
-            .not_.is_("project_id", "null")\
-            .eq("is_active", True)\
-            .execute()
+        # Project-scoped = total - user-scoped (avoids NOT NULL query)
+        project_scoped_count = total_active_memories - user_scoped_count
 
         by_scope = {
-            "user_scoped": user_scoped.count or 0,
-            "project_scoped": project_scoped.count or 0,
+            "user_scoped": user_scoped_count,
+            "project_scoped": project_scoped_count,
         }
 
         # Average importance
