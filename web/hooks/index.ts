@@ -3,3 +3,4 @@ export { useProjectMemories, useUserMemories, useContextBundle } from "./useMemo
 export { useDocuments } from "./useDocuments";
 export { useOnboardingState } from "./useOnboardingState";
 export { useSubscription } from "./useSubscription";
+export { useSubscriptionGate, useMemoryGate, useChatGate } from "./useSubscriptionGate";

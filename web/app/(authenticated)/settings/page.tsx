@@ -12,10 +12,14 @@ import {
   User,
   FolderOpen,
   CreditCard,
+  BarChart3,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import type { Project } from "@/types";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
+import { UsageIndicator } from "@/components/subscription/UpgradePrompt";
+import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
+import { SUBSCRIPTION_LIMITS } from "@/lib/subscription/limits";
 
 interface MemoryStats {
   userMemories: number;
@@ -23,11 +27,12 @@ interface MemoryStats {
   totalMemories: number;
 }
 
-type SettingsTab = "memory" | "billing";
+type SettingsTab = "memory" | "billing" | "usage";
 
 export default function SettingsPage() {
   const searchParams = useSearchParams();
-  const initialTab = searchParams.get("tab") === "billing" ? "billing" : "memory";
+  const tabParam = searchParams.get("tab");
+  const initialTab: SettingsTab = tabParam === "billing" ? "billing" : tabParam === "usage" ? "usage" : "memory";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
@@ -40,6 +45,7 @@ export default function SettingsPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [purgeSuccess, setPurgeSuccess] = useState<string | null>(null);
   const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(subscriptionSuccess);
+  const { tier, projects: projectsLimit, isPro } = useSubscriptionGate();
 
   // Fetch stats on mount
   useEffect(() => {
@@ -232,12 +238,99 @@ export default function SettingsPage() {
             Billing
           </span>
         </button>
+        <button
+          onClick={() => setActiveTab("usage")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "usage"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <BarChart3 className="w-4 h-4" />
+            Usage
+          </span>
+        </button>
       </div>
 
       {/* Billing Tab */}
       {activeTab === "billing" && (
         <section className="mb-8">
           <SubscriptionCard />
+        </section>
+      )}
+
+      {/* Usage Tab */}
+      {activeTab === "usage" && (
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <BarChart3 className="w-5 h-5" />
+            Usage Overview
+          </h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            {isPro ? "You have unlimited usage on Pro." : "Track your usage against Free tier limits."}
+          </p>
+
+          <div className="space-y-6">
+            {/* Projects */}
+            <div className="p-4 border border-border rounded-lg">
+              <h3 className="font-medium mb-3 flex items-center gap-2">
+                <FolderOpen className="w-4 h-4" />
+                Projects
+              </h3>
+              <UsageIndicator
+                current={projectsLimit.current}
+                limit={projectsLimit.limit}
+                label="Projects created"
+                feature="projects"
+                showUpgrade={!isPro}
+              />
+            </div>
+
+            {/* Memories */}
+            <div className="p-4 border border-border rounded-lg">
+              <h3 className="font-medium mb-3 flex items-center gap-2">
+                <Brain className="w-4 h-4" />
+                Memories
+              </h3>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {projects.map((project) => {
+                    const memCount = stats?.projectMemories.get(project.id)?.count || 0;
+                    const memLimit = isPro ? -1 : SUBSCRIPTION_LIMITS.free.memoriesPerProject;
+                    return (
+                      <UsageIndicator
+                        key={project.id}
+                        current={memCount}
+                        limit={memLimit}
+                        label={project.name}
+                        feature="memories"
+                        showUpgrade={!isPro}
+                      />
+                    );
+                  })}
+                  {projects.length === 0 && (
+                    <p className="text-sm text-muted-foreground">No projects yet</p>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Documents */}
+            <div className="p-4 border border-border rounded-lg">
+              <h3 className="font-medium mb-3 flex items-center gap-2">
+                <FolderOpen className="w-4 h-4" />
+                Documents
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                {isPro ? "Unlimited document uploads" : `${SUBSCRIPTION_LIMITS.free.documents} documents per project`}
+              </p>
+            </div>
+          </div>
         </section>
       )}
 

@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ModeToggle } from "@/components/mode-toggle";
+import { ProBadge } from "@/components/subscription";
 
 interface Project {
   id: string;
@@ -239,9 +240,10 @@ export default function Sidebar({
             <div className="relative w-full" ref={dropdownRef}>
               <button
                 onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="text-sm text-muted-foreground hover:text-foreground w-full text-left truncate"
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground w-full text-left"
               >
-                {userEmail}
+                <span className="truncate flex-1">{userEmail}</span>
+                <ProBadge size="sm" />
               </button>
               {dropdownOpen && (
                 <div className="absolute bottom-12 left-0 w-48 rounded-md border border-border bg-background shadow-md z-50 py-1 text-sm">

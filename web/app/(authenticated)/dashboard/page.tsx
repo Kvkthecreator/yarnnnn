@@ -3,8 +3,10 @@
 import { useState, useEffect } from "react";
 import { Chat } from "@/components/Chat";
 import { UserContextPanel } from "@/components/UserContextPanel";
-import { Loader2, X, User, MessageSquare, FileText, Briefcase } from "lucide-react";
+import { Loader2, X, MessageSquare, FileText } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
+import { UpgradePrompt } from "@/components/subscription";
 
 type Tab = "chat" | "context" | "work";
 
@@ -13,13 +15,23 @@ export default function Dashboard() {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
+  const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
+
+  const { canCreateProject, projects, isLoading: isLoadingSubscription } = useSubscriptionGate();
 
   // Listen for "New Project" event from sidebar
   useEffect(() => {
-    const handleOpenCreate = () => setShowProjectModal(true);
+    const handleOpenCreate = () => {
+      // Check if user can create more projects
+      if (canCreateProject) {
+        setShowProjectModal(true);
+      } else {
+        setShowUpgradePrompt(true);
+      }
+    };
     window.addEventListener("openCreateProject", handleOpenCreate);
     return () => window.removeEventListener("openCreateProject", handleOpenCreate);
-  }, []);
+  }, [canCreateProject]);
 
   const handleCreateProject = async (name: string, description?: string) => {
     setIsCreating(true);
@@ -91,6 +103,15 @@ export default function Dashboard() {
           onClose={() => setShowProjectModal(false)}
           onCreate={handleCreateProject}
           isCreating={isCreating}
+        />
+      )}
+
+      {/* Upgrade Prompt for Project Limit */}
+      {showUpgradePrompt && (
+        <UpgradePrompt
+          feature="projects"
+          currentUsage={projects.current}
+          onDismiss={() => setShowUpgradePrompt(false)}
         />
       )}
     </div>
