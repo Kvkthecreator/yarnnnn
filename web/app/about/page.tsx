@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
+import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
+import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "About",
@@ -10,10 +12,15 @@ export const metadata: Metadata = {
 
 export default function AboutPage() {
   return (
-    <div className="min-h-screen flex flex-col bg-[#0a0a0a] text-white">
-      <LandingHeader inverted />
+    <div className="relative min-h-screen flex flex-col bg-[#0a0a0a] text-white overflow-x-hidden">
+      <GrainOverlay />
+      <ShaderBackgroundDark />
 
-      <main className="flex-1">
+      {/* Content layer */}
+      <div className="relative z-10 flex flex-col min-h-screen">
+        <LandingHeader inverted />
+
+        <main className="flex-1">
         {/* Hero */}
         <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
           <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
@@ -167,7 +174,8 @@ export default function AboutPage() {
         </section>
       </main>
 
-      <LandingFooter inverted />
+        <LandingFooter inverted />
+      </div>
     </div>
   );
 }
