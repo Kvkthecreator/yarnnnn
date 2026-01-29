@@ -48,7 +48,24 @@ body {
   cursor: none !important;
 }
 
-/* Glassmorphic UI elements */
+/* Glassmorphic UI elements - light mode */
+.glass-light {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 9999px;
+}
+
+.glass-card-light {
+  background: rgba(255, 255, 255, 0.5);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 0, 0, 0.06);
+  border-radius: 1rem;
+}
+
+/* Glassmorphic UI elements - dark mode */
 .glass {
   background: rgba(255, 255, 255, 0.1);
   backdrop-filter: blur(12px);
