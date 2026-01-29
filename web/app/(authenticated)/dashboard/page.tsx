@@ -3,10 +3,13 @@
 import { useState, useEffect } from "react";
 import { Chat } from "@/components/Chat";
 import { UserContextPanel } from "@/components/UserContextPanel";
-import { Loader2, Plus, X, User } from "lucide-react";
+import { Loader2, X, User, MessageSquare, FileText, Briefcase } from "lucide-react";
 import { api } from "@/lib/api/client";
 
+type Tab = "chat" | "context" | "work";
+
 export default function Dashboard() {
+  const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [rightPanelOpen, setRightPanelOpen] = useState(false);
@@ -34,45 +37,52 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="h-screen flex flex-col overflow-hidden">
+    <div className="min-h-screen flex flex-col">
       {/* Header */}
-      <div className="border-b border-border px-6 py-4 flex items-center justify-between shrink-0">
-        <div>
-          <h1 className="text-lg font-semibold">What&apos;s on your mind?</h1>
-          <p className="text-sm text-muted-foreground">
-            Chat with your Thinking Partner
-          </p>
+      <header className="border-b border-border">
+        <div className="container mx-auto px-4 py-4">
+          <h1 className="text-xl font-semibold">Dashboard</h1>
         </div>
-        <button
-          onClick={() => setRightPanelOpen(!rightPanelOpen)}
-          className={`p-2 rounded-md transition-colors inline-flex items-center gap-2 text-sm ${
-            rightPanelOpen
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:bg-muted"
-          }`}
-          title="About You"
-        >
-          <User className="w-4 h-4" />
-          <span className="hidden sm:inline">About You</span>
-        </button>
-      </div>
+      </header>
 
-      {/* Main content area */}
+      {/* Tab Navigation */}
+      <nav className="border-b border-border">
+        <div className="container mx-auto px-4">
+          <div className="flex gap-1">
+            <TabButton
+              active={activeTab === "chat"}
+              onClick={() => setActiveTab("chat")}
+              icon={<MessageSquare className="w-4 h-4" />}
+              label="Chat"
+            />
+            <TabButton
+              active={activeTab === "context"}
+              onClick={() => setActiveTab("context")}
+              icon={<FileText className="w-4 h-4" />}
+              label="About You"
+            />
+          </div>
+        </div>
+      </nav>
+
+      {/* Tab Content */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Chat Area */}
-        <main className="flex-1 px-6 py-4 overflow-hidden">
-          <Chat
-            includeContext
-            heightClass="h-full"
-            emptyMessage="Hi! I'm your Thinking Partner. I'm here to help you think through anything - ideas, problems, decisions, or just to chat. As we talk, I'll learn about you and remember what's important. What would you like to explore?"
-          />
+        <main className="flex-1 container mx-auto px-4 py-6 overflow-hidden">
+          {activeTab === "chat" && (
+            <Chat
+              includeContext
+              heightClass="h-full"
+              emptyMessage="Hi! I'm your Thinking Partner. I'm here to help you think through anything - ideas, problems, decisions, or just to chat. As we talk, I'll learn about you and remember what's important. What would you like to explore?"
+            />
+          )}
+          {activeTab === "context" && (
+            <UserContextPanel
+              isOpen={true}
+              onClose={() => setActiveTab("chat")}
+              inline
+            />
+          )}
         </main>
-
-        {/* Right Sidebar - About You */}
-        <UserContextPanel
-          isOpen={rightPanelOpen}
-          onClose={() => setRightPanelOpen(false)}
-        />
       </div>
 
       {/* Create Project Modal */}
@@ -84,6 +94,32 @@ export default function Dashboard() {
         />
       )}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
+        active
+          ? "border-primary text-primary"
+          : "border-transparent text-muted-foreground hover:text-foreground"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

@@ -17,9 +17,10 @@ import type { Memory } from "@/types";
 interface UserContextPanelProps {
   isOpen: boolean;
   onClose: () => void;
+  inline?: boolean;
 }
 
-export function UserContextPanel({ isOpen, onClose }: UserContextPanelProps) {
+export function UserContextPanel({ isOpen, onClose, inline = false }: UserContextPanelProps) {
   const [memories, setMemories] = useState<Memory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -92,6 +93,129 @@ export function UserContextPanel({ isOpen, onClose }: UserContextPanelProps) {
     return null;
   }
 
+  // Shared content rendering
+  const renderContent = () => {
+    if (isLoading) {
+      return (
+        <div className="flex justify-center py-8">
+          <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
+        </div>
+      );
+    }
+
+    if (error) {
+      return (
+        <div className="text-sm text-destructive text-center py-4">
+          {error}
+        </div>
+      );
+    }
+
+    if (memories.length === 0) {
+      return (
+        <div className="text-center py-8">
+          <User className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
+          <p className="text-sm text-muted-foreground">Nothing learned yet</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Chat with your Thinking Partner and I&apos;ll learn about you
+          </p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="space-y-3">
+        {sortedTags.map((tag) => {
+          const tagMemories = memoriesByTag[tag];
+          const isExpanded = expandedTags.has(tag);
+
+          return (
+            <div key={tag}>
+              {/* Tag Header */}
+              <button
+                onClick={() => toggleTag(tag)}
+                className="w-full flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground mb-1 py-1"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="w-3 h-3" />
+                ) : (
+                  <ChevronRight className="w-3 h-3" />
+                )}
+                <span className="p-1 rounded bg-primary/10 text-primary">
+                  <Tag className="w-3 h-3" />
+                </span>
+                <span className="capitalize">{tag}</span>
+                <span className="ml-auto text-muted-foreground">
+                  {tagMemories.length}
+                </span>
+              </button>
+
+              {/* Tag Items */}
+              {isExpanded && (
+                <div className="space-y-1 ml-5">
+                  {tagMemories.map((memory) => (
+                    <div
+                      key={memory.id}
+                      className="group relative p-2 text-xs rounded hover:bg-muted"
+                    >
+                      <p className="pr-6">{memory.content}</p>
+                      {/* Show additional tags */}
+                      {memory.tags.length > 1 && (
+                        <div className="flex gap-1 mt-1 flex-wrap">
+                          {memory.tags.slice(1).map((t) => (
+                            <span
+                              key={t}
+                              className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
+                            >
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                      {/* Importance indicator */}
+                      {memory.importance >= 0.8 && (
+                        <span className="text-[10px] text-primary ml-1">
+                          ★
+                        </span>
+                      )}
+                      <button
+                        onClick={() => handleDelete(memory.id)}
+                        className="absolute top-2 right-2 p-1.5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                        title="Remove this"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  // Inline mode: render as full-width content without sidebar styling
+  if (inline) {
+    return (
+      <div className="w-full">
+        <div className="flex justify-between items-center mb-6">
+          <h2 className="text-lg font-semibold">About You</h2>
+        </div>
+        {renderContent()}
+        {memories.length > 0 && (
+          <div className="mt-6 pt-4 border-t border-border">
+            <p className="text-xs text-muted-foreground">
+              {memories.length} memories about you
+            </p>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Sidebar mode (default)
   return (
     <aside className="w-72 lg:w-80 border-l border-border bg-muted/30 flex flex-col shrink-0">
       {/* Header */}
@@ -111,93 +235,7 @@ export function UserContextPanel({ isOpen, onClose }: UserContextPanelProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-3">
-        {isLoading ? (
-          <div className="flex justify-center py-8">
-            <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-          </div>
-        ) : error ? (
-          <div className="text-sm text-destructive text-center py-4">
-            {error}
-          </div>
-        ) : memories.length === 0 ? (
-          <div className="text-center py-8">
-            <User className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">Nothing learned yet</p>
-            <p className="text-xs text-muted-foreground mt-1">
-              Chat with your Thinking Partner and I&apos;ll learn about you
-            </p>
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {sortedTags.map((tag) => {
-              const tagMemories = memoriesByTag[tag];
-              const isExpanded = expandedTags.has(tag);
-
-              return (
-                <div key={tag}>
-                  {/* Tag Header */}
-                  <button
-                    onClick={() => toggleTag(tag)}
-                    className="w-full flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground mb-1 py-1"
-                  >
-                    {isExpanded ? (
-                      <ChevronDown className="w-3 h-3" />
-                    ) : (
-                      <ChevronRight className="w-3 h-3" />
-                    )}
-                    <span className="p-1 rounded bg-primary/10 text-primary">
-                      <Tag className="w-3 h-3" />
-                    </span>
-                    <span className="capitalize">{tag}</span>
-                    <span className="ml-auto text-muted-foreground">
-                      {tagMemories.length}
-                    </span>
-                  </button>
-
-                  {/* Tag Items */}
-                  {isExpanded && (
-                    <div className="space-y-1 ml-5">
-                      {tagMemories.map((memory) => (
-                        <div
-                          key={memory.id}
-                          className="group relative p-2 text-xs rounded hover:bg-muted"
-                        >
-                          <p className="pr-6">{memory.content}</p>
-                          {/* Show additional tags */}
-                          {memory.tags.length > 1 && (
-                            <div className="flex gap-1 mt-1 flex-wrap">
-                              {memory.tags.slice(1).map((t) => (
-                                <span
-                                  key={t}
-                                  className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
-                                >
-                                  {t}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                          {/* Importance indicator */}
-                          {memory.importance >= 0.8 && (
-                            <span className="text-[10px] text-primary ml-1">
-                              ★
-                            </span>
-                          )}
-                          <button
-                            onClick={() => handleDelete(memory.id)}
-                            className="absolute top-2 right-2 p-1.5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
-                            title="Remove this"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        {renderContent()}
       </div>
 
       {/* Footer */}
