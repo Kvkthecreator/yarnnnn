@@ -8,6 +8,7 @@ Uses emergent structure (tags/entities) instead of forced categories.
 
 import json
 import hashlib
+import re
 from datetime import datetime
 from typing import Optional
 
@@ -111,10 +112,29 @@ async def extract_memories_from_text(
 
         response_text = response.content[0].text.strip()
 
-        # Handle markdown code blocks
-        if response_text.startswith("```"):
-            lines = response_text.split("\n")
-            response_text = "\n".join(lines[1:-1])
+        # Handle markdown code blocks (```json, ```, etc.)
+        if "```" in response_text:
+            # Find content between code blocks
+            code_block_match = re.search(r'```(?:json)?\s*\n?(.*?)\n?```', response_text, re.DOTALL)
+            if code_block_match:
+                response_text = code_block_match.group(1).strip()
+
+        # Try to find JSON object if there's text before/after
+        if not response_text.startswith("{"):
+            start = response_text.find("{")
+            if start != -1:
+                # Find matching closing brace
+                depth = 0
+                end = start
+                for i, c in enumerate(response_text[start:], start):
+                    if c == "{":
+                        depth += 1
+                    elif c == "}":
+                        depth -= 1
+                        if depth == 0:
+                            end = i + 1
+                            break
+                response_text = response_text[start:end]
 
         extracted = json.loads(response_text)
         memories = extracted.get("memories", [])
@@ -160,8 +180,12 @@ async def extract_memories_from_text(
 
         return validated
 
-    except json.JSONDecodeError:
-        print("Failed to parse extraction response as JSON")
+    except json.JSONDecodeError as e:
+        print(f"Failed to parse extraction response as JSON: {e}")
+        try:
+            print(f"Response text (first 500 chars): {response_text[:500]}")
+        except NameError:
+            pass
         return []
     except Exception as e:
         print(f"Extraction failed: {e}")
