@@ -175,13 +175,16 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=f"Failed to create document record: {e}")
 
     # Process document (synchronous for MVP)
+    # Use service client to bypass RLS for chunk/memory insertion
+    # (user auth already verified at this point)
+    service = get_service_client()
     result = await process_document(
         document_id=document_id,
         file_content=content,
         file_type=file_type,
         project_id=project_id,
         user_id=auth.user_id,
-        db_client=auth.client
+        db_client=service
     )
 
     status = "completed" if result.get("success") else "failed"
