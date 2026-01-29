@@ -6,30 +6,30 @@ export function ShaderBackgroundDark() {
   return (
     <div className="fixed inset-0 z-0" style={{ contain: "strict" }}>
       <Shader className="h-full w-full">
-        {/* Base fluid animation - deep dark tones */}
+        {/* Base fluid animation - dark with orange hints */}
         <Swirl
-          colorA="#0a0a0a"
-          colorB="#1a1510"
+          colorA="#0f0a08"
+          colorB="#1a1008"
           speed={0.6}
           detail={0.7}
-          blend={40}
+          blend={45}
         />
-        {/* Mouse-reactive color flow - subtle warm undertones */}
+        {/* Mouse-reactive color flow - visible orange accents */}
         <ChromaFlow
-          baseColor="#0d0d0d"
-          upColor="#151210"
-          downColor="#0a0a0a"
-          leftColor="#12100d"
-          rightColor="#0f0d0a"
-          intensity={0.5}
-          radius={1.6}
-          momentum={20}
+          baseColor="#0a0a0a"
+          upColor="#2a1a0a"
+          downColor="#1a0f05"
+          leftColor="#3a2010"
+          rightColor="#2a1508"
+          intensity={0.7}
+          radius={1.8}
+          momentum={25}
           maskType="alpha"
-          opacity={0.9}
+          opacity={0.85}
         />
       </Shader>
-      {/* Subtle dark overlay */}
-      <div className="absolute inset-0 bg-black/20" />
+      {/* Slight overlay to blend */}
+      <div className="absolute inset-0 bg-black/10" />
     </div>
   );
 }
