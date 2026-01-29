@@ -3,12 +3,10 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { CustomCursor } from "@/components/landing/CustomCursor";
 
 export default function LandingPage() {
   return (
-    <main className="landing-page relative min-h-screen w-full overflow-x-hidden bg-[#faf8f5] text-[#1a1a1a]">
-      <CustomCursor />
+    <main className="relative min-h-screen w-full overflow-x-hidden bg-[#faf8f5] text-[#1a1a1a]">
       <GrainOverlay />
       <ShaderBackground />
 

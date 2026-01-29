@@ -42,12 +42,6 @@ body {
   font-family: "Pacifico", cursive !important;
 }
 
-/* Hide default cursor on landing page */
-.landing-page,
-.landing-page * {
-  cursor: none !important;
-}
-
 /* Glassmorphic UI elements - light mode */
 .glass-light {
   background: rgba(255, 255, 255, 0.6);
