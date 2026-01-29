@@ -13,6 +13,7 @@ import {
   Trash2,
   ChevronDown,
   ChevronRight,
+  X,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import type { UserContext, UserContextCategory } from "@/types";
@@ -25,37 +26,37 @@ const CATEGORY_CONFIG: Record<
   preference: {
     label: "Preferences",
     icon: <User className="w-3 h-3" />,
-    color: "text-blue-600 bg-blue-50",
+    color: "text-blue-600 bg-blue-50 dark:bg-blue-950 dark:text-blue-400",
   },
   business_fact: {
     label: "Business",
     icon: <Briefcase className="w-3 h-3" />,
-    color: "text-purple-600 bg-purple-50",
+    color: "text-purple-600 bg-purple-50 dark:bg-purple-950 dark:text-purple-400",
   },
   goal: {
     label: "Goals",
     icon: <Target className="w-3 h-3" />,
-    color: "text-green-600 bg-green-50",
+    color: "text-green-600 bg-green-50 dark:bg-green-950 dark:text-green-400",
   },
   work_pattern: {
     label: "Work Patterns",
     icon: <Clock className="w-3 h-3" />,
-    color: "text-orange-600 bg-orange-50",
+    color: "text-orange-600 bg-orange-50 dark:bg-orange-950 dark:text-orange-400",
   },
   communication_style: {
     label: "Communication",
     icon: <MessageSquare className="w-3 h-3" />,
-    color: "text-cyan-600 bg-cyan-50",
+    color: "text-cyan-600 bg-cyan-50 dark:bg-cyan-950 dark:text-cyan-400",
   },
   constraint: {
     label: "Constraints",
     icon: <AlertCircle className="w-3 h-3" />,
-    color: "text-red-600 bg-red-50",
+    color: "text-red-600 bg-red-50 dark:bg-red-950 dark:text-red-400",
   },
   relationship: {
     label: "Relationships",
     icon: <Users className="w-3 h-3" />,
-    color: "text-pink-600 bg-pink-50",
+    color: "text-pink-600 bg-pink-50 dark:bg-pink-950 dark:text-pink-400",
   },
 };
 
@@ -72,19 +73,21 @@ const CATEGORY_ORDER: UserContextCategory[] = [
 
 interface UserContextPanelProps {
   /**
-   * Whether the panel is collapsed
+   * Whether the panel is open/visible
    */
-  collapsed?: boolean;
+  isOpen: boolean;
   /**
-   * Callback when collapse state changes
+   * Callback to close the panel
    */
-  onToggleCollapse?: () => void;
+  onClose: () => void;
 }
 
-export function UserContextPanel({
-  collapsed = false,
-  onToggleCollapse,
-}: UserContextPanelProps) {
+/**
+ * Responsive user context panel.
+ * - Mobile: Slide-in drawer from right with overlay
+ * - Desktop: Inline sidebar
+ */
+export function UserContextPanel({ isOpen, onClose }: UserContextPanelProps) {
   const [items, setItems] = useState<UserContext[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -139,36 +142,31 @@ export function UserContextPanel({
     {} as Record<UserContextCategory, UserContext[]>
   );
 
-  if (collapsed) {
-    return (
-      <aside className="w-12 border-l border-border bg-muted/30 flex flex-col">
-        <div className="p-3 border-b border-border">
-          <button
-            onClick={onToggleCollapse}
-            className="p-1 hover:bg-muted rounded"
-            title="Expand panel"
-          >
-            <User className="w-4 h-4" />
-          </button>
-        </div>
-      </aside>
-    );
+  if (!isOpen) {
+    return null;
   }
 
   return (
-    <aside className="w-72 border-l border-border bg-muted/30 flex flex-col">
+    <aside
+      className={`
+        fixed md:relative inset-y-0 right-0 z-40 md:z-0
+        w-80 md:w-72 lg:w-80
+        border-l border-border bg-background md:bg-muted/30
+        flex flex-col
+        transform transition-transform duration-200 ease-in-out
+      `}
+      style={{ top: "56px" }} // Below header on mobile
+    >
       {/* Header */}
-      <div className="p-3 border-b border-border flex items-center justify-between">
+      <div className="p-3 border-b border-border flex items-center justify-between shrink-0">
         <span className="text-sm font-medium">About You</span>
-        {onToggleCollapse && (
-          <button
-            onClick={onToggleCollapse}
-            className="p-1 hover:bg-muted rounded text-muted-foreground"
-            title="Collapse panel"
-          >
-            <ChevronRight className="w-4 h-4" />
-          </button>
-        )}
+        <button
+          onClick={onClose}
+          className="p-1.5 hover:bg-muted rounded text-muted-foreground"
+          aria-label="Close panel"
+        >
+          <X className="w-4 h-4" />
+        </button>
       </div>
 
       {/* Content */}
@@ -184,9 +182,7 @@ export function UserContextPanel({
         ) : items.length === 0 ? (
           <div className="text-center py-8">
             <User className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
-            <p className="text-sm text-muted-foreground">
-              Nothing learned yet
-            </p>
+            <p className="text-sm text-muted-foreground">Nothing learned yet</p>
             <p className="text-xs text-muted-foreground mt-1">
               Chat with your Thinking Partner and I&apos;ll learn about you
             </p>
@@ -205,7 +201,7 @@ export function UserContextPanel({
                   {/* Category Header */}
                   <button
                     onClick={() => toggleCategory(category)}
-                    className="w-full flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground mb-1"
+                    className="w-full flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground mb-1 py-1"
                   >
                     {isExpanded ? (
                       <ChevronDown className="w-3 h-3" />
@@ -237,10 +233,10 @@ export function UserContextPanel({
                           )}
                           <button
                             onClick={() => handleDelete(item.id)}
-                            className="absolute top-2 right-2 p-1 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
+                            className="absolute top-2 right-2 p-1.5 opacity-0 group-hover:opacity-100 md:opacity-0 md:group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                             title="Remove this"
                           >
-                            <Trash2 className="w-3 h-3" />
+                            <Trash2 className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       ))}
@@ -255,7 +251,7 @@ export function UserContextPanel({
 
       {/* Footer */}
       {items.length > 0 && (
-        <div className="p-3 border-t border-border">
+        <div className="p-3 border-t border-border shrink-0">
           <p className="text-xs text-muted-foreground text-center">
             {items.length} things learned about you
           </p>
