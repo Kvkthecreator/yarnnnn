@@ -54,7 +54,7 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   return (
     <div className="flex min-h-screen">
       <Sidebar userEmail={userEmail} />
-      <main className="flex-1 p-6">
+      <main className="flex-1 overflow-hidden">
         {children}
       </main>
     </div>
