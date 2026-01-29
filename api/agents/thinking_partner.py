@@ -1,10 +1,29 @@
 """
 Thinking Partner Agent - Conversational assistant with unified memory (ADR-005)
+
+ADR-007: Tool use for project authority
 """
 
-from typing import AsyncGenerator, Optional
+import json
+from typing import AsyncGenerator, Optional, Any
+from dataclasses import dataclass
+
 from agents.base import BaseAgent, AgentResult, ContextBundle
-from services.anthropic import chat_completion, chat_completion_stream
+from services.anthropic import (
+    chat_completion,
+    chat_completion_stream,
+    chat_completion_with_tools,
+    ChatResponse,
+)
+from services.project_tools import THINKING_PARTNER_TOOLS, execute_tool
+
+
+@dataclass
+class ToolExecution:
+    """Record of a tool execution during conversation."""
+    tool_name: str
+    tool_input: dict
+    result: dict
 
 
 class ThinkingPartnerAgent(BaseAgent):
@@ -14,6 +33,8 @@ class ThinkingPartnerAgent(BaseAgent):
     Uses memories from two scopes:
     - User memories: What YARNNN knows about the user (portable across projects)
     - Project memories: What's specific to this project
+
+    ADR-007: Can use tools to query and manage projects.
 
     Output: Chat response (text, optionally streamed)
     """
@@ -34,8 +55,29 @@ Guidelines:
 
 {context}"""
 
+    SYSTEM_PROMPT_WITH_TOOLS = """You are a thoughtful assistant helping the user think through problems and ideas. You have access to memories about them and their work:
+
+1. **About You** - What you know about this person across all their work (their preferences, business, patterns, goals)
+2. **Project Context** - What's specific to this current project (requirements, facts, guidelines)
+
+You also have tools to understand and help organize the user's workspace:
+- Use `list_projects` to see what projects the user has
+
+Guidelines:
+- Be conversational but substantive
+- Reference specific context when it's relevant to the question
+- Use what you know about the user to personalize your responses
+- Use project context to stay grounded in this specific work
+- Ask clarifying questions when the user's intent is unclear
+- Help structure thinking - don't just answer, help them explore
+- If the context doesn't contain relevant information, say so honestly
+- Use tools naturally when they would help answer the user's question
+
+{context}"""
+
     def __init__(self, model: str = "claude-sonnet-4-20250514"):
         super().__init__(model)
+        self.tools = THINKING_PARTNER_TOOLS
 
     def _format_memories(self, context: ContextBundle) -> str:
         """Format memories for system prompt."""
@@ -61,17 +103,24 @@ Guidelines:
 
         return "\n\n".join(sections) if sections else ""
 
-    def _build_system_prompt(self, context: ContextBundle, include_context: bool) -> str:
+    def _build_system_prompt(
+        self,
+        context: ContextBundle,
+        include_context: bool,
+        with_tools: bool = False
+    ) -> str:
         """Build system prompt with memory context."""
+        base_prompt = self.SYSTEM_PROMPT_WITH_TOOLS if with_tools else self.SYSTEM_PROMPT
+
         if not include_context:
-            return self.SYSTEM_PROMPT.format(context="No context loaded for this conversation.")
+            return base_prompt.format(context="No context loaded for this conversation.")
 
         context_text = self._format_memories(context)
 
         if not context_text:
             context_text = "No context available yet. As we chat, I'll learn more about you and this project."
 
-        return self.SYSTEM_PROMPT.format(context=context_text)
+        return base_prompt.format(context=context_text)
 
     async def execute(
         self,
@@ -80,7 +129,7 @@ Guidelines:
         parameters: Optional[dict] = None
     ) -> AgentResult:
         """
-        Process chat message (non-streaming).
+        Process chat message (non-streaming, no tools).
 
         Args:
             task: User's message
@@ -96,7 +145,7 @@ Guidelines:
         include_context = params.get("include_context", True)
         history = params.get("history", [])
 
-        system = self._build_system_prompt(context, include_context)
+        system = self._build_system_prompt(context, include_context, with_tools=False)
 
         # Build messages list
         messages = list(history)  # Copy history
@@ -121,6 +170,112 @@ Guidelines:
                 error=str(e),
             )
 
+    async def execute_with_tools(
+        self,
+        task: str,
+        context: ContextBundle,
+        auth: Any,  # UserClient for tool execution
+        parameters: Optional[dict] = None,
+        max_iterations: int = 5,
+    ) -> tuple[str, list[ToolExecution]]:
+        """
+        Process chat message with tool use support (ADR-007).
+
+        This is an agentic loop that:
+        1. Sends message to Claude with tools
+        2. If Claude requests tool use, executes tools and continues
+        3. Returns final response when Claude stops
+
+        Args:
+            task: User's message
+            context: Context bundle with memories
+            auth: UserClient for database access during tool execution
+            parameters:
+                - include_context: bool (default True)
+                - history: list of prior messages
+            max_iterations: Maximum tool use cycles (safety limit)
+
+        Returns:
+            Tuple of (final_response_text, list_of_tool_executions)
+        """
+        params = parameters or {}
+        include_context = params.get("include_context", True)
+        history = params.get("history", [])
+
+        system = self._build_system_prompt(context, include_context, with_tools=True)
+
+        # Build messages list
+        messages = list(history)
+        messages.append({"role": "user", "content": task})
+
+        tool_executions: list[ToolExecution] = []
+
+        for _ in range(max_iterations):
+            response: ChatResponse = await chat_completion_with_tools(
+                messages=messages,
+                system=system,
+                model=self.model,
+                tools=self.tools,
+            )
+
+            if response.stop_reason == "end_turn":
+                # Normal completion - return the text
+                return response.text, tool_executions
+
+            elif response.stop_reason == "tool_use":
+                # Claude wants to use tools
+                # Add assistant's response (with tool_use blocks) to messages
+                messages.append({
+                    "role": "assistant",
+                    "content": self._serialize_content_blocks(response.content)
+                })
+
+                # Execute each tool and collect results
+                tool_results = []
+                for tool_use in response.tool_uses:
+                    result = await execute_tool(auth, tool_use.name, tool_use.input)
+
+                    tool_executions.append(ToolExecution(
+                        tool_name=tool_use.name,
+                        tool_input=tool_use.input,
+                        result=result,
+                    ))
+
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_use.id,
+                        "content": json.dumps(result),
+                    })
+
+                # Add tool results as user message
+                messages.append({
+                    "role": "user",
+                    "content": tool_results,
+                })
+
+            else:
+                # max_tokens or other stop reason
+                return response.text or "Response was cut off.", tool_executions
+
+        # Hit max iterations
+        return "I've reached my limit for this response. Let me know if you'd like me to continue.", tool_executions
+
+    def _serialize_content_blocks(self, content: list[Any]) -> list[dict]:
+        """Serialize Anthropic content blocks for message history."""
+        serialized = []
+        for block in content:
+            if hasattr(block, 'type'):
+                if block.type == "text":
+                    serialized.append({"type": "text", "text": block.text})
+                elif block.type == "tool_use":
+                    serialized.append({
+                        "type": "tool_use",
+                        "id": block.id,
+                        "name": block.name,
+                        "input": block.input,
+                    })
+        return serialized
+
     async def execute_stream(
         self,
         task: str,
@@ -128,7 +283,10 @@ Guidelines:
         parameters: Optional[dict] = None
     ) -> AsyncGenerator[str, None]:
         """
-        Process chat message with streaming response.
+        Process chat message with streaming response (no tools).
+
+        Note: Tool use is not supported with streaming in this implementation.
+        Use execute_with_tools for tool-enabled conversations.
 
         Args:
             task: User's message
@@ -144,7 +302,7 @@ Guidelines:
         include_context = params.get("include_context", True)
         history = params.get("history", [])
 
-        system = self._build_system_prompt(context, include_context)
+        system = self._build_system_prompt(context, include_context, with_tools=False)
 
         # Build messages list
         messages = list(history)
