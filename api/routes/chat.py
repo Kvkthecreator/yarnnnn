@@ -63,28 +63,22 @@ async def load_memories(
     memories = []
 
     try:
-        if query:
-            # Semantic search using embeddings
-            query_embedding = await get_embedding(query)
+        use_semantic = query is not None
 
-            # Build scope filter
-            if project_id:
-                # User-scoped OR this project
-                scope_filter = f"(project_id IS NULL OR project_id = '{project_id}')"
-            else:
-                # User-scoped only
-                scope_filter = "project_id IS NULL"
-
-            # Use RPC for vector search with hybrid scoring
-            # Note: This requires a Supabase function, fallback to simple query
+        if use_semantic:
+            # Try semantic search using embeddings
             try:
+                query_embedding = await get_embedding(query)
+
+                # Use RPC for vector search with hybrid scoring
                 result = client.rpc(
                     "search_memories",
                     {
                         "query_embedding": query_embedding,
                         "match_user_id": user_id,
                         "match_project_id": str(project_id) if project_id else None,
-                        "match_count": max_results
+                        "match_count": max_results,
+                        "similarity_threshold": 0.0  # Include all, let importance weight sort
                     }
                 ).execute()
 
@@ -98,12 +92,13 @@ async def load_memories(
                         source_type=row.get("source_type", "chat"),
                         project_id=UUID(row["project_id"]) if row.get("project_id") else None,
                     ))
+                print(f"[CONTEXT DEBUG] Semantic search returned {len(memories)} memories")
             except Exception as e:
                 # Fallback to simple importance-based query
                 print(f"[CONTEXT DEBUG] Semantic search failed, falling back to importance: {e}")
-                query = None  # Force fallback
+                use_semantic = False  # Force fallback
 
-        if not query:
+        if not use_semantic:
             # Simple importance-based retrieval
             if project_id:
                 # Get user memories + project memories
