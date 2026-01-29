@@ -110,7 +110,7 @@ Document segments for retrieval. Intermediate layer between raw documents and de
 - `idx_chunks_order` (document_id, chunk_index)
 - `idx_chunks_embedding` ivfflat(embedding) WHERE embedding IS NOT NULL
 
-**RLS:** Inherits from documents via project ownership.
+**RLS:** Users can access chunks from their documents (via `documents.user_id`).
 
 ---
 
@@ -123,8 +123,18 @@ Multi-tenancy root. One per user/org.
 | id | UUID | PK |
 | name | TEXT | Required |
 | owner_id | UUID | FK → auth.users |
+| owner_email | TEXT | For admin queries |
+| subscription_status | TEXT | `free`, `pro` (default: free) |
+| subscription_expires_at | TIMESTAMPTZ | Billing period end |
+| lemonsqueezy_customer_id | TEXT | LS customer ID for portal |
+| lemonsqueezy_subscription_id | TEXT | LS subscription ID |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto (trigger) |
+
+**Indexes:**
+- `idx_workspaces_ls_customer` (lemonsqueezy_customer_id)
+- `idx_workspaces_ls_subscription` (lemonsqueezy_subscription_id)
+- `idx_workspaces_subscription_status` (subscription_status)
 
 **RLS:** Owner can manage own workspaces.
 
@@ -211,6 +221,30 @@ Execution logs for provenance.
 
 ---
 
+### 9. subscription_events
+
+Audit log for Lemon Squeezy webhook events.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| workspace_id | UUID | FK → workspaces |
+| event_type | TEXT | e.g., `subscription_created`, `subscription_updated` |
+| event_source | TEXT | Default: `lemonsqueezy` |
+| ls_subscription_id | TEXT | Lemon Squeezy subscription ID |
+| ls_customer_id | TEXT | Lemon Squeezy customer ID |
+| payload | JSONB | Full webhook payload |
+| created_at | TIMESTAMPTZ | Auto |
+
+**Indexes:**
+- `idx_subscription_events_workspace` (workspace_id)
+- `idx_subscription_events_type` (event_type)
+- `idx_subscription_events_created` (created_at DESC)
+
+**RLS:** Users can view their own subscription events.
+
+---
+
 ## Migrations
 
 | File | Description | Status |
@@ -224,6 +258,8 @@ Execution logs for provenance.
 | `007_search_memories_rpc.sql` | Semantic search RPCs | Applied |
 | `008_chat_sessions.sql` | ADR-006 sessions | Applied |
 | `009_document_pipeline.sql` | ADR-008 document storage | Applied |
+| `010_subscription_fields.sql` | Lemon Squeezy subscription fields | Applied |
+| `011_fix_chunks_rls.sql` | Fix chunks RLS for user-scoped docs | Applied |
 
 ---
 
