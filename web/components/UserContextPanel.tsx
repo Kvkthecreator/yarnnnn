@@ -1,5 +1,14 @@
 "use client";
 
+/**
+ * UserContextPanel
+ * ADR-005: Unified Memory with Embeddings
+ * ADR-008: Document Pipeline
+ *
+ * Displays user memories and documents.
+ * Supports both sidebar mode and inline mode.
+ */
+
 import { useState, useEffect } from "react";
 import {
   User,
@@ -12,6 +21,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { DocumentList } from "@/components/DocumentList";
 import type { Memory } from "@/types";
 
 interface UserContextPanelProps {
@@ -203,7 +213,21 @@ export function UserContextPanel({ isOpen, onClose, inline = false }: UserContex
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-lg font-semibold">About You</h2>
         </div>
-        {renderContent()}
+
+        {/* Documents Section */}
+        <div className="mb-6">
+          <DocumentList />
+        </div>
+
+        {/* Memories Section */}
+        <div className="pt-4 border-t border-border">
+          <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-2">
+            <Tag className="w-3.5 h-3.5" />
+            Memories
+          </h3>
+          {renderContent()}
+        </div>
+
         {memories.length > 0 && (
           <div className="mt-6 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground">
@@ -235,7 +259,19 @@ export function UserContextPanel({ isOpen, onClose, inline = false }: UserContex
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto p-3">
-        {renderContent()}
+        {/* Documents Section */}
+        <div className="mb-4">
+          <DocumentList compact />
+        </div>
+
+        {/* Memories Section */}
+        <div className="pt-3 border-t border-border">
+          <h3 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
+            <Tag className="w-3 h-3" />
+            Memories
+          </h3>
+          {renderContent()}
+        </div>
       </div>
 
       {/* Footer */}

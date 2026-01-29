@@ -15,6 +15,10 @@ import type {
   BulkImportResponse,
   ContextBundle,
   Document,
+  DocumentDetail,
+  DocumentUploadResponse,
+  DocumentDownloadResponse,
+  DocumentListResponse,
   WorkTicket,
   WorkTicketCreate,
   WorkOutput,
@@ -160,40 +164,57 @@ export const api = {
       request<ContextBundle>(`/api/context/projects/${projectId}/context`),
   },
 
-  // Document endpoints
+  // Document endpoints (ADR-008: Document Pipeline)
   documents: {
-    list: (projectId: string) =>
-      request<Document[]>(`/api/context/projects/${projectId}/documents`),
-    upload: async (projectId: string, file: File) => {
+    // List user's documents (optionally filtered by project)
+    list: (projectId?: string, status?: string) => {
+      const params = new URLSearchParams();
+      if (projectId) params.append("project_id", projectId);
+      if (status) params.append("status", status);
+      const query = params.toString();
+      return request<DocumentListResponse>(
+        `/api/documents${query ? `?${query}` : ""}`
+      );
+    },
+
+    // Upload document (optionally scoped to project)
+    upload: async (file: File, projectId?: string) => {
       const headers = await getAuthHeaders();
       delete (headers as Record<string, string>)["Content-Type"]; // Let browser set for FormData
 
       const formData = new FormData();
       formData.append("file", file);
+      if (projectId) formData.append("project_id", projectId);
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/context/projects/${projectId}/documents`,
-        {
-          method: "POST",
-          credentials: "include",
-          headers,
-          body: formData,
-        }
-      );
+      const response = await fetch(`${API_BASE_URL}/api/documents/upload`, {
+        method: "POST",
+        credentials: "include",
+        headers,
+        body: formData,
+      });
 
       if (!response.ok) {
         const data = await response.json().catch(() => null);
         throw new APIError(response.status, response.statusText, data);
       }
 
-      return response.json();
+      return response.json() as Promise<DocumentUploadResponse>;
     },
+
+    // Get document details with stats
     get: (documentId: string) =>
-      request<Document>(`/api/context/documents/${documentId}`),
+      request<DocumentDetail>(`/api/documents/${documentId}`),
+
+    // Get signed download URL
+    download: (documentId: string) =>
+      request<DocumentDownloadResponse>(`/api/documents/${documentId}/download`),
+
+    // Delete document
     delete: (documentId: string) =>
-      request<DeleteResponse>(`/api/context/documents/${documentId}`, {
-        method: "DELETE",
-      }),
+      request<{ success: boolean; message: string }>(
+        `/api/documents/${documentId}`,
+        { method: "DELETE" }
+      ),
   },
 
   // Work endpoints

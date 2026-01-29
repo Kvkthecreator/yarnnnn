@@ -65,16 +65,46 @@ export interface BulkImportResponse {
   project_id: string;
 }
 
-// Document
+// Document (ADR-008: Document Pipeline)
+export type DocumentStatus = "pending" | "processing" | "completed" | "failed";
+
 export interface Document {
   id: string;
   filename: string;
-  file_url: string;
-  file_type?: string;
-  file_size?: number;
-  processing_status?: "pending" | "processing" | "completed" | "failed";
-  project_id: string;
+  file_type: string;
+  file_size: number;
+  storage_path?: string;
+  project_id?: string; // null = user-scoped
+  processing_status: DocumentStatus;
+  processed_at?: string;
+  error_message?: string;
+  page_count?: number;
+  word_count?: number;
   created_at: string;
+}
+
+export interface DocumentDetail extends Document {
+  chunk_count: number;
+  memory_count: number;
+}
+
+export interface DocumentUploadResponse {
+  document_id: string;
+  filename: string;
+  processing_status: DocumentStatus;
+  message: string;
+}
+
+export interface DocumentDownloadResponse {
+  url: string;
+  expires_in: number;
+}
+
+export interface DocumentListResponse {
+  documents: Document[];
+  total: number;
+  limit: number;
+  offset: number;
 }
 
 // Context Bundle (for viewing full context)
