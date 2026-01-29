@@ -244,7 +244,7 @@ async def get_memory_stats(admin: AdminAuth):
 
         project_scoped = client.table("memories")\
             .select("id", count="exact")\
-            .neq("project_id", "null")\
+            .not_.is_("project_id", "null")\
             .eq("is_active", True)\
             .execute()
 
