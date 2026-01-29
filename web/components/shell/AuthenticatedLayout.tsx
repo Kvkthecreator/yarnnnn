@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
-import { PanelLeft } from "lucide-react";
+import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
 
 interface AuthenticatedLayoutProps {
@@ -13,9 +13,26 @@ interface AuthenticatedLayoutProps {
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isMobile, setIsMobile] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  // Mobile detection for initial state
+  useEffect(() => {
+    const checkMobile = () => {
+      const mobile = window.innerWidth < 768;
+      setIsMobile(mobile);
+      // Start with sidebar closed on mobile
+      if (mobile) {
+        setSidebarOpen(false);
+      }
+    };
+
+    checkMobile();
+    window.addEventListener("resize", checkMobile);
+    return () => window.removeEventListener("resize", checkMobile);
+  }, []);
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -58,24 +75,38 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
       {/* Sidebar */}
       <Sidebar
         userEmail={userEmail}
-        collapsed={sidebarCollapsed}
-        onCollapsedChange={setSidebarCollapsed}
+        open={sidebarOpen}
+        onOpenChange={setSidebarOpen}
       />
 
       {/* Main content area */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Expand button when sidebar is collapsed */}
-        {sidebarCollapsed && (
+        {/* Mobile header with hamburger menu */}
+        {!sidebarOpen && (
+          <div className="md:hidden fixed top-0 left-0 right-0 z-30 bg-background/95 backdrop-blur-sm border-b border-border px-4 py-3 flex items-center gap-3">
+            <button
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 -ml-2 rounded-md hover:bg-muted transition-colors"
+              aria-label="Open menu"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <span className="text-lg font-brand">yarnnn</span>
+          </div>
+        )}
+
+        {/* Desktop expand button when sidebar is closed */}
+        {!sidebarOpen && !isMobile && (
           <button
-            onClick={() => setSidebarCollapsed(false)}
-            className="fixed top-3 left-3 z-50 p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors shadow-sm"
-            aria-label="Expand sidebar"
+            onClick={() => setSidebarOpen(true)}
+            className="fixed top-3 left-3 z-30 p-2 bg-background border border-border rounded-md hover:bg-muted transition-colors shadow-sm"
+            aria-label="Open sidebar"
           >
-            <PanelLeft className="w-5 h-5" />
+            <Menu className="w-5 h-5" />
           </button>
         )}
 
-        <main className="flex-1 overflow-hidden">
+        <main className={`flex-1 overflow-hidden ${!sidebarOpen && isMobile ? "pt-14" : ""}`}>
           {children}
         </main>
       </div>
