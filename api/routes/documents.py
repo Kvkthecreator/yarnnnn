@@ -17,7 +17,7 @@ from typing import Optional
 from uuid import UUID
 from datetime import datetime
 
-from services.supabase import UserClient, get_supabase_url
+from services.supabase import UserClient, get_supabase_url, get_service_client
 from services.documents import process_document
 
 router = APIRouter()
@@ -131,15 +131,25 @@ async def upload_document(
     document_id = str(uuid.uuid4())
     storage_path = f"{auth.user_id}/{document_id}/original.{file_type}"
 
-    # Upload to storage
+    # Upload to storage using service client (user already authenticated via endpoint)
+    # Storage RLS doesn't work well with user JWT auth, so we use service role
     try:
-        storage_result = auth.client.storage.from_("documents").upload(
+        service = get_service_client()
+        storage_result = service.storage.from_("documents").upload(
             path=storage_path,
             file=content,
             file_options={"content-type": content_type or f"application/{file_type}"}
         )
+        # Check for storage errors in response
+        if hasattr(storage_result, 'error') and storage_result.error:
+            raise HTTPException(status_code=500, detail=f"Storage error: {storage_result.error}")
+    except HTTPException:
+        raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to upload file: {e}")
+        import traceback
+        print(f"Storage upload error: {e}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
     # Create document record
     doc_record = {
@@ -304,9 +314,10 @@ async def download_document(auth: UserClient, document_id: str):
     if not storage_path:
         raise HTTPException(status_code=404, detail="Document file not found in storage")
 
-    # Generate signed URL (1 hour expiry)
+    # Generate signed URL (1 hour expiry) - use service client for storage
     try:
-        signed = auth.client.storage.from_("documents").create_signed_url(
+        service = get_service_client()
+        signed = service.storage.from_("documents").create_signed_url(
             path=storage_path,
             expires_in=3600
         )
@@ -344,10 +355,11 @@ async def delete_document(auth: UserClient, document_id: str):
 
     storage_path = doc.data[0].get("storage_path")
 
-    # Delete from storage (if exists)
+    # Delete from storage (if exists) - use service client for storage
     if storage_path:
         try:
-            auth.client.storage.from_("documents").remove([storage_path])
+            service = get_service_client()
+            service.storage.from_("documents").remove([storage_path])
         except Exception as e:
             print(f"Warning: Failed to delete storage file: {e}")
 
