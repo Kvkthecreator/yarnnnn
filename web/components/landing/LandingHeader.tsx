@@ -24,7 +24,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
       </Link>
       <nav className="flex items-center gap-6">
         <Link
-          href="/#how-it-works"
+          href="/how-it-works"
           className={`transition-colors ${
             inverted
               ? "text-background/60 hover:text-background"
@@ -32,6 +32,16 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
           }`}
         >
           How it works
+        </Link>
+        <Link
+          href="/pricing"
+          className={`transition-colors ${
+            inverted
+              ? "text-background/60 hover:text-background"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Pricing
         </Link>
         <Link
           href="/about"
@@ -45,7 +55,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
         </Link>
         <Link
           href="/auth/login"
-          className={`px-4 py-2 transition-colors ${
+          className={`px-4 py-2 rounded-full transition-colors ${
             inverted
               ? "bg-background text-foreground hover:bg-background/90"
               : "bg-primary text-primary-foreground hover:bg-primary/90"
