@@ -16,6 +16,7 @@ export const BRAND = {
   description:
     "Your AI agents understand your world because they read from your accumulated context.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
+  ogImage: "/assets/logos/yarn-logo-light.png",
 };
 
 // =============================================================================
@@ -42,12 +43,22 @@ export function getBaseMetadata(): Metadata {
       siteName: BRAND.name,
       locale: "en_US",
       type: "website",
+      images: [
+        {
+          url: BRAND.ogImage,
+          width: 1200,
+          height: 630,
+          alt: `${BRAND.name} - ${BRAND.tagline}`,
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: BRAND.name,
       description: BRAND.tagline,
+      images: [BRAND.ogImage],
     },
+    manifest: "/manifest.json",
     robots: {
       index: true,
       follow: true,
