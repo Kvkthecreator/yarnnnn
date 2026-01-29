@@ -89,6 +89,7 @@ export function Chat({
   const [isDragOver, setIsDragOver] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
   const [attachError, setAttachError] = useState<string | null>(null);
+  const [pendingMessage, setPendingMessage] = useState<string | null>(null); // Optimistic message during upload
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
@@ -177,18 +178,30 @@ export function Chat({
     setInput("");
     setAttachedFile(null);
 
-    // If there's a file, upload it first
     if (file) {
-      const result = await upload(file);
-      if (!result) {
-        // Upload failed, error shown via uploadProgress
+      // Build the message that will be sent
+      const fileMessage = message.trim()
+        ? `${message}\n\n[Attached: ${file.name}]`
+        : `I've uploaded a document: ${file.name}. Please review it and let me know what you think.`;
+
+      // Show optimistic message immediately (user sees their message right away)
+      setPendingMessage(fileMessage);
+
+      // Upload file first and wait for it to complete
+      // The document needs to be processed before TP can see its contents
+      const uploadResult = await upload(file);
+
+      // Clear pending message (sendMessage will add the real one)
+      setPendingMessage(null);
+
+      if (!uploadResult) {
+        // Upload failed - don't send message, error shown via uploadProgress
+        console.warn("File upload failed");
         return;
       }
 
-      // Send message with context about the upload
-      const fileMessage = message.trim()
-        ? `${message}\n\n[Attached: ${file.name}]`
-        : `I've uploaded a document: ${file.name}`;
+      // Now send the message - by now the document is processed
+      // and its extracted memories are available to the TP
       await sendMessage(fileMessage);
     } else {
       // Just send the text message
@@ -262,6 +275,16 @@ export function Chat({
             </div>
           </div>
         ))}
+
+        {/* Optimistic pending message during file upload */}
+        {pendingMessage && (
+          <div className="flex justify-end">
+            <div className="p-4 rounded-lg max-w-[80%] bg-primary text-primary-foreground opacity-70">
+              <p className="text-sm whitespace-pre-wrap">{pendingMessage}</p>
+              <p className="text-xs mt-1 opacity-70">Uploading...</p>
+            </div>
+          </div>
+        )}
 
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="flex justify-start">
