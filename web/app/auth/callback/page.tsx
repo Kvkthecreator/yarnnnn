@@ -68,7 +68,7 @@ function CallbackHandler() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50">
       <div className="text-center">
-        <h1 className="text-2xl font-bold mb-2">YARNNN</h1>
+        <h1 className="text-2xl font-brand mb-2">yarnnn</h1>
         <p className="text-gray-600">{status}</p>
       </div>
     </div>
@@ -81,7 +81,7 @@ export default function CallbackPage() {
       fallback={
         <div className="min-h-screen flex items-center justify-center bg-gray-50">
           <div className="text-center">
-            <h1 className="text-2xl font-bold mb-2">YARNNN</h1>
+            <h1 className="text-2xl font-brand mb-2">yarnnn</h1>
             <p className="text-gray-600">Loading...</p>
           </div>
         </div>

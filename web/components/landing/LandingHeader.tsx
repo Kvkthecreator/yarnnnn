@@ -11,7 +11,7 @@ export default function LandingHeader() {
           width={32}
           height={32}
         />
-        <span className="text-xl font-bold">YARNNN</span>
+        <span className="text-xl font-brand">yarnnn</span>
       </Link>
       <nav className="flex items-center gap-6">
         <Link

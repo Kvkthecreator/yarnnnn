@@ -2,7 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Pacifico font for brand elements */
+@font-face {
+  font-family: "Pacifico";
+  src: url("/fonts/Pacifico-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
+  --font-pacifico: "Pacifico", cursive;
   --background: 0 0% 100%;
   --foreground: 240 10% 3.9%;
   --muted: 240 4.8% 95.9%;
@@ -25,4 +35,9 @@
 body {
   background-color: hsl(var(--background));
   color: hsl(var(--foreground));
+}
+
+/* Make brand font robust (outside @layer for higher specificity) */
+.font-brand {
+  font-family: "Pacifico", cursive !important;
 }

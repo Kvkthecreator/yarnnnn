@@ -11,7 +11,7 @@ import type { Metadata } from "next";
 // =============================================================================
 
 export const BRAND = {
-  name: "YARNNN",
+  name: "yarnnn",
   tagline: "Context-aware AI work platform",
   description:
     "Your AI agents understand your world because they read from your accumulated context.",

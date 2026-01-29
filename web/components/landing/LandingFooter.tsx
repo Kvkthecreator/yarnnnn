@@ -6,7 +6,7 @@ export default function LandingFooter() {
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
         {/* Brand */}
         <div className="flex flex-col items-start gap-2">
-          <div className="font-bold text-lg">YARNNN</div>
+          <div className="font-brand text-lg">yarnnn</div>
           <div className="flex gap-4 text-sm text-muted-foreground">
             <Link href="/privacy" className="hover:text-foreground transition-colors">
               Privacy

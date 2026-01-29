@@ -46,7 +46,7 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
-          <h1 className="text-2xl font-bold mb-2">YARNNN</h1>
+          <h1 className="text-2xl font-brand mb-2">yarnnn</h1>
           <p className="text-muted-foreground">Loading...</p>
         </div>
       </div>

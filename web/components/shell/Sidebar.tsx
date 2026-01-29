@@ -74,8 +74,8 @@ export default function Sidebar({
     <aside className="w-64 border-r border-border bg-muted/30 flex flex-col h-screen sticky top-0">
       {/* Header with collapse toggle */}
       <div className="p-3 border-b border-border flex items-center justify-between">
-        <Link href="/dashboard" className="text-xl font-bold">
-          YARNNN
+        <Link href="/dashboard" className="text-xl font-brand">
+          yarnnn
         </Link>
         <button
           onClick={() => onCollapsedChange?.(true)}
