@@ -21,11 +21,11 @@ export function ShaderBackgroundDark() {
           downColor="#1a0f05"
           leftColor="#3a2010"
           rightColor="#2a1508"
-          intensity={0.7}
-          radius={1.8}
+          intensity={0.8}
+          radius={3.5}
           momentum={25}
           maskType="alpha"
-          opacity={0.85}
+          opacity={0.9}
         />
       </Shader>
       {/* Slight overlay to blend */}
