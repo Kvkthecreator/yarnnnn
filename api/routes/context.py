@@ -12,9 +12,12 @@ Endpoints:
 - POST /projects/:id/memories - Create project memory manually
 - POST /projects/:id/memories/import - Bulk import text → extract memories
 - GET /projects/:id/context - Get full context bundle
+- POST /projects/:id/documents - Upload document
+- GET /projects/:id/documents - List documents
 """
 
-from fastapi import APIRouter, HTTPException
+import asyncio
+from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
@@ -22,6 +25,7 @@ from datetime import datetime
 
 from services.supabase import UserClient
 from services.extraction import extract_from_bulk_text, create_memory_manual
+from services.documents import process_document
 
 router = APIRouter()
 
@@ -337,4 +341,171 @@ async def get_context_bundle(project_id: UUID, auth: UserClient):
     except Exception as e:
         if "violates row-level security" in str(e):
             raise HTTPException(status_code=403, detail="Access denied to this project")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# --- Document Routes ---
+
+class DocumentUploadResponse(BaseModel):
+    id: UUID
+    filename: str
+    file_type: str
+    file_size: int
+    processing_status: str
+    project_id: UUID
+
+
+@router.post("/projects/{project_id}/documents", response_model=DocumentUploadResponse)
+async def upload_document(
+    project_id: UUID,
+    background_tasks: BackgroundTasks,
+    auth: UserClient,
+    file: UploadFile = File(...)
+):
+    """
+    Upload a document for processing.
+
+    Supports: PDF, DOCX, TXT, MD files.
+    Processing happens in background (chunking, embedding, memory extraction).
+    """
+    # Verify project access
+    project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
+    if not project_result.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Validate file type
+    allowed_types = {"pdf", "docx", "doc", "txt", "md", "markdown"}
+    file_ext = file.filename.split(".")[-1].lower() if file.filename else ""
+    if file_ext not in allowed_types:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File type not supported. Allowed: {', '.join(allowed_types)}"
+        )
+
+    # Read file content
+    file_content = await file.read()
+    file_size = len(file_content)
+
+    # Max 10MB
+    if file_size > 10 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large (max 10MB)")
+
+    try:
+        # Create document record
+        doc_result = auth.client.table("documents").insert({
+            "filename": file.filename,
+            "file_url": "",  # We don't store the actual file in storage for now
+            "file_type": file_ext,
+            "file_size": file_size,
+            "project_id": str(project_id),
+            "processing_status": "pending"
+        }).execute()
+
+        if not doc_result.data:
+            raise HTTPException(status_code=500, detail="Failed to create document record")
+
+        document = doc_result.data[0]
+
+        # Process document in background
+        background_tasks.add_task(
+            process_document,
+            document_id=document["id"],
+            file_content=file_content,
+            file_type=file_ext,
+            project_id=str(project_id),
+            user_id=auth.user_id,
+            db_client=auth.client
+        )
+
+        return DocumentUploadResponse(
+            id=UUID(document["id"]),
+            filename=document["filename"],
+            file_type=file_ext,
+            file_size=file_size,
+            processing_status="pending",
+            project_id=project_id
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this project")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/projects/{project_id}/documents", response_model=list[DocumentResponse])
+async def list_documents(project_id: UUID, auth: UserClient):
+    """List all documents in a project."""
+    try:
+        # Verify project access
+        project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
+        if not project_result.data:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        result = auth.client.table("documents")\
+            .select("*")\
+            .eq("project_id", str(project_id))\
+            .order("created_at", desc=True)\
+            .execute()
+
+        return result.data or []
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this project")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/documents/{document_id}")
+async def get_document(document_id: UUID, auth: UserClient):
+    """Get document details including processing status."""
+    try:
+        result = auth.client.table("documents")\
+            .select("*")\
+            .eq("id", str(document_id))\
+            .single()\
+            .execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        return result.data
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this document")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/documents/{document_id}")
+async def delete_document(document_id: UUID, auth: UserClient):
+    """Delete a document and its chunks."""
+    try:
+        # Delete chunks first (cascades from document FK)
+        auth.client.table("chunks")\
+            .delete()\
+            .eq("document_id", str(document_id))\
+            .execute()
+
+        # Delete document
+        result = auth.client.table("documents")\
+            .delete()\
+            .eq("id", str(document_id))\
+            .execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Document not found")
+
+        return {"deleted": True, "id": str(document_id)}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this document")
         raise HTTPException(status_code=500, detail=str(e))

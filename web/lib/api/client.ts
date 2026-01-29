@@ -1,6 +1,6 @@
 /**
  * YARNNN API Client
- * Typed fetch wrapper with Supabase auth
+ * ADR-005: Unified memory with embeddings
  */
 
 import { createClient } from "@/lib/supabase/client";
@@ -8,8 +8,9 @@ import type {
   Project,
   ProjectCreate,
   ProjectWithCounts,
-  Block,
-  BlockCreate,
+  Memory,
+  MemoryCreate,
+  MemoryUpdate,
   BulkImportRequest,
   BulkImportResponse,
   ContextBundle,
@@ -17,7 +18,6 @@ import type {
   WorkTicketCreate,
   WorkOutput,
   DeleteResponse,
-  UserContext,
 } from "@/types";
 
 const API_BASE_URL =
@@ -99,7 +99,7 @@ async function request<T>(
 }
 
 export const api = {
-  // Project endpoints (workspace is auto-managed)
+  // Project endpoints
   projects: {
     list: () => request<Project[]>("/api/projects"),
     create: (data: ProjectCreate) =>
@@ -111,32 +111,55 @@ export const api = {
       request<ProjectWithCounts>(`/api/projects/${projectId}`),
   },
 
-  // Context endpoints (blocks)
-  context: {
-    listBlocks: (projectId: string) =>
-      request<Block[]>(`/api/context/projects/${projectId}/blocks`),
-    createBlock: (projectId: string, data: BlockCreate) =>
-      request<Block>(`/api/context/projects/${projectId}/blocks`, {
+  // User memories (user-scoped, portable)
+  userMemories: {
+    list: () => request<Memory[]>("/api/context/user/memories"),
+    create: (data: MemoryCreate) =>
+      request<Memory>("/api/context/user/memories", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+  },
+
+  // Project memories (project-scoped)
+  projectMemories: {
+    list: (projectId: string) =>
+      request<Memory[]>(`/api/context/projects/${projectId}/memories`),
+    create: (projectId: string, data: MemoryCreate) =>
+      request<Memory>(`/api/context/projects/${projectId}/memories`, {
         method: "POST",
         body: JSON.stringify(data),
       }),
     importBulk: (projectId: string, data: BulkImportRequest) =>
       request<BulkImportResponse>(
-        `/api/context/projects/${projectId}/blocks/import`,
+        `/api/context/projects/${projectId}/memories/import`,
         {
           method: "POST",
           body: JSON.stringify(data),
         }
       ),
-    deleteBlock: (blockId: string) =>
-      request<DeleteResponse>(`/api/context/blocks/${blockId}`, {
+  },
+
+  // Memory management (works for both user and project memories)
+  memories: {
+    update: (memoryId: string, data: MemoryUpdate) =>
+      request<Memory>(`/api/context/memories/${memoryId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+    delete: (memoryId: string) =>
+      request<DeleteResponse>(`/api/context/memories/${memoryId}`, {
         method: "DELETE",
       }),
+  },
+
+  // Context bundle (full context for a project)
+  context: {
     getBundle: (projectId: string) =>
       request<ContextBundle>(`/api/context/projects/${projectId}/context`),
   },
 
-  // Work endpoints (TODO: implement when API routes ready)
+  // Work endpoints
   work: {
     listTickets: (projectId: string) =>
       request<WorkTicket[]>(`/api/work/projects/${projectId}/tickets`),
@@ -166,20 +189,6 @@ export const api = {
       request<Array<{ role: string; content: string }>>(
         `/api/projects/${projectId}/chat/history`
       ),
-  },
-
-  // User context endpoints (ADR-004 two-layer memory)
-  userContext: {
-    list: () => request<UserContext[]>("/api/context/user/context"),
-    update: (itemId: string, data: { content?: string; importance?: number }) =>
-      request<UserContext>(`/api/context/user/context/${itemId}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
-    delete: (itemId: string) =>
-      request<DeleteResponse>(`/api/context/user/context/${itemId}`, {
-        method: "DELETE",
-      }),
   },
 };
 

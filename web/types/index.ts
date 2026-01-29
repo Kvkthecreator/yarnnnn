@@ -1,6 +1,6 @@
 /**
  * YARNNN API Types
- * Matches backend Pydantic models
+ * ADR-005: Unified memory with embeddings
  */
 
 // Project
@@ -19,51 +19,41 @@ export interface ProjectCreate {
 }
 
 export interface ProjectWithCounts extends Project {
-  block_count: number;
+  memory_count: number;
   ticket_count: number;
 }
 
-// Block semantic types (project-level, ADR-004)
-export type SemanticType =
-  | "fact"
-  | "guideline"
-  | "requirement"
-  | "insight"
-  | "note"
-  | "question"
-  | "assumption";
-
-// User context categories (user-level, ADR-004)
-export type UserContextCategory =
-  | "preference"
-  | "business_fact"
-  | "work_pattern"
-  | "communication_style"
-  | "goal"
-  | "constraint"
-  | "relationship";
-
+// Source types for memories
 export type SourceType = "manual" | "chat" | "document" | "import" | "bulk";
 
-// Block
-export interface Block {
+// Memory (ADR-005: unified model)
+export interface Memory {
   id: string;
   content: string;
-  block_type: "text" | "structured" | "extracted";
-  semantic_type?: SemanticType;
-  source_type?: SourceType;
-  importance?: number;
-  metadata?: Record<string, unknown>;
-  project_id: string;
+  tags: string[];
+  entities: {
+    people?: string[];
+    companies?: string[];
+    concepts?: string[];
+  };
+  importance: number;
+  source_type: SourceType;
+  project_id?: string; // null = user-scoped
+  is_active: boolean;
   created_at: string;
   updated_at: string;
 }
 
-export interface BlockCreate {
+export interface MemoryCreate {
   content: string;
-  block_type?: "text" | "structured" | "extracted";
-  semantic_type?: SemanticType;
-  metadata?: Record<string, unknown>;
+  tags?: string[];
+  importance?: number;
+}
+
+export interface MemoryUpdate {
+  content?: string;
+  tags?: string[];
+  importance?: number;
 }
 
 export interface BulkImportRequest {
@@ -71,7 +61,7 @@ export interface BulkImportRequest {
 }
 
 export interface BulkImportResponse {
-  blocks_extracted: number;
+  memories_extracted: number;
   project_id: string;
 }
 
@@ -82,14 +72,16 @@ export interface Document {
   file_url: string;
   file_type?: string;
   file_size?: number;
+  processing_status?: "pending" | "processing" | "completed" | "failed";
   project_id: string;
   created_at: string;
 }
 
-// Context Bundle (for agent execution)
+// Context Bundle (for viewing full context)
 export interface ContextBundle {
   project_id: string;
-  blocks: Block[];
+  user_memories: Memory[];
+  project_memories: Memory[];
   documents: Document[];
 }
 
@@ -132,12 +124,63 @@ export interface AgentSession {
   messages: Array<{ role: string; content: string }>;
   metadata?: Record<string, unknown>;
   ticket_id?: string;
-  project_id: string;
+  project_id?: string;
   created_at: string;
   completed_at?: string;
 }
 
-// User Context (ADR-004 two-layer memory)
+// API Response types
+export interface DeleteResponse {
+  deleted: boolean;
+  id: string;
+}
+
+// Legacy types (deprecated, kept for migration)
+// TODO: Remove after frontend fully migrated
+
+/** @deprecated Use Memory instead */
+export type SemanticType =
+  | "fact"
+  | "guideline"
+  | "requirement"
+  | "insight"
+  | "note"
+  | "question"
+  | "assumption";
+
+/** @deprecated Use Memory instead */
+export type UserContextCategory =
+  | "preference"
+  | "business_fact"
+  | "work_pattern"
+  | "communication_style"
+  | "goal"
+  | "constraint"
+  | "relationship";
+
+/** @deprecated Use Memory instead */
+export interface Block {
+  id: string;
+  content: string;
+  block_type: "text" | "structured" | "extracted";
+  semantic_type?: SemanticType;
+  source_type?: SourceType;
+  importance?: number;
+  metadata?: Record<string, unknown>;
+  project_id: string;
+  created_at: string;
+  updated_at: string;
+}
+
+/** @deprecated Use MemoryCreate instead */
+export interface BlockCreate {
+  content: string;
+  block_type?: "text" | "structured" | "extracted";
+  semantic_type?: SemanticType;
+  metadata?: Record<string, unknown>;
+}
+
+/** @deprecated Use Memory instead */
 export interface UserContext {
   id: string;
   user_id: string;
@@ -152,10 +195,4 @@ export interface UserContext {
   reference_count?: number;
   created_at: string;
   updated_at: string;
-}
-
-// API Response types
-export interface DeleteResponse {
-  deleted: boolean;
-  id: string;
 }
