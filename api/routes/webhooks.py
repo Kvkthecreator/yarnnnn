@@ -22,6 +22,7 @@ log = logging.getLogger(__name__)
 # Environment configuration
 SLACK_WEBHOOK_URL = os.environ.get("SLACK_SIGNUP_WEBHOOK_URL")
 SUPABASE_WEBHOOK_SECRET = os.environ.get("SUPABASE_WEBHOOK_SECRET")
+PLATFORM_NAME = os.environ.get("PLATFORM_NAME", "yarnnn")
 
 
 async def send_slack_notification(message: str, blocks: Optional[List] = None) -> bool:
@@ -127,7 +128,7 @@ async def handle_user_signup_webhook(request: Request):
             "type": "header",
             "text": {
                 "type": "plain_text",
-                "text": "New User Signup!",
+                "text": f"🎉 New User Signup on {PLATFORM_NAME}!",
                 "emoji": True,
             }
         },
@@ -136,15 +137,15 @@ async def handle_user_signup_webhook(request: Request):
             "fields": [
                 {
                     "type": "mrkdwn",
+                    "text": f"*Platform:*\n{PLATFORM_NAME}"
+                },
+                {
+                    "type": "mrkdwn",
                     "text": f"*Email:*\n{email}"
                 },
                 {
                     "type": "mrkdwn",
                     "text": f"*Provider:*\n{provider.title()}"
-                },
-                {
-                    "type": "mrkdwn",
-                    "text": f"*User ID:*\n`{user_id[:8]}...`"
                 },
                 {
                     "type": "mrkdwn",
@@ -157,14 +158,14 @@ async def handle_user_signup_webhook(request: Request):
             "elements": [
                 {
                     "type": "mrkdwn",
-                    "text": "yarnnn - New user notification"
+                    "text": f"{PLATFORM_NAME} • User ID: `{user_id[:8]}...`"
                 }
             ]
         }
     ]
 
     await send_slack_notification(
-        f"New user signup: {email} via {provider}",
+        f"[{PLATFORM_NAME}] New user signup: {email} via {provider}",
         blocks=blocks,
     )
 
