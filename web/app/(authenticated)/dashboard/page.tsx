@@ -2,7 +2,9 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { api } from "@/lib/api/client";
+import { createClient } from "@/lib/supabase/client";
 import { Chat } from "@/components/Chat";
 import { UserContextPanel } from "@/components/UserContextPanel";
 import {
@@ -12,8 +14,9 @@ import {
   ChevronLeft,
   ChevronRight,
   FolderOpen,
-  Upload,
   Settings,
+  LogOut,
+  User,
 } from "lucide-react";
 
 interface Project {
@@ -30,7 +33,10 @@ export default function Dashboard() {
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(false);
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(true); // Start collapsed
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const router = useRouter();
+  const supabase = createClient();
 
   // Fetch projects on mount
   useEffect(() => {
@@ -66,6 +72,11 @@ export default function Dashboard() {
     }
   };
 
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    router.replace("/auth/login");
+  };
+
   if (isLoading) {
     return (
       <div className="h-screen flex items-center justify-center">
@@ -75,143 +86,176 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="h-screen flex overflow-hidden">
-      {/* Left Sidebar - Projects */}
-      <aside
-        className={`border-r border-border bg-muted/30 flex flex-col transition-all duration-200 ${
-          sidebarCollapsed ? "w-12" : "w-64"
-        }`}
-      >
-        {/* Sidebar Header */}
-        <div className="p-3 border-b border-border flex items-center justify-between">
-          {!sidebarCollapsed && (
-            <span className="text-sm font-medium text-muted-foreground">
-              Projects
-            </span>
-          )}
-          <button
-            onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-            className="p-1 hover:bg-muted rounded"
-            title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
-          >
-            {sidebarCollapsed ? (
-              <ChevronRight className="w-4 h-4" />
-            ) : (
-              <ChevronLeft className="w-4 h-4" />
-            )}
-          </button>
-        </div>
+    <div className="h-screen flex flex-col overflow-hidden">
+      {/* Top Header Bar */}
+      <header className="h-14 border-b border-border flex items-center justify-between px-4 shrink-0">
+        <Link href="/dashboard" className="text-xl font-bold">
+          YARNNN
+        </Link>
 
-        {/* New Project Button */}
-        {!sidebarCollapsed && (
-          <div className="p-3">
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setRightPanelCollapsed(!rightPanelCollapsed)}
+            className={`px-3 py-1.5 text-sm rounded-md transition-colors inline-flex items-center gap-1 ${
+              rightPanelCollapsed
+                ? "text-muted-foreground hover:bg-muted"
+                : "bg-primary/10 text-primary"
+            }`}
+            title="About You"
+          >
+            <User className="w-4 h-4" />
+            About You
+          </button>
+
+          {/* User Menu */}
+          <div className="relative">
             <button
-              onClick={() => setShowProjectModal(true)}
-              className="w-full px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md inline-flex items-center justify-center gap-2"
+              onClick={() => setShowUserMenu(!showUserMenu)}
+              className="p-2 hover:bg-muted rounded-md transition-colors"
             >
-              <Plus className="w-4 h-4" />
-              New Project
+              <Settings className="w-4 h-4" />
+            </button>
+
+            {showUserMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowUserMenu(false)}
+                />
+                <div className="absolute right-0 top-full mt-1 w-48 bg-background border border-border rounded-md shadow-lg z-50">
+                  <Link
+                    href="/settings"
+                    className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted"
+                    onClick={() => setShowUserMenu(false)}
+                  >
+                    <Settings className="w-4 h-4" />
+                    Settings
+                  </Link>
+                  <button
+                    onClick={handleSignOut}
+                    className="flex items-center gap-2 px-4 py-2 text-sm hover:bg-muted w-full text-left text-destructive"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Sign out
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Sidebar - Projects */}
+        <aside
+          className={`border-r border-border bg-muted/30 flex flex-col transition-all duration-200 ${
+            sidebarCollapsed ? "w-12" : "w-56"
+          }`}
+        >
+          {/* Sidebar Header */}
+          <div className="p-3 border-b border-border flex items-center justify-between">
+            {!sidebarCollapsed && (
+              <span className="text-sm font-medium text-muted-foreground">
+                Projects
+              </span>
+            )}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="p-1 hover:bg-muted rounded"
+              title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+            >
+              {sidebarCollapsed ? (
+                <ChevronRight className="w-4 h-4" />
+              ) : (
+                <ChevronLeft className="w-4 h-4" />
+              )}
             </button>
           </div>
-        )}
 
-        {/* Projects List */}
-        <div className="flex-1 overflow-y-auto">
-          {sidebarCollapsed ? (
-            <div className="p-2">
+          {/* New Project Button */}
+          {!sidebarCollapsed && (
+            <div className="p-3">
               <button
                 onClick={() => setShowProjectModal(true)}
-                className="w-full p-2 hover:bg-muted rounded"
-                title="New Project"
-              >
-                <Plus className="w-4 h-4 mx-auto" />
-              </button>
-            </div>
-          ) : (
-            <div className="p-2 space-y-1">
-              {projects.length === 0 ? (
-                <p className="text-xs text-muted-foreground px-2 py-4 text-center">
-                  No projects yet
-                </p>
-              ) : (
-                projects.map((project) => (
-                  <Link
-                    key={project.id}
-                    href={`/projects/${project.id}`}
-                    className="block px-3 py-2 text-sm rounded-md hover:bg-muted transition-colors truncate"
-                    title={project.name}
-                  >
-                    <FolderOpen className="w-4 h-4 inline-block mr-2 text-muted-foreground" />
-                    {project.name}
-                  </Link>
-                ))
-              )}
-            </div>
-          )}
-        </div>
-      </aside>
-
-      {/* Main Content - Chat First */}
-      <main className="flex-1 flex flex-col min-w-0">
-        {/* Quick Actions Bar */}
-        <div className="border-b border-border px-6 py-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-lg font-semibold">
-                What&apos;s on your mind?
-              </h1>
-              <p className="text-sm text-muted-foreground">
-                Chat with your Thinking Partner - no project needed
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button
-                onClick={() => setShowProjectModal(true)}
-                className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted transition-colors inline-flex items-center gap-1"
+                className="w-full px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md inline-flex items-center justify-center gap-2"
               >
                 <Plus className="w-4 h-4" />
                 New Project
               </button>
-              <button
-                className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted transition-colors inline-flex items-center gap-1"
-                title="Coming soon"
-                disabled
-              >
-                <Upload className="w-4 h-4" />
-                Import
-              </button>
-              <Link
-                href="/settings"
-                className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted transition-colors inline-flex items-center gap-1"
-              >
-                <Settings className="w-4 h-4" />
-                Settings
-              </Link>
             </div>
-          </div>
-        </div>
-
-        {/* Chat Area */}
-        <div className="flex-1 px-6 py-4 overflow-hidden">
-          {error ? (
-            <div className="p-4 bg-destructive/10 text-destructive rounded-lg">
-              {error}
-            </div>
-          ) : (
-            <Chat
-              includeContext
-              heightClass="h-full"
-              emptyMessage="Hi! I'm your Thinking Partner. I'm here to help you think through anything - ideas, problems, decisions, or just to chat. As we talk, I'll learn about you and remember what's important. What would you like to explore?"
-            />
           )}
-        </div>
-      </main>
 
-      {/* Right Sidebar - About You */}
-      <UserContextPanel
-        collapsed={rightPanelCollapsed}
-        onToggleCollapse={() => setRightPanelCollapsed(!rightPanelCollapsed)}
-      />
+          {/* Projects List */}
+          <div className="flex-1 overflow-y-auto">
+            {sidebarCollapsed ? (
+              <div className="p-2">
+                <button
+                  onClick={() => setShowProjectModal(true)}
+                  className="w-full p-2 hover:bg-muted rounded"
+                  title="New Project"
+                >
+                  <Plus className="w-4 h-4 mx-auto" />
+                </button>
+              </div>
+            ) : (
+              <div className="p-2 space-y-1">
+                {projects.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-2 py-4 text-center">
+                    No projects yet
+                  </p>
+                ) : (
+                  projects.map((project) => (
+                    <Link
+                      key={project.id}
+                      href={`/projects/${project.id}`}
+                      className="block px-3 py-2 text-sm rounded-md hover:bg-muted transition-colors truncate"
+                      title={project.name}
+                    >
+                      <FolderOpen className="w-4 h-4 inline-block mr-2 text-muted-foreground" />
+                      {project.name}
+                    </Link>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </aside>
+
+        {/* Main Content - Chat */}
+        <main className="flex-1 flex flex-col min-w-0">
+          {/* Chat Header */}
+          <div className="border-b border-border px-6 py-3">
+            <h1 className="text-lg font-semibold">What&apos;s on your mind?</h1>
+            <p className="text-sm text-muted-foreground">
+              Chat with your Thinking Partner
+            </p>
+          </div>
+
+          {/* Chat Area */}
+          <div className="flex-1 px-6 py-4 overflow-hidden">
+            {error ? (
+              <div className="p-4 bg-destructive/10 text-destructive rounded-lg">
+                {error}
+              </div>
+            ) : (
+              <Chat
+                includeContext
+                heightClass="h-full"
+                emptyMessage="Hi! I'm your Thinking Partner. I'm here to help you think through anything - ideas, problems, decisions, or just to chat. As we talk, I'll learn about you and remember what's important. What would you like to explore?"
+              />
+            )}
+          </div>
+        </main>
+
+        {/* Right Sidebar - About You */}
+        {!rightPanelCollapsed && (
+          <UserContextPanel
+            collapsed={false}
+            onToggleCollapse={() => setRightPanelCollapsed(true)}
+          />
+        )}
+      </div>
 
       {/* Modals */}
       {showProjectModal && (
