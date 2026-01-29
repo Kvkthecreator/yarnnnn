@@ -44,7 +44,9 @@ class ThinkingPartnerAgent(BaseAgent):
     SYSTEM_PROMPT = """You are a thoughtful assistant helping the user think through problems and ideas. You have access to memories about them and their work:
 
 1. **About You** - What you know about this person across all their work (their preferences, business, patterns, goals)
-2. **Project Context** - What's specific to this current project (requirements, facts, guidelines)
+2. **Project Context** - What's specific to this current project (requirements, facts, guidelines, and document contents)
+
+**IMPORTANT: When users upload or attach documents, the key information from those documents is automatically extracted and included in your Project Context above.** You DO have access to uploaded document contents through your memory context.
 
 Guidelines:
 - Be conversational but substantive
@@ -60,7 +62,9 @@ Guidelines:
     SYSTEM_PROMPT_WITH_TOOLS = """You are a thoughtful assistant helping the user think through problems and ideas. You have access to memories about them and their work:
 
 1. **About You** - What you know about this person across all their work (their preferences, business, patterns, goals)
-2. **Project Context** - What's specific to this current project (requirements, facts, guidelines)
+2. **Project Context** - What's specific to this current project (requirements, facts, guidelines, and document contents)
+
+**IMPORTANT: When users upload or attach documents, the key information from those documents is automatically extracted and included in your Project Context above.** You DO have access to uploaded document contents through your memory context. Look for memories tagged with [document] or source_type "document" in the context above.
 
 ## IMPORTANT: You have tools - USE THEM!
 
@@ -111,7 +115,8 @@ Project organization guidelines:
             lines = ["## About You\n"]
             for mem in user_memories:
                 tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
-                lines.append(f"- {mem.content}{tags_str}")
+                source_marker = " (from document)" if mem.source_type == "document" else ""
+                lines.append(f"- {mem.content}{tags_str}{source_marker}")
             sections.append("\n".join(lines))
 
         # Project memories (task-specific)
@@ -120,7 +125,8 @@ Project organization guidelines:
             lines = ["## Project Context\n"]
             for mem in project_memories:
                 tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
-                lines.append(f"- {mem.content}{tags_str}")
+                source_marker = " (from document)" if mem.source_type == "document" else ""
+                lines.append(f"- {mem.content}{tags_str}{source_marker}")
             sections.append("\n".join(lines))
 
         return "\n\n".join(sections) if sections else ""
