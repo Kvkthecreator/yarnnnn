@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   Settings,
   Trash2,
@@ -10,9 +11,11 @@ import {
   Check,
   User,
   FolderOpen,
+  CreditCard,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import type { Project } from "@/types";
+import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 
 interface MemoryStats {
   userMemories: number;
@@ -20,7 +23,14 @@ interface MemoryStats {
   totalMemories: number;
 }
 
+type SettingsTab = "memory" | "billing";
+
 export default function SettingsPage() {
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get("tab") === "billing" ? "billing" : "memory";
+  const subscriptionSuccess = searchParams.get("subscription") === "success";
+
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -29,6 +39,7 @@ export default function SettingsPage() {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [purgeSuccess, setPurgeSuccess] = useState<string | null>(null);
+  const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(subscriptionSuccess);
 
   // Fetch stats on mount
   useEffect(() => {
@@ -163,13 +174,76 @@ export default function SettingsPage() {
     setShowConfirm(true);
   };
 
+  // Auto-dismiss subscription success message
+  useEffect(() => {
+    if (showSubscriptionSuccess) {
+      const timer = setTimeout(() => setShowSubscriptionSuccess(false), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [showSubscriptionSuccess]);
+
   return (
     <div className="max-w-3xl mx-auto p-6">
-      <div className="flex items-center gap-3 mb-8">
+      <div className="flex items-center gap-3 mb-6">
         <Settings className="w-6 h-6" />
         <h1 className="text-2xl font-bold">Settings</h1>
       </div>
 
+      {/* Subscription Success Banner */}
+      {showSubscriptionSuccess && (
+        <div className="mb-6 p-4 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg flex items-center gap-3">
+          <Check className="w-5 h-5 text-green-600" />
+          <div>
+            <p className="font-medium text-green-800 dark:text-green-200">
+              Welcome to yarnnn Pro!
+            </p>
+            <p className="text-sm text-green-700 dark:text-green-300">
+              Your subscription is now active. Enjoy unlimited projects and scheduled agents.
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div className="flex gap-1 mb-8 border-b border-border">
+        <button
+          onClick={() => setActiveTab("memory")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "memory"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Brain className="w-4 h-4" />
+            Memory
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("billing")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === "billing"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <CreditCard className="w-4 h-4" />
+            Billing
+          </span>
+        </button>
+      </div>
+
+      {/* Billing Tab */}
+      {activeTab === "billing" && (
+        <section className="mb-8">
+          <SubscriptionCard />
+        </section>
+      )}
+
+      {/* Memory Tab */}
+      {activeTab === "memory" && (
+        <>
       {/* Memory Stats */}
       <section className="mb-8">
         <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
@@ -290,6 +364,8 @@ export default function SettingsPage() {
           </div>
         </div>
       </section>
+        </>
+      )}
 
       {/* Success Message */}
       {purgeSuccess && (

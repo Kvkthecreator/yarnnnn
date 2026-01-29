@@ -174,3 +174,21 @@ export interface DeleteResponse {
   deleted: boolean;
   id: string;
 }
+
+// Subscription (Lemon Squeezy)
+export type SubscriptionTier = "free" | "pro";
+
+export interface SubscriptionStatus {
+  status: SubscriptionTier;
+  expires_at: string | null;
+  customer_id: string | null;
+  subscription_id: string | null;
+}
+
+export interface CheckoutResponse {
+  checkout_url: string;
+}
+
+export interface PortalResponse {
+  portal_url: string;
+}

@@ -24,6 +24,9 @@ import type {
   WorkOutput,
   DeleteResponse,
   OnboardingStateResponse,
+  SubscriptionStatus,
+  CheckoutResponse,
+  PortalResponse,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -266,6 +269,19 @@ export const api = {
       request<Array<{ role: string; content: string }>>(
         `/api/projects/${projectId}/chat/history`
       ),
+  },
+
+  // Subscription endpoints (Lemon Squeezy)
+  subscription: {
+    getStatus: () => request<SubscriptionStatus>("/api/subscription/status"),
+
+    createCheckout: (billingPeriod: "monthly" | "yearly" = "monthly") =>
+      request<CheckoutResponse>("/api/subscription/checkout", {
+        method: "POST",
+        body: JSON.stringify({ billing_period: billingPeriod }),
+      }),
+
+    getPortal: () => request<PortalResponse>("/api/subscription/portal"),
   },
 
   // Admin endpoints (requires admin access)
