@@ -23,11 +23,25 @@ export interface ProjectWithCounts extends Project {
   ticket_count: number;
 }
 
+// Block semantic types
+export type SemanticType =
+  | "fact"
+  | "guideline"
+  | "requirement"
+  | "insight"
+  | "note"
+  | "question";
+
+export type SourceType = "manual" | "chat" | "document" | "import" | "bulk";
+
 // Block
 export interface Block {
   id: string;
   content: string;
   block_type: "text" | "structured" | "extracted";
+  semantic_type?: SemanticType;
+  source_type?: SourceType;
+  importance?: number;
   metadata?: Record<string, unknown>;
   project_id: string;
   created_at: string;
@@ -37,7 +51,17 @@ export interface Block {
 export interface BlockCreate {
   content: string;
   block_type?: "text" | "structured" | "extracted";
+  semantic_type?: SemanticType;
   metadata?: Record<string, unknown>;
+}
+
+export interface BulkImportRequest {
+  text: string;
+}
+
+export interface BulkImportResponse {
+  blocks_extracted: number;
+  project_id: string;
 }
 
 // Document

@@ -2,10 +2,10 @@
 Context routes - Block and document management
 
 Endpoints:
-- POST /projects/:id/blocks - Add block
+- POST /projects/:id/blocks - Add block (manual)
+- POST /projects/:id/blocks/import - Bulk import text → extract blocks
 - GET /projects/:id/blocks - List blocks
 - DELETE /blocks/:id - Delete block
-- POST /projects/:id/documents - Upload document
 - GET /projects/:id/context - Get full context bundle
 """
 
@@ -16,6 +16,7 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
+from services.extraction import extract_from_bulk_text
 
 router = APIRouter()
 
@@ -25,13 +26,26 @@ router = APIRouter()
 class BlockCreate(BaseModel):
     content: str
     block_type: str = "text"  # text, structured, extracted
+    semantic_type: Optional[str] = None  # fact, guideline, requirement, insight, note, question
     metadata: Optional[dict] = None
+
+
+class BulkImportRequest(BaseModel):
+    text: str  # Raw text to extract blocks from
+
+
+class BulkImportResponse(BaseModel):
+    blocks_extracted: int
+    project_id: UUID
 
 
 class BlockResponse(BaseModel):
     id: UUID
     content: str
     block_type: str
+    semantic_type: Optional[str] = None
+    source_type: Optional[str] = None
+    importance: Optional[float] = None
     metadata: Optional[dict]
     project_id: UUID
     created_at: datetime
@@ -58,12 +72,15 @@ class ContextBundle(BaseModel):
 
 @router.post("/projects/{project_id}/blocks", response_model=BlockResponse)
 async def create_block(project_id: UUID, block: BlockCreate, auth: UserClient):
-    """Add a new block to project context."""
+    """Add a new block to project context (manual creation)."""
     try:
         result = auth.client.table("blocks").insert({
             "project_id": str(project_id),
             "content": block.content,
             "block_type": block.block_type,
+            "semantic_type": block.semantic_type,
+            "source_type": "manual",
+            "importance": 0.5,
             "metadata": block.metadata or {}
         }).execute()
 
@@ -71,6 +88,40 @@ async def create_block(project_id: UUID, block: BlockCreate, auth: UserClient):
             raise HTTPException(status_code=400, detail="Failed to create block")
 
         return result.data[0]
+
+    except Exception as e:
+        if "violates row-level security" in str(e):
+            raise HTTPException(status_code=403, detail="Access denied to this project")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/projects/{project_id}/blocks/import", response_model=BulkImportResponse)
+async def import_blocks(project_id: UUID, request: BulkImportRequest, auth: UserClient):
+    """
+    Bulk import: paste text → extract semantic blocks.
+
+    Takes raw text (notes, meeting transcripts, documents) and uses LLM
+    to extract structured context blocks. Solves cold start problem.
+    """
+    # Verify project access
+    project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
+    if not project_result.data:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not request.text or len(request.text.strip()) < 50:
+        raise HTTPException(status_code=400, detail="Text too short (minimum 50 characters)")
+
+    try:
+        count = await extract_from_bulk_text(
+            project_id=str(project_id),
+            text=request.text,
+            db_client=auth.client
+        )
+
+        return BulkImportResponse(
+            blocks_extracted=count,
+            project_id=project_id
+        )
 
     except Exception as e:
         if "violates row-level security" in str(e):

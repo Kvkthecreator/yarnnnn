@@ -7,6 +7,7 @@ Endpoints:
 """
 
 import json
+import asyncio
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -15,6 +16,7 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
+from services.extraction import extract_from_conversation
 from agents.base import ContextBundle, Block
 from agents.thinking_partner import ThinkingPartnerAgent
 
@@ -71,6 +73,25 @@ async def save_agent_session(
     }).execute()
 
 
+async def _background_extraction(project_id: str, messages: list[dict], client):
+    """
+    Background task for context extraction.
+    Runs after response streaming completes, doesn't block user.
+    """
+    try:
+        count = await extract_from_conversation(
+            project_id=project_id,
+            messages=messages,
+            db_client=client,
+            source_type="chat"
+        )
+        if count > 0:
+            print(f"Extracted {count} blocks from chat in project {project_id}")
+    except Exception as e:
+        # Log but don't fail - extraction is best-effort
+        print(f"Background extraction failed for project {project_id}: {e}")
+
+
 @router.post("/projects/{project_id}/chat")
 async def send_message(
     project_id: UUID,
@@ -115,12 +136,14 @@ async def send_message(
             # Send done event
             yield f"data: {json.dumps({'done': True, 'full_content': full_response})}\n\n"
 
+            # Build full message list for session save and extraction
+            messages = history + [
+                {"role": "user", "content": request.content},
+                {"role": "assistant", "content": full_response},
+            ]
+
             # Save session for provenance (fire and forget)
             try:
-                messages = history + [
-                    {"role": "user", "content": request.content},
-                    {"role": "assistant", "content": full_response},
-                ]
                 await save_agent_session(
                     auth.client,
                     project_id,
@@ -133,8 +156,12 @@ async def send_message(
                     },
                 )
             except Exception as e:
-                # Don't fail the response if session save fails
                 print(f"Failed to save agent session: {e}")
+
+            # Fire-and-forget context extraction from conversation
+            asyncio.create_task(
+                _background_extraction(str(project_id), messages, auth.client)
+            )
 
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

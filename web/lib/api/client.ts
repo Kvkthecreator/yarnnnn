@@ -10,6 +10,8 @@ import type {
   ProjectWithCounts,
   Block,
   BlockCreate,
+  BulkImportRequest,
+  BulkImportResponse,
   ContextBundle,
   WorkTicket,
   WorkTicketCreate,
@@ -117,6 +119,14 @@ export const api = {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    importBulk: (projectId: string, data: BulkImportRequest) =>
+      request<BulkImportResponse>(
+        `/api/context/projects/${projectId}/blocks/import`,
+        {
+          method: "POST",
+          body: JSON.stringify(data),
+        }
+      ),
     deleteBlock: (blockId: string) =>
       request<DeleteResponse>(`/api/context/blocks/${blockId}`, {
         method: "DELETE",
