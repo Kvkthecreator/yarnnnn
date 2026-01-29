@@ -241,33 +241,34 @@ YARNNN's core experience is the **Thinking Partner chat**. Documents should feel
 
 ## Implementation Phases
 
-### Phase 1: Core Upload (MVP)
+### Phase 1: Core Upload (MVP) ✅ Complete
 
 **Components:**
-- [ ] `DocumentUpload.tsx` - File picker + upload logic
-- [ ] `DocumentList.tsx` - List documents with actions
-- [ ] `DocumentItem.tsx` - Single document row with status
-- [ ] `UploadProgress.tsx` - Upload/processing indicator
+- [x] `DocumentList.tsx` - Combined upload + list + status (simplified from separate components)
+- [x] `useDocuments.ts` - Hook with upload progress tracking
 
 **API Client Updates:**
-- [ ] Update `api.documents` endpoints to match new routes
-- [ ] Add user-scoped document endpoints (no project required)
+- [x] Update `api.documents` endpoints to match new routes
+- [x] Add user-scoped document endpoints (no project required)
 
 **Integration:**
-- [ ] Add Documents section to `UserContextPanel.tsx`
-- [ ] Add upload button to context panel header
+- [x] Add Documents section to `UserContextPanel.tsx`
+- [x] Upload button in section header
 
-### Phase 2: Chat Drop Zone
+**Commit:** `4e9ce58`
+
+### Phase 2: Chat Drop Zone ✅ Complete
 
 **Components:**
-- [ ] `ChatDropZone.tsx` - Drag-and-drop overlay
-- [ ] Update `Chat.tsx` to handle file drops
-- [ ] Inline upload message in chat
+- [x] Update `Chat.tsx` to handle file drops (inline, no separate component)
+- [x] Inline upload message in chat stream
 
 **UX:**
-- [ ] Drag detection on chat container
-- [ ] Visual feedback during drag
-- [ ] Processing indicator in message stream
+- [x] Drag detection on chat container
+- [x] Visual feedback during drag (full-screen overlay with dashed border)
+- [x] Processing indicator in message stream
+
+**Commit:** `73aa014`
 
 ### Phase 3: Onboarding Flow
 
