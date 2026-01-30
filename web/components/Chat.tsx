@@ -116,6 +116,7 @@ export function Chat({
   // ADR-016: Handle tool use events for work status tracking
   const handleToolUse = useCallback(
     (toolEvent: { id: string; name: string; input: Record<string, unknown> }) => {
+      console.log("[Chat] handleToolUse called:", toolEvent.name, toolEvent);
       if (toolEvent.name === "create_work") {
         const input = toolEvent.input as { agent_type?: string; task?: string };
         // Store pending work info to match with result later
@@ -137,6 +138,7 @@ export function Chat({
   // ADR-016: Handle tool result events for work completion
   const handleToolResult = useCallback(
     (resultEvent: { tool_use_id: string; name: string; result: Record<string, unknown> }) => {
+      console.log("[Chat] handleToolResult called:", resultEvent.name, resultEvent);
       if (resultEvent.name === "create_work") {
         const result = resultEvent.result as {
           success?: boolean;
