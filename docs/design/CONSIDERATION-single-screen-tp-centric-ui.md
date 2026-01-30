@@ -273,8 +273,259 @@ If we pursue "witnessed space" rather than "desktop metaphor":
 
 ---
 
+## Refinement: The Two Modalities Problem
+
+The "witnessed space" reframe is directionally correct, but it overlooks something fundamental about human cognition:
+
+**Conversation is ephemeral. Visual persistence is how humans hold complex information.**
+
+Books over audiobooks. Spreadsheets over verbal data. Slides over speeches. Humans use visual artifacts to *anchor* understanding that conversation alone cannot hold.
+
+### What Chat Does Well
+- Back-and-forth clarification
+- Intent expression ("I want X")
+- Relationship/continuity feeling
+- Quick status checks
+- Delegation ("do this for me")
+
+### What Chat Does Poorly
+- Holding complex structured data
+- Comparing multiple items
+- Reviewing/editing documents
+- Seeing patterns across time
+- Export/sharing workflows
+
+**The insight**: TP-as-witness is right for *interaction*. But outputs, context, schedules need *visual persistence*—something the user can scan, review, manipulate outside the conversational flow.
+
+---
+
+## Revised Frame: Conversation + Surfaces
+
+**Conversation** = primary interaction modality (TP as witness)
+**Surfaces** = visual persistence for data/artifacts that need to be held
+
+The question becomes: how do surfaces relate to conversation?
+
+### Option A: Surfaces as Conversation Artifacts (Inline Expansion)
+
+Surfaces appear *within* conversation, expand when needed:
+
+```
+TP: Your research finished. Here's the summary:
+
+┌─────────────────────────────────────────┐
+│ 📄 LinkedIn Strategy Research           │
+│ ─────────────────────────────────────── │
+│ [Collapsed view: key insight + actions] │
+│                                         │
+│ [Expand]  [Export]  [Ask about this]    │
+└─────────────────────────────────────────┘
+
+[User clicks Expand]
+
+┌─────────────────────────────────────────┐
+│ 📄 LinkedIn Strategy Research           │
+│ ═══════════════════════════════════════ │
+│                                         │
+│ ## Key Findings                         │
+│ 1. Technical deep-dives outperform...   │
+│ 2. Posting frequency matters less...    │
+│ 3. ...                                  │
+│                                         │
+│ ## Recommendations                      │
+│ ...                                     │
+│                                         │
+│ [Collapse]  [Export PDF]  [Email]       │
+└─────────────────────────────────────────┘
+```
+
+**Pros**: Single surface, no context switching
+**Cons**: Long documents awkward in chat, scrolling becomes confusing, can't see chat + full document simultaneously
+
+### Option B: Surfaces as Side Panels (Split View)
+
+Conversation stays primary, surfaces slide in from side:
+
+```
+┌────────────────────────┬───────────────────────────┐
+│                        │ 📄 LinkedIn Research      │
+│  CONVERSATION          │ ═══════════════════════   │
+│                        │                           │
+│  TP: Here's what I     │ ## Key Findings           │
+│  found. I've opened    │ 1. Technical deep-dives   │
+│  the report for you.   │    outperform...          │
+│                        │ 2. Posting frequency...   │
+│  You: What about the   │                           │
+│  engagement data?      │ ## Recommendations        │
+│                        │ ...                       │
+│  TP: Look at section   │                           │
+│  3—I've highlighted    │ [Section 3 highlighted]   │
+│  the relevant part.    │                           │
+│                        │                           │
+├────────────────────────┤ [Export]  [Close]         │
+│ [Type message...]      │                           │
+└────────────────────────┴───────────────────────────┘
+```
+
+**Pros**: Can see both simultaneously, TP can reference specific parts, proper document viewing
+**Cons**: More complex layout, mobile adaptation needed, "two places" mental model
+
+### Option C: Surfaces as Overlays (Modal Focus)
+
+Full-screen takeover when viewing artifacts, conversation accessible via toggle:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ 📄 LinkedIn Strategy Research            [×] [💬]  │
+│ ═══════════════════════════════════════════════════ │
+│                                                     │
+│ ## Key Findings                                     │
+│ 1. Technical deep-dives outperform thought...      │
+│ 2. Posting frequency matters less than...          │
+│ ...                                                │
+│                                                     │
+│ ## Recommendations                                  │
+│ Based on the analysis, I recommend:                │
+│ ...                                                │
+│                                                     │
+│ ┌─────────────────────────────────────────────────┐│
+│ │ Ask TP about this document...            [Send] ││
+│ └─────────────────────────────────────────────────┘│
+│                                                     │
+│ [Export PDF]  [Export DOCX]  [Email]  [Copy Link]  │
+└─────────────────────────────────────────────────────┘
+
+[💬 opens conversation sidebar or returns to chat]
+```
+
+**Pros**: Full screen for documents, focused experience, clean mobile story
+**Cons**: Context switching between modes, conversation not always visible
+
+### Option D: Tabs with Conversation as Home
+
+Minimal tabs: one for conversation (home), others for specific surface types:
+
+```
+┌─────────────────────────────────────────────────────┐
+│ [💬 Chat]  [📄 Outputs]  [📊 Context]  [⚙️]        │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  (Current tab content)                              │
+│                                                     │
+└─────────────────────────────────────────────────────┘
+```
+
+**Chat tab** = conversation with TP (home, always returns here)
+**Outputs tab** = documents, work results, exports
+**Context tab** = memories, project state, schedules
+
+**Pros**: Familiar pattern, clear separation, mobile-friendly
+**Cons**: Most "dashboard-like", loses some witnessed-space feeling
+
+### Option E: Hybrid - Conversation with Contextual Drawer
+
+Chat is always visible. A drawer slides up/in for surfaces when needed:
+
+```
+┌─────────────────────────────────────────────────────┐
+│                                                     │
+│  CONVERSATION (full screen when drawer closed)     │
+│                                                     │
+│  TP: Your research is ready.                       │
+│       [View Report ↗]                              │
+│                                                     │
+│  You: Show me                                       │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│ ▼ 📄 LinkedIn Research                    [×] [↑]  │
+│ ─────────────────────────────────────────────────── │
+│ ## Key Findings                                     │
+│ 1. Technical deep-dives outperform...              │
+│                                                     │
+│ [Full Screen]  [Export]                            │
+└─────────────────────────────────────────────────────┘
+```
+
+The drawer:
+- Slides up from bottom (mobile-native gesture)
+- Can be expanded to full screen
+- Can be dismissed with swipe/tap
+- Conversation still visible above (or behind on mobile)
+
+**Pros**: Conversation-first, surfaces feel "summoned", mobile-native
+**Cons**: Vertical space competition, complex state
+
+---
+
+## Comparison Matrix
+
+| Aspect | A: Inline | B: Side Panel | C: Overlay | D: Tabs | E: Drawer |
+|--------|-----------|---------------|------------|---------|-----------|
+| Chat visibility | Always | Always | Toggle | Tab switch | Partial |
+| Document viewing | Poor | Good | Excellent | Excellent | Good |
+| Mobile | Awkward | Poor | Good | Good | Excellent |
+| TP-surfacing feel | High | High | Medium | Low | High |
+| Implementation | Simple | Medium | Medium | Simple | Medium |
+| "Witnessed" feeling | High | High | Medium | Low | High |
+
+---
+
+## Recommendation: Option E (Drawer) or B+E Hybrid
+
+**Primary recommendation: Drawer (Option E)**
+
+Reasons:
+1. Conversation remains primary (witnessed space)
+2. Mobile-native gesture (swipe up)
+3. TP can "summon" surfaces naturally ("I've opened the report for you")
+4. User can dismiss easily, returning to conversation
+5. Full-screen option when focused work needed
+
+**Desktop enhancement: Side panel capability**
+
+On larger screens, drawer could also dock to side (like Option B), giving:
+- Conversation + surface side-by-side when needed
+- Drawer behavior on mobile
+- User choice based on task
+
+---
+
+## Surface Types to Support
+
+| Surface | Content | Triggered By |
+|---------|---------|--------------|
+| **Output Viewer** | Work results, documents | TP completes work, user asks |
+| **Context Browser** | Memories, documents, project state | User asks "what do you know about X" |
+| **Schedule Manager** | Scheduled work, upcoming runs | User asks about schedules |
+| **Export Flow** | PDF/DOCX/Email generation | User wants to share/export |
+| **Project Lens** | Project-specific view of all above | User switches project context |
+
+---
+
+## Next Steps
+
+1. **Prototype drawer interaction**
+   - Swipe-up on mobile
+   - Click-to-expand on desktop
+   - TP-triggered opening
+
+2. **Define surface content patterns**
+   - What goes in each surface type?
+   - How detailed vs. summarized?
+
+3. **TP integration**
+   - How does TP "know" to open a surface?
+   - Natural language triggers
+
+4. **Mobile-first implementation**
+   - Drawer is actually easier on mobile
+   - Expand to desktop from there
+
+---
+
 ## References
 
 - Strategic thinking document: "Age of Intelligence & Product Direction" (Jan 27, 2026)
 - Key concepts: witnessed existence, infinite patience, temporal availability
 - Legacy implementation: `/Users/macbook/yarnnn-app-fullstack/components/desktop/`
+- Design patterns: iOS sheets, Android bottom sheets, Figma panels
