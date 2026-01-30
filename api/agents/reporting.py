@@ -98,7 +98,7 @@ class ReportingAgent(BaseAgent):
             all_tool_calls = []
             max_iterations = 3
 
-            for iteration in range(max_iterations):
+            for _ in range(max_iterations):
                 response: ChatResponse = await chat_completion_with_tools(
                     messages=messages,
                     system=system_prompt,
@@ -134,7 +134,7 @@ class ReportingAgent(BaseAgent):
 
                 messages.append({"role": "assistant", "content": assistant_content})
 
-                # Add tool result
+                # Add tool results for all tool uses
                 tool_results = []
                 for tool_use in response.tool_uses:
                     if tool_use.name == "submit_output":
@@ -143,8 +143,17 @@ class ReportingAgent(BaseAgent):
                             "tool_use_id": tool_use.id,
                             "content": "Report submitted successfully.",
                         })
+                    else:
+                        # Handle unexpected tools gracefully
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use.id,
+                            "content": f"Unknown tool '{tool_use.name}'. Only submit_output is available.",
+                            "is_error": True,
+                        })
 
-                messages.append({"role": "user", "content": tool_results})
+                if tool_results:
+                    messages.append({"role": "user", "content": tool_results})
 
             # Parse single work output
             work_output = self._parse_work_output(all_tool_calls)
@@ -156,6 +165,14 @@ class ReportingAgent(BaseAgent):
             logger.info(
                 f"[REPORTING] Complete: output={'yes' if work_output else 'no'}"
             )
+
+            # If no output was generated, treat as failure
+            if not work_output:
+                return AgentResult(
+                    success=False,
+                    error="Agent did not produce an output. The submit_output tool was not called.",
+                    content=response.text,
+                )
 
             return AgentResult(
                 success=True,
