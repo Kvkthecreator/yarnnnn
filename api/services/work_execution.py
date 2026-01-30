@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 async def load_context_for_work(
     client,
     user_id: str,
-    project_id: str,
+    project_id: Optional[str],  # ADR-015: Can be None for ambient work
     task: Optional[str] = None,
     max_memories: int = 20,
 ) -> ContextBundle:
@@ -36,10 +36,13 @@ async def load_context_for_work(
     Combines user memories and project memories into a ContextBundle.
     Uses semantic search if task is provided.
 
+    ADR-015: Supports ambient work (project_id = None).
+    For ambient work, only user memories are loaded.
+
     Args:
         client: Supabase client
         user_id: User ID
-        project_id: Project ID
+        project_id: Project ID (None for ambient work)
         task: Optional task description for semantic search
         max_memories: Maximum memories to load
 
@@ -47,6 +50,7 @@ async def load_context_for_work(
         ContextBundle with loaded memories
     """
     memories = []
+    project_name = None
 
     try:
         # Load user memories (project_id IS NULL)
@@ -72,40 +76,42 @@ async def load_context_for_work(
                 project_id=None,
             ))
 
-        # Load project memories
-        project_result = (
-            client.table("memories")
-            .select("*")
-            .eq("user_id", user_id)
-            .eq("project_id", project_id)
-            .eq("is_active", True)
-            .order("importance", desc=True)
-            .limit(max_memories // 2)
-            .execute()
-        )
+        # ADR-015: Only load project memories if we have a project_id
+        if project_id:
+            # Load project memories
+            project_mem_result = (
+                client.table("memories")
+                .select("*")
+                .eq("user_id", user_id)
+                .eq("project_id", project_id)
+                .eq("is_active", True)
+                .order("importance", desc=True)
+                .limit(max_memories // 2)
+                .execute()
+            )
 
-        for row in (project_result.data or []):
-            memories.append(Memory(
-                id=UUID(row["id"]),
-                content=row["content"],
-                importance=row.get("importance", 0.5),
-                tags=row.get("tags", []),
-                entities=row.get("entities", {}),
-                source_type=row.get("source_type", "chat"),
-                project_id=UUID(row["project_id"]),
-            ))
+            for row in (project_mem_result.data or []):
+                memories.append(Memory(
+                    id=UUID(row["id"]),
+                    content=row["content"],
+                    importance=row.get("importance", 0.5),
+                    tags=row.get("tags", []),
+                    entities=row.get("entities", {}),
+                    source_type=row.get("source_type", "chat"),
+                    project_id=UUID(row["project_id"]),
+                ))
 
-        # Get project name
-        project_result = (
-            client.table("projects")
-            .select("name")
-            .eq("id", project_id)
-            .single()
-            .execute()
-        )
-        project_name = project_result.data.get("name") if project_result.data else None
+            # Get project name
+            proj_result = (
+                client.table("projects")
+                .select("name")
+                .eq("id", project_id)
+                .single()
+                .execute()
+            )
+            project_name = proj_result.data.get("name") if proj_result.data else None
 
-        logger.info(f"Loaded {len(memories)} memories for work execution")
+        logger.info(f"Loaded {len(memories)} memories for work execution (project_id={project_id})")
 
     except Exception as e:
         logger.warning(f"Error loading context: {e}")
@@ -113,7 +119,7 @@ async def load_context_for_work(
     return ContextBundle(
         memories=memories,
         documents=[],
-        project_id=UUID(project_id),
+        project_id=UUID(project_id) if project_id else None,
         project_name=project_name,
     )
 
