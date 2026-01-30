@@ -449,31 +449,32 @@ Start with database queue. Migrate to external queue only when:
 
 ## Implementation Phases
 
-### Phase 1: Core Infrastructure
-- [ ] work_intents, work_executions, work_outputs tables
+### Phase 1: Core Infrastructure (Partial)
+- [x] Using existing `work_tickets` table (maps to work_intents concept)
+- [x] Using existing `work_outputs` table
 - [ ] Queue processor (database-based)
 - [ ] Basic Research agent implementation
-- [ ] Manual work creation via API
 
-### Phase 2: Scheduling
+### Phase 2: TP Integration ✅
+- [x] TP tools for work creation (`create_work`)
+- [x] TP tools for work listing (`list_work`)
+- [x] TP tools for status retrieval (`get_work_status`)
+- [ ] Conversational work management refinements
+
+### Phase 3: Scheduling
 - [ ] work_schedules table
 - [ ] Cron job for scheduled work
 - [ ] Schedule management UI
 
-### Phase 3: Delivery
+### Phase 4: Delivery
 - [ ] delivery_preferences table
 - [ ] Email notifications (Resend)
 - [ ] In-app notification center
 
-### Phase 4: Supervision
+### Phase 5: Supervision
 - [ ] Supervision states and transitions
 - [ ] Review UI
 - [ ] Revision loop
-
-### Phase 5: TP Integration
-- [ ] TP tools for work creation
-- [ ] TP tools for output retrieval
-- [ ] Conversational work management
 
 ### Phase 6: Additional Agents
 - [ ] Content agent

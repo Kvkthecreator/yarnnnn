@@ -1,10 +1,14 @@
 """
-Project tools for Thinking Partner (ADR-007)
+Tools for Thinking Partner (ADR-007, ADR-009)
 
-Defines tools and handlers that give TP authority to manage projects.
+Defines tools and handlers that give TP authority to:
+- Manage projects (ADR-007)
+- Initiate and track work (ADR-009)
+
 Phase 1-2: Read-only tools (list_projects)
 Phase 3: Mutation tools (create_project)
 Phase 3.5: Update tools (rename_project, update_project)
+Phase 4: Work tools (create_work, list_work, get_work_status)
 """
 
 from typing import Callable, Any
@@ -85,12 +89,90 @@ UPDATE_PROJECT_TOOL = {
     }
 }
 
+
+# =============================================================================
+# Work Tools (ADR-009)
+# =============================================================================
+
+CREATE_WORK_TOOL = {
+    "name": "create_work",
+    "description": "Create a work request for an agent to complete a task. Use when the user asks you to research something, create content, or generate a report. The work will be processed asynchronously.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "task": {
+                "type": "string",
+                "description": "Clear description of what needs to be done"
+            },
+            "agent_type": {
+                "type": "string",
+                "enum": ["research", "content", "reporting"],
+                "description": "Type of agent: 'research' for investigation/analysis, 'content' for writing/drafts, 'reporting' for summaries/reports"
+            },
+            "project_id": {
+                "type": "string",
+                "description": "UUID of the project this work belongs to. Required."
+            },
+            "parameters": {
+                "type": "object",
+                "description": "Optional agent-specific parameters (e.g., depth, format, tone)"
+            }
+        },
+        "required": ["task", "agent_type", "project_id"]
+    }
+}
+
+LIST_WORK_TOOL = {
+    "name": "list_work",
+    "description": "List work requests for a project or across all projects. Use to check what work is pending, running, or completed.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "Optional: Filter to a specific project. Omit to list across all projects."
+            },
+            "status": {
+                "type": "string",
+                "enum": ["pending", "running", "completed", "failed", "all"],
+                "description": "Filter by status. Default: 'all'"
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of results. Default: 10"
+            }
+        },
+        "required": []
+    }
+}
+
+GET_WORK_STATUS_TOOL = {
+    "name": "get_work_status",
+    "description": "Get detailed status of a specific work request, including any outputs produced.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "work_id": {
+                "type": "string",
+                "description": "UUID of the work request"
+            }
+        },
+        "required": ["work_id"]
+    }
+}
+
+
 # Tools available to Thinking Partner
 THINKING_PARTNER_TOOLS = [
+    # Project management (ADR-007)
     LIST_PROJECTS_TOOL,
     CREATE_PROJECT_TOOL,
     RENAME_PROJECT_TOOL,
     UPDATE_PROJECT_TOOL,
+    # Work management (ADR-009)
+    CREATE_WORK_TOOL,
+    LIST_WORK_TOOL,
+    GET_WORK_STATUS_TOOL,
 ]
 
 
@@ -252,12 +334,200 @@ async def handle_update_project(auth, input: dict) -> dict:
     }
 
 
+# =============================================================================
+# Work Tool Handlers (ADR-009)
+# =============================================================================
+
+async def handle_create_work(auth, input: dict) -> dict:
+    """
+    Create a work request for an agent.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with task, agent_type, project_id, and optional parameters
+
+    Returns:
+        Dict with created work request details
+    """
+    task = input["task"]
+    agent_type = input["agent_type"]
+    project_id = input["project_id"]
+    parameters = input.get("parameters", {})
+
+    # Validate agent_type
+    valid_agent_types = ["research", "content", "reporting"]
+    if agent_type not in valid_agent_types:
+        return {
+            "success": False,
+            "error": f"Invalid agent_type. Must be one of: {', '.join(valid_agent_types)}"
+        }
+
+    # Create work ticket
+    result = auth.client.table("work_tickets").insert({
+        "task": task,
+        "agent_type": agent_type,
+        "project_id": project_id,
+        "parameters": parameters,
+        "status": "pending",
+    }).execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Failed to create work request"
+        }
+
+    ticket = result.data[0]
+    return {
+        "success": True,
+        "work": {
+            "id": ticket["id"],
+            "task": ticket["task"],
+            "agent_type": ticket["agent_type"],
+            "status": ticket["status"],
+            "project_id": ticket["project_id"],
+            "created_at": ticket["created_at"],
+        },
+        "message": f"Created {agent_type} work request: {task[:50]}..."
+    }
+
+
+async def handle_list_work(auth, input: dict) -> dict:
+    """
+    List work requests, optionally filtered by project and status.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with optional project_id, status, and limit
+
+    Returns:
+        Dict with work requests list
+    """
+    from routes.projects import get_or_create_workspace
+
+    workspace = await get_or_create_workspace(auth)
+    project_id = input.get("project_id")
+    status_filter = input.get("status", "all")
+    limit = input.get("limit", 10)
+
+    # Build query - join through projects to respect workspace ownership
+    query = auth.client.table("work_tickets")\
+        .select("id, task, agent_type, status, project_id, created_at, started_at, completed_at, projects(name)")\
+        .order("created_at", desc=True)\
+        .limit(limit)
+
+    # Filter by project if specified
+    if project_id:
+        query = query.eq("project_id", project_id)
+
+    # Filter by status if not "all"
+    if status_filter and status_filter != "all":
+        query = query.eq("status", status_filter)
+
+    result = query.execute()
+    tickets = result.data or []
+
+    # Format response
+    work_items = []
+    for t in tickets:
+        project_name = t.get("projects", {}).get("name", "Unknown") if t.get("projects") else "Unknown"
+        work_items.append({
+            "id": t["id"],
+            "task": t["task"][:100] + "..." if len(t["task"]) > 100 else t["task"],
+            "agent_type": t["agent_type"],
+            "status": t["status"],
+            "project_name": project_name,
+            "created_at": t["created_at"],
+        })
+
+    return {
+        "success": True,
+        "work": work_items,
+        "count": len(work_items),
+        "message": f"Found {len(work_items)} work request(s)"
+    }
+
+
+async def handle_get_work_status(auth, input: dict) -> dict:
+    """
+    Get detailed status of a specific work request.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with work_id
+
+    Returns:
+        Dict with work request details and outputs
+    """
+    work_id = input["work_id"]
+
+    # Get work ticket with project info
+    ticket_result = auth.client.table("work_tickets")\
+        .select("*, projects(name)")\
+        .eq("id", work_id)\
+        .single()\
+        .execute()
+
+    if not ticket_result.data:
+        return {
+            "success": False,
+            "error": "Work request not found or access denied"
+        }
+
+    ticket = ticket_result.data
+    project_name = ticket.get("projects", {}).get("name", "Unknown") if ticket.get("projects") else "Unknown"
+
+    # Get any outputs for this ticket
+    outputs_result = auth.client.table("work_outputs")\
+        .select("id, title, output_type, content, file_url, file_format, created_at, status")\
+        .eq("ticket_id", work_id)\
+        .order("created_at", desc=False)\
+        .execute()
+
+    outputs = outputs_result.data or []
+
+    return {
+        "success": True,
+        "work": {
+            "id": ticket["id"],
+            "task": ticket["task"],
+            "agent_type": ticket["agent_type"],
+            "status": ticket["status"],
+            "project_name": project_name,
+            "created_at": ticket["created_at"],
+            "started_at": ticket.get("started_at"),
+            "completed_at": ticket.get("completed_at"),
+            "error_message": ticket.get("error_message"),
+            "parameters": ticket.get("parameters", {}),
+        },
+        "outputs": [
+            {
+                "id": o["id"],
+                "title": o["title"],
+                "type": o["output_type"],
+                "content_preview": o["content"][:200] + "..." if o.get("content") and len(o["content"]) > 200 else o.get("content"),
+                "file_url": o.get("file_url"),
+                "file_format": o.get("file_format"),
+                "status": o.get("status", "delivered"),
+            }
+            for o in outputs
+        ],
+        "output_count": len(outputs),
+        "message": f"Work status: {ticket['status']}" + (f" with {len(outputs)} output(s)" if outputs else "")
+    }
+
+
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
+    # Project tools (ADR-007)
     "list_projects": handle_list_projects,
     "create_project": handle_create_project,
     "rename_project": handle_rename_project,
     "update_project": handle_update_project,
+    # Work tools (ADR-009)
+    "create_work": handle_create_work,
+    "list_work": handle_list_work,
+    "get_work_status": handle_get_work_status,
 }
 
 

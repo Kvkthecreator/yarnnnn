@@ -135,12 +135,18 @@ You have the ability to help organize the user's workspace:
 - Frontend handles tool events in SSE stream
 - Sidebar auto-refreshes when projects are created/modified
 
-#### Phase 4: Memory Organization (Future)
+#### Phase 4: Work Tools ✅
+- Implement `create_work` tool for initiating agent work (ADR-009)
+- Implement `list_work` tool for viewing work across projects
+- Implement `get_work_status` tool for detailed work status with outputs
+- Work created is stored in `work_tickets` table, pending background processing
+
+#### Phase 5: Memory Organization (Future)
 - Implement `suggest_project_for_memory`
 - Integrate with extraction pipeline
 - TP influences scope during memory creation
 
-#### Phase 5: Advanced Operations (Future)
+#### Phase 6: Advanced Operations (Future)
 - `merge_projects` - Combine related projects
 - `archive_project` - Soft-delete with confirmation
 - `move_memory` - Reassign memory scope
@@ -351,11 +357,14 @@ Users continue managing projects explicitly.
 - [x] Implement unified streaming + tools (Phase 3.6)
 - [x] Add UI transparency for tool calls (SSE events)
 - [x] Add sidebar auto-refresh on project changes
-- [ ] Implement Phase 4: memory organization
+- [x] Implement Phase 4: work tools (create_work, list_work, get_work_status)
+- [ ] Implement Phase 5: memory organization
+- [ ] Background work processing (queue processor)
 - [ ] User testing and iteration
 
 ## References
 
 - [ADR-005: Unified Memory with Embeddings](ADR-005-unified-memory-with-embeddings.md)
 - [ADR-006: Session and Message Architecture](ADR-006-session-message-architecture.md)
+- [ADR-009: Work and Agent Orchestration](ADR-009-work-agent-orchestration.md)
 - [Anthropic Tool Use Documentation](https://docs.anthropic.com/claude/docs/tool-use)
