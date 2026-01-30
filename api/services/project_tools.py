@@ -162,6 +162,104 @@ GET_WORK_STATUS_TOOL = {
 }
 
 
+# =============================================================================
+# Scheduling Tools (ADR-009 Phase 3)
+# =============================================================================
+
+SCHEDULE_WORK_TOOL = {
+    "name": "schedule_work",
+    "description": "Schedule recurring work to run automatically. Use when the user wants regular reports, research updates, or content generation. Common schedules: 'daily at 9am', 'weekly on Mondays', 'every hour'.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "task": {
+                "type": "string",
+                "description": "Clear description of what needs to be done on each run"
+            },
+            "agent_type": {
+                "type": "string",
+                "enum": ["research", "content", "reporting"],
+                "description": "Type of agent: 'research' for investigation/analysis, 'content' for writing/drafts, 'reporting' for summaries/reports"
+            },
+            "project_id": {
+                "type": "string",
+                "description": "UUID of the project this work belongs to"
+            },
+            "schedule": {
+                "type": "string",
+                "description": "Human-readable schedule like 'daily at 9am', 'every Monday at 10am', 'every 6 hours'. Will be converted to cron."
+            },
+            "timezone": {
+                "type": "string",
+                "description": "User's timezone, e.g., 'America/Los_Angeles', 'Europe/London'. Default: 'UTC'"
+            },
+            "parameters": {
+                "type": "object",
+                "description": "Optional agent-specific parameters"
+            }
+        },
+        "required": ["task", "agent_type", "project_id", "schedule"]
+    }
+}
+
+LIST_SCHEDULES_TOOL = {
+    "name": "list_schedules",
+    "description": "List scheduled work templates for the user. Shows what recurring work is set up and when it will next run.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "project_id": {
+                "type": "string",
+                "description": "Optional: Filter to a specific project"
+            }
+        },
+        "required": []
+    }
+}
+
+UPDATE_SCHEDULE_TOOL = {
+    "name": "update_schedule",
+    "description": "Update or pause/resume a scheduled work template.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "schedule_id": {
+                "type": "string",
+                "description": "UUID of the schedule (work template) to update"
+            },
+            "enabled": {
+                "type": "boolean",
+                "description": "Set to false to pause, true to resume"
+            },
+            "schedule": {
+                "type": "string",
+                "description": "New schedule (human-readable, will be converted to cron)"
+            },
+            "task": {
+                "type": "string",
+                "description": "Updated task description"
+            }
+        },
+        "required": ["schedule_id"]
+    }
+}
+
+DELETE_SCHEDULE_TOOL = {
+    "name": "delete_schedule",
+    "description": "Delete a scheduled work template. This stops all future runs.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "schedule_id": {
+                "type": "string",
+                "description": "UUID of the schedule to delete"
+            }
+        },
+        "required": ["schedule_id"]
+    }
+}
+
+
 # Tools available to Thinking Partner
 THINKING_PARTNER_TOOLS = [
     # Project management (ADR-007)
@@ -173,6 +271,11 @@ THINKING_PARTNER_TOOLS = [
     CREATE_WORK_TOOL,
     LIST_WORK_TOOL,
     GET_WORK_STATUS_TOOL,
+    # Scheduling (ADR-009 Phase 3)
+    SCHEDULE_WORK_TOOL,
+    LIST_SCHEDULES_TOOL,
+    UPDATE_SCHEDULE_TOOL,
+    DELETE_SCHEDULE_TOOL,
 ]
 
 
@@ -594,6 +697,381 @@ async def handle_get_work_status(auth, input: dict) -> dict:
     }
 
 
+# =============================================================================
+# Scheduling Tool Handlers (ADR-009 Phase 3)
+# =============================================================================
+
+def parse_schedule_to_cron(schedule: str) -> str:
+    """
+    Convert human-readable schedule to cron expression.
+
+    Examples:
+    - "daily at 9am" -> "0 9 * * *"
+    - "every Monday at 10am" -> "0 10 * * 1"
+    - "every 6 hours" -> "0 */6 * * *"
+    - "weekly on Friday at 3pm" -> "0 15 * * 5"
+    """
+    import re
+    schedule = schedule.lower().strip()
+
+    # "every X hours" pattern
+    hours_match = re.search(r'every (\d+) hours?', schedule)
+    if hours_match:
+        hours = int(hours_match.group(1))
+        return f"0 */{hours} * * *"
+
+    # "every X minutes" pattern
+    mins_match = re.search(r'every (\d+) minutes?', schedule)
+    if mins_match:
+        mins = int(mins_match.group(1))
+        return f"*/{mins} * * * *"
+
+    # Extract time (9am, 10:30am, 15:00, etc.)
+    time_match = re.search(r'(\d{1,2})(?::(\d{2}))?\s*(am|pm)?', schedule)
+    hour = 9  # default
+    minute = 0
+    if time_match:
+        hour = int(time_match.group(1))
+        minute = int(time_match.group(2)) if time_match.group(2) else 0
+        meridian = time_match.group(3)
+        if meridian == 'pm' and hour < 12:
+            hour += 12
+        elif meridian == 'am' and hour == 12:
+            hour = 0
+
+    # Day of week mapping
+    day_map = {
+        'sunday': 0, 'sun': 0,
+        'monday': 1, 'mon': 1,
+        'tuesday': 2, 'tue': 2,
+        'wednesday': 3, 'wed': 3,
+        'thursday': 4, 'thu': 4,
+        'friday': 5, 'fri': 5,
+        'saturday': 6, 'sat': 6,
+    }
+
+    # Check for specific day of week
+    for day_name, day_num in day_map.items():
+        if day_name in schedule:
+            return f"{minute} {hour} * * {day_num}"
+
+    # "daily" pattern
+    if 'daily' in schedule or 'every day' in schedule:
+        return f"{minute} {hour} * * *"
+
+    # "weekly" without specific day defaults to Monday
+    if 'weekly' in schedule:
+        return f"{minute} {hour} * * 1"
+
+    # "hourly" pattern
+    if 'hourly' in schedule or 'every hour' in schedule:
+        return f"0 * * * *"
+
+    # Default: daily at specified time (or 9am)
+    return f"{minute} {hour} * * *"
+
+
+def cron_to_human(cron_expr: str) -> str:
+    """Convert cron expression to human-readable format."""
+    parts = cron_expr.split()
+    if len(parts) != 5:
+        return cron_expr
+
+    minute, hour, dom, month, dow = parts
+
+    days = {
+        '0': 'Sunday', '1': 'Monday', '2': 'Tuesday',
+        '3': 'Wednesday', '4': 'Thursday', '5': 'Friday', '6': 'Saturday'
+    }
+
+    # Every N minutes
+    if minute.startswith('*/'):
+        return f"Every {minute[2:]} minutes"
+
+    # Every N hours
+    if hour.startswith('*/'):
+        return f"Every {hour[2:]} hours"
+
+    # Specific day of week
+    if dow != '*' and dow in days:
+        h = int(hour)
+        m = int(minute)
+        ampm = 'AM' if h < 12 else 'PM'
+        h12 = h if h <= 12 else h - 12
+        h12 = 12 if h12 == 0 else h12
+        time_str = f"{h12}:{m:02d} {ampm}" if m else f"{h12} {ampm}"
+        return f"Weekly on {days[dow]} at {time_str}"
+
+    # Daily
+    if dow == '*' and dom == '*':
+        h = int(hour)
+        m = int(minute)
+        ampm = 'AM' if h < 12 else 'PM'
+        h12 = h if h <= 12 else h - 12
+        h12 = 12 if h12 == 0 else h12
+        time_str = f"{h12}:{m:02d} {ampm}" if m else f"{h12} {ampm}"
+        return f"Daily at {time_str}"
+
+    return cron_expr
+
+
+async def handle_schedule_work(auth, input: dict) -> dict:
+    """
+    Create a scheduled work template.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with task, agent_type, project_id, schedule, timezone
+
+    Returns:
+        Dict with created schedule details
+    """
+    from datetime import datetime, timezone as tz
+    from jobs.work_scheduler import calculate_next_run
+
+    task = input["task"]
+    agent_type = input["agent_type"]
+    project_id = input["project_id"]
+    schedule = input["schedule"]
+    user_timezone = input.get("timezone", "UTC")
+    parameters = input.get("parameters", {})
+
+    # Validate agent type
+    valid_types = ["research", "content", "reporting"]
+    if agent_type not in valid_types:
+        return {
+            "success": False,
+            "error": f"Invalid agent_type. Must be one of: {', '.join(valid_types)}"
+        }
+
+    # Convert schedule to cron
+    cron_expr = parse_schedule_to_cron(schedule)
+
+    # Calculate first run time
+    try:
+        next_run = calculate_next_run(cron_expr, user_timezone)
+    except Exception as e:
+        return {
+            "success": False,
+            "error": f"Invalid schedule: {e}"
+        }
+
+    # Create template ticket
+    result = auth.client.table("work_tickets").insert({
+        "task": task,
+        "agent_type": agent_type,
+        "project_id": project_id,
+        "user_id": auth.user_id,
+        "parameters": parameters,
+        "status": "pending",  # Templates stay pending
+        "is_template": True,
+        "schedule_cron": cron_expr,
+        "schedule_timezone": user_timezone,
+        "schedule_enabled": True,
+        "schedule_next_run_at": next_run.isoformat(),
+    }).execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Failed to create scheduled work"
+        }
+
+    template = result.data[0]
+    human_schedule = cron_to_human(cron_expr)
+
+    return {
+        "success": True,
+        "schedule": {
+            "id": template["id"],
+            "task": task,
+            "agent_type": agent_type,
+            "schedule": human_schedule,
+            "cron": cron_expr,
+            "timezone": user_timezone,
+            "next_run": next_run.isoformat(),
+            "enabled": True,
+        },
+        "message": f"Scheduled {agent_type} work: {human_schedule}. First run: {next_run.strftime('%Y-%m-%d %H:%M %Z')}"
+    }
+
+
+async def handle_list_schedules(auth, input: dict) -> dict:
+    """
+    List scheduled work templates for the user.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with optional project_id
+
+    Returns:
+        Dict with schedules list
+    """
+    project_id = input.get("project_id")
+
+    # Query templates
+    query = auth.client.table("work_tickets")\
+        .select("id, task, agent_type, project_id, schedule_cron, schedule_timezone, schedule_enabled, schedule_next_run_at, schedule_last_run_at, projects(name)")\
+        .eq("is_template", True)\
+        .eq("user_id", auth.user_id)\
+        .order("created_at", desc=True)
+
+    if project_id:
+        query = query.eq("project_id", project_id)
+
+    result = query.execute()
+    templates = result.data or []
+
+    schedules = []
+    for t in templates:
+        project_name = t.get("projects", {}).get("name", "Unknown") if t.get("projects") else "Unknown"
+        human_schedule = cron_to_human(t["schedule_cron"]) if t.get("schedule_cron") else "Unknown"
+
+        schedules.append({
+            "id": t["id"],
+            "task": t["task"][:100] + "..." if len(t["task"]) > 100 else t["task"],
+            "agent_type": t["agent_type"],
+            "project_name": project_name,
+            "schedule": human_schedule,
+            "cron": t.get("schedule_cron"),
+            "timezone": t.get("schedule_timezone", "UTC"),
+            "enabled": t.get("schedule_enabled", True),
+            "next_run": t.get("schedule_next_run_at"),
+            "last_run": t.get("schedule_last_run_at"),
+        })
+
+    return {
+        "success": True,
+        "schedules": schedules,
+        "count": len(schedules),
+        "message": f"Found {len(schedules)} scheduled work item(s)"
+    }
+
+
+async def handle_update_schedule(auth, input: dict) -> dict:
+    """
+    Update a scheduled work template.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with schedule_id and optional updates
+
+    Returns:
+        Dict with updated schedule details
+    """
+    from jobs.work_scheduler import calculate_next_run
+
+    schedule_id = input["schedule_id"]
+    updates = {}
+
+    # Check what's being updated
+    if "enabled" in input:
+        updates["schedule_enabled"] = input["enabled"]
+
+    if "task" in input:
+        updates["task"] = input["task"]
+
+    if "schedule" in input:
+        cron_expr = parse_schedule_to_cron(input["schedule"])
+        updates["schedule_cron"] = cron_expr
+
+        # Recalculate next run
+        # Get current timezone from template
+        template_result = auth.client.table("work_tickets")\
+            .select("schedule_timezone")\
+            .eq("id", schedule_id)\
+            .eq("is_template", True)\
+            .single()\
+            .execute()
+
+        if template_result.data:
+            tz = template_result.data.get("schedule_timezone", "UTC")
+            try:
+                next_run = calculate_next_run(cron_expr, tz)
+                updates["schedule_next_run_at"] = next_run.isoformat()
+            except Exception:
+                pass
+
+    if not updates:
+        return {
+            "success": False,
+            "error": "No updates provided"
+        }
+
+    # Apply updates
+    result = auth.client.table("work_tickets")\
+        .update(updates)\
+        .eq("id", schedule_id)\
+        .eq("is_template", True)\
+        .eq("user_id", auth.user_id)\
+        .execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Schedule not found or access denied"
+        }
+
+    template = result.data[0]
+    human_schedule = cron_to_human(template.get("schedule_cron", "")) if template.get("schedule_cron") else "Unknown"
+
+    status_msg = "paused" if not template.get("schedule_enabled") else "active"
+
+    return {
+        "success": True,
+        "schedule": {
+            "id": template["id"],
+            "task": template["task"],
+            "schedule": human_schedule,
+            "enabled": template.get("schedule_enabled", True),
+            "next_run": template.get("schedule_next_run_at"),
+        },
+        "message": f"Schedule updated ({status_msg})"
+    }
+
+
+async def handle_delete_schedule(auth, input: dict) -> dict:
+    """
+    Delete a scheduled work template.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with schedule_id
+
+    Returns:
+        Dict confirming deletion
+    """
+    schedule_id = input["schedule_id"]
+
+    # Verify it's a template and belongs to user
+    check_result = auth.client.table("work_tickets")\
+        .select("id, task")\
+        .eq("id", schedule_id)\
+        .eq("is_template", True)\
+        .eq("user_id", auth.user_id)\
+        .single()\
+        .execute()
+
+    if not check_result.data:
+        return {
+            "success": False,
+            "error": "Schedule not found or access denied"
+        }
+
+    task = check_result.data["task"]
+
+    # Delete the template
+    auth.client.table("work_tickets")\
+        .delete()\
+        .eq("id", schedule_id)\
+        .execute()
+
+    return {
+        "success": True,
+        "message": f"Deleted scheduled work: {task[:50]}..."
+    }
+
+
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     # Project tools (ADR-007)
@@ -605,6 +1083,11 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "create_work": handle_create_work,
     "list_work": handle_list_work,
     "get_work_status": handle_get_work_status,
+    # Scheduling tools (ADR-009 Phase 3)
+    "schedule_work": handle_schedule_work,
+    "list_schedules": handle_list_schedules,
+    "update_schedule": handle_update_schedule,
+    "delete_schedule": handle_delete_schedule,
 }
 
 
