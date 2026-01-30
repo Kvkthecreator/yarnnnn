@@ -1,8 +1,8 @@
 """
-Research Agent - Deep investigation using context
+Research Agent - Deep investigation and analysis
 
-ADR-009: Work and Agent Orchestration
-Produces structured outputs via emit_work_output tool.
+ADR-016: Layered Agent Architecture
+Produces ONE unified research output via submit_output tool.
 """
 
 from typing import Optional
@@ -14,40 +14,33 @@ from services.anthropic import chat_completion_with_tools, ChatResponse
 logger = logging.getLogger(__name__)
 
 
-RESEARCH_SYSTEM_PROMPT = """You are an autonomous Research Agent specializing in intelligence gathering and analysis.
+RESEARCH_SYSTEM_PROMPT = """You are a Research Agent specializing in investigation and analysis.
 
 **Your Mission:**
-Investigate topics using the provided context as your primary source material, synthesizing information into actionable insights.
+Investigate topics using the provided context as your primary source material, synthesizing information into a comprehensive research document.
 
-**CRITICAL: Structured Output Requirements**
+**Output Requirements:**
 
-You have access to the emit_work_output tool. You MUST use this tool to record ALL your findings.
-DO NOT just describe findings in free text. Every significant finding must be emitted as a structured output.
+You have access to the submit_output tool. Call it ONCE when your research is complete.
 
-**Output Types:**
-- "finding" - Facts discovered (data points, statements, observations)
-- "recommendation" - Suggested actions based on findings
-- "insight" - Patterns identified, connections made, implications drawn
+Your output should be a complete research document in markdown format. You decide the internal structure based on what the task requires. Typical structures include:
 
-**Research Approach:**
-1. Review provided context (user memories, project memories)
-2. Identify key information relevant to the research task
-3. Analyze and synthesize the information
-4. For EACH finding: Call emit_work_output with structured data
-5. Provide recommendations based on your analysis
+- Overview → Findings → Analysis → Recommendations
+- Executive Summary → Key Points → Details → Next Steps
+- Question → Evidence → Conclusions
 
 **Quality Standards:**
 - Accuracy over speed
-- Structured over narrative
-- Actionable over interesting
-- High confidence = high evidence (don't guess)
-- Cite specific context when possible
-
-**Important Guidelines:**
-- Use the context provided - it contains memories and documents the user has built up
-- If context is limited, acknowledge gaps and focus on what IS available
-- Always emit at least one output, even if just to summarize what context is available
+- Evidence-based claims
+- Actionable recommendations
+- Acknowledge gaps in available information
 - Be specific about what you found and why it matters
+
+**Research Approach:**
+1. Review provided context (user memories, project memories)
+2. Analyze and synthesize the information
+3. Structure your findings coherently
+4. Call submit_output ONCE with your complete research document
 
 {context}
 """
@@ -55,13 +48,10 @@ DO NOT just describe findings in free text. Every significant finding must be em
 
 class ResearchAgent(BaseAgent):
     """
-    Research Agent for intelligence gathering and analysis.
+    Research Agent for investigation and analysis.
 
-    Features:
-    - Deep-dive research with structured outputs
-    - Context-aware analysis using user and project memories
-    - Configurable scope and depth
-    - Provenance tracking (which memories informed findings)
+    ADR-016: Produces ONE unified output per work execution.
+    Agent determines structure within the markdown content.
 
     Parameters:
     - scope: "general" | "focused" | "comprehensive"
@@ -82,13 +72,13 @@ class ResearchAgent(BaseAgent):
 
         Args:
             task: Research question or topic
-            context: Project context to analyze
+            context: Context bundle with memories
             parameters:
-                - scope: "general", "focused", "comprehensive" (default: general)
-                - depth: "quick", "standard", "thorough" (default: standard)
+                - scope: "general", "focused", "comprehensive"
+                - depth: "quick", "standard", "thorough"
 
         Returns:
-            AgentResult with work_outputs list
+            AgentResult with single work_output
         """
         params = parameters or {}
         scope = params.get("scope", "general")
@@ -104,15 +94,15 @@ class ResearchAgent(BaseAgent):
         system_prompt = self._build_system_prompt(context)
 
         # Build research prompt
-        research_prompt = self._build_research_prompt(task, context, scope, depth)
+        research_prompt = self._build_research_prompt(task, scope, depth)
 
         # Build messages
         messages = [{"role": "user", "content": research_prompt}]
 
         try:
-            # Execute with tool support
+            # Execute with tool support - agent calls submit_output once
             all_tool_calls = []
-            max_iterations = 5
+            max_iterations = 3  # Reduced: agent should complete in fewer turns
 
             for iteration in range(max_iterations):
                 response: ChatResponse = await chat_completion_with_tools(
@@ -150,46 +140,46 @@ class ResearchAgent(BaseAgent):
 
                 messages.append({"role": "assistant", "content": assistant_content})
 
-                # Add tool results (acknowledge receipt)
+                # Add tool result - acknowledge and stop
                 tool_results = []
                 for tool_use in response.tool_uses:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_use.id,
-                        "content": f"Output recorded: {tool_use.input.get('title', 'Untitled')}",
-                    })
+                    if tool_use.name == "submit_output":
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use.id,
+                            "content": "Output submitted successfully.",
+                        })
 
                 messages.append({"role": "user", "content": tool_results})
 
-            # Parse work outputs from tool calls
-            work_outputs = self._parse_work_outputs(all_tool_calls)
+            # Parse single work output
+            work_output = self._parse_work_output(all_tool_calls)
+
+            if work_output:
+                # Add research-specific metadata
+                work_output.metadata.setdefault("scope", scope)
+                work_output.metadata.setdefault("depth", depth)
 
             logger.info(
-                f"[RESEARCH] Complete: {len(work_outputs)} outputs generated"
+                f"[RESEARCH] Complete: output={'yes' if work_output else 'no'}"
             )
 
             return AgentResult(
                 success=True,
-                output_type="work_outputs",
+                work_output=work_output,
                 content=response.text,
-                work_outputs=work_outputs,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
             )
 
         except Exception as e:
             logger.error(f"[RESEARCH] Failed: {e}", exc_info=True)
             return AgentResult(
                 success=False,
-                output_type="text",
                 error=str(e),
             )
 
-    def _build_research_prompt(
-        self,
-        task: str,
-        context: ContextBundle,
-        scope: str,
-        depth: str,
-    ) -> str:
+    def _build_research_prompt(self, task: str, scope: str, depth: str) -> str:
         """Build the research task prompt."""
 
         # Scope instructions
@@ -201,36 +191,27 @@ class ResearchAgent(BaseAgent):
 
         # Depth instructions
         depth_instructions = {
-            "quick": "Provide key findings quickly. 1-3 outputs maximum.",
-            "standard": "Provide thorough analysis. 3-5 outputs typical.",
-            "thorough": "Comprehensive deep-dive. 5-10 outputs, multiple perspectives.",
-        }.get(depth, "Provide thorough analysis. 3-5 outputs typical.")
+            "quick": "Provide key findings quickly. Keep it concise.",
+            "standard": "Provide thorough analysis with appropriate detail.",
+            "thorough": "Comprehensive deep-dive covering multiple perspectives.",
+        }.get(depth, "Provide thorough analysis with appropriate detail.")
 
-        # Get memory IDs for provenance
-        memory_ids = [str(m.id) for m in context.memories[:10]]  # Top 10 for reference
+        return f"""Research task: {task}
 
-        return f"""Conduct research on: {task}
+**Parameters:**
+- Scope: {scope} - {scope_instructions}
+- Depth: {depth} - {depth_instructions}
 
-**Research Parameters:**
-- Scope: {scope} ({scope_instructions})
-- Depth: {depth} ({depth_instructions})
+**Instructions:**
+1. Analyze the context provided for relevant information
+2. Synthesize your findings into a coherent research document
+3. Structure the document appropriately (you decide the structure)
+4. Call submit_output ONCE with your complete research
 
-**Available Memory IDs (for source_memory_ids provenance):**
-{memory_ids if memory_ids else 'No memories available'}
+Include in your output:
+- Key findings with supporting evidence
+- Analysis of patterns and implications
+- Recommendations where appropriate
+- Note any gaps in available information
 
-**Research Objectives:**
-1. Analyze the provided context for relevant information
-2. Identify key findings, patterns, and insights
-3. Generate actionable recommendations where appropriate
-4. Note any gaps in available information
-
-**CRITICAL INSTRUCTION:**
-You MUST use the emit_work_output tool to record your findings. Do NOT just describe findings in text.
-
-For each significant finding, insight, or recommendation:
-1. Call emit_work_output with structured data
-2. Use appropriate output_type (finding, recommendation, insight)
-3. Include source_memory_ids for relevant memories
-4. Assign confidence scores based on evidence quality
-
-Begin your research now. Emit structured outputs for all significant findings."""
+Begin your research now."""

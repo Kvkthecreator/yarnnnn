@@ -1,11 +1,8 @@
 """
 Reporting Agent - Structured report generation
 
-ADR-009: Work and Agent Orchestration
-Produces structured report sections via emit_work_output tool.
-
-Note: This initial implementation generates markdown reports.
-Future versions will support PPTX/PDF via Claude Skills API.
+ADR-016: Layered Agent Architecture
+Produces ONE report via submit_output tool.
 """
 
 from typing import Optional
@@ -17,33 +14,20 @@ from services.anthropic import chat_completion_with_tools, ChatResponse
 logger = logging.getLogger(__name__)
 
 
-REPORTING_SYSTEM_PROMPT = """You are an autonomous Reporting Agent specializing in creating structured reports and summaries.
+REPORTING_SYSTEM_PROMPT = """You are a Reporting Agent specializing in creating structured reports and summaries.
 
 **Your Mission:**
-Transform research findings, data, and insights into polished, executive-ready reports that:
-- Communicate key findings clearly
-- Provide actionable recommendations
-- Support decision-making
-- Follow professional report structures
+Transform research findings, data, and insights into polished, executive-ready reports.
 
-**CRITICAL: Structured Output Requirements**
+**Output Requirements:**
 
-You have access to the emit_work_output tool. You MUST use this tool to record all report sections.
-DO NOT just write the report in free text. Every section must be emitted as a structured output.
+You have access to the submit_output tool. Call it ONCE when your report is complete.
 
-**Output Types:**
-- "report" - Complete report sections (executive summary, findings, recommendations, etc.)
-- "finding" - Individual findings extracted from analysis
-- "recommendation" - Actionable recommendations based on findings
-- "insight" - Key insights and patterns identified
+Your output should be a complete report in markdown format. You decide the internal structure based on the report type. Common structures include:
 
-**Report Structure:**
-When creating reports, structure as follows:
-1. Executive Summary (high-level overview, key takeaways)
-2. Key Findings (numbered, evidence-based)
-3. Analysis (deeper exploration of findings)
-4. Recommendations (actionable next steps)
-5. Appendix/Details (supporting information if needed)
+- Executive Summary → Key Findings → Analysis → Recommendations
+- Summary → Details → Next Steps
+- Overview → Sections → Conclusions
 
 **Quality Standards:**
 - Clear and concise language
@@ -52,11 +36,10 @@ When creating reports, structure as follows:
 - Professional formatting
 - Logical flow and structure
 
-**Important Guidelines:**
-- Use the context provided to support all claims
-- Number findings and recommendations for easy reference
-- Include confidence levels for uncertain findings
-- Be specific about implications and next steps
+**Style Options:**
+- Executive: High-level, strategic focus, for senior leadership
+- Technical: Detailed methodology, data-heavy, for specialists
+- Summary: Concise overview, key points only
 
 {context}
 """
@@ -66,23 +49,15 @@ class ReportingAgent(BaseAgent):
     """
     Reporting Agent for structured report generation.
 
-    Features:
-    - Executive report generation
-    - Structured sections (summary, findings, recommendations)
-    - Multiple format support (markdown now, PPTX/PDF future)
-    - Evidence-based findings with provenance
+    ADR-016: Produces ONE unified output per work execution.
+    Agent determines report structure within markdown content.
 
     Parameters:
-    - format: "markdown", "detailed", "summary"
-    - sections: List of sections to include
-    - style: "executive", "technical", "casual"
+    - style: "executive", "technical", "summary"
     """
 
     AGENT_TYPE = "reporting"
     SYSTEM_PROMPT = REPORTING_SYSTEM_PROMPT
-
-    # Supported formats
-    REPORT_FORMATS = ["markdown", "detailed", "summary"]
 
     async def execute(
         self,
@@ -95,30 +70,25 @@ class ReportingAgent(BaseAgent):
 
         Args:
             task: Report brief or topic
-            context: Project context for data/insights
+            context: Context bundle with data/insights
             parameters:
-                - format: "markdown", "detailed", "summary"
-                - style: "executive", "technical", "casual"
-                - sections: Optional list of specific sections
+                - style: "executive", "technical", "summary"
 
         Returns:
-            AgentResult with report sections as work_outputs
+            AgentResult with single work_output (the report)
         """
         params = parameters or {}
-        report_format = params.get("format", "markdown")
         style = params.get("style", "executive")
-        sections = params.get("sections", None)  # If None, include all standard sections
 
         logger.info(
-            f"[REPORTING] Starting: task='{task[:50]}...', "
-            f"format={report_format}, style={style}"
+            f"[REPORTING] Starting: task='{task[:50]}...', style={style}"
         )
 
         # Build system prompt with context
         system_prompt = self._build_system_prompt(context)
 
         # Build report prompt
-        report_prompt = self._build_report_prompt(task, context, report_format, style, sections)
+        report_prompt = self._build_report_prompt(task, style)
 
         # Build messages
         messages = [{"role": "user", "content": report_prompt}]
@@ -126,7 +96,7 @@ class ReportingAgent(BaseAgent):
         try:
             # Execute with tool support
             all_tool_calls = []
-            max_iterations = 8  # Reports may have more sections
+            max_iterations = 3
 
             for iteration in range(max_iterations):
                 response: ChatResponse = await chat_completion_with_tools(
@@ -164,103 +134,64 @@ class ReportingAgent(BaseAgent):
 
                 messages.append({"role": "assistant", "content": assistant_content})
 
-                # Add tool results
+                # Add tool result
                 tool_results = []
                 for tool_use in response.tool_uses:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_use.id,
-                        "content": f"Section recorded: {tool_use.input.get('title', 'Untitled')}",
-                    })
+                    if tool_use.name == "submit_output":
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use.id,
+                            "content": "Report submitted successfully.",
+                        })
 
                 messages.append({"role": "user", "content": tool_results})
 
-            # Parse work outputs from tool calls
-            work_outputs = self._parse_work_outputs(all_tool_calls)
+            # Parse single work output
+            work_output = self._parse_work_output(all_tool_calls)
+
+            if work_output:
+                # Add reporting-specific metadata
+                work_output.metadata.setdefault("style", style)
 
             logger.info(
-                f"[REPORTING] Complete: {len(work_outputs)} sections generated"
+                f"[REPORTING] Complete: output={'yes' if work_output else 'no'}"
             )
 
             return AgentResult(
                 success=True,
-                output_type="work_outputs",
+                work_output=work_output,
                 content=response.text,
-                work_outputs=work_outputs,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
             )
 
         except Exception as e:
             logger.error(f"[REPORTING] Failed: {e}", exc_info=True)
             return AgentResult(
                 success=False,
-                output_type="text",
                 error=str(e),
             )
 
-    def _build_report_prompt(
-        self,
-        task: str,
-        context: ContextBundle,
-        report_format: str,
-        style: str,
-        sections: Optional[list],
-    ) -> str:
+    def _build_report_prompt(self, task: str, style: str) -> str:
         """Build the report generation prompt."""
 
-        # Format-specific instructions
-        format_instructions = {
-            "markdown": "Create a comprehensive report with all standard sections.",
-            "detailed": "Create an in-depth report with extensive analysis and supporting details.",
-            "summary": "Create a concise summary report with only key points.",
-        }.get(report_format, "Create a comprehensive report with all standard sections.")
-
-        # Style-specific instructions
         style_instructions = {
-            "executive": "Write for senior leadership. Focus on strategic implications and clear recommendations.",
-            "technical": "Include technical details and methodology. Support with data and specifics.",
-            "casual": "Use accessible language. Explain concepts clearly for general audiences.",
+            "executive": "Write for senior leadership. Focus on strategic implications, key takeaways, and clear recommendations. Keep it high-level.",
+            "technical": "Include technical details and methodology. Support with data and specifics. Be thorough.",
+            "summary": "Concise overview with only the key points. Brief and actionable.",
         }.get(style, "Write for senior leadership. Focus on strategic implications and clear recommendations.")
-
-        # Section guidance
-        if sections:
-            sections_text = f"Include these specific sections: {', '.join(sections)}"
-        else:
-            sections_text = """Include these sections:
-1. Executive Summary (emit as output_type="report", title="Executive Summary")
-2. Key Findings (emit each finding as output_type="finding")
-3. Analysis (emit as output_type="report", title="Analysis")
-4. Recommendations (emit each as output_type="recommendation")"""
-
-        # Get memory IDs for provenance
-        memory_ids = [str(m.id) for m in context.memories[:10]]
 
         return f"""Create a report on: {task}
 
-**Report Parameters:**
-- Format: {report_format} ({format_instructions})
-- Style: {style} ({style_instructions})
+**Style:** {style}
+{style_instructions}
 
-**Section Requirements:**
-{sections_text}
+**Instructions:**
+1. Review the context provided for data and insights
+2. Structure your report appropriately for the style
+3. Include evidence-based findings and actionable recommendations
+4. Call submit_output ONCE with your complete report
 
-**Available Memory IDs (for source_memory_ids provenance):**
-{memory_ids if memory_ids else 'No memories available'}
+The report should be a complete, self-contained document in markdown format.
 
-**CRITICAL INSTRUCTION:**
-You MUST use the emit_work_output tool to record EACH section of the report separately.
-Do NOT write the entire report in free text.
-
-For each section:
-1. Call emit_work_output with appropriate output_type
-2. Use "report" for major sections (Executive Summary, Analysis)
-3. Use "finding" for individual key findings
-4. Use "recommendation" for each recommendation
-5. Include source_memory_ids for traceability
-6. Assign confidence based on evidence quality
-
-Example workflow:
-- Executive Summary → emit_work_output(output_type="report", title="Executive Summary", ...)
-- Key Finding 1 → emit_work_output(output_type="finding", title="Finding 1: ...", ...)
-- Recommendation 1 → emit_work_output(output_type="recommendation", title="Recommendation 1: ...", ...)
-
-Begin creating the report now. Emit each section as a structured output."""
+Begin creating the report now."""

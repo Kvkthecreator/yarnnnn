@@ -171,6 +171,21 @@ GET_WORK_STATUS_TOOL = {
     }
 }
 
+CANCEL_WORK_TOOL = {
+    "name": "cancel_work",
+    "description": "Cancel a pending or running work request. Use when the user wants to stop work that hasn't completed yet.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "work_id": {
+                "type": "string",
+                "description": "UUID of the work request to cancel"
+            }
+        },
+        "required": ["work_id"]
+    }
+}
+
 
 # =============================================================================
 # Scheduling Tools (ADR-009 Phase 3)
@@ -277,10 +292,11 @@ THINKING_PARTNER_TOOLS = [
     CREATE_PROJECT_TOOL,
     RENAME_PROJECT_TOOL,
     UPDATE_PROJECT_TOOL,
-    # Work management (ADR-009)
+    # Work management (ADR-009, ADR-016)
     CREATE_WORK_TOOL,
     LIST_WORK_TOOL,
     GET_WORK_STATUS_TOOL,
+    CANCEL_WORK_TOOL,
     # Scheduling (ADR-009 Phase 3)
     SCHEDULE_WORK_TOOL,
     LIST_SCHEDULES_TOOL,
@@ -527,27 +543,24 @@ async def handle_create_work(auth, input: dict) -> dict:
             "message": f"Work request failed: {execution_result.get('error', 'Unknown error')}"
         }
 
-    # Format outputs for TP response with summaries for conversation
-    outputs = execution_result.get("outputs", [])
-    output_summaries = []
-    for output in outputs:
-        # Parse content JSON to get summary
-        summary = None
-        content = output.get("content")
-        if content:
-            try:
-                import json
-                body = json.loads(content)
-                summary = body.get("summary")
-            except (json.JSONDecodeError, TypeError):
-                pass
+    # ADR-016: Format single output for TP response
+    output = execution_result.get("output")
+    output_summary = None
 
-        output_summaries.append({
+    if output:
+        # Get preview of content (first 200 chars)
+        content = output.get("content", "")
+        preview = content[:200] + "..." if len(content) > 200 else content
+
+        output_summary = {
             "id": output.get("id"),
             "title": output.get("title"),
-            "type": output.get("output_type"),
-            "summary": summary,  # Include summary for TP to use in response
-        })
+            "preview": preview,
+            "metadata": output.get("metadata", {}),
+        }
+
+    # Backward compat: keep outputs list format
+    output_summaries = [output_summary] if output_summary else []
 
     # Send email notification if user has email
     email_sent = False
@@ -573,6 +586,7 @@ async def handle_create_work(auth, input: dict) -> dict:
         except Exception as e:
             logger.warning(f"Error sending work completion email: {e}")
 
+    # ADR-016: TP should be brief when work completes
     return {
         "success": True,
         "work": {
@@ -583,11 +597,13 @@ async def handle_create_work(auth, input: dict) -> dict:
             "project_id": project_id,
             "execution_time_ms": execution_result.get("execution_time_ms"),
         },
-        "outputs": output_summaries,
-        "output_count": len(outputs),
+        "output": output_summary,  # ADR-016: single output
+        "outputs": output_summaries,  # Backward compat
+        "output_count": 1 if output_summary else 0,
         "email_sent": email_sent,
-        "message": f"Completed {agent_type} work with {len(outputs)} output(s). See summaries below.",
-        "instruction_to_assistant": "Present these outputs to the user conversationally. Mention each output by title and summarize what was found. Invite them to check the Work tab for full details.",
+        "message": f"Work complete. Output available in the output panel.",
+        # ADR-016: TP should keep response brief and reference output
+        "instruction_to_assistant": "Keep your response brief (1-2 sentences). Acknowledge the work is done and direct the user to the output panel. Do NOT duplicate the output content in your response.",
         # ADR-013: UI action to open output surface with completed work
         "ui_action": {
             "type": "OPEN_SURFACE",
@@ -660,6 +676,59 @@ async def handle_list_work(auth, input: dict) -> dict:
         "work": work_items,
         "count": len(work_items),
         "message": f"Found {len(work_items)} work request(s)"
+    }
+
+
+async def handle_cancel_work(auth, input: dict) -> dict:
+    """
+    Cancel a pending or running work request.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with work_id
+
+    Returns:
+        Dict confirming cancellation
+    """
+    from datetime import datetime, timezone
+
+    work_id = input["work_id"]
+
+    # Get current status
+    ticket_result = auth.client.table("work_tickets")\
+        .select("id, status, task")\
+        .eq("id", work_id)\
+        .single()\
+        .execute()
+
+    if not ticket_result.data:
+        return {
+            "success": False,
+            "error": "Work request not found or access denied"
+        }
+
+    ticket = ticket_result.data
+    current_status = ticket["status"]
+
+    # Can only cancel pending or running work
+    if current_status not in ["pending", "running"]:
+        return {
+            "success": False,
+            "error": f"Cannot cancel work with status '{current_status}'. Only pending or running work can be cancelled."
+        }
+
+    # Update to cancelled
+    auth.client.table("work_tickets").update({
+        "status": "cancelled",
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+        "error_message": "Cancelled by user"
+    }).eq("id", work_id).execute()
+
+    return {
+        "success": True,
+        "work_id": work_id,
+        "previous_status": current_status,
+        "message": f"Cancelled work request: {ticket['task'][:50]}..."
     }
 
 
@@ -1114,10 +1183,11 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "create_project": handle_create_project,
     "rename_project": handle_rename_project,
     "update_project": handle_update_project,
-    # Work tools (ADR-009)
+    # Work tools (ADR-009, ADR-016)
     "create_work": handle_create_work,
     "list_work": handle_list_work,
     "get_work_status": handle_get_work_status,
+    "cancel_work": handle_cancel_work,
     # Scheduling tools (ADR-009 Phase 3)
     "schedule_work": handle_schedule_work,
     "list_schedules": handle_list_schedules,

@@ -1,8 +1,8 @@
 """
-Content Agent - Content creation from context
+Content Agent - Content creation
 
-ADR-009: Work and Agent Orchestration
-Produces structured content drafts via emit_work_output tool.
+ADR-016: Layered Agent Architecture
+Produces ONE content piece via submit_output tool.
 """
 
 from typing import Optional
@@ -14,31 +14,16 @@ from services.anthropic import chat_completion_with_tools, ChatResponse
 logger = logging.getLogger(__name__)
 
 
-CONTENT_SYSTEM_PROMPT = """You are an autonomous Content Agent specializing in creating compelling content.
+CONTENT_SYSTEM_PROMPT = """You are a Content Agent specializing in creating compelling content.
 
 **Your Mission:**
-Transform context, research, and briefs into polished content that:
-- Resonates with target audiences
-- Maintains voice consistency
-- Drives engagement and action
-- Follows format best practices
+Transform context, research, and briefs into polished content that resonates with target audiences.
 
-**CRITICAL: Structured Output Requirements**
+**Output Requirements:**
 
-You have access to the emit_work_output tool. You MUST use this tool to record all content you create.
-DO NOT just write content in free text. Every piece of content must be emitted as a structured output.
+You have access to the submit_output tool. Call it ONCE when your content is complete.
 
-**Output Types:**
-- "draft" - Content drafts (posts, articles, copy)
-- "recommendation" - Suggestions for content strategy
-- "insight" - Observations about voice, style, or approach
-
-**Content Creation Approach:**
-1. Review provided context (brand voice, prior content, research)
-2. Understand the format requirements and audience
-3. Draft content following best practices
-4. Emit all content as structured outputs
-5. Suggest improvements or alternatives
+Your output IS the content itself. The content field should contain the actual content piece (post, article, email, etc.), not a description of it.
 
 **Quality Standards:**
 - Platform-native voice (not generic)
@@ -48,8 +33,7 @@ DO NOT just write content in free text. Every piece of content must be emitted a
 - Authentic (avoid corporate speak)
 
 **Format Guidelines:**
-When creating content, consider:
-- LinkedIn: Professional, thought leadership, 1300 char optimal
+- LinkedIn: Professional, thought leadership, ~1300 chars, hooks + hashtags
 - Twitter/X: Concise, punchy, 280 char limit
 - Blog: SEO-optimized, clear headings, 800-1500 words
 - Email: Personal, scannable, clear CTA
@@ -61,31 +45,20 @@ When creating content, consider:
 
 class ContentAgent(BaseAgent):
     """
-    Content Agent for content creation using context.
+    Content Agent for content creation.
 
-    Features:
-    - Platform-specific content generation
-    - Voice and style consistency from context
-    - Draft and variant creation
-    - Engagement optimization
+    ADR-016: Produces ONE unified output per work execution.
+    The output IS the content itself.
 
     Parameters:
     - format: "linkedin", "twitter", "blog", "email", "general"
     - tone: "professional", "casual", "authoritative", "friendly"
-    - length: "short", "medium", "long"
     """
 
     AGENT_TYPE = "content"
     SYSTEM_PROMPT = CONTENT_SYSTEM_PROMPT
 
-    # Supported content formats
-    CONTENT_FORMATS = [
-        "linkedin",
-        "twitter",
-        "blog",
-        "email",
-        "general",
-    ]
+    CONTENT_FORMATS = ["linkedin", "twitter", "blog", "email", "general"]
 
     async def execute(
         self,
@@ -98,30 +71,28 @@ class ContentAgent(BaseAgent):
 
         Args:
             task: Content brief or description
-            context: Project context for voice/facts
+            context: Context bundle for voice/facts
             parameters:
                 - format: "linkedin", "twitter", "blog", "email", "general"
                 - tone: "professional", "casual", "authoritative", "friendly"
-                - length: "short", "medium", "long"
 
         Returns:
-            AgentResult with content drafts
+            AgentResult with single work_output (the content)
         """
         params = parameters or {}
         content_format = params.get("format", "general")
         tone = params.get("tone", "professional")
-        length = params.get("length", "medium")
 
         logger.info(
             f"[CONTENT] Starting: task='{task[:50]}...', "
-            f"format={content_format}, tone={tone}, length={length}"
+            f"format={content_format}, tone={tone}"
         )
 
         # Build system prompt with context
         system_prompt = self._build_system_prompt(context)
 
         # Build content prompt
-        content_prompt = self._build_content_prompt(task, context, content_format, tone, length)
+        content_prompt = self._build_content_prompt(task, content_format, tone)
 
         # Build messages
         messages = [{"role": "user", "content": content_prompt}]
@@ -129,7 +100,7 @@ class ContentAgent(BaseAgent):
         try:
             # Execute with tool support
             all_tool_calls = []
-            max_iterations = 5
+            max_iterations = 3
 
             for iteration in range(max_iterations):
                 response: ChatResponse = await chat_completion_with_tools(
@@ -167,132 +138,106 @@ class ContentAgent(BaseAgent):
 
                 messages.append({"role": "assistant", "content": assistant_content})
 
-                # Add tool results
+                # Add tool result
                 tool_results = []
                 for tool_use in response.tool_uses:
-                    tool_results.append({
-                        "type": "tool_result",
-                        "tool_use_id": tool_use.id,
-                        "content": f"Content recorded: {tool_use.input.get('title', 'Untitled')}",
-                    })
+                    if tool_use.name == "submit_output":
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_use.id,
+                            "content": "Content submitted successfully.",
+                        })
 
                 messages.append({"role": "user", "content": tool_results})
 
-            # Parse work outputs from tool calls
-            work_outputs = self._parse_work_outputs(all_tool_calls)
+            # Parse single work output
+            work_output = self._parse_work_output(all_tool_calls)
+
+            if work_output:
+                # Add content-specific metadata
+                work_output.metadata.setdefault("format", content_format)
+                work_output.metadata.setdefault("tone", tone)
+                # Calculate word count
+                word_count = len(work_output.content.split())
+                work_output.metadata.setdefault("word_count", word_count)
 
             logger.info(
-                f"[CONTENT] Complete: {len(work_outputs)} outputs generated"
+                f"[CONTENT] Complete: output={'yes' if work_output else 'no'}"
             )
 
             return AgentResult(
                 success=True,
-                output_type="work_outputs",
+                work_output=work_output,
                 content=response.text,
-                work_outputs=work_outputs,
+                input_tokens=response.input_tokens,
+                output_tokens=response.output_tokens,
             )
 
         except Exception as e:
             logger.error(f"[CONTENT] Failed: {e}", exc_info=True)
             return AgentResult(
                 success=False,
-                output_type="text",
                 error=str(e),
             )
 
-    def _build_content_prompt(
-        self,
-        task: str,
-        context: ContextBundle,
-        content_format: str,
-        tone: str,
-        length: str,
-    ) -> str:
+    def _build_content_prompt(self, task: str, content_format: str, tone: str) -> str:
         """Build the content creation prompt."""
 
-        # Format-specific instructions
         format_instructions = self._get_format_instructions(content_format)
-
-        # Length guidance
-        length_guidance = {
-            "short": "Keep it concise. Focus on the essential message.",
-            "medium": "Balanced length. Cover key points with some detail.",
-            "long": "Comprehensive content. Cover topic thoroughly.",
-        }.get(length, "Balanced length. Cover key points with some detail.")
-
-        # Get memory IDs for provenance
-        memory_ids = [str(m.id) for m in context.memories[:10]]
 
         return f"""Create content for: {task}
 
-**Content Parameters:**
+**Parameters:**
 - Format: {content_format}
 - Tone: {tone}
-- Length: {length} ({length_guidance})
 
-**Format-Specific Guidelines:**
+**Format Guidelines:**
 {format_instructions}
 
-**Available Memory IDs (for source_memory_ids provenance):**
-{memory_ids if memory_ids else 'No memories available'}
+**Instructions:**
+1. Review the context provided for voice and facts
+2. Create the content following format guidelines
+3. Call submit_output ONCE with your completed content
 
-**CRITICAL INSTRUCTION:**
-You MUST use the emit_work_output tool to record your content. Do NOT just write content in text.
+The content field should contain the ACTUAL content (not a description).
+For example, if creating a LinkedIn post, the content field IS the post text.
 
-For each piece of content:
-1. Call emit_work_output with output_type="draft"
-2. Put the actual content in body.details
-3. Put a one-line summary in body.summary
-4. Include any relevant source_memory_ids
-5. Assign confidence score based on how well the content matches the brief
-
-If you have recommendations for improving the content or strategy, emit those as separate outputs with output_type="recommendation".
-
-Begin creating content now. Emit all content as structured outputs."""
+Begin creating content now."""
 
     def _get_format_instructions(self, content_format: str) -> str:
         """Get format-specific instructions."""
         instructions = {
-            "linkedin": """
-LinkedIn Post:
-- 1300 character limit for optimal engagement
+            "linkedin": """LinkedIn Post:
+- ~1300 characters for optimal engagement
 - Start with a hook (question, bold statement, statistic)
 - Use line breaks for readability
 - Include a clear call-to-action
-- Professional but personable tone
-- Add 3-5 relevant hashtags at the end
-""",
-            "twitter": """
-Twitter/X:
+- Add 3-5 relevant hashtags at the end""",
+
+            "twitter": """Twitter/X:
 - 280 characters per tweet max
 - Punchy, concise messaging
 - Strong hook in first few words
-- If thread needed, indicate with (1/n) format
-- 1-2 hashtags max, integrated naturally
-""",
-            "blog": """
-Blog Article:
+- If thread needed, separate with ---""",
+
+            "blog": """Blog Article:
 - SEO-optimized structure
 - Include H2 headings for sections
 - 800-1500 words typical
-- Include meta description (155 chars)
 - Clear introduction and conclusion
-- Scannable with bullet points where appropriate
-""",
-            "email": """
-Email:
-- Compelling subject line (50 chars max)
+- Scannable with bullet points where appropriate""",
+
+            "email": """Email:
+- Compelling subject line at the top
 - Personal, conversational tone
 - Scannable format
 - Single clear CTA
-- Mobile-friendly (short paragraphs)
-""",
-            "general": """
-General Content:
+- Mobile-friendly (short paragraphs)""",
+
+            "general": """General Content:
 - Adapt to the task description
 - Focus on clarity and engagement
 - Include appropriate structure
-- Consider the target audience
-""",
+- Consider the target audience""",
         }
         return instructions.get(content_format, instructions["general"])

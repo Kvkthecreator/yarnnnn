@@ -160,13 +160,13 @@ User sees what TP is doing:
 |-----------|--------|
 | TP judgment/delegation | ✅ Implemented |
 | create_work tool | ✅ Implemented |
-| Work agents (Research, Content, Reporting) | ✅ Implemented (old output model) |
-| Unified output model (ADR-016) | 🔲 Pending |
-| TP brevity guidance | 🔲 Pending |
-| TP awareness status UI | 🔲 Pending |
-| Error visibility to user | 🔲 Pending |
-| Work cancellation | 🔲 Future |
-| Timeouts | 🔲 Future |
+| Work agents (Research, Content, Reporting) | ✅ Implemented (ADR-016 unified output) |
+| Unified output model (ADR-016) | ✅ Implemented |
+| TP brevity guidance | ✅ Implemented |
+| Work cancellation | ✅ Implemented (cancel_work tool) |
+| Timeouts | ✅ Implemented (5 min default) |
+| TP awareness status UI | 🔲 Pending (frontend) |
+| Error visibility to user | ✅ Implemented (in tool response) |
 
 ---
 

@@ -2,15 +2,13 @@
 Work Execution Service
 
 ADR-009: Work and Agent Orchestration
-Handles the full work ticket lifecycle:
-1. Create ticket → 2. Load context → 3. Execute agent → 4. Save outputs → 5. Update status
+ADR-016: Layered Agent Architecture (single output per work)
 
-This service bridges the gap between:
-- TP tools (create_work, list_work, get_work_status)
-- Work routes (REST API)
-- Agent execution
+Handles the full work ticket lifecycle:
+1. Create ticket → 2. Load context → 3. Execute agent → 4. Save output → 5. Update status
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -21,6 +19,9 @@ from agents.base import ContextBundle, Memory, WorkOutput
 from agents.factory import create_agent
 
 logger = logging.getLogger(__name__)
+
+# Default timeout for work execution (5 minutes)
+DEFAULT_WORK_TIMEOUT_SECONDS = 300
 
 
 async def load_context_for_work(
@@ -128,16 +129,19 @@ async def execute_work_ticket(
     client,
     user_id: str,
     ticket_id: str,
+    timeout_seconds: int = DEFAULT_WORK_TIMEOUT_SECONDS,
 ) -> dict:
     """
     Execute a work ticket.
+
+    ADR-016: Each work execution produces ONE output.
 
     Full execution flow:
     1. Load ticket details
     2. Update status to 'running'
     3. Load context
     4. Execute agent
-    5. Save outputs
+    5. Save output (single)
     6. Update status to 'completed' or 'failed'
 
     Args:
@@ -191,13 +195,33 @@ async def execute_work_ticket(
             task=task,
         )
 
-        # 4. Execute agent
+        # 4. Execute agent with timeout
         agent = create_agent(agent_type)
-        result = await agent.execute(
-            task=task,
-            context=context,
-            parameters=parameters,
-        )
+        try:
+            result = await asyncio.wait_for(
+                agent.execute(
+                    task=task,
+                    context=context,
+                    parameters=parameters,
+                ),
+                timeout=timeout_seconds
+            )
+        except asyncio.TimeoutError:
+            # Update to failed with timeout error
+            completed_at = datetime.now(timezone.utc)
+            client.table("work_tickets").update({
+                "status": "failed",
+                "completed_at": completed_at.isoformat(),
+                "error_message": f"Work execution timed out after {timeout_seconds} seconds",
+            }).eq("id", ticket_id).execute()
+
+            logger.warning(f"[WORK EXECUTION] Timeout after {timeout_seconds}s for ticket {ticket_id}")
+
+            return {
+                "success": False,
+                "error": f"Work execution timed out after {timeout_seconds} seconds",
+                "ticket_id": ticket_id,
+            }
 
         completed_at = datetime.now(timezone.utc)
         execution_time_ms = int((completed_at - started_at).total_seconds() * 1000)
@@ -216,14 +240,14 @@ async def execute_work_ticket(
                 "ticket_id": ticket_id,
             }
 
-        # 5. Save outputs
-        saved_outputs = []
-        for work_output in result.work_outputs:
+        # 5. Save output (ADR-016: single output per work)
+        saved_output = None
+        if result.work_output:
             output_data = {
                 "ticket_id": ticket_id,
-                "title": work_output.title,
-                "output_type": work_output.output_type,
-                "content": json.dumps(work_output.body) if isinstance(work_output.body, dict) else work_output.body,
+                "title": result.work_output.title,
+                "content": result.work_output.content,  # Markdown content
+                "metadata": result.work_output.metadata,  # Agent-specific metadata
                 "status": "delivered",
             }
 
@@ -234,9 +258,8 @@ async def execute_work_ticket(
             )
 
             if output_result.data:
-                saved_outputs.append(output_result.data[0])
-
-        logger.info(f"[WORK EXECUTION] Saved {len(saved_outputs)} outputs")
+                saved_output = output_result.data[0]
+                logger.info(f"[WORK EXECUTION] Saved output: {saved_output['id']}")
 
         # 6. Update to completed
         client.table("work_tickets").update({
@@ -244,12 +267,16 @@ async def execute_work_ticket(
             "completed_at": completed_at.isoformat(),
         }).eq("id", ticket_id).execute()
 
+        # Format response (maintain backward compatibility with list format)
+        outputs = [saved_output] if saved_output else []
+
         return {
             "success": True,
             "ticket_id": ticket_id,
             "status": "completed",
-            "outputs": saved_outputs,
-            "output_count": len(saved_outputs),
+            "output": saved_output,  # ADR-016: single output
+            "outputs": outputs,  # Backward compat: list with 0 or 1 item
+            "output_count": len(outputs),
             "execution_time_ms": execution_time_ms,
             "agent_type": agent_type,
         }
