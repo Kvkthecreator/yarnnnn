@@ -169,8 +169,6 @@ class ContentAgent(BaseAgent):
                 success=True,
                 work_output=work_output,
                 content=response.text,
-                input_tokens=response.input_tokens,
-                output_tokens=response.output_tokens,
             )
 
         except Exception as e:
