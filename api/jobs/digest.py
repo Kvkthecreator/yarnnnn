@@ -48,8 +48,8 @@ class DigestContent:
     def subject(self) -> str:
         """Email subject line."""
         if self.is_empty:
-            return f"[YARNNN] {self.workspace_name} - No activity this week"
-        return f"[YARNNN] {self.workspace_name} - Weekly Digest"
+            return f"{self.workspace_name}: Weekly digest – no activity this week"
+        return f"{self.workspace_name}: Weekly digest – {self.tickets_completed} completed, {self.outputs_delivered} outputs"
 
     @property
     def text(self) -> str:
@@ -85,7 +85,7 @@ class DigestContent:
 
         lines.append("")
         lines.append("---")
-        lines.append("YARNNN - Your Knowledge Work Platform")
+        lines.append("yarnnn")
 
         return "\n".join(lines)
 
@@ -142,7 +142,7 @@ class DigestContent:
     '''}
 
     <div class="footer">
-        YARNNN - Your Knowledge Work Platform
+        yarnnn
     </div>
 </body>
 </html>

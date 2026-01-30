@@ -50,7 +50,7 @@ async def send_email(
         return EmailResult(success=False, error="RESEND_API_KEY not configured")
 
     from_addr = from_email or os.environ.get(
-        "RESEND_FROM_EMAIL", "YARNNN <noreply@yarnnn.com>"
+        "RESEND_FROM_EMAIL", "yarnnn <noreply@yarnnn.com>"
     )
 
     payload = {
@@ -101,17 +101,17 @@ async def send_test_email(to: str) -> EmailResult:
     """Send a test email to verify configuration."""
     return await send_email(
         to=to,
-        subject="[YARNNN] Test Email",
+        subject="Test email from yarnnn",
         html="""
         <html>
         <body>
             <h1>Test Email</h1>
             <p>If you're seeing this, email delivery is working!</p>
-            <p>- YARNNN</p>
+            <p>- yarnnn</p>
         </body>
         </html>
         """,
-        text="Test Email\n\nIf you're seeing this, email delivery is working!\n\n- YARNNN",
+        text="Test Email\n\nIf you're seeing this, email delivery is working!\n\n- yarnnn",
     )
 
 
@@ -179,7 +179,7 @@ async def send_work_complete_email(
         </div>
 
         <p style="color: #888; font-size: 12px; margin-top: 32px;">
-            You're receiving this because you requested work in YARNNN.
+            You're receiving this because you requested work in yarnnn.
         </p>
     </body>
     </html>
@@ -197,12 +197,17 @@ Outputs ({len(outputs)}):
 View full results: {work_url}
 
 ---
-You're receiving this because you requested work in YARNNN.
+You're receiving this because you requested work in yarnnn.
 """
+
+    # Create a contextual subject line with project name and task summary
+    task_preview = task[:40].strip()
+    if len(task) > 40:
+        task_preview += "..."
 
     return await send_email(
         to=to,
-        subject=f"[YARNNN] {agent_type.title()} work complete: {task[:50]}{'...' if len(task) > 50 else ''}",
+        subject=f"{project_name}: {agent_type} work complete – {task_preview}",
         html=html,
         text=text,
     )
