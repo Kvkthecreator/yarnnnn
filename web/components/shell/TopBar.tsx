@@ -25,7 +25,7 @@ export function TopBar({ email }: TopBarProps) {
       {/* Left section: Logo + Project */}
       <div className="flex items-center gap-4">
         {/* Logo */}
-        <span className="text-lg font-semibold tracking-tight">yarnnn</span>
+        <span className="text-xl font-brand">yarnnn</span>
 
         {/* Project Selector */}
         <ProjectSelector />

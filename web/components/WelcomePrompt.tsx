@@ -46,7 +46,7 @@ export function WelcomePrompt({
       <div className="grid grid-cols-3 gap-4 w-full mb-8">
         <button
           onClick={onUpload}
-          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-colors"
+          className="flex flex-col items-center gap-2 p-5 rounded-2xl border border-border/50 bg-card hover:bg-muted hover:border-border transition-all hover:shadow-sm"
         >
           <Upload className="w-6 h-6 text-primary" />
           <span className="text-sm font-medium">Upload</span>
@@ -55,7 +55,7 @@ export function WelcomePrompt({
 
         <button
           onClick={onPaste}
-          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-colors"
+          className="flex flex-col items-center gap-2 p-5 rounded-2xl border border-border/50 bg-card hover:bg-muted hover:border-border transition-all hover:shadow-sm"
         >
           <ClipboardPaste className="w-6 h-6 text-primary" />
           <span className="text-sm font-medium">Paste</span>
@@ -64,7 +64,7 @@ export function WelcomePrompt({
 
         <button
           onClick={onStart}
-          className="flex flex-col items-center gap-2 p-4 rounded-lg border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-colors"
+          className="flex flex-col items-center gap-2 p-5 rounded-2xl border border-border/50 bg-card hover:bg-muted hover:border-border transition-all hover:shadow-sm"
         >
           <MessageSquare className="w-6 h-6 text-primary" />
           <span className="text-sm font-medium">Just</span>
@@ -82,7 +82,7 @@ export function WelcomePrompt({
             <button
               key={prompt}
               onClick={() => onSelectPrompt(prompt)}
-              className="w-full p-3 text-left text-sm rounded-lg border border-border bg-card hover:bg-accent hover:border-accent-foreground/20 transition-colors"
+              className="w-full p-4 text-left text-sm rounded-2xl border border-border/50 bg-card hover:bg-muted hover:border-border transition-all hover:shadow-sm"
             >
               &ldquo;{prompt}&rdquo;
             </button>
@@ -107,14 +107,14 @@ export function MinimalContextBanner({
   onDismiss,
 }: MinimalContextBannerProps) {
   return (
-    <div className="mb-4 p-3 bg-muted/50 rounded-lg flex items-center justify-between">
+    <div className="mb-4 p-4 bg-muted/50 rounded-2xl flex items-center justify-between">
       <p className="text-sm text-muted-foreground">
         I don&apos;t know much about you yet ({memoryCount} {memoryCount === 1 ? "memory" : "memories"}).
         Share more context to get better help.
       </p>
       <button
         onClick={onDismiss}
-        className="text-xs text-muted-foreground hover:text-foreground ml-4"
+        className="text-xs text-muted-foreground hover:text-foreground ml-4 px-3 py-1.5 rounded-full hover:bg-background transition-colors"
       >
         Dismiss
       </button>

@@ -1,8 +1,9 @@
 # ADR-015: Unified Context Model
 
-> **Status**: Draft
+> **Status**: Phase 1 Complete, Iterating
 > **Date**: 2025-01-30
 > **Depends on**: ADR-006 (Sessions), ADR-009 (Work System)
+> **Phase 1 Completed**: 2025-01-30 (ambient work functional)
 
 ---
 
@@ -296,6 +297,71 @@ The framework is correct. Quality comes from iterative testing:
 1. **Ambient work UI**: How to surface work not attached to projects?
 2. **Memory relevance**: Semantic similarity vs. recency vs. explicit reference?
 3. **Orchestration tuning**: How to adjust TP's judgment style per user?
+
+---
+
+## Phase 2: Qualitative Iteration (Next)
+
+Phase 1 proved the technical flow works. Now we need to refine the *quality* of the experience.
+
+### Observation 1: Output Model - Scattered vs. Consolidated
+
+**Current behavior**: Work produces multiple discrete outputs (Finding, Insight, Recommendation, etc.)
+
+**Problem**: This feels deterministic and fragmented compared to:
+- **Claude Artifacts**: Single, evolving document
+- **ChatGPT Canvas**: Unified workspace that gets refined
+
+**Question**: Should outputs be:
+- A single "artifact" that the agent builds/refines?
+- Or multiple pieces that get consolidated on display?
+- Or defined by the work agent itself (not predetermined)?
+
+**Hypothesis**: The output *structure* should emerge from the work agent's judgment, not be hardcoded. A research task might produce one comprehensive report. A content task might produce drafts. The current multi-output model may be over-engineered.
+
+**Consideration**: This may be a "work agents" (layer 2) concern, not TP orchestration. Work agents haven't been deeply defined yet.
+
+### Observation 2: TP Response Verbosity with Tool Use
+
+**Current behavior**: When work completes and the drawer opens, TP also writes a lengthy elaboration in chat.
+
+**Problem**: Redundant. The artifact/output IS the deliverable. The chat message should:
+- Acknowledge the work is done
+- Reference the artifact (brief)
+- Not duplicate the content
+
+**Compare to Claude Code**: When Claude Code runs a tool or shows output, the message is compact. Progress and results appear in dedicated UI, not prose.
+
+**Direction**:
+```
+Current:  "Great! The research has been completed. Here's what I found:
+          [3 paragraphs of summary duplicating the output panel]"
+
+Better:   "Done - I've researched the top 3 AI code assistants.
+          See the output panel for the full comparison."
+
+Or even:  [Tool indicator: Research complete ✓] + artifact reference
+```
+
+### Observation 3: Progress Visibility
+
+**Current behavior**: User sends message → waits → result appears
+
+**Compare to Claude Code**: Shows todos, progress indicators, what's being done
+
+**Question**: Should TP show:
+- "Researching..." indicator
+- Progress steps (like a todo list)
+- Streaming partial results
+
+**Consideration**: This is UX/frontend, not orchestration. But the SSE events may need richer progress signals.
+
+### Next Steps for Phase 2
+
+1. **Define work agents** (ADR-016?): What are research/content/reporting agents actually doing? What's their output model?
+2. **Output consolidation**: Move toward single artifact per work, not multiple discrete outputs
+3. **TP response brevity**: Adjust system prompt to be compact when artifacts exist
+4. **Progress UI**: Consider inline progress indicators during work execution
 
 ---
 

@@ -368,7 +368,7 @@ export function Chat({
 
         {/* Default empty message for active users */}
         {!isLoadingHistory && messages.length === 0 && !showWelcome && !showMinimalContextBanner && (
-          <div className="p-4 bg-muted rounded-lg max-w-[80%]">
+          <div className="px-4 py-3 bg-muted rounded-3xl rounded-bl-lg max-w-[80%]">
             <p className="text-sm">{emptyMessage || defaultEmptyMessage}</p>
           </div>
         )}
@@ -381,10 +381,10 @@ export function Chat({
             }`}
           >
             <div
-              className={`p-4 rounded-lg max-w-[80%] ${
+              className={`px-4 py-3 max-w-[80%] ${
                 message.role === "user"
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
+                  ? "bg-primary text-primary-foreground rounded-3xl rounded-br-lg"
+                  : "bg-muted rounded-3xl rounded-bl-lg"
               }`}
             >
               <p className="text-sm whitespace-pre-wrap">{message.content}</p>
@@ -395,7 +395,7 @@ export function Chat({
         {/* Optimistic pending message during file upload */}
         {pendingMessage && (
           <div className="flex justify-end">
-            <div className="p-4 rounded-lg max-w-[80%] bg-primary text-primary-foreground opacity-70">
+            <div className="px-4 py-3 rounded-3xl rounded-br-lg max-w-[80%] bg-primary text-primary-foreground opacity-70">
               <p className="text-sm whitespace-pre-wrap">{pendingMessage}</p>
               <p className="text-xs mt-1 opacity-70">Uploading...</p>
             </div>
@@ -404,14 +404,14 @@ export function Chat({
 
         {isLoading && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="flex justify-start">
-            <div className="p-4 bg-muted rounded-lg">
+            <div className="px-4 py-3 bg-muted rounded-3xl rounded-bl-lg">
               <Loader2 className="w-4 h-4 animate-spin" />
             </div>
           </div>
         )}
 
         {error && (
-          <div className="p-4 bg-destructive/10 text-destructive rounded-lg max-w-[80%]">
+          <div className="px-4 py-3 bg-destructive/10 text-destructive rounded-2xl max-w-[80%]">
             <p className="text-sm">Error: {error}</p>
           </div>
         )}
@@ -420,11 +420,11 @@ export function Chat({
       </div>
 
       {/* Input Area */}
-      <div className="border-t border-border pt-4">
+      <div className="pt-4">
         {/* Attachment Preview */}
         {attachedFile && (
-          <div className="mb-3 p-3 bg-muted rounded-lg flex items-center gap-3">
-            <div className="p-2 bg-primary/10 rounded">
+          <div className="mb-3 p-3 bg-muted rounded-2xl flex items-center gap-3">
+            <div className="p-2 bg-primary/10 rounded-xl">
               <FileText className="w-5 h-5 text-primary" />
             </div>
             <div className="flex-1 min-w-0">
@@ -445,7 +445,7 @@ export function Chat({
             <button
               type="button"
               onClick={removeAttachment}
-              className="p-1.5 hover:bg-background rounded text-muted-foreground hover:text-foreground"
+              className="p-1.5 hover:bg-background rounded-full text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Remove attachment"
             >
               <X className="w-4 h-4" />
@@ -455,22 +455,22 @@ export function Chat({
 
         {/* Attachment Error */}
         {attachError && (
-          <div className="mb-3 p-2 bg-destructive/10 text-destructive text-sm rounded">
+          <div className="mb-3 p-3 bg-destructive/10 text-destructive text-sm rounded-2xl">
             {attachError}
           </div>
         )}
 
-        {/* Input Form */}
+        {/* Input Form - ChatGPT-style pill container */}
         <form onSubmit={handleSubmit}>
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2 p-2 border border-border rounded-full bg-background shadow-sm">
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
               disabled={isLoading || !!attachedFile}
-              className="px-3 py-2 border border-border rounded-md bg-background hover:bg-muted disabled:opacity-50 text-muted-foreground hover:text-foreground"
+              className="p-2 rounded-full hover:bg-muted disabled:opacity-50 text-muted-foreground hover:text-foreground transition-colors"
               aria-label="Attach file"
             >
-              <Paperclip className="w-4 h-4" />
+              <Paperclip className="w-5 h-5" />
             </button>
             <input
               ref={inputRef}
@@ -479,19 +479,19 @@ export function Chat({
               onChange={(e) => setInput(e.target.value)}
               placeholder={attachedFile ? "Add a message (optional)..." : "Type a message..."}
               disabled={isLoading}
-              className="flex-1 px-4 py-2 border border-border rounded-md bg-background disabled:opacity-50"
+              className="flex-1 px-2 py-1.5 bg-transparent border-none outline-none disabled:opacity-50 text-sm"
             />
             <button
               type="submit"
               disabled={isSubmitDisabled}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50 flex items-center gap-2"
+              className="p-2.5 bg-primary text-primary-foreground rounded-full disabled:opacity-50 disabled:bg-muted disabled:text-muted-foreground transition-colors"
+              aria-label="Send message"
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 animate-spin" />
               ) : (
                 <Send className="w-4 h-4" />
               )}
-              Send
             </button>
           </div>
         </form>
