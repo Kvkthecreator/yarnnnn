@@ -262,11 +262,13 @@ export function useChat({
                 // Handle tool result event (ADR-007)
                 if (data.tool_result) {
                   const resultEvent = data.tool_result as ToolResultEvent;
+                  console.log("[useChat] tool_result received:", resultEvent.name, resultEvent.result);
                   onToolResult?.(resultEvent);
 
                   // ADR-013: Check for UI action in tool result
                   const result = resultEvent.result as { ui_action?: TPUIAction };
                   if (result?.ui_action) {
+                    console.log("[useChat] ui_action found:", result.ui_action);
                     onUIAction?.(result.ui_action);
                   }
                 }
