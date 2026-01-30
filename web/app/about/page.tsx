@@ -91,7 +91,7 @@ export default function AboutPage() {
             <h2 className="text-2xl md:text-3xl font-medium mb-16">Who it&apos;s for</h2>
 
             <div className="space-y-6">
-              <div className="border border-white/10 p-6">
+              <div className="border border-white/10 rounded-2xl p-6">
                 <h3 className="text-base font-medium mb-2">Agencies and consultants</h3>
                 <p className="text-white/50 text-sm leading-relaxed">
                   Managing multiple clients means constant context-switching. Each client
@@ -99,7 +99,7 @@ export default function AboutPage() {
                 </p>
               </div>
 
-              <div className="border border-white/10 p-6">
+              <div className="border border-white/10 rounded-2xl p-6">
                 <h3 className="text-base font-medium mb-2">Solo operators and founders</h3>
                 <p className="text-white/50 text-sm leading-relaxed">
                   You&apos;re running five things at once. Product, marketing, sales, ops.
@@ -107,7 +107,7 @@ export default function AboutPage() {
                 </p>
               </div>
 
-              <div className="border border-white/10 p-6">
+              <div className="border border-white/10 rounded-2xl p-6">
                 <h3 className="text-base font-medium mb-2">Research and analysis roles</h3>
                 <p className="text-white/50 text-sm leading-relaxed">
                   Tracking competitors, markets, trends is tedious recurring work.
@@ -166,7 +166,7 @@ export default function AboutPage() {
             </p>
             <Link
               href="/auth/login"
-              className="inline-block px-8 py-4 bg-white text-black text-lg font-medium hover:bg-white/90 transition-colors"
+              className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
             >
               Get started
             </Link>

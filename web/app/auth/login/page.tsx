@@ -88,7 +88,7 @@ function LoginForm() {
           </p>
         </div>
 
-        <div className="bg-white p-8 rounded-lg shadow-sm border space-y-6">
+        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
           {/* Google OAuth */}
           <Button
             type="button"

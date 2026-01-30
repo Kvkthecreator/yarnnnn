@@ -111,7 +111,7 @@ export default function HowItWorksPage() {
               <h2 className="text-2xl md:text-3xl font-medium mb-16">Built for multi-project work</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="border border-white/10 p-6">
+                <div className="border border-white/10 rounded-2xl p-6">
                   <h3 className="text-base font-medium mb-3">Isolated project context</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     Switch between clients without cross-contamination. Each project has its own
@@ -119,7 +119,7 @@ export default function HowItWorksPage() {
                   </p>
                 </div>
 
-                <div className="border border-white/10 p-6">
+                <div className="border border-white/10 rounded-2xl p-6">
                   <h3 className="text-base font-medium mb-3">Scheduled execution</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     Not chat. Work that runs without you. Weekly summaries, daily digests,
@@ -127,7 +127,7 @@ export default function HowItWorksPage() {
                   </p>
                 </div>
 
-                <div className="border border-white/10 p-6">
+                <div className="border border-white/10 rounded-2xl p-6">
                   <h3 className="text-base font-medium mb-3">Multi-agent orchestration</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     Research, writing, analysis—each agent specialized for its task,
@@ -135,7 +135,7 @@ export default function HowItWorksPage() {
                   </p>
                 </div>
 
-                <div className="border border-white/10 p-6">
+                <div className="border border-white/10 rounded-2xl p-6">
                   <h3 className="text-base font-medium mb-3">Full provenance</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     Every output traces back to source memories. Know exactly what context
