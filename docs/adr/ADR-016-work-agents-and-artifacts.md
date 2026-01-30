@@ -246,28 +246,49 @@ Progress visibility at the TP awareness level:
 
 ## Migration Path
 
-### From Current to Artifact Model
+### Clean Break (No Dual Approaches)
 
-**Option A: Soft migration**
-- Keep `emit_work_output` working
-- Add `create_artifact` as preferred
-- Gradually update agents
+Pre-launch means no legacy baggage. Replace entirely:
 
-**Option B: Clean break**
-- Replace tool entirely
-- Update all agents at once
-- Cleaner but more work
+1. **Remove** `emit_work_output` tool from `base.py`
+2. **Add** `create_artifact` as the only output mechanism
+3. **Update** all three agents (Research, Content, Reporting) in one pass
+4. **Update** database schema if needed (single artifact per ticket)
+5. **Update** frontend output panel to display artifact structure
 
-**Recommendation**: Option A. Less risk, allows iteration.
+**No soft migration**. Dual approaches create downstream ambiguity. If the artifact model is the right direction, commit to it fully.
 
 ---
 
 ## Open Questions
 
 1. **Artifact versioning**: Should artifacts be versionable/editable after creation?
-2. **Multiple artifacts**: What if a task genuinely needs multiple outputs?
-3. **Artifact types**: Are the proposed types sufficient? Too rigid?
+2. **Multiple artifacts**: What if a task genuinely needs multiple outputs? (Answer: probably shouldn't - one task = one artifact)
+3. **Artifact types**: Are the proposed types sufficient? Too rigid? Or should the agent just produce markdown with whatever structure fits?
 4. **Status granularity**: How detailed should progress indicators be?
+
+### Deeper Question: Is "Artifact" the Right Framing?
+
+Consider alternatives:
+
+**Option A: Typed Artifacts** (current proposal)
+- `research_report`, `content_draft`, `summary_report`, `analysis`
+- Pro: Structured, predictable display
+- Con: May feel rigid, agents boxed into types
+
+**Option B: Freeform Document**
+- Agent produces a single markdown document
+- Structure emerges from content, not schema
+- Pro: Maximum flexibility, agent decides format
+- Con: Less structured display, harder to parse
+
+**Option C: Canvas Model** (like ChatGPT Canvas)
+- Work produces a "canvas" - a workspace the user can interact with
+- Agent populates it, user can edit/refine
+- Pro: Collaborative feel
+- Con: More complex, may be over-engineered for MVP
+
+**Leaning toward**: Option A (Typed Artifacts) for MVP, but keep types minimal and allow rich markdown in `body`. The type is a hint for display, not a constraint on content.
 
 ---
 
