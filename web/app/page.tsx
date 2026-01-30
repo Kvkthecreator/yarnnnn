@@ -14,7 +14,7 @@ export default function LandingPage() {
       <div className="relative z-10">
         <LandingHeader />
 
-        {/* Hero Section */}
+        {/* Hero Section - Pain-first */}
         <section className="flex flex-col items-center justify-center px-6 py-32 md:py-44 min-h-[80vh]">
           <div className="max-w-4xl mx-auto text-center">
             {/* Brand name */}
@@ -22,109 +22,188 @@ export default function LandingPage() {
               yarnnn
             </div>
 
-            {/* Tagline - emphasized */}
+            {/* Pain-first headline */}
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-[#1a1a1a]/90 mb-6">
-              Build context. Schedule agents. Get work delivered.
+              Your AI keeps mixing things up.
+              <br />
+              <span className="text-[#1a1a1a]">Yarn doesn&apos;t.</span>
             </h1>
 
             {/* Supporting headline */}
             <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto font-light">
-              Your AI team runs on autopilot
+              Tell it once. It remembers forever.
             </p>
 
             <Link
               href="/auth/login"
               className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
             >
-              Start your first project
+              Start for free
             </Link>
           </div>
         </section>
 
-        {/* How It Works */}
-        <section id="how-it-works" className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
-          <div className="max-w-5xl mx-auto">
-            <h2 className="text-2xl md:text-3xl font-medium mb-16 text-[#1a1a1a]">
-              How it works
-            </h2>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="glass-card-light p-6">
-                <div className="text-sm text-[#1a1a1a]/30 mb-3 font-mono">01</div>
-                <h3 className="text-lg font-medium mb-2 text-[#1a1a1a]">Create projects</h3>
-                <p className="text-[#1a1a1a]/50 leading-relaxed text-sm">
-                  Each client, initiative, or domain gets its own context space.
-                  Your thinking partner can also create projects as conversations evolve.
+        {/* Pain Point 1: Context Chaos */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
+          <div className="max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+              <div>
+                <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">The problem</div>
+                <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
+                  Working on multiple clients?
+                  <br />
+                  <span className="text-[#1a1a1a]/50">ChatGPT puts them all in one bucket.</span>
+                </h2>
+                <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
+                  You asked ChatGPT to draft an email for Client A, and it used details
+                  from Client B. You caught it—barely. How long until something slips through?
                 </p>
               </div>
-
               <div className="glass-card-light p-6">
-                <div className="text-sm text-[#1a1a1a]/30 mb-3 font-mono">02</div>
-                <h3 className="text-lg font-medium mb-2 text-[#1a1a1a]">Accumulate knowledge</h3>
-                <p className="text-[#1a1a1a]/50 leading-relaxed text-sm">
-                  Chat naturally. Upload documents. Memories form automatically
-                  and stay with the project. No manual tagging required.
-                </p>
-              </div>
-
-              <div className="glass-card-light p-6">
-                <div className="text-sm text-[#1a1a1a]/30 mb-3 font-mono">03</div>
-                <h3 className="text-lg font-medium mb-2 text-[#1a1a1a]">Schedule agents</h3>
-                <p className="text-[#1a1a1a]/50 leading-relaxed text-sm">
-                  Set up recurring work: weekly reports, research digests, content drafts.
-                  Agents run on your schedule, not when you remember to ask.
-                </p>
-              </div>
-
-              <div className="glass-card-light p-6">
-                <div className="text-sm text-[#1a1a1a]/30 mb-3 font-mono">04</div>
-                <h3 className="text-lg font-medium mb-2 text-[#1a1a1a]">Work arrives</h3>
-                <p className="text-[#1a1a1a]/50 leading-relaxed text-sm">
-                  Outputs delivered on schedule, grounded in your project context.
-                  See exactly what memories informed each deliverable.
+                <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">Yarn&apos;s approach</div>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Every project stays separate</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Ask about Client A, get only Client A context. Always.
+                  Switch between clients without cross-contamination.
                 </p>
               </div>
             </div>
           </div>
         </section>
 
-        {/* Key Differentiators */}
+        {/* Pain Point 2: Groundhog Day */}
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
-          <div className="max-w-5xl mx-auto">
-            <h2 className="text-2xl md:text-3xl font-medium mb-16 text-[#1a1a1a]">
-              Built for multi-project work
+          <div className="max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+              <div className="md:order-2">
+                <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">The problem</div>
+                <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
+                  Tired of explaining yourself?
+                  <br />
+                  <span className="text-[#1a1a1a]/50">Every chat starts from scratch.</span>
+                </h2>
+                <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
+                  You&apos;ve explained your business model to ChatGPT probably 50 times.
+                  Every. Single. Time. That&apos;s hours of your life, repeating yourself.
+                </p>
+              </div>
+              <div className="glass-card-light p-6 md:order-1">
+                <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">Yarn&apos;s approach</div>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Tell it once. It remembers.</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Upload your docs once. Chat naturally. Yarn builds a memory of you
+                  that grows over time. &quot;Based on what you told me in January...&quot;
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Pain Point 3: Reactive Treadmill */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
+          <div className="max-w-4xl mx-auto">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
+              <div>
+                <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">The problem</div>
+                <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
+                  Your AI only works when you do.
+                  <br />
+                  <span className="text-[#1a1a1a]/50">Nothing happens while you sleep.</span>
+                </h2>
+                <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
+                  You realized you forgot to follow up with a client for three weeks.
+                  If only something had reminded you. Your AI waits—it never initiates.
+                </p>
+              </div>
+              <div className="glass-card-light p-6">
+                <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">Yarn&apos;s approach</div>
+                <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">AI that works while you sleep</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Schedule research. Get weekly digests. Wake up to insights
+                  you didn&apos;t have to ask for. Work arrives on your schedule.
+                </p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Comparison */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
+          <div className="max-w-4xl mx-auto">
+            <h2 className="text-2xl md:text-3xl font-medium mb-12 text-[#1a1a1a] text-center">
+              The difference
             </h2>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-[#1a1a1a]/10">
+                    <th className="py-4 pr-4 text-sm font-medium text-[#1a1a1a]/50"></th>
+                    <th className="py-4 px-4 text-sm font-medium text-[#1a1a1a]/50">ChatGPT</th>
+                    <th className="py-4 px-4 text-sm font-medium text-[#1a1a1a]/50">Claude</th>
+                    <th className="py-4 pl-4 text-sm font-medium text-[#1a1a1a]">Yarn</th>
+                  </tr>
+                </thead>
+                <tbody className="text-sm">
+                  <tr className="border-b border-[#1a1a1a]/5">
+                    <td className="py-4 pr-4 text-[#1a1a1a]">Remembers across sessions</td>
+                    <td className="py-4 px-4 text-[#1a1a1a]/40">Barely</td>
+                    <td className="py-4 px-4 text-[#1a1a1a]/40">No</td>
+                    <td className="py-4 pl-4 text-[#1a1a1a] font-medium">Yes</td>
+                  </tr>
+                  <tr className="border-b border-[#1a1a1a]/5">
+                    <td className="py-4 pr-4 text-[#1a1a1a]">Keeps projects separate</td>
+                    <td className="py-4 px-4 text-[#1a1a1a]/40">No</td>
+                    <td className="py-4 px-4 text-[#1a1a1a]/40">Kinda</td>
+                    <td className="py-4 pl-4 text-[#1a1a1a] font-medium">Yes</td>
+                  </tr>
+                  <tr className="border-b border-[#1a1a1a]/5">
+                    <td className="py-4 pr-4 text-[#1a1a1a]">Works proactively</td>
+                    <td className="py-4 px-4 text-[#1a1a1a]/40">No</td>
+                    <td className="py-4 px-4 text-[#1a1a1a]/40">No</td>
+                    <td className="py-4 pl-4 text-[#1a1a1a] font-medium">Yes</td>
+                  </tr>
+                  <tr>
+                    <td className="py-4 pr-4 text-[#1a1a1a]">Shows where answers come from</td>
+                    <td className="py-4 px-4 text-[#1a1a1a]/40">No</td>
+                    <td className="py-4 px-4 text-[#1a1a1a]/40">No</td>
+                    <td className="py-4 pl-4 text-[#1a1a1a] font-medium">Yes</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        {/* Who It's For */}
+        <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
+          <div className="max-w-5xl mx-auto">
+            <h2 className="text-2xl md:text-3xl font-medium mb-12 text-[#1a1a1a]">
+              Built for people juggling multiple things
+            </h2>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="glass-card-light p-6">
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Isolated project context</h3>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Consultants</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Switch between clients without cross-contamination. Each project has its own
-                  memories, agents, and outputs.
+                  Keep your clients straight. Each client = separate project.
+                  Never mix up context again.
                 </p>
               </div>
 
               <div className="glass-card-light p-6">
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Scheduled execution</h3>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Freelancers</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Not chat. Work that runs without you. Weekly summaries, daily digests,
-                  research on cadence—delivered, not requested.
+                  Remember every project. Context compounds over months.
+                  Never start from scratch.
                 </p>
               </div>
 
               <div className="glass-card-light p-6">
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Multi-agent orchestration</h3>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Founders</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Research, writing, analysis—each agent specialized for its task,
-                  all reading from shared project context.
-                </p>
-              </div>
-
-              <div className="glass-card-light p-6">
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Full provenance</h3>
-                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Every output traces back to source memories. Know exactly what context
-                  informed each report, draft, or summary.
+                  Running five things at once? Each gets its own AI
+                  that knows the full history.
                 </p>
               </div>
             </div>
@@ -135,17 +214,21 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-3xl mx-auto text-center">
             <h2 className="text-2xl md:text-3xl font-medium mb-6 text-[#1a1a1a]">
-              Stop driving every conversation
+              Same price as ChatGPT Plus.
+              <br />
+              <span className="text-[#1a1a1a]/50">But Yarn actually remembers.</span>
             </h2>
-            <p className="text-[#1a1a1a]/50 mb-10 max-w-lg mx-auto">
-              Build the context once. Let agents do the recurring work.
-              Focus on what actually needs you.
+            <p className="text-[#1a1a1a]/50 mb-4">
+              Free tier: 1 project, 50 memories
+            </p>
+            <p className="text-[#1a1a1a]/50 mb-10">
+              Pro: Unlimited everything — $19/mo
             </p>
             <Link
               href="/auth/login"
               className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
             >
-              Start your first project
+              Start for free
             </Link>
           </div>
         </section>

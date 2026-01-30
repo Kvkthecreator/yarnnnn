@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "How It Works",
-  description: "Learn how yarnnn helps you build context, schedule agents, and get work delivered.",
+  description: "Learn how Yarn keeps your clients separate and remembers everything.",
 };
 
 export default function HowItWorksPage() {
@@ -24,154 +24,142 @@ export default function HowItWorksPage() {
           {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              How yarnnn works
+              How Yarn works
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              Build context once. Let agents handle recurring work.
-              Focus on what actually needs you.
+              Three things make Yarn different: separate projects,
+              persistent memory, and proactive work.
             </p>
           </section>
 
-          {/* Step by Step */}
+          {/* The Three Differentiators */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">The workflow</h2>
-
-              <div className="space-y-16">
-                {/* Step 1 */}
+              <div className="space-y-24">
+                {/* Differentiator 1: Separate Projects */}
                 <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6">
                   <div className="text-5xl font-light text-white/20">01</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-4">Create projects</h3>
-                    <p className="text-white/50 leading-relaxed mb-4">
-                      Each client, initiative, or domain gets its own context space.
-                      Your thinking partner can also create projects as conversations evolve.
+                    <h3 className="text-xl font-medium mb-4">Every project stays separate</h3>
+                    <p className="text-white/50 leading-relaxed mb-6">
+                      Create a project for each client, initiative, or domain.
+                      When you ask about Client A, you get only Client A context.
+                      No mixing. No cross-contamination.
                     </p>
-                    <p className="text-white/50 leading-relaxed">
-                      Projects are boundaries. Client A never sees Client B. Switch between
-                      contexts without cross-contamination.
-                    </p>
+                    <div className="border border-white/10 rounded-xl p-4 bg-white/5">
+                      <p className="text-white/30 text-sm italic">
+                        &quot;I have 5 consulting clients. Each one is a separate project.
+                        When I switch between them, Yarn switches context automatically.
+                        Never worried about mixing things up again.&quot;
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Step 2 */}
+                {/* Differentiator 2: Persistent Memory */}
                 <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6">
                   <div className="text-5xl font-light text-white/20">02</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-4">Accumulate knowledge</h3>
-                    <p className="text-white/50 leading-relaxed mb-4">
-                      Chat naturally with your thinking partner. Upload documents.
-                      Memories form automatically and stay with the project.
+                    <h3 className="text-xl font-medium mb-4">Tell it once. It remembers forever.</h3>
+                    <p className="text-white/50 leading-relaxed mb-6">
+                      Chat naturally. Upload documents. Important context gets
+                      extracted and stored automatically. The more you use Yarn,
+                      the more it knows about your work.
                     </p>
-                    <p className="text-white/50 leading-relaxed">
-                      No manual tagging required. Important context is extracted from
-                      conversations and stored. The more you use it, the smarter it gets.
-                    </p>
+                    <div className="border border-white/10 rounded-xl p-4 bg-white/5">
+                      <p className="text-white/30 text-sm italic">
+                        &quot;I uploaded my proposal template once. Now Yarn references
+                        it every time I&apos;m drafting a new proposal. &apos;Based on your
+                        template from January...&apos; — I love seeing that.&quot;
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Step 3 */}
+                {/* Differentiator 3: Proactive Work */}
                 <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6">
                   <div className="text-5xl font-light text-white/20">03</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-4">Schedule agents</h3>
-                    <p className="text-white/50 leading-relaxed mb-4">
-                      Set up recurring work: weekly reports, research digests, content drafts.
-                      Agents run on your schedule, not when you remember to ask.
+                    <h3 className="text-xl font-medium mb-4">AI that works while you sleep</h3>
+                    <p className="text-white/50 leading-relaxed mb-6">
+                      Schedule recurring work: weekly reports, research digests,
+                      content drafts. Yarn executes on your schedule—you don&apos;t
+                      have to remember to ask.
                     </p>
-                    <p className="text-white/50 leading-relaxed">
-                      Research, writing, analysis—each agent specialized for its task,
-                      all reading from shared project context.
-                    </p>
-                  </div>
-                </div>
-
-                {/* Step 4 */}
-                <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6">
-                  <div className="text-5xl font-light text-white/20">04</div>
-                  <div>
-                    <h3 className="text-xl font-medium mb-4">Work arrives</h3>
-                    <p className="text-white/50 leading-relaxed mb-4">
-                      Outputs delivered on schedule, grounded in your project context.
-                      Not chat responses—actual deliverables.
-                    </p>
-                    <p className="text-white/50 leading-relaxed">
-                      Every output traces back to source memories. See exactly what context
-                      informed each report, draft, or summary. Full provenance.
-                    </p>
+                    <div className="border border-white/10 rounded-xl p-4 bg-white/5">
+                      <p className="text-white/30 text-sm italic">
+                        &quot;Every Monday morning I wake up to a summary of what happened
+                        with each client last week. I didn&apos;t ask for it—Yarn just delivers.&quot;
+                      </p>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Key Capabilities */}
+          {/* The Comparison */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">Built for multi-project work</h2>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-3">Isolated project context</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Switch between clients without cross-contamination. Each project has its own
-                    memories, agents, and outputs. Perfect for agencies and consultants.
-                  </p>
-                </div>
-
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-3">Scheduled execution</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Not chat. Work that runs without you. Weekly summaries, daily digests,
-                    research on cadence—delivered, not requested.
-                  </p>
-                </div>
-
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-3">Multi-agent orchestration</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Research, writing, analysis—each agent specialized for its task,
-                    all reading from shared project context.
-                  </p>
-                </div>
-
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-3">Full provenance</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Every output traces back to source memories. Know exactly what context
-                    informed each report, draft, or summary.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* The Difference */}
-          <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-5xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">Push vs Pull</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-16">Yarn vs. other AI tools</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                 <div>
-                  <h3 className="text-lg font-medium mb-4 text-white/40">Traditional AI (Pull)</h3>
+                  <h3 className="text-lg font-medium mb-4 text-white/40">ChatGPT / Claude</h3>
                   <ul className="space-y-3 text-white/40 text-sm">
-                    <li>You ask, it responds</li>
-                    <li>You forget, it waits</li>
-                    <li>Context resets each conversation</li>
-                    <li>Interactive prompting required</li>
-                    <li>Work happens when you remember</li>
+                    <li>One big memory bucket (everything mixes)</li>
+                    <li>Forgets after a few conversations</li>
+                    <li>Only works when you prompt it</li>
+                    <li>No way to see what informed answers</li>
+                    <li>$20/month</li>
                   </ul>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-medium mb-4">yarnnn (Push)</h3>
+                  <h3 className="text-lg font-medium mb-4">Yarn</h3>
                   <ul className="space-y-3 text-white/70 text-sm">
-                    <li>Work arrives on schedule</li>
-                    <li>Agents run autonomously</li>
-                    <li>Context accumulates over time</li>
-                    <li>Scheduled execution beats prompting</li>
-                    <li>Work happens on cadence</li>
+                    <li>Separate memory per project</li>
+                    <li>Remembers forever</li>
+                    <li>Works proactively on schedule</li>
+                    <li>&quot;Based on your notes from...&quot;</li>
+                    <li>$19/month (same price, actually remembers)</li>
                   </ul>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          {/* Quick Start */}
+          <section className="border-t border-white/10 px-6 py-24 md:py-32">
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-medium mb-16">Getting started</h2>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="border border-white/10 rounded-2xl p-6">
+                  <div className="text-sm text-white/30 mb-3 font-mono">Step 1</div>
+                  <h3 className="text-base font-medium mb-2">Create a project</h3>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    Sign up and create your first project. Name it after a client,
+                    initiative, or domain you&apos;re working on.
+                  </p>
+                </div>
+
+                <div className="border border-white/10 rounded-2xl p-6">
+                  <div className="text-sm text-white/30 mb-3 font-mono">Step 2</div>
+                  <h3 className="text-base font-medium mb-2">Add context</h3>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    Chat naturally. Upload relevant documents.
+                    Yarn builds memory automatically.
+                  </p>
+                </div>
+
+                <div className="border border-white/10 rounded-2xl p-6">
+                  <div className="text-sm text-white/30 mb-3 font-mono">Step 3</div>
+                  <h3 className="text-base font-medium mb-2">See the difference</h3>
+                  <p className="text-white/50 text-sm leading-relaxed">
+                    Ask a question about your project. Watch Yarn pull
+                    from exactly the right context. That&apos;s it.
+                  </p>
                 </div>
               </div>
             </div>
@@ -181,16 +169,17 @@ export default function HowItWorksPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Ready to put AI to work?
+                Ready to try it?
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Start with one project. Build context. Schedule your first agent.
+                Start with one project. The free tier gives you
+                1 project and 50 memories. See the difference.
               </p>
               <Link
                 href="/auth/login"
                 className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
               >
-                Get started
+                Start for free
               </Link>
             </div>
           </section>
