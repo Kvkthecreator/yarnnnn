@@ -1,14 +1,12 @@
 # YARNNN v5 Roadmap
 
-**Date:** 2026-01-29
-**Current Phase:** Phase 3 - Work Agents
-**Status:** Architecture complete (ADR-005/006/007), ready for work agents
+**Date:** 2026-01-30
+**Current Phase:** Architecture Refinement + Work Agents
+**Status:** Core complete, expanding TP architecture and work orchestration
 
 ---
 
 ## Architecture Summary
-
-The core architecture is now complete:
 
 | ADR | Status | Description |
 |-----|--------|-------------|
@@ -16,6 +14,9 @@ The core architecture is now complete:
 | ADR-006 | ✅ Implemented | Session and Message Architecture |
 | ADR-007 | ✅ Implemented | Thinking Partner Project Authority (Tools) |
 | ADR-008 | ✅ Implemented | Document Pipeline Architecture |
+| ADR-009 | 📝 Draft | Work and Agent Orchestration |
+| ADR-010 | 📝 Draft | Thinking Partner as Primary Interface |
+| ADR-011 | 📝 Draft | Frontend Navigation Architecture |
 
 ### What's Built
 
@@ -184,4 +185,8 @@ Query ──→ Embedding ──→ Vector Search ──→ Relevant Memories
 - [ADR-006: Session and Message Architecture](../adr/ADR-006-session-message-architecture.md)
 - [ADR-007: Thinking Partner Project Authority](../adr/ADR-007-thinking-partner-project-authority.md)
 - [ADR-008: Document Pipeline Architecture](../adr/ADR-008-document-pipeline.md)
+- [ADR-009: Work and Agent Orchestration](../adr/ADR-009-work-agent-orchestration.md)
+- [ADR-010: Thinking Partner Architecture](../adr/ADR-010-thinking-partner-architecture.md)
+- [ADR-010: Stress Tests](../adr/ADR-010-stress-tests.md)
+- [ADR-011: Frontend Navigation Architecture](../adr/ADR-011-frontend-navigation-architecture.md)
 - [Database Schema](../database/SCHEMA.md)

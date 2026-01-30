@@ -26,7 +26,7 @@ interface Project {
 }
 
 export default function ProjectPage({ params }: { params: { id: string } }) {
-  const [activeTab, setActiveTab] = useState<Tab>("context");
+  const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [project, setProject] = useState<Project | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +83,12 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
         <div className="container mx-auto px-4">
           <div className="flex gap-1">
             <TabButton
+              active={activeTab === "chat"}
+              onClick={() => setActiveTab("chat")}
+              icon={<MessageSquare className="w-4 h-4" />}
+              label="Chat"
+            />
+            <TabButton
               active={activeTab === "context"}
               onClick={() => setActiveTab("context")}
               icon={<FileText className="w-4 h-4" />}
@@ -94,12 +100,6 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
               icon={<Briefcase className="w-4 h-4" />}
               label="Work"
             />
-            <TabButton
-              active={activeTab === "chat"}
-              onClick={() => setActiveTab("chat")}
-              icon={<MessageSquare className="w-4 h-4" />}
-              label="Chat"
-            />
           </div>
         </div>
       </nav>
@@ -108,7 +108,7 @@ export default function ProjectPage({ params }: { params: { id: string } }) {
       <main className="container mx-auto px-4 py-6">
         {activeTab === "context" && <ContextTab projectId={params.id} />}
         {activeTab === "work" && <WorkTab projectId={params.id} />}
-        {activeTab === "chat" && <ChatTab projectId={params.id} />}
+        {activeTab === "chat" && <ChatTab projectId={params.id} projectName={project.name} />}
       </main>
     </div>
   );
@@ -400,6 +400,6 @@ function WorkTab({ projectId }: { projectId: string }) {
   );
 }
 
-function ChatTab({ projectId }: { projectId: string }) {
-  return <Chat projectId={projectId} includeContext />;
+function ChatTab({ projectId, projectName }: { projectId: string; projectName: string }) {
+  return <Chat projectId={projectId} projectName={projectName} includeContext />;
 }

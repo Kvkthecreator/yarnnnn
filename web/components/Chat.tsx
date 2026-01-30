@@ -15,6 +15,11 @@ interface ChatProps {
    */
   projectId?: string;
   /**
+   * Project name for scope indicator display.
+   * Only used when projectId is provided.
+   */
+  projectName?: string;
+  /**
    * Whether to include context in the chat.
    * For project chat: includes user + project context.
    * For global chat: includes user context only.
@@ -72,6 +77,7 @@ function isFileAllowed(file: File): boolean {
  */
 export function Chat({
   projectId,
+  projectName,
   includeContext = true,
   emptyMessage,
   heightClass = "h-[calc(100vh-240px)]",
@@ -308,6 +314,14 @@ export function Chat({
 
       {/* Messages */}
       <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+        {/* Scope Indicator */}
+        <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
+          <span className="w-2 h-2 rounded-full bg-primary/60" />
+          <span>
+            {projectId ? `Chatting in: ${projectName || "Project"}` : "Chatting in: Dashboard"}
+          </span>
+        </div>
+
         {isLoadingHistory && (
           <div className="flex justify-center py-4">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />

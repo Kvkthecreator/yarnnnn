@@ -1,7 +1,7 @@
 # Database Schema
 
 **Supabase Project**: `noxgqcwynkzqabljjyon`
-**Architecture**: ADR-005 Unified Memory with Embeddings
+**Architecture**: ADR-005 Unified Memory, ADR-006 Sessions, ADR-008 Documents
 **Extensions**: pgvector (for embeddings)
 
 ---
@@ -9,13 +9,18 @@
 ## Entity Relationship
 
 ```
-user      1──n memories      (unified memory: user + project scoped)
-project   1──n memories      (project-scoped memories)
-project   1──n documents
-document  1──n chunks        (semantic segments with embeddings)
-project   1──n work_tickets
-work_ticket 1──n work_outputs
-project   1──n agent_sessions
+user      1──n memories         (unified memory: user + project scoped)
+user      1──n chat_sessions    (TP conversations)
+user      1──n documents        (uploaded files)
+
+project   1──n memories         (project-scoped memories)
+project   1──n chat_sessions    (project-scoped conversations)
+project   1──n documents        (project-scoped documents)
+project   1──n work_tickets     (future: work orchestration)
+
+document  1──n chunks           (semantic segments with embeddings)
+chat_session 1──n session_messages (conversation turns)
+work_ticket 1──n work_outputs   (agent deliverables)
 ```
 
 ---
@@ -24,7 +29,7 @@ project   1──n agent_sessions
 
 ### 1. memories
 
-Unified memory storage. Replaces the previous `user_context` and `blocks` tables.
+Unified memory storage (ADR-005). Replaces the previous `user_context` and `blocks` tables.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -46,20 +51,58 @@ Unified memory storage. Replaces the previous `user_context` and `blocks` tables
 - `project_id IS NULL` → User-scoped (portable across all projects)
 - `project_id IS NOT NULL` → Project-scoped (isolated to specific work)
 
-**Indexes:**
-- `idx_memories_user` (user_id) WHERE is_active
-- `idx_memories_project` (project_id) WHERE is_active
-- `idx_memories_importance` (importance DESC) WHERE is_active
-- `idx_memories_tags` GIN(tags) WHERE is_active
-- `idx_memories_embedding` ivfflat(embedding) WHERE is_active AND embedding IS NOT NULL
-
 **RLS:** Users can only manage their own memories.
 
 ---
 
-### 2. documents
+### 2. chat_sessions
 
-Uploaded files (PDF, DOCX, etc). Parsed into chunks. (ADR-008)
+Thinking Partner conversation containers (ADR-006).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users, direct ownership |
+| project_id | UUID | FK → projects, **nullable** (NULL = global/orchestration chat) |
+| session_type | TEXT | Default: `thinking_partner` |
+| status | TEXT | `active`, `completed`, `archived` |
+| started_at | TIMESTAMPTZ | Session start |
+| ended_at | TIMESTAMPTZ | Session end |
+| context_metadata | JSONB | `{memories_count, context_type, model}` |
+| created_at | TIMESTAMPTZ | Auto |
+| updated_at | TIMESTAMPTZ | Auto (trigger) |
+
+**Session Reuse:** Daily scope - one active session per user/project/day.
+
+**RLS:** Users own their chat sessions.
+
+**RPCs:**
+- `get_or_create_chat_session(user_id, project_id, session_type, scope)` - Daily reuse logic
+- `append_session_message(session_id, role, content, metadata)` - Auto sequence numbers
+
+---
+
+### 3. session_messages
+
+Individual conversation turns within a chat session (ADR-006).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| session_id | UUID | FK → chat_sessions |
+| role | TEXT | `user`, `assistant`, `system` |
+| content | TEXT | Message content |
+| sequence_number | INTEGER | Order within session (unique per session) |
+| metadata | JSONB | `{tokens, latency_ms, model}` |
+| created_at | TIMESTAMPTZ | Auto |
+
+**RLS:** Users can access messages in their sessions.
+
+---
+
+### 4. documents
+
+Uploaded files (PDF, DOCX, etc). Parsed into chunks (ADR-008).
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -78,18 +121,13 @@ Uploaded files (PDF, DOCX, etc). Parsed into chunks. (ADR-008)
 | word_count | INTEGER | Approximate |
 | created_at | TIMESTAMPTZ | Auto |
 
-**Indexes:**
-- `idx_documents_user` (user_id)
-- `idx_documents_project` (project_id)
-- `idx_documents_status` (processing_status)
-
 **RLS:** Users can manage their own documents (via user_id).
 
 **Storage:** `documents` bucket with user-folder RLS.
 
 ---
 
-### 3. chunks
+### 5. chunks
 
 Document segments for retrieval. Intermediate layer between raw documents and derived memories.
 
@@ -105,16 +143,11 @@ Document segments for retrieval. Intermediate layer between raw documents and de
 | token_count | INTEGER | Actual token count |
 | created_at | TIMESTAMPTZ | Auto |
 
-**Indexes:**
-- `idx_chunks_document` (document_id)
-- `idx_chunks_order` (document_id, chunk_index)
-- `idx_chunks_embedding` ivfflat(embedding) WHERE embedding IS NOT NULL
-
 **RLS:** Users can access chunks from their documents (via `documents.user_id`).
 
 ---
 
-### 4. workspaces
+### 6. workspaces
 
 Multi-tenancy root. One per user/org.
 
@@ -131,16 +164,11 @@ Multi-tenancy root. One per user/org.
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto (trigger) |
 
-**Indexes:**
-- `idx_workspaces_ls_customer` (lemonsqueezy_customer_id)
-- `idx_workspaces_ls_subscription` (lemonsqueezy_subscription_id)
-- `idx_workspaces_subscription_status` (subscription_status)
-
 **RLS:** Owner can manage own workspaces.
 
 ---
 
-### 5. projects
+### 7. projects
 
 User's work container.
 
@@ -157,9 +185,9 @@ User's work container.
 
 ---
 
-### 6. work_tickets
+### 8. work_tickets (Future - ADR-009)
 
-Work request lifecycle.
+Work request lifecycle. Currently exists but not actively used.
 
 | Column | Type | Notes |
 |--------|------|-------|
@@ -174,15 +202,11 @@ Work request lifecycle.
 | started_at | TIMESTAMPTZ | When agent started |
 | completed_at | TIMESTAMPTZ | When agent finished |
 
-**Indexes:**
-- `idx_tickets_project` (project_id)
-- `idx_tickets_status` (status)
-
 **RLS:** Users can manage tickets in their projects.
 
 ---
 
-### 7. work_outputs
+### 9. work_outputs (Future - ADR-009)
 
 Agent deliverables.
 
@@ -201,27 +225,7 @@ Agent deliverables.
 
 ---
 
-### 8. agent_sessions
-
-Execution logs for provenance.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| agent_type | TEXT | Which agent ran |
-| messages | JSONB | Full conversation history |
-| metadata | JSONB | Model, tokens, timing |
-| ticket_id | UUID | FK → work_tickets (nullable) |
-| project_id | UUID | FK → projects (nullable for global chat) |
-| user_id | UUID | FK → auth.users |
-| created_at | TIMESTAMPTZ | Auto |
-| completed_at | TIMESTAMPTZ | When session ended |
-
-**RLS:** Users can view and create sessions.
-
----
-
-### 9. subscription_events
+### 10. subscription_events
 
 Audit log for Lemon Squeezy webhook events.
 
@@ -236,12 +240,57 @@ Audit log for Lemon Squeezy webhook events.
 | payload | JSONB | Full webhook payload |
 | created_at | TIMESTAMPTZ | Auto |
 
-**Indexes:**
-- `idx_subscription_events_workspace` (workspace_id)
-- `idx_subscription_events_type` (event_type)
-- `idx_subscription_events_created` (created_at DESC)
-
 **RLS:** Users can view their own subscription events.
+
+---
+
+### 11. scheduled_messages (Future - proactive features)
+
+For scheduled/recurring message delivery.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| workspace_id | UUID | FK → workspaces |
+| scheduled_for | TIMESTAMPTZ | When to send |
+| message_type | TEXT | Type of message |
+| subject | TEXT | Email subject |
+| content | JSONB | Message content |
+| recipient_email | TEXT | Delivery target |
+| status | TEXT | `pending`, `sent`, `failed` |
+| sent_at | TIMESTAMPTZ | When actually sent |
+| failure_reason | TEXT | On failure |
+| created_at | TIMESTAMPTZ | Auto |
+
+**RLS:** Users can view their workspace messages.
+
+---
+
+### 12. email_delivery_log (Future - proactive features)
+
+Audit log for email delivery.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| scheduled_message_id | UUID | FK → scheduled_messages |
+| recipient | TEXT | Email address |
+| subject | TEXT | Email subject |
+| provider | TEXT | Default: `resend` |
+| provider_message_id | TEXT | Provider's message ID |
+| status | TEXT | Delivery status |
+| status_updated_at | TIMESTAMPTZ | Last status update |
+| created_at | TIMESTAMPTZ | Auto |
+
+**RLS:** Users can view logs for their messages.
+
+---
+
+## Legacy Tables
+
+### agent_sessions (Deprecated)
+
+Originally for work ticket execution logs. Superseded by `chat_sessions` for TP conversations. May be repurposed for work agent execution logs when ADR-009 is implemented.
 
 ---
 
@@ -251,7 +300,7 @@ Audit log for Lemon Squeezy webhook events.
 |------|-------------|--------|
 | `001_initial_schema.sql` | Base tables | Applied |
 | `002_fix_rls_policies.sql` | RLS fixes | Applied |
-| `003_scheduling_tables.sql` | Scheduling tables | Applied |
+| `003_scheduling_tables.sql` | Scheduling tables (scheduled_messages, email_delivery_log) | Applied |
 | `004_extend_blocks_for_extraction.sql` | Block extensions (superseded) | Applied |
 | `005_user_context_layer.sql` | User context layer (superseded) | Applied |
 | `006_unified_memory.sql` | ADR-005 unified memory | Applied |
@@ -263,25 +312,25 @@ Audit log for Lemon Squeezy webhook events.
 
 ---
 
-## Deprecated Tables (Removed in 006)
+## Key Design Decisions
 
-These tables are removed by ADR-005:
+### ADR-005: Unified Memory
+1. Single `memories` table instead of separate user_context + blocks
+2. Scope via nullable FK: `project_id IS NULL` = user-scoped, else project-scoped
+3. Embeddings first-class: vector(1536) column with ivfflat index
+4. Emergent structure: Tags and entities extracted by LLM, not enum categories
+5. Soft-delete: `is_active` flag instead of hard delete
 
-- `user_context` → Replaced by `memories` with `project_id IS NULL`
-- `blocks` → Replaced by `memories` with `project_id IS NOT NULL`
-- `block_relations` → Deferred; entity relationships stored in `memories.entities`
-- `extraction_logs` → Simplified; tracking via `memories.source_ref`
+### ADR-006: Session Architecture
+1. Normalized `chat_sessions` + `session_messages` tables
+2. Direct `user_id` on sessions (not via project chain)
+3. Daily session reuse via `get_or_create_chat_session` RPC
+4. Global chat: `project_id IS NULL` on session
 
----
-
-## Key Design Decisions (ADR-005)
-
-1. **Unified table**: Single `memories` table instead of separate user_context + blocks
-2. **Scope via nullable FK**: `project_id IS NULL` = user-scoped, else project-scoped
-3. **Embeddings first-class**: vector(1536) column with ivfflat index for semantic search
-4. **Emergent structure**: Tags and entities extracted by LLM, not forced into enum categories
-5. **Soft-delete**: `is_active` flag instead of hard delete for auditability
-6. **Document pipeline**: documents → chunks → memories (three-tier)
+### ADR-008: Document Pipeline
+1. Three-tier: documents → chunks → memories
+2. Direct `user_id` on documents (RLS via ownership)
+3. Processing status tracking for async pipeline
 
 ---
 
@@ -302,15 +351,13 @@ ORDER BY relevance DESC
 LIMIT 20;
 ```
 
-### Tag-Based Filtering
+### Session History
 
 ```sql
--- Find memories with specific tags
-SELECT * FROM memories
-WHERE user_id = $user_id
-  AND is_active = true
-  AND tags @> ARRAY['client', 'deadline']
-ORDER BY importance DESC;
+-- Get messages for a session
+SELECT * FROM session_messages
+WHERE session_id = $session_id
+ORDER BY sequence_number;
 ```
 
 ### Document Chunk Retrieval
