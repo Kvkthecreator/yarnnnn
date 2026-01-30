@@ -1,4 +1,4 @@
-# ADR-016: Work Agents and Artifact Model
+# ADR-016: Layered Agent Architecture and Output Model
 
 > **Status**: Draft
 > **Date**: 2025-01-30
@@ -8,304 +8,380 @@
 
 ## Context
 
-ADR-015 Phase 1 proved ambient work flows technically. Testing revealed qualitative issues:
+ADR-015 Phase 1 proved ambient work flows technically. Testing revealed:
+1. Scattered outputs (5-10 fragments vs. one coherent piece)
+2. TP verbosity (duplicates content instead of referencing)
+3. Progress opacity (no visibility into what's happening)
 
-1. **Scattered outputs**: Work produces multiple discrete outputs (Finding, Insight, Recommendation) - feels fragmented vs. Claude Artifacts / ChatGPT Canvas
-2. **TP verbosity**: When artifact exists, TP duplicates content in chat instead of referencing it
-3. **Progress opacity**: User waits without visibility into what TP is doing
-
-This ADR addresses the **work agents layer** (layer 2) and the **output model**.
-
----
-
-## Current State Analysis
-
-### Existing Work Agents
-
-| Agent | Purpose | Current Output Model |
-|-------|---------|---------------------|
-| **ResearchAgent** | Investigation/analysis | Multiple `emit_work_output` calls (finding, insight, recommendation) |
-| **ContentAgent** | Content creation | Multiple drafts + recommendations |
-| **ReportingAgent** | Structured reports | Section-by-section emissions |
-
-### Current Output Tool
-
-```python
-EMIT_WORK_OUTPUT_TOOL = {
-    "name": "emit_work_output",
-    "input_schema": {
-        "properties": {
-            "output_type": {"enum": ["finding", "recommendation", "insight", "draft", "report"]},
-            "title": {"type": "string"},
-            "body": {
-                "properties": {
-                    "summary": {"type": "string"},
-                    "details": {"type": "string"},
-                    "evidence": {"type": "array"},
-                    "implications": {"type": "array"}
-                }
-            },
-            "confidence": {"type": "number"},
-            "source_memory_ids": {"type": "array"}
-        }
-    }
-}
-```
-
-**Problem**: This encourages fragmentation. Agents emit 5-10 small pieces instead of one coherent artifact.
+The root issue: **unclear separation between TP's role and work agents' roles**.
 
 ---
 
-## Decision
-
-### 1. Artifact-First Output Model
-
-Shift from "emit many outputs" to "build one artifact":
+## Decision: Layered Agent Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  CURRENT: Multiple discrete outputs                             │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                 │
-│  emit_work_output("finding", "Finding 1: ...")                  │
-│  emit_work_output("finding", "Finding 2: ...")                  │
-│  emit_work_output("insight", "Pattern observed...")             │
-│  emit_work_output("recommendation", "Suggest...")               │
-│  emit_work_output("recommendation", "Also consider...")         │
-│                                                                 │
-│  → 5 separate database rows, scattered display                  │
-└─────────────────────────────────────────────────────────────────┘
-
-┌─────────────────────────────────────────────────────────────────┐
-│  NEW: Single evolving artifact                                  │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                 │
-│  create_artifact("research_report", {                           │
-│    sections: [                                                  │
-│      { type: "summary", content: "..." },                       │
-│      { type: "findings", items: [...] },                        │
-│      { type: "recommendations", items: [...] }                  │
-│    ]                                                            │
-│  })                                                             │
-│                                                                 │
-│  → 1 coherent artifact, consolidated display                    │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 1: THINKING PARTNER (TP)                                         │
+│  ───────────────────────────────────────────────────────────────────    │
+│                                                                         │
+│  Role: Orchestration, awareness, communication                          │
+│                                                                         │
+│  Capabilities:                                                          │
+│  - Conversational interface with user                                   │
+│  - Judgment: handle directly OR delegate to work agent                  │
+│  - Organization: projects, memory, context                              │
+│  - Awareness: WHO, WHERE, WHAT, RELEVANT                                │
+│                                                                         │
+│  Output types (TP's own responses):                                     │
+│  - conversation: Direct response to user                                │
+│  - delegation: "Research agent is working on this..."                   │
+│  - reference: "Done - see the research output" (brief, points to work)  │
+│  - organization: "Created project X", "Updated memory"                  │
+│                                                                         │
+│  Key behavior:                                                          │
+│  - When work agent produces output, TP REFERENCES it, doesn't duplicate │
+│  - TP communicates status/progress at awareness level                   │
+│  - TP is brief when artifacts exist elsewhere                           │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
+                              │
+                              │ delegates via create_work
+                              │ (when task requires deeper work)
+                              ▼
+┌─────────────────────────────────────────────────────────────────────────┐
+│  LAYER 2: WORK AGENTS                                                   │
+│  ───────────────────────────────────────────────────────────────────    │
+│                                                                         │
+│  Role: Execute specific work types, produce structured outputs          │
+│                                                                         │
+│  Each agent has:                                                        │
+│  - Defined purpose                                                      │
+│  - Own output configuration                                             │
+│  - Own system prompt                                                    │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │  RESEARCH AGENT                                                    │ │
+│  │  ─────────────────────────────────────────────────────────────    │ │
+│  │  Purpose: Investigate, analyze, synthesize                         │ │
+│  │                                                                    │ │
+│  │  Output: ONE research document                                     │ │
+│  │  - title: What was researched                                      │ │
+│  │  - content: Markdown (findings, analysis, recommendations)         │ │
+│  │  - metadata: { sources, confidence, scope, depth }                 │ │
+│  │                                                                    │ │
+│  │  Agent decides structure within content (not predetermined)        │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │  CONTENT AGENT                                                     │ │
+│  │  ─────────────────────────────────────────────────────────────    │ │
+│  │  Purpose: Create, draft, write                                     │ │
+│  │                                                                    │ │
+│  │  Output: ONE content piece                                         │ │
+│  │  - title: What was created                                         │ │
+│  │  - content: The actual content (post, article, email, etc.)        │ │
+│  │  - metadata: { format, tone, platform, word_count }                │ │
+│  │                                                                    │ │
+│  │  Agent decides format based on task (linkedin post vs blog, etc.)  │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+│  ┌───────────────────────────────────────────────────────────────────┐ │
+│  │  REPORTING AGENT                                                   │ │
+│  │  ─────────────────────────────────────────────────────────────    │ │
+│  │  Purpose: Summarize, structure, present                            │ │
+│  │                                                                    │ │
+│  │  Output: ONE report                                                │ │
+│  │  - title: Report title                                             │ │
+│  │  - content: Structured report (exec summary, sections, etc.)       │ │
+│  │  - metadata: { style, audience, period }                           │ │
+│  │                                                                    │ │
+│  │  Agent decides structure (executive vs detailed vs summary)        │ │
+│  └───────────────────────────────────────────────────────────────────┘ │
+│                                                                         │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-### 2. New Tool: `create_artifact` / `update_artifact`
+---
 
-Replace `emit_work_output` with artifact-oriented tools:
+## The Handoff: TP → Work Agent → Output
 
-```python
-CREATE_ARTIFACT_TOOL = {
-    "name": "create_artifact",
-    "description": """Create or replace the work artifact.
-
-Each work produces ONE artifact. Call this to set the complete output.
-The artifact is what the user sees in the output panel.
-
-Artifact types:
-- "research_report": Structured research with findings and recommendations
-- "content_draft": Written content (post, article, email, etc.)
-- "summary_report": Executive summary or briefing
-- "analysis": Data analysis or comparison
-
-The artifact should be COMPLETE when you call this tool.
-Include all sections in a single call.""",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "artifact_type": {
-                "type": "string",
-                "enum": ["research_report", "content_draft", "summary_report", "analysis"]
-            },
-            "title": {
-                "type": "string",
-                "description": "Artifact title (what user sees)"
-            },
-            "content": {
-                "type": "object",
-                "description": "Structured artifact content",
-                "properties": {
-                    "summary": {"type": "string", "description": "Executive summary (1-3 sentences)"},
-                    "body": {"type": "string", "description": "Main content (markdown supported)"},
-                    "sections": {
-                        "type": "array",
-                        "description": "Optional structured sections",
-                        "items": {
-                            "type": "object",
-                            "properties": {
-                                "heading": {"type": "string"},
-                                "content": {"type": "string"}
-                            }
-                        }
-                    },
-                    "metadata": {
-                        "type": "object",
-                        "description": "Optional metadata (sources, confidence, etc.)"
-                    }
-                }
-            }
-        },
-        "required": ["artifact_type", "title", "content"]
-    }
-}
-```
-
-### 3. Agent-Specific Artifact Shapes
-
-Each agent type produces a characteristic artifact:
-
-| Agent | Artifact Type | Shape |
-|-------|--------------|-------|
-| **Research** | `research_report` | Summary + Findings list + Recommendations list |
-| **Content** | `content_draft` | Summary + Body (the actual content) + Variants (optional) |
-| **Reporting** | `summary_report` | Executive summary + Sections + Appendix |
-
-The agent decides the internal structure. The artifact is ONE thing, displayed as ONE panel.
-
-### 4. TP Response Brevity
-
-When an artifact exists, TP should be brief:
-
-**System prompt addition:**
+### Flow
 
 ```
-When you create work that produces an artifact:
-- Keep your chat response SHORT (1-2 sentences)
-- Reference the artifact: "Done - see the research report in the output panel."
-- Do NOT duplicate the artifact content in your response
-- The artifact IS the deliverable; your message just acknowledges it
-
-Example:
 User: "Research AI code assistants"
-You: [call create_work...]
-You: "I've completed the research. The report is in your output panel with findings on GitHub Copilot, Cursor, and Claude Code."
-
-NOT:
-You: "I've completed the research. Here's what I found: [3 paragraphs repeating the artifact]..."
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  TP JUDGMENT                                                    │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                 │
+│  "This requires deeper work. Delegate to Research Agent."       │
+│                                                                 │
+│  TP Response (delegation):                                      │
+│  "I'll research AI code assistants for you."                    │
+│  [Status: Research agent working...]                            │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+           │
+           │ create_work(agent_type="research", task="...")
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  RESEARCH AGENT EXECUTION                                       │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                 │
+│  - Receives task + context                                      │
+│  - Does the work (analysis, synthesis)                          │
+│  - Produces ONE output document                                 │
+│                                                                 │
+│  Output:                                                        │
+│  {                                                              │
+│    title: "AI Code Assistants Comparison",                      │
+│    content: "## Overview\n...\n## Findings\n...",               │
+│    metadata: { sources: [...], confidence: 0.85 }               │
+│  }                                                              │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+           │
+           │ work complete, output saved
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  TP RESPONSE (reference)                                        │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                 │
+│  "Done - I've researched the top AI code assistants.            │
+│   See the output panel for the full comparison."                │
+│                                                                 │
+│  [Output panel opens with the research document]                │
+│                                                                 │
+│  TP does NOT duplicate the content. It REFERENCES the output.   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
-### 5. TP Awareness Status (UI)
+### When TP Handles Directly (No Delegation)
 
-Progress visibility at the TP awareness level:
+```
+User: "What's the capital of France?"
+           │
+           ▼
+┌─────────────────────────────────────────────────────────────────┐
+│  TP JUDGMENT                                                    │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                 │
+│  "Simple question. Handle directly."                            │
+│                                                                 │
+│  TP Response (conversation):                                    │
+│  "Paris is the capital of France."                              │
+│                                                                 │
+│  No work agent involved. No artifact created.                   │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Unified Output Model
+
+### Work Output (from Work Agents)
+
+```python
+@dataclass
+class WorkOutput:
+    """Single output from a work agent execution."""
+
+    # Identity
+    ticket_id: UUID           # Which work ticket produced this
+    agent_type: str           # "research" | "content" | "reporting"
+
+    # Content (agent-determined structure)
+    title: str                # Human-readable title
+    content: str              # Markdown body (agent decides structure)
+
+    # Agent-specific metadata
+    metadata: dict            # Varies by agent type
+
+    # Timestamps
+    created_at: datetime
+```
+
+### Metadata by Agent Type
+
+| Agent | Metadata Fields |
+|-------|-----------------|
+| **Research** | `sources`, `confidence`, `scope`, `depth` |
+| **Content** | `format`, `platform`, `tone`, `word_count` |
+| **Reporting** | `style`, `audience`, `period`, `sections` |
+
+The `content` field is always markdown. The agent decides its internal structure. The `metadata` provides context for display and future use.
+
+---
+
+## Recurring Work
+
+Recurring work fits the same model:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│  TP STATUS BAR (persistent, below TopBar or in chat area)       │
+│  RECURRING WORK (e.g., Weekly Report)                           │
 │  ─────────────────────────────────────────────────────────────  │
 │                                                                 │
-│  Idle state:                                                    │
+│  Schedule: Every Monday 9am                                     │
+│  Agent: Reporting                                               │
+│  Task: "Generate weekly project summary"                        │
+│                                                                 │
+│  Execution 1 (Jan 6):                                           │
+│    → Work Output: "Week of Jan 6 Report" (id: abc123)           │
+│                                                                 │
+│  Execution 2 (Jan 13):                                          │
+│    → Work Output: "Week of Jan 13 Report" (id: def456)          │
+│                                                                 │
+│  Execution 3 (Jan 20):                                          │
+│    → Work Output: "Week of Jan 20 Report" (id: ghi789)          │
+│                                                                 │
+│  Each execution produces ONE output.                            │
+│  Outputs are linked by schedule/template (not versioned within) │
+│                                                                 │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+**Key insight**: Recurring work = same work template executed multiple times. Each execution is independent, produces its own output. "Versioning" is just the history of executions, not in-document versioning.
+
+---
+
+## TP Awareness Status
+
+TP communicates its awareness state to the user:
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│  TP STATUS (always visible)                                     │
+│  ─────────────────────────────────────────────────────────────  │
+│                                                                 │
+│  Idle:                                                          │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ 🟢 Ready • Working in "Client A" project                 │   │
+│  │ 🟢 Ready • Dashboard                                     │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  Working state:                                                 │
+│  In project:                                                    │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ 🔄 Researching AI code assistants...                     │   │
-│  │    └─ Analyzing context ██████░░░░                       │   │
+│  │ 🟢 Ready • Client A project                              │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
-│  Tool use state:                                                │
+│  Work delegated:                                                │
 │  ┌─────────────────────────────────────────────────────────┐   │
-│  │ 🔧 Using: create_work (research agent)                   │   │
+│  │ 🔄 Research agent working...                             │   │
+│  │    Analyzing AI code assistants                          │   │
+│  └─────────────────────────────────────────────────────────┘   │
+│                                                                 │
+│  Work complete:                                                 │
+│  ┌─────────────────────────────────────────────────────────┐   │
+│  │ ✅ Research complete • View output                       │   │
 │  └─────────────────────────────────────────────────────────┘   │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-**Implementation:**
-- SSE events include status updates, not just tool results
-- Frontend subscribes to status stream
-- Single component displays TP's current awareness state
+This is TP's awareness made visible - not feature-level progress, but "what is TP doing right now?"
 
 ---
 
-## Implementation Plan
+## Implementation: Clean Break
 
-### Phase 2a: Artifact Model (Backend)
+### 1. Remove Old Output Model
 
-1. **New tool**: `create_artifact` replaces `emit_work_output`
-2. **Database**: Single `work_artifacts` table (or reuse `work_outputs` with new structure)
-3. **Agent updates**: Research/Content/Reporting agents produce one artifact each
-4. **Display**: Output panel shows single artifact with internal navigation
+- Delete `emit_work_output` tool from `base.py`
+- Delete `WorkOutput` with fragmented types (finding, insight, recommendation, etc.)
 
-### Phase 2b: TP Brevity (Prompt)
+### 2. Add New Output Model
 
-1. **System prompt**: Add artifact-aware response guidance
-2. **Tool description**: Clarify that artifact IS the deliverable
-3. **Testing**: Verify TP keeps chat responses compact
+```python
+# In base.py
+@dataclass
+class WorkOutput:
+    title: str
+    content: str              # Markdown, structure determined by agent
+    metadata: dict = field(default_factory=dict)
 
-### Phase 2c: TP Status UI (Frontend)
+# Each agent produces ONE WorkOutput
+# Agent's system prompt defines what structure to use in content
+```
 
-1. **SSE events**: Add `status` event type alongside `tool_use`, `tool_result`, `text`
-2. **Status component**: New `TPStatus` component in UI
-3. **Integration**: Display below TopBar or inline with chat
+### 3. Update Each Work Agent
+
+**Research Agent:**
+- Remove multi-output emit calls
+- Produce single markdown document with findings, analysis, recommendations
+- Set metadata: `{ sources, confidence, scope, depth }`
+
+**Content Agent:**
+- Remove multi-output emit calls
+- Produce single content piece
+- Set metadata: `{ format, platform, tone, word_count }`
+
+**Reporting Agent:**
+- Remove multi-output emit calls
+- Produce single structured report
+- Set metadata: `{ style, audience, period }`
+
+### 4. Update TP System Prompt
+
+Add guidance for brevity when work completes:
+
+```
+When you delegate work to an agent and it completes:
+- Keep your response SHORT (1-2 sentences)
+- REFERENCE the output: "Done - see the output panel for the full report."
+- Do NOT duplicate the content in your response
+- The work output IS the deliverable; you just acknowledge it
+
+When you handle something directly (no delegation):
+- Respond naturally in conversation
+- No artifact reference needed
+```
+
+### 5. Update Frontend
+
+- Output panel displays single `WorkOutput`
+- Render markdown content
+- Show metadata as secondary info (sources, format, etc.)
+- TP status component shows awareness state
 
 ---
 
-## Migration Path
+## Database Schema
 
-### Clean Break (No Dual Approaches)
+```sql
+-- Simplified: one output per ticket
+-- (or reuse work_outputs table with cleaner structure)
 
-Pre-launch means no legacy baggage. Replace entirely:
+ALTER TABLE work_outputs
+  DROP COLUMN output_type,  -- No more finding/insight/recommendation
+  ADD COLUMN metadata JSONB DEFAULT '{}';
 
-1. **Remove** `emit_work_output` tool from `base.py`
-2. **Add** `create_artifact` as the only output mechanism
-3. **Update** all three agents (Research, Content, Reporting) in one pass
-4. **Update** database schema if needed (single artifact per ticket)
-5. **Update** frontend output panel to display artifact structure
+-- content column already exists (text/markdown)
+-- title column already exists
+-- ticket_id links to work_tickets
 
-**No soft migration**. Dual approaches create downstream ambiguity. If the artifact model is the right direction, commit to it fully.
-
----
-
-## Open Questions
-
-1. **Artifact versioning**: Should artifacts be versionable/editable after creation?
-2. **Multiple artifacts**: What if a task genuinely needs multiple outputs? (Answer: probably shouldn't - one task = one artifact)
-3. **Artifact types**: Are the proposed types sufficient? Too rigid? Or should the agent just produce markdown with whatever structure fits?
-4. **Status granularity**: How detailed should progress indicators be?
-
-### Deeper Question: Is "Artifact" the Right Framing?
-
-Consider alternatives:
-
-**Option A: Typed Artifacts** (current proposal)
-- `research_report`, `content_draft`, `summary_report`, `analysis`
-- Pro: Structured, predictable display
-- Con: May feel rigid, agents boxed into types
-
-**Option B: Freeform Document**
-- Agent produces a single markdown document
-- Structure emerges from content, not schema
-- Pro: Maximum flexibility, agent decides format
-- Con: Less structured display, harder to parse
-
-**Option C: Canvas Model** (like ChatGPT Canvas)
-- Work produces a "canvas" - a workspace the user can interact with
-- Agent populates it, user can edit/refine
-- Pro: Collaborative feel
-- Con: More complex, may be over-engineered for MVP
-
-**Leaning toward**: Option A (Typed Artifacts) for MVP, but keep types minimal and allow rich markdown in `body`. The type is a hint for display, not a constraint on content.
+-- Each ticket has at most ONE output (enforced in code, not schema)
+```
 
 ---
 
 ## Success Criteria
 
-1. Work produces ONE artifact (not 5-10 fragments)
-2. TP chat response is brief when artifact exists
-3. User sees TP status during work execution
-4. Output panel displays coherent, complete artifact
-5. Experience feels like Claude Artifacts / ChatGPT Canvas
+1. **One output per work**: Each work execution produces exactly one output
+2. **TP brevity**: TP references outputs, doesn't duplicate content
+3. **Agent-determined structure**: Content structure emerges from agent, not schema
+4. **TP awareness visible**: User sees TP status (ready, working, complete)
+5. **Recurring works**: Same model, multiple executions over time
 
 ---
 
 ## References
 
 - ADR-009: Async Work System
-- ADR-015: Unified Context Model (Phase 2 notes)
+- ADR-015: Unified Context Model
 - ADR-013: Conversation + Surfaces Architecture
-- Claude Artifacts UX
-- ChatGPT Canvas UX
+- [Claude Artifacts](https://www.anthropic.com/news/artifacts)
+- [ChatGPT Canvas](https://openai.com/index/introducing-canvas/)
+- [Notion AI Agents](https://skywork.ai/blog/notion-ai-review-2025-features-pricing-workflows/)

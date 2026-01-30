@@ -156,8 +156,9 @@ async def send_work_complete_email(
         if summary:
             output_text += f"\n   {summary}"
 
-    app_url = os.environ.get("APP_URL", "https://yarnnnn.vercel.app")
-    work_url = f"{app_url}/projects/{project_id}?tab=work"
+    app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+    # Link to dashboard with project context and outputs surface open
+    work_url = f"{app_url}/dashboard?project={project_id}&surface=output"
 
     html = f"""
     <html>
