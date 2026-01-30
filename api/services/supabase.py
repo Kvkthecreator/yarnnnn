@@ -42,9 +42,10 @@ def decode_jwt_payload(token: str) -> dict:
 
 @dataclass
 class AuthenticatedClient:
-    """Wrapper that holds both the Supabase client and the authenticated user ID."""
+    """Wrapper that holds Supabase client, user ID, and email."""
     client: Client
     user_id: str
+    email: Optional[str] = None
 
 
 @lru_cache()
@@ -76,10 +77,11 @@ def get_user_client(authorization: Optional[str] = Header(None)) -> Authenticate
 
     token = authorization.replace("Bearer ", "")
 
-    # Decode JWT to get user ID
+    # Decode JWT to get user ID and email
     try:
         payload = decode_jwt_payload(token)
         user_id = payload.get("sub")
+        email = payload.get("email")  # Supabase includes email in JWT
         if not user_id:
             raise HTTPException(status_code=401, detail="Invalid token: no user ID")
     except ValueError as e:
@@ -95,7 +97,7 @@ def get_user_client(authorization: Optional[str] = Header(None)) -> Authenticate
     # Set the auth token for RLS
     client.postgrest.auth(token)
 
-    return AuthenticatedClient(client=client, user_id=user_id)
+    return AuthenticatedClient(client=client, user_id=user_id, email=email)
 
 
 # Type alias for dependency injection

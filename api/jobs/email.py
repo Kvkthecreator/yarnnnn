@@ -113,3 +113,96 @@ async def send_test_email(to: str) -> EmailResult:
         """,
         text="Test Email\n\nIf you're seeing this, email delivery is working!\n\n- YARNNN",
     )
+
+
+async def send_work_complete_email(
+    to: str,
+    project_name: str,
+    agent_type: str,
+    task: str,
+    outputs: list[dict],
+    project_id: str,
+) -> EmailResult:
+    """
+    Send email notification when work completes.
+
+    Args:
+        to: User's email address
+        project_name: Name of the project
+        agent_type: Type of agent (research, content, reporting)
+        task: The task description
+        outputs: List of output dicts with title, type, and summary
+        project_id: Project ID for link
+
+    Returns:
+        EmailResult
+    """
+    # Build output list HTML
+    output_html = ""
+    output_text = ""
+    for i, output in enumerate(outputs, 1):
+        title = output.get("title", "Untitled")
+        output_type = output.get("type", "output")
+        summary = output.get("summary", "")
+
+        output_html += f"""
+        <div style="margin-bottom: 16px; padding: 12px; background: #f8f9fa; border-radius: 8px;">
+            <strong style="color: #333;">{title}</strong>
+            <span style="color: #666; font-size: 12px; margin-left: 8px;">({output_type})</span>
+            {f'<p style="color: #555; margin: 8px 0 0 0; font-size: 14px;">{summary}</p>' if summary else ''}
+        </div>
+        """
+        output_text += f"\n{i}. {title} ({output_type})"
+        if summary:
+            output_text += f"\n   {summary}"
+
+    app_url = os.environ.get("APP_URL", "https://yarnnnn.vercel.app")
+    work_url = f"{app_url}/projects/{project_id}?tab=work"
+
+    html = f"""
+    <html>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #111; margin-bottom: 4px;">Work Complete</h2>
+        <p style="color: #666; margin-top: 0;">Your {agent_type} agent finished working on <strong>{project_name}</strong></p>
+
+        <div style="background: #f0f0f0; padding: 12px; border-radius: 8px; margin: 16px 0;">
+            <p style="margin: 0; color: #444;"><strong>Task:</strong> {task[:200]}{'...' if len(task) > 200 else ''}</p>
+        </div>
+
+        <h3 style="color: #333; margin-bottom: 12px;">Outputs ({len(outputs)})</h3>
+        {output_html}
+
+        <div style="margin-top: 24px;">
+            <a href="{work_url}" style="display: inline-block; background: #111; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
+                View Full Results
+            </a>
+        </div>
+
+        <p style="color: #888; font-size: 12px; margin-top: 32px;">
+            You're receiving this because you requested work in YARNNN.
+        </p>
+    </body>
+    </html>
+    """
+
+    text = f"""Work Complete
+
+Your {agent_type} agent finished working on {project_name}.
+
+Task: {task[:200]}{'...' if len(task) > 200 else ''}
+
+Outputs ({len(outputs)}):
+{output_text}
+
+View full results: {work_url}
+
+---
+You're receiving this because you requested work in YARNNN.
+"""
+
+    return await send_email(
+        to=to,
+        subject=f"[YARNNN] {agent_type.title()} work complete: {task[:50]}{'...' if len(task) > 50 else ''}",
+        html=html,
+        text=text,
+    )

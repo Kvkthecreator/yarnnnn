@@ -349,7 +349,11 @@ async def handle_create_work(auth, input: dict) -> dict:
     Returns:
         Dict with work execution results including outputs
     """
+    import logging
     from services.work_execution import execute_work_ticket
+    from jobs.email import send_work_complete_email
+
+    logger = logging.getLogger(__name__)
 
     task = input["task"]
     agent_type = input["agent_type"]
@@ -403,15 +407,49 @@ async def handle_create_work(auth, input: dict) -> dict:
             "message": f"Work request failed: {execution_result.get('error', 'Unknown error')}"
         }
 
-    # Format outputs for TP response
+    # Format outputs for TP response with summaries for conversation
     outputs = execution_result.get("outputs", [])
     output_summaries = []
     for output in outputs:
+        # Parse content JSON to get summary
+        summary = None
+        content = output.get("content")
+        if content:
+            try:
+                import json
+                body = json.loads(content)
+                summary = body.get("summary")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
         output_summaries.append({
             "id": output.get("id"),
             "title": output.get("title"),
             "type": output.get("output_type"),
+            "summary": summary,  # Include summary for TP to use in response
         })
+
+    # Send email notification if user has email
+    email_sent = False
+    if auth.email and output_summaries:
+        try:
+            # Get project name for email
+            project_result = auth.client.table("projects").select("name").eq("id", project_id).single().execute()
+            project_name = project_result.data.get("name", "Unknown Project") if project_result.data else "Unknown Project"
+
+            email_result = await send_work_complete_email(
+                to=auth.email,
+                project_name=project_name,
+                agent_type=agent_type,
+                task=task,
+                outputs=output_summaries,
+                project_id=project_id,
+            )
+            email_sent = email_result.success
+            if not email_result.success:
+                logger.warning(f"Failed to send work completion email: {email_result.error}")
+        except Exception as e:
+            logger.warning(f"Error sending work completion email: {e}")
 
     return {
         "success": True,
@@ -425,7 +463,9 @@ async def handle_create_work(auth, input: dict) -> dict:
         },
         "outputs": output_summaries,
         "output_count": len(outputs),
-        "message": f"Completed {agent_type} work with {len(outputs)} output(s): {task[:50]}..."
+        "email_sent": email_sent,
+        "message": f"Completed {agent_type} work with {len(outputs)} output(s). See summaries below.",
+        "instruction_to_assistant": "Present these outputs to the user conversationally. Mention each output by title and summarize what was found. Invite them to check the Work tab for full details."
     }
 
 
