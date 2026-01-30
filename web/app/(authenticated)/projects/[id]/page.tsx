@@ -12,10 +12,19 @@ import {
   MessageCircle,
   Tag,
   Star,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  Play,
+  Lightbulb,
+  FileEdit,
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { Chat } from "@/components/Chat";
 import { api } from "@/lib/api/client";
-import type { Memory } from "@/types";
+import type { Memory, WorkTicket, WorkOutput, WorkTicketCreate } from "@/types";
 
 type Tab = "context" | "work" | "chat";
 
@@ -373,28 +382,380 @@ function ImportModal({
   );
 }
 
+const STATUS_CONFIG: Record<string, { icon: React.ReactNode; color: string; label: string }> = {
+  pending: { icon: <Clock className="w-3 h-3" />, color: "text-yellow-600 bg-yellow-50", label: "Pending" },
+  running: { icon: <Loader2 className="w-3 h-3 animate-spin" />, color: "text-blue-600 bg-blue-50", label: "Running" },
+  completed: { icon: <CheckCircle2 className="w-3 h-3" />, color: "text-green-600 bg-green-50", label: "Completed" },
+  failed: { icon: <XCircle className="w-3 h-3" />, color: "text-red-600 bg-red-50", label: "Failed" },
+};
+
+const AGENT_TYPE_CONFIG: Record<string, { icon: React.ReactNode; label: string; description: string }> = {
+  research: { icon: <Lightbulb className="w-4 h-4" />, label: "Research", description: "Analyze context and find insights" },
+  content: { icon: <FileEdit className="w-4 h-4" />, label: "Content", description: "Generate content from context" },
+  reporting: { icon: <FileText className="w-4 h-4" />, label: "Reporting", description: "Create structured reports" },
+};
+
+const OUTPUT_TYPE_ICONS: Record<string, React.ReactNode> = {
+  finding: <CheckCircle2 className="w-4 h-4 text-blue-500" />,
+  recommendation: <AlertTriangle className="w-4 h-4 text-amber-500" />,
+  insight: <Lightbulb className="w-4 h-4 text-purple-500" />,
+  draft: <FileEdit className="w-4 h-4 text-green-500" />,
+  report: <FileText className="w-4 h-4 text-indigo-500" />,
+};
+
 function WorkTab({ projectId }: { projectId: string }) {
-  // TODO: Fetch tickets from API
+  const [tickets, setTickets] = useState<WorkTicket[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [expandedTicket, setExpandedTicket] = useState<string | null>(null);
+  const [ticketOutputs, setTicketOutputs] = useState<Record<string, WorkOutput[]>>({});
+
+  // Fetch tickets
+  useEffect(() => {
+    async function fetchTickets() {
+      try {
+        const data = await api.work.list(projectId);
+        setTickets(data);
+      } catch (err) {
+        console.error("Failed to fetch tickets:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    fetchTickets();
+  }, [projectId]);
+
+  // Load outputs when ticket is expanded
+  const handleToggleExpand = async (ticketId: string) => {
+    if (expandedTicket === ticketId) {
+      setExpandedTicket(null);
+      return;
+    }
+
+    setExpandedTicket(ticketId);
+
+    // Load outputs if not cached
+    if (!ticketOutputs[ticketId]) {
+      try {
+        const detail = await api.work.get(ticketId);
+        setTicketOutputs(prev => ({
+          ...prev,
+          [ticketId]: detail.outputs,
+        }));
+      } catch (err) {
+        console.error("Failed to fetch ticket outputs:", err);
+      }
+    }
+  };
+
+  const handleCreate = async (data: WorkTicketCreate) => {
+    setIsCreating(true);
+    try {
+      const result = await api.work.create(projectId, data);
+      // Refresh tickets list
+      const updated = await api.work.list(projectId);
+      setTickets(updated);
+      setShowCreateModal(false);
+
+      // Auto-expand the new ticket to show outputs
+      if (result.ticket_id) {
+        setExpandedTicket(result.ticket_id);
+        setTicketOutputs(prev => ({
+          ...prev,
+          [result.ticket_id]: result.outputs,
+        }));
+      }
+    } catch (err) {
+      console.error("Failed to create work:", err);
+      alert("Failed to create work request. Please try again.");
+    } finally {
+      setIsCreating(false);
+    }
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex justify-center py-12">
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-lg font-semibold">Work Tickets</h2>
-        <button className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md">
+        <button
+          onClick={() => setShowCreateModal(true)}
+          className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md inline-flex items-center gap-1"
+        >
           + New Request
         </button>
       </div>
 
-      <div className="space-y-3">
-        {/* Placeholder ticket */}
-        <div className="p-4 border border-border rounded-lg">
-          <div className="flex justify-between items-start mb-2">
-            <h3 className="font-medium">No work tickets yet</h3>
-            <span className="px-2 py-0.5 text-xs bg-muted rounded">pending</span>
-          </div>
-          <p className="text-sm text-muted-foreground">
-            Create a work request to have an agent analyze your context.
+      {tickets.length === 0 ? (
+        <div className="text-center py-12 border border-dashed border-border rounded-lg">
+          <Briefcase className="w-12 h-12 mx-auto text-muted-foreground mb-4" />
+          <h3 className="text-lg font-medium mb-2">No work tickets yet</h3>
+          <p className="text-muted-foreground mb-4 max-w-md mx-auto">
+            Create a work request to have an agent analyze your context and produce structured outputs.
           </p>
+          <button
+            onClick={() => setShowCreateModal(true)}
+            className="px-4 py-2 bg-primary text-primary-foreground rounded-md inline-flex items-center gap-2"
+          >
+            + New Request
+          </button>
         </div>
+      ) : (
+        <div className="space-y-3">
+          {tickets.map((ticket) => {
+            const statusConfig = STATUS_CONFIG[ticket.status] || STATUS_CONFIG.pending;
+            const agentConfig = AGENT_TYPE_CONFIG[ticket.agent_type] || AGENT_TYPE_CONFIG.research;
+            const isExpanded = expandedTicket === ticket.id;
+            const outputs = ticketOutputs[ticket.id] || [];
+
+            return (
+              <div
+                key={ticket.id}
+                className="border border-border rounded-lg overflow-hidden"
+              >
+                {/* Ticket Header */}
+                <div
+                  className="p-4 cursor-pointer hover:bg-muted/30 transition-colors"
+                  onClick={() => ticket.status === "completed" && handleToggleExpand(ticket.id)}
+                >
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        {/* Agent type badge */}
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-muted">
+                          {agentConfig.icon}
+                          {agentConfig.label}
+                        </span>
+                        {/* Status badge */}
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${statusConfig.color}`}>
+                          {statusConfig.icon}
+                          {statusConfig.label}
+                        </span>
+                        {/* Expand indicator for completed tickets */}
+                        {ticket.status === "completed" && (
+                          <span className="text-muted-foreground">
+                            {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-sm">{ticket.task}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {new Date(ticket.created_at).toLocaleString()}
+                        {ticket.completed_at && ` • Completed ${new Date(ticket.completed_at).toLocaleString()}`}
+                      </p>
+                    </div>
+                  </div>
+                  {ticket.error_message && (
+                    <div className="mt-2 p-2 bg-destructive/10 text-destructive text-xs rounded">
+                      {ticket.error_message}
+                    </div>
+                  )}
+                </div>
+
+                {/* Expanded Outputs */}
+                {isExpanded && outputs.length > 0 && (
+                  <div className="border-t border-border bg-muted/20 p-4">
+                    <h4 className="text-sm font-medium mb-3">Outputs ({outputs.length})</h4>
+                    <div className="space-y-3">
+                      {outputs.map((output) => (
+                        <OutputCard key={output.id} output={output} />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {showCreateModal && (
+        <CreateWorkModal
+          onClose={() => setShowCreateModal(false)}
+          onCreate={handleCreate}
+          isCreating={isCreating}
+        />
+      )}
+    </div>
+  );
+}
+
+function OutputCard({ output }: { output: WorkOutput }) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  // Parse content JSON
+  let body: { summary?: string; details?: string; evidence?: string[]; implications?: string[] } | null = null;
+  try {
+    if (output.content) {
+      body = JSON.parse(output.content);
+    }
+  } catch {
+    // Content might be plain text
+  }
+
+  return (
+    <div className="p-3 bg-background border border-border rounded-lg">
+      <div
+        className="flex items-start gap-2 cursor-pointer"
+        onClick={() => setIsExpanded(!isExpanded)}
+      >
+        {OUTPUT_TYPE_ICONS[output.output_type] || <FileText className="w-4 h-4" />}
+        <div className="flex-1">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-sm">{output.title}</span>
+            <span className="text-xs text-muted-foreground capitalize">{output.output_type}</span>
+          </div>
+          {body?.summary && !isExpanded && (
+            <p className="text-sm text-muted-foreground mt-1 line-clamp-2">{body.summary}</p>
+          )}
+        </div>
+        <span className="text-muted-foreground">
+          {isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
+        </span>
+      </div>
+
+      {isExpanded && body && (
+        <div className="mt-3 pl-6 space-y-2 text-sm">
+          {body.summary && (
+            <div>
+              <span className="font-medium text-muted-foreground">Summary:</span>
+              <p>{body.summary}</p>
+            </div>
+          )}
+          {body.details && (
+            <div>
+              <span className="font-medium text-muted-foreground">Details:</span>
+              <p className="whitespace-pre-wrap">{body.details}</p>
+            </div>
+          )}
+          {body.evidence && body.evidence.length > 0 && (
+            <div>
+              <span className="font-medium text-muted-foreground">Evidence:</span>
+              <ul className="list-disc list-inside ml-2">
+                {body.evidence.map((e, i) => <li key={i}>{e}</li>)}
+              </ul>
+            </div>
+          )}
+          {body.implications && body.implications.length > 0 && (
+            <div>
+              <span className="font-medium text-muted-foreground">Implications:</span>
+              <ul className="list-disc list-inside ml-2">
+                {body.implications.map((imp, i) => <li key={i}>{imp}</li>)}
+              </ul>
+            </div>
+          )}
+        </div>
+      )}
+
+      {isExpanded && !body && output.content && (
+        <div className="mt-3 pl-6 text-sm whitespace-pre-wrap">
+          {output.content}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CreateWorkModal({
+  onClose,
+  onCreate,
+  isCreating,
+}: {
+  onClose: () => void;
+  onCreate: (data: WorkTicketCreate) => void;
+  isCreating: boolean;
+}) {
+  const [task, setTask] = useState("");
+  const [agentType, setAgentType] = useState<"research" | "content" | "reporting">("research");
+
+  const handleSubmit = (e: FormEvent) => {
+    e.preventDefault();
+    if (task.trim().length >= 10) {
+      onCreate({ task: task.trim(), agent_type: agentType });
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+      <div className="bg-background border border-border rounded-lg p-6 w-full max-w-lg">
+        <div className="flex justify-between items-center mb-4">
+          <h2 className="text-lg font-semibold">New Work Request</h2>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Agent Type Selection */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Agent Type</label>
+            <div className="grid grid-cols-3 gap-2">
+              {Object.entries(AGENT_TYPE_CONFIG).map(([type, config]) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => setAgentType(type as "research" | "content" | "reporting")}
+                  className={`p-3 border rounded-lg text-left transition-colors ${
+                    agentType === type
+                      ? "border-primary bg-primary/5"
+                      : "border-border hover:border-muted-foreground/30"
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    {config.icon}
+                    <span className="font-medium text-sm">{config.label}</span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{config.description}</p>
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Task Input */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Task Description</label>
+            <textarea
+              value={task}
+              onChange={(e) => setTask(e.target.value)}
+              placeholder="Describe what you want the agent to do..."
+              className="w-full px-3 py-2 border border-border rounded-md bg-background resize-none h-24"
+              autoFocus
+            />
+            <p className="text-xs text-muted-foreground mt-1">
+              {task.length} characters {task.length < 10 && task.length > 0 && "(need 10+)"}
+            </p>
+          </div>
+
+          {/* Actions */}
+          <div className="flex justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-border rounded-md"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={task.trim().length < 10 || isCreating}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50 inline-flex items-center gap-2"
+            >
+              {isCreating && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isCreating ? "Running..." : "Run Agent"}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

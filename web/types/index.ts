@@ -135,16 +135,35 @@ export interface WorkTicketCreate {
   parameters?: Record<string, unknown>;
 }
 
-// Work Output
+// Work Output (ADR-009: structured outputs from agents)
 export interface WorkOutput {
   id: string;
   title: string;
-  output_type: "text" | "file";
-  content?: string;
+  output_type: "finding" | "recommendation" | "insight" | "draft" | "report";
+  content?: string; // JSON string containing body
   file_url?: string;
   file_format?: string;
-  ticket_id: string;
+  status: string;
+  ticket_id?: string;
   created_at: string;
+}
+
+// Work execution response (sync endpoint)
+export interface WorkExecutionResponse {
+  success: boolean;
+  ticket_id: string;
+  status: string;
+  outputs: WorkOutput[];
+  output_count: number;
+  execution_time_ms?: number;
+  error?: string;
+}
+
+// Work ticket with outputs (detail view)
+export interface WorkTicketDetail {
+  ticket: WorkTicket & { project_name?: string };
+  outputs: WorkOutput[];
+  output_count: number;
 }
 
 // Agent Session

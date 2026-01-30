@@ -8,7 +8,14 @@ Agent implementations
 - ThinkingPartnerAgent: Conversational assistant
 """
 
-from .base import BaseAgent, AgentResult, ContextBundle
+from .base import BaseAgent, AgentResult, ContextBundle, Memory, WorkOutput
 from .factory import create_agent
 
-__all__ = ["BaseAgent", "AgentResult", "ContextBundle", "create_agent"]
+__all__ = [
+    "BaseAgent",
+    "AgentResult",
+    "ContextBundle",
+    "Memory",
+    "WorkOutput",
+    "create_agent",
+]

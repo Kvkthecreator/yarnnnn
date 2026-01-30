@@ -1,6 +1,6 @@
 # ADR-009: Work and Agent Orchestration
 
-**Status**: Draft for Discussion
+**Status**: Implemented (Phase 1)
 **Date**: 2026-01-30
 **Supersedes**: None (new architecture)
 
@@ -266,52 +266,90 @@ Executions processed by queue processor
 
 ## Agent Interface
 
-All agents implement the same interface:
+All agents implement the same interface (see `api/agents/base.py`):
 
 ```python
-class BaseWorkAgent:
+class BaseAgent:
     """Specialist agent for producing work outputs."""
+
+    AGENT_TYPE: str              # research, content, reporting
+    SYSTEM_PROMPT: str           # Agent-specific system prompt
+
+    tools = [EMIT_WORK_OUTPUT_TOOL]  # All agents use this tool
+    model = "claude-sonnet-4-20250514"
 
     async def execute(
         self,
         task: str,                    # What to do
         context: ContextBundle,       # Memories + documents
         parameters: dict,             # Agent-specific config
-    ) -> list[WorkOutputResult]:
+    ) -> AgentResult:
         """
         Execute work and return outputs.
 
-        Returns list because one execution may produce multiple outputs
-        (e.g., research produces findings + recommendations).
+        The agent uses the emit_work_output tool to produce structured outputs.
+        Tool execution loop continues until stop_reason != "tool_use".
         """
         pass
 
 @dataclass
-class WorkOutputResult:
-    output_type: str              # summary, finding, draft, file
+class WorkOutput:
+    output_type: str              # finding, recommendation, insight, draft, report
     title: str
-    content: str | None           # for text
-    file_path: str | None         # for generated files
-    confidence: float             # 0-1
-    source_refs: list[str]        # memory/chunk IDs used
+    body: dict                    # {summary, details, evidence, implications}
+    confidence: float = 0.8
+    source_refs: list[str] = field(default_factory=list)
 ```
 
-### Agent Types
+### emit_work_output Tool
 
-**ResearchAgent**
-- Input: research question, scope (broad/focused), depth (quick/thorough)
-- Output: findings, insights, recommendations
-- Uses: web search tools, context synthesis
+All agents use this tool to produce structured outputs:
 
-**ContentAgent**
-- Input: content brief, format (article/copy/email), tone
-- Output: drafts, variations
-- Uses: user voice from memories, style preferences
+```python
+EMIT_WORK_OUTPUT_TOOL = {
+    "name": "emit_work_output",
+    "description": "Emit a structured work output for user review.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "output_type": {
+                "type": "string",
+                "enum": ["finding", "recommendation", "insight", "draft", "report"]
+            },
+            "title": {"type": "string"},
+            "body": {
+                "type": "object",
+                "properties": {
+                    "summary": {"type": "string"},
+                    "details": {"type": "string"},
+                    "evidence": {"type": "array", "items": {"type": "string"}},
+                    "implications": {"type": "array", "items": {"type": "string"}}
+                }
+            },
+            "confidence": {"type": "number", "minimum": 0, "maximum": 1},
+            "source_memory_ids": {"type": "array", "items": {"type": "string"}}
+        },
+        "required": ["output_type", "title", "body"]
+    }
+}
+```
 
-**ReportingAgent**
-- Input: report type, data scope, format (PDF/PPTX/markdown)
-- Output: formatted reports, visualizations
-- Uses: structured data from context, templates
+### Agent Types (Implemented)
+
+**ResearchAgent** (`api/agents/research.py`)
+- Parameters: scope (general/focused/comprehensive), depth (quick/standard/thorough)
+- Output types: finding, recommendation, insight
+- Analyzes context to discover patterns and actionable insights
+
+**ContentAgent** (`api/agents/content.py`)
+- Parameters: format (linkedin/twitter/blog/email/general), tone, length
+- Output types: draft
+- Generates platform-specific content from context
+
+**ReportingAgent** (`api/agents/reporting.py`)
+- Parameters: format (markdown/detailed/summary), style (executive/technical/casual), sections
+- Output types: report, finding, recommendation
+- Produces structured reports with multiple sections
 
 ---
 
@@ -449,11 +487,15 @@ Start with database queue. Migrate to external queue only when:
 
 ## Implementation Phases
 
-### Phase 1: Core Infrastructure (Partial)
+### Phase 1: Core Infrastructure ✅
 - [x] Using existing `work_tickets` table (maps to work_intents concept)
 - [x] Using existing `work_outputs` table
-- [ ] Queue processor (database-based)
-- [ ] Basic Research agent implementation
+- [x] WorkExecutionService for ticket lifecycle (`api/services/work_execution.py`)
+- [x] Work routes with authentication (`api/routes/work.py`)
+- [x] ResearchAgent with emit_work_output tool (`api/agents/research.py`)
+- [x] ContentAgent with platform-specific formats (`api/agents/content.py`)
+- [x] ReportingAgent for structured reports (`api/agents/reporting.py`)
+- [x] Work tab UI with ticket listing and output viewing
 
 ### Phase 2: TP Integration ✅
 - [x] TP tools for work creation (`create_work`)
@@ -475,10 +517,6 @@ Start with database queue. Migrate to external queue only when:
 - [ ] Supervision states and transitions
 - [ ] Review UI
 - [ ] Revision loop
-
-### Phase 6: Additional Agents
-- [ ] Content agent
-- [ ] Reporting agent (with file generation)
 
 ---
 
@@ -511,11 +549,61 @@ Start with database queue. Migrate to external queue only when:
 
 ## Decision
 
-**Pending discussion.** This ADR proposes foundational architecture for:
-- Asynchronous agent work
-- Push-based delivery
-- Scheduled/recurring work
-- Configurable supervision
-- Full provenance
+**Accepted and Phase 1 Implemented.** The foundational architecture now supports:
+- Synchronous work execution (async execution infrastructure in place)
+- Three specialized agents (research, content, reporting)
+- Structured outputs via emit_work_output tool
+- Work tab UI for ticket management and output viewing
+- TP tools for conversational work creation
 
-The architecture prioritizes correctness and extensibility over speed-to-implement, recognizing that this infrastructure will underpin all future agent capabilities.
+Future phases will add:
+- Push-based delivery (email, notifications)
+- Scheduled/recurring work
+- Configurable supervision with approval workflows
+- Full provenance and audit trails
+
+## Implementation Details
+
+### API Endpoints (`api/routes/work.py`)
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/projects/{id}/work` | POST | Create and execute work (sync) |
+| `/api/projects/{id}/work/async` | POST | Create ticket for later execution |
+| `/api/projects/{id}/work` | GET | List project's work tickets |
+| `/api/work/{id}` | GET | Get ticket with outputs |
+| `/api/work/{id}/execute` | POST | Execute a pending ticket |
+
+### Work Execution Flow (`api/services/work_execution.py`)
+
+```
+1. create_and_execute_work() called
+   ↓
+2. Create work_ticket record (status: pending)
+   ↓
+3. execute_work_ticket() starts
+   ↓
+4. Update status to 'running'
+   ↓
+5. load_context_for_work() loads memories
+   ↓
+6. create_agent(agent_type) instantiates agent
+   ↓
+7. agent.execute(task, context, parameters)
+   ↓
+8. Agent uses emit_work_output tool (may call multiple times)
+   ↓
+9. Parse tool calls into WorkOutput objects
+   ↓
+10. Save outputs to work_outputs table
+    ↓
+11. Update status to 'completed'
+```
+
+### Frontend Integration
+
+Work tab (`web/app/(authenticated)/projects/[id]/page.tsx`):
+- Lists all tickets with status badges
+- Expandable ticket cards showing outputs
+- Create modal with agent type selection
+- Output cards with structured body display (summary, details, evidence, implications)

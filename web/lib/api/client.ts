@@ -21,7 +21,8 @@ import type {
   DocumentListResponse,
   WorkTicket,
   WorkTicketCreate,
-  WorkOutput,
+  WorkTicketDetail,
+  WorkExecutionResponse,
   DeleteResponse,
   OnboardingStateResponse,
   SubscriptionStatus,
@@ -239,21 +240,35 @@ export const api = {
       ),
   },
 
-  // Work endpoints
+  // Work endpoints (ADR-009: Work and Agent Orchestration)
   work: {
-    listTickets: (projectId: string) =>
-      request<WorkTicket[]>(`/api/work/projects/${projectId}/tickets`),
-    createTicket: (projectId: string, data: WorkTicketCreate) =>
-      request<WorkTicket>(`/api/work/projects/${projectId}/tickets`, {
+    // List tickets for a project
+    list: (projectId: string, status?: string) => {
+      const params = status ? `?status=${status}` : "";
+      return request<WorkTicket[]>(`/api/projects/${projectId}/work${params}`);
+    },
+
+    // Create and execute immediately (sync)
+    create: (projectId: string, data: WorkTicketCreate) =>
+      request<WorkExecutionResponse>(`/api/projects/${projectId}/work`, {
         method: "POST",
         body: JSON.stringify(data),
       }),
-    getTicket: (ticketId: string) =>
-      request<WorkTicket & { outputs: WorkOutput[] }>(
-        `/api/work/tickets/${ticketId}`
-      ),
+
+    // Create ticket for later execution (async)
+    createAsync: (projectId: string, data: WorkTicketCreate) =>
+      request<WorkTicket>(`/api/projects/${projectId}/work/async`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    // Get ticket with outputs
+    get: (ticketId: string) =>
+      request<WorkTicketDetail>(`/api/work/${ticketId}`),
+
+    // Execute a pending ticket
     execute: (ticketId: string) =>
-      request<{ status: string }>(`/api/agents/tickets/${ticketId}/execute`, {
+      request<WorkExecutionResponse>(`/api/work/${ticketId}/execute`, {
         method: "POST",
       }),
   },
