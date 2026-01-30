@@ -5,11 +5,18 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Menu } from "lucide-react";
 import Sidebar from "./Sidebar";
+import { useSurface } from "@/contexts/SurfaceContext";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
 }
 
+/**
+ * ADR-013: Conversation + Surfaces
+ * Main authenticated layout with responsive surface support.
+ * On desktop, content shrinks when side panel is open.
+ */
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
@@ -17,6 +24,11 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   const [isMobile, setIsMobile] = useState(false);
   const router = useRouter();
   const supabase = createClient();
+
+  // ADR-013: Surface state for layout adjustment
+  const { state: surfaceState } = useSurface();
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
+  const surfaceOpen = surfaceState.isOpen && isDesktop;
 
   // Mobile detection for initial state
   useEffect(() => {
@@ -106,7 +118,15 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
           </button>
         )}
 
-        <main className={`flex-1 overflow-hidden ${!sidebarOpen && isMobile ? "pt-14" : ""}`}>
+        {/* ADR-013: Main content area shrinks when desktop side panel is open */}
+        <main
+          className={`flex-1 overflow-hidden transition-all duration-300 ${
+            !sidebarOpen && isMobile ? "pt-14" : ""
+          }`}
+          style={{
+            marginRight: surfaceOpen ? "480px" : "0",
+          }}
+        >
           {children}
         </main>
       </div>

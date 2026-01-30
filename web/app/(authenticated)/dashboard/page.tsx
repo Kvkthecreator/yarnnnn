@@ -1,23 +1,26 @@
 "use client";
 
+/**
+ * ADR-013: Conversation + Surfaces
+ * Unified conversation interface - the primary authenticated view.
+ * Projects are contextual lenses, not separate routes.
+ */
+
 import { useState, useEffect } from "react";
 import { Chat } from "@/components/Chat";
-import { UserContextPanel } from "@/components/UserContextPanel";
-import { Loader2, X, MessageSquare, FileText } from "lucide-react";
+import { Loader2, X, FolderOpen } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
 import { UpgradePrompt } from "@/components/subscription";
-
-type Tab = "chat" | "context" | "work";
+import { useProjectContext } from "@/contexts/ProjectContext";
 
 export default function Dashboard() {
-  const [activeTab, setActiveTab] = useState<Tab>("chat");
   const [showProjectModal, setShowProjectModal] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [rightPanelOpen, setRightPanelOpen] = useState(false);
   const [showUpgradePrompt, setShowUpgradePrompt] = useState(false);
 
-  const { canCreateProject, projects, isLoading: isLoadingSubscription } = useSubscriptionGate();
+  const { canCreateProject, projects } = useSubscriptionGate();
+  const { activeProject, setActiveProject, refreshProjects } = useProjectContext();
 
   // Listen for "New Project" event from sidebar
   useEffect(() => {
@@ -36,10 +39,13 @@ export default function Dashboard() {
   const handleCreateProject = async (name: string, description?: string) => {
     setIsCreating(true);
     try {
-      await api.projects.create({ name, description });
+      const newProject = await api.projects.create({ name, description });
       setShowProjectModal(false);
-      // Reload to refresh sidebar projects list
-      window.location.reload();
+      // Set the new project as active and refresh list
+      setActiveProject({ id: newProject.id, name: newProject.name });
+      refreshProjects();
+      // Also trigger sidebar refresh
+      window.dispatchEvent(new CustomEvent("refreshProjects"));
     } catch (err) {
       console.error("Failed to create project:", err);
       alert("Failed to create project");
@@ -48,52 +54,44 @@ export default function Dashboard() {
     }
   };
 
+  // Determine context label
+  const contextLabel = activeProject ? activeProject.name : "Dashboard";
+  const chatEmptyMessage = activeProject
+    ? `Hi! I'm your Thinking Partner. Let's work on "${activeProject.name}" together. I have access to this project's context and can help you analyze, create, or explore. What would you like to do?`
+    : "Hi! I'm your Thinking Partner. I'm here to help you think through anything - ideas, problems, decisions, or just to chat. As we talk, I'll learn about you and remember what's important. What would you like to explore?";
+
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
+      {/* Header - shows current context */}
       <header className="border-b border-border">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-xl font-semibold">Dashboard</h1>
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {activeProject && (
+              <FolderOpen className="w-4 h-4 text-muted-foreground" />
+            )}
+            <h1 className="text-lg font-semibold">{contextLabel}</h1>
+          </div>
+          {activeProject && (
+            <button
+              onClick={() => setActiveProject(null)}
+              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
+            >
+              Exit project
+            </button>
+          )}
         </div>
       </header>
 
-      {/* Tab Navigation */}
-      <nav className="border-b border-border">
-        <div className="container mx-auto px-4">
-          <div className="flex gap-1">
-            <TabButton
-              active={activeTab === "chat"}
-              onClick={() => setActiveTab("chat")}
-              icon={<MessageSquare className="w-4 h-4" />}
-              label="Chat"
-            />
-            <TabButton
-              active={activeTab === "context"}
-              onClick={() => setActiveTab("context")}
-              icon={<FileText className="w-4 h-4" />}
-              label="About You"
-            />
-          </div>
-        </div>
-      </nav>
-
-      {/* Tab Content */}
-      <div className="flex-1 flex overflow-hidden relative">
-        <main className="flex-1 container mx-auto px-4 py-6 overflow-hidden">
-          {activeTab === "chat" && (
-            <Chat
-              includeContext
-              heightClass="h-full"
-              emptyMessage="Hi! I'm your Thinking Partner. I'm here to help you think through anything - ideas, problems, decisions, or just to chat. As we talk, I'll learn about you and remember what's important. What would you like to explore?"
-            />
-          )}
-          {activeTab === "context" && (
-            <UserContextPanel
-              isOpen={true}
-              onClose={() => setActiveTab("chat")}
-              inline
-            />
-          )}
+      {/* Chat - full height conversation interface */}
+      <div className="flex-1 flex overflow-hidden">
+        <main className="flex-1 container mx-auto px-4 py-4 overflow-hidden">
+          <Chat
+            projectId={activeProject?.id}
+            projectName={activeProject?.name}
+            includeContext
+            heightClass="h-full"
+            emptyMessage={chatEmptyMessage}
+          />
         </main>
       </div>
 
@@ -115,32 +113,6 @@ export default function Dashboard() {
         />
       )}
     </div>
-  );
-}
-
-function TabButton({
-  active,
-  onClick,
-  icon,
-  label,
-}: {
-  active: boolean;
-  onClick: () => void;
-  icon: React.ReactNode;
-  label: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`flex items-center gap-2 px-4 py-3 text-sm font-medium border-b-2 transition-colors ${
-        active
-          ? "border-primary text-primary"
-          : "border-transparent text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {icon}
-      {label}
-    </button>
   );
 }
 

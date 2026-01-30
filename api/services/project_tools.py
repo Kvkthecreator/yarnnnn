@@ -568,7 +568,16 @@ async def handle_create_work(auth, input: dict) -> dict:
         "output_count": len(outputs),
         "email_sent": email_sent,
         "message": f"Completed {agent_type} work with {len(outputs)} output(s). See summaries below.",
-        "instruction_to_assistant": "Present these outputs to the user conversationally. Mention each output by title and summarize what was found. Invite them to check the Work tab for full details."
+        "instruction_to_assistant": "Present these outputs to the user conversationally. Mention each output by title and summarize what was found. Invite them to check the Work tab for full details.",
+        # ADR-013: UI action to open output surface with completed work
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "output",
+            "data": {
+                "ticketId": ticket_id,
+                "projectId": project_id,
+            }
+        }
     }
 
 

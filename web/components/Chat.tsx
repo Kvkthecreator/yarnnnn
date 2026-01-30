@@ -1,12 +1,14 @@
 "use client";
 
-import { useState, useRef, useEffect, FormEvent } from "react";
+import { useState, useRef, useEffect, FormEvent, useCallback } from "react";
 import { Send, Loader2, Upload, FileText, X, Paperclip } from "lucide-react";
 import { useChat } from "@/hooks/useChat";
 import { useDocuments } from "@/hooks/useDocuments";
 import { useOnboardingState } from "@/hooks/useOnboardingState";
 import { WelcomePrompt, MinimalContextBanner } from "@/components/WelcomePrompt";
 import { BulkImportModal } from "@/components/BulkImportModal";
+import { useSurface } from "@/contexts/SurfaceContext";
+import type { SurfaceType, SurfaceData } from "@/types/surfaces";
 
 interface ChatProps {
   /**
@@ -74,6 +76,8 @@ function isFileAllowed(file: File): boolean {
  * created/modified, the sidebar is automatically refreshed.
  *
  * ADR-008: Supports drag-and-drop file attachment with attach-then-send UX.
+ *
+ * ADR-013: TP can trigger surface openings via ui_action in tool responses.
  */
 export function Chat({
   projectId,
@@ -87,10 +91,26 @@ export function Chat({
     window.dispatchEvent(new CustomEvent("refreshProjects"));
   });
 
+  // ADR-013: Surface control for TP-triggered UI actions
+  const { openSurface } = useSurface();
+
+  // ADR-013: Handle UI actions from TP tool responses
+  const handleUIAction = useCallback(
+    (action: { type: string; surface?: string; data?: Record<string, unknown> }) => {
+      if (action.type === "OPEN_SURFACE" && action.surface) {
+        openSurface(action.surface as SurfaceType, action.data as SurfaceData);
+      } else if (action.type === "CLOSE_SURFACE") {
+        // Could call closeSurface here if needed
+      }
+    },
+    [openSurface]
+  );
+
   const { messages, isLoading, isLoadingHistory, error, sendMessage } = useChat({
     projectId,
     includeContext,
     onProjectChange: handleProjectChange,
+    onUIAction: handleUIAction,
   });
   const { uploadProgress, upload, clearProgress } = useDocuments(projectId);
   const {

@@ -1,8 +1,9 @@
 # ADR-013 Implementation Plan: Conversation + Surfaces
 
-> **Status**: Planning
+> **Status**: Implemented ✅
 > **Parent ADR**: [ADR-013: Conversation + Surfaces](./ADR-013-conversation-plus-surfaces.md)
 > **Date**: 2025-01-30
+> **Completed**: 2025-01-30
 
 ---
 
@@ -947,14 +948,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 - Desktop side panel behavior
 
 ### Manual Testing Checklist
-- [ ] New user onboarding flow
-- [ ] Project creation via TP
-- [ ] Work execution and output viewing
-- [ ] Schedule creation and management
-- [ ] Export flows (PDF, DOCX, email)
-- [ ] Mobile responsive behavior
-- [ ] Desktop side panel docking
-- [ ] Deep links working
+- [x] New user onboarding flow
+- [x] Project creation via TP
+- [x] Work execution and output viewing
+- [ ] Schedule creation and management (ADR-009 Phase 3 pending)
+- [x] Export flows (PDF, DOCX, email) - UI implemented, backend simulated
+- [x] Mobile responsive behavior
+- [x] Desktop side panel docking
+- [x] Deep links working
 
 ---
 

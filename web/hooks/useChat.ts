@@ -23,12 +23,20 @@ interface ToolResultEvent {
   result: Record<string, unknown>;
 }
 
+// ADR-013: UI action from TP tool responses
+interface TPUIAction {
+  type: "OPEN_SURFACE" | "CLOSE_SURFACE";
+  surface?: "output" | "context" | "schedule" | "export";
+  data?: Record<string, unknown>;
+}
+
 interface UseChatOptions {
   projectId?: string; // Optional - omit for global (user-level) chat
   includeContext?: boolean;
   onToolUse?: (tool: ToolUseEvent) => void; // Called when TP uses a tool
   onToolResult?: (result: ToolResultEvent) => void; // Called with tool result
   onProjectChange?: () => void; // Called when a project is created/modified
+  onUIAction?: (action: TPUIAction) => void; // ADR-013: Called when TP triggers UI action
 }
 
 interface UseChatReturn {
@@ -64,6 +72,7 @@ export function useChat({
   onToolUse,
   onToolResult,
   onProjectChange,
+  onUIAction,
 }: UseChatOptions = {}): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -254,6 +263,12 @@ export function useChat({
                 if (data.tool_result) {
                   const resultEvent = data.tool_result as ToolResultEvent;
                   onToolResult?.(resultEvent);
+
+                  // ADR-013: Check for UI action in tool result
+                  const result = resultEvent.result as { ui_action?: TPUIAction };
+                  if (result?.ui_action) {
+                    onUIAction?.(result.ui_action);
+                  }
                 }
 
                 if (data.done) {
@@ -297,7 +312,7 @@ export function useChat({
         abortControllerRef.current = null;
       }
     },
-    [projectId, includeContext, onToolUse, onToolResult, onProjectChange]
+    [projectId, includeContext, onToolUse, onToolResult, onProjectChange, onUIAction]
   );
 
   const clearMessages = useCallback(() => {
