@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * ADR-013: Conversation + Surfaces
+ * ADR-014: Top Bar with Minimal Chrome
  * Unified conversation interface - the primary authenticated view.
- * Projects are contextual lenses, not separate routes.
+ * Projects are contextual lenses selected via top bar dropdown.
  */
 
 import { useState, useEffect } from "react";
 import { Chat } from "@/components/Chat";
-import { Loader2, X, FolderOpen } from "lucide-react";
+import { Loader2, X } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
 import { UpgradePrompt } from "@/components/subscription";
@@ -22,7 +22,7 @@ export default function Dashboard() {
   const { canCreateProject, projects } = useSubscriptionGate();
   const { activeProject, setActiveProject, refreshProjects } = useProjectContext();
 
-  // Listen for "New Project" event from sidebar
+  // Listen for "New Project" event from top bar dropdown
   useEffect(() => {
     const handleOpenCreate = () => {
       // Check if user can create more projects
@@ -44,8 +44,6 @@ export default function Dashboard() {
       // Set the new project as active and refresh list
       setActiveProject({ id: newProject.id, name: newProject.name });
       refreshProjects();
-      // Also trigger sidebar refresh
-      window.dispatchEvent(new CustomEvent("refreshProjects"));
     } catch (err) {
       console.error("Failed to create project:", err);
       alert("Failed to create project");
@@ -54,46 +52,23 @@ export default function Dashboard() {
     }
   };
 
-  // Determine context label
-  const contextLabel = activeProject ? activeProject.name : "Dashboard";
+  // Determine empty message based on context
   const chatEmptyMessage = activeProject
     ? `Hi! I'm your Thinking Partner. Let's work on "${activeProject.name}" together. I have access to this project's context and can help you analyze, create, or explore. What would you like to do?`
     : "Hi! I'm your Thinking Partner. I'm here to help you think through anything - ideas, problems, decisions, or just to chat. As we talk, I'll learn about you and remember what's important. What would you like to explore?";
 
   return (
-    <div className="min-h-screen flex flex-col">
-      {/* Header - shows current context */}
-      <header className="border-b border-border">
-        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            {activeProject && (
-              <FolderOpen className="w-4 h-4 text-muted-foreground" />
-            )}
-            <h1 className="text-lg font-semibold">{contextLabel}</h1>
-          </div>
-          {activeProject && (
-            <button
-              onClick={() => setActiveProject(null)}
-              className="text-xs text-muted-foreground hover:text-foreground px-2 py-1 rounded hover:bg-muted transition-colors"
-            >
-              Exit project
-            </button>
-          )}
-        </div>
-      </header>
-
+    <div className="h-full flex flex-col overflow-hidden">
       {/* Chat - full height conversation interface */}
-      <div className="flex-1 flex overflow-hidden">
-        <main className="flex-1 container mx-auto px-4 py-4 overflow-hidden">
-          <Chat
-            projectId={activeProject?.id}
-            projectName={activeProject?.name}
-            includeContext
-            heightClass="h-full"
-            emptyMessage={chatEmptyMessage}
-          />
-        </main>
-      </div>
+      <main className="flex-1 container mx-auto px-4 py-4 overflow-hidden">
+        <Chat
+          projectId={activeProject?.id}
+          projectName={activeProject?.name}
+          includeContext
+          heightClass="h-full"
+          emptyMessage={chatEmptyMessage}
+        />
+      </main>
 
       {/* Create Project Modal */}
       {showProjectModal && (

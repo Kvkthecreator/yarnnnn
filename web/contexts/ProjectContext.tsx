@@ -22,7 +22,7 @@ interface ProjectContextValue {
   activeProject: ProjectRef | null;
   isLoading: boolean;
   setActiveProject: (project: ProjectRef | null) => void;
-  refreshProjects: () => Promise<void>;
+  refreshProjects: () => Promise<Project[]>;
 }
 
 const ProjectContext = createContext<ProjectContextValue | null>(null);
@@ -36,15 +36,34 @@ export function ProjectProvider({ children }: { children: ReactNode }) {
     try {
       const result = await api.projects.list();
       setProjects(result);
+      return result;
     } catch (error) {
       console.error('Failed to load projects:', error);
+      return [];
     } finally {
       setIsLoading(false);
     }
   }, []);
 
+  // Load projects and restore from URL query param on mount
   useEffect(() => {
-    loadProjects();
+    const initializeFromUrl = async () => {
+      const loadedProjects = await loadProjects();
+
+      // Check URL for ?project=<id> and restore context
+      if (typeof window !== 'undefined') {
+        const url = new URL(window.location.href);
+        const projectId = url.searchParams.get('project');
+        if (projectId && loadedProjects.length > 0) {
+          const project = loadedProjects.find((p: Project) => p.id === projectId);
+          if (project) {
+            setActiveProject({ id: project.id, name: project.name });
+          }
+        }
+      }
+    };
+
+    initializeFromUrl();
   }, [loadProjects]);
 
   // Listen for project refresh events (from TP creating projects)
