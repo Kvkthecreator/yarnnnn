@@ -96,7 +96,17 @@ UPDATE_PROJECT_TOOL = {
 
 CREATE_WORK_TOOL = {
     "name": "create_work",
-    "description": "Create a work request for an agent to complete a task. Use when the user asks you to research something, create content, or generate a report. The work will be processed asynchronously.",
+    "description": """Create a work request for an agent to complete a task.
+
+Use when the user asks you to research something, create content, or generate a report.
+
+CONTEXT ROUTING (ADR-015):
+- If user is in a project context, use that project_id
+- If request clearly relates to an existing project, route it there
+- If request is personal/one-off, omit project_id (creates ambient work)
+- If request suggests new ongoing topic, you may suggest creating a project first
+
+Ambient work (no project_id) is perfectly valid for one-off tasks.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -111,14 +121,14 @@ CREATE_WORK_TOOL = {
             },
             "project_id": {
                 "type": "string",
-                "description": "UUID of the project this work belongs to. Required."
+                "description": "UUID of the project this work belongs to. Optional - omit for ambient/personal work."
             },
             "parameters": {
                 "type": "object",
                 "description": "Optional agent-specific parameters (e.g., depth, format, tone)"
             }
         },
-        "required": ["task", "agent_type", "project_id"]
+        "required": ["task", "agent_type"]
     }
 }
 
@@ -445,9 +455,11 @@ async def handle_create_work(auth, input: dict) -> dict:
     """
     Create a work request for an agent and execute it immediately.
 
+    ADR-015: Supports ambient work (no project_id).
+
     Args:
         auth: UserClient with authenticated Supabase client
-        input: Tool input with task, agent_type, project_id, and optional parameters
+        input: Tool input with task, agent_type, optional project_id, and optional parameters
 
     Returns:
         Dict with work execution results including outputs
@@ -460,7 +472,7 @@ async def handle_create_work(auth, input: dict) -> dict:
 
     task = input["task"]
     agent_type = input["agent_type"]
-    project_id = input["project_id"]
+    project_id = input.get("project_id")  # Optional - None for ambient work
     parameters = input.get("parameters", {})
 
     # Validate agent_type
@@ -472,13 +484,18 @@ async def handle_create_work(auth, input: dict) -> dict:
         }
 
     # Create work ticket
-    result = auth.client.table("work_tickets").insert({
+    # ADR-015: Include user_id for ambient work (required when project_id is NULL)
+    ticket_data = {
         "task": task,
         "agent_type": agent_type,
-        "project_id": project_id,
         "parameters": parameters,
         "status": "pending",
-    }).execute()
+        "user_id": auth.user_id,  # Always set for RLS
+    }
+    if project_id:
+        ticket_data["project_id"] = project_id
+
+    result = auth.client.table("work_tickets").insert(ticket_data).execute()
 
     if not result.data:
         return {
@@ -536,9 +553,11 @@ async def handle_create_work(auth, input: dict) -> dict:
     email_sent = False
     if auth.email and output_summaries:
         try:
-            # Get project name for email
-            project_result = auth.client.table("projects").select("name").eq("id", project_id).single().execute()
-            project_name = project_result.data.get("name", "Unknown Project") if project_result.data else "Unknown Project"
+            # Get project name for email (or "Personal Work" for ambient)
+            project_name = "Personal Work"
+            if project_id:
+                project_result = auth.client.table("projects").select("name").eq("id", project_id).single().execute()
+                project_name = project_result.data.get("name", "Unknown Project") if project_result.data else "Unknown Project"
 
             email_result = await send_work_complete_email(
                 to=auth.email,
@@ -585,6 +604,8 @@ async def handle_list_work(auth, input: dict) -> dict:
     """
     List work requests, optionally filtered by project and status.
 
+    ADR-015: Includes ambient work (project_id IS NULL) when no project filter.
+
     Args:
         auth: UserClient with authenticated Supabase client
         input: Tool input with optional project_id, status, and limit
@@ -592,16 +613,15 @@ async def handle_list_work(auth, input: dict) -> dict:
     Returns:
         Dict with work requests list
     """
-    from routes.projects import get_or_create_workspace
-
-    workspace = await get_or_create_workspace(auth)
     project_id = input.get("project_id")
     status_filter = input.get("status", "all")
     limit = input.get("limit", 10)
 
-    # Build query - join through projects to respect workspace ownership
+    # Build query - RLS handles access control
+    # ADR-015: Query includes both project work and ambient work
     query = auth.client.table("work_tickets")\
-        .select("id, task, agent_type, status, project_id, created_at, started_at, completed_at, projects(name)")\
+        .select("id, task, agent_type, status, project_id, user_id, created_at, started_at, completed_at, projects(name)")\
+        .eq("is_template", False)\
         .order("created_at", desc=True)\
         .limit(limit)
 
@@ -619,13 +639,19 @@ async def handle_list_work(auth, input: dict) -> dict:
     # Format response
     work_items = []
     for t in tickets:
-        project_name = t.get("projects", {}).get("name", "Unknown") if t.get("projects") else "Unknown"
+        # ADR-015: Show "Personal" for ambient work
+        if t.get("project_id"):
+            project_name = t.get("projects", {}).get("name", "Unknown") if t.get("projects") else "Unknown"
+        else:
+            project_name = "Personal"
+
         work_items.append({
             "id": t["id"],
             "task": t["task"][:100] + "..." if len(t["task"]) > 100 else t["task"],
             "agent_type": t["agent_type"],
             "status": t["status"],
             "project_name": project_name,
+            "is_ambient": t.get("project_id") is None,
             "created_at": t["created_at"],
         })
 
