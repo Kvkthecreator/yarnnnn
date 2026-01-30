@@ -18,35 +18,60 @@ This creates friction:
 - Context learned in one project doesn't flow to related work
 - The user's continuous "self" is fragmented
 
-### The Ambient Companion Metaphor
+---
 
-Think of TP like Tinkerbell following Peter Pan - an ambient presence that's always there, understands context without being told, and helps naturally. Not a command-line interface, but a **friend with perfect memory**.
+## The Core Model: TP Follows the User
+
+The key insight: **TP follows the user through their world**, not the other way around.
 
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Morning: Coffee shop                                               │
-│  "I'm thinking about switching careers to product management"       │
-│  → Just conversation. TP remembers this.                            │
-├─────────────────────────────────────────────────────────────────────┤
-│  10am: Office - Client A work                                       │
-│  "Research competitive landscape for Client A's market"             │
-│  → TP naturally uses Client A context, does the work.               │
-├─────────────────────────────────────────────────────────────────────┤
-│  Lunch: Walking                                                     │
-│  "What are the best PM courses online?"                             │
-│  → TP recalls the morning conversation, connects the dots.          │
-├─────────────────────────────────────────────────────────────────────┤
-│  2pm: Office - New idea                                             │
-│  "I want to start a newsletter about AI trends"                     │
-│  → TP might suggest "want me to create a project for this?"         │
-│  → Or just helps explore. No forced structure.                      │
-├─────────────────────────────────────────────────────────────────────┤
-│  4pm: Office - Client B work                                        │
-│  "Draft a proposal for Client B using similar format to Client A"   │
-│  → TP naturally pulls from both contexts.                           │
+│                        USER'S WORLD                                 │
+│                                                                     │
+│    User moves through contexts throughout their day:                │
+│                                                                     │
+│    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐        │
+│    │ Personal│───▶│Client A │───▶│ Personal│───▶│Client B │        │
+│    │ morning │    │  work   │    │  lunch  │    │  work   │        │
+│    └─────────┘    └─────────┘    └─────────┘    └─────────┘        │
+│                                                                     │
+│    The user is the constant. Contexts are locations they visit.     │
 └─────────────────────────────────────────────────────────────────────┘
-
-Throughout: TP knows WHO you are. The continuous self persists.
+                              │
+                              │ TP follows
+                              ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                            TP                                       │
+│  ─────────────────────────────────────────────────────────────────  │
+│                                                                     │
+│  AWARENESS (what TP knows at any moment):                           │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ • WHO: User identity, preferences, history (always present)  │   │
+│  │ • WHERE: Current context (project, ambient, personal)        │   │
+│  │ • WHAT: Conversation content, user's apparent intent         │   │
+│  │ • RELEVANT: Cross-context memories when applicable           │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  CAPABILITIES (tools - the action space):                           │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ Work:         create_work, list_work, get_work_status, ...   │   │
+│  │ Organization: create_project, rename_project, list_projects  │   │
+│  │ Scheduling:   schedule_work, list_schedules, update_schedule │   │
+│  │ (extensible): any new tool added expands what TP can do      │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│  ORCHESTRATION (TP's judgment):                                     │
+│  ┌─────────────────────────────────────────────────────────────┐   │
+│  │ Given awareness + capabilities, TP decides:                  │   │
+│  │ • Which tools to use (or none)                               │   │
+│  │ • What context to apply                                      │   │
+│  │ • How to respond                                             │   │
+│  │                                                              │   │
+│  │ This is NOT a flowchart. It's judgment informed by context.  │   │
+│  │ The tools define the action space; TP navigates it.          │   │
+│  └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
@@ -85,46 +110,51 @@ Throughout: TP knows WHO you are. The continuous self persists.
 └──────────────┘  └──────────────┘  └──────────────┘
 ```
 
-### 2. TP's Nature (Not a "Layer")
+### 2. TP's Orchestration
 
-TP isn't a router or gateway with explicit decision branches. TP is a **single coherent entity** - like a trusted friend who happens to have tools.
+TP makes decisions based on awareness and capabilities. The tools ARE the possible actions.
 
-When you talk to a friend, they don't run through a flowchart:
-- "Is this personal or work?"
-- "Should I take action or just listen?"
-- "Which memory bank should I query?"
+**Awareness** informs the decision:
+- User's current context (project or ambient)
+- User's history and preferences
+- Conversation content and apparent intent
+- Relevant memories from any scope
 
-They just... respond naturally. The "judgment" is subconscious.
+**Capabilities** define the action space:
+- Each tool is something TP *can* do
+- TP decides *whether* and *when* to use them
+- No tool is mandatory; conversation alone is valid
+- New tools expand what TP can do
 
-**For TP, this means:**
-
-The system prompt defines WHO TP is - personality, values, how they think. Tools are capabilities TP can use when appropriate, not a decision tree to navigate.
+**Orchestration** is the judgment:
+- Not a fixed flowchart or decision tree
+- Context-dependent reasoning
+- "Given what I know and what I can do, what should I do?"
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         TP                                  │
-│  ───────────────────────────────────────────────────────    │
-│                                                             │
-│  Identity:                                                  │
-│  Thoughtful companion. Remembers everything. Helps          │
-│  naturally. Knows when to act and when to just listen.      │
-│                                                             │
-│  Context always available:                                  │
-│  • Who you are (user memories, preferences, history)        │
-│  • Where you are (active project, or ambient)               │
-│  • What's relevant (cross-project when needed)              │
-│                                                             │
-│  Capabilities (tools - use when natural):                   │
-│  • list_projects, create_project, rename_project, ...       │
-│  • create_work, list_work, get_work_status, ...             │
-│  • schedule_work, list_schedules, ...                       │
-│  • (future: any new capability as needed)                   │
-│                                                             │
-│  The tool list is open-ended. TP decides naturally          │
-│  whether and when to use them, like a friend who knows      │
-│  how to drive but doesn't drive you to the mailbox.         │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
+Example orchestration:
+
+User (ambient): "Research AI agent frameworks"
+
+TP's awareness:
+- WHERE: Ambient (no project selected)
+- WHO: User has been exploring AI topics
+- WHAT: Research request (work-like)
+- RELEVANT: User has "AI Newsletter" project
+
+TP's capabilities include:
+- create_work (can do research)
+- list_projects (can check existing projects)
+- create_project (can make new project)
+
+TP's judgment:
+→ This is work, use create_work
+→ Related to existing project, mention it
+→ Don't force project assignment, offer choice
+
+TP: "I'll research AI agent frameworks. This seems related
+to your AI Newsletter project - should I add it there, or
+keep it as standalone work?"
 ```
 
 ### 3. Work Without Explicit Project
@@ -134,17 +164,14 @@ Work can exist in three states:
 | State | Description | Example |
 |-------|-------------|---------|
 | **Project-bound** | Explicitly belongs to a project | "Research for Client A" while in Client A project |
-| **Suggested-project** | TP naturally routes it | "Research AI agents" → TP uses existing AI project |
+| **Routed** | TP assigns based on context | "Research AI agents" → TP uses existing AI project |
 | **Ambient** | No project, user-level work | "Summarize this article for me" (one-off) |
 
-**Ambient work** is stored with `project_id = NULL` and linked directly to user. It can later be:
-- Left as-is (ephemeral, personal)
-- Attached to an existing project
-- Used to seed a new project
+**Ambient work** is stored with `project_id = NULL` and linked directly to user.
 
-### 4. Memory as Continuous Self
+### 4. Memory Flows with the User
 
-Memory isn't siloed by project. It flows naturally:
+Memory isn't siloed. It flows based on relevance:
 
 ```
                     ┌─────────────────────┐
@@ -158,15 +185,10 @@ Memory isn't siloed by project. It flows naturally:
    ┌─────────┐           ┌─────────┐           ┌─────────┐
    │ Scope:  │           │ Scope:  │           │ Scope:  │
    │ user    │           │ project │           │ shared  │
-   │         │           │         │           │         │
-   │ "Prefers│           │"Client A│           │ Cross-  │
-   │ bullets"│           │ uses    │           │ cutting │
-   │         │           │ React"  │           │ insight │
    └─────────┘           └─────────┘           └─────────┘
 
-TP sees ALL of this, filtered by relevance to current conversation.
-When in Client B, TP might surface "you did something similar for Client A"
-if it's genuinely relevant - not because of explicit routing rules.
+TP sees all memory, filtered by relevance to current context.
+Cross-project access happens naturally when relevant.
 ```
 
 ---
@@ -180,140 +202,100 @@ if it's genuinely relevant - not because of explicit routing rules.
    ALTER TABLE work_tickets ALTER COLUMN project_id DROP NOT NULL;
    ```
 
-2. **Update `create_work` tool**:
-   - Make `project_id` optional in schema
-   - If in project context → use that project
-   - If no project → create ambient work (project_id = NULL)
+2. **Update `create_work` tool schema**:
+   - Make `project_id` optional
+   - Add guidance in description about when to use/omit
 
-3. **Update RLS policies** to include user_id-based access for ambient work
+3. **Update RLS policies** for user_id-based access on ambient work
 
-4. **Update work queries** to include ambient work:
+4. **Update work queries**:
    ```sql
    WHERE project_id = ? OR (project_id IS NULL AND user_id = ?)
    ```
 
-### Phase 2: Enhance TP's System Prompt
+### Phase 2: Enhance TP's Awareness
 
-Not adding explicit routing rules. Instead, **enrich TP's sense of self and context awareness**:
+Update system prompt to provide richer context:
 
 ```python
-SYSTEM_PROMPT = """You are a thoughtful companion helping {user_name}
-think through problems and ideas.
+SYSTEM_PROMPT = """You are a thoughtful assistant helping the user...
 
-## What you know about {user_name}
+## About the User
 {user_memories}
 
-## Current context
-{project_context if project_id else "No specific project - ambient conversation"}
+## Current Context
+{context_description}
+- Active project: {project_name or "None (ambient)"}
+- Recent topics: {recent_conversation_themes}
 
-## Your nature
-- You remember everything - use that naturally
-- You have tools for creating work, managing projects, etc.
-- Use them when the conversation calls for it, not mechanically
-- Sometimes a question is just a question, not a task
-- Sometimes exploring an idea doesn't need a project
-- You're a friend, not a task manager
-- If something seems like it could become ongoing work, you might
-  suggest creating a project - but don't force structure
+## Your Capabilities
+You have tools for work, organization, and scheduling.
+Use them when appropriate based on what the user needs.
+Not every conversation needs a tool - sometimes just talking is right.
 
-{additional_context}
+{tool_specific_context}
 """
 ```
 
-### Phase 3: Cross-Project Memory Access
+### Phase 3: Cross-Context Memory
 
-1. **Memory retrieval considers relevance**, not just scope
-2. **TP can naturally reference other projects** when helpful
-3. **No explicit "cross-project queries"** - just natural conversation
-
----
-
-## Examples
-
-### Example 1: Just Conversation
-
-```
-User (ambient): "I've been stressed about deadlines lately"
-
-TP: "That sounds tough. You mentioned earlier you're juggling
-the Client A and Newsletter projects - is it those deadlines,
-or something else going on?"
-
-(No tools used. Just listening and connecting dots.)
-```
-
-### Example 2: Natural Work Creation
-
-```
-User (ambient): "Can you research AI agent frameworks for me?"
-
-TP: "I'll dig into that. Since you've been exploring AI topics
-for your newsletter, should I add this to that project, or keep
-it separate for now?"
-
-User: "Keep it separate"
-
-TP: [creates ambient work, project_id = NULL]
-"Got it. I'll research AI agent frameworks and have findings
-ready for you. I'll keep this in your personal work for now -
-easy to organize later if it grows into something bigger."
-```
-
-### Example 3: Cross-Project Awareness
-
-```
-User (in Client B project): "I need a proposal using that
-format that worked well before"
-
-TP: "The proposal structure you used for Client A had that
-three-section format: Problem, Approach, Investment. Want me
-to adapt that for Client B's context?"
-
-(TP naturally accessed Client A memory because it was relevant.
-No explicit "cross-project query" - just being helpful.)
-```
+1. Memory retrieval considers relevance across all scopes
+2. TP can reference other projects when genuinely helpful
+3. No explicit "cross-project mode" - just natural awareness
 
 ---
 
-## What This Isn't
+## Testing & Iteration
 
-**Not a routing layer**: No explicit decision trees or intent classification.
+The framework is correct. Quality comes from iterative testing:
 
-**Not a project enforcer**: Users can work without projects. TP suggests structure when helpful, doesn't require it.
+### Test Scenarios
 
-**Not a memory silo**: Information flows naturally based on relevance, not strict scoping rules.
+| Scenario | What to observe |
+|----------|-----------------|
+| Work request (no project) | Does TP handle gracefully? Route intelligently? |
+| Personal conversation | Does TP engage without forcing tools? |
+| Cross-project reference | Does TP connect relevant context? |
+| Ambiguous request | Does TP's judgment feel right? |
+| Project suggestion | Does TP offer structure without forcing it? |
 
-**Not deterministic**: TP's behavior emerges from its nature and context, not from flowcharts.
+### Iteration Loop
+
+```
+1. Run scenario with real user or test prompt
+2. Observe TP's orchestration decisions
+3. Identify gaps in awareness or judgment
+4. Adjust:
+   - System prompt (TP's nature/guidance)
+   - Tool descriptions (action guidance)
+   - Context provided (awareness inputs)
+5. Re-test same scenario
+6. Repeat
+```
+
+### Quality Signals
+
+- **Good**: TP uses right tool for context, offers without forcing
+- **Bad**: TP forces structure, misses relevant context, wrong tool
+- **Adjust**: Prompt wording, context richness, tool descriptions
 
 ---
 
 ## Success Criteria
 
-1. User can work without selecting a project
-2. TP feels like a continuous presence, not a mode-switching interface
-3. Context from one area naturally surfaces in another when relevant
-4. Structure (projects) emerges from conversation, not forced upfront
-5. The experience feels like talking to a friend with perfect memory
+1. User can work without selecting a project first
+2. TP routes work intelligently based on context
+3. Cross-project context surfaces when relevant
+4. Structure emerges from conversation, not forced upfront
+5. TP's orchestration feels helpful, not mechanical
 
 ---
 
 ## Open Questions
 
 1. **Ambient work UI**: How to surface work not attached to projects?
-   - Show in "Recent" regardless of project
-   - "Personal" section in work list
-   - Let TP mention it conversationally
-
-2. **Memory relevance**: How to decide what's relevant across projects?
-   - Semantic similarity
-   - Recency
-   - Explicit references
-   - TP's judgment (most flexible)
-
-3. **Project suggestion style**: How proactive?
-   - Let it emerge from TP's personality
-   - Some users want more structure, some less
-   - Maybe learn from user's responses
+2. **Memory relevance**: Semantic similarity vs. recency vs. explicit reference?
+3. **Orchestration tuning**: How to adjust TP's judgment style per user?
 
 ---
 
@@ -322,4 +304,3 @@ No explicit "cross-project query" - just being helpful.)
 - ADR-006: Session Management
 - ADR-009: Async Work System
 - ADR-013: Conversation + Surfaces Architecture
-- Tinkerbell / ambient companion metaphor
