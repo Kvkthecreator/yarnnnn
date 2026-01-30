@@ -340,15 +340,17 @@ async def handle_update_project(auth, input: dict) -> dict:
 
 async def handle_create_work(auth, input: dict) -> dict:
     """
-    Create a work request for an agent.
+    Create a work request for an agent and execute it immediately.
 
     Args:
         auth: UserClient with authenticated Supabase client
         input: Tool input with task, agent_type, project_id, and optional parameters
 
     Returns:
-        Dict with created work request details
+        Dict with work execution results including outputs
     """
+    from services.work_execution import execute_work_ticket
+
     task = input["task"]
     agent_type = input["agent_type"]
     project_id = input["project_id"]
@@ -378,17 +380,52 @@ async def handle_create_work(auth, input: dict) -> dict:
         }
 
     ticket = result.data[0]
+    ticket_id = ticket["id"]
+
+    # Execute the work immediately
+    execution_result = await execute_work_ticket(
+        auth.client,
+        auth.user_id,
+        ticket_id,
+    )
+
+    if not execution_result.get("success"):
+        return {
+            "success": False,
+            "work": {
+                "id": ticket_id,
+                "task": task,
+                "agent_type": agent_type,
+                "status": "failed",
+                "project_id": project_id,
+            },
+            "error": execution_result.get("error", "Work execution failed"),
+            "message": f"Work request failed: {execution_result.get('error', 'Unknown error')}"
+        }
+
+    # Format outputs for TP response
+    outputs = execution_result.get("outputs", [])
+    output_summaries = []
+    for output in outputs:
+        output_summaries.append({
+            "id": output.get("id"),
+            "title": output.get("title"),
+            "type": output.get("output_type"),
+        })
+
     return {
         "success": True,
         "work": {
-            "id": ticket["id"],
-            "task": ticket["task"],
-            "agent_type": ticket["agent_type"],
-            "status": ticket["status"],
-            "project_id": ticket["project_id"],
-            "created_at": ticket["created_at"],
+            "id": ticket_id,
+            "task": task,
+            "agent_type": agent_type,
+            "status": "completed",
+            "project_id": project_id,
+            "execution_time_ms": execution_result.get("execution_time_ms"),
         },
-        "message": f"Created {agent_type} work request: {task[:50]}..."
+        "outputs": output_summaries,
+        "output_count": len(outputs),
+        "message": f"Completed {agent_type} work with {len(outputs)} output(s): {task[:50]}..."
     }
 
 
