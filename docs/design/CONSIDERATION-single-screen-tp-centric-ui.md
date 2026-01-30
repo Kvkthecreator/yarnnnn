@@ -1,10 +1,8 @@
-# ADR-012: Single-Screen TP-Centric UI Architecture
+# Design Consideration: Single-Screen TP-Centric UI
 
-## Status
-Proposed
-
-## Date
-2025-01-30
+> **Status**: Under consideration
+> **Date**: 2025-01-30
+> **Type**: UI/UX exploration
 
 ## Context
 
@@ -43,9 +41,9 @@ The current navigational approach is:
 
 If TP is the single point of contact, why not make it one screen where TP orchestrates what's visible?
 
-## Decision
+## Idea
 
-Adopt a **Single-Screen TP-Centric UI** where:
+A **Single-Screen TP-Centric UI** where:
 1. TP chat is always visible (the "wallpaper")
 2. Auxiliary content appears in floating/docked panels that TP can control
 3. No page navigation for core workflows
@@ -304,16 +302,16 @@ Projects are selected via dropdown, not routes:
 - [ ] Keyboard shortcuts (Cmd+1 for work, etc.)
 - [ ] Mobile sheet adaptation
 
-## Consequences
+## Trade-offs
 
-### Positive
+### Potential Benefits
 - **Unified experience** - everything happens in one place
 - **TP has agency** - can show/hide things contextually
 - **No context loss** - chat always visible
 - **Feels modern** - Figma/desktop app UX
 - **Real-time** - see work progress without refreshing
 
-### Negative
+### Potential Challenges
 - **Significant refactor** - current page structure needs rework
 - **Complexity** - window management state is non-trivial
 - **Mobile challenge** - floating windows don't work on small screens
