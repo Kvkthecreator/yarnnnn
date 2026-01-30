@@ -8,6 +8,7 @@
 import { Brain, Calendar, FileText } from 'lucide-react';
 import { ProjectSelector } from './ProjectSelector';
 import { UserMenu } from './UserMenu';
+import { WorkStatus } from './WorkStatus';
 import { useSurface } from '@/contexts/SurfaceContext';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import { cn } from '@/lib/utils';
@@ -21,14 +22,17 @@ export function TopBar({ email }: TopBarProps) {
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
   return (
-    <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
-      {/* Left section: Logo + Project */}
+    <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0 sticky top-0 z-40">
+      {/* Left section: Logo + Project + Work Status */}
       <div className="flex items-center gap-4">
         {/* Logo */}
         <span className="text-xl font-brand">yarnnn</span>
 
         {/* Project Selector */}
         <ProjectSelector />
+
+        {/* Work Status (ADR-016) */}
+        <WorkStatus />
       </div>
 
       {/* Right section: Surface buttons + User */}

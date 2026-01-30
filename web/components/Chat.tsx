@@ -8,6 +8,7 @@ import { useOnboardingState } from "@/hooks/useOnboardingState";
 import { WelcomePrompt, MinimalContextBanner } from "@/components/WelcomePrompt";
 import { BulkImportModal } from "@/components/BulkImportModal";
 import { useSurface } from "@/contexts/SurfaceContext";
+import { useWorkStatus } from "@/contexts/WorkStatusContext";
 import type { SurfaceType, SurfaceData } from "@/types/surfaces";
 
 interface ChatProps {
@@ -94,6 +95,12 @@ export function Chat({
   // ADR-013: Surface control for TP-triggered UI actions
   const { openSurface } = useSurface();
 
+  // ADR-016: Work status tracking
+  const { startWork, completeWork, failWork } = useWorkStatus();
+
+  // Track pending work by tool_use_id to match results
+  const pendingWorkRef = useRef<Map<string, { agentType: string; task: string; ticketId?: string }>>(new Map());
+
   // ADR-013: Handle UI actions from TP tool responses
   const handleUIAction = useCallback(
     (action: { type: string; surface?: string; data?: Record<string, unknown> }) => {
@@ -106,10 +113,67 @@ export function Chat({
     [openSurface]
   );
 
+  // ADR-016: Handle tool use events for work status tracking
+  const handleToolUse = useCallback(
+    (toolEvent: { id: string; name: string; input: Record<string, unknown> }) => {
+      if (toolEvent.name === "create_work") {
+        const input = toolEvent.input as { agent_type?: string; task?: string };
+        // Store pending work info to match with result later
+        pendingWorkRef.current.set(toolEvent.id, {
+          agentType: input.agent_type || "unknown",
+          task: input.task || "Working...",
+        });
+        // Start showing work status immediately
+        startWork(
+          input.agent_type || "unknown",
+          input.task || "Working...",
+          toolEvent.id // Use tool_use_id as temporary ticket ID
+        );
+      }
+    },
+    [startWork]
+  );
+
+  // ADR-016: Handle tool result events for work completion
+  const handleToolResult = useCallback(
+    (resultEvent: { tool_use_id: string; name: string; result: Record<string, unknown> }) => {
+      if (resultEvent.name === "create_work") {
+        const result = resultEvent.result as {
+          success?: boolean;
+          work?: { id?: string; agent_type?: string };
+          output?: { title?: string };
+          error?: string;
+        };
+
+        const pendingWork = pendingWorkRef.current.get(resultEvent.tool_use_id);
+        const ticketId = result.work?.id || resultEvent.tool_use_id;
+        const agentType = result.work?.agent_type || pendingWork?.agentType || "unknown";
+
+        if (result.success) {
+          completeWork(agentType, ticketId, result.output?.title);
+        } else {
+          failWork(result.error || "Work failed", ticketId);
+        }
+
+        // Cleanup
+        pendingWorkRef.current.delete(resultEvent.tool_use_id);
+      }
+
+      // ADR-013: Check for UI action in tool result
+      const uiResult = resultEvent.result as { ui_action?: { type: string; surface?: string; data?: Record<string, unknown> } };
+      if (uiResult?.ui_action) {
+        handleUIAction(uiResult.ui_action);
+      }
+    },
+    [completeWork, failWork, handleUIAction]
+  );
+
   const { messages, isLoading, isLoadingHistory, error, sendMessage } = useChat({
     projectId,
     includeContext,
     onProjectChange: handleProjectChange,
+    onToolUse: handleToolUse,
+    onToolResult: handleToolResult,
     onUIAction: handleUIAction,
   });
   const { uploadProgress, upload, clearProgress } = useDocuments(projectId);
