@@ -5,8 +5,10 @@
  * Context provider for managing drawer/surface state
  */
 
-import { createContext, useContext, useReducer, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
 import type { SurfaceState, SurfaceAction, SurfaceType, SurfaceData, ExpandLevel } from '@/types/surfaces';
+
+const VALID_SURFACE_TYPES: SurfaceType[] = ['output', 'context', 'schedule', 'export'];
 
 const initialState: SurfaceState = {
   isOpen: false,
@@ -64,6 +66,20 @@ export function SurfaceProvider({ children }: { children: ReactNode }) {
       payload: { surfaceType: type, data, expandLevel },
     });
   }, []);
+
+  // Read surface from URL query param on mount (for deep linking from emails)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      const surfaceParam = url.searchParams.get('surface');
+      if (surfaceParam && VALID_SURFACE_TYPES.includes(surfaceParam as SurfaceType)) {
+        openSurface(surfaceParam as SurfaceType);
+        // Remove the param from URL after opening
+        url.searchParams.delete('surface');
+        window.history.replaceState({}, '', url.toString());
+      }
+    }
+  }, [openSurface]);
 
   const closeSurface = useCallback(() => {
     dispatch({ type: 'CLOSE_SURFACE' });

@@ -174,8 +174,8 @@ async def send_work_complete_email(
         {output_html}
 
         <div style="margin-top: 24px;">
-            <a href="{work_url}" style="display: inline-block; background: #111; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 6px;">
-                View Full Results
+            <a href="{work_url}" style="display: inline-block; background: #111; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 9999px; font-weight: 500;">
+                View Results
             </a>
         </div>
 
