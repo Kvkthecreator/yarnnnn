@@ -1,8 +1,9 @@
 # Design Consideration: Rethinking the Interface Paradigm
 
-> **Status**: Under consideration
+> **Status**: Resolved → See [ADR-013](../adr/ADR-013-conversation-plus-surfaces.md)
 > **Date**: 2025-01-30
 > **Type**: First-principles exploration
+> **Decision**: Drawer pattern (Option E) adopted as "Conversation + Surfaces" architecture
 
 ---
 
@@ -502,30 +503,24 @@ On larger screens, drawer could also dock to side (like Option B), giving:
 
 ---
 
-## Next Steps
+## Decision
 
-1. **Prototype drawer interaction**
-   - Swipe-up on mobile
-   - Click-to-expand on desktop
-   - TP-triggered opening
+**Option E (Drawer) was selected.** See [ADR-013: Conversation + Surfaces](../adr/ADR-013-conversation-plus-surfaces.md) for the full decision record.
 
-2. **Define surface content patterns**
-   - What goes in each surface type?
-   - How detailed vs. summarized?
+### Why Drawer Won
 
-3. **TP integration**
-   - How does TP "know" to open a surface?
-   - Natural language triggers
-
-4. **Mobile-first implementation**
-   - Drawer is actually easier on mobile
-   - Expand to desktop from there
+1. **Screen size accommodation**: Native swipe-up on mobile, side-dock on desktop
+2. **TP-centric**: TP can summon surfaces without user navigation
+3. **Minimal design**: One primary surface (conversation) + one secondary mechanism (drawer)
+4. **Conversation-first**: Drawer layers on conversation, doesn't compete with it
+5. **Mobile-native**: Drawer is actually the *better* pattern on mobile
 
 ---
 
 ## References
 
+- **Decision**: [ADR-013: Conversation + Surfaces](../adr/ADR-013-conversation-plus-surfaces.md)
 - Strategic thinking document: "Age of Intelligence & Product Direction" (Jan 27, 2026)
 - Key concepts: witnessed existence, infinite patience, temporal availability
 - Legacy implementation: `/Users/macbook/yarnnn-app-fullstack/components/desktop/`
-- Design patterns: iOS sheets, Android bottom sheets, Figma panels
+- Design patterns: iOS sheets, Android bottom sheets
