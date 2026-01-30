@@ -97,3 +97,13 @@ body {
 .animate-gradient-shift {
   animation: gradient-shift 20s ease-in-out infinite;
 }
+
+/* Smooth scroll behavior for chat messages */
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+/* Prevent layout shift during streaming by using contain */
+.chat-message {
+  contain: layout style;
+}

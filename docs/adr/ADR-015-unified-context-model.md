@@ -343,25 +343,48 @@ Better:   "Done - I've researched the top 3 AI code assistants.
 Or even:  [Tool indicator: Research complete ✓] + artifact reference
 ```
 
-### Observation 3: Progress Visibility
+### Observation 3: Progress Visibility → TP Awareness Status
 
 **Current behavior**: User sends message → waits → result appears
 
 **Compare to Claude Code**: Shows todos, progress indicators, what's being done
 
-**Question**: Should TP show:
-- "Researching..." indicator
-- Progress steps (like a todo list)
-- Streaming partial results
+**Reframe**: Progress shouldn't be scattered per-feature. It should be at the **TP awareness level** - a unified status that shows:
 
-**Consideration**: This is UX/frontend, not orchestration. But the SSE events may need richer progress signals.
+```
+┌─────────────────────────────────────────────────────────┐
+│  TP STATUS (always visible, part of awareness layer)   │
+│  ─────────────────────────────────────────────────────  │
+│                                                         │
+│  Context: Working in "Client A" project                 │
+│  Currently: Researching AI code assistants...           │
+│    └─ Gathering sources                                 │
+│    └─ Analyzing features  ← (in progress)               │
+│    └─ Synthesizing findings                             │
+│                                                         │
+└─────────────────────────────────────────────────────────┘
+```
+
+This aligns with the core model: TP has **awareness** (WHO, WHERE, WHAT, RELEVANT). The progress indicator is just making that awareness *visible* to the user.
+
+**Not**: "Work agent is 50% done" (feature-level)
+**Instead**: "TP is currently doing X in context Y" (awareness-level)
+
+**Implementation consideration**: This could be:
+- A persistent status bar/indicator in the UI
+- Part of the TopBar or a dedicated "TP status" component
+- Fed by SSE events that describe TP's current focus, not just tool results
 
 ### Next Steps for Phase 2
 
 1. **Define work agents** (ADR-016?): What are research/content/reporting agents actually doing? What's their output model?
 2. **Output consolidation**: Move toward single artifact per work, not multiple discrete outputs
 3. **TP response brevity**: Adjust system prompt to be compact when artifacts exist
-4. **Progress UI**: Consider inline progress indicators during work execution
+4. **TP awareness status UI**: Unified progress at awareness level, not scattered per-feature
+   - Shows current context (project/ambient)
+   - Shows what TP is currently doing
+   - Progress steps when applicable
+   - Single component, not dispersed indicators
 
 ---
 

@@ -130,9 +130,11 @@ export function Chat({
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const isUserScrolledUp = useRef(false);
 
   const handleDragEnter = (e: React.DragEvent) => {
     e.preventDefault();
@@ -198,9 +200,22 @@ export function Chat({
     clearProgress();
   };
 
-  // Auto-scroll to bottom when new messages arrive
+  // Check if user has scrolled up from bottom
+  const handleScroll = useCallback(() => {
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
+    // Consider "at bottom" if within 100px
+    isUserScrolledUp.current = distanceFromBottom > 100;
+  }, []);
+
+  // Auto-scroll to bottom when new messages arrive (only if user hasn't scrolled up)
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (!isUserScrolledUp.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
   }, [messages]);
 
   const handleSubmit = async (e: FormEvent) => {
@@ -332,8 +347,13 @@ export function Chat({
         projectId={projectId}
       />
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto space-y-4 mb-4">
+      {/* Messages - overflow-anchor: none on container, anchor at bottom */}
+      <div
+        ref={messagesContainerRef}
+        onScroll={handleScroll}
+        className="flex-1 overflow-y-auto space-y-4 mb-4"
+        style={{ overflowAnchor: 'none' }}
+      >
         {/* Scope Indicator */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
           <span className="w-2 h-2 rounded-full bg-primary/60" />
@@ -416,7 +436,8 @@ export function Chat({
           </div>
         )}
 
-        <div ref={messagesEndRef} />
+        {/* Scroll anchor - keeps scroll pinned to bottom during streaming */}
+        <div ref={messagesEndRef} style={{ overflowAnchor: 'auto', height: 1 }} />
       </div>
 
       {/* Input Area */}
