@@ -423,14 +423,6 @@ export function Chat({
       >
         {/* Inner container for proper message ordering (flex-col-reverse reverses visual order) */}
         <div className="flex flex-col space-y-4">
-        {/* Scope Indicator */}
-        <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
-          <span className="w-2 h-2 rounded-full bg-primary/60" />
-          <span>
-            {projectId ? `Chatting in: ${projectName || "Project"}` : "Chatting in: Dashboard"}
-          </span>
-        </div>
-
         {isLoadingHistory && (
           <div className="flex justify-center py-4">
             <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
