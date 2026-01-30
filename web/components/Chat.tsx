@@ -129,7 +129,6 @@ export function Chat({
   const [pendingMessage, setPendingMessage] = useState<string | null>(null); // Optimistic message during upload
   const [showBulkImportModal, setShowBulkImportModal] = useState(false);
 
-  const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const dragCounterRef = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -200,23 +199,28 @@ export function Chat({
     clearProgress();
   };
 
-  // Check if user has scrolled up from bottom
+  // Check if user has scrolled up from bottom (for flex-col-reverse, scrollTop is negative when scrolled up)
   const handleScroll = useCallback(() => {
     const container = messagesContainerRef.current;
     if (!container) return;
 
-    const { scrollTop, scrollHeight, clientHeight } = container;
-    const distanceFromBottom = scrollHeight - scrollTop - clientHeight;
-    // Consider "at bottom" if within 100px
-    isUserScrolledUp.current = distanceFromBottom > 100;
+    // In flex-col-reverse, scrollTop=0 means at bottom, negative means scrolled up
+    // We use Math.abs and check against a small threshold
+    isUserScrolledUp.current = Math.abs(container.scrollTop) > 100;
   }, []);
 
-  // Auto-scroll to bottom when new messages arrive (only if user hasn't scrolled up)
+  // Scroll to bottom when user sends a new message (not during streaming updates)
+  const lastMessageCountRef = useRef(messages.length);
   useEffect(() => {
-    if (!isUserScrolledUp.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Only auto-scroll when a new message is added (not during content streaming)
+    if (messages.length > lastMessageCountRef.current) {
+      // New message added - scroll to bottom
+      if (messagesContainerRef.current) {
+        messagesContainerRef.current.scrollTop = 0; // In flex-col-reverse, 0 is bottom
+      }
     }
-  }, [messages]);
+    lastMessageCountRef.current = messages.length;
+  }, [messages.length]);
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -347,13 +351,14 @@ export function Chat({
         projectId={projectId}
       />
 
-      {/* Messages - overflow-anchor: none on container, anchor at bottom */}
+      {/* Messages - flex-col-reverse keeps scroll pinned to bottom during streaming */}
       <div
         ref={messagesContainerRef}
         onScroll={handleScroll}
-        className="flex-1 overflow-y-auto space-y-4 mb-4"
-        style={{ overflowAnchor: 'none' }}
+        className="flex-1 overflow-y-auto flex flex-col-reverse mb-4"
       >
+        {/* Inner container for proper message ordering (flex-col-reverse reverses visual order) */}
+        <div className="flex flex-col space-y-4">
         {/* Scope Indicator */}
         <div className="flex items-center gap-2 text-xs text-muted-foreground px-1">
           <span className="w-2 h-2 rounded-full bg-primary/60" />
@@ -436,8 +441,7 @@ export function Chat({
           </div>
         )}
 
-        {/* Scroll anchor - keeps scroll pinned to bottom during streaming */}
-        <div ref={messagesEndRef} style={{ overflowAnchor: 'auto', height: 1 }} />
+        </div>
       </div>
 
       {/* Input Area */}
