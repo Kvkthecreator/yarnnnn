@@ -108,7 +108,7 @@ export function OutputSurface({ data }: OutputSurfaceProps) {
       {/* Header */}
       <div className="mb-4">
         <div className="flex items-center gap-2 mb-2">
-          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium ${statusConfig.color}`}>
+          <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${statusConfig.color}`}>
             {statusConfig.icon}
             {statusConfig.label}
           </span>
@@ -123,9 +123,39 @@ export function OutputSurface({ data }: OutputSurfaceProps) {
         </p>
       </div>
 
+      {/* Export actions - at top for easy access */}
+      {outputs.length > 0 && ticket.status === 'completed' && (
+        <div className="mb-4 pb-4 border-b border-border">
+          <p className="text-xs text-muted-foreground mb-3">Export this work</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => handleExport('pdf')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-full font-medium"
+            >
+              <Download className="w-4 h-4" />
+              PDF
+            </button>
+            <button
+              onClick={() => handleExport('docx')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted"
+            >
+              <FileText className="w-4 h-4" />
+              DOCX
+            </button>
+            <button
+              onClick={() => handleExport('email')}
+              className="inline-flex items-center gap-2 px-4 py-2 text-sm border border-border rounded-full hover:bg-muted"
+            >
+              <Mail className="w-4 h-4" />
+              Email
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Error message */}
       {ticket.error_message && (
-        <div className="mb-4 p-3 bg-destructive/10 text-destructive text-sm rounded-lg">
+        <div className="mb-4 p-3 bg-destructive/10 text-destructive text-sm rounded-2xl">
           {ticket.error_message}
         </div>
       )}
@@ -139,36 +169,6 @@ export function OutputSurface({ data }: OutputSurfaceProps) {
           {outputs.map((output) => (
             <OutputCard key={output.id} output={output} />
           ))}
-        </div>
-      )}
-
-      {/* Export actions */}
-      {outputs.length > 0 && ticket.status === 'completed' && (
-        <div className="mt-6 pt-4 border-t border-border">
-          <p className="text-xs text-muted-foreground mb-3">Export this work</p>
-          <div className="flex flex-wrap gap-2">
-            <button
-              onClick={() => handleExport('pdf')}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md"
-            >
-              <Download className="w-4 h-4" />
-              PDF
-            </button>
-            <button
-              onClick={() => handleExport('docx')}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
-            >
-              <FileText className="w-4 h-4" />
-              DOCX
-            </button>
-            <button
-              onClick={() => handleExport('email')}
-              className="inline-flex items-center gap-2 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
-            >
-              <Mail className="w-4 h-4" />
-              Email
-            </button>
-          </div>
         </div>
       )}
     </div>
@@ -189,7 +189,7 @@ function OutputCard({ output }: { output: WorkOutput }) {
   }
 
   return (
-    <div className="p-3 bg-muted/30 border border-border rounded-lg">
+    <div className="p-3 bg-muted/30 border border-border/50 rounded-2xl">
       <div
         className="flex items-start gap-2 cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
