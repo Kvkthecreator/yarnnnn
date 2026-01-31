@@ -23,6 +23,10 @@ import type {
   WorkTicketCreate,
   WorkTicketDetail,
   WorkExecutionResponse,
+  WorkListResponse,
+  WorkUpdateRequest,
+  WorkUpdateResponse,
+  WorkDeleteResponse,
   DeleteResponse,
   OnboardingStateResponse,
   SubscriptionStatus,
@@ -270,6 +274,36 @@ export const api = {
     execute: (ticketId: string) =>
       request<WorkExecutionResponse>(`/api/work/${ticketId}/execute`, {
         method: "POST",
+      }),
+
+    // ADR-017: Unified Work Model endpoints
+    // List all work (one-time and recurring) for current user
+    listAll: (options?: {
+      projectId?: string;
+      activeOnly?: boolean;
+      includeCompleted?: boolean;
+      limit?: number;
+    }) => {
+      const params = new URLSearchParams();
+      if (options?.projectId) params.append("project_id", options.projectId);
+      if (options?.activeOnly) params.append("active_only", "true");
+      if (options?.includeCompleted === false) params.append("include_completed", "false");
+      if (options?.limit) params.append("limit", options.limit.toString());
+      const query = params.toString();
+      return request<WorkListResponse>(`/api/work${query ? `?${query}` : ""}`);
+    },
+
+    // Update work (pause/resume, change task, change frequency)
+    update: (workId: string, data: WorkUpdateRequest) =>
+      request<WorkUpdateResponse>(`/api/work/${workId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+
+    // Delete work and all outputs
+    delete: (workId: string) =>
+      request<WorkDeleteResponse>(`/api/work/${workId}`, {
+        method: "DELETE",
       }),
   },
 

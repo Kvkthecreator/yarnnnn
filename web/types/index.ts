@@ -129,6 +129,54 @@ export interface WorkTicket {
   completed_at?: string;
 }
 
+// ADR-017: Unified Work Model - includes recurring work fields
+export interface Work {
+  id: string;
+  task: string;
+  agent_type: "research" | "content" | "reporting";
+  project_name: string;
+  is_ambient: boolean;
+  is_recurring: boolean;
+  created_at: string;
+  // For recurring work
+  frequency: string; // "once", "daily at 9am", etc.
+  is_active?: boolean;
+  next_run?: string;
+  // For one-time work
+  status?: "pending" | "running" | "completed" | "failed";
+}
+
+export interface WorkListResponse {
+  success: boolean;
+  work: Work[];
+  count: number;
+  message: string;
+}
+
+export interface WorkUpdateRequest {
+  is_active?: boolean;
+  task?: string;
+  frequency?: string;
+}
+
+export interface WorkUpdateResponse {
+  success: boolean;
+  work: {
+    id: string;
+    task: string;
+    is_recurring: boolean;
+    is_active?: boolean;
+    frequency: string;
+    next_run?: string;
+  };
+  message: string;
+}
+
+export interface WorkDeleteResponse {
+  success: boolean;
+  message: string;
+}
+
 export interface WorkTicketCreate {
   task: string;
   agent_type: "research" | "content" | "reporting";

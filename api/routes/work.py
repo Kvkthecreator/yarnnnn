@@ -400,3 +400,112 @@ async def execute_ticket(
         output_count=result.get("output_count", 0),
         execution_time_ms=result.get("execution_time_ms"),
     )
+
+
+# =============================================================================
+# ADR-017: Unified Work Model Routes
+# =============================================================================
+
+class WorkUpdateRequest(BaseModel):
+    """Update work request."""
+    is_active: Optional[bool] = None
+    task: Optional[str] = None
+    frequency: Optional[str] = None
+
+
+@router.get("/work")
+async def list_all_work(
+    auth: UserClient,
+    project_id: Optional[str] = None,
+    active_only: bool = False,
+    include_completed: bool = True,
+    limit: int = 10,
+) -> dict:
+    """
+    ADR-017: List all work for the current user.
+
+    Supports filtering by project, active status, and completion status.
+    Returns both one-time and recurring work.
+
+    Args:
+        auth: Authenticated user
+        project_id: Optional filter by project
+        active_only: Only show active recurring work
+        include_completed: Include completed one-time work
+        limit: Maximum results
+
+    Returns:
+        Dict with work list, count, message
+    """
+    from services.project_tools import handle_list_work
+
+    result = await handle_list_work(auth, {
+        "project_id": project_id,
+        "active_only": active_only,
+        "include_completed": include_completed,
+        "limit": limit,
+    })
+
+    return result
+
+
+@router.patch("/work/{work_id}")
+async def update_work(
+    work_id: str,
+    request: WorkUpdateRequest,
+    auth: UserClient,
+) -> dict:
+    """
+    ADR-017: Update work settings.
+
+    Use to pause/resume recurring work, change frequency, or update task.
+
+    Args:
+        work_id: Work UUID
+        request: Update data (is_active, task, frequency)
+        auth: Authenticated user
+
+    Returns:
+        Dict with updated work details
+    """
+    from services.project_tools import handle_update_work
+
+    input_data = {"work_id": work_id}
+    if request.is_active is not None:
+        input_data["is_active"] = request.is_active
+    if request.task is not None:
+        input_data["task"] = request.task
+    if request.frequency is not None:
+        input_data["frequency"] = request.frequency
+
+    result = await handle_update_work(auth, input_data)
+
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Update failed"))
+
+    return result
+
+
+@router.delete("/work/{work_id}")
+async def delete_work(
+    work_id: str,
+    auth: UserClient,
+) -> dict:
+    """
+    ADR-017: Delete work and all its outputs.
+
+    Args:
+        work_id: Work UUID
+        auth: Authenticated user
+
+    Returns:
+        Dict confirming deletion
+    """
+    from services.project_tools import handle_delete_work
+
+    result = await handle_delete_work(auth, {"work_id": work_id})
+
+    if not result.get("success"):
+        raise HTTPException(status_code=404, detail=result.get("error", "Delete failed"))
+
+    return result

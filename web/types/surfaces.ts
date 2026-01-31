@@ -11,6 +11,7 @@ export interface SurfaceData {
   // For output surface
   outputId?: string;
   ticketId?: string;
+  workId?: string; // ADR-017: Unified work ID
 
   // For context surface
   projectId?: string;
