@@ -247,6 +247,7 @@ async def execute_work_ticket(
                 "ticket_id": ticket_id,
                 "title": result.work_output.title,
                 "content": result.work_output.content,  # Markdown content
+                "output_type": "markdown",  # Required field - default to markdown for ADR-016
                 "status": "delivered",
             }
             # Only include metadata if present (column may not exist in older schemas)
