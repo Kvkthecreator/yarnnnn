@@ -2,44 +2,32 @@
 
 /**
  * ADR-013: Conversation + Surfaces
- * Routes to the appropriate surface content based on type
+ * Routes to the appropriate surface component.
+ *
+ * Now uses unified WorkspacePanel for Context, Work, and Outputs tabs.
+ * Export surface still opens as a separate modal/drawer.
  */
 
 import { useSurface } from '@/contexts/SurfaceContext';
-import { Drawer, SidePanel } from './Drawer';
-import { OutputSurface } from './OutputSurface';
-import { ContextSurface } from './ContextSurface';
-import { ScheduleSurface } from './ScheduleSurface';
+import { WorkspacePanel } from './WorkspacePanel';
 import { ExportSurface } from './ExportSurface';
+import { Drawer, SidePanel } from './Drawer';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 export function SurfaceRouter() {
   const { state } = useSurface();
   const isDesktop = useMediaQuery('(min-width: 1024px)');
 
-  const renderContent = () => {
-    if (!state.type) return null;
+  // Export gets its own modal/drawer (different UX)
+  if (state.type === 'export' && state.isOpen) {
+    const Container = isDesktop ? SidePanel : Drawer;
+    return (
+      <Container>
+        <ExportSurface data={state.data} />
+      </Container>
+    );
+  }
 
-    switch (state.type) {
-      case 'output':
-        return <OutputSurface data={state.data} />;
-      case 'context':
-        return <ContextSurface data={state.data} />;
-      case 'schedule':
-        return <ScheduleSurface data={state.data} />;
-      case 'export':
-        return <ExportSurface data={state.data} />;
-      default:
-        return null;
-    }
-  };
-
-  // Use SidePanel on desktop, Drawer on mobile
-  const Container = isDesktop ? SidePanel : Drawer;
-
-  return (
-    <Container>
-      {renderContent()}
-    </Container>
-  );
+  // Everything else uses the unified WorkspacePanel
+  return <WorkspacePanel />;
 }

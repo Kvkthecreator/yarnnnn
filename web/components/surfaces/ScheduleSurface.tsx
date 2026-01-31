@@ -29,6 +29,7 @@ import type { Work } from '@/types';
 
 interface ScheduleSurfaceProps {
   data: SurfaceData | null;
+  onViewOutput?: (workId: string) => void;
 }
 
 // Status configuration for one-time work
@@ -46,7 +47,7 @@ const AGENT_COLORS: Record<string, string> = {
   reporting: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
 };
 
-export function ScheduleSurface({ data }: ScheduleSurfaceProps) {
+export function ScheduleSurface({ data, onViewOutput }: ScheduleSurfaceProps) {
   const { activeProject } = useProjectContext();
   const { openSurface } = useSurface();
   const [workItems, setWorkItems] = useState<Work[]>([]);
@@ -133,8 +134,14 @@ export function ScheduleSurface({ data }: ScheduleSurfaceProps) {
     }
   };
 
-  const handleViewOutput = (work: Work) => {
-    openSurface('output', { workId: work.id, projectId: work.is_ambient ? undefined : projectId }, 'half');
+  const handleViewOutputClick = (work: Work) => {
+    // If parent provided callback (unified panel), use that
+    if (onViewOutput) {
+      onViewOutput(work.id);
+    } else {
+      // Fallback to opening separate surface
+      openSurface('output', { workId: work.id, projectId: work.is_ambient ? undefined : projectId }, 'half');
+    }
   };
 
   const formatNextRun = (dateStr?: string) => {
@@ -236,7 +243,7 @@ export function ScheduleSurface({ data }: ScheduleSurfaceProps) {
                     work={work}
                     onToggle={handleToggle}
                     onDelete={handleDelete}
-                    onViewOutput={handleViewOutput}
+                    onViewOutput={handleViewOutputClick}
                     formatNextRun={formatNextRun}
                     actionLoading={actionLoading}
                   />
@@ -258,7 +265,7 @@ export function ScheduleSurface({ data }: ScheduleSurfaceProps) {
                     work={work}
                     onToggle={handleToggle}
                     onDelete={handleDelete}
-                    onViewOutput={handleViewOutput}
+                    onViewOutput={handleViewOutputClick}
                     formatCreatedAt={formatCreatedAt}
                     actionLoading={actionLoading}
                   />
