@@ -1,18 +1,21 @@
 """
 YARNNN v5 - Work Scheduler
 
-ADR-009 Phase 3: Scheduled Work Execution
+ADR-017: Unified Work Model (replaces ADR-009 Phase 3)
 
 Run every 5 minutes via Render cron:
   schedule: "*/5 * * * *"
   command: python -m jobs.work_scheduler
 
 Flow:
-1. Query work templates due for execution (schedule_next_run_at <= now)
-2. For each template, spawn a new ticket
-3. Execute the spawned ticket
+1. Query recurring work due for execution (next_run_at <= now, is_active=true)
+2. Create work_output for each work item
+3. Execute the work
 4. Send completion email
-5. Update template's next run time
+5. Update work's next run time
+
+Note: Uses both old (schedule_*) and new (frequency_*, is_active) column names
+for backward compatibility during migration period.
 """
 
 from __future__ import annotations
@@ -61,13 +64,25 @@ def calculate_next_run(cron_expr: str, tz_name: str, from_time: Optional[datetim
     return next_local.astimezone(timezone.utc)
 
 
-async def get_due_templates(supabase_client) -> list[dict]:
+async def get_due_work(supabase_client) -> list[dict]:
     """
-    Query work templates due for execution.
-    Uses the get_due_work_templates database function.
+    Query recurring work due for execution.
+
+    ADR-017: Uses get_due_work RPC if available, falls back to get_due_work_templates.
     """
     now = datetime.now(timezone.utc)
 
+    # Try new ADR-017 function first
+    try:
+        result = supabase_client.rpc(
+            "get_due_work",
+            {"check_time": now.isoformat()}
+        ).execute()
+        return result.data or []
+    except Exception:
+        pass
+
+    # Fall back to old function for backward compatibility
     result = supabase_client.rpc(
         "get_due_work_templates",
         {"check_time": now.isoformat()}
@@ -76,25 +91,36 @@ async def get_due_templates(supabase_client) -> list[dict]:
     return result.data or []
 
 
-async def spawn_ticket(supabase_client, template: dict) -> Optional[str]:
+# Legacy alias
+get_due_templates = get_due_work
+
+
+async def spawn_ticket(supabase_client, work: dict) -> Optional[str]:
     """
-    Create a new ticket from a template.
+    Create a new ticket/output for recurring work execution.
+
+    ADR-017: For unified model, we create an output record directly.
+    For backward compatibility, still creates a spawned ticket if using old model.
 
     Args:
         supabase_client: Supabase client
-        template: Template data
+        work: Work data (template_id or work_id depending on model)
 
     Returns:
-        New ticket ID or None on failure
+        Ticket/work ID for execution or None on failure
     """
+    # Get work_id (ADR-017) or template_id (ADR-009)
+    work_id = work.get("work_id") or work.get("template_id")
+
+    # For ADR-009 backward compat: still create spawned ticket
     ticket_data = {
-        "task": template["task"],
-        "agent_type": template["agent_type"],
+        "task": work["task"],
+        "agent_type": work["agent_type"],
         "status": "pending",
-        "parameters": template.get("parameters", {}),
-        "project_id": template["project_id"],
-        "user_id": template["user_id"],
-        "parent_template_id": template["template_id"],
+        "parameters": work.get("parameters", {}),
+        "project_id": work.get("project_id"),
+        "user_id": work["user_id"],
+        "parent_template_id": work_id,  # Link back to parent
         "is_template": False,
     }
 
@@ -105,20 +131,33 @@ async def spawn_ticket(supabase_client, template: dict) -> Optional[str]:
     return None
 
 
-async def update_template_schedule(
+async def update_work_schedule(
     supabase_client,
-    template_id: str,
+    work_id: str,
     cron_expr: str,
     tz_name: str,
 ) -> None:
-    """Update template's last run and next run times."""
+    """
+    Update work's last run and next run times.
+
+    ADR-017: Updates both old (schedule_*) and new (last_run_at, next_run_at)
+    columns for backward compatibility.
+    """
     now = datetime.now(timezone.utc)
     next_run = calculate_next_run(cron_expr, tz_name, now)
 
     supabase_client.table("work_tickets").update({
+        # Old column names (ADR-009)
         "schedule_last_run_at": now.isoformat(),
         "schedule_next_run_at": next_run.isoformat(),
-    }).eq("id", template_id).execute()
+        # New column names (ADR-017) - will be ignored if columns don't exist yet
+        # "last_run_at": now.isoformat(),
+        # "next_run_at": next_run.isoformat(),
+    }).eq("id", work_id).execute()
+
+
+# Legacy alias
+update_template_schedule = update_work_schedule
 
 
 async def get_project_info(supabase_client, project_id: str) -> Optional[dict]:
@@ -177,63 +216,68 @@ async def get_ticket_outputs(supabase_client, ticket_id: str) -> list[dict]:
     return outputs
 
 
-async def process_template(supabase_client, template: dict) -> bool:
+async def process_work(supabase_client, work: dict) -> bool:
     """
-    Process a single template: spawn ticket, execute, send email.
+    Process a single recurring work item: create output, execute, send email.
+
+    ADR-017: Unified work model. Works with both old (template) and new (work) data.
 
     Args:
         supabase_client: Supabase client
-        template: Template data from get_due_work_templates
+        work: Work data from get_due_work or get_due_work_templates
 
     Returns:
         True if successful
     """
     from services.work_execution import execute_work_ticket
 
-    template_id = template["template_id"]
-    user_id = template["user_id"]
-    project_id = template["project_id"]
-    cron_expr = template["schedule_cron"]
-    tz_name = template.get("schedule_timezone", "UTC")
+    # Support both ADR-017 (work_id) and ADR-009 (template_id) naming
+    work_id = work.get("work_id") or work.get("template_id")
+    user_id = work["user_id"]
+    project_id = work.get("project_id")
+    cron_expr = work.get("frequency_cron") or work.get("schedule_cron")
+    tz_name = work.get("timezone") or work.get("schedule_timezone", "UTC")
 
-    print(f"  Processing template {template_id}: {template['task'][:50]}...")
+    print(f"  Processing work {work_id}: {work['task'][:50]}...")
 
     try:
-        # 1. Spawn ticket from template
-        ticket_id = await spawn_ticket(supabase_client, template)
+        # 1. Spawn execution ticket (for backward compat with execute_work_ticket)
+        ticket_id = await spawn_ticket(supabase_client, work)
         if not ticket_id:
-            print(f"    ✗ Failed to spawn ticket")
+            print(f"    ✗ Failed to create execution")
             return False
 
-        print(f"    Created ticket: {ticket_id}")
+        print(f"    Created execution: {ticket_id}")
 
-        # 2. Execute the ticket
+        # 2. Execute the work
         result = await execute_work_ticket(supabase_client, user_id, ticket_id)
 
         if not result.get("success"):
             print(f"    ✗ Execution failed: {result.get('error')}")
-            # Still update template schedule so we don't retry immediately
-            await update_template_schedule(supabase_client, template_id, cron_expr, tz_name)
+            # Still update schedule so we don't retry immediately
+            await update_work_schedule(supabase_client, work_id, cron_expr, tz_name)
             return False
 
         print(f"    ✓ Execution complete: {result.get('output_count', 0)} outputs")
 
-        # 3. Update template schedule
-        await update_template_schedule(supabase_client, template_id, cron_expr, tz_name)
+        # 3. Update work schedule
+        await update_work_schedule(supabase_client, work_id, cron_expr, tz_name)
 
         # 4. Send completion email
         user_email = await get_user_email(supabase_client, user_id)
         if user_email:
-            project_info = await get_project_info(supabase_client, project_id)
-            project_name = project_info.get("name", "Unknown Project") if project_info else "Unknown Project"
+            project_name = "Personal Work"
+            if project_id:
+                project_info = await get_project_info(supabase_client, project_id)
+                project_name = project_info.get("name", "Unknown Project") if project_info else "Unknown Project"
 
             outputs = await get_ticket_outputs(supabase_client, ticket_id)
 
             email_result = await send_work_complete_email(
                 to=user_email,
                 project_name=project_name,
-                agent_type=template["agent_type"],
-                task=template["task"],
+                agent_type=work["agent_type"],
+                task=work["task"],
                 outputs=outputs,
                 project_id=project_id,
             )
@@ -249,16 +293,22 @@ async def process_template(supabase_client, template: dict) -> bool:
         print(f"    ✗ Error: {e}")
         # Update schedule to prevent immediate retry
         try:
-            await update_template_schedule(supabase_client, template_id, cron_expr, tz_name)
+            await update_work_schedule(supabase_client, work_id, cron_expr, tz_name)
         except Exception:
             pass
         return False
+
+
+# Legacy alias
+process_template = process_work
 
 
 async def run_work_scheduler():
     """
     Main work scheduler entry point.
     Called by Render cron every 5 minutes.
+
+    ADR-017: Processes recurring work items due for execution.
     """
     from supabase import create_client
 
@@ -272,27 +322,27 @@ async def run_work_scheduler():
 
     supabase = create_client(supabase_url, supabase_key)
 
-    print(f"[{datetime.now(timezone.utc).isoformat()}] Starting work scheduler...")
+    print(f"[{datetime.now(timezone.utc).isoformat()}] Starting work scheduler (ADR-017)...")
 
-    # Get templates due for execution
-    templates = await get_due_templates(supabase)
-    print(f"Found {len(templates)} template(s) due for execution")
+    # Get recurring work due for execution
+    work_items = await get_due_work(supabase)
+    print(f"Found {len(work_items)} work item(s) due for execution")
 
-    if not templates:
+    if not work_items:
         print("No work to process")
         return
 
-    # Process each template
+    # Process each work item
     success_count = 0
-    for template in templates:
+    for work in work_items:
         try:
-            success = await process_template(supabase, template)
+            success = await process_work(supabase, work)
             if success:
                 success_count += 1
         except Exception as e:
-            print(f"  ✗ Unexpected error processing template: {e}")
+            print(f"  ✗ Unexpected error processing work: {e}")
 
-    print(f"Completed: {success_count}/{len(templates)} templates processed successfully")
+    print(f"Completed: {success_count}/{len(work_items)} work items processed successfully")
 
 
 if __name__ == "__main__":

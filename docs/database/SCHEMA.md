@@ -1,8 +1,9 @@
 # Database Schema
 
 **Supabase Project**: `noxgqcwynkzqabljjyon`
-**Architecture**: ADR-005 Unified Memory, ADR-006 Sessions, ADR-008 Documents
+**Architecture**: ADR-005 Unified Memory, ADR-006 Sessions, ADR-008 Documents, ADR-017 Unified Work Model
 **Extensions**: pgvector (for embeddings)
+**Migration Status**: ADR-017 approved, implementation pending
 
 ---
 
@@ -12,16 +13,20 @@
 user      1──n memories         (unified memory: user + project scoped)
 user      1──n chat_sessions    (TP conversations)
 user      1──n documents        (uploaded files)
+user      1──n work             (direct ownership for RLS)
 
 project   1──n memories         (project-scoped memories)
 project   1──n chat_sessions    (project-scoped conversations)
 project   1──n documents        (project-scoped documents)
-project   1──n work_tickets     (future: work orchestration)
+project   0──n work             (optional: project_id nullable for ambient work)
 
 document  1──n chunks           (semantic segments with embeddings)
 chat_session 1──n session_messages (conversation turns)
-work_ticket 1──n work_outputs   (agent deliverables)
+work      1──n work_outputs     (ADR-017: one output per execution, multiple for recurring)
 ```
+
+> **See also:** [WORK_DATA_MODEL.md](./WORK_DATA_MODEL.md) for detailed work system concepts.
+> **Note:** ADR-017 renames `work_tickets` → `work` and moves status to `work_outputs`. Migration pending.
 
 ---
 
@@ -185,43 +190,64 @@ User's work container.
 
 ---
 
-### 8. work_tickets (Future - ADR-009)
+### 8. work (ADR-017)
 
-Work request lifecycle. Currently exists but not actively used.
+> **Migration pending**: Currently `work_tickets`, will be renamed to `work` per ADR-017.
+
+Unified work model. Single table for all work—one-time and recurring.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
 | task | TEXT | Work description |
 | agent_type | TEXT | `research`, `content`, `reporting` |
-| status | TEXT | `pending`, `running`, `completed`, `failed` |
 | parameters | JSONB | Agent-specific params |
-| error_message | TEXT | On failure |
-| project_id | UUID | FK → projects |
+| project_id | UUID | FK → projects, **nullable** (NULL = ambient work) |
+| user_id | UUID | FK → auth.users, direct ownership |
 | created_at | TIMESTAMPTZ | Auto |
-| started_at | TIMESTAMPTZ | When agent started |
-| completed_at | TIMESTAMPTZ | When agent finished |
+| updated_at | TIMESTAMPTZ | Auto |
+| frequency | TEXT | `"once"` or schedule (`"daily at 9am"`) |
+| frequency_cron | TEXT | Parsed cron expression (NULL for "once") |
+| timezone | TEXT | User's timezone (default UTC) |
+| is_active | BOOLEAN | Will run on schedule |
+| next_run_at | TIMESTAMPTZ | Next scheduled execution (NULL for one-time) |
+| last_run_at | TIMESTAMPTZ | Last execution time |
 
-**RLS:** Users can manage tickets in their projects.
+**Key Concepts (ADR-017):**
+- `frequency="once"`: One-time work, executed immediately
+- `frequency="daily at 9am"`: Recurring work, cron job handles future executions
+- `is_active`: Controls whether recurring work continues running
+- Status moved to `work_outputs` (not on work record)
+
+**RLS:** Users can manage their own work (via user_id).
 
 ---
 
-### 9. work_outputs (Future - ADR-009)
+### 9. work_outputs (ADR-016, ADR-017)
 
-Agent deliverables.
+Agent deliverables. One output per execution (unified output model).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
+| work_id | UUID | FK → work (renamed from ticket_id) |
+| user_id | UUID | FK → auth.users, for RLS |
+| run_number | INTEGER | 1, 2, 3... for recurring work |
 | title | TEXT | Output name |
 | output_type | TEXT | `text`, `file` |
-| content | TEXT | For text outputs |
+| content | TEXT | Markdown body for text outputs |
+| metadata | JSONB | Agent-specific: `{scope, depth, format, tone, etc.}` |
 | file_url | TEXT | For file outputs |
 | file_format | TEXT | `pdf`, `pptx`, `docx`, etc |
-| ticket_id | UUID | FK → work_tickets |
+| status | TEXT | `pending`, `running`, `completed`, `failed` |
+| started_at | TIMESTAMPTZ | Execution start |
+| completed_at | TIMESTAMPTZ | Execution end |
+| error_message | TEXT | On failure |
 | created_at | TIMESTAMPTZ | Auto |
 
-**RLS:** Users can view and create outputs for their tickets.
+**ADR-017 Note:** Status lives on outputs, not work. Each execution produces exactly ONE output.
+
+**RLS:** Users can view and create outputs for their work (via user_id).
 
 ---
 
@@ -309,6 +335,12 @@ Originally for work ticket execution logs. Superseded by `chat_sessions` for TP 
 | `009_document_pipeline.sql` | ADR-008 document storage | Applied |
 | `010_subscription_fields.sql` | Lemon Squeezy subscription fields | Applied |
 | `011_fix_chunks_rls.sql` | Fix chunks RLS for user-scoped docs | Applied |
+| `012_work_scheduling.sql` | ADR-009 Phase 3: Schedule templates | Applied |
+| `013_fix_work_tickets_rls.sql` | Work tickets RLS fixes | Applied |
+| `014_ambient_work.sql` | ADR-015: Ambient work (project_id nullable) | Applied |
+| `015_fix_work_outputs_rls.sql` | Work outputs RLS fixes | Applied |
+| `016_work_output_metadata.sql` | ADR-016: Metadata JSONB column | Applied |
+| `017_unified_work_model.sql` | ADR-017: Unified work model | Pending |
 
 ---
 

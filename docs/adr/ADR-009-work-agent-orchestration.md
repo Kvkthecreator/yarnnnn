@@ -1,8 +1,9 @@
 # ADR-009: Work and Agent Orchestration
 
-**Status**: Implemented (Phase 1)
+**Status**: Implemented (Phase 1), **Partially Superseded by ADR-017**
 **Date**: 2026-01-30
 **Supersedes**: None (new architecture)
+**Superseded by**: ADR-017 (Unified Work Model) - for scheduling and work model aspects
 
 ---
 
@@ -541,9 +542,24 @@ Start with database queue. Migrate to external queue only when:
 - ADR-005: Unified Memory with Embeddings
 - ADR-007: Thinking Partner Project Authority
 - ADR-008: Document Pipeline
+- **ADR-017: Unified Work Model** (supersedes scheduling aspects of this ADR)
 - Legacy yarnnn-app-fullstack: work_tickets, recipes, supervision patterns
 - chat_companion: push delivery, scheduling, silence detection patterns
 - ESSENCE.md: Core domain model
+
+---
+
+## Superseded Aspects (ADR-017)
+
+The following aspects of this ADR have been superseded by ADR-017:
+
+1. **Separate scheduling tools**: `schedule_work` replaced by `create_work` with frequency parameter
+2. **Template concept**: `is_template` boolean replaced by `frequency` attribute
+3. **work_tickets table**: Renamed to `work` with simplified schema
+4. **Status on tickets**: Moved to `work_outputs` table
+5. **Dual-purpose table**: Single-purpose `work` table + `work_outputs`
+
+See ADR-017 for the current unified work model specification.
 
 ---
 

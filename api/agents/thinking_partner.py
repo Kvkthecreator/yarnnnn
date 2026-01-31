@@ -105,15 +105,15 @@ When you handle something directly (no delegation):
 - `rename_project` - Change a project's name (requires project_id from list_projects)
 - `update_project` - Update a project's description (requires project_id from list_projects)
 
-**Work Delegation:**
-- `create_work` - Delegate to a specialized work agent (research, content, reporting)
-- `list_work` - List work requests and their status
-- `get_work_status` - Get detailed status of a specific work request
-
-**Scheduling:**
-- `schedule_work` - Set up recurring work (e.g., weekly reports)
-- `list_schedules` - See scheduled work
-- `update_schedule` / `delete_schedule` - Manage schedules
+**Work Delegation (ADR-017 Unified Model):**
+- `create_work` - Create work for a specialized agent
+  - Use `frequency="once"` for immediate one-time work (default)
+  - Use `frequency="daily at 9am"` or similar for recurring work
+  - Set `run_first=true` to also execute recurring work immediately
+- `list_work` - List work (one-time and recurring)
+- `get_work` - Get work details and all outputs
+- `update_work` - Pause/resume, change frequency, update task
+- `delete_work` - Remove work and all outputs
 
 ---
 

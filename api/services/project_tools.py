@@ -1,14 +1,14 @@
 """
-Tools for Thinking Partner (ADR-007, ADR-009)
+Tools for Thinking Partner (ADR-007, ADR-017)
 
 Defines tools and handlers that give TP authority to:
 - Manage projects (ADR-007)
-- Initiate and track work (ADR-009)
+- Initiate and track work (ADR-017 Unified Work Model)
 
-Phase 1-2: Read-only tools (list_projects)
-Phase 3: Mutation tools (create_project)
-Phase 3.5: Update tools (rename_project, update_project)
-Phase 4: Work tools (create_work, list_work, get_work_status)
+ADR-017: Unified Work Model
+- Single create_work tool with frequency parameter
+- "once" for one-time work, schedule strings for recurring
+- Replaces separate schedule_work tool
 """
 
 from typing import Callable, Any
@@ -91,33 +91,48 @@ UPDATE_PROJECT_TOOL = {
 
 
 # =============================================================================
-# Work Tools (ADR-009)
+# Work Tools (ADR-017 Unified Work Model)
 # =============================================================================
 
 CREATE_WORK_TOOL = {
     "name": "create_work",
-    "description": """Create a work request for an agent to complete a task.
+    "description": """Create work for a specialized agent.
 
-Use when the user asks you to research something, create content, or generate a report.
+ADR-017: Unified Work Model - frequency is just an attribute of work.
+
+FREQUENCY OPTIONS:
+- "once" (default): Execute immediately, one time only
+- "daily at 9am": Run every day at specified time
+- "weekly on Monday at 10am": Run weekly on specified day
+- "every 6 hours": Run at regular intervals
+
+For recurring work (frequency != "once"), set run_first=true to also execute immediately.
 
 CONTEXT ROUTING (ADR-015):
 - If user is in a project context, use that project_id
 - If request clearly relates to an existing project, route it there
 - If request is personal/one-off, omit project_id (creates ambient work)
-- If request suggests new ongoing topic, you may suggest creating a project first
 
-Ambient work (no project_id) is perfectly valid for one-off tasks.""",
+EXAMPLES:
+- "Research competitors" → frequency="once"
+- "Daily AI news digest" → frequency="daily at 9am"
+- "Weekly status report" → frequency="weekly on Monday at 9am"
+""",
     "input_schema": {
         "type": "object",
         "properties": {
             "task": {
                 "type": "string",
-                "description": "Clear description of what needs to be done"
+                "description": "What the agent should do"
             },
             "agent_type": {
                 "type": "string",
                 "enum": ["research", "content", "reporting"],
                 "description": "Type of agent: 'research' for investigation/analysis, 'content' for writing/drafts, 'reporting' for summaries/reports"
+            },
+            "frequency": {
+                "type": "string",
+                "description": "'once' for immediate one-time work, or a schedule like 'daily at 9am', 'weekly on Monday', 'every 6 hours'. Default: 'once'"
             },
             "project_id": {
                 "type": "string",
@@ -126,6 +141,14 @@ Ambient work (no project_id) is perfectly valid for one-off tasks.""",
             "parameters": {
                 "type": "object",
                 "description": "Optional agent-specific parameters (e.g., depth, format, tone)"
+            },
+            "run_first": {
+                "type": "boolean",
+                "description": "For recurring work: also execute immediately? Default: true"
+            },
+            "timezone": {
+                "type": "string",
+                "description": "User's timezone for scheduled work, e.g., 'America/Los_Angeles'. Default: 'UTC'"
             }
         },
         "required": ["task", "agent_type"]
@@ -134,7 +157,14 @@ Ambient work (no project_id) is perfectly valid for one-off tasks.""",
 
 LIST_WORK_TOOL = {
     "name": "list_work",
-    "description": "List work requests for a project or across all projects. Use to check what work is pending, running, or completed.",
+    "description": """List work for a project or across all projects.
+
+ADR-017: Shows both one-time and recurring work. Use filters to narrow down.
+
+FILTERS:
+- active_only: Show only recurring work that's actively scheduled
+- include_completed: Include completed one-time work (default: true)
+- project_id: Filter to specific project""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -142,10 +172,13 @@ LIST_WORK_TOOL = {
                 "type": "string",
                 "description": "Optional: Filter to a specific project. Omit to list across all projects."
             },
-            "status": {
-                "type": "string",
-                "enum": ["pending", "running", "completed", "failed", "all"],
-                "description": "Filter by status. Default: 'all'"
+            "active_only": {
+                "type": "boolean",
+                "description": "Only show active recurring work. Default: false"
+            },
+            "include_completed": {
+                "type": "boolean",
+                "description": "Include completed one-time work. Default: true"
             },
             "limit": {
                 "type": "integer",
@@ -156,131 +189,66 @@ LIST_WORK_TOOL = {
     }
 }
 
-GET_WORK_STATUS_TOOL = {
-    "name": "get_work_status",
-    "description": "Get detailed status of a specific work request, including any outputs produced.",
+GET_WORK_TOOL = {
+    "name": "get_work",
+    "description": """Get detailed information about specific work, including all outputs.
+
+ADR-017: Shows work details and all outputs (run_number 1, 2, 3... for recurring).""",
     "input_schema": {
         "type": "object",
         "properties": {
             "work_id": {
                 "type": "string",
-                "description": "UUID of the work request"
+                "description": "UUID of the work"
             }
         },
         "required": ["work_id"]
     }
 }
 
-CANCEL_WORK_TOOL = {
-    "name": "cancel_work",
-    "description": "Cancel a pending or running work request. Use when the user wants to stop work that hasn't completed yet.",
+UPDATE_WORK_TOOL = {
+    "name": "update_work",
+    "description": """Update work settings. Use to pause/resume recurring work, change frequency, or update task.
+
+ADR-017: Works for both one-time and recurring work.""",
     "input_schema": {
         "type": "object",
         "properties": {
             "work_id": {
                 "type": "string",
-                "description": "UUID of the work request to cancel"
-            }
-        },
-        "required": ["work_id"]
-    }
-}
-
-
-# =============================================================================
-# Scheduling Tools (ADR-009 Phase 3)
-# =============================================================================
-
-SCHEDULE_WORK_TOOL = {
-    "name": "schedule_work",
-    "description": "Schedule recurring work to run automatically. Use when the user wants regular reports, research updates, or content generation. Common schedules: 'daily at 9am', 'weekly on Mondays', 'every hour'.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "task": {
-                "type": "string",
-                "description": "Clear description of what needs to be done on each run"
+                "description": "UUID of the work to update"
             },
-            "agent_type": {
-                "type": "string",
-                "enum": ["research", "content", "reporting"],
-                "description": "Type of agent: 'research' for investigation/analysis, 'content' for writing/drafts, 'reporting' for summaries/reports"
-            },
-            "project_id": {
-                "type": "string",
-                "description": "UUID of the project this work belongs to"
-            },
-            "schedule": {
-                "type": "string",
-                "description": "Human-readable schedule like 'daily at 9am', 'every Monday at 10am', 'every 6 hours'. Will be converted to cron."
-            },
-            "timezone": {
-                "type": "string",
-                "description": "User's timezone, e.g., 'America/Los_Angeles', 'Europe/London'. Default: 'UTC'"
-            },
-            "parameters": {
-                "type": "object",
-                "description": "Optional agent-specific parameters"
-            }
-        },
-        "required": ["task", "agent_type", "project_id", "schedule"]
-    }
-}
-
-LIST_SCHEDULES_TOOL = {
-    "name": "list_schedules",
-    "description": "List scheduled work templates for the user. Shows what recurring work is set up and when it will next run.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "project_id": {
-                "type": "string",
-                "description": "Optional: Filter to a specific project"
-            }
-        },
-        "required": []
-    }
-}
-
-UPDATE_SCHEDULE_TOOL = {
-    "name": "update_schedule",
-    "description": "Update or pause/resume a scheduled work template.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "schedule_id": {
-                "type": "string",
-                "description": "UUID of the schedule (work template) to update"
-            },
-            "enabled": {
+            "is_active": {
                 "type": "boolean",
-                "description": "Set to false to pause, true to resume"
+                "description": "Set to false to pause recurring work, true to resume"
             },
-            "schedule": {
+            "frequency": {
                 "type": "string",
-                "description": "New schedule (human-readable, will be converted to cron)"
+                "description": "New frequency (e.g., 'daily at 10am' instead of 9am)"
             },
             "task": {
                 "type": "string",
                 "description": "Updated task description"
             }
         },
-        "required": ["schedule_id"]
+        "required": ["work_id"]
     }
 }
 
-DELETE_SCHEDULE_TOOL = {
-    "name": "delete_schedule",
-    "description": "Delete a scheduled work template. This stops all future runs.",
+DELETE_WORK_TOOL = {
+    "name": "delete_work",
+    "description": """Delete work and all its outputs. Use when user wants to remove work entirely.
+
+For recurring work, this stops all future runs and removes history.""",
     "input_schema": {
         "type": "object",
         "properties": {
-            "schedule_id": {
+            "work_id": {
                 "type": "string",
-                "description": "UUID of the schedule to delete"
+                "description": "UUID of the work to delete"
             }
         },
-        "required": ["schedule_id"]
+        "required": ["work_id"]
     }
 }
 
@@ -292,16 +260,12 @@ THINKING_PARTNER_TOOLS = [
     CREATE_PROJECT_TOOL,
     RENAME_PROJECT_TOOL,
     UPDATE_PROJECT_TOOL,
-    # Work management (ADR-009, ADR-016)
+    # Unified work management (ADR-017)
     CREATE_WORK_TOOL,
     LIST_WORK_TOOL,
-    GET_WORK_STATUS_TOOL,
-    CANCEL_WORK_TOOL,
-    # Scheduling (ADR-009 Phase 3)
-    SCHEDULE_WORK_TOOL,
-    LIST_SCHEDULES_TOOL,
-    UPDATE_SCHEDULE_TOOL,
-    DELETE_SCHEDULE_TOOL,
+    GET_WORK_TOOL,
+    UPDATE_WORK_TOOL,
+    DELETE_WORK_TOOL,
 ]
 
 
@@ -464,32 +428,38 @@ async def handle_update_project(auth, input: dict) -> dict:
 
 
 # =============================================================================
-# Work Tool Handlers (ADR-009)
+# Work Tool Handlers (ADR-017 Unified Work Model)
 # =============================================================================
 
 async def handle_create_work(auth, input: dict) -> dict:
     """
-    Create a work request for an agent and execute it immediately.
+    Create work for an agent - handles both one-time and recurring.
 
-    ADR-015: Supports ambient work (no project_id).
+    ADR-017: Unified Work Model - frequency is just an attribute.
+    - frequency="once" (default): Execute immediately, one time
+    - frequency="daily at 9am", etc.: Set up recurring work
 
     Args:
         auth: UserClient with authenticated Supabase client
-        input: Tool input with task, agent_type, optional project_id, and optional parameters
+        input: Tool input with task, agent_type, frequency, optional project_id, parameters
 
     Returns:
-        Dict with work execution results including outputs
+        Dict with work details and output (for immediate execution)
     """
     import logging
     from services.work_execution import execute_work_ticket
     from jobs.email import send_work_complete_email
+    from jobs.work_scheduler import calculate_next_run
 
     logger = logging.getLogger(__name__)
 
     task = input["task"]
     agent_type = input["agent_type"]
-    project_id = input.get("project_id")  # Optional - None for ambient work
+    frequency = input.get("frequency", "once")
+    project_id = input.get("project_id")
     parameters = input.get("parameters", {})
+    run_first = input.get("run_first", True)
+    user_timezone = input.get("timezone", "UTC")
 
     # Validate agent_type
     valid_agent_types = ["research", "content", "reporting"]
@@ -499,145 +469,173 @@ async def handle_create_work(auth, input: dict) -> dict:
             "error": f"Invalid agent_type. Must be one of: {', '.join(valid_agent_types)}"
         }
 
-    # Create work ticket
-    # ADR-015: Include user_id for ambient work (required when project_id is NULL)
-    ticket_data = {
+    # Determine if this is recurring work
+    is_recurring = frequency.lower() != "once"
+
+    # Build work data
+    work_data = {
         "task": task,
         "agent_type": agent_type,
         "parameters": parameters,
-        "status": "pending",
-        "user_id": auth.user_id,  # Always set for RLS
+        "user_id": auth.user_id,
+        "status": "pending",  # Status will move to outputs in future migration
+        "is_template": False,  # ADR-017: No more templates, but keep for backward compat
     }
-    if project_id:
-        ticket_data["project_id"] = project_id
 
-    result = auth.client.table("work_tickets").insert(ticket_data).execute()
+    if project_id:
+        work_data["project_id"] = project_id
+
+    if is_recurring:
+        # Parse schedule to cron
+        cron_expr = parse_schedule_to_cron(frequency)
+
+        # Calculate next run time
+        try:
+            next_run = calculate_next_run(cron_expr, user_timezone)
+        except Exception as e:
+            return {
+                "success": False,
+                "error": f"Invalid schedule '{frequency}': {e}"
+            }
+
+        work_data["schedule_cron"] = cron_expr
+        work_data["schedule_timezone"] = user_timezone
+        work_data["schedule_enabled"] = True
+        work_data["schedule_next_run_at"] = next_run.isoformat()
+        # Note: ADR-017 will rename these to frequency_cron, is_active, next_run_at
+        # For now, using existing column names for backward compatibility
+
+    # Create work record
+    result = auth.client.table("work_tickets").insert(work_data).execute()
 
     if not result.data:
         return {
             "success": False,
-            "error": "Failed to create work request"
+            "error": "Failed to create work"
         }
 
-    ticket = result.data[0]
-    ticket_id = ticket["id"]
+    work = result.data[0]
+    work_id = work["id"]
 
-    # Execute the work immediately
-    execution_result = await execute_work_ticket(
-        auth.client,
-        auth.user_id,
-        ticket_id,
-    )
-
-    if not execution_result.get("success"):
-        return {
-            "success": False,
-            "work": {
-                "id": ticket_id,
-                "task": task,
-                "agent_type": agent_type,
-                "status": "failed",
-                "project_id": project_id,
-            },
-            "error": execution_result.get("error", "Work execution failed"),
-            "message": f"Work request failed: {execution_result.get('error', 'Unknown error')}"
-        }
-
-    # ADR-016: Format single output for TP response
-    output = execution_result.get("output")
+    # For one-time work OR recurring with run_first=True, execute immediately
+    should_execute = not is_recurring or run_first
     output_summary = None
+    execution_result = None
 
-    if output:
-        # Get preview of content (first 200 chars)
-        content = output.get("content", "")
-        preview = content[:200] + "..." if len(content) > 200 else content
+    if should_execute:
+        execution_result = await execute_work_ticket(
+            auth.client,
+            auth.user_id,
+            work_id,
+        )
 
-        output_summary = {
-            "id": output.get("id"),
-            "title": output.get("title"),
-            "preview": preview,
-            "metadata": output.get("metadata", {}),
-        }
+        if execution_result.get("success"):
+            output = execution_result.get("output")
+            if output:
+                content = output.get("content", "")
+                preview = content[:200] + "..." if len(content) > 200 else content
+                output_summary = {
+                    "id": output.get("id"),
+                    "title": output.get("title"),
+                    "preview": preview,
+                    "metadata": output.get("metadata", {}),
+                    "run_number": 1,
+                }
 
-    # Backward compat: keep outputs list format
-    output_summaries = [output_summary] if output_summary else []
+            # Send email notification
+            if auth.email and output_summary:
+                try:
+                    project_name = "Personal Work"
+                    if project_id:
+                        project_result = auth.client.table("projects").select("name").eq("id", project_id).single().execute()
+                        project_name = project_result.data.get("name", "Unknown Project") if project_result.data else "Unknown Project"
 
-    # Send email notification if user has email
-    email_sent = False
-    if auth.email and output_summaries:
-        try:
-            # Get project name for email (or "Personal Work" for ambient)
-            project_name = "Personal Work"
-            if project_id:
-                project_result = auth.client.table("projects").select("name").eq("id", project_id).single().execute()
-                project_name = project_result.data.get("name", "Unknown Project") if project_result.data else "Unknown Project"
+                    await send_work_complete_email(
+                        to=auth.email,
+                        project_name=project_name,
+                        agent_type=agent_type,
+                        task=task,
+                        outputs=[output_summary],
+                        project_id=project_id,
+                    )
+                except Exception as e:
+                    logger.warning(f"Error sending work completion email: {e}")
 
-            email_result = await send_work_complete_email(
-                to=auth.email,
-                project_name=project_name,
-                agent_type=agent_type,
-                task=task,
-                outputs=output_summaries,
-                project_id=project_id,
-            )
-            email_sent = email_result.success
-            if not email_result.success:
-                logger.warning(f"Failed to send work completion email: {email_result.error}")
-        except Exception as e:
-            logger.warning(f"Error sending work completion email: {e}")
+    # Build response
+    human_schedule = cron_to_human(work_data.get("schedule_cron", "")) if is_recurring else None
 
-    # ADR-016: TP should be brief when work completes
-    return {
+    response = {
         "success": True,
         "work": {
-            "id": ticket_id,
+            "id": work_id,
             "task": task,
             "agent_type": agent_type,
-            "status": "completed",
+            "frequency": frequency,
             "project_id": project_id,
-            "execution_time_ms": execution_result.get("execution_time_ms"),
+            "is_recurring": is_recurring,
         },
-        "output": output_summary,  # ADR-016: single output
-        "outputs": output_summaries,  # Backward compat
-        "output_count": 1 if output_summary else 0,
-        "email_sent": email_sent,
-        "message": f"Work complete. Output available in the output panel.",
-        # ADR-016: TP should keep response brief and reference output
-        "instruction_to_assistant": "Keep your response brief (1-2 sentences). Acknowledge the work is done and direct the user to the output panel. Do NOT duplicate the output content in your response.",
-        # ADR-013: UI action to open output surface with completed work
-        "ui_action": {
+    }
+
+    if is_recurring:
+        response["work"]["schedule"] = human_schedule
+        response["work"]["next_run"] = work_data.get("schedule_next_run_at")
+        response["work"]["is_active"] = True
+
+        if run_first and output_summary:
+            response["output"] = output_summary
+            response["message"] = f"Recurring work created ({human_schedule}). First output ready in the output panel."
+        else:
+            response["message"] = f"Recurring work created: {human_schedule}. First run scheduled."
+    else:
+        # One-time work
+        if execution_result and execution_result.get("success"):
+            response["work"]["status"] = "completed"
+            response["work"]["execution_time_ms"] = execution_result.get("execution_time_ms")
+            response["output"] = output_summary
+            response["message"] = "Work complete. Output available in the output panel."
+        else:
+            response["work"]["status"] = "failed"
+            response["error"] = execution_result.get("error", "Execution failed") if execution_result else "Failed to execute"
+            response["message"] = f"Work failed: {response['error']}"
+            return response
+
+    # UI action for completed work
+    if output_summary:
+        response["ui_action"] = {
             "type": "OPEN_SURFACE",
             "surface": "output",
             "data": {
-                "ticketId": ticket_id,
+                "workId": work_id,
                 "projectId": project_id,
             }
         }
-    }
+        response["instruction_to_assistant"] = "Keep your response brief (1-2 sentences). Acknowledge the work is done and direct the user to the output panel."
+
+    return response
 
 
 async def handle_list_work(auth, input: dict) -> dict:
     """
-    List work requests, optionally filtered by project and status.
+    List work, including both one-time and recurring.
 
-    ADR-015: Includes ambient work (project_id IS NULL) when no project filter.
+    ADR-017: Unified work listing with frequency info.
 
     Args:
         auth: UserClient with authenticated Supabase client
-        input: Tool input with optional project_id, status, and limit
+        input: Tool input with optional project_id, active_only, include_completed, limit
 
     Returns:
-        Dict with work requests list
+        Dict with work list
     """
     project_id = input.get("project_id")
-    status_filter = input.get("status", "all")
+    active_only = input.get("active_only", False)
+    include_completed = input.get("include_completed", True)
     limit = input.get("limit", 10)
 
-    # Build query - RLS handles access control
-    # ADR-015: Query includes both project work and ambient work
+    # Build query
     query = auth.client.table("work_tickets")\
-        .select("id, task, agent_type, status, project_id, user_id, created_at, started_at, completed_at, projects(name)")\
-        .eq("is_template", False)\
+        .select("id, task, agent_type, status, project_id, user_id, created_at, started_at, completed_at, schedule_cron, schedule_enabled, schedule_next_run_at, is_template, projects(name)")\
+        .eq("user_id", auth.user_id)\
         .order("created_at", desc=True)\
         .limit(limit)
 
@@ -645,164 +643,295 @@ async def handle_list_work(auth, input: dict) -> dict:
     if project_id:
         query = query.eq("project_id", project_id)
 
-    # Filter by status if not "all"
-    if status_filter and status_filter != "all":
-        query = query.eq("status", status_filter)
+    # Active only: show recurring work that's enabled
+    if active_only:
+        query = query.eq("schedule_enabled", True).not_.is_("schedule_cron", "null")
 
     result = query.execute()
-    tickets = result.data or []
+    items = result.data or []
 
     # Format response
     work_items = []
-    for t in tickets:
-        # ADR-015: Show "Personal" for ambient work
+    for t in items:
+        # Determine if recurring (has schedule_cron)
+        is_recurring = t.get("schedule_cron") is not None
+
+        # Skip completed one-time work if not including completed
+        if not include_completed and not is_recurring and t.get("status") == "completed":
+            continue
+
+        # Project name
         if t.get("project_id"):
             project_name = t.get("projects", {}).get("name", "Unknown") if t.get("projects") else "Unknown"
         else:
             project_name = "Personal"
 
-        work_items.append({
+        work_item = {
             "id": t["id"],
             "task": t["task"][:100] + "..." if len(t["task"]) > 100 else t["task"],
             "agent_type": t["agent_type"],
-            "status": t["status"],
             "project_name": project_name,
             "is_ambient": t.get("project_id") is None,
+            "is_recurring": is_recurring,
             "created_at": t["created_at"],
-        })
+        }
+
+        if is_recurring:
+            work_item["frequency"] = cron_to_human(t["schedule_cron"])
+            work_item["is_active"] = t.get("schedule_enabled", True)
+            work_item["next_run"] = t.get("schedule_next_run_at")
+        else:
+            work_item["frequency"] = "once"
+            work_item["status"] = t["status"]
+
+        work_items.append(work_item)
 
     return {
         "success": True,
         "work": work_items,
         "count": len(work_items),
-        "message": f"Found {len(work_items)} work request(s)"
+        "message": f"Found {len(work_items)} work item(s)"
     }
 
 
-async def handle_cancel_work(auth, input: dict) -> dict:
+async def handle_get_work(auth, input: dict) -> dict:
     """
-    Cancel a pending or running work request.
+    Get detailed information about work, including all outputs.
+
+    ADR-017: Shows work details and all outputs (with run_number for recurring).
 
     Args:
         auth: UserClient with authenticated Supabase client
         input: Tool input with work_id
 
     Returns:
-        Dict confirming cancellation
-    """
-    from datetime import datetime, timezone
-
-    work_id = input["work_id"]
-
-    # Get current status
-    ticket_result = auth.client.table("work_tickets")\
-        .select("id, status, task")\
-        .eq("id", work_id)\
-        .single()\
-        .execute()
-
-    if not ticket_result.data:
-        return {
-            "success": False,
-            "error": "Work request not found or access denied"
-        }
-
-    ticket = ticket_result.data
-    current_status = ticket["status"]
-
-    # Can only cancel pending or running work
-    if current_status not in ["pending", "running"]:
-        return {
-            "success": False,
-            "error": f"Cannot cancel work with status '{current_status}'. Only pending or running work can be cancelled."
-        }
-
-    # Update to cancelled
-    auth.client.table("work_tickets").update({
-        "status": "cancelled",
-        "completed_at": datetime.now(timezone.utc).isoformat(),
-        "error_message": "Cancelled by user"
-    }).eq("id", work_id).execute()
-
-    return {
-        "success": True,
-        "work_id": work_id,
-        "previous_status": current_status,
-        "message": f"Cancelled work request: {ticket['task'][:50]}..."
-    }
-
-
-async def handle_get_work_status(auth, input: dict) -> dict:
-    """
-    Get detailed status of a specific work request.
-
-    Args:
-        auth: UserClient with authenticated Supabase client
-        input: Tool input with work_id
-
-    Returns:
-        Dict with work request details and outputs
+        Dict with work details and outputs
     """
     work_id = input["work_id"]
 
-    # Get work ticket with project info
-    ticket_result = auth.client.table("work_tickets")\
+    # Get work with project info
+    work_result = auth.client.table("work_tickets")\
         .select("*, projects(name)")\
         .eq("id", work_id)\
+        .eq("user_id", auth.user_id)\
         .single()\
         .execute()
 
-    if not ticket_result.data:
+    if not work_result.data:
         return {
             "success": False,
-            "error": "Work request not found or access denied"
+            "error": "Work not found or access denied"
         }
 
-    ticket = ticket_result.data
-    project_name = ticket.get("projects", {}).get("name", "Unknown") if ticket.get("projects") else "Unknown"
+    work = work_result.data
+    project_name = work.get("projects", {}).get("name", "Personal") if work.get("projects") else "Personal"
+    is_recurring = work.get("schedule_cron") is not None
 
-    # Get any outputs for this ticket
+    # Get outputs for this work
     outputs_result = auth.client.table("work_outputs")\
-        .select("id, title, output_type, content, file_url, file_format, created_at, status")\
+        .select("id, title, output_type, content, file_url, file_format, created_at, status, metadata")\
         .eq("ticket_id", work_id)\
-        .order("created_at", desc=False)\
+        .order("created_at", desc=True)\
         .execute()
 
     outputs = outputs_result.data or []
 
+    # Build work info
+    work_info = {
+        "id": work["id"],
+        "task": work["task"],
+        "agent_type": work["agent_type"],
+        "project_name": project_name,
+        "is_recurring": is_recurring,
+        "created_at": work["created_at"],
+        "parameters": work.get("parameters", {}),
+    }
+
+    if is_recurring:
+        work_info["frequency"] = cron_to_human(work["schedule_cron"])
+        work_info["is_active"] = work.get("schedule_enabled", True)
+        work_info["next_run"] = work.get("schedule_next_run_at")
+        work_info["last_run"] = work.get("schedule_last_run_at")
+    else:
+        work_info["frequency"] = "once"
+        work_info["status"] = work["status"]
+        work_info["started_at"] = work.get("started_at")
+        work_info["completed_at"] = work.get("completed_at")
+        if work.get("error_message"):
+            work_info["error_message"] = work["error_message"]
+
+    # Format outputs with run numbers
+    output_list = []
+    for i, o in enumerate(reversed(outputs)):  # Oldest first for run numbering
+        output_list.append({
+            "id": o["id"],
+            "title": o["title"],
+            "type": o["output_type"],
+            "run_number": i + 1,
+            "content_preview": o["content"][:200] + "..." if o.get("content") and len(o["content"]) > 200 else o.get("content"),
+            "file_url": o.get("file_url"),
+            "file_format": o.get("file_format"),
+            "status": o.get("status", "delivered"),
+            "created_at": o["created_at"],
+        })
+
+    return {
+        "success": True,
+        "work": work_info,
+        "outputs": list(reversed(output_list)),  # Most recent first
+        "output_count": len(outputs),
+        "message": f"Work has {len(outputs)} output(s)"
+    }
+
+
+async def handle_update_work(auth, input: dict) -> dict:
+    """
+    Update work settings (pause/resume, change frequency, update task).
+
+    ADR-017: Works for both one-time and recurring work.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with work_id and optional updates
+
+    Returns:
+        Dict with updated work details
+    """
+    from jobs.work_scheduler import calculate_next_run
+
+    work_id = input["work_id"]
+    updates = {}
+
+    # Build updates
+    if "is_active" in input:
+        updates["schedule_enabled"] = input["is_active"]
+
+    if "task" in input:
+        updates["task"] = input["task"]
+
+    if "frequency" in input:
+        frequency = input["frequency"]
+        if frequency.lower() == "once":
+            # Converting to one-time work
+            updates["schedule_cron"] = None
+            updates["schedule_enabled"] = False
+            updates["schedule_next_run_at"] = None
+        else:
+            cron_expr = parse_schedule_to_cron(frequency)
+            updates["schedule_cron"] = cron_expr
+
+            # Get current timezone
+            work_result = auth.client.table("work_tickets")\
+                .select("schedule_timezone")\
+                .eq("id", work_id)\
+                .eq("user_id", auth.user_id)\
+                .single()\
+                .execute()
+
+            if work_result.data:
+                tz = work_result.data.get("schedule_timezone", "UTC")
+                try:
+                    next_run = calculate_next_run(cron_expr, tz)
+                    updates["schedule_next_run_at"] = next_run.isoformat()
+                except Exception:
+                    pass
+
+    if not updates:
+        return {
+            "success": False,
+            "error": "No updates provided"
+        }
+
+    # Apply updates
+    result = auth.client.table("work_tickets")\
+        .update(updates)\
+        .eq("id", work_id)\
+        .eq("user_id", auth.user_id)\
+        .execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Work not found or access denied"
+        }
+
+    work = result.data[0]
+    is_recurring = work.get("schedule_cron") is not None
+
+    status_msg = []
+    if "schedule_enabled" in updates:
+        status_msg.append("paused" if not updates["schedule_enabled"] else "resumed")
+    if "task" in updates:
+        status_msg.append("task updated")
+    if "schedule_cron" in updates:
+        if updates["schedule_cron"]:
+            status_msg.append(f"frequency changed to {cron_to_human(updates['schedule_cron'])}")
+        else:
+            status_msg.append("converted to one-time")
+
     return {
         "success": True,
         "work": {
-            "id": ticket["id"],
-            "task": ticket["task"],
-            "agent_type": ticket["agent_type"],
-            "status": ticket["status"],
-            "project_name": project_name,
-            "created_at": ticket["created_at"],
-            "started_at": ticket.get("started_at"),
-            "completed_at": ticket.get("completed_at"),
-            "error_message": ticket.get("error_message"),
-            "parameters": ticket.get("parameters", {}),
+            "id": work["id"],
+            "task": work["task"],
+            "is_recurring": is_recurring,
+            "is_active": work.get("schedule_enabled", False) if is_recurring else None,
+            "frequency": cron_to_human(work["schedule_cron"]) if is_recurring else "once",
+            "next_run": work.get("schedule_next_run_at"),
         },
-        "outputs": [
-            {
-                "id": o["id"],
-                "title": o["title"],
-                "type": o["output_type"],
-                "content_preview": o["content"][:200] + "..." if o.get("content") and len(o["content"]) > 200 else o.get("content"),
-                "file_url": o.get("file_url"),
-                "file_format": o.get("file_format"),
-                "status": o.get("status", "delivered"),
-            }
-            for o in outputs
-        ],
-        "output_count": len(outputs),
-        "message": f"Work status: {ticket['status']}" + (f" with {len(outputs)} output(s)" if outputs else "")
+        "message": f"Work updated: {', '.join(status_msg)}"
+    }
+
+
+async def handle_delete_work(auth, input: dict) -> dict:
+    """
+    Delete work and all its outputs.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with work_id
+
+    Returns:
+        Dict confirming deletion
+    """
+    work_id = input["work_id"]
+
+    # Verify ownership
+    work_result = auth.client.table("work_tickets")\
+        .select("id, task")\
+        .eq("id", work_id)\
+        .eq("user_id", auth.user_id)\
+        .single()\
+        .execute()
+
+    if not work_result.data:
+        return {
+            "success": False,
+            "error": "Work not found or access denied"
+        }
+
+    task = work_result.data["task"]
+
+    # Delete outputs first (foreign key constraint)
+    auth.client.table("work_outputs")\
+        .delete()\
+        .eq("ticket_id", work_id)\
+        .execute()
+
+    # Delete work
+    auth.client.table("work_tickets")\
+        .delete()\
+        .eq("id", work_id)\
+        .execute()
+
+    return {
+        "success": True,
+        "message": f"Deleted work: {task[:50]}..."
     }
 
 
 # =============================================================================
-# Scheduling Tool Handlers (ADR-009 Phase 3)
+# Schedule Parsing Utilities
 # =============================================================================
 
 def parse_schedule_to_cron(schedule: str) -> str:
@@ -919,263 +1048,6 @@ def cron_to_human(cron_expr: str) -> str:
     return cron_expr
 
 
-async def handle_schedule_work(auth, input: dict) -> dict:
-    """
-    Create a scheduled work template.
-
-    Args:
-        auth: UserClient with authenticated Supabase client
-        input: Tool input with task, agent_type, project_id, schedule, timezone
-
-    Returns:
-        Dict with created schedule details
-    """
-    from datetime import datetime, timezone as tz
-    from jobs.work_scheduler import calculate_next_run
-
-    task = input["task"]
-    agent_type = input["agent_type"]
-    project_id = input["project_id"]
-    schedule = input["schedule"]
-    user_timezone = input.get("timezone", "UTC")
-    parameters = input.get("parameters", {})
-
-    # Validate agent type
-    valid_types = ["research", "content", "reporting"]
-    if agent_type not in valid_types:
-        return {
-            "success": False,
-            "error": f"Invalid agent_type. Must be one of: {', '.join(valid_types)}"
-        }
-
-    # Convert schedule to cron
-    cron_expr = parse_schedule_to_cron(schedule)
-
-    # Calculate first run time
-    try:
-        next_run = calculate_next_run(cron_expr, user_timezone)
-    except Exception as e:
-        return {
-            "success": False,
-            "error": f"Invalid schedule: {e}"
-        }
-
-    # Create template ticket
-    result = auth.client.table("work_tickets").insert({
-        "task": task,
-        "agent_type": agent_type,
-        "project_id": project_id,
-        "user_id": auth.user_id,
-        "parameters": parameters,
-        "status": "pending",  # Templates stay pending
-        "is_template": True,
-        "schedule_cron": cron_expr,
-        "schedule_timezone": user_timezone,
-        "schedule_enabled": True,
-        "schedule_next_run_at": next_run.isoformat(),
-    }).execute()
-
-    if not result.data:
-        return {
-            "success": False,
-            "error": "Failed to create scheduled work"
-        }
-
-    template = result.data[0]
-    human_schedule = cron_to_human(cron_expr)
-
-    return {
-        "success": True,
-        "schedule": {
-            "id": template["id"],
-            "task": task,
-            "agent_type": agent_type,
-            "schedule": human_schedule,
-            "cron": cron_expr,
-            "timezone": user_timezone,
-            "next_run": next_run.isoformat(),
-            "enabled": True,
-        },
-        "message": f"Scheduled {agent_type} work: {human_schedule}. First run: {next_run.strftime('%Y-%m-%d %H:%M %Z')}"
-    }
-
-
-async def handle_list_schedules(auth, input: dict) -> dict:
-    """
-    List scheduled work templates for the user.
-
-    Args:
-        auth: UserClient with authenticated Supabase client
-        input: Tool input with optional project_id
-
-    Returns:
-        Dict with schedules list
-    """
-    project_id = input.get("project_id")
-
-    # Query templates
-    query = auth.client.table("work_tickets")\
-        .select("id, task, agent_type, project_id, schedule_cron, schedule_timezone, schedule_enabled, schedule_next_run_at, schedule_last_run_at, projects(name)")\
-        .eq("is_template", True)\
-        .eq("user_id", auth.user_id)\
-        .order("created_at", desc=True)
-
-    if project_id:
-        query = query.eq("project_id", project_id)
-
-    result = query.execute()
-    templates = result.data or []
-
-    schedules = []
-    for t in templates:
-        project_name = t.get("projects", {}).get("name", "Unknown") if t.get("projects") else "Unknown"
-        human_schedule = cron_to_human(t["schedule_cron"]) if t.get("schedule_cron") else "Unknown"
-
-        schedules.append({
-            "id": t["id"],
-            "task": t["task"][:100] + "..." if len(t["task"]) > 100 else t["task"],
-            "agent_type": t["agent_type"],
-            "project_name": project_name,
-            "schedule": human_schedule,
-            "cron": t.get("schedule_cron"),
-            "timezone": t.get("schedule_timezone", "UTC"),
-            "enabled": t.get("schedule_enabled", True),
-            "next_run": t.get("schedule_next_run_at"),
-            "last_run": t.get("schedule_last_run_at"),
-        })
-
-    return {
-        "success": True,
-        "schedules": schedules,
-        "count": len(schedules),
-        "message": f"Found {len(schedules)} scheduled work item(s)"
-    }
-
-
-async def handle_update_schedule(auth, input: dict) -> dict:
-    """
-    Update a scheduled work template.
-
-    Args:
-        auth: UserClient with authenticated Supabase client
-        input: Tool input with schedule_id and optional updates
-
-    Returns:
-        Dict with updated schedule details
-    """
-    from jobs.work_scheduler import calculate_next_run
-
-    schedule_id = input["schedule_id"]
-    updates = {}
-
-    # Check what's being updated
-    if "enabled" in input:
-        updates["schedule_enabled"] = input["enabled"]
-
-    if "task" in input:
-        updates["task"] = input["task"]
-
-    if "schedule" in input:
-        cron_expr = parse_schedule_to_cron(input["schedule"])
-        updates["schedule_cron"] = cron_expr
-
-        # Recalculate next run
-        # Get current timezone from template
-        template_result = auth.client.table("work_tickets")\
-            .select("schedule_timezone")\
-            .eq("id", schedule_id)\
-            .eq("is_template", True)\
-            .single()\
-            .execute()
-
-        if template_result.data:
-            tz = template_result.data.get("schedule_timezone", "UTC")
-            try:
-                next_run = calculate_next_run(cron_expr, tz)
-                updates["schedule_next_run_at"] = next_run.isoformat()
-            except Exception:
-                pass
-
-    if not updates:
-        return {
-            "success": False,
-            "error": "No updates provided"
-        }
-
-    # Apply updates
-    result = auth.client.table("work_tickets")\
-        .update(updates)\
-        .eq("id", schedule_id)\
-        .eq("is_template", True)\
-        .eq("user_id", auth.user_id)\
-        .execute()
-
-    if not result.data:
-        return {
-            "success": False,
-            "error": "Schedule not found or access denied"
-        }
-
-    template = result.data[0]
-    human_schedule = cron_to_human(template.get("schedule_cron", "")) if template.get("schedule_cron") else "Unknown"
-
-    status_msg = "paused" if not template.get("schedule_enabled") else "active"
-
-    return {
-        "success": True,
-        "schedule": {
-            "id": template["id"],
-            "task": template["task"],
-            "schedule": human_schedule,
-            "enabled": template.get("schedule_enabled", True),
-            "next_run": template.get("schedule_next_run_at"),
-        },
-        "message": f"Schedule updated ({status_msg})"
-    }
-
-
-async def handle_delete_schedule(auth, input: dict) -> dict:
-    """
-    Delete a scheduled work template.
-
-    Args:
-        auth: UserClient with authenticated Supabase client
-        input: Tool input with schedule_id
-
-    Returns:
-        Dict confirming deletion
-    """
-    schedule_id = input["schedule_id"]
-
-    # Verify it's a template and belongs to user
-    check_result = auth.client.table("work_tickets")\
-        .select("id, task")\
-        .eq("id", schedule_id)\
-        .eq("is_template", True)\
-        .eq("user_id", auth.user_id)\
-        .single()\
-        .execute()
-
-    if not check_result.data:
-        return {
-            "success": False,
-            "error": "Schedule not found or access denied"
-        }
-
-    task = check_result.data["task"]
-
-    # Delete the template
-    auth.client.table("work_tickets")\
-        .delete()\
-        .eq("id", schedule_id)\
-        .execute()
-
-    return {
-        "success": True,
-        "message": f"Deleted scheduled work: {task[:50]}..."
-    }
-
-
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     # Project tools (ADR-007)
@@ -1183,16 +1055,19 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "create_project": handle_create_project,
     "rename_project": handle_rename_project,
     "update_project": handle_update_project,
-    # Work tools (ADR-009, ADR-016)
+    # Unified work tools (ADR-017)
     "create_work": handle_create_work,
     "list_work": handle_list_work,
-    "get_work_status": handle_get_work_status,
-    "cancel_work": handle_cancel_work,
-    # Scheduling tools (ADR-009 Phase 3)
-    "schedule_work": handle_schedule_work,
-    "list_schedules": handle_list_schedules,
-    "update_schedule": handle_update_schedule,
-    "delete_schedule": handle_delete_schedule,
+    "get_work": handle_get_work,
+    "update_work": handle_update_work,
+    "delete_work": handle_delete_work,
+    # Legacy aliases for backward compatibility (ADR-009 → ADR-017)
+    "get_work_status": handle_get_work,  # Alias for get_work
+    "cancel_work": handle_update_work,   # Use update_work with is_active=false
+    "schedule_work": handle_create_work,  # Use create_work with frequency param
+    "list_schedules": handle_list_work,   # Use list_work with active_only=true
+    "update_schedule": handle_update_work,  # Use update_work
+    "delete_schedule": handle_delete_work,  # Use delete_work
 }
 
 
