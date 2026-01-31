@@ -60,13 +60,39 @@ export function ScheduleSurface({ data }: ScheduleSurfaceProps) {
     setLoading(true);
     setError(null);
     try {
-      const result = await api.work.listAll({
-        projectId: projectId,
-        activeOnly: false, // Show all work, not just active recurring
-        includeCompleted: true,
-        limit: 50,
-      });
-      setWorkItems(result.work || []);
+      // Fetch both project-specific work AND ambient (user-level) work
+      const [projectResult, ambientResult] = await Promise.all([
+        // Project work (if project selected)
+        projectId
+          ? api.work.listAll({
+              projectId: projectId,
+              activeOnly: false,
+              includeCompleted: true,
+              limit: 50,
+            })
+          : Promise.resolve({ work: [], count: 0, success: true, message: '' }),
+        // Ambient work (no project) - always fetch
+        api.work.listAll({
+          activeOnly: false,
+          includeCompleted: true,
+          limit: 50,
+        }),
+      ]);
+
+      // Combine and deduplicate (ambient query returns all user work, filter to ambient only)
+      const projectWork = projectResult.work || [];
+      const allWork = ambientResult.work || [];
+
+      // Ambient work = work with is_ambient=true (no project)
+      const ambientWork = allWork.filter((w) => w.is_ambient);
+
+      // Combine: project work + ambient work (no duplicates since they're mutually exclusive)
+      const combined = [...projectWork, ...ambientWork];
+
+      // Sort by created_at descending
+      combined.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      setWorkItems(combined);
     } catch (err) {
       console.error('Failed to load work:', err);
       setError('Failed to load work items');

@@ -53,13 +53,15 @@ export function OutputSurface({ data }: OutputSurfaceProps) {
   const { openSurface } = useSurface();
 
   useEffect(() => {
-    if (data?.ticketId) {
-      loadTicket(data.ticketId);
+    // ADR-017: Support both ticketId and workId (they're the same thing now)
+    const id = data?.ticketId || data?.workId;
+    if (id) {
+      loadTicket(id);
     } else {
       setLoading(false);
       setError('No ticket specified');
     }
-  }, [data?.ticketId]);
+  }, [data?.ticketId, data?.workId]);
 
   const loadTicket = async (ticketId: string) => {
     setLoading(true);
