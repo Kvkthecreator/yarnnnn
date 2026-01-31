@@ -247,15 +247,30 @@ async def execute_work_ticket(
                 "ticket_id": ticket_id,
                 "title": result.work_output.title,
                 "content": result.work_output.content,  # Markdown content
-                "metadata": result.work_output.metadata,  # Agent-specific metadata
                 "status": "delivered",
             }
+            # Only include metadata if present (column may not exist in older schemas)
+            if result.work_output.metadata:
+                output_data["metadata"] = result.work_output.metadata
 
-            output_result = (
-                client.table("work_outputs")
-                .insert(output_data)
-                .execute()
-            )
+            try:
+                output_result = (
+                    client.table("work_outputs")
+                    .insert(output_data)
+                    .execute()
+                )
+            except Exception as insert_err:
+                # If metadata column doesn't exist, retry without it
+                if "metadata" in str(insert_err) and "metadata" in output_data:
+                    logger.warning("[WORK EXECUTION] Retrying insert without metadata column")
+                    del output_data["metadata"]
+                    output_result = (
+                        client.table("work_outputs")
+                        .insert(output_data)
+                        .execute()
+                    )
+                else:
+                    raise
 
             if output_result.data:
                 saved_output = output_result.data[0]
