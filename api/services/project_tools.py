@@ -710,12 +710,19 @@ async def handle_get_work(auth, input: dict) -> dict:
     work_id = input["work_id"]
 
     # Get work with project info
-    work_result = auth.client.table("work_tickets")\
-        .select("*, projects(name)")\
-        .eq("id", work_id)\
-        .eq("user_id", auth.user_id)\
-        .single()\
-        .execute()
+    try:
+        work_result = auth.client.table("work_tickets")\
+            .select("*, projects(name)")\
+            .eq("id", work_id)\
+            .eq("user_id", auth.user_id)\
+            .single()\
+            .execute()
+    except Exception:
+        # .single() throws when 0 rows returned
+        return {
+            "success": False,
+            "error": "Work not found or access denied"
+        }
 
     if not work_result.data:
         return {
@@ -728,8 +735,10 @@ async def handle_get_work(auth, input: dict) -> dict:
     is_recurring = work.get("schedule_cron") is not None
 
     # Get outputs for this work
+    # Note: metadata column may not exist if migration 016 hasn't been applied
+    # Use "*" to select all columns and handle missing columns gracefully
     outputs_result = auth.client.table("work_outputs")\
-        .select("id, title, output_type, content, file_url, file_format, created_at, status, metadata")\
+        .select("*")\
         .eq("ticket_id", work_id)\
         .order("created_at", desc=True)\
         .execute()
@@ -797,8 +806,6 @@ async def handle_update_work(auth, input: dict) -> dict:
     Returns:
         Dict with updated work details
     """
-    from jobs.work_scheduler import calculate_next_run
-
     work_id = input["work_id"]
     updates = {}
 
@@ -821,16 +828,20 @@ async def handle_update_work(auth, input: dict) -> dict:
             updates["schedule_cron"] = cron_expr
 
             # Get current timezone
-            work_result = auth.client.table("work_tickets")\
-                .select("schedule_timezone")\
-                .eq("id", work_id)\
-                .eq("user_id", auth.user_id)\
-                .single()\
-                .execute()
+            try:
+                work_result = auth.client.table("work_tickets")\
+                    .select("schedule_timezone")\
+                    .eq("id", work_id)\
+                    .eq("user_id", auth.user_id)\
+                    .single()\
+                    .execute()
+            except Exception:
+                work_result = None
 
-            if work_result.data:
+            if work_result and work_result.data:
                 tz = work_result.data.get("schedule_timezone", "UTC")
                 try:
+                    from jobs.work_scheduler import calculate_next_run
                     next_run = calculate_next_run(cron_expr, tz)
                     updates["schedule_next_run_at"] = next_run.isoformat()
                 except Exception:
@@ -897,12 +908,18 @@ async def handle_delete_work(auth, input: dict) -> dict:
     work_id = input["work_id"]
 
     # Verify ownership
-    work_result = auth.client.table("work_tickets")\
-        .select("id, task")\
-        .eq("id", work_id)\
-        .eq("user_id", auth.user_id)\
-        .single()\
-        .execute()
+    try:
+        work_result = auth.client.table("work_tickets")\
+            .select("id, task")\
+            .eq("id", work_id)\
+            .eq("user_id", auth.user_id)\
+            .single()\
+            .execute()
+    except Exception:
+        return {
+            "success": False,
+            "error": "Work not found or access denied"
+        }
 
     if not work_result.data:
         return {
