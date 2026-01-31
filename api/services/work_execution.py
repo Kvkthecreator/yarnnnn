@@ -174,7 +174,15 @@ async def execute_work_ticket(
         project_id = ticket["project_id"]
         agent_type = ticket["agent_type"]
         task = ticket["task"]
-        parameters = ticket.get("parameters", {})
+        # Handle parameters stored as either JSON string or dict
+        raw_params = ticket.get("parameters", {})
+        if isinstance(raw_params, str):
+            try:
+                parameters = json.loads(raw_params)
+            except (json.JSONDecodeError, TypeError):
+                parameters = {}
+        else:
+            parameters = raw_params or {}
 
         logger.info(
             f"[WORK EXECUTION] Starting ticket {ticket_id}: "
