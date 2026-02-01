@@ -1,6 +1,6 @@
 # Yarn GTM Positioning & Messaging
 
-**Last Updated:** 2026-01-30
+**Last Updated:** 2026-02-02
 
 **Reference:** See [Strategic Synthesis](strategy/STRATEGIC_SYNTHESIS.md) for full framework.
 
@@ -8,75 +8,76 @@
 
 ## Core Positioning
 
-**One-liner:** AI that doesn't mix up your clients
+**One-liner:** Recurring work that gets better every time
 
-**Tagline:** Tell it once. It remembers forever.
+**Tagline:** Set it up once. Review when ready. Watch it learn.
 
 **Elevator pitch:**
-Yarn is the AI assistant that actually knows your work. Unlike ChatGPT where everything bleeds together, Yarn keeps each client/project in its own world with persistent memory. Upload your docs, chat naturally, and get work done—without explaining yourself every time.
+Yarn produces your recurring deliverables—weekly client updates, monthly investor reports, research digests—on schedule. But here's what makes it different: every edit you make teaches Yarn what you want. Your 10th delivery is measurably better than your 1st.
 
 ---
 
-## The Three Pain Points
+## The Core Problem
 
-### Pain Point 1: Context Chaos
-> "I asked ChatGPT to draft an email for my consulting client, and it used details from a completely different project."
+### What users experience:
+- Producing the same types of content week after week
+- Using AI that forgets everything between sessions
+- Making the same corrections every time ("shorter," "more specific," "different format")
+- No measurable improvement over time
 
-**Problem:** You're juggling multiple clients/projects. Your AI can't keep them straight.
+### The visceral moment:
+> "I've been using ChatGPT for my weekly client updates for 6 months. It still makes the same mistakes it made on day one."
 
-**Solution:** Yarn keeps every project in its own world. Ask about Client A, get only Client A context.
-
-**One-liner:** "Stop mixing up your clients"
-
----
-
-### Pain Point 2: Groundhog Day
-> "I've explained my business model to ChatGPT probably 50 times."
-
-**Problem:** Every time you start a chat, you're starting from scratch.
-
-**Solution:** Tell Yarn once. Upload your docs once. It builds memory that grows over time.
-
-**One-liner:** "Never explain your business twice"
+### How competitors fail:
+- **ChatGPT:** Forgets everything. Start from scratch every time.
+- **Templates:** Static. No learning. Same output forever.
+- **Custom GPTs:** Slightly better instructions, but still no feedback loop.
 
 ---
 
-### Pain Point 3: Reactive Treadmill
-> "I realized I forgot to follow up with a client for three weeks."
+## Yarn's Value Proposition
 
-**Problem:** AI only works when you're actively prompting it.
+### The Insight
+Your edits are training data. When you change "We achieved strong results" to "Revenue grew 23%," that's not just a fix—it's a signal about what you value.
 
-**Solution:** Yarn works in the background. Schedule research. Get weekly digests.
+### The Promise
+**Your 10th delivery is better than your 1st.**
 
-**One-liner:** "AI that works while you sleep"
+Yarn:
+1. **Produces on schedule** - Set the frequency, Yarn delivers drafts
+2. **Learns from your edits** - Every correction is stored and categorized
+3. **Improves over time** - Quality score trends upward across versions
+4. **Shows the progress** - See the quality trend, know it's working
 
 ---
 
-## ICP: Overwhelmed Professionals
+## ICP: Recurring Content Producers
 
-Primary targets who need AI that actually knows their work:
+Primary targets who need deliverables that improve:
 
-### Solo Consultants (Primary)
-- **Primary pain:** Context chaos (multiple clients)
-- **Secondary pain:** Groundhog day (re-explaining)
-- **Pitch:** "Keep your clients straight. Never re-explain."
-- **Activation:** AI correctly uses context from the right client
+### Consultants (Primary)
+- **Use case:** Weekly client status reports
+- **Pain:** Same corrections every week
+- **Pitch:** "Client updates that learn your format, your tone, your metrics."
+- **Activation:** Quality score improves from v1 to v5
 
-### Freelancers
-- **Primary pain:** Groundhog day (new projects constantly)
-- **Secondary pain:** Reactive treadmill (missing follow-ups)
-- **Pitch:** "Remember every project. Never drop the ball."
-- **Activation:** AI references something from previous project conversation
+### Founders
+- **Use case:** Monthly investor updates
+- **Pain:** Dreading the monthly email
+- **Pitch:** "Investor updates that get easier every month."
+- **Activation:** Draft requires fewer edits than last month
 
-### Remote Workers
-- **Primary pain:** Reactive treadmill (no one checking in)
-- **Secondary pain:** Context chaos (multiple workstreams)
-- **Pitch:** "AI that notices what you're working on."
-- **Activation:** Proactive insight surfaces without asking
+### Operations/Team Leads
+- **Use case:** Team standups, progress reports
+- **Pain:** Manual aggregation every day/week
+- **Pitch:** "Standups ready when you wake up."
+- **Activation:** First draft delivered automatically
 
-### Small Business Owners
-- **Pain:** All three equally
-- **Pitch:** "Your AI chief of staff."
+### Researchers/Analysts
+- **Use case:** Research digests, competitive briefs
+- **Pain:** Same format, different content every time
+- **Pitch:** "Briefs that match your style from day one."
+- **Activation:** Feedback incorporated in next version
 
 ---
 
@@ -86,45 +87,45 @@ Primary targets who need AI that actually knows their work:
 
 | Instead of... | Say... |
 |---------------|--------|
-| "Persistent semantic memory" | "Never forgets what you told it" |
-| "Multi-project context isolation" | "Keeps your clients separate" |
-| "Specialized agent orchestration" | "Different AI helpers for different tasks" |
-| "Document ingestion pipeline" | "Upload your files, it reads them" |
-| "Proactive scheduled execution" | "Works while you sleep" |
-| "Provenance tracking" | "Shows you where answers come from" |
+| "Persistent semantic memory" | "Learns from your edits" |
+| "Scheduled agent execution" | "Produces on schedule" |
+| "Edit distance metrics" | "Quality trend" |
+| "Feedback categorization" | "Stores your corrections" |
+| "Version management" | "Gets better over time" |
+| "Context accumulation" | "Remembers what worked" |
 
 ### The Problem → Agitate → Solve
 
 **For landing page / marketing:**
 
-> **Problem:** Your AI keeps mixing things up.
+> **Problem:** You produce the same types of content every week.
 >
-> **Agitate:** Working on multiple clients? ChatGPT puts them all in one bucket. Last week it mixed up your proposal for Client A with details from Client B. You caught it—barely.
+> **Agitate:** Weekly client updates. Monthly investor reports. Every time you use AI, you start from scratch. You make the same corrections. "Make it shorter." "Don't include the revenue numbers." "Start with the key takeaway." Next week? Same thing.
 >
-> **Solve:** Yarn keeps every project in its own world. Ask about Client A, get only Client A. Always.
+> **Solve:** Yarn learns from every edit. Set up a recurring deliverable once. Watch the quality trend go up. Your 10th version needs fewer corrections than your 1st.
 
 ---
 
 ## Competitive Positioning
 
 ### vs ChatGPT
-"ChatGPT's memory is one big bucket. Yarn gives you separate memory per project. Your clients stay separate."
+"ChatGPT forgets everything between sessions. Yarn learns from every edit you make."
 
-### vs Claude Projects
-"Claude Projects don't persist across sessions. Close the tab, lose the context. Yarn remembers forever."
+### vs Templates
+"Templates are static. Yarn improves over time based on your corrections."
 
-### vs Notion AI
-"Notion AI only knows what's on that page. Yarn knows everything you've ever told it—across all your documents and conversations."
+### vs Custom GPTs
+"Custom GPTs give you better starting instructions. Yarn gives you a feedback loop that actually learns."
 
 ### The Comparison Table
 
-| | ChatGPT | Claude | Yarn |
-|---|---------|--------|------|
-| Remembers across sessions | Barely | No | **Yes** |
-| Keeps projects separate | No | Kinda | **Yes** |
-| Works proactively | No | No | **Yes** |
-| Shows where answers come from | No | No | **Yes** |
-| Price | $20/mo | $20/mo | **$19/mo** |
+| | ChatGPT | Templates | Yarn |
+|---|---------|-----------|------|
+| Learns from your edits | No | No | **Yes** |
+| Produces on schedule | No | Manual | **Automatic** |
+| Improves over time | No | No | **Yes** |
+| Shows quality trend | No | No | **Yes** |
+| Price | $20/mo | Varies | **$19/mo** |
 
 ---
 
@@ -132,45 +133,48 @@ Primary targets who need AI that actually knows their work:
 
 | Objection | Response |
 |-----------|----------|
-| "ChatGPT has memory now" | "ChatGPT's memory is one big bucket. Yarn keeps clients separate." |
-| "I can just use Claude Projects" | "Claude Projects reset when you close the tab. Yarn remembers forever." |
-| "I don't have time to set up another tool" | "Sign up, create a project, start chatting. That's it." |
-| "Isn't this expensive?" | "Same price as ChatGPT Plus. But Yarn actually remembers." |
+| "ChatGPT is good enough" | "ChatGPT forgets everything. After 10 versions with Yarn, you'll spend half the time editing." |
+| "I can just use templates" | "Templates don't learn. Yarn improves based on your corrections." |
+| "I don't have recurring deliverables" | "If you produce anything regularly—updates, reports, digests—that's a deliverable." |
+| "How do I know it's learning?" | "The quality trend shows it. Each version gets closer to your final edits." |
+| "Isn't this expensive?" | "Same price as ChatGPT Plus. But Yarn actually gets better over time." |
 
 ---
 
 ## Landing Page Headlines
 
 ### Hero Options (ranked)
-1. "Your AI keeps mixing things up. Yarn doesn't."
-2. "Finally, AI that doesn't mix up your clients"
-3. "Tell it once. It remembers forever."
-4. "AI that actually knows your work"
+1. "Recurring work that gets better every single time."
+2. "Your 10th delivery is better than your 1st."
+3. "AI that learns from every edit you make."
+4. "Set it up once. Watch it improve."
 
 ### Section Headlines
-- **Context Chaos:** "Working on multiple clients? ChatGPT puts them all in one bucket."
-- **Groundhog Day:** "Tired of explaining yourself? Yarn remembers."
-- **Reactive Treadmill:** "Your AI only works when you do. Yarn works while you sleep."
+- **The Problem:** "You produce the same things over and over again."
+- **The Insight:** "Your edits are the training data."
+- **How It Works:** "Set up once. Review & refine. Watch it learn."
+- **Use Cases:** "What people deliver with Yarn"
 
 ### CTAs
 - Primary: "Start for free"
 - Secondary: "See how it works"
-- Closing: "Same price as ChatGPT. But Yarn actually remembers."
+- Closing: "Your 10th delivery is better than your 1st."
 
 ---
 
 ## What We're NOT Saying
 
 Avoid technical framing:
-- ❌ "Embeddings-first semantic memory"
-- ❌ "Context-aware platform"
-- ❌ "Specialized agent orchestration"
-- ❌ "Multi-tenant architecture"
+- ❌ "Feedback engine with edit categorization"
+- ❌ "Structured diff computation"
+- ❌ "Edit distance scoring"
+- ❌ "Chained agent pipeline"
 
-Avoid enterprise-speak:
-- ❌ "Enterprise-ready"
-- ❌ "Knowledge workers"
-- ❌ "Digital transformation"
+Avoid old positioning:
+- ❌ "Context-aware AI work platform"
+- ❌ "Keeps your clients separate" (still true, but not the lead)
+- ❌ "AI that remembers" (too generic)
+- ❌ "Works while you sleep" (feature, not value prop)
 
 ---
 
@@ -178,18 +182,37 @@ Avoid enterprise-speak:
 
 The "aha" moments that convert users:
 
-1. **Context isolation works** - AI correctly uses only the relevant project's context
-2. **Memory recall** - AI references something from 3+ conversations ago
-3. **Provenance visible** - User sees "Based on your notes from [date]"
-4. **Proactive insight** - AI surfaces something user didn't ask for
+1. **First draft arrives** - Without prompting, on schedule
+2. **Quality score visible** - Concrete number they can track
+3. **Second version improves** - Measurably closer to final
+4. **Less editing required** - They notice spending less time
+
+---
+
+## Use Case Examples
+
+### Weekly Client Status Report
+- **Recipient:** Sarah Chen, VP Marketing at Acme Corp
+- **Schedule:** Every Monday at 8am
+- **What Yarn learns:** Metrics to include, opening format, level of detail, tone
+
+### Monthly Investor Update
+- **Recipient:** Board of Directors
+- **Schedule:** First of every month
+- **What Yarn learns:** Structure, what gets highlighted, how to present numbers
+
+### Bi-weekly Competitive Brief
+- **Recipient:** Sales team
+- **Schedule:** Every other Friday
+- **What Yarn learns:** Competitors to track, format preferences, actionable insights style
 
 ---
 
 ## Usage Notes
 
 This document should be updated when:
-- ICP focus shifts based on user feedback
-- New differentiating features ship
+- Use case focus shifts based on user feedback
+- New differentiating features ship (especially feedback engine improvements)
 - Competitive landscape changes
 - Messaging A/B tests yield insights
 

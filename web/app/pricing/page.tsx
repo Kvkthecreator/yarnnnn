@@ -8,7 +8,7 @@ import { Check, X } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Simple, transparent pricing for yarnnn.",
+  description: "Simple, transparent pricing for Yarn recurring deliverables.",
 };
 
 interface PricingFeature {
@@ -18,12 +18,13 @@ interface PricingFeature {
 }
 
 const features: PricingFeature[] = [
-  { name: "Projects", free: "1", pro: "Unlimited" },
-  { name: "Memories per project", free: "50", pro: "Unlimited" },
-  { name: "Chat sessions/month", free: "5", pro: "Unlimited" },
-  { name: "Document uploads", free: "10", pro: "Unlimited" },
-  { name: "Scheduled agents", free: false, pro: true },
-  { name: "API access", free: false, pro: true },
+  { name: "Active deliverables", free: "1", pro: "Unlimited" },
+  { name: "Versions per deliverable", free: "Unlimited", pro: "Unlimited" },
+  { name: "Source documents", free: "5", pro: "Unlimited" },
+  { name: "Quality trend analytics", free: true, pro: true },
+  { name: "Scheduled production", free: true, pro: true },
+  { name: "Chat for refinement", free: "10/month", pro: "Unlimited" },
+  { name: "Email notifications", free: true, pro: true },
   { name: "Priority support", free: false, pro: true },
 ];
 
@@ -55,7 +56,7 @@ export default function PricingPage() {
                 Simple pricing
               </h1>
               <p className="text-white/50 text-lg max-w-md mx-auto">
-                Start free, upgrade when you need more.
+                Start free, upgrade when you need more deliverables.
               </p>
             </div>
 
@@ -66,7 +67,7 @@ export default function PricingPage() {
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Free</h2>
                   <p className="text-white/50 text-sm mb-6">
-                    Perfect for getting started
+                    Perfect for trying it out
                   </p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$0</span>
@@ -77,23 +78,27 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>1 project</span>
+                    <span>1 active deliverable</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>50 memories per project</span>
+                    <span>Unlimited versions</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>5 chat sessions/month</span>
+                    <span>5 source documents</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>10 document uploads</span>
+                    <span>Scheduled production</span>
+                  </li>
+                  <li className="flex items-center gap-3 text-sm">
+                    <Check className="w-4 h-4 text-emerald-400 shrink-0" />
+                    <span>Quality trend analytics</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm text-white/50">
                     <X className="w-4 h-4 text-white/30 shrink-0" />
-                    <span>Scheduled agents</span>
+                    <span>Multiple deliverables</span>
                   </li>
                 </ul>
 
@@ -116,7 +121,7 @@ export default function PricingPage() {
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Pro</h2>
                   <p className="text-white/50 text-sm mb-6">
-                    For power users and teams
+                    For professionals with multiple recurring deliverables
                   </p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$19</span>
@@ -127,27 +132,27 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited projects</span>
+                    <span>Unlimited deliverables</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited memories</span>
+                    <span>Unlimited versions</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited chat sessions</span>
+                    <span>Unlimited source documents</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited document uploads</span>
+                    <span>Scheduled production</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Scheduled agents</span>
+                    <span>Quality trend analytics</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>API access</span>
+                    <span>Unlimited chat refinement</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -212,8 +217,18 @@ export default function PricingPage() {
               </div>
             </div>
 
+            {/* Value Prop */}
+            <div className="text-center mt-16 mb-8">
+              <p className="text-white/70 text-lg mb-2">
+                Your 10th delivery is better than your 1st.
+              </p>
+              <p className="text-white/40 text-sm">
+                Same price as ChatGPT Plus. But Yarn learns from every edit.
+              </p>
+            </div>
+
             {/* FAQ / Contact */}
-            <div className="text-center mt-16">
+            <div className="text-center">
               <p className="text-white/40 text-sm mb-4">
                 Have questions about pricing or need a custom plan?
               </p>

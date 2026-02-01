@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "How It Works",
-  description: "Learn how Yarn keeps your clients separate and remembers everything.",
+  description: "Set up recurring deliverables that learn from your edits and improve over time.",
 };
 
 export default function HowItWorksPage() {
@@ -27,69 +27,125 @@ export default function HowItWorksPage() {
               How Yarn works
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              Three things make Yarn different: separate projects,
-              persistent memory, and proactive work.
+              Yarn turns your recurring work into deliverables that improve themselves.
+              Set it up once, review when ready, watch it learn from your edits.
             </p>
           </section>
 
-          {/* The Three Differentiators */}
+          {/* The Three Steps */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
               <div className="space-y-24">
-                {/* Differentiator 1: Separate Projects */}
+                {/* Step 1: Set Up */}
                 <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6">
                   <div className="text-5xl font-light text-white/20">01</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-4">Every project stays separate</h3>
+                    <h3 className="text-xl font-medium mb-4">Set up your deliverable</h3>
                     <p className="text-white/50 leading-relaxed mb-6">
-                      Create a project for each client, initiative, or domain.
-                      When you ask about Client A, you get only Client A context.
-                      No mixing. No cross-contamination.
+                      Tell Yarn what you deliver regularly. A weekly client update?
+                      Monthly investor report? Research digest? Describe it once:
+                      what it is, who receives it, when it&apos;s due.
                     </p>
-                    <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                      <p className="text-white/30 text-sm italic">
-                        &quot;I have 5 consulting clients. Each one is a separate project.
-                        When I switch between them, Yarn switches context automatically.
-                        Never worried about mixing things up again.&quot;
-                      </p>
+                    <div className="border border-white/10 rounded-xl p-5 bg-white/5 space-y-4">
+                      <div>
+                        <div className="text-xs text-white/30 uppercase tracking-wider mb-1">Title</div>
+                        <div className="text-white/70">Weekly Client Status — Acme Corp</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-white/30 uppercase tracking-wider mb-1">Recipient</div>
+                        <div className="text-white/70">Sarah Chen, VP Marketing</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-white/30 uppercase tracking-wider mb-1">Schedule</div>
+                        <div className="text-white/70">Every Monday at 8am</div>
+                      </div>
                     </div>
                   </div>
                 </div>
 
-                {/* Differentiator 2: Persistent Memory */}
+                {/* Step 2: Add Examples */}
                 <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6">
                   <div className="text-5xl font-light text-white/20">02</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-4">Tell it once. It remembers forever.</h3>
+                    <h3 className="text-xl font-medium mb-4">Upload examples of good work</h3>
                     <p className="text-white/50 leading-relaxed mb-6">
-                      Chat naturally. Upload documents. Important context gets
-                      extracted and stored automatically. The more you use Yarn,
-                      the more it knows about your work.
+                      Show Yarn what &quot;good&quot; looks like. Upload past deliverables,
+                      reference documents, or templates you like. The more examples,
+                      the better Yarn understands your preferences.
                     </p>
                     <div className="border border-white/10 rounded-xl p-4 bg-white/5">
                       <p className="text-white/30 text-sm italic">
-                        &quot;I uploaded my proposal template once. Now Yarn references
-                        it every time I&apos;m drafting a new proposal. &apos;Based on your
-                        template from January...&apos; — I love seeing that.&quot;
+                        &quot;I uploaded three of my best client updates from last quarter.
+                        Yarn picked up my format, my tone, even the metrics I always include.&quot;
                       </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Differentiator 3: Proactive Work */}
+                {/* Step 3: Review Drafts */}
                 <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6">
                   <div className="text-5xl font-light text-white/20">03</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-4">AI that works while you sleep</h3>
+                    <h3 className="text-xl font-medium mb-4">Review and refine</h3>
                     <p className="text-white/50 leading-relaxed mb-6">
-                      Schedule recurring work: weekly reports, research digests,
-                      content drafts. Yarn executes on your schedule—you don&apos;t
-                      have to remember to ask.
+                      When it&apos;s time, Yarn produces a draft and notifies you.
+                      Review it, make edits, add feedback. When you&apos;re happy,
+                      approve it and copy it out.
                     </p>
-                    <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                      <p className="text-white/30 text-sm italic">
-                        &quot;Every Monday morning I wake up to a summary of what happened
-                        with each client last week. I didn&apos;t ask for it—Yarn just delivers.&quot;
+                    <div className="border border-white/10 rounded-xl p-5 bg-white/5 space-y-3">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-white/50">Version 5 — Staged for review</span>
+                        <span className="px-2 py-1 bg-amber-500/20 text-amber-400 rounded text-xs">Ready</span>
+                      </div>
+                      <div className="flex gap-3">
+                        <button className="px-3 py-1.5 bg-white/10 text-white/70 text-sm rounded hover:bg-white/20 transition-colors">
+                          View Draft
+                        </button>
+                        <button className="px-3 py-1.5 bg-white text-black text-sm rounded hover:bg-white/90 transition-colors">
+                          Approve
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Step 4: Watch It Learn */}
+                <div className="grid grid-cols-1 md:grid-cols-[120px_1fr] gap-6">
+                  <div className="text-5xl font-light text-white/20">04</div>
+                  <div>
+                    <h3 className="text-xl font-medium mb-4">Watch it get better</h3>
+                    <p className="text-white/50 leading-relaxed mb-6">
+                      Here&apos;s the magic: every edit you make teaches Yarn what you want.
+                      It stores your corrections, learns your preferences, and applies
+                      them to future drafts. Over time, you edit less.
+                    </p>
+                    <div className="border border-white/10 rounded-xl p-5 bg-white/5">
+                      <div className="text-xs text-white/30 uppercase tracking-wider mb-4">Quality trend</div>
+                      <div className="space-y-3">
+                        <div className="flex items-center gap-4">
+                          <span className="text-white/50 text-sm w-16">v1</span>
+                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-white/30 rounded-full" style={{ width: "60%" }} />
+                          </div>
+                          <span className="text-white/50 text-sm w-12">60%</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-white/50 text-sm w-16">v5</span>
+                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-white/50 rounded-full" style={{ width: "78%" }} />
+                          </div>
+                          <span className="text-white/50 text-sm w-12">78%</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <span className="text-white/70 text-sm w-16">v10</span>
+                          <div className="flex-1 h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div className="h-full bg-white/80 rounded-full" style={{ width: "92%" }} />
+                          </div>
+                          <span className="text-white text-sm w-12">92%</span>
+                        </div>
+                      </div>
+                      <p className="text-white/30 text-xs mt-4">
+                        Quality score = how close the draft is to your final version
                       </p>
                     </div>
                   </div>
@@ -98,68 +154,70 @@ export default function HowItWorksPage() {
             </div>
           </section>
 
-          {/* The Comparison */}
+          {/* The Feedback Loop */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-5xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">Yarn vs. other AI tools</h2>
+            <div className="max-w-4xl mx-auto">
+              <h2 className="text-2xl md:text-3xl font-medium mb-8">The feedback loop</h2>
+              <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
+                Most AI tools forget everything between sessions. Yarn is different.
+                When you edit a draft, Yarn doesn&apos;t just save your changes—it learns from them.
+              </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-                <div>
-                  <h3 className="text-lg font-medium mb-4 text-white/40">ChatGPT / Claude</h3>
-                  <ul className="space-y-3 text-white/40 text-sm">
-                    <li>One big memory bucket (everything mixes)</li>
-                    <li>Forgets after a few conversations</li>
-                    <li>Only works when you prompt it</li>
-                    <li>No way to see what informed answers</li>
-                    <li>$20/month</li>
-                  </ul>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="border border-white/10 rounded-xl p-5">
+                  <div className="text-lg font-medium mb-2">You edit</div>
+                  <p className="text-white/50 text-sm">
+                    Change the opening paragraph, add a metric, fix the tone.
+                  </p>
                 </div>
-
-                <div>
-                  <h3 className="text-lg font-medium mb-4">Yarn</h3>
-                  <ul className="space-y-3 text-white/70 text-sm">
-                    <li>Separate memory per project</li>
-                    <li>Remembers forever</li>
-                    <li>Works proactively on schedule</li>
-                    <li>&quot;Based on your notes from...&quot;</li>
-                    <li>$19/month (same price, actually remembers)</li>
-                  </ul>
+                <div className="border border-white/10 rounded-xl p-5">
+                  <div className="text-lg font-medium mb-2">Yarn learns</div>
+                  <p className="text-white/50 text-sm">
+                    Stores what you changed and categorizes the type of edit.
+                  </p>
+                </div>
+                <div className="border border-white/10 rounded-xl p-5">
+                  <div className="text-lg font-medium mb-2">Next draft improves</div>
+                  <p className="text-white/50 text-sm">
+                    Future versions incorporate your preferences automatically.
+                  </p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* Quick Start */}
+          {/* What You Can Deliver */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">Getting started</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-8">What you can deliver</h2>
+              <p className="text-white/50 leading-relaxed mb-12">
+                If you produce it regularly, Yarn can learn it.
+              </p>
 
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <div className="text-sm text-white/30 mb-3 font-mono">Step 1</div>
-                  <h3 className="text-base font-medium mb-2">Create a project</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Sign up and create your first project. Name it after a client,
-                    initiative, or domain you&apos;re working on.
-                  </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="border border-white/10 rounded-xl p-4 text-white/70 text-sm">
+                  Weekly client status reports
                 </div>
-
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <div className="text-sm text-white/30 mb-3 font-mono">Step 2</div>
-                  <h3 className="text-base font-medium mb-2">Add context</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Chat naturally. Upload relevant documents.
-                    Yarn builds memory automatically.
-                  </p>
+                <div className="border border-white/10 rounded-xl p-4 text-white/70 text-sm">
+                  Monthly investor updates
                 </div>
-
-                <div className="border border-white/10 rounded-2xl p-6">
-                  <div className="text-sm text-white/30 mb-3 font-mono">Step 3</div>
-                  <h3 className="text-base font-medium mb-2">See the difference</h3>
-                  <p className="text-white/50 text-sm leading-relaxed">
-                    Ask a question about your project. Watch Yarn pull
-                    from exactly the right context. That&apos;s it.
-                  </p>
+                <div className="border border-white/10 rounded-xl p-4 text-white/70 text-sm">
+                  Bi-weekly competitive briefs
+                </div>
+                <div className="border border-white/10 rounded-xl p-4 text-white/70 text-sm">
+                  Daily team standups
+                </div>
+                <div className="border border-white/10 rounded-xl p-4 text-white/70 text-sm">
+                  Research digests
+                </div>
+                <div className="border border-white/10 rounded-xl p-4 text-white/70 text-sm">
+                  Newsletter drafts
+                </div>
+                <div className="border border-white/10 rounded-xl p-4 text-white/70 text-sm">
+                  Meeting summaries
+                </div>
+                <div className="border border-white/10 rounded-xl p-4 text-white/70 text-sm">
+                  Anything with a pattern
                 </div>
               </div>
             </div>
@@ -172,8 +230,8 @@ export default function HowItWorksPage() {
                 Ready to try it?
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Start with one project. The free tier gives you
-                1 project and 50 memories. See the difference.
+                Create your first deliverable for free. Upload some examples,
+                set a schedule, and see the first draft within minutes.
               </p>
               <Link
                 href="/auth/login"
