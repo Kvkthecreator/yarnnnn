@@ -259,3 +259,111 @@ export interface CheckoutResponse {
 export interface PortalResponse {
   portal_url: string;
 }
+
+// =============================================================================
+// ADR-018: Recurring Deliverables
+// =============================================================================
+
+export type DeliverableStatus = "active" | "paused" | "archived";
+export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected";
+export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
+export type DataSourceType = "url" | "document" | "description";
+
+export interface RecipientContext {
+  name?: string;
+  role?: string;
+  priorities?: string[];
+  notes?: string;
+}
+
+export interface TemplateStructure {
+  sections?: string[];
+  typical_length?: string;
+  tone?: string;
+  format_notes?: string;
+}
+
+export interface ScheduleConfig {
+  frequency: ScheduleFrequency;
+  day?: string;
+  time?: string;
+  timezone?: string;
+  cron?: string;
+}
+
+export interface DataSource {
+  type: DataSourceType;
+  value: string;
+  label?: string;
+}
+
+export interface Deliverable {
+  id: string;
+  title: string;
+  description?: string;
+  project_id?: string;
+  recipient_context?: RecipientContext;
+  template_structure?: TemplateStructure;
+  schedule: ScheduleConfig;
+  sources: DataSource[];
+  status: DeliverableStatus;
+  created_at: string;
+  updated_at: string;
+  last_run_at?: string;
+  next_run_at?: string;
+  version_count?: number;
+  latest_version_status?: VersionStatus;
+}
+
+export interface DeliverableCreate {
+  title: string;
+  description?: string;
+  project_id?: string;
+  recipient_context?: RecipientContext;
+  template_structure?: TemplateStructure;
+  schedule: ScheduleConfig;
+  sources?: DataSource[];
+}
+
+export interface DeliverableUpdate {
+  title?: string;
+  description?: string;
+  recipient_context?: RecipientContext;
+  template_structure?: TemplateStructure;
+  schedule?: ScheduleConfig;
+  sources?: DataSource[];
+  status?: DeliverableStatus;
+}
+
+export interface DeliverableVersion {
+  id: string;
+  deliverable_id: string;
+  version_number: number;
+  status: VersionStatus;
+  draft_content?: string;
+  final_content?: string;
+  edit_distance_score?: number;
+  feedback_notes?: string;
+  created_at: string;
+  staged_at?: string;
+  approved_at?: string;
+}
+
+export interface DeliverableDetail {
+  deliverable: Deliverable;
+  versions: DeliverableVersion[];
+}
+
+export interface VersionUpdate {
+  status?: "reviewing" | "approved" | "rejected";
+  final_content?: string;
+  feedback_notes?: string;
+}
+
+export interface DeliverableRunResponse {
+  success: boolean;
+  version_id?: string;
+  version_number?: number;
+  status?: string;
+  message?: string;
+}

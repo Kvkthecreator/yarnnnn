@@ -32,6 +32,13 @@ import type {
   SubscriptionStatus,
   CheckoutResponse,
   PortalResponse,
+  Deliverable,
+  DeliverableCreate,
+  DeliverableUpdate,
+  DeliverableDetail,
+  DeliverableVersion,
+  VersionUpdate,
+  DeliverableRunResponse,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -392,6 +399,74 @@ export const api = {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     },
+  },
+
+  // ADR-018: Deliverables endpoints
+  deliverables: {
+    // List user's deliverables
+    list: (status?: string) => {
+      const params = status ? `?status=${status}` : "";
+      return request<Deliverable[]>(`/api/deliverables${params}`);
+    },
+
+    // Create a new deliverable
+    create: (data: DeliverableCreate) =>
+      request<Deliverable>("/api/deliverables", {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    // Get deliverable with version history
+    get: (deliverableId: string) =>
+      request<DeliverableDetail>(`/api/deliverables/${deliverableId}`),
+
+    // Update deliverable settings
+    update: (deliverableId: string, data: DeliverableUpdate) =>
+      request<Deliverable>(`/api/deliverables/${deliverableId}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+
+    // Archive deliverable
+    delete: (deliverableId: string) =>
+      request<{ success: boolean; message: string }>(
+        `/api/deliverables/${deliverableId}`,
+        { method: "DELETE" }
+      ),
+
+    // Trigger an ad-hoc run
+    run: (deliverableId: string) =>
+      request<DeliverableRunResponse>(`/api/deliverables/${deliverableId}/run`, {
+        method: "POST",
+      }),
+
+    // List versions for a deliverable
+    listVersions: (deliverableId: string, limit?: number) => {
+      const params = limit ? `?limit=${limit}` : "";
+      return request<DeliverableVersion[]>(
+        `/api/deliverables/${deliverableId}/versions${params}`
+      );
+    },
+
+    // Get a specific version
+    getVersion: (deliverableId: string, versionId: string) =>
+      request<DeliverableVersion>(
+        `/api/deliverables/${deliverableId}/versions/${versionId}`
+      ),
+
+    // Update version (approve, reject, save edits)
+    updateVersion: (
+      deliverableId: string,
+      versionId: string,
+      data: VersionUpdate
+    ) =>
+      request<DeliverableVersion>(
+        `/api/deliverables/${deliverableId}/versions/${versionId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(data),
+        }
+      ),
   },
 };
 
