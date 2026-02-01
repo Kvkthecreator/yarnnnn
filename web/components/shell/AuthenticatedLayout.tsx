@@ -1,17 +1,16 @@
-"use client";
+'use client';
 
 /**
  * ADR-014: Top Bar with Minimal Chrome
- * Simplified layout with top bar instead of sidebar.
- * On desktop, content shrinks when side panel is open.
+ * ADR-018: Simplified layout for deliverables-first experience
  */
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
-import { createClient } from "@/lib/supabase/client";
-import { TopBar } from "./TopBar";
-import { useSurface } from "@/contexts/SurfaceContext";
-import { useMediaQuery } from "@/hooks/useMediaQuery";
+import { useEffect, useState } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
+import { createClient } from '@/lib/supabase/client';
+import { TopBar } from './TopBar';
+import { useSurface } from '@/contexts/SurfaceContext';
+import { useMediaQuery } from '@/hooks/useMediaQuery';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -23,12 +22,14 @@ export default function AuthenticatedLayout({
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const router = useRouter();
+  const pathname = usePathname();
   const supabase = createClient();
 
-  // ADR-013: Surface state for layout adjustment
+  // ADR-013: Surface state for layout adjustment (only on chat page)
   const { state: surfaceState } = useSurface();
-  const isDesktop = useMediaQuery("(min-width: 1024px)");
-  const surfaceOpen = surfaceState.isOpen && isDesktop;
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const isOnChat = pathname === '/dashboard/chat';
+  const surfaceOpen = surfaceState.isOpen && isDesktop && isOnChat;
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -37,7 +38,7 @@ export default function AuthenticatedLayout({
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace("/auth/login");
+        router.replace('/auth/login');
         return;
       }
 
@@ -51,8 +52,8 @@ export default function AuthenticatedLayout({
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT" || !session) {
-        router.replace("/auth/login");
+      if (event === 'SIGNED_OUT' || !session) {
+        router.replace('/auth/login');
       }
     });
 
@@ -79,7 +80,7 @@ export default function AuthenticatedLayout({
       <main
         className="flex-1 overflow-hidden transition-all duration-300"
         style={{
-          marginRight: surfaceOpen ? "480px" : "0",
+          marginRight: surfaceOpen ? '480px' : '0',
         }}
       >
         {children}
