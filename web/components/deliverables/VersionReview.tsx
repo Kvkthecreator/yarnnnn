@@ -13,7 +13,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  X,
   Check,
   XCircle,
   Loader2,
@@ -24,11 +23,11 @@ import {
   ThumbsDown,
   Mail,
   CheckCircle2,
+  MessageSquare,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useFloatingChat } from '@/contexts/FloatingChatContext';
-import { MessageSquare } from 'lucide-react';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
 interface VersionReviewProps {

@@ -14,7 +14,6 @@ import {
   Loader2,
   MessageSquare,
   Minus,
-  Maximize2,
   Sparkles,
 } from 'lucide-react';
 import { useFloatingChat, PageContextType } from '@/contexts/FloatingChatContext';
