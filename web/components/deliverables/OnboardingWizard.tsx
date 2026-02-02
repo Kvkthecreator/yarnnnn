@@ -26,12 +26,20 @@ import {
   Search,
   MessageSquare,
   FileText,
+  Briefcase,
+  TrendingUp,
+  Mail,
+  GitBranch,
+  UserCheck,
+  BarChart3,
+  FlaskConical,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type {
   DeliverableCreate,
   DeliverableType,
+  DeliverableTier,
   TypeConfig,
   RecipientContext,
   ScheduleConfig,
@@ -41,6 +49,13 @@ import type {
   ResearchBriefConfig,
   MeetingSummaryConfig,
   CustomConfig,
+  // Beta types
+  ClientProposalConfig,
+  PerformanceSelfAssessmentConfig,
+  NewsletterSectionConfig,
+  ChangelogConfig,
+  OneOnOnePrepConfig,
+  BoardUpdateConfig,
 } from '@/types';
 
 interface OnboardingWizardProps {
@@ -59,47 +74,101 @@ const STEP_TITLES: Record<WizardStep, string> = {
 };
 
 // Type metadata for selection cards
-const TYPE_INFO: Record<DeliverableType, {
+interface TypeMeta {
   icon: React.ReactNode;
   title: string;
   description: string;
   examples: string[];
-}> = {
+  tier: DeliverableTier;
+}
+
+const TYPE_INFO: Record<DeliverableType, TypeMeta> = {
+  // Tier 1 - Stable
   status_report: {
     icon: <ClipboardList className="w-6 h-6" />,
     title: 'Status Report',
     description: 'Weekly or recurring updates on project or team progress',
     examples: ['Weekly team status', 'Project updates', 'Sprint summaries'],
+    tier: 'stable',
   },
   stakeholder_update: {
     icon: <Users className="w-6 h-6" />,
     title: 'Stakeholder Update',
     description: 'Formal communications to investors, board, or clients',
     examples: ['Monthly investor letter', 'Board update', 'Client progress report'],
+    tier: 'stable',
   },
   research_brief: {
     icon: <Search className="w-6 h-6" />,
     title: 'Research Brief',
     description: 'Synthesized intelligence on competitors, market, or topics',
     examples: ['Competitive intel', 'Market monitoring', 'Technology trends'],
+    tier: 'stable',
   },
   meeting_summary: {
     icon: <MessageSquare className="w-6 h-6" />,
     title: 'Meeting Summary',
     description: 'Recurring notes and action items from standing meetings',
     examples: ['Weekly sync notes', '1:1 summaries', 'Standup digests'],
+    tier: 'stable',
   },
+  // Beta Tier
+  client_proposal: {
+    icon: <Briefcase className="w-6 h-6" />,
+    title: 'Client Proposal',
+    description: 'Project proposals for consultants, agencies, freelancers',
+    examples: ['Project proposals', 'SOWs', 'Renewal proposals'],
+    tier: 'beta',
+  },
+  performance_self_assessment: {
+    icon: <TrendingUp className="w-6 h-6" />,
+    title: 'Performance Self-Assessment',
+    description: 'Quarterly or annual self-reviews with quantified impact',
+    examples: ['Quarterly review', 'Annual self-assessment', 'Promotion packet'],
+    tier: 'beta',
+  },
+  newsletter_section: {
+    icon: <Mail className="w-6 h-6" />,
+    title: 'Newsletter Section',
+    description: 'Recurring content for newsletters and digests',
+    examples: ['Weekly product update', 'Monthly founder letter', 'Community digest'],
+    tier: 'beta',
+  },
+  changelog: {
+    icon: <GitBranch className="w-6 h-6" />,
+    title: 'Changelog / Release Notes',
+    description: 'Product update communications for users or developers',
+    examples: ['Weekly release notes', 'Feature announcements', 'Version changelog'],
+    tier: 'beta',
+  },
+  one_on_one_prep: {
+    icon: <UserCheck className="w-6 h-6" />,
+    title: '1:1 Prep',
+    description: 'Manager prep for recurring 1:1 meetings with reports',
+    examples: ['Weekly 1:1 prep', 'Skip-level prep', 'Mentorship session'],
+    tier: 'beta',
+  },
+  board_update: {
+    icon: <BarChart3 className="w-6 h-6" />,
+    title: 'Board Update',
+    description: 'Quarterly board deck narrative sections',
+    examples: ['Quarterly board update', 'Investor update', 'Advisory briefing'],
+    tier: 'beta',
+  },
+  // Experimental
   custom: {
     icon: <FileText className="w-6 h-6" />,
     title: 'Custom',
     description: 'Define your own deliverable structure',
     examples: ['Any recurring written content'],
+    tier: 'experimental',
   },
 };
 
 // Default configs for each type
 function getDefaultTypeConfig(type: DeliverableType): TypeConfig {
   switch (type) {
+    // Tier 1 - Stable
     case 'status_report':
       return {
         subject: '',
@@ -154,6 +223,101 @@ function getDefaultTypeConfig(type: DeliverableType): TypeConfig {
         },
         format: 'structured',
       } as MeetingSummaryConfig;
+    // Beta Tier
+    case 'client_proposal':
+      return {
+        client_name: '',
+        project_type: 'new_engagement',
+        service_category: '',
+        sections: {
+          executive_summary: true,
+          needs_understanding: true,
+          approach: true,
+          deliverables: true,
+          timeline: true,
+          investment: true,
+          social_proof: false,
+        },
+        tone: 'consultative',
+        include_pricing: true,
+      } as ClientProposalConfig;
+    case 'performance_self_assessment':
+      return {
+        review_period: 'quarterly',
+        role_level: 'ic',
+        sections: {
+          summary: true,
+          accomplishments: true,
+          goals_progress: true,
+          challenges: true,
+          development: true,
+          next_period_goals: true,
+        },
+        tone: 'balanced',
+        quantify_impact: true,
+      } as PerformanceSelfAssessmentConfig;
+    case 'newsletter_section':
+      return {
+        newsletter_name: '',
+        section_type: 'main_story',
+        audience: 'customers',
+        sections: {
+          hook: true,
+          main_content: true,
+          highlights: true,
+          cta: true,
+        },
+        voice: 'brand',
+        length: 'medium',
+      } as NewsletterSectionConfig;
+    case 'changelog':
+      return {
+        product_name: '',
+        release_type: 'weekly',
+        audience: 'mixed',
+        sections: {
+          highlights: true,
+          new_features: true,
+          improvements: true,
+          bug_fixes: true,
+          breaking_changes: false,
+          whats_next: false,
+        },
+        format: 'user_friendly',
+        include_links: true,
+      } as ChangelogConfig;
+    case 'one_on_one_prep':
+      return {
+        report_name: '',
+        meeting_cadence: 'weekly',
+        relationship: 'direct_report',
+        sections: {
+          context: true,
+          topics: true,
+          recognition: true,
+          concerns: true,
+          career: true,
+          previous_actions: true,
+        },
+        focus_areas: ['performance', 'growth'],
+      } as OneOnOnePrepConfig;
+    case 'board_update':
+      return {
+        company_name: '',
+        stage: 'seed',
+        update_type: 'quarterly',
+        sections: {
+          executive_summary: true,
+          metrics: true,
+          strategic_progress: true,
+          challenges: true,
+          financials: true,
+          asks: true,
+          outlook: true,
+        },
+        tone: 'balanced',
+        include_comparisons: true,
+      } as BoardUpdateConfig;
     case 'custom':
     default:
       return {
@@ -187,6 +351,7 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
       case 2:
         // Type-specific validation
         if (!typeConfig) return false;
+        // Tier 1 - Stable
         if (deliverableType === 'status_report') {
           return (typeConfig as StatusReportConfig).subject?.trim().length > 0;
         }
@@ -199,6 +364,27 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
         if (deliverableType === 'meeting_summary') {
           return (typeConfig as MeetingSummaryConfig).meeting_name?.trim().length > 0;
         }
+        // Beta Tier
+        if (deliverableType === 'client_proposal') {
+          const cfg = typeConfig as ClientProposalConfig;
+          return cfg.client_name?.trim().length > 0 && cfg.service_category?.trim().length > 0;
+        }
+        if (deliverableType === 'performance_self_assessment') {
+          return true; // All fields have defaults
+        }
+        if (deliverableType === 'newsletter_section') {
+          return (typeConfig as NewsletterSectionConfig).newsletter_name?.trim().length > 0;
+        }
+        if (deliverableType === 'changelog') {
+          return (typeConfig as ChangelogConfig).product_name?.trim().length > 0;
+        }
+        if (deliverableType === 'one_on_one_prep') {
+          return (typeConfig as OneOnOnePrepConfig).report_name?.trim().length > 0;
+        }
+        if (deliverableType === 'board_update') {
+          return (typeConfig as BoardUpdateConfig).company_name?.trim().length > 0;
+        }
+        // Experimental
         if (deliverableType === 'custom') {
           return (typeConfig as CustomConfig).description?.trim().length > 0;
         }
@@ -220,10 +406,19 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
     // Auto-generate title suggestion based on type
     if (!title) {
       const suggestions: Record<DeliverableType, string> = {
+        // Tier 1 - Stable
         status_report: 'Weekly Status Report',
         stakeholder_update: 'Monthly Update',
         research_brief: 'Competitive Brief',
         meeting_summary: 'Meeting Notes',
+        // Beta Tier
+        client_proposal: 'Project Proposal',
+        performance_self_assessment: 'Quarterly Self-Assessment',
+        newsletter_section: 'Weekly Newsletter',
+        changelog: 'Release Notes',
+        one_on_one_prep: '1:1 Prep',
+        board_update: 'Quarterly Board Update',
+        // Experimental
         custom: 'Deliverable',
       };
       setTitle(suggestions[type]);
@@ -397,12 +592,59 @@ function StepTypeSelection({
   selectedType: DeliverableType | null;
   onSelect: (type: DeliverableType) => void;
 }) {
-  const types: DeliverableType[] = [
+  const stableTypes: DeliverableType[] = [
     'status_report',
     'stakeholder_update',
     'research_brief',
     'meeting_summary',
   ];
+
+  const betaTypes: DeliverableType[] = [
+    'client_proposal',
+    'performance_self_assessment',
+    'newsletter_section',
+    'changelog',
+    'one_on_one_prep',
+    'board_update',
+  ];
+
+  const TypeCard = ({ type }: { type: DeliverableType }) => {
+    const info = TYPE_INFO[type];
+    const isBeta = info.tier === 'beta';
+    return (
+      <button
+        onClick={() => onSelect(type)}
+        className={cn(
+          "flex flex-col items-start p-4 border rounded-lg text-left transition-all relative",
+          selectedType === type
+            ? "border-primary bg-primary/5 ring-1 ring-primary"
+            : "border-border hover:border-foreground/20 hover:bg-muted/50"
+        )}
+      >
+        {isBeta && (
+          <span className="absolute top-2 right-2 inline-flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-600 border border-amber-500/20 rounded">
+            <FlaskConical className="w-3 h-3" />
+            Beta
+          </span>
+        )}
+        <div className={cn(
+          "p-2 rounded-md mb-3",
+          selectedType === type ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
+        )}>
+          {info.icon}
+        </div>
+        <h3 className="font-medium text-sm mb-1">{info.title}</h3>
+        <p className="text-xs text-muted-foreground mb-2">{info.description}</p>
+        <div className="flex flex-wrap gap-1">
+          {info.examples.slice(0, 2).map((ex, i) => (
+            <span key={i} className="text-xs px-2 py-0.5 bg-muted rounded-full">
+              {ex}
+            </span>
+          ))}
+        </div>
+      </button>
+    );
+  };
 
   return (
     <div className="space-y-6">
@@ -411,38 +653,24 @@ function StepTypeSelection({
         that YARNNN can reliably produce.
       </p>
 
+      {/* Stable Types */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {types.map((type) => {
-          const info = TYPE_INFO[type];
-          return (
-            <button
-              key={type}
-              onClick={() => onSelect(type)}
-              className={cn(
-                "flex flex-col items-start p-4 border rounded-lg text-left transition-all",
-                selectedType === type
-                  ? "border-primary bg-primary/5 ring-1 ring-primary"
-                  : "border-border hover:border-foreground/20 hover:bg-muted/50"
-              )}
-            >
-              <div className={cn(
-                "p-2 rounded-md mb-3",
-                selectedType === type ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"
-              )}>
-                {info.icon}
-              </div>
-              <h3 className="font-medium text-sm mb-1">{info.title}</h3>
-              <p className="text-xs text-muted-foreground mb-2">{info.description}</p>
-              <div className="flex flex-wrap gap-1">
-                {info.examples.slice(0, 2).map((ex, i) => (
-                  <span key={i} className="text-xs px-2 py-0.5 bg-muted rounded-full">
-                    {ex}
-                  </span>
-                ))}
-              </div>
-            </button>
-          );
-        })}
+        {stableTypes.map((type) => (
+          <TypeCard key={type} type={type} />
+        ))}
+      </div>
+
+      {/* Beta Types */}
+      <div>
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Beta</span>
+          <span className="text-xs text-muted-foreground">— Quality is evolving</span>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {betaTypes.map((type) => (
+            <TypeCard key={type} type={type} />
+          ))}
+        </div>
       </div>
 
       {/* Custom option */}
@@ -483,6 +711,7 @@ function StepTypeConfig({
   setConfig: (c: TypeConfig) => void;
 }) {
   switch (type) {
+    // Tier 1 - Stable
     case 'status_report':
       return <StatusReportConfigForm config={config as StatusReportConfig} setConfig={setConfig} />;
     case 'stakeholder_update':
@@ -491,6 +720,20 @@ function StepTypeConfig({
       return <ResearchBriefConfigForm config={config as ResearchBriefConfig} setConfig={setConfig} />;
     case 'meeting_summary':
       return <MeetingSummaryConfigForm config={config as MeetingSummaryConfig} setConfig={setConfig} />;
+    // Beta Tier
+    case 'client_proposal':
+      return <ClientProposalConfigForm config={config as ClientProposalConfig} setConfig={setConfig} />;
+    case 'performance_self_assessment':
+      return <PerformanceSelfAssessmentConfigForm config={config as PerformanceSelfAssessmentConfig} setConfig={setConfig} />;
+    case 'newsletter_section':
+      return <NewsletterSectionConfigForm config={config as NewsletterSectionConfig} setConfig={setConfig} />;
+    case 'changelog':
+      return <ChangelogConfigForm config={config as ChangelogConfig} setConfig={setConfig} />;
+    case 'one_on_one_prep':
+      return <OneOnOnePrepConfigForm config={config as OneOnOnePrepConfig} setConfig={setConfig} />;
+    case 'board_update':
+      return <BoardUpdateConfigForm config={config as BoardUpdateConfig} setConfig={setConfig} />;
+    // Experimental
     case 'custom':
       return <CustomConfigForm config={config as CustomConfig} setConfig={setConfig} />;
     default:
@@ -956,6 +1199,578 @@ function CustomConfigForm({
           className="w-full px-4 py-3 border border-border rounded-md bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
         />
       </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Beta Tier Config Forms
+// =============================================================================
+
+// Client Proposal Configuration
+function ClientProposalConfigForm({
+  config,
+  setConfig,
+}: {
+  config: ClientProposalConfig;
+  setConfig: (c: TypeConfig) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <BetaBadge />
+
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          Client name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={config.client_name || ''}
+          onChange={(e) => setConfig({ ...config, client_name: e.target.value })}
+          placeholder="e.g., Acme Corp, Client X"
+          className="w-full px-4 py-3 border border-border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          autoFocus
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          Service category <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={config.service_category || ''}
+          onChange={(e) => setConfig({ ...config, service_category: e.target.value })}
+          placeholder="e.g., Brand Strategy, Web Development, Consulting"
+          className="w-full px-4 py-3 border border-border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Project type</label>
+        <div className="flex flex-wrap gap-2">
+          {(['new_engagement', 'expansion', 'renewal'] as const).map((pt) => (
+            <button
+              key={pt}
+              onClick={() => setConfig({ ...config, project_type: pt })}
+              className={cn(
+                "px-3 py-2 border rounded-md text-sm transition-colors",
+                config.project_type === pt
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {pt === 'new_engagement' ? 'New Engagement' : pt === 'expansion' ? 'Expansion' : 'Renewal'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Tone</label>
+        <div className="flex gap-2">
+          {(['formal', 'consultative', 'friendly'] as const).map((tone) => (
+            <button
+              key={tone}
+              onClick={() => setConfig({ ...config, tone })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm capitalize transition-colors",
+                config.tone === tone
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {tone}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.include_pricing}
+            onChange={(e) => setConfig({ ...config, include_pricing: e.target.checked })}
+            className="w-4 h-4 rounded border-border"
+          />
+          <span className="text-sm">Include pricing/investment section</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// Performance Self-Assessment Configuration
+function PerformanceSelfAssessmentConfigForm({
+  config,
+  setConfig,
+}: {
+  config: PerformanceSelfAssessmentConfig;
+  setConfig: (c: TypeConfig) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <BetaBadge />
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Review period</label>
+        <div className="flex gap-2">
+          {(['quarterly', 'semi_annual', 'annual'] as const).map((period) => (
+            <button
+              key={period}
+              onClick={() => setConfig({ ...config, review_period: period })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm transition-colors",
+                config.review_period === period
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {period === 'quarterly' ? 'Quarterly' : period === 'semi_annual' ? 'Semi-Annual' : 'Annual'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Role level</label>
+        <div className="flex flex-wrap gap-2">
+          {(['ic', 'senior_ic', 'lead', 'manager', 'director'] as const).map((level) => (
+            <button
+              key={level}
+              onClick={() => setConfig({ ...config, role_level: level })}
+              className={cn(
+                "px-3 py-2 border rounded-md text-sm transition-colors",
+                config.role_level === level
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {level === 'ic' ? 'IC' : level === 'senior_ic' ? 'Senior IC' : level.charAt(0).toUpperCase() + level.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Tone</label>
+        <div className="flex gap-2">
+          {(['humble', 'balanced', 'confident'] as const).map((tone) => (
+            <button
+              key={tone}
+              onClick={() => setConfig({ ...config, tone })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm capitalize transition-colors",
+                config.tone === tone
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {tone}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.quantify_impact}
+            onChange={(e) => setConfig({ ...config, quantify_impact: e.target.checked })}
+            className="w-4 h-4 rounded border-border"
+          />
+          <span className="text-sm">Emphasize quantified impact (metrics, %s, numbers)</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// Newsletter Section Configuration
+function NewsletterSectionConfigForm({
+  config,
+  setConfig,
+}: {
+  config: NewsletterSectionConfig;
+  setConfig: (c: TypeConfig) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <BetaBadge />
+
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          Newsletter name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={config.newsletter_name || ''}
+          onChange={(e) => setConfig({ ...config, newsletter_name: e.target.value })}
+          placeholder="e.g., Weekly Product Update, Founder's Letter"
+          className="w-full px-4 py-3 border border-border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          autoFocus
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Section type</label>
+        <div className="flex flex-wrap gap-2">
+          {(['intro', 'main_story', 'roundup', 'outro'] as const).map((st) => (
+            <button
+              key={st}
+              onClick={() => setConfig({ ...config, section_type: st })}
+              className={cn(
+                "px-3 py-2 border rounded-md text-sm transition-colors",
+                config.section_type === st
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {st === 'main_story' ? 'Main Story' : st.charAt(0).toUpperCase() + st.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Audience</label>
+        <div className="flex flex-wrap gap-2">
+          {(['customers', 'team', 'investors', 'community'] as const).map((aud) => (
+            <button
+              key={aud}
+              onClick={() => setConfig({ ...config, audience: aud })}
+              className={cn(
+                "px-3 py-2 border rounded-md text-sm capitalize transition-colors",
+                config.audience === aud
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {aud}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Length</label>
+        <div className="flex gap-2">
+          {(['short', 'medium', 'long'] as const).map((len) => (
+            <button
+              key={len}
+              onClick={() => setConfig({ ...config, length: len })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm transition-colors",
+                config.length === len
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {len === 'short' ? 'Short (100-200)' : len === 'medium' ? 'Medium (200-400)' : 'Long (400-800)'}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Changelog Configuration
+function ChangelogConfigForm({
+  config,
+  setConfig,
+}: {
+  config: ChangelogConfig;
+  setConfig: (c: TypeConfig) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <BetaBadge />
+
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          Product name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={config.product_name || ''}
+          onChange={(e) => setConfig({ ...config, product_name: e.target.value })}
+          placeholder="e.g., Acme App, Platform v2"
+          className="w-full px-4 py-3 border border-border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          autoFocus
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Release type</label>
+        <div className="flex flex-wrap gap-2">
+          {(['weekly', 'patch', 'minor', 'major'] as const).map((rt) => (
+            <button
+              key={rt}
+              onClick={() => setConfig({ ...config, release_type: rt })}
+              className={cn(
+                "px-3 py-2 border rounded-md text-sm capitalize transition-colors",
+                config.release_type === rt
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {rt}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Audience</label>
+        <div className="flex gap-2">
+          {(['developers', 'end_users', 'mixed'] as const).map((aud) => (
+            <button
+              key={aud}
+              onClick={() => setConfig({ ...config, audience: aud })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm transition-colors",
+                config.audience === aud
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {aud === 'end_users' ? 'End Users' : aud.charAt(0).toUpperCase() + aud.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Format</label>
+        <div className="flex gap-2">
+          {(['technical', 'user_friendly', 'marketing'] as const).map((fmt) => (
+            <button
+              key={fmt}
+              onClick={() => setConfig({ ...config, format: fmt })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm transition-colors",
+                config.format === fmt
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {fmt === 'user_friendly' ? 'User-Friendly' : fmt.charAt(0).toUpperCase() + fmt.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// 1:1 Prep Configuration
+function OneOnOnePrepConfigForm({
+  config,
+  setConfig,
+}: {
+  config: OneOnOnePrepConfig;
+  setConfig: (c: TypeConfig) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <BetaBadge />
+
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          Report name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={config.report_name || ''}
+          onChange={(e) => setConfig({ ...config, report_name: e.target.value })}
+          placeholder="e.g., Alex, Sarah, Team Member"
+          className="w-full px-4 py-3 border border-border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          autoFocus
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Meeting cadence</label>
+        <div className="flex gap-2">
+          {(['weekly', 'biweekly', 'monthly'] as const).map((cad) => (
+            <button
+              key={cad}
+              onClick={() => setConfig({ ...config, meeting_cadence: cad })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm capitalize transition-colors",
+                config.meeting_cadence === cad
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {cad}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Relationship</label>
+        <div className="flex gap-2">
+          {(['direct_report', 'skip_level', 'mentee'] as const).map((rel) => (
+            <button
+              key={rel}
+              onClick={() => setConfig({ ...config, relationship: rel })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm transition-colors",
+                config.relationship === rel
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {rel === 'direct_report' ? 'Direct Report' : rel === 'skip_level' ? 'Skip Level' : 'Mentee'}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Focus areas</label>
+        <div className="flex flex-wrap gap-2">
+          {(['performance', 'growth', 'wellbeing', 'blockers'] as const).map((area) => (
+            <button
+              key={area}
+              onClick={() => {
+                const current = config.focus_areas || [];
+                const updated = current.includes(area)
+                  ? current.filter((a) => a !== area)
+                  : [...current, area];
+                setConfig({ ...config, focus_areas: updated });
+              }}
+              className={cn(
+                "px-3 py-2 border rounded-md text-sm capitalize transition-colors",
+                config.focus_areas?.includes(area)
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {area}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-1">Select one or more</p>
+      </div>
+    </div>
+  );
+}
+
+// Board Update Configuration
+function BoardUpdateConfigForm({
+  config,
+  setConfig,
+}: {
+  config: BoardUpdateConfig;
+  setConfig: (c: TypeConfig) => void;
+}) {
+  return (
+    <div className="space-y-6">
+      <BetaBadge />
+
+      <div>
+        <label className="block text-sm font-medium mb-2">
+          Company name <span className="text-red-500">*</span>
+        </label>
+        <input
+          type="text"
+          value={config.company_name || ''}
+          onChange={(e) => setConfig({ ...config, company_name: e.target.value })}
+          placeholder="e.g., Acme Inc."
+          className="w-full px-4 py-3 border border-border rounded-md bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+          autoFocus
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Company stage</label>
+        <div className="flex flex-wrap gap-2">
+          {(['pre_seed', 'seed', 'series_a', 'series_b_plus', 'growth'] as const).map((stage) => (
+            <button
+              key={stage}
+              onClick={() => setConfig({ ...config, stage })}
+              className={cn(
+                "px-3 py-2 border rounded-md text-sm transition-colors",
+                config.stage === stage
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {stage === 'pre_seed' ? 'Pre-Seed' : stage === 'series_b_plus' ? 'Series B+' : stage.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Update type</label>
+        <div className="flex gap-2">
+          {(['quarterly', 'monthly', 'special'] as const).map((ut) => (
+            <button
+              key={ut}
+              onClick={() => setConfig({ ...config, update_type: ut })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm capitalize transition-colors",
+                config.update_type === ut
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {ut}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium mb-2">Tone</label>
+        <div className="flex gap-2">
+          {(['optimistic', 'balanced', 'candid'] as const).map((tone) => (
+            <button
+              key={tone}
+              onClick={() => setConfig({ ...config, tone })}
+              className={cn(
+                "flex-1 px-3 py-2 border rounded-md text-sm capitalize transition-colors",
+                config.tone === tone
+                  ? "border-primary bg-primary/5 text-primary"
+                  : "border-border hover:bg-muted"
+              )}
+            >
+              {tone}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="flex items-center gap-2 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={config.include_comparisons}
+            onChange={(e) => setConfig({ ...config, include_comparisons: e.target.checked })}
+            className="w-4 h-4 rounded border-border"
+          />
+          <span className="text-sm">Include comparisons (vs last quarter, vs plan)</span>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+// Beta Badge Component
+function BetaBadge() {
+  return (
+    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 flex items-start gap-2">
+      <FlaskConical className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+      <p className="text-sm text-amber-800 dark:text-amber-200">
+        This is a <strong>Beta</strong> type. Quality is actively improving based on user feedback.
+      </p>
     </div>
   );
 }

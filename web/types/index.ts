@@ -272,11 +272,21 @@ export type DataSourceType = "url" | "document" | "description";
 
 // ADR-019: Deliverable Types
 export type DeliverableType =
+  // Tier 1 - Stable
   | "status_report"
   | "stakeholder_update"
   | "research_brief"
   | "meeting_summary"
-  | "custom";
+  | "custom"
+  // Beta Tier
+  | "client_proposal"
+  | "performance_self_assessment"
+  | "newsletter_section"
+  | "changelog"
+  | "one_on_one_prep"
+  | "board_update";
+
+export type DeliverableTier = "stable" | "beta" | "experimental";
 
 // Type-specific section configurations
 export interface StatusReportSections {
@@ -350,13 +360,131 @@ export interface CustomConfig {
   example_content?: string;
 }
 
+// =============================================================================
+// Beta Tier Type Configurations
+// =============================================================================
+
+export interface ClientProposalSections {
+  executive_summary: boolean;
+  needs_understanding: boolean;
+  approach: boolean;
+  deliverables: boolean;
+  timeline: boolean;
+  investment: boolean;
+  social_proof: boolean;
+}
+
+export interface ClientProposalConfig {
+  client_name: string;
+  project_type: "new_engagement" | "expansion" | "renewal";
+  service_category: string;
+  sections: ClientProposalSections;
+  tone: "formal" | "consultative" | "friendly";
+  include_pricing: boolean;
+}
+
+export interface PerformanceSelfAssessmentSections {
+  summary: boolean;
+  accomplishments: boolean;
+  goals_progress: boolean;
+  challenges: boolean;
+  development: boolean;
+  next_period_goals: boolean;
+}
+
+export interface PerformanceSelfAssessmentConfig {
+  review_period: "quarterly" | "semi_annual" | "annual";
+  role_level: "ic" | "senior_ic" | "lead" | "manager" | "director";
+  sections: PerformanceSelfAssessmentSections;
+  tone: "humble" | "confident" | "balanced";
+  quantify_impact: boolean;
+}
+
+export interface NewsletterSectionSections {
+  hook: boolean;
+  main_content: boolean;
+  highlights: boolean;
+  cta: boolean;
+}
+
+export interface NewsletterSectionConfig {
+  newsletter_name: string;
+  section_type: "intro" | "main_story" | "roundup" | "outro";
+  audience: "customers" | "team" | "investors" | "community";
+  sections: NewsletterSectionSections;
+  voice: "brand" | "personal" | "editorial";
+  length: "short" | "medium" | "long";
+}
+
+export interface ChangelogSections {
+  highlights: boolean;
+  new_features: boolean;
+  improvements: boolean;
+  bug_fixes: boolean;
+  breaking_changes: boolean;
+  whats_next: boolean;
+}
+
+export interface ChangelogConfig {
+  product_name: string;
+  release_type: "major" | "minor" | "patch" | "weekly";
+  audience: "developers" | "end_users" | "mixed";
+  sections: ChangelogSections;
+  format: "technical" | "user_friendly" | "marketing";
+  include_links: boolean;
+}
+
+export interface OneOnOnePrepSections {
+  context: boolean;
+  topics: boolean;
+  recognition: boolean;
+  concerns: boolean;
+  career: boolean;
+  previous_actions: boolean;
+}
+
+export interface OneOnOnePrepConfig {
+  report_name: string;
+  meeting_cadence: "weekly" | "biweekly" | "monthly";
+  relationship: "direct_report" | "skip_level" | "mentee";
+  sections: OneOnOnePrepSections;
+  focus_areas: ("performance" | "growth" | "wellbeing" | "blockers")[];
+}
+
+export interface BoardUpdateSections {
+  executive_summary: boolean;
+  metrics: boolean;
+  strategic_progress: boolean;
+  challenges: boolean;
+  financials: boolean;
+  asks: boolean;
+  outlook: boolean;
+}
+
+export interface BoardUpdateConfig {
+  company_name: string;
+  stage: "pre_seed" | "seed" | "series_a" | "series_b_plus" | "growth";
+  update_type: "quarterly" | "monthly" | "special";
+  sections: BoardUpdateSections;
+  tone: "optimistic" | "balanced" | "candid";
+  include_comparisons: boolean;
+}
+
 // Union type for type_config - use Record for flexibility with partial configs
 export type TypeConfig =
+  // Tier 1 - Stable
   | StatusReportConfig
   | StakeholderUpdateConfig
   | ResearchBriefConfig
   | MeetingSummaryConfig
   | CustomConfig
+  // Beta Tier
+  | ClientProposalConfig
+  | PerformanceSelfAssessmentConfig
+  | NewsletterSectionConfig
+  | ChangelogConfig
+  | OneOnOnePrepConfig
+  | BoardUpdateConfig
   | Record<string, unknown>;
 
 export interface RecipientContext {

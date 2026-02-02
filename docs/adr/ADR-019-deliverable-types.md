@@ -469,12 +469,275 @@ Per-type tracking:
 
 ---
 
-## Appendix: Tier 2 Types (Future)
+## Beta Tier Types
 
-After validating Tier 1, consider:
+Higher complexity types launched with "Beta" label. Users understand quality is evolving.
+These target high-value, high-cognitive-load repetitive work.
+
+### 1. Client Proposal
+Recurring proposals for consultants, agencies, freelancers.
+
+**Use cases:**
+- Project proposals to prospects
+- SOW/scope documents
+- Renewal proposals
+
+**Structure:**
+- Executive summary
+- Understanding of needs
+- Proposed approach
+- Deliverables & timeline
+- Investment/pricing
+- Why us / social proof
+
+**Configuration:**
+```typescript
+interface ClientProposalConfig {
+  client_name: string;
+  project_type: 'new_engagement' | 'expansion' | 'renewal';
+  service_category: string;  // "Brand Strategy", "Web Development"
+  sections: {
+    executive_summary: boolean;
+    needs_understanding: boolean;
+    approach: boolean;
+    deliverables: boolean;
+    timeline: boolean;
+    investment: boolean;
+    social_proof: boolean;
+  };
+  tone: 'formal' | 'consultative' | 'friendly';
+  include_pricing: boolean;
+}
+```
+
+**Quality criteria:**
+- Personalized to client context (not generic)
+- Clear value proposition
+- Specific deliverables, not vague promises
+- Professional but not stiff
+
+---
+
+### 2. Performance Self-Assessment
+Quarterly/annual self-reviews.
+
+**Use cases:**
+- Quarterly performance reviews
+- Annual self-assessments
+- Promotion packets
+
+**Structure:**
+- Summary of period
+- Key accomplishments (with impact)
+- Goals progress
+- Challenges & learnings
+- Development areas
+- Goals for next period
+
+**Configuration:**
+```typescript
+interface PerformanceSelfAssessmentConfig {
+  review_period: 'quarterly' | 'semi_annual' | 'annual';
+  role_level: 'ic' | 'senior_ic' | 'lead' | 'manager' | 'director';
+  sections: {
+    summary: boolean;
+    accomplishments: boolean;
+    goals_progress: boolean;
+    challenges: boolean;
+    development: boolean;
+    next_period_goals: boolean;
+  };
+  tone: 'humble' | 'confident' | 'balanced';
+  quantify_impact: boolean;
+}
+```
+
+**Quality criteria:**
+- Accomplishments include measurable impact
+- Balanced (not just wins, acknowledges growth areas)
+- Forward-looking, not just retrospective
+- Appropriate humility without underselling
+
+---
+
+### 3. Newsletter Section
+Recurring content for newsletters/digests.
+
+**Use cases:**
+- Weekly product updates
+- Monthly founder letters
+- Team internal newsletters
+- Community digests
+
+**Structure:**
+- Hook/intro
+- Main content sections
+- Highlights/callouts
+- CTA or sign-off
+
+**Configuration:**
+```typescript
+interface NewsletterSectionConfig {
+  newsletter_name: string;
+  section_type: 'intro' | 'main_story' | 'roundup' | 'outro';
+  audience: 'customers' | 'team' | 'investors' | 'community';
+  sections: {
+    hook: boolean;
+    main_content: boolean;
+    highlights: boolean;
+    cta: boolean;
+  };
+  voice: 'brand' | 'personal' | 'editorial';
+  length: 'short' | 'medium' | 'long';  // 100-200, 200-400, 400-800 words
+}
+```
+
+**Quality criteria:**
+- Voice consistency with brand/person
+- Engaging hook, not boring opener
+- Appropriate length for format
+- Clear CTA when applicable
+
+---
+
+### 4. Changelog / Release Notes
+Product update communications.
+
+**Use cases:**
+- Weekly release notes
+- Feature announcements
+- Version changelogs
+- Update emails to customers
+
+**Structure:**
+- Version/date header
+- Highlights (new features)
+- Improvements
+- Bug fixes
+- Breaking changes (if any)
+- What's next (optional)
+
+**Configuration:**
+```typescript
+interface ChangelogConfig {
+  product_name: string;
+  release_type: 'major' | 'minor' | 'patch' | 'weekly';
+  audience: 'developers' | 'end_users' | 'mixed';
+  sections: {
+    highlights: boolean;
+    new_features: boolean;
+    improvements: boolean;
+    bug_fixes: boolean;
+    breaking_changes: boolean;
+    whats_next: boolean;
+  };
+  format: 'technical' | 'user_friendly' | 'marketing';
+  include_links: boolean;
+}
+```
+
+**Quality criteria:**
+- Clear categorization of changes
+- User-benefit language (not just technical)
+- Appropriate detail for audience
+- Breaking changes clearly flagged
+
+---
+
+### 5. One-on-One Prep
+Manager prep for 1:1 meetings with reports.
+
+**Use cases:**
+- Weekly 1:1 prep
+- Skip-level meeting prep
+- Mentorship session prep
+
+**Structure:**
+- Context since last 1:1
+- Topics to discuss
+- Recognition/wins to call out
+- Concerns/blockers to address
+- Career/development check-in
+- Action items from last time
+
+**Configuration:**
+```typescript
+interface OneOnOnePrepConfig {
+  report_name: string;
+  meeting_cadence: 'weekly' | 'biweekly' | 'monthly';
+  relationship: 'direct_report' | 'skip_level' | 'mentee';
+  sections: {
+    context: boolean;
+    topics: boolean;
+    recognition: boolean;
+    concerns: boolean;
+    career: boolean;
+    previous_actions: boolean;
+  };
+  focus_areas: ('performance' | 'growth' | 'wellbeing' | 'blockers')[];
+}
+```
+
+**Quality criteria:**
+- Personalized to the individual
+- Balanced (not just problems)
+- Actionable discussion points
+- Builds on previous conversations
+
+---
+
+### 6. Board Update Narrative
+Quarterly board deck narrative sections.
+
+**Use cases:**
+- Quarterly board updates
+- Investor updates
+- Advisory board briefings
+
+**Structure:**
+- Executive summary (1 paragraph)
+- Key metrics & commentary
+- Strategic progress
+- Challenges & mitigations
+- Cash/runway update
+- Asks/decisions needed
+- Outlook
+
+**Configuration:**
+```typescript
+interface BoardUpdateConfig {
+  company_name: string;
+  stage: 'pre_seed' | 'seed' | 'series_a' | 'series_b_plus' | 'growth';
+  update_type: 'quarterly' | 'monthly' | 'special';
+  sections: {
+    executive_summary: boolean;
+    metrics: boolean;
+    strategic_progress: boolean;
+    challenges: boolean;
+    financials: boolean;
+    asks: boolean;
+    outlook: boolean;
+  };
+  tone: 'optimistic' | 'balanced' | 'candid';
+  include_comparisons: boolean;  // vs last quarter, vs plan
+}
+```
+
+**Quality criteria:**
+- Concise (board members are busy)
+- Metrics-forward with context
+- Honest about challenges
+- Clear asks, not buried
+- Professional but not overly formal
+
+---
+
+## Appendix: Future Types (Tier 3+)
+
+After validating Beta tier, consider:
 
 - **Email Draft**: Recurring outreach, follow-ups
-- **Newsletter Section**: Content for regular newsletters
 - **Preparation Brief**: Pre-meeting background docs
-- **Changelog/Release Notes**: Product update communications
-- **Performance Summary**: Individual or team performance digests
+- **Sales Call Recap**: Post-call summaries with next steps
+- **Interview Debrief**: Structured hiring feedback
+- **Sprint Retrospective**: Team retro summaries

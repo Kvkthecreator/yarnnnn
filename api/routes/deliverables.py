@@ -36,12 +36,35 @@ router = APIRouter()
 # =============================================================================
 
 DeliverableType = Literal[
+    # Tier 1 - Stable
     "status_report",
     "stakeholder_update",
     "research_brief",
     "meeting_summary",
-    "custom"
+    "custom",
+    # Beta Tier
+    "client_proposal",
+    "performance_self_assessment",
+    "newsletter_section",
+    "changelog",
+    "one_on_one_prep",
+    "board_update",
 ]
+
+# Type tier mapping for UI display
+TYPE_TIERS = {
+    "status_report": "stable",
+    "stakeholder_update": "stable",
+    "research_brief": "stable",
+    "meeting_summary": "stable",
+    "custom": "experimental",
+    "client_proposal": "beta",
+    "performance_self_assessment": "beta",
+    "newsletter_section": "beta",
+    "changelog": "beta",
+    "one_on_one_prep": "beta",
+    "board_update": "beta",
+}
 
 
 class StatusReportSections(BaseModel):
@@ -123,19 +146,152 @@ class CustomConfig(BaseModel):
     example_content: Optional[str] = None
 
 
+# =============================================================================
+# ADR-019: Beta Tier Type Definitions
+# =============================================================================
+
+class ClientProposalSections(BaseModel):
+    """Sections to include in a client proposal."""
+    executive_summary: bool = True
+    needs_understanding: bool = True
+    approach: bool = True
+    deliverables: bool = True
+    timeline: bool = True
+    investment: bool = True
+    social_proof: bool = False
+
+
+class ClientProposalConfig(BaseModel):
+    """Configuration for client proposal type (Beta)."""
+    client_name: str
+    project_type: Literal["new_engagement", "expansion", "renewal"] = "new_engagement"
+    service_category: str  # "Brand Strategy", "Web Development"
+    sections: ClientProposalSections = Field(default_factory=ClientProposalSections)
+    tone: Literal["formal", "consultative", "friendly"] = "consultative"
+    include_pricing: bool = True
+
+
+class PerformanceSelfAssessmentSections(BaseModel):
+    """Sections to include in a self-assessment."""
+    summary: bool = True
+    accomplishments: bool = True
+    goals_progress: bool = True
+    challenges: bool = True
+    development: bool = True
+    next_period_goals: bool = True
+
+
+class PerformanceSelfAssessmentConfig(BaseModel):
+    """Configuration for performance self-assessment type (Beta)."""
+    review_period: Literal["quarterly", "semi_annual", "annual"] = "quarterly"
+    role_level: Literal["ic", "senior_ic", "lead", "manager", "director"] = "ic"
+    sections: PerformanceSelfAssessmentSections = Field(default_factory=PerformanceSelfAssessmentSections)
+    tone: Literal["humble", "confident", "balanced"] = "balanced"
+    quantify_impact: bool = True
+
+
+class NewsletterSectionSections(BaseModel):
+    """Sections to include in a newsletter section."""
+    hook: bool = True
+    main_content: bool = True
+    highlights: bool = True
+    cta: bool = True
+
+
+class NewsletterSectionConfig(BaseModel):
+    """Configuration for newsletter section type (Beta)."""
+    newsletter_name: str
+    section_type: Literal["intro", "main_story", "roundup", "outro"] = "main_story"
+    audience: Literal["customers", "team", "investors", "community"] = "customers"
+    sections: NewsletterSectionSections = Field(default_factory=NewsletterSectionSections)
+    voice: Literal["brand", "personal", "editorial"] = "brand"
+    length: Literal["short", "medium", "long"] = "medium"  # 100-200, 200-400, 400-800 words
+
+
+class ChangelogSections(BaseModel):
+    """Sections to include in a changelog."""
+    highlights: bool = True
+    new_features: bool = True
+    improvements: bool = True
+    bug_fixes: bool = True
+    breaking_changes: bool = False
+    whats_next: bool = False
+
+
+class ChangelogConfig(BaseModel):
+    """Configuration for changelog type (Beta)."""
+    product_name: str
+    release_type: Literal["major", "minor", "patch", "weekly"] = "weekly"
+    audience: Literal["developers", "end_users", "mixed"] = "mixed"
+    sections: ChangelogSections = Field(default_factory=ChangelogSections)
+    format: Literal["technical", "user_friendly", "marketing"] = "user_friendly"
+    include_links: bool = True
+
+
+class OneOnOnePrepSections(BaseModel):
+    """Sections to include in 1:1 prep."""
+    context: bool = True
+    topics: bool = True
+    recognition: bool = True
+    concerns: bool = True
+    career: bool = True
+    previous_actions: bool = True
+
+
+class OneOnOnePrepConfig(BaseModel):
+    """Configuration for 1:1 prep type (Beta)."""
+    report_name: str
+    meeting_cadence: Literal["weekly", "biweekly", "monthly"] = "weekly"
+    relationship: Literal["direct_report", "skip_level", "mentee"] = "direct_report"
+    sections: OneOnOnePrepSections = Field(default_factory=OneOnOnePrepSections)
+    focus_areas: list[Literal["performance", "growth", "wellbeing", "blockers"]] = Field(
+        default_factory=lambda: ["performance", "growth"]
+    )
+
+
+class BoardUpdateSections(BaseModel):
+    """Sections to include in a board update."""
+    executive_summary: bool = True
+    metrics: bool = True
+    strategic_progress: bool = True
+    challenges: bool = True
+    financials: bool = True
+    asks: bool = True
+    outlook: bool = True
+
+
+class BoardUpdateConfig(BaseModel):
+    """Configuration for board update type (Beta)."""
+    company_name: str
+    stage: Literal["pre_seed", "seed", "series_a", "series_b_plus", "growth"] = "seed"
+    update_type: Literal["quarterly", "monthly", "special"] = "quarterly"
+    sections: BoardUpdateSections = Field(default_factory=BoardUpdateSections)
+    tone: Literal["optimistic", "balanced", "candid"] = "balanced"
+    include_comparisons: bool = True  # vs last quarter, vs plan
+
+
 # Union type for type_config
 TypeConfig = Union[
+    # Tier 1 - Stable
     StatusReportConfig,
     StakeholderUpdateConfig,
     ResearchBriefConfig,
     MeetingSummaryConfig,
     CustomConfig,
+    # Beta Tier
+    ClientProposalConfig,
+    PerformanceSelfAssessmentConfig,
+    NewsletterSectionConfig,
+    ChangelogConfig,
+    OneOnOnePrepConfig,
+    BoardUpdateConfig,
 ]
 
 
 def get_default_config(deliverable_type: DeliverableType) -> dict:
     """Get default configuration for a deliverable type."""
     defaults = {
+        # Tier 1 - Stable
         "status_report": StatusReportConfig(subject="", audience="stakeholders"),
         "stakeholder_update": StakeholderUpdateConfig(
             audience_type="client",
@@ -150,6 +306,24 @@ def get_default_config(deliverable_type: DeliverableType) -> dict:
             meeting_type="team_sync"
         ),
         "custom": CustomConfig(description=""),
+        # Beta Tier
+        "client_proposal": ClientProposalConfig(
+            client_name="",
+            service_category=""
+        ),
+        "performance_self_assessment": PerformanceSelfAssessmentConfig(),
+        "newsletter_section": NewsletterSectionConfig(
+            newsletter_name=""
+        ),
+        "changelog": ChangelogConfig(
+            product_name=""
+        ),
+        "one_on_one_prep": OneOnOnePrepConfig(
+            report_name=""
+        ),
+        "board_update": BoardUpdateConfig(
+            company_name=""
+        ),
     }
     return defaults.get(deliverable_type, defaults["custom"]).model_dump()
 
@@ -891,17 +1065,27 @@ def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dic
     Validate and normalize type_config for a given deliverable type.
     Returns the validated config dict.
     """
+    # Map types to their config classes
+    config_classes = {
+        # Tier 1 - Stable
+        "status_report": StatusReportConfig,
+        "stakeholder_update": StakeholderUpdateConfig,
+        "research_brief": ResearchBriefConfig,
+        "meeting_summary": MeetingSummaryConfig,
+        "custom": CustomConfig,
+        # Beta Tier
+        "client_proposal": ClientProposalConfig,
+        "performance_self_assessment": PerformanceSelfAssessmentConfig,
+        "newsletter_section": NewsletterSectionConfig,
+        "changelog": ChangelogConfig,
+        "one_on_one_prep": OneOnOnePrepConfig,
+        "board_update": BoardUpdateConfig,
+    }
+
     try:
-        if deliverable_type == "status_report":
-            validated = StatusReportConfig(**config)
-        elif deliverable_type == "stakeholder_update":
-            validated = StakeholderUpdateConfig(**config)
-        elif deliverable_type == "research_brief":
-            validated = ResearchBriefConfig(**config)
-        elif deliverable_type == "meeting_summary":
-            validated = MeetingSummaryConfig(**config)
-        elif deliverable_type == "custom":
-            validated = CustomConfig(**config)
+        config_class = config_classes.get(deliverable_type)
+        if config_class:
+            validated = config_class(**config)
         else:
             # Unknown type, treat as custom
             validated = CustomConfig(description=str(config.get("description", "")))

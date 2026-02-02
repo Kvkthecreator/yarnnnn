@@ -150,11 +150,165 @@ INSTRUCTIONS:
 - Be thorough but concise
 
 Write the deliverable now:""",
+
+    # ==========================================================================
+    # Beta Tier Prompts
+    # ==========================================================================
+
+    "client_proposal": """You are writing a {tone} client proposal for {client_name}.
+
+PROJECT TYPE: {project_type}
+SERVICE CATEGORY: {service_category}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+{pricing_instruction}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Personalize to the client's specific context and needs
+- Be clear about the value proposition and outcomes
+- Deliverables should be specific, not vague
+- {tone} tone throughout
+- Make it persuasive but honest
+
+Write the proposal now:""",
+
+    "performance_self_assessment": """You are writing a {review_period} performance self-assessment for a {role_level} level employee.
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+TONE: {tone}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Accomplishments should include measurable impact when possible
+- Be {tone} - {tone_guidance}
+- Acknowledge both strengths and growth areas
+- Be forward-looking with goals for the next period
+{quantify_instruction}
+
+Write the self-assessment now:""",
+
+    "newsletter_section": """You are writing a {section_type} section for the newsletter: {newsletter_name}
+
+AUDIENCE: {audience}
+VOICE: {voice}
+LENGTH: {length}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Start with an engaging hook, not a boring opener
+- Maintain consistent {voice} voice throughout
+- Keep to {length} length target
+- Include clear CTA if applicable
+- Don't sound generic or AI-written
+
+Write the newsletter section now:""",
+
+    "changelog": """You are writing {release_type} release notes for {product_name}.
+
+AUDIENCE: {audience}
+FORMAT: {format}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Categorize changes clearly (new, improved, fixed)
+- Use {format} language appropriate for {audience}
+- Highlight user benefits, not just technical changes
+- Flag any breaking changes prominently
+{links_instruction}
+
+Write the release notes now:""",
+
+    "one_on_one_prep": """You are preparing a manager's prep doc for a {meeting_cadence} 1:1 with {report_name}.
+
+RELATIONSHIP: {relationship}
+FOCUS AREAS: {focus_areas}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Make it personalized to this specific individual
+- Balance recognition with areas to discuss
+- Include actionable discussion topics, not just observations
+- Build on previous conversations when context available
+- Keep it focused on the selected focus areas
+
+Write the 1:1 prep doc now:""",
+
+    "board_update": """You are writing a {update_type} board update for {company_name}.
+
+COMPANY STAGE: {stage}
+TONE: {tone}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+{comparisons_instruction}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Lead with the executive summary (2-3 sentences)
+- Be metrics-forward with context on what they mean
+- {tone} tone - {tone_guidance}
+- Clear asks section - don't bury requests
+- Keep it concise - board members are busy
+- 500-1000 words total
+
+Write the board update now:""",
 }
 
 
 # Section templates for each type
 SECTION_TEMPLATES = {
+    # Tier 1 - Stable
     "status_report": {
         "summary": "Summary/TL;DR - Brief overview of the current state",
         "accomplishments": "Accomplishments - What was completed this period",
@@ -181,6 +335,55 @@ SECTION_TEMPLATES = {
         "decisions": "Decisions Made - Explicit agreements reached",
         "action_items": "Action Items - Tasks with owners and deadlines",
         "followups": "Follow-ups - Topics for the next meeting",
+    },
+    # Beta Tier
+    "client_proposal": {
+        "executive_summary": "Executive Summary - Hook and value proposition",
+        "needs_understanding": "Understanding of Needs - What the client wants to achieve",
+        "approach": "Our Approach - How we'll solve the problem",
+        "deliverables": "Deliverables - What the client will receive",
+        "timeline": "Timeline - Key milestones and dates",
+        "investment": "Investment - Pricing and payment terms",
+        "social_proof": "Why Us - Relevant experience and testimonials",
+    },
+    "performance_self_assessment": {
+        "summary": "Summary - Overview of the review period",
+        "accomplishments": "Key Accomplishments - Major wins with impact",
+        "goals_progress": "Goals Progress - Status on previously set goals",
+        "challenges": "Challenges & Learnings - Obstacles faced and lessons learned",
+        "development": "Development Areas - Skills and areas for growth",
+        "next_period_goals": "Goals for Next Period - Focus areas ahead",
+    },
+    "newsletter_section": {
+        "hook": "Hook/Intro - Attention-grabbing opener",
+        "main_content": "Main Content - The core message or story",
+        "highlights": "Highlights - Key callouts or quotes",
+        "cta": "Call to Action - What readers should do next",
+    },
+    "changelog": {
+        "highlights": "Highlights - Most important changes",
+        "new_features": "New Features - Newly added functionality",
+        "improvements": "Improvements - Enhanced existing features",
+        "bug_fixes": "Bug Fixes - Issues resolved",
+        "breaking_changes": "Breaking Changes - Changes requiring action",
+        "whats_next": "What's Next - Preview of upcoming work",
+    },
+    "one_on_one_prep": {
+        "context": "Context Since Last 1:1 - What's happened",
+        "topics": "Topics to Discuss - Agenda items",
+        "recognition": "Recognition - Wins to call out",
+        "concerns": "Concerns - Issues to address",
+        "career": "Career & Development - Growth discussion",
+        "previous_actions": "Previous Action Items - Follow-up on past commitments",
+    },
+    "board_update": {
+        "executive_summary": "Executive Summary - The key message in 2-3 sentences",
+        "metrics": "Key Metrics - Performance indicators with context",
+        "strategic_progress": "Strategic Progress - Movement on key initiatives",
+        "challenges": "Challenges - Issues and mitigations",
+        "financials": "Financials - Cash, runway, burn",
+        "asks": "Asks - What you need from the board",
+        "outlook": "Outlook - Focus for next period",
     },
 }
 
@@ -276,7 +479,85 @@ def build_type_prompt(
             "format": config.get("format", "structured"),
         })
 
-    else:  # custom
+    # Beta Tier
+    elif deliverable_type == "client_proposal":
+        fields.update({
+            "client_name": config.get("client_name", "the client"),
+            "project_type": config.get("project_type", "new_engagement").replace("_", " "),
+            "service_category": config.get("service_category", "consulting"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "tone": config.get("tone", "consultative"),
+            "pricing_instruction": "Include pricing/investment section" if config.get("include_pricing", True) else "Do NOT include specific pricing",
+        })
+
+    elif deliverable_type == "performance_self_assessment":
+        review_period = config.get("review_period", "quarterly")
+        role_level = config.get("role_level", "ic")
+        tone = config.get("tone", "balanced")
+        tone_guidance = {
+            "humble": "acknowledge contributions without overselling",
+            "balanced": "confidently state accomplishments while acknowledging growth areas",
+            "confident": "clearly articulate value and impact",
+        }
+        fields.update({
+            "review_period": review_period,
+            "role_level": role_level.replace("_", " "),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "tone": tone,
+            "tone_guidance": tone_guidance.get(tone, "balanced perspective"),
+            "quantify_instruction": "- Quantify impact with specific numbers, percentages, and metrics wherever possible" if config.get("quantify_impact", True) else "",
+        })
+
+    elif deliverable_type == "newsletter_section":
+        length = config.get("length", "medium")
+        length_words = {"short": "100-200 words", "medium": "200-400 words", "long": "400-800 words"}
+        fields.update({
+            "newsletter_name": config.get("newsletter_name", "Newsletter"),
+            "section_type": config.get("section_type", "main_story").replace("_", " "),
+            "audience": config.get("audience", "customers"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "voice": config.get("voice", "brand"),
+            "length": length_words.get(length, "200-400 words"),
+        })
+
+    elif deliverable_type == "changelog":
+        fields.update({
+            "product_name": config.get("product_name", "the product"),
+            "release_type": config.get("release_type", "weekly"),
+            "audience": config.get("audience", "mixed"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "format": config.get("format", "user_friendly").replace("_", "-"),
+            "links_instruction": "- Include links to documentation or features where available" if config.get("include_links", True) else "",
+        })
+
+    elif deliverable_type == "one_on_one_prep":
+        focus_areas = config.get("focus_areas", ["performance", "growth"])
+        fields.update({
+            "report_name": config.get("report_name", "the team member"),
+            "meeting_cadence": config.get("meeting_cadence", "weekly"),
+            "relationship": config.get("relationship", "direct_report").replace("_", " "),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "focus_areas": ", ".join(focus_areas),
+        })
+
+    elif deliverable_type == "board_update":
+        tone = config.get("tone", "balanced")
+        tone_guidance = {
+            "optimistic": "emphasize progress and opportunities while being honest",
+            "balanced": "present both wins and challenges with equal weight",
+            "candid": "be direct about challenges and what's needed",
+        }
+        fields.update({
+            "company_name": config.get("company_name", "the company"),
+            "stage": config.get("stage", "seed").replace("_", " "),
+            "update_type": config.get("update_type", "quarterly"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "tone": tone,
+            "tone_guidance": tone_guidance.get(tone, "balanced perspective"),
+            "comparisons_instruction": "Include comparisons vs. last period and vs. plan where data is available" if config.get("include_comparisons", True) else "",
+        })
+
+    else:  # custom and any unknown types
         fields.update({
             "description": config.get("description", deliverable.get("description", "")),
             "structure_notes": f"STRUCTURE NOTES:\n{config.get('structure_notes', '')}" if config.get("structure_notes") else "",
@@ -484,6 +765,220 @@ def validate_custom(content: str, config: dict) -> dict:
     return {"valid": len(issues) == 0, "issues": issues, "score": score}
 
 
+# =============================================================================
+# Beta Tier Validation Functions
+# =============================================================================
+
+def validate_client_proposal(content: str, config: dict) -> dict:
+    """Validate a client proposal output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "executive_summary": ["summary", "overview", "introduction"],
+        "needs_understanding": ["understand", "needs", "requirements", "goals", "objectives"],
+        "approach": ["approach", "methodology", "how we", "our process"],
+        "deliverables": ["deliverables", "you will receive", "we will provide"],
+        "timeline": ["timeline", "schedule", "milestones", "weeks", "phases"],
+        "investment": ["investment", "pricing", "cost", "fee", "budget"],
+        "social_proof": ["experience", "clients", "similar", "case", "testimonial"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check for generic/vague content
+    vague_phrases = ["best practices", "industry-leading", "comprehensive solution", "world-class"]
+    vague_count = sum(1 for phrase in vague_phrases if phrase in content_lower)
+    if vague_count > 2:
+        issues.append("Content may be too generic - add more specifics")
+
+    word_count = len(content.split())
+    if word_count < 300:
+        issues.append(f"Too short for a proposal: {word_count} words (expected 300+)")
+
+    score = max(0, 1.0 - (len(issues) * 0.15))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_performance_self_assessment(content: str, config: dict) -> dict:
+    """Validate a performance self-assessment output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "summary": ["summary", "overview", "period"],
+        "accomplishments": ["accomplishments", "achieved", "completed", "delivered"],
+        "goals_progress": ["goals", "objectives", "targets", "progress"],
+        "challenges": ["challenges", "obstacles", "difficulties", "learned"],
+        "development": ["development", "growth", "improve", "skills"],
+        "next_period_goals": ["next", "upcoming", "focus", "plan to"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check for quantification if enabled
+    if config.get("quantify_impact", True):
+        has_numbers = bool(re.search(r'\d+%|\d+x|\$\d+|\d+ (users|customers|projects|deals)', content))
+        if not has_numbers:
+            issues.append("Consider adding quantified impact (%, numbers, metrics)")
+
+    word_count = len(content.split())
+    review_period = config.get("review_period", "quarterly")
+    expected = {"quarterly": (400, 1000), "semi_annual": (600, 1500), "annual": (800, 2000)}
+    min_words, _ = expected.get(review_period, (400, 1000))
+    if word_count < min_words * 0.7:
+        issues.append(f"Too short for {review_period} review: {word_count} words")
+
+    score = max(0, 1.0 - (len(issues) * 0.15))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_newsletter_section(content: str, config: dict) -> dict:
+    """Validate a newsletter section output."""
+    issues = []
+
+    word_count = len(content.split())
+    length = config.get("length", "medium")
+    expected = {"short": (80, 250), "medium": (180, 500), "long": (350, 1000)}
+    min_words, max_words = expected.get(length, (180, 500))
+
+    if word_count < min_words * 0.7:
+        issues.append(f"Too short: {word_count} words (expected {min_words}+)")
+    if word_count > max_words * 1.5:
+        issues.append(f"Too long: {word_count} words (expected ~{max_words})")
+
+    # Check for CTA if enabled
+    sections = config.get("sections", {})
+    if sections.get("cta", True):
+        cta_keywords = ["click", "sign up", "learn more", "check out", "try", "get started", "visit"]
+        if not any(kw in content.lower() for kw in cta_keywords):
+            issues.append("Missing call to action")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_changelog(content: str, config: dict) -> dict:
+    """Validate a changelog output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "highlights": ["highlights", "notable", "major"],
+        "new_features": ["new", "added", "introducing"],
+        "improvements": ["improved", "enhanced", "better", "updated"],
+        "bug_fixes": ["fixed", "bug", "resolved", "issue"],
+        "breaking_changes": ["breaking", "migration", "deprecated"],
+        "whats_next": ["next", "upcoming", "roadmap", "coming soon"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    word_count = len(content.split())
+    if word_count < 100:
+        issues.append(f"Too brief: {word_count} words (expected 100+)")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_one_on_one_prep(content: str, config: dict) -> dict:
+    """Validate a 1:1 prep output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "context": ["context", "since last", "recent", "update"],
+        "topics": ["topics", "discuss", "agenda", "talk about"],
+        "recognition": ["recognition", "kudos", "great", "well done", "appreciate"],
+        "concerns": ["concerns", "issues", "blockers", "challenges"],
+        "career": ["career", "growth", "development", "goals"],
+        "previous_actions": ["action items", "follow up", "previous", "last time"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check for personalization
+    report_name = config.get("report_name", "")
+    if report_name and report_name.lower() not in content_lower:
+        issues.append(f"Not personalized to {report_name}")
+
+    word_count = len(content.split())
+    if word_count < 150:
+        issues.append(f"Too brief: {word_count} words (expected 150+)")
+
+    score = max(0, 1.0 - (len(issues) * 0.15))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_board_update(content: str, config: dict) -> dict:
+    """Validate a board update output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "executive_summary": ["summary", "overview", "tldr"],
+        "metrics": ["metrics", "kpis", "numbers", "growth", "revenue", "users"],
+        "strategic_progress": ["strategic", "progress", "initiatives", "goals"],
+        "challenges": ["challenges", "risks", "concerns", "obstacles"],
+        "financials": ["financials", "cash", "runway", "burn", "revenue"],
+        "asks": ["asks", "need", "request", "help with", "decision"],
+        "outlook": ["outlook", "next quarter", "ahead", "plan"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Board updates should have metrics
+    if sections.get("metrics", True):
+        has_numbers = bool(re.search(r'\d+%|\$\d+|\d+k|\d+M|\d+ (users|customers)', content))
+        if not has_numbers:
+            issues.append("Missing quantified metrics")
+
+    # Check if asks section is clear
+    if sections.get("asks", True):
+        if "asks" not in content_lower and "need" not in content_lower and "request" not in content_lower:
+            issues.append("Asks section should be explicit")
+
+    word_count = len(content.split())
+    if word_count < 400:
+        issues.append(f"Too brief for board update: {word_count} words (expected 400+)")
+    if word_count > 1200:
+        issues.append(f"Too long: {word_count} words (board members are busy, target 500-1000)")
+
+    score = max(0, 1.0 - (len(issues) * 0.15))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
 def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
     """
     Validate generated content based on deliverable type.
@@ -496,11 +991,19 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
         }
     """
     validators = {
+        # Tier 1 - Stable
         "status_report": validate_status_report,
         "stakeholder_update": validate_stakeholder_update,
         "research_brief": validate_research_brief,
         "meeting_summary": validate_meeting_summary,
         "custom": validate_custom,
+        # Beta Tier
+        "client_proposal": validate_client_proposal,
+        "performance_self_assessment": validate_performance_self_assessment,
+        "newsletter_section": validate_newsletter_section,
+        "changelog": validate_changelog,
+        "one_on_one_prep": validate_one_on_one_prep,
+        "board_update": validate_board_update,
     }
 
     validator = validators.get(deliverable_type, validate_custom)
