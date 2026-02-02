@@ -18,10 +18,12 @@ import {
   Sparkles,
 } from 'lucide-react';
 import { useFloatingChat, PageContextType } from '@/contexts/FloatingChatContext';
-import { useChat } from '@/hooks/useChat';
+import { useChat, type ChatMessage } from '@/hooks/useChat';
 import { useSurface } from '@/contexts/SurfaceContext';
 import { useWorkStatus } from '@/contexts/WorkStatusContext';
+import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
+import { ToolResultCard } from '@/components/chat/ToolResultCard';
 import type { SurfaceType, SurfaceData } from '@/types/surfaces';
 
 // Get context-specific greeting
@@ -72,6 +74,7 @@ function getQuickActions(type: PageContextType): { label: string; prompt: string
 export function FloatingChatPanel() {
   const { state, close, minimize, restore } = useFloatingChat();
   const { isOpen, isMinimized, pageContext } = state;
+  const router = useRouter();
 
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -314,23 +317,41 @@ ${message}`;
           ) : (
             <div className="space-y-4">
               {messages.map((message, index) => (
-                <div
-                  key={index}
-                  className={cn(
-                    'flex',
-                    message.role === 'user' ? 'justify-end' : 'justify-start'
-                  )}
-                >
+                <div key={index} className="space-y-2">
+                  {/* Message bubble */}
                   <div
                     className={cn(
-                      'px-3 py-2 rounded-2xl max-w-[85%] text-sm',
-                      message.role === 'user'
-                        ? 'bg-primary text-primary-foreground rounded-br-md'
-                        : 'bg-muted rounded-bl-md'
+                      'flex',
+                      message.role === 'user' ? 'justify-end' : 'justify-start'
                     )}
                   >
-                    <p className="whitespace-pre-wrap">{message.content}</p>
+                    <div
+                      className={cn(
+                        'px-3 py-2 rounded-2xl max-w-[85%] text-sm',
+                        message.role === 'user'
+                          ? 'bg-primary text-primary-foreground rounded-br-md'
+                          : 'bg-muted rounded-bl-md'
+                      )}
+                    >
+                      <p className="whitespace-pre-wrap">{message.content}</p>
+                    </div>
                   </div>
+
+                  {/* ADR-020: Inline tool result cards */}
+                  {message.role === 'assistant' && message.toolResults && message.toolResults.length > 0 && (
+                    <div className="space-y-2 pl-2">
+                      {message.toolResults.map((result, resultIndex) => (
+                        <ToolResultCard
+                          key={resultIndex}
+                          result={result}
+                          onNavigate={(path) => {
+                            router.push(path);
+                            close();
+                          }}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               ))}
 

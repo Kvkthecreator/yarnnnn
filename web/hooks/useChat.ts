@@ -6,9 +6,18 @@ import { createClient } from "@/lib/supabase/client";
 const API_BASE_URL =
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-interface ChatMessage {
+// Tool result data for inline display
+export interface ToolResultData {
+  toolName: string;
+  success: boolean;
+  data: Record<string, unknown>;
+}
+
+export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
+  // Tool results associated with this message (for inline cards)
+  toolResults?: ToolResultData[];
 }
 
 interface ToolUseEvent {
@@ -212,10 +221,11 @@ export function useChat({
         const decoder = new TextDecoder();
         let assistantContent = "";
         const currentToolsUsed: string[] = [];
+        const currentToolResults: ToolResultData[] = [];
         let projectModified = false;
 
         // Add empty assistant message that we'll update
-        setMessages((prev) => [...prev, { role: "assistant", content: "" }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: "", toolResults: [] }]);
 
         while (true) {
           const { done, value } = await reader.read();
@@ -241,6 +251,7 @@ export function useChat({
                     newMessages[newMessages.length - 1] = {
                       role: "assistant",
                       content: assistantContent,
+                      toolResults: [...currentToolResults],
                     };
                     return newMessages;
                   });
@@ -265,8 +276,26 @@ export function useChat({
                   console.log("[useChat] tool_result received:", resultEvent.name, resultEvent.result);
                   onToolResult?.(resultEvent);
 
+                  // ADR-020: Collect tool results for inline display
+                  const result = resultEvent.result as { success?: boolean; ui_action?: TPUIAction };
+                  currentToolResults.push({
+                    toolName: resultEvent.name,
+                    success: result?.success ?? true,
+                    data: resultEvent.result,
+                  });
+
+                  // Update message with tool results
+                  setMessages((prev) => {
+                    const newMessages = [...prev];
+                    newMessages[newMessages.length - 1] = {
+                      role: "assistant",
+                      content: assistantContent,
+                      toolResults: [...currentToolResults],
+                    };
+                    return newMessages;
+                  });
+
                   // ADR-013: Check for UI action in tool result
-                  const result = resultEvent.result as { ui_action?: TPUIAction };
                   if (result?.ui_action) {
                     console.log("[useChat] ui_action found:", result.ui_action);
                     onUIAction?.(result.ui_action);
