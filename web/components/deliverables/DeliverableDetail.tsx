@@ -3,7 +3,11 @@
 /**
  * ADR-018: Deliverable Detail View
  *
- * Full view of a deliverable with version history, settings, and actions.
+ * Content-first view of a deliverable:
+ * - Latest version content displayed prominently
+ * - Version history as dated archive (Week of X, not v1/v2)
+ * - Export options (copy, PDF, DOCX)
+ * - Simple thumbs up/down feedback instead of quality %
  */
 
 import { useState, useEffect } from 'react';
@@ -14,15 +18,19 @@ import {
   User,
   Play,
   Pause,
-  Settings,
   Clock,
   CheckCircle2,
   AlertCircle,
   Loader2,
   ChevronRight,
-  TrendingDown,
+  ChevronDown,
   FileText,
   RefreshCw,
+  Copy,
+  Download,
+  ThumbsUp,
+  ThumbsDown,
+  Mail,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -52,12 +60,12 @@ const VERSION_STATUS_CONFIG: Record<VersionStatus, { icon: React.ReactNode; labe
   },
   approved: {
     icon: <CheckCircle2 className="w-4 h-4" />,
-    label: 'Approved',
+    label: 'Sent',
     color: 'text-green-600 bg-green-50 dark:bg-green-900/30',
   },
   rejected: {
     icon: <AlertCircle className="w-4 h-4" />,
-    label: 'Rejected',
+    label: 'Discarded',
     color: 'text-red-600 bg-red-50 dark:bg-red-900/30',
   },
 };
@@ -72,6 +80,8 @@ export function DeliverableDetail({
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
   const [versions, setVersions] = useState<DeliverableVersion[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const [showAllVersions, setShowAllVersions] = useState(false);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     loadDeliverable();
@@ -96,7 +106,6 @@ export function DeliverableDetail({
     setIsRunning(true);
     try {
       await api.deliverables.run(deliverableId);
-      // Reload to get the new version
       await loadDeliverable();
     } catch (err) {
       console.error('Failed to run:', err);
@@ -117,14 +126,47 @@ export function DeliverableDetail({
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Date(dateStr).toLocaleDateString(undefined, {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+  const handleCopy = async (content: string, versionId: string) => {
+    await navigator.clipboard.writeText(content);
+    setCopiedId(versionId);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleDownload = (content: string, format: 'txt' | 'md') => {
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${deliverable?.title || 'deliverable'}.${format}`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEmailToSelf = () => {
+    // Open default mail client with content
+    const latestContent = latestVersion?.final_content || latestVersion?.draft_content || '';
+    const subject = encodeURIComponent(deliverable?.title || 'Deliverable');
+    const body = encodeURIComponent(latestContent);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  // Format version date as period label
+  const formatVersionPeriod = (version: DeliverableVersion, schedule: Deliverable['schedule']) => {
+    const date = new Date(version.created_at);
+
+    if (schedule.frequency === 'weekly') {
+      // Get start of week
+      const startOfWeek = new Date(date);
+      startOfWeek.setDate(date.getDate() - date.getDay());
+      return `Week of ${startOfWeek.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    }
+    if (schedule.frequency === 'monthly') {
+      return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+    if (schedule.frequency === 'daily') {
+      return date.toLocaleDateString(undefined, { weekday: 'long', month: 'short', day: 'numeric' });
+    }
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   const formatSchedule = (schedule: Deliverable['schedule']) => {
@@ -134,12 +176,6 @@ export function DeliverableDetail({
     if (time) str += ` at ${time}`;
     return str;
   };
-
-  // Calculate quality trend from approved versions
-  const approvedVersions = versions.filter(v => v.status === 'approved' && v.edit_distance_score !== undefined);
-  const avgEditDistance = approvedVersions.length > 0
-    ? approvedVersions.reduce((sum, v) => sum + (v.edit_distance_score || 0), 0) / approvedVersions.length
-    : null;
 
   if (loading) {
     return (
@@ -161,6 +197,9 @@ export function DeliverableDetail({
   }
 
   const isPaused = deliverable.status === 'paused';
+  const latestVersion = versions[0];
+  const olderVersions = versions.slice(1);
+  const displayedOlderVersions = showAllVersions ? olderVersions : olderVersions.slice(0, 3);
 
   return (
     <div className="h-full overflow-auto">
@@ -187,7 +226,7 @@ export function DeliverableDetail({
                 {deliverable.recipient_context?.name && (
                   <span className="inline-flex items-center gap-1.5">
                     <User className="w-4 h-4" />
-                    {deliverable.recipient_context.name}
+                    For {deliverable.recipient_context.name}
                   </span>
                 )}
               </div>
@@ -235,111 +274,209 @@ export function DeliverableDetail({
           </div>
         )}
 
-        {/* Quality metrics */}
-        {avgEditDistance !== null && (
-          <div className="mb-6 p-4 border border-border rounded-lg">
-            <div className="flex items-center justify-between">
+        {/* Latest Version - Content Front and Center */}
+        {latestVersion ? (
+          <div className="mb-8">
+            <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-sm font-medium">Quality Trend</p>
-                <p className="text-xs text-muted-foreground">
-                  Average edit distance across {approvedVersions.length} approved versions
-                </p>
+                <h2 className="text-lg font-medium">
+                  {formatVersionPeriod(latestVersion, deliverable.schedule)}
+                </h2>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className={cn(
+                    "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
+                    VERSION_STATUS_CONFIG[latestVersion.status].color
+                  )}>
+                    {VERSION_STATUS_CONFIG[latestVersion.status].icon}
+                    {VERSION_STATUS_CONFIG[latestVersion.status].label}
+                  </span>
+                  {latestVersion.feedback_notes && (
+                    <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
+                      {latestVersion.edit_distance_score !== undefined && latestVersion.edit_distance_score < 0.1 ? (
+                        <ThumbsUp className="w-3 h-3 text-green-600" />
+                      ) : (
+                        <ThumbsDown className="w-3 h-3 text-amber-600" />
+                      )}
+                      Feedback given
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex items-center gap-2">
-                <TrendingDown className="w-5 h-5 text-green-600" />
-                <span className="text-2xl font-semibold">
-                  {Math.round((1 - avgEditDistance) * 100)}%
-                </span>
-                <span className="text-sm text-muted-foreground">match</span>
-              </div>
+
+              {/* Export actions for approved versions */}
+              {latestVersion.status === 'approved' && (
+                <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => handleCopy(latestVersion.final_content || latestVersion.draft_content || '', latestVersion.id)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+                  >
+                    {copiedId === latestVersion.id ? (
+                      <>
+                        <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+                        Copied
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-3.5 h-3.5" />
+                        Copy
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => handleDownload(latestVersion.final_content || latestVersion.draft_content || '', 'md')}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    Download
+                  </button>
+                  <button
+                    onClick={handleEmailToSelf}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+                  >
+                    <Mail className="w-3.5 h-3.5" />
+                    Email to me
+                  </button>
+                </div>
+              )}
+
+              {/* Review CTA for staged versions */}
+              {(latestVersion.status === 'staged' || latestVersion.status === 'reviewing') && (
+                <button
+                  onClick={() => onReview(latestVersion.id)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90"
+                >
+                  Review & Approve
+                </button>
+              )}
             </div>
-            <div className="mt-3 h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-green-500 rounded-full"
-                style={{ width: `${(1 - avgEditDistance) * 100}%` }}
-              />
+
+            {/* Content display */}
+            <div className="border border-border rounded-lg overflow-hidden">
+              {latestVersion.status === 'generating' ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center">
+                  <Loader2 className="w-8 h-8 animate-spin text-muted-foreground mb-3" />
+                  <p className="text-muted-foreground">Generating your deliverable...</p>
+                  <p className="text-xs text-muted-foreground mt-1">This may take a minute or two</p>
+                </div>
+              ) : (
+                <div className="p-6 bg-muted/30">
+                  <div className="prose prose-sm dark:prose-invert max-w-none">
+                    <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed bg-transparent p-0 m-0">
+                      {latestVersion.final_content || latestVersion.draft_content || 'No content yet'}
+                    </pre>
+                  </div>
+                </div>
+              )}
             </div>
+          </div>
+        ) : (
+          <div className="mb-8 text-center py-12 border border-dashed border-border rounded-lg">
+            <FileText className="w-10 h-10 mx-auto mb-3 text-muted-foreground/50" />
+            <p className="text-muted-foreground mb-4">No outputs yet</p>
+            <button
+              onClick={handleRunNow}
+              disabled={isRunning || isPaused}
+              className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50"
+            >
+              {isRunning ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Play className="w-4 h-4" />
+                  Generate first output
+                </>
+              )}
+            </button>
           </div>
         )}
 
-        {/* Version history */}
-        <div>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-medium">Version History</h2>
-            <button
-              onClick={loadDeliverable}
-              className="p-2 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
-              title="Refresh"
-            >
-              <RefreshCw className="w-4 h-4" />
-            </button>
-          </div>
-
-          {versions.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-50" />
-              <p>No versions yet</p>
+        {/* Previous Versions / Archive */}
+        {olderVersions.length > 0 && (
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
+                Previous Outputs
+              </h2>
               <button
-                onClick={handleRunNow}
-                disabled={isRunning || isPaused}
-                className="mt-4 text-sm text-primary hover:underline"
+                onClick={loadDeliverable}
+                className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
+                title="Refresh"
               >
-                Generate first version
+                <RefreshCw className="w-4 h-4" />
               </button>
             </div>
-          ) : (
+
             <div className="space-y-2">
-              {versions.map((version) => {
+              {displayedOlderVersions.map((version) => {
                 const statusConfig = VERSION_STATUS_CONFIG[version.status];
-                const canReview = version.status === 'staged' || version.status === 'reviewing';
+                const content = version.final_content || version.draft_content;
 
                 return (
                   <div
                     key={version.id}
-                    className={cn(
-                      "flex items-center justify-between p-4 border border-border rounded-lg",
-                      canReview && "hover:border-primary/50 cursor-pointer"
-                    )}
-                    onClick={() => canReview && onReview(version.id)}
+                    className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/30 transition-colors"
                   >
-                    <div className="flex items-center gap-4">
-                      <div className="w-10 h-10 bg-muted rounded-full flex items-center justify-center">
-                        <span className="text-sm font-medium">v{version.version_number}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-sm">
+                          {formatVersionPeriod(version, deliverable.schedule)}
+                        </span>
+                        <span className={cn(
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs",
+                          statusConfig.color
+                        )}>
+                          {statusConfig.icon}
+                          {statusConfig.label}
+                        </span>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className={cn(
-                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium",
-                            statusConfig.color
-                          )}>
-                            {statusConfig.icon}
-                            {statusConfig.label}
-                          </span>
-                          {version.edit_distance_score !== undefined && (
-                            <span className="text-xs text-muted-foreground">
-                              {Math.round((1 - version.edit_distance_score) * 100)}% match
-                            </span>
-                          )}
-                        </div>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {version.approved_at
-                            ? `Approved ${formatDate(version.approved_at)}`
-                            : version.staged_at
-                            ? `Staged ${formatDate(version.staged_at)}`
-                            : `Created ${formatDate(version.created_at)}`}
+                      {content && (
+                        <p className="text-xs text-muted-foreground mt-1 truncate max-w-md">
+                          {content.slice(0, 100)}...
                         </p>
-                      </div>
+                      )}
                     </div>
 
-                    {canReview && (
-                      <ChevronRight className="w-5 h-5 text-muted-foreground" />
-                    )}
+                    <div className="flex items-center gap-1 ml-4">
+                      {version.status === 'approved' && content && (
+                        <button
+                          onClick={() => handleCopy(content, version.id)}
+                          className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
+                          title="Copy"
+                        >
+                          {copiedId === version.id ? (
+                            <CheckCircle2 className="w-4 h-4 text-green-600" />
+                          ) : (
+                            <Copy className="w-4 h-4" />
+                          )}
+                        </button>
+                      )}
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </div>
                   </div>
                 );
               })}
             </div>
-          )}
-        </div>
+
+            {olderVersions.length > 3 && (
+              <button
+                onClick={() => setShowAllVersions(!showAllVersions)}
+                className="w-full mt-3 py-2 text-sm text-muted-foreground hover:text-foreground flex items-center justify-center gap-1"
+              >
+                {showAllVersions ? (
+                  <>Show less</>
+                ) : (
+                  <>
+                    <ChevronDown className="w-4 h-4" />
+                    Show {olderVersions.length - 3} more
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );

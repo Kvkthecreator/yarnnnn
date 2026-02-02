@@ -4,7 +4,10 @@
  * ADR-018: Version Review
  *
  * Interface for reviewing a staged deliverable version.
- * Allows editing, approving, rejecting, or providing feedback.
+ * - Edit content inline
+ * - Simple thumbs up/down feedback
+ * - Approve (mark as sent) or discard
+ * - No recipient delivery - user controls sending manually
  */
 
 import { useState, useEffect } from 'react';
@@ -13,11 +16,14 @@ import {
   X,
   Check,
   XCircle,
-  MessageSquare,
   Loader2,
   Copy,
   Download,
   ArrowLeft,
+  ThumbsUp,
+  ThumbsDown,
+  Mail,
+  CheckCircle2,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -42,8 +48,8 @@ export function VersionReview({
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
   const [version, setVersion] = useState<DeliverableVersion | null>(null);
   const [editedContent, setEditedContent] = useState('');
+  const [feedback, setFeedback] = useState<'good' | 'needs_work' | null>(null);
   const [feedbackNotes, setFeedbackNotes] = useState('');
-  const [showFeedback, setShowFeedback] = useState(false);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -83,10 +89,18 @@ export function VersionReview({
     try {
       const hasEdits = editedContent !== version.draft_content;
 
+      // Build feedback notes with thumbs rating
+      let notes = feedbackNotes;
+      if (feedback === 'good' && !notes) {
+        notes = 'Approved as-is - good quality';
+      } else if (feedback === 'needs_work' && !notes) {
+        notes = 'Approved with edits - needs improvement';
+      }
+
       await api.deliverables.updateVersion(deliverableId, version.id, {
         status: 'approved',
         final_content: hasEdits ? editedContent : undefined,
-        feedback_notes: feedbackNotes || undefined,
+        feedback_notes: notes || undefined,
       });
 
       onApproved();
@@ -98,9 +112,11 @@ export function VersionReview({
     }
   };
 
-  const handleReject = async () => {
-    if (!version || !feedbackNotes.trim()) {
-      setShowFeedback(true);
+  const handleDiscard = async () => {
+    if (!version) return;
+
+    if (!feedbackNotes.trim()) {
+      alert('Please add a note explaining why you\'re discarding this version.');
       return;
     }
 
@@ -113,8 +129,8 @@ export function VersionReview({
 
       onClose();
     } catch (err) {
-      console.error('Failed to reject:', err);
-      alert('Failed to reject. Please try again.');
+      console.error('Failed to discard:', err);
+      alert('Failed to discard. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -124,6 +140,39 @@ export function VersionReview({
     await navigator.clipboard.writeText(editedContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleDownload = () => {
+    const blob = new Blob([editedContent], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${deliverable?.title || 'deliverable'}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleEmailToSelf = () => {
+    const subject = encodeURIComponent(deliverable?.title || 'Deliverable');
+    const body = encodeURIComponent(editedContent);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  // Format version period
+  const formatVersionPeriod = () => {
+    if (!version || !deliverable) return '';
+    const date = new Date(version.created_at);
+    const { frequency } = deliverable.schedule;
+
+    if (frequency === 'weekly') {
+      const startOfWeek = new Date(date);
+      startOfWeek.setDate(date.getDate() - date.getDay());
+      return `Week of ${startOfWeek.toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}`;
+    }
+    if (frequency === 'monthly') {
+      return date.toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+    }
+    return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
   };
 
   if (loading) {
@@ -164,18 +213,33 @@ export function VersionReview({
           <div>
             <h1 className="font-medium">{deliverable.title}</h1>
             <p className="text-xs text-muted-foreground">
-              Version {version.version_number} · Review draft
+              {formatVersionPeriod()} · Review draft
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        {/* Export options */}
+        <div className="flex items-center gap-1">
           <button
             onClick={handleCopy}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
           >
-            {copied ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
-            {copied ? 'Copied!' : 'Copy'}
+            {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
+          <button
+            onClick={handleDownload}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+          >
+            <Download className="w-3.5 h-3.5" />
+            Download
+          </button>
+          <button
+            onClick={handleEmailToSelf}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+          >
+            <Mail className="w-3.5 h-3.5" />
+            Email to me
           </button>
         </div>
       </header>
@@ -186,7 +250,7 @@ export function VersionReview({
           {/* Edit indicator */}
           {hasEdits && (
             <div className="mb-4 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-800 dark:text-amber-200">
-              You have unsaved edits. These will be captured as feedback when you approve.
+              You've made edits. Your changes help improve future outputs.
             </div>
           )}
 
@@ -200,27 +264,47 @@ export function VersionReview({
             />
           </div>
 
-          {/* Feedback section */}
-          <div className="mb-6">
-            <button
-              onClick={() => setShowFeedback(!showFeedback)}
-              className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <MessageSquare className="w-4 h-4" />
-              {showFeedback ? 'Hide feedback' : 'Add feedback for next time'}
-            </button>
+          {/* Quick feedback */}
+          <div className="mb-6 p-4 border border-border rounded-lg">
+            <p className="text-sm font-medium mb-3">How was this draft?</p>
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                onClick={() => setFeedback(feedback === 'good' ? null : 'good')}
+                className={cn(
+                  "inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md border transition-colors",
+                  feedback === 'good'
+                    ? "border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
+                    : "border-border hover:bg-muted"
+                )}
+              >
+                <ThumbsUp className="w-4 h-4" />
+                Good
+              </button>
+              <button
+                onClick={() => setFeedback(feedback === 'needs_work' ? null : 'needs_work')}
+                className={cn(
+                  "inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md border transition-colors",
+                  feedback === 'needs_work'
+                    ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300"
+                    : "border-border hover:bg-muted"
+                )}
+              >
+                <ThumbsDown className="w-4 h-4" />
+                Needs work
+              </button>
+            </div>
 
-            {showFeedback && (
-              <div className="mt-3">
+            {(feedback === 'needs_work' || feedbackNotes) && (
+              <div>
                 <textarea
                   value={feedbackNotes}
                   onChange={(e) => setFeedbackNotes(e.target.value)}
-                  placeholder="e.g., Include Q1 comparison numbers, keep the budget section shorter..."
-                  rows={3}
-                  className="w-full px-4 py-3 border border-border rounded-md bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+                  placeholder="What could be improved? (e.g., Include Q1 numbers, keep budget section shorter)"
+                  rows={2}
+                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  This feedback will help improve future versions.
+                  Your feedback helps improve future outputs.
                 </p>
               </div>
             )}
@@ -231,12 +315,12 @@ export function VersionReview({
       {/* Footer */}
       <footer className="h-16 border-t border-border bg-background flex items-center justify-between px-4 shrink-0">
         <button
-          onClick={handleReject}
+          onClick={handleDiscard}
           disabled={saving}
           className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
         >
           <XCircle className="w-4 h-4" />
-          Reject
+          Discard
         </button>
 
         <div className="flex items-center gap-3">
@@ -259,7 +343,7 @@ export function VersionReview({
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                Approve{hasEdits ? ' with edits' : ''}
+                Mark as Sent
               </>
             )}
           </button>
