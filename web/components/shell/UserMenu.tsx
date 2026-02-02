@@ -7,7 +7,8 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { User, Settings, LogOut, CreditCard } from 'lucide-react';
+import { useTheme } from 'next-themes';
+import { Settings, LogOut, CreditCard, Sun, Moon, Monitor } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 
@@ -20,6 +21,7 @@ export function UserMenu({ email }: UserMenuProps) {
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const supabase = createClient();
+  const { theme, setTheme } = useTheme();
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -95,6 +97,43 @@ export function UserMenu({ email }: UserMenuProps) {
             <CreditCard className="w-4 h-4 text-muted-foreground" />
             <span>Billing</span>
           </button>
+
+          {/* Theme Toggle */}
+          <div className="px-3 py-2 flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Theme</span>
+            <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
+              <button
+                onClick={() => setTheme('light')}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  theme === 'light' ? "bg-background shadow-sm" : "hover:bg-background/50"
+                )}
+                title="Light"
+              >
+                <Sun className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setTheme('dark')}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  theme === 'dark' ? "bg-background shadow-sm" : "hover:bg-background/50"
+                )}
+                title="Dark"
+              >
+                <Moon className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setTheme('system')}
+                className={cn(
+                  "p-1.5 rounded-md transition-colors",
+                  theme === 'system' ? "bg-background shadow-sm" : "hover:bg-background/50"
+                )}
+                title="System"
+              >
+                <Monitor className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
 
           <div className="border-t border-border my-1" />
 
