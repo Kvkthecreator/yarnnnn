@@ -5,6 +5,9 @@
  *
  * Primary landing view for authenticated users.
  * Shows deliverable cards, staged items requiring review, and empty state.
+ *
+ * For cold-start users (no deliverables), shows OnboardingChatView
+ * which provides a conversation-first onboarding experience.
  */
 
 import { useState, useEffect } from 'react';
@@ -12,6 +15,7 @@ import { useRouter } from 'next/navigation';
 import { Plus, Loader2, RefreshCw, Filter } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { DeliverableCard } from './DeliverableCard';
+import { OnboardingChatView } from './OnboardingChatView';
 import type { Deliverable } from '@/types';
 
 interface DeliverablesDashboardProps {
@@ -122,49 +126,16 @@ export function DeliverablesDashboard({ onCreateNew }: DeliverablesDashboardProp
     );
   }
 
-  // Empty state
+  // Empty state - conversation-first onboarding
   if (deliverables.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center h-full max-w-md mx-auto text-center px-4 py-16">
-        <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-6">
-          <Plus className="w-8 h-8 text-muted-foreground" />
-        </div>
-
-        <h2 className="text-xl font-semibold mb-2">No deliverables yet</h2>
-
-        <p className="text-muted-foreground mb-6">
-          Set up your first recurring deliverable and Yarn will produce it on schedule,
-          improving every cycle based on your feedback.
-        </p>
-
-        <button
-          onClick={onCreateNew}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground font-medium rounded-md hover:bg-primary/90 transition-colors"
-        >
-          <Plus className="w-5 h-5" />
-          Create Your First Deliverable
-        </button>
-
-        <div className="mt-8 text-left w-full">
-          <p className="text-xs text-muted-foreground uppercase tracking-wide mb-3">
-            Examples
-          </p>
-          <ul className="space-y-2 text-sm text-muted-foreground">
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full" />
-              Weekly client status report
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full" />
-              Monthly investor update
-            </li>
-            <li className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 bg-muted-foreground rounded-full" />
-              Bi-weekly competitive brief
-            </li>
-          </ul>
-        </div>
-      </div>
+      <OnboardingChatView
+        onDeliverableCreated={(deliverableId) => {
+          // Refresh dashboard to show new deliverable
+          loadDeliverables();
+        }}
+        onUseWizard={onCreateNew}
+      />
     );
   }
 

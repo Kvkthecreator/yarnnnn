@@ -308,6 +308,19 @@ async def global_chat(
         query=request.content if request.include_context else None
     )
 
+    # Check if user has any deliverables (for onboarding mode)
+    is_onboarding = False
+    try:
+        deliverables_result = auth.client.table("deliverables")\
+            .select("id")\
+            .eq("user_id", auth.user_id)\
+            .neq("status", "archived")\
+            .limit(1)\
+            .execute()
+        is_onboarding = len(deliverables_result.data or []) == 0
+    except Exception:
+        pass  # Default to non-onboarding if check fails
+
     agent = ThinkingPartnerAgent()
 
     async def response_stream():
@@ -325,6 +338,7 @@ async def global_chat(
                 parameters={
                     "include_context": request.include_context,
                     "history": history,
+                    "is_onboarding": is_onboarding,
                 },
             ):
                 if event.type == "text":

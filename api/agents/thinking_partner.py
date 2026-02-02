@@ -134,6 +134,8 @@ When users describe something they need to produce regularly, use `create_delive
 After creating, offer to generate the first version immediately with `run_deliverable`.
 For complex configuration, the user can fine-tune via the deliverables dashboard.
 
+{onboarding_context}
+
 ---
 
 ## Tool Usage Rules
@@ -161,6 +163,44 @@ Project organization guidelines:
 - When work fails, explain the error clearly and suggest next steps
 
 {context}"""
+
+    # Onboarding-specific context for users with no deliverables
+    ONBOARDING_CONTEXT = """
+---
+
+## Current Context: New User Onboarding
+
+This user has no deliverables set up yet. Your primary goal is to help them
+create their first recurring deliverable through conversation.
+
+**Approach:**
+
+1. **If they paste content** (like an old report or document):
+   - Analyze it and extract: document type, sections, structure, tone, typical length
+   - Tell them what you noticed: "I can see this is a weekly status report with 4 sections..."
+   - Ask 1-2 quick questions: recipient name and preferred timing
+   - Use `create_deliverable` to set it up
+
+2. **If they describe what they need**:
+   - Ask 1-2 clarifying questions maximum: who receives it, when should drafts be ready
+   - Use sensible defaults (weekly, Monday 9am, professional tone)
+   - Create the deliverable quickly - don't over-configure
+
+3. **After creating**:
+   - Offer to generate the first draft immediately with `run_deliverable`
+   - Let them know they can refine settings later
+
+**Key behaviors:**
+- Be concise - 2-3 sentences per response max
+- Extract structure from examples rather than asking users to define it
+- Get to first value (created deliverable) within 2-3 exchanges
+- Don't ask for information you can infer or use defaults for
+
+**Quick start prompts the user might send:**
+- "Weekly status report for my manager" → ask for manager's name and timing
+- "Monthly investor update" → ask about company/project name and timing
+- "Track competitors weekly" → ask which competitors to monitor
+"""
 
     def __init__(self, model: str = "claude-sonnet-4-20250514"):
         super().__init__(model)
@@ -196,20 +236,32 @@ Project organization guidelines:
         self,
         context: ContextBundle,
         include_context: bool,
-        with_tools: bool = False
+        with_tools: bool = False,
+        is_onboarding: bool = False
     ) -> str:
-        """Build system prompt with memory context."""
+        """Build system prompt with memory context.
+
+        Args:
+            context: Memory context bundle
+            include_context: Whether to include memory context
+            with_tools: Whether to include tool usage instructions
+            is_onboarding: Whether user has no deliverables (enables onboarding mode)
+        """
         base_prompt = self.SYSTEM_PROMPT_WITH_TOOLS if with_tools else self.SYSTEM_PROMPT
 
         if not include_context:
-            return base_prompt.format(context="No context loaded for this conversation.")
+            context_text = "No context loaded for this conversation."
+        else:
+            context_text = self._format_memories(context)
+            if not context_text:
+                context_text = "No context available yet. As we chat, I'll learn more about you and this project."
 
-        context_text = self._format_memories(context)
-
-        if not context_text:
-            context_text = "No context available yet. As we chat, I'll learn more about you and this project."
-
-        return base_prompt.format(context=context_text)
+        # Tools prompt has {onboarding_context} placeholder, non-tools doesn't
+        if with_tools:
+            onboarding_context = self.ONBOARDING_CONTEXT if is_onboarding else ""
+            return base_prompt.format(context=context_text, onboarding_context=onboarding_context)
+        else:
+            return base_prompt.format(context=context_text)
 
     async def execute(
         self,
@@ -290,8 +342,9 @@ Project organization guidelines:
         params = parameters or {}
         include_context = params.get("include_context", True)
         history = params.get("history", [])
+        is_onboarding = params.get("is_onboarding", False)
 
-        system = self._build_system_prompt(context, include_context, with_tools=True)
+        system = self._build_system_prompt(context, include_context, with_tools=True, is_onboarding=is_onboarding)
 
         # Build messages list
         messages = list(history)
@@ -435,8 +488,9 @@ Project organization guidelines:
         params = parameters or {}
         include_context = params.get("include_context", True)
         history = params.get("history", [])
+        is_onboarding = params.get("is_onboarding", False)
 
-        system = self._build_system_prompt(context, include_context, with_tools=True)
+        system = self._build_system_prompt(context, include_context, with_tools=True, is_onboarding=is_onboarding)
 
         # Build messages list
         messages = list(history)
