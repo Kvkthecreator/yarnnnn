@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { ProjectProvider } from "@/contexts/ProjectContext";
 import { WorkStatusProvider } from "@/contexts/WorkStatusContext";
+import { SurfaceProvider } from "@/contexts/SurfaceContext";
 import { TabProvider } from "@/contexts/TabContext";
 
 /**
@@ -9,16 +10,21 @@ import { TabProvider } from "@/contexts/TabContext";
  *
  * Root layout for authenticated routes with tab-based supervision UI.
  * TP is always present at the bottom, tabs provide content navigation.
+ *
+ * Note: SurfaceProvider is kept temporarily for backwards compatibility
+ * with WorkStatus component. Will be removed in future cleanup.
  */
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
     <ProjectProvider>
       <WorkStatusProvider>
-        <Suspense fallback={<TabProviderFallback />}>
-          <TabProvider>
-            {children}
-          </TabProvider>
-        </Suspense>
+        <SurfaceProvider>
+          <Suspense fallback={<TabProviderFallback />}>
+            <TabProvider>
+              {children}
+            </TabProvider>
+          </Suspense>
+        </SurfaceProvider>
       </WorkStatusProvider>
     </ProjectProvider>
   );
