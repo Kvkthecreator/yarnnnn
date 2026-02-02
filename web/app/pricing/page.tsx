@@ -174,7 +174,7 @@ export default function PricingPage() {
               <div className="p-6 border-b border-white/10">
                 <h3 className="text-lg font-medium">Compare plans</h3>
               </div>
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto min-w-0">
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-white/10">

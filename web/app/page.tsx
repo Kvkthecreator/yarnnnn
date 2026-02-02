@@ -224,7 +224,36 @@ export default function LandingPage() {
               The difference
             </h2>
 
-            <div className="overflow-x-auto">
+            {/* Mobile: Card layout */}
+            <div className="md:hidden space-y-4">
+              {[
+                { feature: "Learns from your edits", chatgpt: "No", templates: "No", yarn: "Yes" },
+                { feature: "Produces on schedule", chatgpt: "No", templates: "Manual", yarn: "Automatic" },
+                { feature: "Improves over time", chatgpt: "No", templates: "No", yarn: "Yes" },
+                { feature: "Shows quality trend", chatgpt: "No", templates: "No", yarn: "Yes" },
+              ].map((row) => (
+                <div key={row.feature} className="glass-card-light p-4">
+                  <div className="font-medium text-[#1a1a1a] mb-3">{row.feature}</div>
+                  <div className="grid grid-cols-3 gap-2 text-sm">
+                    <div>
+                      <div className="text-[#1a1a1a]/40 text-xs mb-1">ChatGPT</div>
+                      <div className="text-[#1a1a1a]/50">{row.chatgpt}</div>
+                    </div>
+                    <div>
+                      <div className="text-[#1a1a1a]/40 text-xs mb-1">Templates</div>
+                      <div className="text-[#1a1a1a]/50">{row.templates}</div>
+                    </div>
+                    <div>
+                      <div className="text-[#1a1a1a]/80 text-xs mb-1">Yarn</div>
+                      <div className="text-[#1a1a1a] font-medium">{row.yarn}</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* Desktop: Table layout */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="border-b border-[#1a1a1a]/10">

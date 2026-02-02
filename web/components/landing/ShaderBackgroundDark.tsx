@@ -4,8 +4,16 @@ import { Shader, Swirl, ChromaFlow } from "shaders/react";
 
 export function ShaderBackgroundDark() {
   return (
-    <div className="fixed inset-0 z-0" style={{ contain: "strict" }}>
-      <Shader className="h-full w-full">
+    <div
+      className="absolute inset-0 z-0 overflow-hidden"
+      style={{
+        contain: "strict",
+        // Prevent mobile browser issues with fixed backgrounds
+        WebkitBackfaceVisibility: "hidden",
+        backfaceVisibility: "hidden",
+      }}
+    >
+      <Shader className="h-full w-full min-h-screen">
         {/* Base fluid animation - lighter dark with cyan/teal hints */}
         <Swirl
           colorA="#101820"

@@ -4,8 +4,16 @@ import { Shader, Swirl, ChromaFlow } from "shaders/react";
 
 export function ShaderBackground() {
   return (
-    <div className="fixed inset-0 z-0" style={{ contain: "strict" }}>
-      <Shader className="h-full w-full">
+    <div
+      className="absolute inset-0 z-0 overflow-hidden"
+      style={{
+        contain: "strict",
+        // Prevent mobile browser issues with fixed backgrounds
+        WebkitBackfaceVisibility: "hidden",
+        backfaceVisibility: "hidden",
+      }}
+    >
+      <Shader className="h-full w-full min-h-screen">
         {/* Base fluid animation - warm light tones with orange */}
         <Swirl
           colorA="#f5ebe0"
