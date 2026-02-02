@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "About",
-  description: "Yarn is AI for recurring work that learns from your edits and improves over time.",
+  description: "AI that gets better the more you use it. Yarn learns from every edit you make to deliver work that improves over time.",
 };
 
 export default function AboutPage() {

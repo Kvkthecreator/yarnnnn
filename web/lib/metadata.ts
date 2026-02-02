@@ -12,9 +12,9 @@ import type { Metadata } from "next";
 
 export const BRAND = {
   name: "yarnnn",
-  tagline: "AI agents that run on autopilot",
+  tagline: "Recurring work that gets better every time",
   description:
-    "Build context. Schedule agents. Get work delivered. AI that works on schedule, grounded in your project context.",
+    "Set up your recurring deliverables once. Yarn learns from every edit you make. Your 10th delivery is better than your 1st.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/yarn-logo-light.png",
 };
@@ -39,8 +39,8 @@ export function getBaseMetadata(): Metadata {
       apple: "/assets/logos/circleonly_yarnnn.png",
     },
     openGraph: {
-      title: BRAND.name,
-      description: BRAND.tagline,
+      title: `${BRAND.name} — ${BRAND.tagline}`,
+      description: BRAND.description,
       url: BRAND.url,
       siteName: BRAND.name,
       locale: "en_US",
@@ -56,8 +56,8 @@ export function getBaseMetadata(): Metadata {
     },
     twitter: {
       card: "summary_large_image",
-      title: BRAND.name,
-      description: BRAND.tagline,
+      title: `${BRAND.name} — ${BRAND.tagline}`,
+      description: BRAND.description,
       images: [BRAND.ogImage],
     },
     manifest: "/manifest.json",
@@ -70,11 +70,15 @@ export function getBaseMetadata(): Metadata {
 
 /**
  * Helper to create page-specific metadata
- * Usage: export const metadata = getPageMetadata("Dashboard");
+ * Usage: export const metadata = getPageMetadata("Dashboard", "Your deliverables dashboard");
  */
 export function getPageMetadata(title: string, description?: string): Metadata {
   return {
     title,
     description: description || BRAND.description,
+    openGraph: {
+      title: `${title} | ${BRAND.name}`,
+      description: description || BRAND.description,
+    },
   };
 }

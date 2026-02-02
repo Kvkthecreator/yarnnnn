@@ -9,8 +9,8 @@ export default function TermsPage() {
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border py-4 px-6">
-        <Link href="/" className="text-xl font-bold">
-          YARNNN
+        <Link href="/" className="text-xl font-brand">
+          yarnnn
         </Link>
       </header>
 

@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "How It Works",
-  description: "Set up recurring deliverables that learn from your edits and improve over time.",
+  description: "Set up once, review when ready, watch it learn. See how Yarn turns your recurring work into deliverables that improve themselves.",
 };
 
 export default function HowItWorksPage() {

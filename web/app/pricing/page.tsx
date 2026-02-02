@@ -8,7 +8,7 @@ import { Check, X } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Simple, transparent pricing for Yarn recurring deliverables.",
+  description: "Simple pricing for recurring deliverables that improve. Free tier available. Pro at $19/mo.",
 };
 
 interface PricingFeature {
