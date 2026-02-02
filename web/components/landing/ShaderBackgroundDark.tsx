@@ -6,21 +6,21 @@ export function ShaderBackgroundDark() {
   return (
     <div className="fixed inset-0 z-0" style={{ contain: "strict" }}>
       <Shader className="h-full w-full">
-        {/* Base fluid animation - dark with orange hints */}
+        {/* Base fluid animation - dark with cyan/teal hints (matching icon) */}
         <Swirl
-          colorA="#0f0a08"
-          colorB="#1a1008"
+          colorA="#080f0f"
+          colorB="#081218"
           speed={0.6}
           detail={0.7}
           blend={45}
         />
-        {/* Mouse-reactive color flow - visible orange accents */}
+        {/* Mouse-reactive color flow - subtle cyan/teal accents */}
         <ChromaFlow
           baseColor="#0a0a0a"
-          upColor="#2a1a0a"
-          downColor="#1a0f05"
-          leftColor="#3a2010"
-          rightColor="#2a1508"
+          upColor="#0a1a2a"
+          downColor="#051a1a"
+          leftColor="#102030"
+          rightColor="#081520"
           intensity={0.8}
           radius={3.5}
           momentum={25}
