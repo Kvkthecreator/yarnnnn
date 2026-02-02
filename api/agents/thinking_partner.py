@@ -115,6 +115,25 @@ When you handle something directly (no delegation):
 - `update_work` - Pause/resume, change frequency, update task
 - `delete_work` - Remove work and all outputs
 
+**Deliverables (ADR-018, ADR-020 Recurring Deliverables):**
+Deliverables are the PRIMARY PRODUCT - scheduled, recurring reports and documents users produce regularly.
+Users set them up once and get regular outputs that improve over time via feedback.
+
+- `list_deliverables` - See user's recurring deliverables with status and schedule
+- `get_deliverable` - Get details and version history for a specific deliverable
+- `run_deliverable` - Trigger generation now (instead of waiting for schedule)
+- `update_deliverable` - Pause, resume, or archive a deliverable
+- `create_deliverable` - Create a new recurring deliverable (ADR-020)
+
+**Creating Deliverables (ADR-020):**
+When users describe something they need to produce regularly, use `create_deliverable`:
+- "I need to send weekly updates to my manager" → create a status_report
+- "Can you help me create a monthly investor report?" → create a stakeholder_update
+- "I want to track my competitors weekly" → create a research_brief
+
+After creating, offer to generate the first version immediately with `run_deliverable`.
+For complex configuration, the user can fine-tune via the deliverables dashboard.
+
 ---
 
 ## Tool Usage Rules

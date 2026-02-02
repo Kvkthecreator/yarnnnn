@@ -31,9 +31,11 @@ import {
   ThumbsUp,
   ThumbsDown,
   Mail,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useFloatingChat } from '@/contexts/FloatingChatContext';
 import type { Deliverable, DeliverableVersion, VersionStatus } from '@/types';
 
 interface DeliverableDetailProps {
@@ -83,9 +85,30 @@ export function DeliverableDetail({
   const [showAllVersions, setShowAllVersions] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
+  // ADR-020: Set floating chat context
+  const { setPageContext, open: openFloatingChat } = useFloatingChat();
+
   useEffect(() => {
     loadDeliverable();
   }, [deliverableId]);
+
+  // ADR-020: Update floating chat context when deliverable loads
+  useEffect(() => {
+    if (deliverable) {
+      const latestVersion = versions.length > 0 ? versions[0] : null;
+      setPageContext({
+        type: 'deliverable-detail',
+        deliverable,
+        deliverableId,
+        currentVersion: latestVersion,
+      });
+    }
+
+    // Cleanup: reset to global when unmounting
+    return () => {
+      setPageContext({ type: 'global' });
+    };
+  }, [deliverable, versions, deliverableId, setPageContext]);
 
   const loadDeliverable = async () => {
     setLoading(true);
@@ -339,14 +362,24 @@ export function DeliverableDetail({
                 </div>
               )}
 
-              {/* Review CTA for staged versions */}
+              {/* Refine with AI button for staged/reviewing versions */}
               {(latestVersion.status === 'staged' || latestVersion.status === 'reviewing') && (
-                <button
-                  onClick={() => onReview(latestVersion.id)}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90"
-                >
-                  Review & Approve
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={openFloatingChat}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+                    title="⌘K"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Refine with AI
+                  </button>
+                  <button
+                    onClick={() => onReview(latestVersion.id)}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90"
+                  >
+                    Review & Approve
+                  </button>
+                </div>
               )}
             </div>
 
@@ -478,6 +511,7 @@ export function DeliverableDetail({
           </div>
         )}
       </div>
+
     </div>
   );
 }

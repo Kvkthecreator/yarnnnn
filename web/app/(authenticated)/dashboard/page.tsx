@@ -2,15 +2,27 @@
 
 /**
  * ADR-018: Deliverables Dashboard
- * Primary landing view - replaces chat-first experience.
+ * ADR-020: Primary landing view with floating chat context
  */
 
-import { useState, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { DeliverablesDashboard, OnboardingWizard } from '@/components/deliverables';
+import { useFloatingChat } from '@/contexts/FloatingChatContext';
 
 export default function DashboardPage() {
   const [showWizard, setShowWizard] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+
+  // ADR-020: Set floating chat context for deliverables dashboard
+  const { setPageContext } = useFloatingChat();
+
+  useEffect(() => {
+    setPageContext({ type: 'deliverables-dashboard' });
+
+    return () => {
+      setPageContext({ type: 'global' });
+    };
+  }, [setPageContext]);
 
   const handleCreateNew = () => {
     setShowWizard(true);

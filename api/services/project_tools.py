@@ -253,6 +253,174 @@ For recurring work, this stops all future runs and removes history.""",
 }
 
 
+# =============================================================================
+# Deliverable Tools (ADR-018 Recurring Deliverables)
+# =============================================================================
+
+LIST_DELIVERABLES_TOOL = {
+    "name": "list_deliverables",
+    "description": """List the user's recurring deliverables.
+
+ADR-018: Recurring Deliverables - scheduled reports, updates, and documents.
+
+Shows all deliverables with their status, schedule, and latest version state.
+Use this to help users see what deliverables they have set up.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "status": {
+                "type": "string",
+                "enum": ["active", "paused", "archived"],
+                "description": "Filter by status. Default: show all non-archived."
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of results. Default: 10"
+            }
+        },
+        "required": []
+    }
+}
+
+GET_DELIVERABLE_TOOL = {
+    "name": "get_deliverable",
+    "description": """Get detailed information about a specific deliverable.
+
+Returns the deliverable configuration, recent versions, and their status.
+Use this when the user asks about a specific deliverable.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "deliverable_id": {
+                "type": "string",
+                "description": "UUID of the deliverable"
+            }
+        },
+        "required": ["deliverable_id"]
+    }
+}
+
+RUN_DELIVERABLE_TOOL = {
+    "name": "run_deliverable",
+    "description": """Trigger an ad-hoc run of a deliverable.
+
+Creates a new version and starts the generation pipeline.
+Use when the user wants to generate their deliverable now instead of waiting for the schedule.
+
+IMPORTANT: After triggering, the deliverable will be in "Generating" state.
+Direct the user to the deliverables dashboard to review once ready.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "deliverable_id": {
+                "type": "string",
+                "description": "UUID of the deliverable to run"
+            }
+        },
+        "required": ["deliverable_id"]
+    }
+}
+
+UPDATE_DELIVERABLE_TOOL = {
+    "name": "update_deliverable",
+    "description": """Update a deliverable's settings (pause, resume, change schedule).
+
+Use this to:
+- Pause a deliverable (status="paused")
+- Resume a paused deliverable (status="active")
+- Archive a deliverable (status="archived")
+
+Note: For complex config changes, direct users to the deliverables dashboard.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "deliverable_id": {
+                "type": "string",
+                "description": "UUID of the deliverable"
+            },
+            "status": {
+                "type": "string",
+                "enum": ["active", "paused", "archived"],
+                "description": "New status for the deliverable"
+            },
+            "title": {
+                "type": "string",
+                "description": "New title for the deliverable"
+            }
+        },
+        "required": ["deliverable_id"]
+    }
+}
+
+CREATE_DELIVERABLE_TOOL = {
+    "name": "create_deliverable",
+    "description": """Create a new recurring deliverable for the user.
+
+ADR-020: TP can scaffold deliverables on behalf of users.
+
+Use this when the user describes something they need to produce regularly:
+- "I need to send weekly updates to my manager"
+- "Can you help me create a monthly investor report?"
+- "I want to track my competitors weekly"
+
+This creates the basic deliverable structure. After creation, guide the user
+to the deliverables dashboard to fine-tune configuration if needed.
+
+TYPES:
+- status_report: Regular progress/status updates
+- stakeholder_update: Updates for clients, investors, partners
+- research_brief: Competitive intel, market research, trends
+- meeting_summary: Recap of recurring meetings
+- custom: Anything else
+
+Returns the created deliverable with a link to configure further.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title": {
+                "type": "string",
+                "description": "Name of the deliverable (e.g., 'Weekly Status Report', 'Q1 Board Update')"
+            },
+            "deliverable_type": {
+                "type": "string",
+                "enum": ["status_report", "stakeholder_update", "research_brief", "meeting_summary", "custom"],
+                "description": "Type of deliverable - determines generation strategy"
+            },
+            "frequency": {
+                "type": "string",
+                "enum": ["daily", "weekly", "biweekly", "monthly"],
+                "description": "How often to generate. Default: weekly"
+            },
+            "day": {
+                "type": "string",
+                "description": "Day for generation. For weekly: monday-sunday. For monthly: 1-28. Drafts are ready for review."
+            },
+            "time": {
+                "type": "string",
+                "description": "Time to generate (24h format, e.g., '09:00'). Default: 09:00"
+            },
+            "recipient_name": {
+                "type": "string",
+                "description": "Who this deliverable is for (e.g., 'Sarah Chen', 'Leadership Team')"
+            },
+            "recipient_relationship": {
+                "type": "string",
+                "description": "Relationship to recipient (e.g., 'manager', 'client', 'board')"
+            },
+            "description": {
+                "type": "string",
+                "description": "Brief description of what this deliverable should cover"
+            },
+            "project_id": {
+                "type": "string",
+                "description": "Optional: Link to an existing project for context"
+            }
+        },
+        "required": ["title", "deliverable_type"]
+    }
+}
+
+
 # Tools available to Thinking Partner
 THINKING_PARTNER_TOOLS = [
     # Project management (ADR-007)
@@ -266,6 +434,12 @@ THINKING_PARTNER_TOOLS = [
     GET_WORK_TOOL,
     UPDATE_WORK_TOOL,
     DELETE_WORK_TOOL,
+    # Deliverable management (ADR-018, ADR-020)
+    LIST_DELIVERABLES_TOOL,
+    GET_DELIVERABLE_TOOL,
+    RUN_DELIVERABLE_TOOL,
+    UPDATE_DELIVERABLE_TOOL,
+    CREATE_DELIVERABLE_TOOL,
 ]
 
 
@@ -1065,6 +1239,487 @@ def cron_to_human(cron_expr: str) -> str:
     return cron_expr
 
 
+# =============================================================================
+# Deliverable Tool Handlers (ADR-018)
+# =============================================================================
+
+async def handle_list_deliverables(auth, input: dict) -> dict:
+    """
+    List user's recurring deliverables.
+
+    ADR-018: Recurring Deliverables with scheduling.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with optional status and limit
+
+    Returns:
+        Dict with deliverables list
+    """
+    status_filter = input.get("status")
+    limit = input.get("limit", 10)
+
+    # Build query
+    query = auth.client.table("deliverables")\
+        .select("id, title, deliverable_type, status, schedule, next_run_at, last_run_at, created_at, deliverable_versions(id, status, version_number)")\
+        .eq("user_id", auth.user_id)\
+        .order("created_at", desc=True)\
+        .limit(limit)
+
+    if status_filter:
+        query = query.eq("status", status_filter)
+    else:
+        # Exclude archived by default
+        query = query.neq("status", "archived")
+
+    result = query.execute()
+    deliverables = result.data or []
+
+    # Format for display
+    items = []
+    for d in deliverables:
+        versions = d.get("deliverable_versions", [])
+        latest = max(versions, key=lambda v: v["version_number"]) if versions else None
+
+        # Human-readable schedule
+        schedule = d.get("schedule", {})
+        schedule_desc = format_schedule_description(schedule)
+
+        items.append({
+            "id": d["id"],
+            "title": d["title"],
+            "type": d.get("deliverable_type", "custom").replace("_", " ").title(),
+            "status": d["status"],
+            "schedule": schedule_desc,
+            "next_run": d.get("next_run_at"),
+            "version_count": len(versions),
+            "latest_version_status": latest["status"] if latest else None,
+        })
+
+    return {
+        "success": True,
+        "deliverables": items,
+        "count": len(items),
+        "message": f"Found {len(items)} deliverable(s)" if items else "No deliverables yet. Would you like to create one?"
+    }
+
+
+async def handle_get_deliverable(auth, input: dict) -> dict:
+    """
+    Get detailed information about a deliverable.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with deliverable_id
+
+    Returns:
+        Dict with deliverable details and versions
+    """
+    deliverable_id = input["deliverable_id"]
+
+    # Get deliverable with versions
+    try:
+        result = auth.client.table("deliverables")\
+            .select("*, deliverable_versions(id, version_number, status, created_at, staged_at, approved_at)")\
+            .eq("id", deliverable_id)\
+            .eq("user_id", auth.user_id)\
+            .single()\
+            .execute()
+    except Exception:
+        return {
+            "success": False,
+            "error": "Deliverable not found or access denied"
+        }
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Deliverable not found"
+        }
+
+    d = result.data
+    versions = d.get("deliverable_versions", [])
+    versions_sorted = sorted(versions, key=lambda v: v["version_number"], reverse=True)
+
+    # Human-readable schedule
+    schedule = d.get("schedule", {})
+    schedule_desc = format_schedule_description(schedule)
+
+    # Format type config summary
+    type_config = d.get("type_config", {})
+    config_summary = summarize_type_config(d.get("deliverable_type", "custom"), type_config)
+
+    return {
+        "success": True,
+        "deliverable": {
+            "id": d["id"],
+            "title": d["title"],
+            "type": d.get("deliverable_type", "custom").replace("_", " ").title(),
+            "status": d["status"],
+            "schedule": schedule_desc,
+            "next_run": d.get("next_run_at"),
+            "last_run": d.get("last_run_at"),
+            "config_summary": config_summary,
+            "created_at": d["created_at"],
+        },
+        "versions": [
+            {
+                "version_number": v["version_number"],
+                "status": v["status"],
+                "created_at": v["created_at"],
+            }
+            for v in versions_sorted[:5]  # Last 5 versions
+        ],
+        "version_count": len(versions),
+    }
+
+
+async def handle_run_deliverable(auth, input: dict) -> dict:
+    """
+    Trigger an ad-hoc run of a deliverable.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with deliverable_id
+
+    Returns:
+        Dict with run result
+    """
+    import logging
+    from services.deliverable_pipeline import execute_deliverable_pipeline
+
+    logger = logging.getLogger(__name__)
+    deliverable_id = input["deliverable_id"]
+
+    # Get deliverable
+    try:
+        result = auth.client.table("deliverables")\
+            .select("id, title, status, deliverable_versions(version_number)")\
+            .eq("id", deliverable_id)\
+            .eq("user_id", auth.user_id)\
+            .single()\
+            .execute()
+    except Exception:
+        return {
+            "success": False,
+            "error": "Deliverable not found or access denied"
+        }
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Deliverable not found"
+        }
+
+    deliverable = result.data
+
+    if deliverable["status"] == "archived":
+        return {
+            "success": False,
+            "error": "Cannot run archived deliverable"
+        }
+
+    # Calculate next version number
+    versions = deliverable.get("deliverable_versions", [])
+    next_version = 1
+    if versions:
+        max_version = max(v["version_number"] for v in versions)
+        next_version = max_version + 1
+
+    logger.info(f"[TP-TOOL] Triggering deliverable run: {deliverable_id} v{next_version}")
+
+    # Execute pipeline
+    pipeline_result = await execute_deliverable_pipeline(
+        client=auth.client,
+        user_id=auth.user_id,
+        deliverable_id=deliverable_id,
+        version_number=next_version,
+    )
+
+    if pipeline_result.get("success"):
+        return {
+            "success": True,
+            "deliverable_id": deliverable_id,
+            "version_number": next_version,
+            "message": f"Started generating '{deliverable['title']}' v{next_version}. Check the deliverables dashboard for the result.",
+            "ui_action": {
+                "type": "OPEN_SURFACE",
+                "surface": "deliverable",
+                "data": {"deliverableId": deliverable_id}
+            },
+            "instruction_to_assistant": "Let the user know their deliverable is being generated. Direct them to the deliverables dashboard to review once ready."
+        }
+    else:
+        return {
+            "success": False,
+            "error": pipeline_result.get("message", "Failed to start generation"),
+        }
+
+
+async def handle_update_deliverable(auth, input: dict) -> dict:
+    """
+    Update a deliverable's settings.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with deliverable_id and updates
+
+    Returns:
+        Dict with update result
+    """
+    from datetime import datetime
+
+    deliverable_id = input["deliverable_id"]
+    updates = {}
+
+    if "status" in input:
+        updates["status"] = input["status"]
+
+    if "title" in input:
+        updates["title"] = input["title"]
+
+    if not updates:
+        return {
+            "success": False,
+            "error": "No updates provided"
+        }
+
+    updates["updated_at"] = datetime.utcnow().isoformat()
+
+    # Apply update
+    result = auth.client.table("deliverables")\
+        .update(updates)\
+        .eq("id", deliverable_id)\
+        .eq("user_id", auth.user_id)\
+        .execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Deliverable not found or access denied"
+        }
+
+    d = result.data[0]
+
+    # Build status message
+    status_msg = []
+    if "status" in updates:
+        if updates["status"] == "paused":
+            status_msg.append("paused")
+        elif updates["status"] == "active":
+            status_msg.append("resumed")
+        elif updates["status"] == "archived":
+            status_msg.append("archived")
+
+    if "title" in updates:
+        status_msg.append(f"renamed to '{updates['title']}'")
+
+    return {
+        "success": True,
+        "deliverable": {
+            "id": d["id"],
+            "title": d["title"],
+            "status": d["status"],
+        },
+        "message": f"Deliverable {', '.join(status_msg)}"
+    }
+
+
+async def handle_create_deliverable(auth, input: dict) -> dict:
+    """
+    Create a new recurring deliverable.
+
+    ADR-020: TP can scaffold deliverables on behalf of users.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with deliverable configuration
+
+    Returns:
+        Dict with created deliverable details
+    """
+    from datetime import datetime
+    from jobs.unified_scheduler import calculate_next_run_from_schedule
+
+    title = input["title"]
+    deliverable_type = input["deliverable_type"]
+    frequency = input.get("frequency", "weekly")
+    day = input.get("day")
+    time = input.get("time", "09:00")
+    recipient_name = input.get("recipient_name")
+    recipient_relationship = input.get("recipient_relationship")
+    description = input.get("description")
+    project_id = input.get("project_id")
+
+    # Default day based on frequency
+    if not day:
+        if frequency == "weekly":
+            day = "monday"
+        elif frequency == "monthly":
+            day = "1"
+        elif frequency == "biweekly":
+            day = "monday"
+        # daily doesn't need a day
+
+    # Build schedule
+    schedule = {
+        "frequency": frequency,
+        "time": time,
+        "timezone": "America/Los_Angeles",  # Default, user can change in settings
+    }
+    if day:
+        schedule["day"] = day
+
+    # Build type config based on deliverable type
+    type_config = {}
+    if deliverable_type == "status_report":
+        type_config = {
+            "subject": description or title,
+            "audience": recipient_relationship or "stakeholder",
+            "format": "email",
+        }
+    elif deliverable_type == "stakeholder_update":
+        type_config = {
+            "audience_type": recipient_relationship or "client",
+            "include_metrics": True,
+        }
+    elif deliverable_type == "research_brief":
+        type_config = {
+            "focus_area": "competitive",
+            "subjects": [],
+        }
+    elif deliverable_type == "meeting_summary":
+        type_config = {
+            "meeting_type": "team_sync",
+        }
+    elif deliverable_type == "custom":
+        type_config = {
+            "description": description or title,
+        }
+
+    # Calculate next run time
+    try:
+        next_run = calculate_next_run_from_schedule(schedule)
+    except Exception:
+        # Fallback: next day at specified time
+        from datetime import timedelta
+        import pytz
+        tz = pytz.timezone(schedule.get("timezone", "UTC"))
+        now = datetime.now(tz)
+        next_run = (now + timedelta(days=1)).replace(
+            hour=int(time.split(":")[0]),
+            minute=int(time.split(":")[1]) if ":" in time else 0,
+            second=0,
+            microsecond=0
+        )
+
+    # Build deliverable data
+    deliverable_data = {
+        "title": title,
+        "deliverable_type": deliverable_type,
+        "user_id": auth.user_id,
+        "status": "active",
+        "schedule": schedule,
+        "type_config": type_config,
+        "next_run_at": next_run.isoformat() if hasattr(next_run, 'isoformat') else str(next_run),
+    }
+
+    if recipient_name:
+        deliverable_data["recipient_name"] = recipient_name
+    if recipient_relationship:
+        deliverable_data["recipient_relationship"] = recipient_relationship
+    if project_id:
+        deliverable_data["project_id"] = project_id
+
+    # Create deliverable
+    result = auth.client.table("deliverables").insert(deliverable_data).execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Failed to create deliverable"
+        }
+
+    deliverable = result.data[0]
+
+    # Format schedule for display
+    schedule_desc = format_schedule_description(schedule)
+
+    return {
+        "success": True,
+        "deliverable": {
+            "id": deliverable["id"],
+            "title": title,
+            "type": deliverable_type.replace("_", " ").title(),
+            "schedule": schedule_desc,
+            "next_run": deliverable.get("next_run_at"),
+            "recipient": recipient_name,
+        },
+        "message": f"Created '{title}' - {schedule_desc}. First draft will be ready for review at your next scheduled time.",
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "deliverable",
+            "data": {"deliverableId": deliverable["id"]}
+        },
+        "instruction_to_assistant": "Confirm the deliverable was created. Let the user know they can find it in their deliverables dashboard and can fine-tune the configuration there. Offer to generate the first version now if they'd like."
+    }
+
+
+def format_schedule_description(schedule: dict) -> str:
+    """Format schedule dict into human-readable description."""
+    frequency = schedule.get("frequency", "weekly")
+    day = schedule.get("day")
+    time = schedule.get("time", "09:00")
+    tz = schedule.get("timezone", "America/Los_Angeles")
+
+    # Format time
+    try:
+        hour, minute = map(int, time.split(":"))
+        ampm = "AM" if hour < 12 else "PM"
+        hour12 = hour if hour <= 12 else hour - 12
+        hour12 = 12 if hour12 == 0 else hour12
+        time_str = f"{hour12}:{minute:02d} {ampm}"
+    except Exception:
+        time_str = time
+
+    # Build description
+    if frequency == "daily":
+        return f"Daily at {time_str}"
+    elif frequency == "weekly":
+        day_name = day.capitalize() if day else "Monday"
+        return f"Weekly on {day_name} at {time_str}"
+    elif frequency == "biweekly":
+        day_name = day.capitalize() if day else "Monday"
+        return f"Every 2 weeks on {day_name} at {time_str}"
+    elif frequency == "monthly":
+        day_num = day or "1st"
+        return f"Monthly on the {day_num} at {time_str}"
+    else:
+        return schedule.get("cron", frequency)
+
+
+def summarize_type_config(deliverable_type: str, config: dict) -> str:
+    """Create a brief summary of the type configuration."""
+    if not config:
+        return "Default configuration"
+
+    summaries = {
+        "status_report": lambda c: f"Subject: {c.get('subject', 'N/A')}, Audience: {c.get('audience', 'stakeholders')}",
+        "stakeholder_update": lambda c: f"For: {c.get('company_or_project', 'N/A')}, Type: {c.get('audience_type', 'client')}",
+        "research_brief": lambda c: f"Focus: {c.get('focus_area', 'competitive')}, Subjects: {', '.join(c.get('subjects', []))[:50]}",
+        "meeting_summary": lambda c: f"Meeting: {c.get('meeting_name', 'N/A')}, Type: {c.get('meeting_type', 'team_sync')}",
+        "client_proposal": lambda c: f"Client: {c.get('client_name', 'N/A')}, Service: {c.get('service_category', 'N/A')}",
+        "board_update": lambda c: f"Company: {c.get('company_name', 'N/A')}, Stage: {c.get('stage', 'seed')}",
+        "custom": lambda c: c.get("description", "Custom deliverable")[:100],
+    }
+
+    formatter = summaries.get(deliverable_type, lambda c: str(c)[:100])
+    try:
+        return formatter(config)
+    except Exception:
+        return "Custom configuration"
+
+
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     # Project tools (ADR-007)
@@ -1078,6 +1733,12 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "get_work": handle_get_work,
     "update_work": handle_update_work,
     "delete_work": handle_delete_work,
+    # Deliverable tools (ADR-018, ADR-020)
+    "list_deliverables": handle_list_deliverables,
+    "get_deliverable": handle_get_deliverable,
+    "run_deliverable": handle_run_deliverable,
+    "update_deliverable": handle_update_deliverable,
+    "create_deliverable": handle_create_deliverable,
     # Legacy aliases for backward compatibility (ADR-009 → ADR-017)
     "get_work_status": handle_get_work,  # Alias for get_work
     "cancel_work": handle_update_work,   # Use update_work with is_active=false

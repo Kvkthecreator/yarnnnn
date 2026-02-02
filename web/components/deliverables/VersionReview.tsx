@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { useFloatingChat } from '@/contexts/FloatingChatContext';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
 interface VersionReviewProps {
@@ -52,9 +53,29 @@ export function VersionReview({
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [copied, setCopied] = useState(false);
 
+  // ADR-020: Set floating chat context
+  const { setPageContext } = useFloatingChat();
+
   useEffect(() => {
     loadVersion();
   }, [deliverableId, versionId]);
+
+  // ADR-020: Update floating chat context when reviewing
+  useEffect(() => {
+    if (deliverable && version) {
+      setPageContext({
+        type: 'deliverable-review',
+        deliverable,
+        deliverableId,
+        currentVersion: version,
+      });
+    }
+
+    // Cleanup: reset to global when unmounting
+    return () => {
+      setPageContext({ type: 'global' });
+    };
+  }, [deliverable, version, deliverableId, setPageContext]);
 
   const loadVersion = async () => {
     setLoading(true);
