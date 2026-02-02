@@ -98,10 +98,10 @@ The implementation now reflects the [Supervision Model](../design/DESIGN-PRINCIP
 
 3. ~~**Scheduled execution trigger** (Phase 1)~~ ✅ DONE
    - `unified_scheduler.py` handles both deliverables AND work tickets
-   - New cron job created: `yarnnn-unified-scheduler` (crn-d604r0pr0fns73eog1u0)
+   - New cron job: `yarnnn-unified-scheduler` (crn-d604r0pr0fns73eog1u0) - **LIVE**
    - Runs every 5 minutes: `*/5 * * * *`
    - Legacy `work_scheduler.py` deleted
-   - Old cron job `yarnnn-work-scheduler` should be suspended
+   - **ACTION**: Suspend old `yarnnn-work-scheduler` via [dashboard](https://dashboard.render.com/cron/crn-d5u1bm4r85hc739rqf90)
 
 ### Medium Priority - Polish
 
