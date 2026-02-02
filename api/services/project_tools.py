@@ -1613,6 +1613,13 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
             microsecond=0
         )
 
+    # Build recipient context (JSONB field)
+    recipient_context = {}
+    if recipient_name:
+        recipient_context["name"] = recipient_name
+    if recipient_relationship:
+        recipient_context["role"] = recipient_relationship
+
     # Build deliverable data
     deliverable_data = {
         "title": title,
@@ -1624,10 +1631,8 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
         "next_run_at": next_run.isoformat() if hasattr(next_run, 'isoformat') else str(next_run),
     }
 
-    if recipient_name:
-        deliverable_data["recipient_name"] = recipient_name
-    if recipient_relationship:
-        deliverable_data["recipient_relationship"] = recipient_relationship
+    if recipient_context:
+        deliverable_data["recipient_context"] = recipient_context
     if project_id:
         deliverable_data["project_id"] = project_id
 
