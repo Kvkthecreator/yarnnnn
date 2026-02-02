@@ -152,13 +152,27 @@ export function FloatingChatPanel() {
     onUIAction: handleUIAction,
   });
 
-  // Clear messages when page context changes significantly
+  // Track previous deliverable to detect context changes
+  const prevDeliverableIdRef = useRef<string | undefined>(pageContext.deliverableId);
+
+  // Clear messages when switching to a different deliverable
   useEffect(() => {
+    const prevId = prevDeliverableIdRef.current;
+    const currentId = pageContext.deliverableId;
+
+    // If we had a deliverable and now have a different one, clear the chat
+    // This prevents mixing context from different deliverables
+    if (prevId && currentId && prevId !== currentId) {
+      clearMessages();
+    }
+
     // Reset auto-context flag when deliverable changes
-    if (pageContext.deliverableId) {
+    if (currentId) {
       hasAutoContextRef.current = false;
     }
-  }, [pageContext.deliverableId]);
+
+    prevDeliverableIdRef.current = currentId;
+  }, [pageContext.deliverableId, clearMessages]);
 
   // Focus input when panel opens
   useEffect(() => {

@@ -89,14 +89,23 @@ export function useChat({
   const [error, setError] = useState<string | null>(null);
   const [toolsUsed, setToolsUsed] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const historyLoadedRef = useRef(false);
+  const historyLoadedForRef = useRef<string | null>(null); // Track which projectId history was loaded for
 
-  // Load chat history on mount
+  // Load chat history on mount or when projectId changes
   useEffect(() => {
-    if (historyLoadedRef.current) return;
+    // Create a key to track what we've loaded history for
+    const currentKey = projectId ?? 'global';
+
+    // Skip if we already loaded history for this exact context
+    if (historyLoadedForRef.current === currentKey) return;
 
     const loadHistory = async () => {
       setIsLoadingHistory(true);
+      // Clear existing messages when switching contexts
+      if (historyLoadedForRef.current !== null) {
+        setMessages([]);
+      }
+
       try {
         const supabase = createClient();
         const {
@@ -139,7 +148,7 @@ export function useChat({
         console.error("Failed to load chat history:", err);
       } finally {
         setIsLoadingHistory(false);
-        historyLoadedRef.current = true;
+        historyLoadedForRef.current = currentKey;
       }
     };
 
@@ -349,8 +358,8 @@ export function useChat({
   const clearMessages = useCallback(() => {
     setMessages([]);
     setError(null);
-    // Reset history loaded flag so next mount will reload
-    historyLoadedRef.current = false;
+    // Note: We don't reset historyLoadedForRef here - caller should
+    // reload history explicitly if needed by changing projectId
   }, []);
 
   return {
