@@ -7,7 +7,7 @@
  * Shows in bottom-right corner when chat is closed.
  */
 
-import { MessageSquare, Sparkles } from 'lucide-react';
+import { MessageSquare } from 'lucide-react';
 import { useFloatingChat } from '@/contexts/FloatingChatContext';
 import { cn } from '@/lib/utils';
 
@@ -34,13 +34,12 @@ export function FloatingChatTrigger({ className }: FloatingChatTriggerProps) {
         'bg-primary text-primary-foreground',
         'shadow-lg hover:shadow-xl',
         'active:scale-95 md:hover:scale-105 transition-all duration-200',
-        'group',
         className
       )}
       title="Open chat (⌘K)"
+      aria-label="Open chat"
     >
-      <Sparkles className="w-6 h-6 md:group-hover:hidden" />
-      <MessageSquare className="w-6 h-6 hidden md:group-hover:block" />
+      <MessageSquare className="w-6 h-6" />
     </button>
   );
 }
