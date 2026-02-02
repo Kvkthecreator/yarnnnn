@@ -5,13 +5,12 @@
  * Primary landing view - replaces chat-first experience.
  */
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useRef } from 'react';
 import { DeliverablesDashboard, OnboardingWizard } from '@/components/deliverables';
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [showWizard, setShowWizard] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   const handleCreateNew = () => {
     setShowWizard(true);
@@ -21,15 +20,16 @@ export default function DashboardPage() {
     setShowWizard(false);
   };
 
-  const handleWizardComplete = (deliverableId: string) => {
+  const handleWizardComplete = (_deliverableId: string) => {
     setShowWizard(false);
-    router.push(`/dashboard/deliverable/${deliverableId}`);
+    // Trigger dashboard refresh to show new deliverable
+    setRefreshKey(k => k + 1);
   };
 
   return (
     <div className="h-full flex flex-col overflow-hidden">
       <main className="flex-1 overflow-hidden">
-        <DeliverablesDashboard onCreateNew={handleCreateNew} />
+        <DeliverablesDashboard key={refreshKey} onCreateNew={handleCreateNew} />
       </main>
 
       {showWizard && (

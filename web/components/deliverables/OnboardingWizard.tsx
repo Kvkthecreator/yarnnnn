@@ -3,18 +3,20 @@
 /**
  * ADR-018: Onboarding Wizard
  *
- * 6-step wizard for creating a new deliverable:
+ * 5-step wizard for creating a new deliverable:
  * 1. What do you deliver?
  * 2. Who receives it?
  * 3. Show me examples
  * 4. What sources inform this?
  * 5. When is it due?
- * 6. First draft generation + review
+ *
+ * After completion, redirects to the deliverable detail page
+ * where the first draft generation happens in background.
  */
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { X, ArrowLeft, ArrowRight, Loader2, Check } from 'lucide-react';
+import { X, ArrowLeft, ArrowRight, Loader2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type {
@@ -30,7 +32,7 @@ interface OnboardingWizardProps {
   onComplete: (deliverableId: string) => void;
 }
 
-type WizardStep = 1 | 2 | 3 | 4 | 5 | 6;
+type WizardStep = 1 | 2 | 3 | 4 | 5;
 
 const STEP_TITLES: Record<WizardStep, string> = {
   1: 'What do you deliver?',
@@ -38,15 +40,12 @@ const STEP_TITLES: Record<WizardStep, string> = {
   3: 'Show me examples',
   4: 'What sources inform this?',
   5: 'When is it due?',
-  6: 'Your first draft',
 };
 
 export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState<WizardStep>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [createdDeliverableId, setCreatedDeliverableId] = useState<string | null>(null);
 
   // Form state
   const [title, setTitle] = useState('');
@@ -74,8 +73,6 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
         return true; // Optional
       case 5:
         return schedule.frequency !== undefined;
-      case 6:
-        return true;
       default:
         return false;
     }
@@ -85,7 +82,7 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
     if (step < 5) {
       setStep((step + 1) as WizardStep);
     } else if (step === 5) {
-      // Create deliverable and move to step 6
+      // Create deliverable, trigger first run in background, redirect to dashboard
       setIsSubmitting(true);
       try {
         const templateStructure: TemplateStructure = {};
@@ -103,17 +100,17 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
         };
 
         const deliverable = await api.deliverables.create(data);
-        setCreatedDeliverableId(deliverable.id);
-        setStep(6);
 
-        // Trigger first run
-        setIsGenerating(true);
-        await api.deliverables.run(deliverable.id);
-        setIsGenerating(false);
+        // Trigger first run in background (don't await)
+        api.deliverables.run(deliverable.id).catch((err) => {
+          console.error('Failed to trigger first run:', err);
+        });
+
+        // Close wizard and notify parent
+        onComplete(deliverable.id);
       } catch (err) {
         console.error('Failed to create deliverable:', err);
         alert('Failed to create deliverable. Please try again.');
-      } finally {
         setIsSubmitting(false);
       }
     }
@@ -125,12 +122,6 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
     }
   };
 
-  const handleFinish = () => {
-    if (createdDeliverableId) {
-      onComplete(createdDeliverableId);
-    }
-  };
-
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
       <div className="bg-background border border-border rounded-lg w-full max-w-2xl max-h-[90vh] flex flex-col">
@@ -138,7 +129,7 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
         <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div>
             <div className="text-xs text-muted-foreground mb-1">
-              Step {step} of 6
+              Step {step} of 5
             </div>
             <h2 className="text-lg font-semibold">{STEP_TITLES[step]}</h2>
           </div>
@@ -153,7 +144,7 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
         {/* Progress */}
         <div className="px-6 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-1">
-            {[1, 2, 3, 4, 5, 6].map((s) => (
+            {[1, 2, 3, 4, 5].map((s) => (
               <div
                 key={s}
                 className={cn(
@@ -201,21 +192,16 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
               setSchedule={setSchedule}
             />
           )}
-          {step === 6 && (
-            <StepFirstDraft
-              isGenerating={isGenerating}
-              deliverableId={createdDeliverableId}
-            />
-          )}
         </div>
 
         {/* Footer */}
         <div className="flex items-center justify-between px-6 py-4 border-t border-border shrink-0">
           <div>
-            {step > 1 && step < 6 && (
+            {step > 1 && (
               <button
                 onClick={handleBack}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                disabled={isSubmitting}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back
@@ -224,58 +210,33 @@ export function OnboardingWizard({ onClose, onComplete }: OnboardingWizardProps)
           </div>
 
           <div className="flex items-center gap-2">
-            {step < 6 ? (
-              <>
-                {step > 1 && step < 5 && (
-                  <button
-                    onClick={handleNext}
-                    className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    Skip
-                  </button>
-                )}
-                <button
-                  onClick={handleNext}
-                  disabled={!canProceed() || isSubmitting}
-                  className="inline-flex items-center gap-1.5 px-6 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-                >
-                  {isSubmitting ? (
-                    <>
-                      <Loader2 className="w-4 h-4 animate-spin" />
-                      Creating...
-                    </>
-                  ) : step === 5 ? (
-                    <>
-                      Create & Generate
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  ) : (
-                    <>
-                      Continue
-                      <ArrowRight className="w-4 h-4" />
-                    </>
-                  )}
-                </button>
-              </>
-            ) : (
+            {step > 1 && step < 5 && (
               <button
-                onClick={handleFinish}
-                disabled={isGenerating}
-                className="inline-flex items-center gap-1.5 px-6 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                onClick={handleNext}
+                className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
               >
-                {isGenerating ? (
-                  <>
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Check className="w-4 h-4" />
-                    View Deliverable
-                  </>
-                )}
+                Skip
               </button>
             )}
+            <button
+              onClick={handleNext}
+              disabled={!canProceed() || isSubmitting}
+              className="inline-flex items-center gap-1.5 px-6 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Creating...
+                </>
+              ) : step === 5 ? (
+                'Create Deliverable'
+              ) : (
+                <>
+                  Continue
+                  <ArrowRight className="w-4 h-4" />
+                </>
+              )}
+            </button>
           </div>
         </div>
       </div>
@@ -746,37 +707,3 @@ function StepSchedule({
   );
 }
 
-// Step 6: First draft
-function StepFirstDraft({
-  isGenerating,
-  deliverableId,
-}: {
-  isGenerating: boolean;
-  deliverableId: string | null;
-}) {
-  if (isGenerating) {
-    return (
-      <div className="flex flex-col items-center justify-center py-12 text-center">
-        <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-        <h3 className="text-lg font-medium mb-2">Generating your first draft...</h3>
-        <p className="text-muted-foreground max-w-md">
-          YARNNN is gathering context and producing your deliverable.
-          This usually takes 1-2 minutes.
-        </p>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col items-center justify-center py-12 text-center">
-      <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-        <Check className="w-8 h-8 text-green-600" />
-      </div>
-      <h3 className="text-lg font-medium mb-2">Your deliverable is ready!</h3>
-      <p className="text-muted-foreground max-w-md">
-        Your first draft has been generated and is waiting for your review.
-        Click below to view it and provide feedback.
-      </p>
-    </div>
-  );
-}
