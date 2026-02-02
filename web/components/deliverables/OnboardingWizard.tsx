@@ -1920,11 +1920,19 @@ function StepSources({
 
   // Type-specific hints
   const typeHints: Record<DeliverableType, string> = {
+    // Tier 1 - Stable
     status_report: 'Add project management tools, Slack channels, or team standups',
     stakeholder_update: 'Add financial dashboards, key metrics sources, or project trackers',
     research_brief: 'Add competitor websites, industry news sources, or market data feeds',
     meeting_summary: 'Add meeting notes, calendar invites, or previous summaries',
     custom: 'Add any relevant information sources',
+    // Beta Tier
+    client_proposal: 'Add client background info, previous conversations, or project briefs',
+    performance_self_assessment: 'Add project docs, metrics dashboards, or goal tracking tools',
+    newsletter_section: 'Add recent updates, news sources, or team announcements',
+    changelog: 'Add release notes, commit logs, or project management boards',
+    one_on_one_prep: 'Add team member updates, project status, or previous 1:1 notes',
+    board_update: 'Add financial dashboards, KPI trackers, or strategic docs',
   };
 
   return (
