@@ -392,61 +392,76 @@ No separate BFF layer
 
 ---
 
-## UI Scope (Supervision Model)
+## UI Scope (Review-First Supervision)
 
-The UI reflects the supervision model: deliverables are visible objects, TP is the interaction method.
+**Reference:** [ADR-021: Review-First Supervision UX](adr/ADR-021-review-first-supervision-ux.md)
 
-### Primary View: Deliverables Dashboard (What User Supervises)
+The UI embodies two axioms from the supervision model:
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│  DELIVERABLES                                    [+ New] 💬 │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 📋 Weekly Status Report              Due: Tomorrow   │   │
-│  │    → Staged for review                               │   │
-│  │    Quality: ████████░░ 82% (improving)              │   │
-│  │    [Review Now]                                      │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-│  ┌─────────────────────────────────────────────────────┐   │
-│  │ 📋 Monthly Investor Update           Due: Feb 15     │   │
-│  │    → Next run in 13 days                            │   │
-│  │    Quality: ██████░░░░ 65%                          │   │
-│  └─────────────────────────────────────────────────────┘   │
-│                                                             │
-└─────────────────────────────────────────────────────────────┘
-                                            💬 = Floating TP
-```
+| Axiom | Entity | UI Implication |
+|-------|--------|----------------|
+| **Data first-class** | Deliverables | Content is always visible, not hidden behind navigation |
+| **Interaction first-class** | TP (Thinking Partner) | TP is present on every screen, not requiring navigation |
 
-### Review View: Deliverable + TP Refinement (Supervision in Action)
+### The Review-First Principle
+
+**When something needs attention, user lands directly on it.**
+
+This inverts the traditional dashboard-first pattern:
+- Traditional: Login → Dashboard → Find item → Click → Review
+- YARNNN: Login → Review (the thing that needs attention)
+
+### Primary View: Review (Supervision in Action)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│ ← Weekly Status Report - Review                             │
+│ Weekly Status Report - Review                    [1 of 2] → │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│  [Draft content displayed - the object being supervised]    │
+│  Hi Sarah,                                                  │
+│                                                             │
+│  Here's the weekly update for Project Alpha...              │
+│  [Full draft content - THE OBJECT BEING SUPERVISED]         │
 │                                                             │
 ├─────────────────────────────────────────────────────────────┤
-│ Refine with AI:                        [TP interaction]     │
-│ [Shorter] [More detail] [More formal] [More casual]         │
-│ ┌────────────────────────────────────────────┐ [Send]       │
-│ │ Or tell me what to change...               │              │
-│ └────────────────────────────────────────────┘              │
+│ Refine with TP:                      [TP ALWAYS PRESENT]    │
+│ [Shorter] [More detail] [More formal] [Custom...]           │
 ├─────────────────────────────────────────────────────────────┤
-│ [Discard]                        [Cancel] [Mark as Done]    │
+│ [Discard]                        [Skip] [Mark as Done]      │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### TP Availability
+When no items need review → Dashboard view (secondary).
 
-TP manifests in two ways:
-1. **Inline refinements** - embedded in deliverable views (chips, custom instructions)
-2. **Floating chat** - available via 💬 trigger for conversational interaction
+### Secondary View: Dashboard (Nothing to Review)
 
-Both are TP; they serve different interaction needs.
+```
+┌─────────────────────────────────────────────────────────────┐
+│  All caught up! Next deliverable in 3 days.                 │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  Upcoming:                                                  │
+│  • Weekly Status Report — Monday 9am                        │
+│  • Monthly Investor Update — Feb 15                         │
+│                                                             │
+│  ┌────────────────────────────────────────────────────────┐ │
+│  │ 💬 Ask TP: "Create a new deliverable" / "Run now"      │ │
+│  └────────────────────────────────────────────────────────┘ │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### TP Presence Rule
+
+**TP must be visible and interactive on every screen.**
+
+| Screen | TP Manifestation |
+|--------|------------------|
+| Review | Inline refinement chips + custom instruction input |
+| Dashboard | Embedded input for questions/commands |
+| Detail | Contextual chat for this deliverable |
+| Browse | Global TP for cross-deliverable questions |
+
+No screen should require navigation to access TP interaction.
 
 ---
 
