@@ -41,7 +41,7 @@ function FeatureValue({ value }: { value: string | boolean }) {
 
 export default function PricingPage() {
   return (
-    <div className="relative min-h-screen flex flex-col bg-[#0a0a0a] text-white overflow-x-hidden">
+    <div className="relative min-h-screen flex flex-col bg-[#0f1419] text-white overflow-x-hidden">
       <GrainOverlay variant="dark" />
       <ShaderBackgroundDark />
 
