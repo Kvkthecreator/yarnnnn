@@ -2,6 +2,7 @@
 Deliverables routes - Recurring deliverable management
 
 ADR-018: Recurring Deliverables Product Pivot
+ADR-019: Deliverable Types System
 
 Endpoints:
 - POST /deliverables - Create a new deliverable
@@ -18,7 +19,7 @@ Endpoints:
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, Literal
+from typing import Optional, Literal, Union, Annotated
 from uuid import UUID
 from datetime import datetime
 
@@ -28,6 +29,129 @@ from routes.projects import get_or_create_workspace
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+
+# =============================================================================
+# ADR-019: Deliverable Type Definitions
+# =============================================================================
+
+DeliverableType = Literal[
+    "status_report",
+    "stakeholder_update",
+    "research_brief",
+    "meeting_summary",
+    "custom"
+]
+
+
+class StatusReportSections(BaseModel):
+    """Sections to include in a status report."""
+    summary: bool = True
+    accomplishments: bool = True
+    blockers: bool = True
+    next_steps: bool = True
+    metrics: bool = False
+
+
+class StatusReportConfig(BaseModel):
+    """Configuration for status report type."""
+    subject: str  # "Engineering Team", "Project Alpha"
+    audience: Literal["manager", "stakeholders", "team", "executive"] = "stakeholders"
+    sections: StatusReportSections = Field(default_factory=StatusReportSections)
+    detail_level: Literal["brief", "standard", "detailed"] = "standard"
+    tone: Literal["formal", "conversational"] = "formal"
+
+
+class StakeholderUpdateSections(BaseModel):
+    """Sections to include in a stakeholder update."""
+    executive_summary: bool = True
+    highlights: bool = True
+    challenges: bool = True
+    metrics: bool = False
+    outlook: bool = True
+
+
+class StakeholderUpdateConfig(BaseModel):
+    """Configuration for stakeholder update type."""
+    audience_type: Literal["investor", "board", "client", "executive"]
+    company_or_project: str
+    relationship_context: Optional[str] = None  # "Series A investor", "Enterprise client"
+    sections: StakeholderUpdateSections = Field(default_factory=StakeholderUpdateSections)
+    formality: Literal["formal", "professional", "conversational"] = "professional"
+    sensitivity: Literal["public", "confidential"] = "confidential"
+
+
+class ResearchBriefSections(BaseModel):
+    """Sections to include in a research brief."""
+    key_takeaways: bool = True
+    findings: bool = True
+    implications: bool = True
+    recommendations: bool = False
+
+
+class ResearchBriefConfig(BaseModel):
+    """Configuration for research brief type."""
+    focus_area: Literal["competitive", "market", "technology", "industry"]
+    subjects: list[str]  # ["Competitor A", "Competitor B"] or ["AI trends"]
+    purpose: Optional[str] = None  # "Inform product roadmap decisions"
+    sections: ResearchBriefSections = Field(default_factory=ResearchBriefSections)
+    depth: Literal["scan", "analysis", "deep_dive"] = "analysis"
+
+
+class MeetingSummarySections(BaseModel):
+    """Sections to include in a meeting summary."""
+    context: bool = True
+    discussion: bool = True
+    decisions: bool = True
+    action_items: bool = True
+    followups: bool = True
+
+
+class MeetingSummaryConfig(BaseModel):
+    """Configuration for meeting summary type."""
+    meeting_name: str  # "Engineering Weekly", "Product Sync"
+    meeting_type: Literal["team_sync", "one_on_one", "standup", "review", "planning"]
+    participants: list[str] = Field(default_factory=list)
+    sections: MeetingSummarySections = Field(default_factory=MeetingSummarySections)
+    format: Literal["narrative", "bullet_points", "structured"] = "structured"
+
+
+class CustomConfig(BaseModel):
+    """Configuration for custom/freeform deliverable type."""
+    description: str
+    structure_notes: Optional[str] = None
+    example_content: Optional[str] = None
+
+
+# Union type for type_config
+TypeConfig = Union[
+    StatusReportConfig,
+    StakeholderUpdateConfig,
+    ResearchBriefConfig,
+    MeetingSummaryConfig,
+    CustomConfig,
+]
+
+
+def get_default_config(deliverable_type: DeliverableType) -> dict:
+    """Get default configuration for a deliverable type."""
+    defaults = {
+        "status_report": StatusReportConfig(subject="", audience="stakeholders"),
+        "stakeholder_update": StakeholderUpdateConfig(
+            audience_type="client",
+            company_or_project=""
+        ),
+        "research_brief": ResearchBriefConfig(
+            focus_area="competitive",
+            subjects=[]
+        ),
+        "meeting_summary": MeetingSummaryConfig(
+            meeting_name="",
+            meeting_type="team_sync"
+        ),
+        "custom": CustomConfig(description=""),
+    }
+    return defaults.get(deliverable_type, defaults["custom"]).model_dump()
 
 
 # =============================================================================
@@ -43,7 +167,7 @@ class RecipientContext(BaseModel):
 
 
 class TemplateStructure(BaseModel):
-    """Extracted or defined template for the deliverable."""
+    """Extracted or defined template for the deliverable (legacy, use type_config)."""
     sections: list[str] = Field(default_factory=list)
     typical_length: Optional[str] = None  # e.g., "500-800 words"
     tone: Optional[str] = None  # e.g., "professional", "casual"
@@ -67,35 +191,41 @@ class DataSource(BaseModel):
 
 
 class DeliverableCreate(BaseModel):
-    """Create deliverable request."""
+    """Create deliverable request - ADR-019 type-first approach."""
     title: str
-    description: Optional[str] = None
+    deliverable_type: DeliverableType = "custom"
+    type_config: Optional[dict] = None  # Type-specific config, validated per type
     project_id: Optional[str] = None  # Optional - will create project if not provided
     recipient_context: Optional[RecipientContext] = None
-    template_structure: Optional[TemplateStructure] = None
     schedule: ScheduleConfig
     sources: list[DataSource] = Field(default_factory=list)
+    # Legacy fields (deprecated, use type_config)
+    description: Optional[str] = None
+    template_structure: Optional[TemplateStructure] = None
 
 
 class DeliverableUpdate(BaseModel):
     """Update deliverable request."""
     title: Optional[str] = None
-    description: Optional[str] = None
+    deliverable_type: Optional[DeliverableType] = None
+    type_config: Optional[dict] = None
     recipient_context: Optional[RecipientContext] = None
-    template_structure: Optional[TemplateStructure] = None
     schedule: Optional[ScheduleConfig] = None
     sources: Optional[list[DataSource]] = None
     status: Optional[Literal["active", "paused", "archived"]] = None
+    # Legacy fields (deprecated)
+    description: Optional[str] = None
+    template_structure: Optional[TemplateStructure] = None
 
 
 class DeliverableResponse(BaseModel):
-    """Deliverable response."""
+    """Deliverable response - includes ADR-019 type fields."""
     id: str
     title: str
-    description: Optional[str] = None
+    deliverable_type: str = "custom"
+    type_config: Optional[dict] = None
     project_id: Optional[str] = None
     recipient_context: Optional[dict] = None
-    template_structure: Optional[dict] = None
     schedule: dict
     sources: list[dict] = Field(default_factory=list)
     status: str
@@ -105,6 +235,9 @@ class DeliverableResponse(BaseModel):
     next_run_at: Optional[str] = None
     version_count: int = 0
     latest_version_status: Optional[str] = None
+    # Legacy fields (for backwards compatibility)
+    description: Optional[str] = None
+    template_structure: Optional[dict] = None
 
 
 class VersionResponse(BaseModel):
@@ -178,12 +311,29 @@ async def create_deliverable(
     # Calculate next_run_at based on schedule
     next_run_at = calculate_next_run(request.schedule)
 
+    # Handle type_config - use provided or get defaults
+    type_config = request.type_config
+    if type_config is None:
+        # For custom type with legacy fields, migrate them
+        if request.deliverable_type == "custom" and (request.description or request.template_structure):
+            type_config = {
+                "description": request.description or "",
+                "structure_notes": request.template_structure.format_notes if request.template_structure else None,
+            }
+        else:
+            type_config = get_default_config(request.deliverable_type)
+
+    # Validate type_config against the type
+    validated_config = validate_type_config(request.deliverable_type, type_config)
+
     # Create deliverable
     deliverable_data = {
         "user_id": auth.user_id,
         "project_id": project_id,
         "title": request.title,
-        "description": request.description,
+        "deliverable_type": request.deliverable_type,
+        "type_config": validated_config,
+        "description": request.description,  # Legacy, kept for backwards compat
         "recipient_context": request.recipient_context.model_dump() if request.recipient_context else {},
         "template_structure": request.template_structure.model_dump() if request.template_structure else {},
         "schedule": request.schedule.model_dump(),
@@ -207,16 +357,19 @@ async def create_deliverable(
     return DeliverableResponse(
         id=deliverable["id"],
         title=deliverable["title"],
-        description=deliverable.get("description"),
+        deliverable_type=deliverable.get("deliverable_type", "custom"),
+        type_config=deliverable.get("type_config"),
         project_id=deliverable.get("project_id"),
         recipient_context=deliverable.get("recipient_context"),
-        template_structure=deliverable.get("template_structure"),
         schedule=deliverable["schedule"],
         sources=deliverable.get("sources", []),
         status=deliverable["status"],
         created_at=deliverable["created_at"],
         updated_at=deliverable["updated_at"],
         next_run_at=deliverable.get("next_run_at"),
+        # Legacy fields
+        description=deliverable.get("description"),
+        template_structure=deliverable.get("template_structure"),
     )
 
 
@@ -256,10 +409,10 @@ async def list_deliverables(
         responses.append(DeliverableResponse(
             id=d["id"],
             title=d["title"],
-            description=d.get("description"),
+            deliverable_type=d.get("deliverable_type", "custom"),
+            type_config=d.get("type_config"),
             project_id=d.get("project_id"),
             recipient_context=d.get("recipient_context"),
-            template_structure=d.get("template_structure"),
             schedule=d["schedule"],
             sources=d.get("sources", []),
             status=d["status"],
@@ -269,6 +422,9 @@ async def list_deliverables(
             next_run_at=d.get("next_run_at"),
             version_count=version_count,
             latest_version_status=latest_version["status"] if latest_version else None,
+            # Legacy
+            description=d.get("description"),
+            template_structure=d.get("template_structure"),
         ))
 
     return responses
@@ -313,10 +469,10 @@ async def get_deliverable(
         "deliverable": DeliverableResponse(
             id=deliverable["id"],
             title=deliverable["title"],
-            description=deliverable.get("description"),
+            deliverable_type=deliverable.get("deliverable_type", "custom"),
+            type_config=deliverable.get("type_config"),
             project_id=deliverable.get("project_id"),
             recipient_context=deliverable.get("recipient_context"),
-            template_structure=deliverable.get("template_structure"),
             schedule=deliverable["schedule"],
             sources=deliverable.get("sources", []),
             status=deliverable["status"],
@@ -325,6 +481,9 @@ async def get_deliverable(
             last_run_at=deliverable.get("last_run_at"),
             next_run_at=deliverable.get("next_run_at"),
             version_count=len(versions),
+            # Legacy
+            description=deliverable.get("description"),
+            template_structure=deliverable.get("template_structure"),
         ),
         "versions": [
             VersionResponse(
@@ -372,12 +531,17 @@ async def update_deliverable(
 
     if request.title is not None:
         update_data["title"] = request.title
-    if request.description is not None:
-        update_data["description"] = request.description
+    if request.deliverable_type is not None:
+        update_data["deliverable_type"] = request.deliverable_type
+        # If type changes but no new config provided, reset to defaults
+        if request.type_config is None:
+            update_data["type_config"] = get_default_config(request.deliverable_type)
+    if request.type_config is not None:
+        # Validate against current or new type
+        target_type = request.deliverable_type or check.data.get("deliverable_type", "custom")
+        update_data["type_config"] = validate_type_config(target_type, request.type_config)
     if request.recipient_context is not None:
         update_data["recipient_context"] = request.recipient_context.model_dump()
-    if request.template_structure is not None:
-        update_data["template_structure"] = request.template_structure.model_dump()
     if request.schedule is not None:
         update_data["schedule"] = request.schedule.model_dump()
         update_data["next_run_at"] = calculate_next_run(request.schedule)
@@ -385,6 +549,11 @@ async def update_deliverable(
         update_data["sources"] = [s.model_dump() for s in request.sources]
     if request.status is not None:
         update_data["status"] = request.status
+    # Legacy fields
+    if request.description is not None:
+        update_data["description"] = request.description
+    if request.template_structure is not None:
+        update_data["template_structure"] = request.template_structure.model_dump()
 
     result = (
         auth.client.table("deliverables")
@@ -401,10 +570,10 @@ async def update_deliverable(
     return DeliverableResponse(
         id=d["id"],
         title=d["title"],
-        description=d.get("description"),
+        deliverable_type=d.get("deliverable_type", "custom"),
+        type_config=d.get("type_config"),
         project_id=d.get("project_id"),
         recipient_context=d.get("recipient_context"),
-        template_structure=d.get("template_structure"),
         schedule=d["schedule"],
         sources=d.get("sources", []),
         status=d["status"],
@@ -412,6 +581,9 @@ async def update_deliverable(
         updated_at=d["updated_at"],
         last_run_at=d.get("last_run_at"),
         next_run_at=d.get("next_run_at"),
+        # Legacy
+        description=d.get("description"),
+        template_structure=d.get("template_structure"),
     )
 
 
@@ -713,6 +885,33 @@ async def update_version(
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dict:
+    """
+    Validate and normalize type_config for a given deliverable type.
+    Returns the validated config dict.
+    """
+    try:
+        if deliverable_type == "status_report":
+            validated = StatusReportConfig(**config)
+        elif deliverable_type == "stakeholder_update":
+            validated = StakeholderUpdateConfig(**config)
+        elif deliverable_type == "research_brief":
+            validated = ResearchBriefConfig(**config)
+        elif deliverable_type == "meeting_summary":
+            validated = MeetingSummaryConfig(**config)
+        elif deliverable_type == "custom":
+            validated = CustomConfig(**config)
+        else:
+            # Unknown type, treat as custom
+            validated = CustomConfig(description=str(config.get("description", "")))
+
+        return validated.model_dump()
+    except Exception as e:
+        logger.warning(f"[DELIVERABLE] Invalid type_config for {deliverable_type}: {e}")
+        # Return a default config on validation failure
+        return get_default_config(deliverable_type)
+
 
 def calculate_next_run(schedule: ScheduleConfig) -> str:
     """

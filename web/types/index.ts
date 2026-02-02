@@ -262,12 +262,102 @@ export interface PortalResponse {
 
 // =============================================================================
 // ADR-018: Recurring Deliverables
+// ADR-019: Deliverable Types System
 // =============================================================================
 
 export type DeliverableStatus = "active" | "paused" | "archived";
 export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected";
 export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
 export type DataSourceType = "url" | "document" | "description";
+
+// ADR-019: Deliverable Types
+export type DeliverableType =
+  | "status_report"
+  | "stakeholder_update"
+  | "research_brief"
+  | "meeting_summary"
+  | "custom";
+
+// Type-specific section configurations
+export interface StatusReportSections {
+  summary: boolean;
+  accomplishments: boolean;
+  blockers: boolean;
+  next_steps: boolean;
+  metrics: boolean;
+}
+
+export interface StakeholderUpdateSections {
+  executive_summary: boolean;
+  highlights: boolean;
+  challenges: boolean;
+  metrics: boolean;
+  outlook: boolean;
+}
+
+export interface ResearchBriefSections {
+  key_takeaways: boolean;
+  findings: boolean;
+  implications: boolean;
+  recommendations: boolean;
+}
+
+export interface MeetingSummarySections {
+  context: boolean;
+  discussion: boolean;
+  decisions: boolean;
+  action_items: boolean;
+  followups: boolean;
+}
+
+// Type-specific configurations
+export interface StatusReportConfig {
+  subject: string;
+  audience: "manager" | "stakeholders" | "team" | "executive";
+  sections: StatusReportSections;
+  detail_level: "brief" | "standard" | "detailed";
+  tone: "formal" | "conversational";
+}
+
+export interface StakeholderUpdateConfig {
+  audience_type: "investor" | "board" | "client" | "executive";
+  company_or_project: string;
+  relationship_context?: string;
+  sections: StakeholderUpdateSections;
+  formality: "formal" | "professional" | "conversational";
+  sensitivity: "public" | "confidential";
+}
+
+export interface ResearchBriefConfig {
+  focus_area: "competitive" | "market" | "technology" | "industry";
+  subjects: string[];
+  purpose?: string;
+  sections: ResearchBriefSections;
+  depth: "scan" | "analysis" | "deep_dive";
+}
+
+export interface MeetingSummaryConfig {
+  meeting_name: string;
+  meeting_type: "team_sync" | "one_on_one" | "standup" | "review" | "planning";
+  participants: string[];
+  sections: MeetingSummarySections;
+  format: "narrative" | "bullet_points" | "structured";
+}
+
+export interface CustomConfig {
+  description: string;
+  structure_notes?: string;
+  example_content?: string;
+}
+
+// Union type for type_config - use Record for flexibility with partial configs
+export type TypeConfig =
+  | StatusReportConfig
+  | StakeholderUpdateConfig
+  | ResearchBriefConfig
+  | MeetingSummaryConfig
+  | CustomConfig
+  | Record<string, unknown>;
 
 export interface RecipientContext {
   name?: string;
@@ -300,10 +390,10 @@ export interface DataSource {
 export interface Deliverable {
   id: string;
   title: string;
-  description?: string;
+  deliverable_type: DeliverableType;
+  type_config?: TypeConfig;
   project_id?: string;
   recipient_context?: RecipientContext;
-  template_structure?: TemplateStructure;
   schedule: ScheduleConfig;
   sources: DataSource[];
   status: DeliverableStatus;
@@ -313,26 +403,35 @@ export interface Deliverable {
   next_run_at?: string;
   version_count?: number;
   latest_version_status?: VersionStatus;
+  // Legacy fields (for backwards compatibility)
+  description?: string;
+  template_structure?: TemplateStructure;
 }
 
 export interface DeliverableCreate {
   title: string;
-  description?: string;
+  deliverable_type?: DeliverableType;
+  type_config?: TypeConfig;
   project_id?: string;
   recipient_context?: RecipientContext;
-  template_structure?: TemplateStructure;
   schedule: ScheduleConfig;
   sources?: DataSource[];
+  // Legacy fields
+  description?: string;
+  template_structure?: TemplateStructure;
 }
 
 export interface DeliverableUpdate {
   title?: string;
-  description?: string;
+  deliverable_type?: DeliverableType;
+  type_config?: TypeConfig;
   recipient_context?: RecipientContext;
-  template_structure?: TemplateStructure;
   schedule?: ScheduleConfig;
   sources?: DataSource[];
   status?: DeliverableStatus;
+  // Legacy fields
+  description?: string;
+  template_structure?: TemplateStructure;
 }
 
 export interface DeliverableVersion {

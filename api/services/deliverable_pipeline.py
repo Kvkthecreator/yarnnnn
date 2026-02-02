@@ -2,23 +2,509 @@
 Deliverable Pipeline Execution Service
 
 ADR-018: Recurring Deliverables Product Pivot
+ADR-019: Deliverable Types System
 
 Implements the 3-step chained pipeline:
 1. Gather - Research agent pulls latest context from sources
-2. Synthesize - Content agent produces the deliverable
-3. Stage - Format and notify user for review
+2. Synthesize - Content agent produces the deliverable (type-aware)
+3. Stage - Validate and notify user for review
 
 Each step creates a work ticket with dependency chaining.
+Type-specific prompts and validation ensure quality for each deliverable type.
 """
 
 import logging
 import json
+import re
 from datetime import datetime
-from typing import Optional
+from typing import Optional, Literal
 
 from services.work_execution import execute_work_ticket
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ADR-019: Type-Specific Prompt Templates
+# =============================================================================
+
+TYPE_PROMPTS = {
+    "status_report": """You are writing a {detail_level} status report for {audience}.
+
+Subject: {subject}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+TONE: {tone}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Write in {tone} tone appropriate for {audience}
+- Be specific with accomplishments - use concrete examples
+- Keep blockers actionable - suggest next steps when possible
+- Length target: {length_guidance}
+- Do NOT invent specific dates, numbers, or metrics not in the context
+
+Write the status report now:""",
+
+    "stakeholder_update": """You are writing a {formality} stakeholder update for {audience_type}.
+
+Company/Project: {company_or_project}
+Relationship Context: {relationship_context}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+SENSITIVITY: {sensitivity} information
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Maintain a {formality} tone throughout
+- Lead with the executive summary - 2-3 sentences capturing the essence
+- Balance highlights with challenges - avoid pure positive spin
+- Make the outlook section actionable with clear next steps
+- Do NOT include specific financials unless explicitly provided in context
+
+Write the stakeholder update now:""",
+
+    "research_brief": """You are writing a {depth} research brief on {focus_area} intelligence.
+
+SUBJECTS TO COVER:
+{subjects_list}
+
+PURPOSE: {purpose}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Key takeaways should be actionable, not just summaries
+- Findings must be specific and tied to sources when possible
+- Connect implications to the user's context and purpose
+- Recommendations should be concrete and prioritized
+- Depth level: {depth} (scan: 300-500 words, analysis: 500-1000, deep_dive: 1000+)
+
+Write the research brief now:""",
+
+    "meeting_summary": """You are writing a {format} summary for: {meeting_name}
+
+Meeting Type: {meeting_type}
+Participants: {participants}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Action items MUST have clear owners when possible
+- Decisions should be explicitly stated, not implied
+- Discussion points should be substantive, not filler
+- Format: {format} (narrative, bullet_points, or structured)
+- Keep it concise but complete
+
+Write the meeting summary now:""",
+
+    "custom": """Produce the following deliverable: {title}
+
+DESCRIPTION:
+{description}
+
+{structure_notes}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Follow any structure guidelines provided above
+- Maintain appropriate professional tone
+- Be thorough but concise
+
+Write the deliverable now:""",
+}
+
+
+# Section templates for each type
+SECTION_TEMPLATES = {
+    "status_report": {
+        "summary": "Summary/TL;DR - Brief overview of the current state",
+        "accomplishments": "Accomplishments - What was completed this period",
+        "blockers": "Blockers/Challenges - Issues impeding progress",
+        "next_steps": "Next Steps - Planned work for the upcoming period",
+        "metrics": "Key Metrics - Relevant numbers and measurements",
+    },
+    "stakeholder_update": {
+        "executive_summary": "Executive Summary - The key message in 2-3 sentences",
+        "highlights": "Key Highlights - Major wins and positive developments",
+        "challenges": "Challenges & Mitigations - Issues and how they're being addressed",
+        "metrics": "Metrics Snapshot - Key performance indicators",
+        "outlook": "Outlook - Focus areas for the next period",
+    },
+    "research_brief": {
+        "key_takeaways": "Key Takeaways - The most important actionable insights",
+        "findings": "Findings - Detailed research results by topic/subject",
+        "implications": "Implications - What these findings mean for the business",
+        "recommendations": "Recommendations - Suggested actions based on the research",
+    },
+    "meeting_summary": {
+        "context": "Meeting Context - Purpose and attendees",
+        "discussion": "Key Discussion Points - Main topics covered",
+        "decisions": "Decisions Made - Explicit agreements reached",
+        "action_items": "Action Items - Tasks with owners and deadlines",
+        "followups": "Follow-ups - Topics for the next meeting",
+    },
+}
+
+
+# Length guidance by detail level
+LENGTH_GUIDANCE = {
+    "brief": "200-400 words - concise and to the point",
+    "standard": "400-800 words - balanced detail",
+    "detailed": "800-1500 words - comprehensive coverage",
+    "scan": "300-500 words - quick overview",
+    "analysis": "500-1000 words - moderate depth",
+    "deep_dive": "1000+ words - thorough exploration",
+}
+
+
+def build_sections_list(deliverable_type: str, config: dict) -> str:
+    """Build formatted sections list based on enabled sections in config."""
+    sections = config.get("sections", {})
+    templates = SECTION_TEMPLATES.get(deliverable_type, {})
+
+    enabled = []
+    for section_key, is_enabled in sections.items():
+        if is_enabled and section_key in templates:
+            enabled.append(f"- {templates[section_key]}")
+
+    if not enabled:
+        # Default to all sections if none specified
+        enabled = [f"- {desc}" for desc in templates.values()]
+
+    return "\n".join(enabled)
+
+
+def build_type_prompt(
+    deliverable_type: str,
+    config: dict,
+    deliverable: dict,
+    gathered_context: str,
+    recipient_text: str,
+    past_versions: str,
+) -> str:
+    """Build the type-specific synthesis prompt."""
+
+    template = TYPE_PROMPTS.get(deliverable_type, TYPE_PROMPTS["custom"])
+
+    # Common fields
+    fields = {
+        "gathered_context": gathered_context,
+        "recipient_context": recipient_text,
+        "past_versions": past_versions,
+        "title": deliverable.get("title", "Deliverable"),
+    }
+
+    if deliverable_type == "status_report":
+        fields.update({
+            "subject": config.get("subject", deliverable.get("title", "")),
+            "audience": config.get("audience", "stakeholders"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "detail_level": config.get("detail_level", "standard"),
+            "tone": config.get("tone", "formal"),
+            "length_guidance": LENGTH_GUIDANCE.get(
+                config.get("detail_level", "standard"),
+                "400-800 words"
+            ),
+        })
+
+    elif deliverable_type == "stakeholder_update":
+        fields.update({
+            "audience_type": config.get("audience_type", "stakeholders"),
+            "company_or_project": config.get("company_or_project", deliverable.get("title", "")),
+            "relationship_context": config.get("relationship_context", "N/A"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "formality": config.get("formality", "professional"),
+            "sensitivity": config.get("sensitivity", "confidential"),
+        })
+
+    elif deliverable_type == "research_brief":
+        subjects = config.get("subjects", [])
+        fields.update({
+            "focus_area": config.get("focus_area", "market"),
+            "subjects_list": "\n".join(f"- {s}" for s in subjects) if subjects else "- General research",
+            "purpose": config.get("purpose", "Inform decision-making"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "depth": config.get("depth", "analysis"),
+        })
+
+    elif deliverable_type == "meeting_summary":
+        participants = config.get("participants", [])
+        fields.update({
+            "meeting_name": config.get("meeting_name", deliverable.get("title", "")),
+            "meeting_type": config.get("meeting_type", "team_sync"),
+            "participants": ", ".join(participants) if participants else "Team members",
+            "sections_list": build_sections_list(deliverable_type, config),
+            "format": config.get("format", "structured"),
+        })
+
+    else:  # custom
+        fields.update({
+            "description": config.get("description", deliverable.get("description", "")),
+            "structure_notes": f"STRUCTURE NOTES:\n{config.get('structure_notes', '')}" if config.get("structure_notes") else "",
+        })
+
+    # Format the template
+    try:
+        return template.format(**fields)
+    except KeyError as e:
+        logger.warning(f"Missing field in prompt template: {e}")
+        # Fall back to custom template
+        return TYPE_PROMPTS["custom"].format(**{
+            "title": deliverable.get("title", "Deliverable"),
+            "description": config.get("description", ""),
+            "structure_notes": "",
+            "gathered_context": gathered_context,
+            "recipient_context": recipient_text,
+            "past_versions": past_versions,
+        })
+
+
+# =============================================================================
+# ADR-019: Validation Functions
+# =============================================================================
+
+def validate_status_report(content: str, config: dict) -> dict:
+    """Validate a status report output."""
+    issues = []
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    content_lower = content.lower()
+
+    # Check required sections are present
+    section_keywords = {
+        "summary": ["summary", "tl;dr", "overview", "at a glance"],
+        "accomplishments": ["accomplishments", "completed", "achieved", "done", "wins"],
+        "blockers": ["blockers", "challenges", "issues", "obstacles", "risks"],
+        "next_steps": ["next steps", "upcoming", "planned", "looking ahead", "next week"],
+        "metrics": ["metrics", "numbers", "kpis", "data", "performance"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check length
+    word_count = len(content.split())
+    detail_level = config.get("detail_level", "standard")
+    expected = {
+        "brief": (200, 500),
+        "standard": (400, 1000),
+        "detailed": (800, 2000),
+    }
+    min_words, max_words = expected.get(detail_level, (400, 1000))
+
+    if word_count < min_words * 0.7:  # 30% tolerance
+        issues.append(f"Too short: {word_count} words (expected {min_words}+)")
+    if word_count > max_words * 1.5:
+        issues.append(f"Too long: {word_count} words (expected ~{max_words})")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_stakeholder_update(content: str, config: dict) -> dict:
+    """Validate a stakeholder update output."""
+    issues = []
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    content_lower = content.lower()
+
+    section_keywords = {
+        "executive_summary": ["executive summary", "summary", "overview", "at a glance"],
+        "highlights": ["highlights", "wins", "achievements", "key developments"],
+        "challenges": ["challenges", "obstacles", "issues", "mitigations"],
+        "metrics": ["metrics", "numbers", "kpis", "performance"],
+        "outlook": ["outlook", "looking ahead", "next period", "focus areas"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check for executive summary at the start
+    if "executive_summary" in required_sections:
+        # Should appear in first 20% of content
+        first_portion = content[:len(content) // 5].lower()
+        if not any(kw in first_portion for kw in ["summary", "overview"]):
+            issues.append("Executive summary should appear at the beginning")
+
+    # Check word count (stakeholder updates should be substantial)
+    word_count = len(content.split())
+    if word_count < 300:
+        issues.append(f"Too brief for stakeholder update: {word_count} words (expected 300+)")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_research_brief(content: str, config: dict) -> dict:
+    """Validate a research brief output."""
+    issues = []
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    content_lower = content.lower()
+
+    section_keywords = {
+        "key_takeaways": ["key takeaways", "takeaways", "key findings", "main points"],
+        "findings": ["findings", "research shows", "analysis reveals", "discovered"],
+        "implications": ["implications", "means for", "impact", "consequences"],
+        "recommendations": ["recommendations", "suggest", "recommend", "action items"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check depth/length
+    word_count = len(content.split())
+    depth = config.get("depth", "analysis")
+    expected = {
+        "scan": (250, 600),
+        "analysis": (400, 1200),
+        "deep_dive": (800, 2500),
+    }
+    min_words, max_words = expected.get(depth, (400, 1200))
+
+    if word_count < min_words * 0.7:
+        issues.append(f"Too shallow for {depth}: {word_count} words (expected {min_words}+)")
+
+    # Check for generic/vague content
+    vague_phrases = ["it is important", "various factors", "many aspects", "in general"]
+    vague_count = sum(1 for phrase in vague_phrases if phrase in content_lower)
+    if vague_count > 3:
+        issues.append("Content may be too generic - add more specific insights")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_meeting_summary(content: str, config: dict) -> dict:
+    """Validate a meeting summary output."""
+    issues = []
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    content_lower = content.lower()
+
+    section_keywords = {
+        "context": ["attendees", "context", "purpose", "participants"],
+        "discussion": ["discussed", "discussion", "talked about", "covered"],
+        "decisions": ["decisions", "decided", "agreed", "resolved"],
+        "action_items": ["action items", "action:", "todo", "next steps", "assigned"],
+        "followups": ["follow-up", "followup", "next meeting", "parking lot"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check that action items have owners (look for @ or name patterns)
+    if "action_items" in required_sections:
+        action_section = re.search(
+            r'action items?.*?(?=\n[A-Z]|\n##|\Z)',
+            content,
+            re.IGNORECASE | re.DOTALL
+        )
+        if action_section:
+            action_text = action_section.group()
+            # Look for owner patterns: "@name", "Name:", "[Name]", "(Name)"
+            has_owners = bool(re.search(r'[@\[\(]?\b[A-Z][a-z]+\b[\]\)]?:', action_text))
+            if not has_owners and len(action_text) > 50:
+                issues.append("Action items should have assigned owners")
+
+    # Word count check
+    word_count = len(content.split())
+    if word_count < 150:
+        issues.append(f"Too brief: {word_count} words (expected 150+)")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_custom(content: str, config: dict) -> dict:
+    """Validate a custom deliverable - minimal validation."""
+    issues = []
+
+    word_count = len(content.split())
+    if word_count < 50:
+        issues.append(f"Content too short: {word_count} words")
+
+    # Custom deliverables get a neutral score
+    score = 0.6 if len(issues) == 0 else 0.4
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
+    """
+    Validate generated content based on deliverable type.
+
+    Returns:
+        {
+            "valid": bool,
+            "issues": list[str],
+            "score": float  # 0.0 to 1.0
+        }
+    """
+    validators = {
+        "status_report": validate_status_report,
+        "stakeholder_update": validate_stakeholder_update,
+        "research_brief": validate_research_brief,
+        "meeting_summary": validate_meeting_summary,
+        "custom": validate_custom,
+    }
+
+    validator = validators.get(deliverable_type, validate_custom)
+    return validator(content, config)
 
 
 async def execute_deliverable_pipeline(
@@ -273,21 +759,20 @@ async def execute_synthesize_step(
     """
     Step 2: Synthesize the deliverable content.
 
-    Uses content agent with gathered context, template structure,
-    recipient context, and learned preferences from past versions.
+    ADR-019: Uses type-specific prompts based on deliverable_type and type_config.
+    Falls back to generic prompt for legacy deliverables without type.
     """
     title = deliverable.get("title", "Deliverable")
-    template = deliverable.get("template_structure", {})
     recipient = deliverable.get("recipient_context", {})
+
+    # ADR-019: Get deliverable type and config
+    deliverable_type = deliverable.get("deliverable_type", "custom")
+    type_config = deliverable.get("type_config", {})
 
     # Get past versions for preference learning
     past_versions = await get_past_versions_context(client, deliverable["id"])
 
-    # Build synthesis prompt
-    sections_text = ""
-    if template.get("sections"):
-        sections_text = "Expected sections:\n" + "\n".join(f"- {s}" for s in template["sections"])
-
+    # Build recipient context text
     recipient_text = ""
     if recipient:
         recipient_parts = []
@@ -297,27 +782,22 @@ async def execute_synthesize_step(
             recipient_parts.append(f"Role: {recipient['role']}")
         if recipient.get("priorities"):
             recipient_parts.append(f"Key priorities: {', '.join(recipient['priorities'])}")
-        recipient_text = "\n".join(recipient_parts)
+        if recipient.get("notes"):
+            recipient_parts.append(f"Notes: {recipient['notes']}")
+        if recipient_parts:
+            recipient_text = "RECIPIENT CONTEXT:\n" + "\n".join(recipient_parts)
 
-    length_guidance = template.get("typical_length", "appropriate length")
-    tone_guidance = template.get("tone", "professional")
+    # ADR-019: Build type-specific prompt
+    synthesize_prompt = build_type_prompt(
+        deliverable_type=deliverable_type,
+        config=type_config,
+        deliverable=deliverable,
+        gathered_context=gathered_context,
+        recipient_text=recipient_text,
+        past_versions=past_versions,
+    )
 
-    synthesize_prompt = f"""Produce the following deliverable: {title}
-
-{recipient_text}
-
-{sections_text}
-
-Tone: {tone_guidance}
-Length: {length_guidance}
-
-GATHERED CONTEXT:
-{gathered_context}
-
-{past_versions}
-
-Based on the gathered context and the guidelines above, produce the complete deliverable.
-Make it ready for review and delivery to the recipient."""
+    logger.info(f"[SYNTHESIZE] Using type-specific prompt for type={deliverable_type}")
 
     # Create work ticket with dependency
     ticket_data = {
@@ -387,10 +867,35 @@ async def execute_stage_step(
     """
     Step 3: Stage the deliverable for review.
 
+    ADR-019: Runs type-specific validation before staging.
     Updates version with draft content and sets status to 'staged'.
-    Triggers notification to user (via existing email infrastructure).
+    Stores validation results for quality tracking.
     """
-    # Update version
+    # ADR-019: Run type-specific validation
+    deliverable_type = deliverable.get("deliverable_type", "custom")
+    type_config = deliverable.get("type_config", {})
+
+    validation_result = validate_output(deliverable_type, draft_content, type_config)
+
+    logger.info(
+        f"[STAGE] Validation for type={deliverable_type}: "
+        f"valid={validation_result['valid']}, score={validation_result['score']:.2f}, "
+        f"issues={validation_result['issues']}"
+    )
+
+    # Store validation result
+    try:
+        client.table("deliverable_validation_results").insert({
+            "version_id": version_id,
+            "is_valid": validation_result["valid"],
+            "validation_score": validation_result["score"],
+            "issues": json.dumps(validation_result["issues"]),
+            "validator_version": "1.0.0",  # Track validation logic version
+        }).execute()
+    except Exception as e:
+        logger.warning(f"[STAGE] Failed to store validation result: {e}")
+
+    # Update version with draft content
     update_result = (
         client.table("deliverable_versions")
         .update({
@@ -410,7 +915,10 @@ async def execute_stage_step(
     # For now, just log it
     logger.info(f"[STAGE] Version {version_id} staged for review")
 
-    return {"success": True}
+    return {
+        "success": True,
+        "validation": validation_result,
+    }
 
 
 async def get_past_versions_context(client, deliverable_id: str) -> str:
