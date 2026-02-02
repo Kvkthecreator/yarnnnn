@@ -1,6 +1,7 @@
 # Implementation Status & Next Steps
 
 **Date:** 2026-02-02
+**Last Updated:** 2026-02-02 (quality metrics, cleanup)
 **Reference:** [DELIVERABLES_IMPLEMENTATION_PLAN.md](DELIVERABLES_IMPLEMENTATION_PLAN.md), [Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md)
 
 ---
@@ -38,12 +39,13 @@
 | Inline TP refinements | ✅ | Quick chips + custom instructions (ADR-020) |
 | Staging notifications | ⚠️ Partial | Email infra exists, notification trigger TBD |
 
-### Phase 4: Dashboard + Quality Tracking ✅ MOSTLY COMPLETE
+### Phase 4: Dashboard + Quality Tracking ✅ COMPLETE
 
 | Task | Status | Evidence |
 |------|--------|----------|
 | Dashboard API | ✅ | `GET /deliverables` with aggregation |
-| Quality metrics service | ⚠️ Partial | Distance score exists, trend calculation TBD |
+| Quality metrics service | ✅ | Trend calculation in deliverables.py list endpoint |
+| Quality display in UI | ✅ | `DeliverableCard.tsx` shows quality % and trend |
 | Deliverables dashboard | ✅ | `web/components/deliverables/DeliverablesDashboard.tsx` |
 | Deliverable detail view | ✅ | `web/components/deliverables/DeliverableDetail.tsx` |
 | Navigation update | ✅ | `/dashboard/deliverables` is primary |
@@ -85,10 +87,9 @@ The implementation now reflects the [Supervision Model](../design/DESIGN-PRINCIP
 
 ### High Priority - Core Loop Completion
 
-1. **Quality trend calculation** (Phase 4)
-   - Compute edit_distance trend over last 5 versions
-   - Display trend indicator on deliverable cards
-   - Files: `api/routes/deliverables.py`, `DeliverableCard.tsx`
+1. ~~**Quality trend calculation** (Phase 4)~~ ✅ DONE
+   - ~~Compute edit_distance trend over last 5 versions~~
+   - ~~Display trend indicator on deliverable cards~~
 
 2. **Staging notifications** (Phase 3)
    - Email notification when version is staged for review
