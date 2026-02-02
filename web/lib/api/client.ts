@@ -468,6 +468,49 @@ export const api = {
         }
       ),
   },
+
+  // Account management (Danger Zone operations)
+  account: {
+    // Get stats for danger zone (counts of what will be affected)
+    getDangerZoneStats: () =>
+      request<{
+        chat_sessions: number;
+        memories: number;
+        deliverables: number;
+        deliverable_versions: number;
+        documents: number;
+        projects: number;
+        workspaces: number;
+      }>("/api/account/danger-zone/stats"),
+
+    // Clear all chat history
+    clearChatHistory: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/chat-history",
+        { method: "DELETE" }
+      ),
+
+    // Delete all deliverables
+    deleteAllDeliverables: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/deliverables",
+        { method: "DELETE" }
+      ),
+
+    // Full account reset (keeps account, deletes all data)
+    resetAccount: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/reset",
+        { method: "DELETE" }
+      ),
+
+    // Deactivate account (permanent deletion)
+    deactivateAccount: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/deactivate",
+        { method: "DELETE" }
+      ),
+  },
 };
 
 export default api;

@@ -1,0 +1,177 @@
+#!/usr/bin/env python3
+"""
+Purge all data for a specific user to test cold-start/onboarding flow.
+
+Usage:
+    cd /Users/macbook/yarnnn/api
+    python scripts/purge_user_data.py seulkim88@gmail.com
+
+This will:
+1. Delete all deliverable_versions for user's deliverables
+2. Delete all deliverables
+3. Delete all chat_sessions (and cascade to session_messages)
+4. Delete all memories (user + project-scoped)
+5. Delete all documents
+6. Delete all projects
+7. Delete all workspaces
+
+WARNING: This is destructive and cannot be undone!
+"""
+
+import os
+import sys
+from pathlib import Path
+from typing import Optional, List
+
+# Add parent to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from dotenv import load_dotenv
+load_dotenv()
+
+from supabase import create_client
+
+
+def get_service_client():
+    """Get Supabase client with service role key (bypasses RLS)."""
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_KEY")
+
+    if not url or not key:
+        raise ValueError("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")
+
+    return create_client(url, key)
+
+
+def get_user_id_by_email(client, email: str) -> Optional[str]:
+    """Look up user ID from auth.users by email."""
+    try:
+        users = client.auth.admin.list_users()
+        for user in users:
+            if user.email == email:
+                return user.id
+    except Exception as e:
+        print(f"Error looking up user: {e}")
+    return None
+
+
+def purge_user_data(email: str, dry_run: bool = False):
+    """Purge all data for a user to reset to cold-start state."""
+    client = get_service_client()
+
+    # Find the user_id
+    print(f"\n🔍 Looking up user: {email}")
+    user_id = get_user_id_by_email(client, email)
+
+    if not user_id:
+        print(f"✗ Could not find user with email: {email}")
+        return
+
+    print(f"✓ Found user_id: {user_id}")
+    action = "Would delete" if dry_run else "Deleting"
+
+    # 1. Get workspace IDs (user owns workspaces via owner_id)
+    print(f"\n📂 Fetching workspaces...")
+    workspaces = client.table("workspaces").select("id, name").eq("owner_id", user_id).execute()
+    workspace_ids = [w["id"] for w in (workspaces.data or [])]
+    print(f"   Found {len(workspace_ids)} workspaces")
+
+    # 2. Get project IDs (projects belong to workspaces)
+    project_ids: List[str] = []
+    if workspace_ids:
+        print(f"\n📁 Fetching projects...")
+        for wid in workspace_ids:
+            projects = client.table("projects").select("id, name").eq("workspace_id", wid).execute()
+            project_ids.extend([p["id"] for p in (projects.data or [])])
+        print(f"   Found {len(project_ids)} projects")
+
+    # 3. Delete deliverable_versions and deliverables
+    print(f"\n📦 Fetching deliverables...")
+    deliverables = client.table("deliverables").select("id, title").eq("user_id", user_id).execute()
+    deliverable_ids = [d["id"] for d in (deliverables.data or [])]
+    print(f"   Found {len(deliverable_ids)} deliverables")
+
+    if deliverable_ids:
+        print(f"\n🗑️  {action} deliverable_versions...")
+        for did in deliverable_ids:
+            if not dry_run:
+                client.table("deliverable_versions").delete().eq("deliverable_id", did).execute()
+            print(f"   - Versions for {did[:8]}...")
+
+    print(f"\n🗑️  {action} deliverables...")
+    if not dry_run:
+        result = client.table("deliverables").delete().eq("user_id", user_id).execute()
+        print(f"   Deleted {len(result.data or [])} deliverables")
+    else:
+        print(f"   Would delete {len(deliverable_ids)} deliverables")
+
+    # 4. Delete chat_sessions (session_messages cascade automatically)
+    print(f"\n🗑️  {action} chat_sessions...")
+    if not dry_run:
+        result = client.table("chat_sessions").delete().eq("user_id", user_id).execute()
+        print(f"   Deleted {len(result.data or [])} chat sessions (messages cascade)")
+    else:
+        sessions = client.table("chat_sessions").select("id").eq("user_id", user_id).execute()
+        print(f"   Would delete {len(sessions.data or [])} chat sessions")
+
+    # 5. Delete memories
+    print(f"\n🗑️  {action} memories...")
+    if not dry_run:
+        # User memories
+        result = client.table("memories").delete().eq("user_id", user_id).execute()
+        print(f"   Deleted {len(result.data or [])} memories")
+    else:
+        memories = client.table("memories").select("id").eq("user_id", user_id).execute()
+        print(f"   Would delete {len(memories.data or [])} memories")
+
+    # 6. Delete documents (belong to projects)
+    if project_ids:
+        print(f"\n🗑️  {action} documents...")
+        for pid in project_ids:
+            if not dry_run:
+                result = client.table("documents").delete().eq("project_id", pid).execute()
+                if result.data:
+                    print(f"   - {len(result.data)} documents from project {pid[:8]}...")
+            else:
+                print(f"   - Documents for project {pid[:8]}...")
+
+    # 7. Delete projects (documents cascade if FK set up)
+    if project_ids:
+        print(f"\n🗑️  {action} projects...")
+        for pid in project_ids:
+            if not dry_run:
+                client.table("projects").delete().eq("id", pid).execute()
+        print(f"   {'Would delete' if dry_run else 'Deleted'} {len(project_ids)} projects")
+
+    # 8. Delete workspaces (projects cascade if FK set up)
+    if workspace_ids:
+        print(f"\n🗑️  {action} workspaces...")
+        for wid in workspace_ids:
+            if not dry_run:
+                client.table("workspaces").delete().eq("id", wid).execute()
+        print(f"   {'Would delete' if dry_run else 'Deleted'} {len(workspace_ids)} workspaces")
+
+    print(f"\n{'🔍 DRY RUN COMPLETE' if dry_run else '✅ PURGE COMPLETE'}")
+    print(f"User {email} is now in cold-start state (zero deliverables, no chat history).")
+
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python purge_user_data.py <email> [--dry-run]")
+        print("\nExample:")
+        print("  python scripts/purge_user_data.py seulkim88@gmail.com --dry-run")
+        print("  python scripts/purge_user_data.py seulkim88@gmail.com")
+        sys.exit(1)
+
+    email = sys.argv[1]
+    dry_run = "--dry-run" in sys.argv
+
+    if not dry_run:
+        print(f"\n⚠️  WARNING: This will permanently delete ALL data for {email}")
+        print("This includes: deliverables, chat history, memories, documents, projects, workspaces")
+        confirm = input("Type 'yes' to confirm: ")
+        if confirm.lower() != "yes":
+            print("Aborted.")
+            sys.exit(0)
+
+    purge_user_data(email, dry_run=dry_run)

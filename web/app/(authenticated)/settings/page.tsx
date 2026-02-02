@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import {
   Settings,
   Trash2,
@@ -13,6 +13,10 @@ import {
   FolderOpen,
   CreditCard,
   BarChart3,
+  MessageSquare,
+  FileText,
+  RefreshCw,
+  LogOut,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import type { Project } from "@/types";
@@ -20,6 +24,7 @@ import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { UsageIndicator } from "@/components/subscription/UpgradePrompt";
 import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
 import { SUBSCRIPTION_LIMITS } from "@/lib/subscription/limits";
+import { createClient } from "@/lib/supabase/client";
 
 interface MemoryStats {
   userMemories: number;
@@ -27,38 +32,53 @@ interface MemoryStats {
   totalMemories: number;
 }
 
-type SettingsTab = "memory" | "billing" | "usage";
+interface DangerZoneStats {
+  chat_sessions: number;
+  memories: number;
+  deliverables: number;
+  deliverable_versions: number;
+  documents: number;
+  projects: number;
+  workspaces: number;
+}
+
+type SettingsTab = "memory" | "billing" | "usage" | "account";
+type DangerAction = "memories" | "chat" | "deliverables" | "reset" | "deactivate" | null;
 
 export default function SettingsPage() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const tabParam = searchParams.get("tab");
-  const initialTab: SettingsTab = tabParam === "billing" ? "billing" : tabParam === "usage" ? "usage" : "memory";
+  const initialTab: SettingsTab =
+    tabParam === "billing" ? "billing" :
+    tabParam === "usage" ? "usage" :
+    tabParam === "account" ? "account" :
+    "memory";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [stats, setStats] = useState<MemoryStats | null>(null);
+  const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
   const [purgeTarget, setPurgeTarget] = useState<"user" | "project" | "all" | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
+  const [dangerAction, setDangerAction] = useState<DangerAction>(null);
   const [purgeSuccess, setPurgeSuccess] = useState<string | null>(null);
   const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(subscriptionSuccess);
-  const { tier, projects: projectsLimit, isPro } = useSubscriptionGate();
+  const { projects: projectsLimit, isPro } = useSubscriptionGate();
 
-  // Fetch stats on mount
+  // Fetch memory stats on mount
   useEffect(() => {
     async function fetchStats() {
       try {
-        // Fetch user memories
         const userMemories = await api.userMemories.list();
-
-        // Fetch projects
         const projectList = await api.projects.list();
         setProjects(projectList);
 
-        // Fetch project memories for each project
         const projectMemories = new Map<string, { name: string; count: number }>();
         let totalProjectMemories = 0;
 
@@ -90,7 +110,27 @@ export default function SettingsPage() {
     fetchStats();
   }, []);
 
-  const handlePurge = async () => {
+  // Fetch danger zone stats when account tab is active
+  useEffect(() => {
+    if (activeTab === "account") {
+      loadDangerZoneStats();
+    }
+  }, [activeTab]);
+
+  const loadDangerZoneStats = async () => {
+    setIsLoadingDangerStats(true);
+    try {
+      const stats = await api.account.getDangerZoneStats();
+      setDangerStats(stats);
+    } catch (err) {
+      console.error("Failed to fetch danger zone stats:", err);
+    } finally {
+      setIsLoadingDangerStats(false);
+    }
+  };
+
+  // Memory purge handler (existing)
+  const handleMemoryPurge = async () => {
     if (!purgeTarget) return;
 
     setIsPurging(true);
@@ -98,14 +138,12 @@ export default function SettingsPage() {
 
     try {
       if (purgeTarget === "user") {
-        // Delete all user memories
         const memories = await api.userMemories.list();
         for (const mem of memories) {
           await api.memories.delete(mem.id);
         }
         setPurgeSuccess(`Deleted ${memories.length} user memories`);
       } else if (purgeTarget === "project" && selectedProjectId) {
-        // Delete all memories for selected project
         const memories = await api.projectMemories.list(selectedProjectId);
         for (const mem of memories) {
           await api.memories.delete(mem.id);
@@ -113,12 +151,10 @@ export default function SettingsPage() {
         const projectName = stats?.projectMemories.get(selectedProjectId)?.name || "project";
         setPurgeSuccess(`Deleted ${memories.length} memories from ${projectName}`);
       } else if (purgeTarget === "all") {
-        // Delete all memories (user + all projects)
         const userMemories = await api.userMemories.list();
         for (const mem of userMemories) {
           await api.memories.delete(mem.id);
         }
-
         for (const project of projects) {
           const projectMemories = await api.projectMemories.list(project.id);
           for (const mem of projectMemories) {
@@ -128,7 +164,7 @@ export default function SettingsPage() {
         setPurgeSuccess(`Deleted all ${stats?.totalMemories || 0} memories`);
       }
 
-      // Refresh stats
+      // Refresh memory stats
       setIsLoading(true);
       const userMemories = await api.userMemories.list();
       const projectMemories = new Map<string, { name: string; count: number }>();
@@ -164,19 +200,72 @@ export default function SettingsPage() {
     }
   };
 
+  // Danger zone action handler
+  const handleDangerAction = async () => {
+    if (!dangerAction) return;
+
+    setIsPurging(true);
+    setPurgeSuccess(null);
+
+    try {
+      let result;
+      switch (dangerAction) {
+        case "chat":
+          result = await api.account.clearChatHistory();
+          setPurgeSuccess(result.message);
+          break;
+        case "deliverables":
+          result = await api.account.deleteAllDeliverables();
+          setPurgeSuccess(result.message);
+          break;
+        case "reset":
+          result = await api.account.resetAccount();
+          setPurgeSuccess(result.message);
+          // Redirect to dashboard after reset
+          setTimeout(() => router.push("/dashboard"), 2000);
+          break;
+        case "deactivate":
+          result = await api.account.deactivateAccount();
+          setPurgeSuccess(result.message);
+          // Sign out and redirect
+          const supabase = createClient();
+          await supabase.auth.signOut();
+          router.push("/");
+          break;
+      }
+      // Refresh danger zone stats
+      await loadDangerZoneStats();
+    } catch (err) {
+      console.error("Danger action failed:", err);
+      setPurgeSuccess("Operation failed. Please try again.");
+    } finally {
+      setIsPurging(false);
+      setShowConfirm(false);
+      setDangerAction(null);
+    }
+  };
+
   const initiateUserPurge = () => {
     setPurgeTarget("user");
+    setDangerAction("memories");
     setShowConfirm(true);
   };
 
   const initiateProjectPurge = (projectId: string) => {
     setPurgeTarget("project");
     setSelectedProjectId(projectId);
+    setDangerAction("memories");
     setShowConfirm(true);
   };
 
-  const initiateAllPurge = () => {
+  const initiateAllMemoryPurge = () => {
     setPurgeTarget("all");
+    setDangerAction("memories");
+    setShowConfirm(true);
+  };
+
+  const initiateDangerAction = (action: DangerAction) => {
+    setDangerAction(action);
     setShowConfirm(true);
   };
 
@@ -187,6 +276,14 @@ export default function SettingsPage() {
       return () => clearTimeout(timer);
     }
   }, [showSubscriptionSuccess]);
+
+  // Auto-dismiss purge success
+  useEffect(() => {
+    if (purgeSuccess) {
+      const timer = setTimeout(() => setPurgeSuccess(null), 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [purgeSuccess]);
 
   return (
     <div className="max-w-3xl mx-auto p-6">
@@ -211,10 +308,10 @@ export default function SettingsPage() {
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 mb-8 border-b border-border">
+      <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
         <button
           onClick={() => setActiveTab("memory")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "memory"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -227,7 +324,7 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => setActiveTab("billing")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "billing"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -240,7 +337,7 @@ export default function SettingsPage() {
         </button>
         <button
           onClick={() => setActiveTab("usage")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "usage"
               ? "border-primary text-foreground"
               : "border-transparent text-muted-foreground hover:text-foreground"
@@ -249,6 +346,19 @@ export default function SettingsPage() {
           <span className="flex items-center gap-2">
             <BarChart3 className="w-4 h-4" />
             Usage
+          </span>
+        </button>
+        <button
+          onClick={() => setActiveTab("account")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "account"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <User className="w-4 h-4" />
+            Account
           </span>
         </button>
       </div>
@@ -272,7 +382,6 @@ export default function SettingsPage() {
           </p>
 
           <div className="space-y-6">
-            {/* Projects */}
             <div className="p-4 border border-border rounded-lg">
               <h3 className="font-medium mb-3 flex items-center gap-2">
                 <FolderOpen className="w-4 h-4" />
@@ -287,7 +396,6 @@ export default function SettingsPage() {
               />
             </div>
 
-            {/* Memories */}
             <div className="p-4 border border-border rounded-lg">
               <h3 className="font-medium mb-3 flex items-center gap-2">
                 <Brain className="w-4 h-4" />
@@ -320,7 +428,6 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* Documents */}
             <div className="p-4 border border-border rounded-lg">
               <h3 className="font-medium mb-3 flex items-center gap-2">
                 <FolderOpen className="w-4 h-4" />
@@ -337,132 +444,275 @@ export default function SettingsPage() {
       {/* Memory Tab */}
       {activeTab === "memory" && (
         <>
-      {/* Memory Stats */}
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-          <Brain className="w-5 h-5" />
-          Memory Overview
-        </h2>
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+              <Brain className="w-5 h-5" />
+              Memory Overview
+            </h2>
 
-        {isLoading ? (
-          <div className="flex items-center justify-center py-8">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
-        ) : stats ? (
-          <div className="space-y-4">
-            {/* Summary Card */}
-            <div className="p-4 border border-border rounded-lg bg-muted/30">
-              <div className="text-3xl font-bold">{stats.totalMemories}</div>
-              <div className="text-sm text-muted-foreground">Total memories stored</div>
-            </div>
-
-            {/* User Memories */}
-            <div className="p-4 border border-border rounded-lg">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <User className="w-5 h-5 text-primary" />
-                  <div>
-                    <div className="font-medium">About You (User Memories)</div>
-                    <div className="text-sm text-muted-foreground">
-                      Portable across all projects
-                    </div>
-                  </div>
-                </div>
-                <div className="flex items-center gap-4">
-                  <span className="text-lg font-semibold">{stats.userMemories}</span>
-                  {stats.userMemories > 0 && (
-                    <button
-                      onClick={initiateUserPurge}
-                      className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-                      title="Delete all user memories"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+            {isLoading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
               </div>
-            </div>
-
-            {/* Project Memories */}
-            {projects.length > 0 && (
-              <div className="space-y-2">
-                <div className="text-sm font-medium text-muted-foreground px-1">
-                  Project Memories
+            ) : stats ? (
+              <div className="space-y-4">
+                <div className="p-4 border border-border rounded-lg bg-muted/30">
+                  <div className="text-3xl font-bold">{stats.totalMemories}</div>
+                  <div className="text-sm text-muted-foreground">Total memories stored</div>
                 </div>
-                {projects.map((project) => {
-                  const projectStats = stats.projectMemories.get(project.id);
-                  return (
-                    <div
-                      key={project.id}
-                      className="p-4 border border-border rounded-lg"
-                    >
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-3">
-                          <FolderOpen className="w-5 h-5 text-muted-foreground" />
-                          <div>
-                            <div className="font-medium">{project.name}</div>
-                            <div className="text-sm text-muted-foreground">
-                              Project-specific context
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-4">
-                          <span className="text-lg font-semibold">
-                            {projectStats?.count || 0}
-                          </span>
-                          {(projectStats?.count || 0) > 0 && (
-                            <button
-                              onClick={() => initiateProjectPurge(project.id)}
-                              className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-                              title={`Delete all memories from ${project.name}`}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </button>
-                          )}
+
+                <div className="p-4 border border-border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <User className="w-5 h-5 text-primary" />
+                      <div>
+                        <div className="font-medium">About You (User Memories)</div>
+                        <div className="text-sm text-muted-foreground">
+                          Portable across all projects
                         </div>
                       </div>
                     </div>
-                  );
-                })}
+                    <div className="flex items-center gap-4">
+                      <span className="text-lg font-semibold">{stats.userMemories}</span>
+                      {stats.userMemories > 0 && (
+                        <button
+                          onClick={initiateUserPurge}
+                          className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+                          title="Delete all user memories"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {projects.length > 0 && (
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium text-muted-foreground px-1">
+                      Project Memories
+                    </div>
+                    {projects.map((project) => {
+                      const projectStats = stats.projectMemories.get(project.id);
+                      return (
+                        <div key={project.id} className="p-4 border border-border rounded-lg">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                              <FolderOpen className="w-5 h-5 text-muted-foreground" />
+                              <div>
+                                <div className="font-medium">{project.name}</div>
+                                <div className="text-sm text-muted-foreground">
+                                  Project-specific context
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-4">
+                              <span className="text-lg font-semibold">
+                                {projectStats?.count || 0}
+                              </span>
+                              {(projectStats?.count || 0) > 0 && (
+                                <button
+                                  onClick={() => initiateProjectPurge(project.id)}
+                                  className="p-2 text-muted-foreground hover:text-destructive transition-colors"
+                                  title={`Delete all memories from ${project.name}`}
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
+            ) : (
+              <div className="text-muted-foreground">Failed to load memory stats</div>
             )}
-          </div>
-        ) : (
-          <div className="text-muted-foreground">Failed to load memory stats</div>
-        )}
-      </section>
+          </section>
 
-      {/* Danger Zone */}
-      <section className="mb-8">
-        <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-destructive">
-          <AlertTriangle className="w-5 h-5" />
-          Danger Zone
-        </h2>
+          {/* Memory Danger Zone */}
+          <section className="mb-8">
+            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-destructive">
+              <AlertTriangle className="w-5 h-5" />
+              Danger Zone
+            </h2>
 
-        <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="font-medium">Delete All Memories</div>
-              <div className="text-sm text-muted-foreground">
-                Permanently delete all user and project memories. This cannot be undone.
+            <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <div className="font-medium">Delete All Memories</div>
+                  <div className="text-sm text-muted-foreground">
+                    Permanently delete all user and project memories. This cannot be undone.
+                  </div>
+                </div>
+                <button
+                  onClick={initiateAllMemoryPurge}
+                  disabled={!stats || stats.totalMemories === 0}
+                  className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Delete All
+                </button>
               </div>
             </div>
-            <button
-              onClick={initiateAllPurge}
-              disabled={!stats || stats.totalMemories === 0}
-              className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              Delete All
-            </button>
-          </div>
-        </div>
-      </section>
+          </section>
         </>
       )}
 
-      {/* Success Message */}
+      {/* Account Tab */}
+      {activeTab === "account" && (
+        <section className="mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-semibold flex items-center gap-2">
+              <User className="w-5 h-5" />
+              Account Data
+            </h2>
+            <button
+              onClick={loadDangerZoneStats}
+              disabled={isLoadingDangerStats}
+              className="p-2 text-muted-foreground hover:text-foreground"
+              title="Refresh stats"
+            >
+              <RefreshCw className={`w-4 h-4 ${isLoadingDangerStats ? "animate-spin" : ""}`} />
+            </button>
+          </div>
+
+          {isLoadingDangerStats ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : dangerStats ? (
+            <>
+              {/* Data Summary */}
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+                <div className="p-4 border border-border rounded-lg text-center">
+                  <MessageSquare className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{dangerStats.chat_sessions}</div>
+                  <div className="text-xs text-muted-foreground">Chat Sessions</div>
+                </div>
+                <div className="p-4 border border-border rounded-lg text-center">
+                  <Brain className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{dangerStats.memories}</div>
+                  <div className="text-xs text-muted-foreground">Memories</div>
+                </div>
+                <div className="p-4 border border-border rounded-lg text-center">
+                  <FileText className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{dangerStats.deliverables}</div>
+                  <div className="text-xs text-muted-foreground">Deliverables</div>
+                </div>
+                <div className="p-4 border border-border rounded-lg text-center">
+                  <FolderOpen className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{dangerStats.projects}</div>
+                  <div className="text-xs text-muted-foreground">Projects</div>
+                </div>
+              </div>
+
+              {/* Danger Zone */}
+              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-destructive">
+                <AlertTriangle className="w-5 h-5" />
+                Danger Zone
+              </h3>
+
+              <div className="space-y-4">
+                {/* Tier 1: Clear Data */}
+                <div className="p-4 border border-border rounded-lg">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        <MessageSquare className="w-4 h-4" />
+                        Clear Conversation History
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Delete all {dangerStats.chat_sessions} chat sessions. Start fresh with your Thinking Partner.
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => initiateDangerAction("chat")}
+                      disabled={dangerStats.chat_sessions === 0}
+                      className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Clear History
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tier 2: Delete Deliverables */}
+                <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        <FileText className="w-4 h-4" />
+                        Delete All Deliverables
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Remove all {dangerStats.deliverables} deliverables and {dangerStats.deliverable_versions} versions. Returns you to onboarding.
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => initiateDangerAction("deliverables")}
+                      disabled={dangerStats.deliverables === 0}
+                      className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      Delete All
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tier 2: Full Reset */}
+                <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        <RefreshCw className="w-4 h-4" />
+                        Full Account Reset
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Delete everything: deliverables, chat history, memories, documents, projects.
+                        Your account and subscription remain active.
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => initiateDangerAction("reset")}
+                      className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90"
+                    >
+                      Reset Account
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tier 3: Deactivate */}
+                <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium flex items-center gap-2">
+                        <LogOut className="w-4 h-4" />
+                        Deactivate Account
+                      </div>
+                      <div className="text-sm text-muted-foreground">
+                        Permanently delete your account and all data. This cannot be undone.
+                        You will be logged out immediately.
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => initiateDangerAction("deactivate")}
+                      className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90"
+                    >
+                      Deactivate
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </>
+          ) : (
+            <div className="text-muted-foreground">Failed to load account stats</div>
+          )}
+        </section>
+      )}
+
+      {/* Success Message Toast */}
       {purgeSuccess && (
-        <div className="fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg shadow-lg">
+        <div className="fixed bottom-4 right-4 flex items-center gap-2 px-4 py-3 bg-primary text-primary-foreground rounded-lg shadow-lg z-50">
           <Check className="w-5 h-5" />
           {purgeSuccess}
         </div>
@@ -474,28 +724,63 @@ export default function SettingsPage() {
           <div className="bg-background border border-border rounded-lg p-6 max-w-md w-full mx-4">
             <div className="flex items-center gap-3 mb-4">
               <AlertTriangle className="w-6 h-6 text-destructive" />
-              <h3 className="text-lg font-semibold">Confirm Deletion</h3>
+              <h3 className="text-lg font-semibold">
+                {dangerAction === "deactivate" ? "Deactivate Account?" : "Confirm Deletion"}
+              </h3>
             </div>
 
             <p className="text-muted-foreground mb-6">
-              {purgeTarget === "user" && (
+              {dangerAction === "memories" && purgeTarget === "user" && (
                 <>
                   Are you sure you want to delete all <strong>{stats?.userMemories}</strong> user
-                  memories? This will remove everything Yarn has learned about you.
+                  memories? This will remove everything yarnnn has learned about you.
                 </>
               )}
-              {purgeTarget === "project" && selectedProjectId && (
+              {dangerAction === "memories" && purgeTarget === "project" && selectedProjectId && (
                 <>
                   Are you sure you want to delete all{" "}
                   <strong>{stats?.projectMemories.get(selectedProjectId)?.count}</strong> memories
                   from <strong>{stats?.projectMemories.get(selectedProjectId)?.name}</strong>?
                 </>
               )}
-              {purgeTarget === "all" && (
+              {dangerAction === "memories" && purgeTarget === "all" && (
                 <>
                   Are you sure you want to delete <strong>ALL {stats?.totalMemories}</strong>{" "}
-                  memories? This will completely reset Yarn&apos;s knowledge about you and all
-                  your projects.
+                  memories? This will completely reset yarnnn&apos;s knowledge about you.
+                </>
+              )}
+              {dangerAction === "chat" && (
+                <>
+                  Are you sure you want to delete all <strong>{dangerStats?.chat_sessions}</strong> chat
+                  sessions? Your conversation history will be permanently erased.
+                </>
+              )}
+              {dangerAction === "deliverables" && (
+                <>
+                  Are you sure you want to delete all <strong>{dangerStats?.deliverables}</strong>{" "}
+                  deliverables and <strong>{dangerStats?.deliverable_versions}</strong> versions?
+                  You will return to the onboarding flow.
+                </>
+              )}
+              {dangerAction === "reset" && (
+                <>
+                  Are you sure you want to <strong>reset your entire account</strong>? This will delete:
+                  <ul className="list-disc list-inside mt-2 text-sm">
+                    <li>{dangerStats?.deliverables} deliverables</li>
+                    <li>{dangerStats?.chat_sessions} chat sessions</li>
+                    <li>{dangerStats?.memories} memories</li>
+                    <li>{dangerStats?.documents} documents</li>
+                    <li>{dangerStats?.projects} projects</li>
+                  </ul>
+                  <span className="block mt-2">Your account will remain active but empty.</span>
+                </>
+              )}
+              {dangerAction === "deactivate" && (
+                <>
+                  <strong>This action is permanent and cannot be undone.</strong>
+                  <br /><br />
+                  All your data will be permanently deleted and you will be logged out immediately.
+                  To use yarnnn again, you would need to create a new account.
                 </>
               )}
             </p>
@@ -506,6 +791,7 @@ export default function SettingsPage() {
                   setShowConfirm(false);
                   setPurgeTarget(null);
                   setSelectedProjectId(null);
+                  setDangerAction(null);
                 }}
                 className="px-4 py-2 border border-border rounded-md"
                 disabled={isPurging}
@@ -513,12 +799,16 @@ export default function SettingsPage() {
                 Cancel
               </button>
               <button
-                onClick={handlePurge}
+                onClick={dangerAction === "memories" ? handleMemoryPurge : handleDangerAction}
                 disabled={isPurging}
                 className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md flex items-center gap-2"
               >
                 {isPurging && <Loader2 className="w-4 h-4 animate-spin" />}
-                {isPurging ? "Deleting..." : "Delete"}
+                {isPurging
+                  ? "Processing..."
+                  : dangerAction === "deactivate"
+                  ? "Deactivate Account"
+                  : "Delete"}
               </button>
             </div>
           </div>

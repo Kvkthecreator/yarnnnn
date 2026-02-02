@@ -18,7 +18,7 @@ load_dotenv()
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import context, projects, chat, documents, admin, webhooks, subscription, work, deliverables
+from routes import context, projects, chat, documents, admin, webhooks, subscription, work, deliverables, account
 
 app = FastAPI(
     title="YARNNN API",
@@ -64,3 +64,6 @@ app.include_router(work.router, prefix="/api", tags=["work"])
 
 # Deliverables routes (ADR-018)
 app.include_router(deliverables.router, prefix="/api/deliverables", tags=["deliverables"])
+
+# Account management routes (Danger Zone)
+app.include_router(account.router, prefix="/api", tags=["account"])
