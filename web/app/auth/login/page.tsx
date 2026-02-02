@@ -2,9 +2,12 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { ShaderBackground } from "@/components/landing/ShaderBackground";
+import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -79,16 +82,21 @@ function LoginForm() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-      <div className="w-full max-w-md space-y-8">
+    <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
+      <GrainOverlay />
+      <ShaderBackground />
+
+      <div className="relative z-10 w-full max-w-md space-y-8">
         <div className="text-center">
-          <h1 className="text-3xl font-brand">yarnnn</h1>
-          <p className="mt-2 text-gray-600">
+          <Link href="/" className="text-3xl font-brand text-[#1a1a1a] hover:opacity-80 transition-opacity">
+            yarnnn
+          </Link>
+          <p className="mt-2 text-[#1a1a1a]/60">
             {mode === "login" ? "Sign in to your account" : "Create your account"}
           </p>
         </div>
 
-        <div className="bg-white p-8 rounded-2xl shadow-sm border border-gray-100 space-y-6">
+        <div className="glass-card-light p-8 space-y-6">
           {/* Google OAuth */}
           <Button
             type="button"
@@ -120,17 +128,17 @@ function LoginForm() {
 
           <div className="relative">
             <div className="absolute inset-0 flex items-center">
-              <div className="w-full border-t border-gray-200" />
+              <div className="w-full border-t border-[#1a1a1a]/10" />
             </div>
             <div className="relative flex justify-center text-sm">
-              <span className="px-2 bg-white text-gray-500">or</span>
+              <span className="px-2 bg-white/80 text-[#1a1a1a]/50">or</span>
             </div>
           </div>
 
           {/* Email/Password Form */}
           <form onSubmit={handleEmailAuth} className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="email" className="block text-sm font-medium text-[#1a1a1a]">
                 Email
               </label>
               <Input
@@ -139,13 +147,13 @@ function LoginForm() {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                className="mt-1"
+                className="mt-1 bg-white/50 border-[#1a1a1a]/10 focus:border-[#1a1a1a]/30"
                 placeholder="you@example.com"
               />
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-[#1a1a1a]">
                 Password
               </label>
               <Input
@@ -154,31 +162,31 @@ function LoginForm() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="mt-1"
+                className="mt-1 bg-white/50 border-[#1a1a1a]/10 focus:border-[#1a1a1a]/30"
                 placeholder="••••••••"
                 minLength={6}
               />
             </div>
 
             {error && (
-              <p className={`text-sm ${error.includes("Check your email") ? "text-green-600" : "text-red-600"}`}>
+              <p className={`text-sm ${error.includes("Check your email") ? "text-emerald-600" : "text-red-600"}`}>
                 {error}
               </p>
             )}
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button type="submit" className="w-full bg-[#1a1a1a] hover:bg-[#1a1a1a]/90 text-white" disabled={loading}>
               {loading ? "Loading..." : mode === "login" ? "Sign in" : "Sign up"}
             </Button>
           </form>
 
-          <p className="text-center text-sm text-gray-600">
+          <p className="text-center text-sm text-[#1a1a1a]/60">
             {mode === "login" ? (
               <>
                 Don&apos;t have an account?{" "}
                 <button
                   type="button"
                   onClick={() => setMode("signup")}
-                  className="text-blue-600 hover:underline"
+                  className="text-[#1a1a1a] font-medium hover:underline"
                 >
                   Sign up
                 </button>
@@ -189,7 +197,7 @@ function LoginForm() {
                 <button
                   type="button"
                   onClick={() => setMode("login")}
-                  className="text-blue-600 hover:underline"
+                  className="text-[#1a1a1a] font-medium hover:underline"
                 >
                   Sign in
                 </button>
@@ -205,11 +213,11 @@ function LoginForm() {
 export default function LoginPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
-        <div className="w-full max-w-md space-y-8">
+      <div className="relative min-h-screen flex items-center justify-center bg-[#faf8f5] px-4">
+        <div className="relative z-10 w-full max-w-md space-y-8">
           <div className="text-center">
-            <h1 className="text-3xl font-brand">yarnnn</h1>
-            <p className="mt-2 text-gray-600">Loading...</p>
+            <h1 className="text-3xl font-brand text-[#1a1a1a]">yarnnn</h1>
+            <p className="mt-2 text-[#1a1a1a]/60">Loading...</p>
           </div>
         </div>
       </div>
