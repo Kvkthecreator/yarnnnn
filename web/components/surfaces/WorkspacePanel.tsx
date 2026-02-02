@@ -2,9 +2,10 @@
 
 /**
  * ADR-013: Unified Workspace Panel
+ * ADR-022: Chat-First Architecture - drawer for detailed views
  *
  * Single panel with tabbed navigation for Context, Work, and Outputs.
- * Replaces the disconnected drawer-per-surface approach.
+ * Also handles deliverable detail/review views opened from chat.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -16,6 +17,8 @@ import { ContextSurface } from './ContextSurface';
 import { ScheduleSurface } from './ScheduleSurface';
 import { OutputsSurface } from './OutputsSurface';
 import { OutputDetailView } from './OutputDetailView';
+import { DeliverableDetail } from '@/components/deliverables/DeliverableDetail';
+import { VersionReview } from '@/components/deliverables/VersionReview';
 import type { ExpandLevel, SurfaceType } from '@/types/surfaces';
 
 type TabType = 'context' | 'work' | 'outputs';
@@ -44,6 +47,10 @@ export function WorkspacePanel() {
   const [activeTab, setActiveTab] = useState<TabType>('work');
   const [detailView, setDetailView] = useState<{ type: 'output' | 'work'; id: string } | null>(null);
 
+  // ADR-022: Check if this is a deliverable/review view from chat
+  const isDeliverableView = state.data?.deliverableId && !state.data?.mode;
+  const isReviewView = state.data?.deliverableId && state.data?.mode === 'review';
+
   // Sync active tab with surface type when opened externally
   useEffect(() => {
     if (state.type) {
@@ -52,10 +59,13 @@ export function WorkspacePanel() {
         setActiveTab(tab.id);
       }
       // If opened with specific data (e.g., workId), show detail view
-      if (state.data?.workId) {
-        setDetailView({ type: 'output', id: state.data.workId });
-      } else if (state.data?.ticketId) {
-        setDetailView({ type: 'output', id: state.data.ticketId });
+      // Skip if it's a deliverable view (handled separately)
+      if (!state.data?.deliverableId) {
+        if (state.data?.workId) {
+          setDetailView({ type: 'output', id: state.data.workId });
+        } else if (state.data?.ticketId) {
+          setDetailView({ type: 'output', id: state.data.ticketId });
+        }
       }
     }
   }, [state.type, state.data]);
@@ -100,8 +110,47 @@ export function WorkspacePanel() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [state.isOpen, closeSurface, detailView]);
 
+  // Handle review completion
+  const handleReviewApproved = useCallback(() => {
+    closeSurface();
+  }, [closeSurface]);
+
+  // Handle deliverable review navigation
+  const handleReviewFromDetail = useCallback((versionId: string) => {
+    if (state.data?.deliverableId) {
+      openSurface('output', {
+        deliverableId: state.data.deliverableId,
+        versionId,
+        mode: 'review',
+      }, 'full');
+    }
+  }, [state.data?.deliverableId, openSurface]);
+
   const renderContent = () => {
-    // If viewing a detail, show that
+    // ADR-022: Deliverable review view (full-screen like)
+    if (isReviewView && state.data?.deliverableId) {
+      return (
+        <VersionReview
+          deliverableId={state.data.deliverableId}
+          versionId={state.data.versionId}
+          onClose={closeSurface}
+          onApproved={handleReviewApproved}
+        />
+      );
+    }
+
+    // ADR-022: Deliverable detail view
+    if (isDeliverableView && state.data?.deliverableId) {
+      return (
+        <DeliverableDetail
+          deliverableId={state.data.deliverableId}
+          onBack={closeSurface}
+          onReview={handleReviewFromDetail}
+        />
+      );
+    }
+
+    // If viewing a work output detail, show that
     if (detailView) {
       return (
         <OutputDetailView
@@ -169,9 +218,9 @@ export function WorkspacePanel() {
               {/* Top row: title + actions */}
               <div className="flex items-center justify-between px-4 py-2">
                 <div className="flex items-center gap-2">
-                  {detailView && (
+                  {(detailView || isDeliverableView) && !isReviewView && (
                     <button
-                      onClick={handleBackFromDetail}
+                      onClick={detailView ? handleBackFromDetail : closeSurface}
                       className="p-1.5 -ml-1.5 hover:bg-muted rounded-md transition-colors"
                       aria-label="Back"
                     >
@@ -179,7 +228,7 @@ export function WorkspacePanel() {
                     </button>
                   )}
                   <span className="font-medium text-sm">
-                    {detailView ? 'Output' : 'Workspace'}
+                    {isReviewView ? 'Review' : isDeliverableView ? 'Deliverable' : detailView ? 'Output' : 'Workspace'}
                   </span>
                 </div>
 
@@ -205,8 +254,8 @@ export function WorkspacePanel() {
                 </div>
               </div>
 
-              {/* Tab bar - hide when viewing detail */}
-              {!detailView && (
+              {/* Tab bar - hide when viewing detail or deliverable */}
+              {!detailView && !isDeliverableView && !isReviewView && (
                 <div className="flex px-2">
                   {TABS.map((tab) => (
                     <button

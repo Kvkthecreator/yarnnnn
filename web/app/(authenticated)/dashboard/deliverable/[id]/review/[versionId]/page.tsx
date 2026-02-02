@@ -1,29 +1,29 @@
 'use client';
 
 /**
- * ADR-022: Tab-Based Supervision Architecture
+ * ADR-022: Chat-First Architecture
  *
- * Legacy route redirect - opens version-review tab for specific version.
- * This maintains URL compatibility while using the new tab-based UI.
+ * Route redirect - opens version review drawer in the main dashboard.
+ * This maintains URL compatibility while using the drawer-based UI.
  */
 
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useTabs } from '@/contexts/TabContext';
+import { useSurface } from '@/contexts/SurfaceContext';
 import { Loader2 } from 'lucide-react';
 
 export default function VersionReviewPage() {
   const params = useParams();
   const router = useRouter();
-  const { openTab } = useTabs();
+  const { openSurface } = useSurface();
   const deliverableId = params.id as string;
   const versionId = params.versionId as string;
 
   useEffect(() => {
-    // Open the version-review tab with specific version and redirect to dashboard
-    openTab('version-review', 'Review', deliverableId, { versionId });
+    // Open the version review drawer and redirect to dashboard
+    openSurface('output', { deliverableId, versionId, mode: 'review' });
     router.replace('/dashboard');
-  }, [deliverableId, versionId, openTab, router]);
+  }, [deliverableId, versionId, openSurface, router]);
 
   // Brief loading state while redirecting
   return (

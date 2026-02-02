@@ -1,19 +1,19 @@
 'use client';
 
 /**
- * ADR-022: Tab-Based Supervision Architecture
+ * ADR-022: Chat-First Architecture
  *
- * Simplified header for tab-based UI.
- * Just logo, work status, and user menu - navigation is handled by tabs.
+ * Header for chat-first UI. Simple: logo, work status, settings.
  */
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
+import { Settings } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import { UserMenu } from './UserMenu';
 import { WorkStatus } from './WorkStatus';
 
-export function TabHeader() {
+export function ChatHeader() {
   const [userEmail, setUserEmail] = useState<string | undefined>();
 
   useEffect(() => {
@@ -37,8 +37,17 @@ export function TabHeader() {
         <WorkStatus />
       </div>
 
-      {/* Right: User Menu */}
-      <UserMenu email={userEmail} />
+      {/* Right: Settings + User Menu */}
+      <div className="flex items-center gap-2">
+        <Link
+          href="/dashboard/settings"
+          className="p-2 hover:bg-muted rounded-md transition-colors"
+          title="Settings"
+        >
+          <Settings className="w-4 h-4 text-muted-foreground" />
+        </Link>
+        <UserMenu email={userEmail} />
+      </div>
     </header>
   );
 }

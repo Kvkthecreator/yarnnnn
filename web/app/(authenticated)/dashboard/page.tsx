@@ -1,20 +1,20 @@
 'use client';
 
 /**
- * ADR-022: Tab-Based Supervision Architecture
+ * ADR-022: Chat-First Architecture
  *
- * Main dashboard page using the tab-based supervision UI.
- * TabShell provides: Header, TabBar, Content Area, PersistentTP
- * TabContent renders the appropriate view based on active tab.
+ * Main dashboard page - chat is the primary surface.
+ * Drawers open for detailed views (deliverables, reviews).
  */
 
-import { TabShell, TabContent } from '@/components/tabs';
-import { TabHeader } from '@/components/shell/TabHeader';
+import { ChatHeader } from '@/components/shell/ChatHeader';
+import { ChatView } from '@/components/chat';
 
 export default function DashboardPage() {
   return (
-    <TabShell header={<TabHeader />}>
-      <TabContent />
-    </TabShell>
+    <div className="h-screen flex flex-col">
+      <ChatHeader />
+      <ChatView />
+    </div>
   );
 }

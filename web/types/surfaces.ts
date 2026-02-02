@@ -8,7 +8,12 @@ export type SurfaceType = 'output' | 'context' | 'schedule' | 'export';
 export type ExpandLevel = 'peek' | 'half' | 'full';
 
 export interface SurfaceData {
-  // For output surface
+  // For output surface (deliverable-based - ADR-022)
+  deliverableId?: string;
+  versionId?: string;
+  mode?: 'view' | 'review';
+
+  // Legacy work-based (keeping for compatibility)
   outputId?: string;
   ticketId?: string;
   workId?: string; // ADR-017: Unified work ID
