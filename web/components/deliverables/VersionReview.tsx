@@ -2,15 +2,17 @@
 
 /**
  * ADR-018: Version Review
+ * ADR-020: Inline TP-powered refinements
  *
  * Interface for reviewing a staged deliverable version.
  * - Edit content inline
- * - Simple thumbs up/down feedback
+ * - Quick refinement chips that apply changes directly
+ * - Custom refinement input
+ * - Undo capability for applied changes
  * - Approve (mark as sent) or discard
- * - No recipient delivery - user controls sending manually
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Check,
@@ -19,15 +21,15 @@ import {
   Copy,
   Download,
   ArrowLeft,
-  ThumbsUp,
-  ThumbsDown,
   Mail,
   CheckCircle2,
-  MessageSquare,
+  Send,
+  Undo2,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import { useFloatingChat } from '@/contexts/FloatingChatContext';
+import { useContentRefinement } from '@/hooks/useContentRefinement';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
 interface VersionReviewProps {
@@ -36,6 +38,14 @@ interface VersionReviewProps {
   onClose: () => void;
   onApproved: () => void;
 }
+
+// Quick refinement presets
+const QUICK_REFINEMENTS = [
+  { label: 'Shorter', instruction: 'Make this more concise - cut it down to the key points while keeping essential information.' },
+  { label: 'More detail', instruction: 'Add more detail and specifics. Include concrete examples where appropriate.' },
+  { label: 'More formal', instruction: 'Adjust the tone to be more professional and formal.' },
+  { label: 'More casual', instruction: 'Adjust the tone to be more casual and conversational.' },
+];
 
 export function VersionReview({
   deliverableId,
@@ -49,33 +59,25 @@ export function VersionReview({
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
   const [version, setVersion] = useState<DeliverableVersion | null>(null);
   const [editedContent, setEditedContent] = useState('');
-  const [feedback, setFeedback] = useState<'good' | 'needs_work' | null>(null);
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // ADR-020: Set floating chat context and enable TP-powered refinements
-  const { setPageContext, open: openChat, openWithPrompt } = useFloatingChat();
+  // Inline refinement state
+  const [customInstruction, setCustomInstruction] = useState('');
+  const [contentHistory, setContentHistory] = useState<string[]>([]); // For undo
+  const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  // Content refinement hook
+  const { refineContent, isRefining, error: refinementError } = useContentRefinement({
+    deliverableId,
+    deliverableTitle: deliverable?.title,
+    deliverableType: deliverable?.deliverable_type,
+  });
 
   useEffect(() => {
     loadVersion();
   }, [deliverableId, versionId]);
-
-  // ADR-020: Update floating chat context when reviewing
-  useEffect(() => {
-    if (deliverable && version) {
-      setPageContext({
-        type: 'deliverable-review',
-        deliverable,
-        deliverableId,
-        currentVersion: version,
-      });
-    }
-
-    // Cleanup: reset to global when unmounting
-    return () => {
-      setPageContext({ type: 'global' });
-    };
-  }, [deliverable, version, deliverableId, setPageContext]);
 
   const loadVersion = async () => {
     setLoading(true);
@@ -103,6 +105,43 @@ export function VersionReview({
     }
   };
 
+  // Apply a refinement (quick preset or custom)
+  const handleRefine = async (instruction: string, label?: string) => {
+    if (!editedContent.trim() || isRefining) return;
+
+    // Save current content for undo
+    setContentHistory(prev => [...prev, editedContent]);
+    setLastAppliedLabel(label || 'Custom');
+
+    const refined = await refineContent(editedContent, instruction);
+    if (refined) {
+      setEditedContent(refined);
+    } else {
+      // Rollback if refinement failed
+      setContentHistory(prev => prev.slice(0, -1));
+      setLastAppliedLabel(null);
+    }
+  };
+
+  // Handle custom instruction submit
+  const handleCustomRefine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!customInstruction.trim()) return;
+
+    await handleRefine(customInstruction);
+    setCustomInstruction('');
+  };
+
+  // Undo last refinement
+  const handleUndo = () => {
+    if (contentHistory.length === 0) return;
+
+    const previousContent = contentHistory[contentHistory.length - 1];
+    setEditedContent(previousContent);
+    setContentHistory(prev => prev.slice(0, -1));
+    setLastAppliedLabel(null);
+  };
+
   const handleApprove = async () => {
     if (!version) return;
 
@@ -110,18 +149,10 @@ export function VersionReview({
     try {
       const hasEdits = editedContent !== version.draft_content;
 
-      // Build feedback notes with thumbs rating
-      let notes = feedbackNotes;
-      if (feedback === 'good' && !notes) {
-        notes = 'Approved as-is - good quality';
-      } else if (feedback === 'needs_work' && !notes) {
-        notes = 'Approved with edits - needs improvement';
-      }
-
       await api.deliverables.updateVersion(deliverableId, version.id, {
         status: 'approved',
         final_content: hasEdits ? editedContent : undefined,
-        feedback_notes: notes || undefined,
+        feedback_notes: feedbackNotes || undefined,
       });
 
       onApproved();
@@ -219,6 +250,7 @@ export function VersionReview({
   }
 
   const hasEdits = editedContent !== version.draft_content;
+  const canUndo = contentHistory.length > 0;
 
   return (
     <div className="fixed inset-0 bg-background z-50 flex flex-col">
@@ -268,106 +300,121 @@ export function VersionReview({
       {/* Content */}
       <div className="flex-1 overflow-auto">
         <div className="container mx-auto max-w-4xl px-4 py-6">
-          {/* Edit indicator */}
-          {hasEdits && (
+          {/* Status indicators */}
+          {isRefining && (
+            <div className="mb-4 px-3 py-2 bg-primary/10 border border-primary/20 rounded-md text-sm text-primary flex items-center gap-2">
+              <Loader2 className="w-4 h-4 animate-spin" />
+              Refining content...
+            </div>
+          )}
+
+          {lastAppliedLabel && !isRefining && (
+            <div className="mb-4 px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md text-sm text-green-800 dark:text-green-200 flex items-center justify-between">
+              <span>Applied: {lastAppliedLabel}</span>
+              <button
+                onClick={handleUndo}
+                className="inline-flex items-center gap-1 text-xs hover:underline"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                Undo
+              </button>
+            </div>
+          )}
+
+          {hasEdits && !lastAppliedLabel && (
             <div className="mb-4 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm text-amber-800 dark:text-amber-200">
               You've made edits. Your changes help improve future outputs.
             </div>
           )}
 
+          {refinementError && (
+            <div className="mb-4 px-3 py-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-md text-sm text-red-800 dark:text-red-200">
+              {refinementError}
+            </div>
+          )}
+
           {/* Editor */}
-          <div className="mb-6">
+          <div className="mb-4">
             <textarea
               value={editedContent}
               onChange={(e) => setEditedContent(e.target.value)}
-              className="w-full min-h-[400px] px-4 py-4 border border-border rounded-lg bg-background text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y"
+              disabled={isRefining}
+              className="w-full min-h-[350px] px-4 py-4 border border-border rounded-lg bg-background text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y disabled:opacity-50 disabled:cursor-not-allowed"
               placeholder="Draft content..."
             />
           </div>
 
-          {/* Quick feedback - TP-powered refinements */}
-          <div className="mb-6 p-4 border border-border rounded-lg">
-            <p className="text-sm font-medium mb-3">How was this draft?</p>
-            <div className="flex flex-wrap items-center gap-2 mb-4">
-              <button
-                onClick={() => setFeedback(feedback === 'good' ? null : 'good')}
-                className={cn(
-                  "inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md border transition-colors",
-                  feedback === 'good'
-                    ? "border-green-500 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-300"
-                    : "border-border hover:bg-muted"
-                )}
-              >
-                <ThumbsUp className="w-4 h-4" />
-                Good
-              </button>
-              <button
-                onClick={() => setFeedback(feedback === 'needs_work' ? null : 'needs_work')}
-                className={cn(
-                  "inline-flex items-center gap-2 px-4 py-2 text-sm rounded-md border transition-colors",
-                  feedback === 'needs_work'
-                    ? "border-amber-500 bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-300"
-                    : "border-border hover:bg-muted"
-                )}
-              >
-                <ThumbsDown className="w-4 h-4" />
-                Needs work
-              </button>
+          {/* Inline refinement controls */}
+          <div className="mb-6 p-4 border border-border rounded-lg bg-muted/30">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">Refine with AI</span>
             </div>
 
-            {/* Quick refinement actions - opens chat with prompt */}
-            {feedback === 'needs_work' && (
-              <div className="space-y-3">
-                <p className="text-xs text-muted-foreground">Quick refinements:</p>
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => openWithPrompt("Make this draft more concise - cut it down to the key points while keeping the essential information.")}
-                    className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted transition-colors"
-                  >
-                    Make it shorter
-                  </button>
-                  <button
-                    onClick={() => openWithPrompt("Add more detail and specifics to this draft. Include concrete examples where appropriate.")}
-                    className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted transition-colors"
-                  >
-                    More detail
-                  </button>
-                  <button
-                    onClick={() => openWithPrompt("Adjust the tone of this draft to be more professional and formal.")}
-                    className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted transition-colors"
-                  >
-                    More formal
-                  </button>
-                  <button
-                    onClick={() => openWithPrompt("Adjust the tone of this draft to be more casual and conversational.")}
-                    className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted transition-colors"
-                  >
-                    More casual
-                  </button>
-                </div>
+            {/* Quick refinement chips */}
+            <div className="flex flex-wrap gap-2 mb-3">
+              {QUICK_REFINEMENTS.map((preset) => (
+                <button
+                  key={preset.label}
+                  onClick={() => handleRefine(preset.instruction, preset.label)}
+                  disabled={isRefining || !editedContent.trim()}
+                  className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-background hover:border-primary/50 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {preset.label}
+                </button>
+              ))}
+            </div>
 
-                <div className="flex items-center gap-2 pt-2">
-                  <button
-                    onClick={() => openChat()}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary hover:underline"
-                  >
-                    <MessageSquare className="w-3.5 h-3.5" />
-                    Tell me what to change...
-                  </button>
-                </div>
+            {/* Custom instruction input */}
+            <form onSubmit={handleCustomRefine} className="flex gap-2">
+              <input
+                ref={inputRef}
+                type="text"
+                value={customInstruction}
+                onChange={(e) => setCustomInstruction(e.target.value)}
+                disabled={isRefining}
+                placeholder="Or tell me what to change..."
+                className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary disabled:opacity-50"
+              />
+              <button
+                type="submit"
+                disabled={isRefining || !customInstruction.trim()}
+                className="px-3 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50 transition-colors"
+              >
+                {isRefining ? (
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                ) : (
+                  <Send className="w-4 h-4" />
+                )}
+              </button>
+            </form>
 
-                <textarea
-                  value={feedbackNotes}
-                  onChange={(e) => setFeedbackNotes(e.target.value)}
-                  placeholder="Or add a note for the record (e.g., Include Q1 numbers next time)"
-                  rows={2}
-                  className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Notes are saved with your feedback to improve future outputs.
-                </p>
+            {/* Undo button when history exists */}
+            {canUndo && !isRefining && (
+              <div className="mt-3 pt-3 border-t border-border">
+                <button
+                  onClick={handleUndo}
+                  className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <Undo2 className="w-3.5 h-3.5" />
+                  Undo last change
+                </button>
               </div>
             )}
+          </div>
+
+          {/* Feedback notes for rejection */}
+          <div className="mb-6">
+            <label className="block text-sm font-medium mb-2">
+              Notes (required for discard)
+            </label>
+            <textarea
+              value={feedbackNotes}
+              onChange={(e) => setFeedbackNotes(e.target.value)}
+              placeholder="Add notes about this version (e.g., what to improve next time)"
+              rows={2}
+              className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
+            />
           </div>
         </div>
       </div>
@@ -376,8 +423,8 @@ export function VersionReview({
       <footer className="h-16 border-t border-border bg-background flex items-center justify-between px-4 shrink-0">
         <button
           onClick={handleDiscard}
-          disabled={saving}
-          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors"
+          disabled={saving || isRefining}
+          className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md transition-colors disabled:opacity-50"
         >
           <XCircle className="w-4 h-4" />
           Discard
@@ -386,13 +433,14 @@ export function VersionReview({
         <div className="flex items-center gap-3">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+            disabled={isRefining}
+            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleApprove}
-            disabled={saving}
+            disabled={saving || isRefining}
             className="inline-flex items-center gap-1.5 px-6 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
           >
             {saving ? (
@@ -409,16 +457,6 @@ export function VersionReview({
           </button>
         </div>
       </footer>
-
-      {/* Floating chat trigger - inside overlay since this is z-50 fullscreen */}
-      <button
-        onClick={() => openChat()}
-        className="fixed bottom-20 right-4 md:bottom-24 md:right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl active:scale-95 md:hover:scale-105 transition-all duration-200"
-        title="Open chat (⌘K)"
-        aria-label="Open chat"
-      >
-        <MessageSquare className="w-6 h-6" />
-      </button>
     </div>
   );
 }
