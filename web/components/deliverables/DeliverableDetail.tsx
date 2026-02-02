@@ -40,6 +40,7 @@ import {
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useFloatingChat } from '@/contexts/FloatingChatContext';
+import { EmbeddedTPInput } from '@/components/EmbeddedTPInput';
 import type { Deliverable, DeliverableVersion, VersionStatus, FeedbackSummary } from '@/types';
 
 interface DeliverableDetailProps {
@@ -651,6 +652,16 @@ export function DeliverableDetail({
             )}
           </div>
         )}
+
+        {/* ADR-021: Embedded TP Input - TP presence on every screen */}
+        <div className="mt-8 pt-6 border-t border-border">
+          <EmbeddedTPInput
+            context="detail"
+            deliverableId={deliverableId}
+            deliverableTitle={deliverable.title}
+            onRefreshNeeded={loadDeliverable}
+          />
+        </div>
       </div>
 
     </div>

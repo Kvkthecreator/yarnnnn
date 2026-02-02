@@ -16,6 +16,7 @@ import { Plus, Loader2, RefreshCw, Filter } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { DeliverableCard } from './DeliverableCard';
 import { OnboardingChatView } from './OnboardingChatView';
+import { EmbeddedTPInput } from '@/components/EmbeddedTPInput';
 import type { Deliverable } from '@/types';
 
 interface DeliverablesDashboardProps {
@@ -233,6 +234,18 @@ export function DeliverablesDashboard({ onCreateNew }: DeliverablesDashboardProp
               onRunNow={handleRunNow}
             />
           ))}
+        </div>
+
+        {/* ADR-021: Embedded TP Input - TP presence on every screen */}
+        <div className="mt-8 max-w-2xl mx-auto">
+          <EmbeddedTPInput
+            context="dashboard"
+            onDeliverableCreated={(id) => {
+              loadDeliverables();
+              router.push(`/dashboard/deliverable/${id}`);
+            }}
+            onRefreshNeeded={loadDeliverables}
+          />
         </div>
       </div>
     </div>
