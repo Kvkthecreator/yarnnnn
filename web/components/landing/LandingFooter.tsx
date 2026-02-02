@@ -69,7 +69,7 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
           <div>
             <div className="font-medium mb-1">Contact</div>
             <div className={mutedClass}>
-              contactus@yarnnn.com
+              admin@yarnnn.com
             </div>
           </div>
         </div>

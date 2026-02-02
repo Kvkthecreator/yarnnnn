@@ -233,7 +233,7 @@ export default function PricingPage() {
                 Have questions about pricing or need a custom plan?
               </p>
               <a
-                href="mailto:contactus@yarnnn.com"
+                href="mailto:admin@yarnnn.com"
                 className="text-white hover:text-white/80 underline underline-offset-4 text-sm"
               >
                 Contact us

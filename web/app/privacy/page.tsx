@@ -107,10 +107,10 @@ export default function PrivacyPage() {
         <p>
           Questions about privacy? Contact us at{" "}
           <a
-            href="mailto:contactus@yarnnn.com"
+            href="mailto:admin@yarnnn.com"
             className="text-primary hover:underline"
           >
-            contactus@yarnnn.com
+            admin@yarnnn.com
           </a>
         </p>
       </main>
