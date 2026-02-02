@@ -515,6 +515,9 @@ export interface DataSource {
   label?: string;
 }
 
+// Quality trend for feedback loop tracking (ADR-018)
+export type QualityTrend = "improving" | "stable" | "declining";
+
 export interface Deliverable {
   id: string;
   title: string;
@@ -531,6 +534,10 @@ export interface Deliverable {
   next_run_at?: string;
   version_count?: number;
   latest_version_status?: VersionStatus;
+  // Quality metrics (ADR-018: feedback loop)
+  quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
+  quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
+  avg_edit_distance?: number;  // Average over last 5 versions
   // Legacy fields (for backwards compatibility)
   description?: string;
   template_structure?: TemplateStructure;

@@ -2,10 +2,12 @@
 
 /**
  * ADR-018: Deliverable Card
+ * ADR-020: Supervision Model - deliverables as objects of supervision
  *
  * Displays a single deliverable in the dashboard grid.
  * - Shows version count as "X outputs" not "vX"
  * - Status labels: Sent, Ready for review, Generating
+ * - Quality trend indicator (improving/stable/declining)
  * - Simple schedule display
  */
 
@@ -21,9 +23,12 @@ import {
   AlertCircle,
   Loader2,
   FileText,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import type { Deliverable, VersionStatus } from '@/types';
+import type { Deliverable, VersionStatus, QualityTrend } from '@/types';
 
 interface DeliverableCardProps {
   deliverable: Deliverable;
@@ -100,6 +105,33 @@ function formatNextRun(nextRunAt: string | undefined): string {
   if (diffDays < 7) return `In ${diffDays} days`;
 
   return next.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+}
+
+// Quality trend display config
+const TREND_CONFIG: Record<QualityTrend, { icon: React.ReactNode; label: string; color: string }> = {
+  improving: {
+    icon: <TrendingUp className="w-3 h-3" />,
+    label: 'Improving',
+    color: 'text-green-600',
+  },
+  stable: {
+    icon: <Minus className="w-3 h-3" />,
+    label: 'Stable',
+    color: 'text-muted-foreground',
+  },
+  declining: {
+    icon: <TrendingDown className="w-3 h-3" />,
+    label: 'Needs attention',
+    color: 'text-amber-600',
+  },
+};
+
+// Format quality score as percentage (inverted: 0 = 100% quality, 1 = 0% quality)
+function formatQualityScore(score: number | undefined): string {
+  if (score === undefined || score === null) return '';
+  // Invert: lower edit distance = higher quality
+  const quality = Math.round((1 - score) * 100);
+  return `${quality}%`;
 }
 
 export function DeliverableCard({
@@ -232,6 +264,25 @@ export function DeliverableCard({
           </span>
         )}
       </div>
+
+      {/* Quality metrics - only show if we have approved versions with scores */}
+      {deliverable.quality_score !== undefined && deliverable.quality_score !== null && (
+        <div className="flex items-center justify-between mb-3 px-2 py-1.5 bg-muted/50 rounded-md">
+          <div className="flex items-center gap-1.5 text-xs">
+            <span className="text-muted-foreground">Quality:</span>
+            <span className="font-medium">{formatQualityScore(deliverable.quality_score)}</span>
+          </div>
+          {deliverable.quality_trend && TREND_CONFIG[deliverable.quality_trend] && (
+            <div className={cn(
+              "flex items-center gap-1 text-xs",
+              TREND_CONFIG[deliverable.quality_trend].color
+            )}>
+              {TREND_CONFIG[deliverable.quality_trend].icon}
+              <span>{TREND_CONFIG[deliverable.quality_trend].label}</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Next run info */}
       {!isPaused && versionStatus !== 'staged' && (

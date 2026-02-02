@@ -409,6 +409,10 @@ class DeliverableResponse(BaseModel):
     next_run_at: Optional[str] = None
     version_count: int = 0
     latest_version_status: Optional[str] = None
+    # Quality metrics (ADR-018: feedback loop)
+    quality_score: Optional[float] = None  # Latest edit_distance_score (0=no edits, 1=full rewrite)
+    quality_trend: Optional[str] = None  # "improving", "stable", "declining"
+    avg_edit_distance: Optional[float] = None  # Average over last 5 versions
     # Legacy fields (for backwards compatibility)
     description: Optional[str] = None
     template_structure: Optional[dict] = None
@@ -555,15 +559,21 @@ async def list_deliverables(
     limit: int = 20,
 ) -> list[DeliverableResponse]:
     """
-    List user's deliverables.
+    List user's deliverables with quality metrics.
 
     Args:
         status: Filter by status (active, paused, archived)
         limit: Maximum results
+
+    Quality metrics are computed from the last 5 approved versions:
+    - quality_score: Latest edit_distance_score (lower = better)
+    - quality_trend: "improving" | "stable" | "declining"
+    - avg_edit_distance: Average over recent versions
     """
+    # Fetch deliverables with versions including edit_distance_score
     query = (
         auth.client.table("deliverables")
-        .select("*, deliverable_versions(id, status, version_number)")
+        .select("*, deliverable_versions(id, status, version_number, edit_distance_score, approved_at)")
         .eq("user_id", auth.user_id)
         .order("created_at", desc=True)
         .limit(limit)
@@ -581,6 +591,51 @@ async def list_deliverables(
         version_count = len(versions)
         latest_version = max(versions, key=lambda v: v["version_number"]) if versions else None
 
+        # Calculate quality metrics from approved versions
+        quality_score = None
+        quality_trend = None
+        avg_edit_distance = None
+
+        approved_versions = [
+            v for v in versions
+            if v.get("status") == "approved" and v.get("edit_distance_score") is not None
+        ]
+
+        if approved_versions:
+            # Sort by version_number descending
+            approved_versions.sort(key=lambda v: v["version_number"], reverse=True)
+            recent = approved_versions[:5]  # Last 5 approved versions
+
+            # Latest score
+            quality_score = recent[0]["edit_distance_score"]
+
+            # Average
+            scores = [v["edit_distance_score"] for v in recent]
+            avg_edit_distance = sum(scores) / len(scores)
+
+            # Trend: compare first half vs second half
+            if len(recent) >= 3:
+                older = recent[len(recent)//2:]  # Older versions
+                newer = recent[:len(recent)//2]  # Newer versions
+                older_avg = sum(v["edit_distance_score"] for v in older) / len(older)
+                newer_avg = sum(v["edit_distance_score"] for v in newer) / len(newer)
+
+                # Lower score = better quality (fewer edits needed)
+                if newer_avg < older_avg - 0.05:
+                    quality_trend = "improving"
+                elif newer_avg > older_avg + 0.05:
+                    quality_trend = "declining"
+                else:
+                    quality_trend = "stable"
+            elif len(recent) >= 2:
+                # Only 2 versions: compare directly
+                if recent[0]["edit_distance_score"] < recent[1]["edit_distance_score"] - 0.05:
+                    quality_trend = "improving"
+                elif recent[0]["edit_distance_score"] > recent[1]["edit_distance_score"] + 0.05:
+                    quality_trend = "declining"
+                else:
+                    quality_trend = "stable"
+
         responses.append(DeliverableResponse(
             id=d["id"],
             title=d["title"],
@@ -597,6 +652,9 @@ async def list_deliverables(
             next_run_at=d.get("next_run_at"),
             version_count=version_count,
             latest_version_status=latest_version["status"] if latest_version else None,
+            quality_score=quality_score,
+            quality_trend=quality_trend,
+            avg_edit_distance=avg_edit_distance,
             # Legacy
             description=d.get("description"),
             template_structure=d.get("template_structure"),
