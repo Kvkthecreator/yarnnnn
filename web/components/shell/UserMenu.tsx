@@ -68,14 +68,46 @@ export function UserMenu({ email }: UserMenuProps) {
       {/* Dropdown Menu */}
       {isOpen && (
         <div className="absolute top-full right-0 mt-1 w-56 bg-background border border-border rounded-lg shadow-lg z-50 py-1">
-          {/* User info */}
+          {/* User info + Theme */}
           {email && (
-            <>
-              <div className="px-3 py-2 border-b border-border">
-                <p className="text-sm font-medium truncate">{email}</p>
+            <div className="px-3 py-2 border-b border-border">
+              <p className="text-sm font-medium truncate">{email}</p>
+              <div className="flex items-center justify-between mt-1">
                 <p className="text-xs text-muted-foreground">Free plan</p>
+                <div className="flex items-center gap-0.5 bg-muted rounded-md p-0.5">
+                  <button
+                    onClick={() => setTheme('light')}
+                    className={cn(
+                      "p-1 rounded transition-colors",
+                      theme === 'light' ? "bg-background shadow-sm" : "hover:bg-background/50"
+                    )}
+                    title="Light"
+                  >
+                    <Sun className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => setTheme('dark')}
+                    className={cn(
+                      "p-1 rounded transition-colors",
+                      theme === 'dark' ? "bg-background shadow-sm" : "hover:bg-background/50"
+                    )}
+                    title="Dark"
+                  >
+                    <Moon className="w-3 h-3" />
+                  </button>
+                  <button
+                    onClick={() => setTheme('system')}
+                    className={cn(
+                      "p-1 rounded transition-colors",
+                      theme === 'system' ? "bg-background shadow-sm" : "hover:bg-background/50"
+                    )}
+                    title="System"
+                  >
+                    <Monitor className="w-3 h-3" />
+                  </button>
+                </div>
               </div>
-            </>
+            </div>
           )}
 
           {/* Menu items */}
@@ -97,43 +129,6 @@ export function UserMenu({ email }: UserMenuProps) {
             <CreditCard className="w-4 h-4 text-muted-foreground" />
             <span>Billing</span>
           </button>
-
-          {/* Theme Toggle */}
-          <div className="px-3 py-2 flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">Theme</span>
-            <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
-              <button
-                onClick={() => setTheme('light')}
-                className={cn(
-                  "p-1.5 rounded-md transition-colors",
-                  theme === 'light' ? "bg-background shadow-sm" : "hover:bg-background/50"
-                )}
-                title="Light"
-              >
-                <Sun className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setTheme('dark')}
-                className={cn(
-                  "p-1.5 rounded-md transition-colors",
-                  theme === 'dark' ? "bg-background shadow-sm" : "hover:bg-background/50"
-                )}
-                title="Dark"
-              >
-                <Moon className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setTheme('system')}
-                className={cn(
-                  "p-1.5 rounded-md transition-colors",
-                  theme === 'system' ? "bg-background shadow-sm" : "hover:bg-background/50"
-                )}
-                title="System"
-              >
-                <Monitor className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          </div>
 
           <div className="border-t border-border my-1" />
 
