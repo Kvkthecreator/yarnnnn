@@ -43,21 +43,26 @@ interface FloatingChatState {
   pageContext: PageContext;
   // Track if user manually opened/closed to avoid auto-opening
   userInteracted: boolean;
+  // Pre-filled prompt to send when chat opens
+  pendingPrompt: string | null;
 }
 
 type FloatingChatAction =
   | { type: 'OPEN' }
+  | { type: 'OPEN_WITH_PROMPT'; payload: string }
   | { type: 'CLOSE' }
   | { type: 'MINIMIZE' }
   | { type: 'RESTORE' }
   | { type: 'TOGGLE' }
-  | { type: 'SET_PAGE_CONTEXT'; payload: PageContext };
+  | { type: 'SET_PAGE_CONTEXT'; payload: PageContext }
+  | { type: 'CLEAR_PENDING_PROMPT' };
 
 const initialState: FloatingChatState = {
   isOpen: false,
   isMinimized: false,
   pageContext: { type: 'global' },
   userInteracted: false,
+  pendingPrompt: null,
 };
 
 function floatingChatReducer(
@@ -71,6 +76,14 @@ function floatingChatReducer(
         isOpen: true,
         isMinimized: false,
         userInteracted: true,
+      };
+    case 'OPEN_WITH_PROMPT':
+      return {
+        ...state,
+        isOpen: true,
+        isMinimized: false,
+        userInteracted: true,
+        pendingPrompt: action.payload,
       };
     case 'CLOSE':
       return {
@@ -101,6 +114,11 @@ function floatingChatReducer(
         ...state,
         pageContext: action.payload,
       };
+    case 'CLEAR_PENDING_PROMPT':
+      return {
+        ...state,
+        pendingPrompt: null,
+      };
     default:
       return state;
   }
@@ -109,11 +127,13 @@ function floatingChatReducer(
 interface FloatingChatContextValue {
   state: FloatingChatState;
   open: () => void;
+  openWithPrompt: (prompt: string) => void;
   close: () => void;
   minimize: () => void;
   restore: () => void;
   toggle: () => void;
   setPageContext: (context: PageContext) => void;
+  clearPendingPrompt: () => void;
 }
 
 const FloatingChatContext = createContext<FloatingChatContextValue | null>(null);
@@ -123,6 +143,10 @@ export function FloatingChatProvider({ children }: { children: ReactNode }) {
 
   const open = useCallback(() => {
     dispatch({ type: 'OPEN' });
+  }, []);
+
+  const openWithPrompt = useCallback((prompt: string) => {
+    dispatch({ type: 'OPEN_WITH_PROMPT', payload: prompt });
   }, []);
 
   const close = useCallback(() => {
@@ -143,6 +167,10 @@ export function FloatingChatProvider({ children }: { children: ReactNode }) {
 
   const setPageContext = useCallback((context: PageContext) => {
     dispatch({ type: 'SET_PAGE_CONTEXT', payload: context });
+  }, []);
+
+  const clearPendingPrompt = useCallback(() => {
+    dispatch({ type: 'CLEAR_PENDING_PROMPT' });
   }, []);
 
   // Listen for keyboard shortcut (Cmd/Ctrl + K)
@@ -167,11 +195,13 @@ export function FloatingChatProvider({ children }: { children: ReactNode }) {
       value={{
         state,
         open,
+        openWithPrompt,
         close,
         minimize,
         restore,
         toggle,
         setPageContext,
+        clearPendingPrompt,
       }}
     >
       {children}

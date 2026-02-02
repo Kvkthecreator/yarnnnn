@@ -72,8 +72,8 @@ function getQuickActions(type: PageContextType): { label: string; prompt: string
 }
 
 export function FloatingChatPanel() {
-  const { state, close, minimize, restore } = useFloatingChat();
-  const { isOpen, isMinimized, pageContext } = state;
+  const { state, close, minimize, restore, clearPendingPrompt } = useFloatingChat();
+  const { isOpen, isMinimized, pageContext, pendingPrompt } = state;
   const router = useRouter();
 
   const [input, setInput] = useState('');
@@ -180,6 +180,18 @@ export function FloatingChatPanel() {
       setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen, isMinimized]);
+
+  // Handle pending prompt - auto-send when chat opens with a prompt
+  useEffect(() => {
+    if (isOpen && !isMinimized && pendingPrompt && !isLoading) {
+      // Small delay to ensure chat is ready
+      const timer = setTimeout(() => {
+        sendMessage(pendingPrompt);
+        clearPendingPrompt();
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, isMinimized, pendingPrompt, isLoading, sendMessage, clearPendingPrompt]);
 
   // Scroll to bottom when messages change
   useEffect(() => {

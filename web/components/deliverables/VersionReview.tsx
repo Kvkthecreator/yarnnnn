@@ -28,6 +28,7 @@ import {
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useFloatingChat } from '@/contexts/FloatingChatContext';
+import { MessageSquare } from 'lucide-react';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
 interface VersionReviewProps {
@@ -53,8 +54,8 @@ export function VersionReview({
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [copied, setCopied] = useState(false);
 
-  // ADR-020: Set floating chat context
-  const { setPageContext } = useFloatingChat();
+  // ADR-020: Set floating chat context and enable TP-powered refinements
+  const { setPageContext, open: openChat, openWithPrompt } = useFloatingChat();
 
   useEffect(() => {
     loadVersion();
@@ -285,10 +286,10 @@ export function VersionReview({
             />
           </div>
 
-          {/* Quick feedback */}
+          {/* Quick feedback - TP-powered refinements */}
           <div className="mb-6 p-4 border border-border rounded-lg">
             <p className="text-sm font-medium mb-3">How was this draft?</p>
-            <div className="flex items-center gap-2 mb-4">
+            <div className="flex flex-wrap items-center gap-2 mb-4">
               <button
                 onClick={() => setFeedback(feedback === 'good' ? null : 'good')}
                 className={cn(
@@ -315,17 +316,56 @@ export function VersionReview({
               </button>
             </div>
 
-            {(feedback === 'needs_work' || feedbackNotes) && (
-              <div>
+            {/* Quick refinement actions - opens chat with prompt */}
+            {feedback === 'needs_work' && (
+              <div className="space-y-3">
+                <p className="text-xs text-muted-foreground">Quick refinements:</p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => openWithPrompt("Make this draft more concise - cut it down to the key points while keeping the essential information.")}
+                    className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted transition-colors"
+                  >
+                    Make it shorter
+                  </button>
+                  <button
+                    onClick={() => openWithPrompt("Add more detail and specifics to this draft. Include concrete examples where appropriate.")}
+                    className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted transition-colors"
+                  >
+                    More detail
+                  </button>
+                  <button
+                    onClick={() => openWithPrompt("Adjust the tone of this draft to be more professional and formal.")}
+                    className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted transition-colors"
+                  >
+                    More formal
+                  </button>
+                  <button
+                    onClick={() => openWithPrompt("Adjust the tone of this draft to be more casual and conversational.")}
+                    className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted transition-colors"
+                  >
+                    More casual
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2">
+                  <button
+                    onClick={() => openChat()}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs text-primary hover:underline"
+                  >
+                    <MessageSquare className="w-3.5 h-3.5" />
+                    Tell me what to change...
+                  </button>
+                </div>
+
                 <textarea
                   value={feedbackNotes}
                   onChange={(e) => setFeedbackNotes(e.target.value)}
-                  placeholder="What could be improved? (e.g., Include Q1 numbers, keep budget section shorter)"
+                  placeholder="Or add a note for the record (e.g., Include Q1 numbers next time)"
                   rows={2}
                   className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Your feedback helps improve future outputs.
+                <p className="text-xs text-muted-foreground">
+                  Notes are saved with your feedback to improve future outputs.
                 </p>
               </div>
             )}
