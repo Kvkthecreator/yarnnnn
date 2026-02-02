@@ -21,7 +21,7 @@ export default function TermsPage() {
         </p>
 
         <p>
-          Welcome to YARNNN. By using our app or site, you agree to these Terms
+          Welcome to Yarn. By using our app or site, you agree to these Terms
           of Service. If you disagree, please do not use our services.
         </p>
 
@@ -34,7 +34,7 @@ export default function TermsPage() {
         </ul>
 
         <h2 className="text-xl font-semibold mt-8 mb-4">2. User Data</h2>
-        <p>When you use YARNNN, we may collect and process:</p>
+        <p>When you use Yarn, we may collect and process:</p>
         <ul className="list-disc pl-6 space-y-2">
           <li>Your email address and profile information</li>
           <li>Content you upload or create (documents, blocks, projects)</li>
@@ -51,7 +51,7 @@ export default function TermsPage() {
 
         <h2 className="text-xl font-semibold mt-8 mb-4">3. AI-Generated Content</h2>
         <p>
-          YARNNN uses AI agents to generate work outputs. While we strive for
+          Yarn uses AI to generate work outputs. While we strive for
           accuracy, AI-generated content may contain errors. You are responsible
           for reviewing and verifying all outputs before use.
         </p>
@@ -80,7 +80,7 @@ export default function TermsPage() {
 
         <h2 className="text-xl font-semibold mt-8 mb-4">7. Disclaimers</h2>
         <p>
-          YARNNN is provided &quot;as is&quot; with no warranties. We do our best to
+          Yarn is provided &quot;as is&quot; with no warranties. We do our best to
           ensure reliability but offer no uptime or accuracy guarantees.
         </p>
 

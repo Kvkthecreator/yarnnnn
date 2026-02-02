@@ -650,7 +650,7 @@ function StepTypeSelection({
     <div className="space-y-6">
       <p className="text-muted-foreground">
         Choose the type of deliverable you need. Each type has a proven structure
-        that YARNNN can reliably produce.
+        that Yarn can reliably produce.
       </p>
 
       {/* Stable Types */}
@@ -1805,7 +1805,7 @@ function StepRecipient({
   return (
     <div className="space-y-6">
       <p className="text-muted-foreground">
-        Who receives this deliverable? Understanding your audience helps YARNNN
+        Who receives this deliverable? Understanding your audience helps Yarn
         tailor the tone and emphasis.
       </p>
 
@@ -1938,7 +1938,7 @@ function StepSources({
   return (
     <div className="space-y-6">
       <p className="text-muted-foreground">
-        What information feeds into this deliverable? This helps YARNNN gather
+        What information feeds into this deliverable? This helps Yarn gather
         the right context each cycle.
       </p>
 

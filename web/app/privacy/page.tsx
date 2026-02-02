@@ -21,7 +21,7 @@ export default function PrivacyPage() {
         </p>
 
         <p>
-          This Privacy Policy outlines how YARNNN (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;)
+          This Privacy Policy outlines how Yarn (&quot;we&quot;, &quot;our&quot;, or &quot;us&quot;)
           collects, uses, and protects your information when you use our
           services.
         </p>

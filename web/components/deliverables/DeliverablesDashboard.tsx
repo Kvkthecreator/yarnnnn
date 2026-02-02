@@ -133,7 +133,7 @@ export function DeliverablesDashboard({ onCreateNew }: DeliverablesDashboardProp
         <h2 className="text-xl font-semibold mb-2">No deliverables yet</h2>
 
         <p className="text-muted-foreground mb-6">
-          Set up your first recurring deliverable and YARNNN will produce it on schedule,
+          Set up your first recurring deliverable and Yarn will produce it on schedule,
           improving every cycle based on your feedback.
         </p>
 

@@ -481,7 +481,7 @@ export default function SettingsPage() {
               {purgeTarget === "user" && (
                 <>
                   Are you sure you want to delete all <strong>{stats?.userMemories}</strong> user
-                  memories? This will remove everything YARNNN has learned about you.
+                  memories? This will remove everything Yarn has learned about you.
                 </>
               )}
               {purgeTarget === "project" && selectedProjectId && (
@@ -494,7 +494,7 @@ export default function SettingsPage() {
               {purgeTarget === "all" && (
                 <>
                   Are you sure you want to delete <strong>ALL {stats?.totalMemories}</strong>{" "}
-                  memories? This will completely reset YARNNN&apos;s knowledge about you and all
+                  memories? This will completely reset Yarn&apos;s knowledge about you and all
                   your projects.
                 </>
               )}
