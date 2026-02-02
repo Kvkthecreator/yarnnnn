@@ -91,15 +91,17 @@ The implementation now reflects the [Supervision Model](../design/DESIGN-PRINCIP
    - ~~Compute edit_distance trend over last 5 versions~~
    - ~~Display trend indicator on deliverable cards~~
 
-2. **Staging notifications** (Phase 3)
-   - Email notification when version is staged for review
-   - Include preview + "Review Now" link
-   - Files: `api/services/deliverable_pipeline.py`, email service
+2. ~~**Staging notifications** (Phase 3)~~ ✅ DONE
+   - Email infrastructure complete in `api/jobs/email.py`
+   - `send_deliverable_ready_email()` and `send_deliverable_failed_email()` implemented
+   - Called from `unified_scheduler.py` when versions are staged
 
-3. **Scheduled execution trigger** (Phase 1)
-   - Cron job or scheduled task to trigger pipeline runs
-   - Current: manual trigger only
-   - Files: scheduler service, cron setup
+3. ~~**Scheduled execution trigger** (Phase 1)~~ ✅ DONE
+   - `unified_scheduler.py` handles both deliverables AND work tickets
+   - New cron job created: `yarnnn-unified-scheduler` (crn-d604r0pr0fns73eog1u0)
+   - Runs every 5 minutes: `*/5 * * * *`
+   - Legacy `work_scheduler.py` deleted
+   - Old cron job `yarnnn-work-scheduler` should be suspended
 
 ### Medium Priority - Polish
 
