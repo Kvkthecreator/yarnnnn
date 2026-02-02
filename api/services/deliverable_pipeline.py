@@ -1077,11 +1077,11 @@ async def execute_deliverable_pipeline(
         )
 
         if not gather_result.get("success"):
-            await update_version_status(client, version_id, "failed")
+            await update_version_status(client, version_id, "rejected")
             return {
                 "success": False,
                 "version_id": version_id,
-                "status": "failed",
+                "status": "rejected",
                 "message": f"Gather step failed: {gather_result.get('error')}",
             }
 
@@ -1100,11 +1100,11 @@ async def execute_deliverable_pipeline(
         )
 
         if not synthesize_result.get("success"):
-            await update_version_status(client, version_id, "failed")
+            await update_version_status(client, version_id, "rejected")
             return {
                 "success": False,
                 "version_id": version_id,
-                "status": "failed",
+                "status": "rejected",
                 "message": f"Synthesize step failed: {synthesize_result.get('error')}",
             }
 
@@ -1135,11 +1135,14 @@ async def execute_deliverable_pipeline(
 
     except Exception as e:
         logger.error(f"[PIPELINE] Error: {e}")
-        await update_version_status(client, version_id, "failed")
+        try:
+            await update_version_status(client, version_id, "rejected")
+        except Exception:
+            pass  # Don't fail if status update fails
         return {
             "success": False,
             "version_id": version_id,
-            "status": "failed",
+            "status": "rejected",
             "message": str(e),
         }
 
