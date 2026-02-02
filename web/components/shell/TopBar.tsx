@@ -3,11 +3,14 @@
 /**
  * ADR-014: Top Bar with Minimal Chrome
  * ADR-018: Updated for Deliverables-first experience
+ *
+ * Chat navigation removed - FloatingChatPanel (Cmd+K) is the primary chat interface.
+ * The floating chat is always available and context-aware.
  */
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { MessageSquare, LayoutGrid } from 'lucide-react';
+import { LayoutGrid } from 'lucide-react';
 import { UserMenu } from './UserMenu';
 import { WorkStatus } from './WorkStatus';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
@@ -22,7 +25,6 @@ export function TopBar({ email }: TopBarProps) {
   const isDesktop = useMediaQuery('(min-width: 768px)');
 
   const isDeliverables = pathname === '/dashboard' || pathname.startsWith('/dashboard/deliverable');
-  const isChat = pathname === '/dashboard/chat';
 
   return (
     <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0 sticky top-0 z-40">
@@ -53,19 +55,6 @@ export function TopBar({ email }: TopBarProps) {
             >
               <LayoutGrid className="w-4 h-4" />
               <span className="hidden lg:inline">Deliverables</span>
-            </Link>
-
-            <Link
-              href="/dashboard/chat"
-              className={cn(
-                "flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
-                isChat
-                  ? "bg-primary/10 text-primary"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
-              )}
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span className="hidden lg:inline">Chat</span>
             </Link>
           </nav>
         )}

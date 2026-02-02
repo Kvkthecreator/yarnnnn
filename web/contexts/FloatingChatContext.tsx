@@ -24,7 +24,8 @@ export type PageContextType =
   | 'deliverables-dashboard'
   | 'deliverable-detail'
   | 'deliverable-review'
-  | 'project';
+  | 'project'
+  | 'onboarding-chat'; // Full-screen onboarding chat - hide floating trigger
 
 export interface PageContext {
   type: PageContextType;

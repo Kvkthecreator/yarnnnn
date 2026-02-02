@@ -21,6 +21,9 @@ export function FloatingChatTrigger({ className }: FloatingChatTriggerProps) {
   // Don't show if chat is already open
   if (state.isOpen) return null;
 
+  // Don't show if user is in onboarding chat (it's already a full-screen chat)
+  if (state.pageContext.type === 'onboarding-chat') return null;
+
   return (
     <button
       onClick={open}

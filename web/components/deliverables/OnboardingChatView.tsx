@@ -21,6 +21,7 @@ import {
   MessageSquare,
 } from 'lucide-react';
 import { useChat } from '@/hooks/useChat';
+import { useFloatingChat } from '@/contexts/FloatingChatContext';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 import { ToolResultCard } from '@/components/chat/ToolResultCard';
@@ -59,9 +60,16 @@ export function OnboardingChatView({
   onUseWizard,
 }: OnboardingChatViewProps) {
   const router = useRouter();
+  const { setPageContext } = useFloatingChat();
   const [input, setInput] = useState('');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Set page context to hide floating chat trigger (we're already in a chat)
+  useEffect(() => {
+    setPageContext({ type: 'onboarding-chat' });
+    return () => setPageContext({ type: 'global' });
+  }, [setPageContext]);
 
   // Handle tool results - watch for deliverable creation
   const handleToolResult = useCallback(

@@ -6,7 +6,7 @@
  */
 
 import { useEffect, useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { TopBar } from './TopBar';
 import { useSurface } from '@/contexts/SurfaceContext';
@@ -22,14 +22,13 @@ export default function AuthenticatedLayout({
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
   const router = useRouter();
-  const pathname = usePathname();
   const supabase = createClient();
 
-  // ADR-013: Surface state for layout adjustment (only on chat page)
+  // ADR-013: Surface state for layout adjustment
+  // Note: Chat page removed - FloatingChatPanel (Cmd+K) is now the primary chat interface
   const { state: surfaceState } = useSurface();
   const isDesktop = useMediaQuery('(min-width: 1024px)');
-  const isOnChat = pathname === '/dashboard/chat';
-  const surfaceOpen = surfaceState.isOpen && isDesktop && isOnChat;
+  const surfaceOpen = surfaceState.isOpen && isDesktop;
 
   useEffect(() => {
     const checkAuth = async () => {
