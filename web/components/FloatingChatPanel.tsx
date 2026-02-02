@@ -244,7 +244,7 @@ ${message}`;
     return (
       <button
         onClick={restore}
-        className="fixed bottom-4 right-4 z-50 flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
+        className="fixed bottom-4 right-4 z-[60] flex items-center gap-2 px-4 py-2.5 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 active:scale-95 transition-all"
       >
         <MessageSquare className="w-4 h-4" />
         <span className="text-sm font-medium hidden sm:inline">Chat</span>
@@ -267,7 +267,7 @@ ${message}`;
     <>
       {/* Backdrop - clickable on mobile to close */}
       <div
-        className="fixed inset-0 bg-black/20 md:bg-black/10 z-40 md:pointer-events-none"
+        className="fixed inset-0 bg-black/20 md:bg-black/10 z-[55] md:pointer-events-none"
         onClick={close}
         aria-hidden="true"
       />
@@ -279,8 +279,8 @@ ${message}`;
           'fixed inset-x-0 bottom-0 h-[85vh] rounded-t-2xl',
           // Desktop: side drawer, right-aligned
           'md:inset-x-auto md:right-0 md:top-0 md:h-full md:w-full md:max-w-md md:rounded-none',
-          // Common styles
-          'bg-background border-t md:border-t-0 md:border-l border-border shadow-xl z-50',
+          // Common styles - z-[60] to appear above full-screen overlays like review (z-50)
+          'bg-background border-t md:border-t-0 md:border-l border-border shadow-xl z-[60]',
           'transform transition-transform duration-200 ease-out',
           'flex flex-col'
         )}

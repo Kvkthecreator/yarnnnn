@@ -409,6 +409,16 @@ export function VersionReview({
           </button>
         </div>
       </footer>
+
+      {/* Floating chat trigger - inside overlay since this is z-50 fullscreen */}
+      <button
+        onClick={() => openChat()}
+        className="fixed bottom-20 right-4 md:bottom-24 md:right-6 z-50 flex items-center justify-center w-14 h-14 rounded-full bg-primary text-primary-foreground shadow-lg hover:shadow-xl active:scale-95 md:hover:scale-105 transition-all duration-200"
+        title="Open chat (⌘K)"
+        aria-label="Open chat"
+      >
+        <MessageSquare className="w-6 h-6" />
+      </button>
     </div>
   );
 }
