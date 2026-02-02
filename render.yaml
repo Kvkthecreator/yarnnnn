@@ -27,16 +27,19 @@ services:
 
 # Cron Jobs
 crons:
-  # Weekly Digest Scheduler
-  # Runs every hour to check for workspaces due for their digest
-  - name: digest-scheduler
-    schedule: "0 * * * *"  # Every hour at :00
-    command: python -m api.jobs.scheduler
-    region: oregon
+  # Unified Scheduler (ADR-017 + ADR-018)
+  # Processes: recurring work tickets, recurring deliverables, weekly digests
+  # Runs every 5 minutes to catch due items
+  - name: unified-scheduler
+    schedule: "*/5 * * * *"
+    command: cd api && python -m jobs.unified_scheduler
+    region: singapore
     envVars:
       - key: SUPABASE_URL
         sync: false
-      - key: SUPABASE_SERVICE_ROLE_KEY
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
         sync: false
       - key: RESEND_API_KEY
         sync: false

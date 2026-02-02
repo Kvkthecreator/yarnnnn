@@ -212,3 +212,164 @@ You're receiving this because you requested work in yarnnn.
         html=html,
         text=text,
     )
+
+
+async def send_deliverable_ready_email(
+    to: str,
+    deliverable_title: str,
+    deliverable_id: str,
+    deliverable_type: str,
+    schedule_description: str,
+    next_run_at: Optional[str] = None,
+) -> EmailResult:
+    """
+    Send email notification when a deliverable version is staged and ready for review.
+
+    Args:
+        to: User's email address
+        deliverable_title: Title of the deliverable
+        deliverable_id: Deliverable ID for link
+        deliverable_type: Type (status_report, client_proposal, etc.)
+        schedule_description: Human-readable schedule (e.g., "Every Monday at 9:00 AM")
+        next_run_at: Next scheduled run time (ISO format)
+
+    Returns:
+        EmailResult
+    """
+    app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+    review_url = f"{app_url}/dashboard/deliverable/{deliverable_id}/review"
+
+    # Format type for display
+    type_display = deliverable_type.replace("_", " ").title()
+
+    # Format next run
+    next_run_display = ""
+    if next_run_at:
+        try:
+            from datetime import datetime
+            dt = datetime.fromisoformat(next_run_at.replace("Z", "+00:00"))
+            next_run_display = dt.strftime("%b %d, %Y at %I:%M %p")
+        except Exception:
+            next_run_display = next_run_at
+
+    html = f"""
+    <html>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #111; margin-bottom: 4px;">Ready for Review</h2>
+        <p style="color: #666; margin-top: 0;">Your <strong>{type_display}</strong> has a new version ready.</p>
+
+        <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin: 0 0 8px 0; color: #333;">{deliverable_title}</h3>
+            <p style="margin: 0; color: #666; font-size: 14px;">
+                Schedule: {schedule_description}
+            </p>
+            {f'<p style="margin: 8px 0 0 0; color: #888; font-size: 13px;">Next run: {next_run_display}</p>' if next_run_display else ''}
+        </div>
+
+        <div style="margin-top: 24px;">
+            <a href="{review_url}" style="display: inline-block; background: #111; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 9999px; font-weight: 500;">
+                Review Now
+            </a>
+        </div>
+
+        <p style="color: #888; font-size: 12px; margin-top: 32px;">
+            You're receiving this because you have a recurring deliverable in Yarn.
+            <a href="{app_url}/dashboard/settings" style="color: #888;">Manage notifications</a>
+        </p>
+    </body>
+    </html>
+    """
+
+    text = f"""Ready for Review
+
+Your {type_display} "{deliverable_title}" has a new version ready.
+
+Schedule: {schedule_description}
+{f"Next run: {next_run_display}" if next_run_display else ""}
+
+Review now: {review_url}
+
+---
+You're receiving this because you have a recurring deliverable in Yarn.
+"""
+
+    return await send_email(
+        to=to,
+        subject=f"[Yarn] {deliverable_title} ready for review",
+        html=html,
+        text=text,
+    )
+
+
+async def send_deliverable_failed_email(
+    to: str,
+    deliverable_title: str,
+    deliverable_id: str,
+    error_message: str,
+) -> EmailResult:
+    """
+    Send email notification when a deliverable generation fails.
+
+    Args:
+        to: User's email address
+        deliverable_title: Title of the deliverable
+        deliverable_id: Deliverable ID for link
+        error_message: Error description
+
+    Returns:
+        EmailResult
+    """
+    app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+    deliverable_url = f"{app_url}/dashboard/deliverable/{deliverable_id}"
+
+    html = f"""
+    <html>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+        <h2 style="color: #111; margin-bottom: 4px;">Generation Failed</h2>
+        <p style="color: #666; margin-top: 0;">There was a problem generating your deliverable.</p>
+
+        <div style="background: #fef2f2; border: 1px solid #fecaca; padding: 16px; border-radius: 8px; margin: 20px 0;">
+            <h3 style="margin: 0 0 8px 0; color: #333;">{deliverable_title}</h3>
+            <p style="margin: 0; color: #991b1b; font-size: 14px;">
+                {error_message[:200]}{'...' if len(error_message) > 200 else ''}
+            </p>
+        </div>
+
+        <p style="color: #666; font-size: 14px;">
+            We'll try again at the next scheduled time. If this continues, check your data sources
+            or <a href="mailto:support@yarnnn.com" style="color: #111;">contact support</a>.
+        </p>
+
+        <div style="margin-top: 24px;">
+            <a href="{deliverable_url}" style="display: inline-block; background: #111; color: #fff; padding: 12px 24px; text-decoration: none; border-radius: 9999px; font-weight: 500;">
+                View Deliverable
+            </a>
+        </div>
+
+        <p style="color: #888; font-size: 12px; margin-top: 32px;">
+            You're receiving this because a scheduled deliverable failed.
+        </p>
+    </body>
+    </html>
+    """
+
+    text = f"""Generation Failed
+
+There was a problem generating "{deliverable_title}".
+
+Error: {error_message[:200]}{'...' if len(error_message) > 200 else ''}
+
+We'll try again at the next scheduled time. If this continues, check your data sources.
+
+View deliverable: {deliverable_url}
+
+---
+You're receiving this because a scheduled deliverable failed.
+"""
+
+    return await send_email(
+        to=to,
+        subject=f"[Yarn] Failed to generate {deliverable_title}",
+        html=html,
+        text=text,
+    )
