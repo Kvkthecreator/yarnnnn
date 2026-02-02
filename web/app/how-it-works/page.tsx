@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function HowItWorksPage() {
   return (
     <div className="relative min-h-screen flex flex-col bg-[#0a0a0a] text-white overflow-x-hidden">
-      <GrainOverlay />
+      <GrainOverlay variant="dark" />
       <ShaderBackgroundDark />
 
       {/* Content layer */}
