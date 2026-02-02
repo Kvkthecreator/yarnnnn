@@ -23,6 +23,7 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
+from routes.projects import get_or_create_workspace
 
 logger = logging.getLogger(__name__)
 
@@ -146,12 +147,15 @@ async def create_deliverable(
 
     # Create project if not provided
     if not project_id:
+        # Get or create workspace first
+        workspace = await get_or_create_workspace(auth)
+
         project_result = (
             auth.client.table("projects")
             .insert({
                 "name": request.title,
                 "description": f"Project for deliverable: {request.title}",
-                "user_id": auth.user_id,
+                "workspace_id": workspace["id"],
             })
             .execute()
         )
