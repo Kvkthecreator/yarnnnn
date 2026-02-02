@@ -64,7 +64,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
 
       {/* Mobile menu button */}
       <button
-        className={`md:hidden p-2 ${inverted ? "text-background" : "text-foreground"}`}
+        className={`md:hidden p-2 ${inverted ? "text-white" : "text-[#1a1a1a]"}`}
         onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
         aria-label="Toggle menu"
       >
