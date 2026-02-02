@@ -343,7 +343,7 @@ export function VersionReview({
             ) : (
               <>
                 <Check className="w-4 h-4" />
-                Mark as Sent
+                Mark as Done
               </>
             )}
           </button>

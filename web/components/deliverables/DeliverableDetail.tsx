@@ -60,7 +60,7 @@ const VERSION_STATUS_CONFIG: Record<VersionStatus, { icon: React.ReactNode; labe
   },
   approved: {
     icon: <CheckCircle2 className="w-4 h-4" />,
-    label: 'Sent',
+    label: 'Done',
     color: 'text-green-600 bg-green-50 dark:bg-green-900/30',
   },
   rejected: {

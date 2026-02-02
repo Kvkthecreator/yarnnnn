@@ -52,7 +52,7 @@ const STATUS_CONFIG: Record<VersionStatus | 'none', { icon: React.ReactNode; lab
   },
   approved: {
     icon: <CheckCircle2 className="w-3.5 h-3.5" />,
-    label: 'Sent',
+    label: 'Done',
     color: 'text-green-600 bg-green-50 dark:bg-green-900/30'
   },
   rejected: {

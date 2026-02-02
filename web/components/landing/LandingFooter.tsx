@@ -29,9 +29,9 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
         inverted ? "border-background/10" : "border-border"
       }`}
     >
-      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
+      <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-8 md:gap-6 text-center md:text-left">
         {/* Brand */}
-        <div className="flex flex-col items-start gap-2">
+        <div className="flex flex-col items-center md:items-start gap-2">
           <Link href="/" className="font-brand text-lg hover:opacity-80 transition-opacity">
             yarnnn
           </Link>
@@ -46,20 +46,18 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
         </div>
 
         {/* Feedback - Tally Form */}
-        <div className="flex flex-col items-center md:items-start gap-2">
-          <button
-            data-tally-open="pbD88B"
-            data-tally-width="400"
-            data-tally-overlay="1"
-            data-tally-emoji-animation="none"
-            className={`text-sm font-medium ${hoverClass} transition-colors underline underline-offset-4`}
-          >
-            Share feedback
-          </button>
-        </div>
+        <button
+          data-tally-open="pbD88B"
+          data-tally-width="400"
+          data-tally-overlay="1"
+          data-tally-emoji-animation="none"
+          className={`text-sm font-medium ${hoverClass} transition-colors underline underline-offset-4`}
+        >
+          Share feedback
+        </button>
 
         {/* Contact */}
-        <div className="flex flex-col md:flex-row md:items-center gap-4 md:gap-12 text-sm">
+        <div className="flex flex-col gap-4 text-sm">
           <div>
             <div className="font-medium mb-1">Office</div>
             <div className={mutedClass}>
