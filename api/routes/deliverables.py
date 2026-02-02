@@ -288,6 +288,15 @@ TypeConfig = Union[
 ]
 
 
+class FeedbackSummary(BaseModel):
+    """Summary of learned preferences from user feedback (ADR-018)."""
+    has_feedback: bool = False
+    total_versions: int = 0
+    approved_versions: int = 0
+    avg_quality: Optional[float] = None  # Average (1 - edit_distance_score) as percentage
+    learned_preferences: list[str] = Field(default_factory=list)  # Human-readable preferences
+
+
 def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
     """
     Compute feedback summary from approved versions (ADR-018).
@@ -501,15 +510,6 @@ class VersionResponse(BaseModel):
     created_at: str
     staged_at: Optional[str] = None
     approved_at: Optional[str] = None
-
-
-class FeedbackSummary(BaseModel):
-    """Summary of learned preferences from user feedback (ADR-018)."""
-    has_feedback: bool = False
-    total_versions: int = 0
-    approved_versions: int = 0
-    avg_quality: Optional[float] = None  # Average (1 - edit_distance_score) as percentage
-    learned_preferences: list[str] = Field(default_factory=list)  # Human-readable preferences
 
 
 class VersionUpdate(BaseModel):
