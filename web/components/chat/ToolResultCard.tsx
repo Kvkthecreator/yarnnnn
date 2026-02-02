@@ -14,6 +14,7 @@ import type { ToolResultData } from '@/hooks/useChat';
 interface ToolResultCardProps {
   result: ToolResultData;
   onNavigate?: (path: string) => void;
+  onOpenTab?: (id: string, title: string) => void;
 }
 
 // Type-specific card data extractors
@@ -38,7 +39,7 @@ interface DeliverableListItem {
   latest_version_status?: string;
 }
 
-export function ToolResultCard({ result, onNavigate }: ToolResultCardProps) {
+export function ToolResultCard({ result, onNavigate, onOpenTab }: ToolResultCardProps) {
   const { toolName, success, data } = result;
 
   if (!success) {
@@ -53,15 +54,15 @@ export function ToolResultCard({ result, onNavigate }: ToolResultCardProps) {
   // Route to appropriate card based on tool name
   switch (toolName) {
     case 'create_deliverable':
-      return <DeliverableCreatedCard data={data} onNavigate={onNavigate} />;
+      return <DeliverableCreatedCard data={data} onOpenTab={onOpenTab} />;
     case 'list_deliverables':
-      return <DeliverableListCard data={data} onNavigate={onNavigate} />;
+      return <DeliverableListCard data={data} onOpenTab={onOpenTab} />;
     case 'get_deliverable':
-      return <DeliverableDetailCard data={data} onNavigate={onNavigate} />;
+      return <DeliverableDetailCard data={data} onOpenTab={onOpenTab} />;
     case 'update_deliverable':
       return <DeliverableUpdatedCard data={data} />;
     case 'run_deliverable':
-      return <DeliverableRunCard data={data} onNavigate={onNavigate} />;
+      return <DeliverableRunCard data={data} onOpenTab={onOpenTab} />;
     default:
       // Don't show card for unhandled tools
       return null;
@@ -71,10 +72,10 @@ export function ToolResultCard({ result, onNavigate }: ToolResultCardProps) {
 // Card for newly created deliverable
 function DeliverableCreatedCard({
   data,
-  onNavigate,
+  onOpenTab,
 }: {
   data: Record<string, unknown>;
-  onNavigate?: (path: string) => void;
+  onOpenTab?: (id: string, title: string) => void;
 }) {
   const deliverable = data.deliverable as DeliverableData | undefined;
   if (!deliverable) return null;
@@ -82,7 +83,7 @@ function DeliverableCreatedCard({
   return (
     <div
       className="border border-border rounded-lg p-3 bg-background/50 cursor-pointer hover:border-primary/50 transition-colors"
-      onClick={() => onNavigate?.(`/dashboard/deliverable/${deliverable.id}`)}
+      onClick={() => onOpenTab?.(deliverable.id, deliverable.title)}
     >
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-2">
@@ -125,10 +126,10 @@ function DeliverableCreatedCard({
 // Card for deliverable list
 function DeliverableListCard({
   data,
-  onNavigate,
+  onOpenTab,
 }: {
   data: Record<string, unknown>;
-  onNavigate?: (path: string) => void;
+  onOpenTab?: (id: string, title: string) => void;
 }) {
   const deliverables = data.deliverables as DeliverableListItem[] | undefined;
   const count = data.count as number | undefined;
@@ -151,7 +152,7 @@ function DeliverableListCard({
         <div
           key={d.id}
           className="flex items-center gap-3 px-3 py-2 border border-border rounded-lg bg-background/50 cursor-pointer hover:border-primary/50 transition-colors"
-          onClick={() => onNavigate?.(`/dashboard/deliverable/${d.id}`)}
+          onClick={() => onOpenTab?.(d.id, d.title)}
         >
           <div className="w-8 h-8 rounded-lg bg-muted flex items-center justify-center shrink-0">
             <FileText className="w-4 h-4 text-muted-foreground" />
@@ -189,10 +190,10 @@ function DeliverableListCard({
 // Card for deliverable detail view
 function DeliverableDetailCard({
   data,
-  onNavigate,
+  onOpenTab,
 }: {
   data: Record<string, unknown>;
-  onNavigate?: (path: string) => void;
+  onOpenTab?: (id: string, title: string) => void;
 }) {
   const deliverable = data.deliverable as DeliverableData | undefined;
   const versions = data.versions as Array<{ version_number: number; status: string; created_at: string }> | undefined;
@@ -203,7 +204,7 @@ function DeliverableDetailCard({
   return (
     <div
       className="border border-border rounded-lg p-3 bg-background/50 cursor-pointer hover:border-primary/50 transition-colors"
-      onClick={() => onNavigate?.(`/dashboard/deliverable/${deliverable.id}`)}
+      onClick={() => onOpenTab?.(deliverable.id, deliverable.title)}
     >
       <div className="flex items-start gap-3">
         <div className="w-10 h-10 rounded-lg bg-muted flex items-center justify-center shrink-0">
@@ -280,19 +281,20 @@ function DeliverableUpdatedCard({ data }: { data: Record<string, unknown> }) {
 // Card for triggered deliverable run
 function DeliverableRunCard({
   data,
-  onNavigate,
+  onOpenTab,
 }: {
   data: Record<string, unknown>;
-  onNavigate?: (path: string) => void;
+  onOpenTab?: (id: string, title: string) => void;
 }) {
   const deliverableId = data.deliverable_id as string | undefined;
+  const deliverableTitle = data.deliverable_title as string | undefined;
   const versionNumber = data.version_number as number | undefined;
   const message = data.message as string | undefined;
 
   return (
     <div
       className="flex items-center gap-3 px-3 py-2 border border-border rounded-lg bg-background/50 cursor-pointer hover:border-primary/50 transition-colors"
-      onClick={() => deliverableId && onNavigate?.(`/dashboard/deliverable/${deliverableId}`)}
+      onClick={() => deliverableId && onOpenTab?.(deliverableId, deliverableTitle || 'Deliverable')}
     >
       <div className="w-8 h-8 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center animate-pulse">
         <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400" />

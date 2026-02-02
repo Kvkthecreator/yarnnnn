@@ -10,9 +10,8 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { Send, Loader2, Sparkles } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useChat } from '@/hooks/useChat';
-import { useSurface } from '@/contexts/SurfaceContext';
+import { useTabs } from '@/contexts/TabContext';
 import { cn } from '@/lib/utils';
 import { ToolResultCard } from '@/components/chat/ToolResultCard';
 import { api } from '@/lib/api/client';
@@ -37,8 +36,7 @@ interface ChatViewProps {
 }
 
 export function ChatView({ initialMessage }: ChatViewProps) {
-  const router = useRouter();
-  const { openSurface } = useSurface();
+  const { openDeliverableTab } = useTabs();
   const [input, setInput] = useState(initialMessage || '');
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [loadingDeliverables, setLoadingDeliverables] = useState(true);
@@ -77,23 +75,20 @@ export function ChatView({ initialMessage }: ChatViewProps) {
     []
   );
 
-  // Handle UI actions from TP (like opening drawers)
+  // Handle UI actions from TP (like opening tabs)
   const handleUIAction = useCallback(
     (action: { type: string; surface?: string; data?: Record<string, unknown> }) => {
       if (action.type === 'OPEN_SURFACE') {
         if (action.surface === 'deliverable' && action.data?.deliverableId) {
-          openSurface('output', { deliverableId: action.data.deliverableId as string });
-        } else if (action.surface === 'review' && action.data?.versionId) {
-          // Open review drawer
-          openSurface('output', {
-            deliverableId: action.data.deliverableId as string,
-            versionId: action.data.versionId as string,
-            mode: 'review',
-          });
+          openDeliverableTab(
+            action.data.deliverableId as string,
+            (action.data.deliverableTitle as string) || 'Deliverable'
+          );
         }
+        // Review actions handled via openVersionTab when needed
       }
     },
-    [openSurface]
+    [openDeliverableTab]
   );
 
   const { messages, isLoading, error, sendMessage, clearMessages } = useChat({
@@ -238,7 +233,7 @@ export function ChatView({ initialMessage }: ChatViewProps) {
                         <ToolResultCard
                           key={resultIndex}
                           result={result}
-                          onNavigate={(path) => router.push(path)}
+                          onOpenTab={openDeliverableTab}
                         />
                       ))}
                     </div>
