@@ -506,6 +506,7 @@ async def create_deliverable(
         "project_id": project_id,
         "title": request.title,
         "deliverable_type": request.deliverable_type,
+        "type_tier": TYPE_TIERS.get(request.deliverable_type, "stable"),
         "type_config": validated_config,
         "description": request.description,  # Legacy, kept for backwards compat
         "recipient_context": request.recipient_context.model_dump() if request.recipient_context else {},
