@@ -288,6 +288,75 @@ TypeConfig = Union[
 ]
 
 
+def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
+    """
+    Compute feedback summary from approved versions (ADR-018).
+
+    Analyzes edit patterns and feedback notes to determine what YARNNN has learned.
+    """
+    if not approved_versions:
+        return FeedbackSummary(
+            has_feedback=False,
+            total_versions=0,
+            approved_versions=0,
+        )
+
+    # Calculate average quality (1 - edit_distance = quality)
+    scores = [
+        v.get("edit_distance_score")
+        for v in approved_versions
+        if v.get("edit_distance_score") is not None
+    ]
+    avg_quality = None
+    if scores:
+        avg_quality = round((1 - sum(scores) / len(scores)) * 100, 1)
+
+    # Aggregate learned preferences from edit categories and feedback
+    learned = []
+    addition_counts: dict[str, int] = {}
+    deletion_counts: dict[str, int] = {}
+
+    for v in approved_versions:
+        # Collect edit categories
+        categories = v.get("edit_categories", {})
+        if categories:
+            for addition in categories.get("additions", []):
+                addition_counts[addition] = addition_counts.get(addition, 0) + 1
+            for deletion in categories.get("deletions", []):
+                deletion_counts[deletion] = deletion_counts.get(deletion, 0) + 1
+
+        # Collect explicit feedback
+        if v.get("feedback_notes"):
+            note = v["feedback_notes"].strip()
+            if note and note not in learned:
+                learned.append(f'"{note}"')
+
+    # Convert category patterns to human-readable preferences
+    if addition_counts:
+        top_additions = sorted(addition_counts.items(), key=lambda x: -x[1])[:3]
+        for item, count in top_additions:
+            if count >= 2:
+                learned.append(f"You often add {item}")
+            else:
+                learned.append(f"You've added {item}")
+
+    if deletion_counts:
+        top_deletions = sorted(deletion_counts.items(), key=lambda x: -x[1])[:3]
+        for item, count in top_deletions:
+            if count >= 2:
+                learned.append(f"You often remove {item}")
+            else:
+                learned.append(f"You've removed {item}")
+
+    return FeedbackSummary(
+        has_feedback=len(learned) > 0 or avg_quality is not None,
+        total_versions=len(approved_versions),
+        approved_versions=len(approved_versions),
+        avg_quality=avg_quality,
+        learned_preferences=learned[:8],  # Limit to 8 items
+    )
+
+
 def get_default_config(deliverable_type: DeliverableType) -> dict:
     """Get default configuration for a deliverable type."""
     defaults = {
@@ -427,10 +496,20 @@ class VersionResponse(BaseModel):
     draft_content: Optional[str] = None
     final_content: Optional[str] = None
     edit_distance_score: Optional[float] = None
+    edit_categories: Optional[dict] = None  # ADR-018: categorized edits
     feedback_notes: Optional[str] = None
     created_at: str
     staged_at: Optional[str] = None
     approved_at: Optional[str] = None
+
+
+class FeedbackSummary(BaseModel):
+    """Summary of learned preferences from user feedback (ADR-018)."""
+    has_feedback: bool = False
+    total_versions: int = 0
+    approved_versions: int = 0
+    avg_quality: Optional[float] = None  # Average (1 - edit_distance_score) as percentage
+    learned_preferences: list[str] = Field(default_factory=list)  # Human-readable preferences
 
 
 class VersionUpdate(BaseModel):
@@ -698,6 +777,10 @@ async def get_deliverable(
 
     versions = versions_result.data or []
 
+    # Compute feedback summary from approved versions
+    approved_versions = [v for v in versions if v.get("status") == "approved"]
+    feedback_summary = compute_feedback_summary(approved_versions)
+
     return {
         "deliverable": DeliverableResponse(
             id=deliverable["id"],
@@ -727,6 +810,7 @@ async def get_deliverable(
                 draft_content=v.get("draft_content"),
                 final_content=v.get("final_content"),
                 edit_distance_score=v.get("edit_distance_score"),
+                edit_categories=v.get("edit_categories"),
                 feedback_notes=v.get("feedback_notes"),
                 created_at=v["created_at"],
                 staged_at=v.get("staged_at"),
@@ -734,6 +818,7 @@ async def get_deliverable(
             )
             for v in versions
         ],
+        "feedback_summary": feedback_summary,
     }
 
 

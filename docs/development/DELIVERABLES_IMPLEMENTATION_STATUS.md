@@ -98,10 +98,9 @@ The implementation now reflects the [Supervision Model](../design/DESIGN-PRINCIP
 
 3. ~~**Scheduled execution trigger** (Phase 1)~~ ✅ DONE
    - `unified_scheduler.py` handles both deliverables AND work tickets
-   - New cron job: `yarnnn-unified-scheduler` (crn-d604r0pr0fns73eog1u0) - **LIVE**
+   - Cron job: `yarnnn-unified-scheduler` (crn-d604uqili9vc73ankvag) - **LIVE**
    - Runs every 5 minutes: `*/5 * * * *`
    - Legacy `work_scheduler.py` deleted
-   - **ACTION**: Suspend old `yarnnn-work-scheduler` via [dashboard](https://dashboard.render.com/cron/crn-d5u1bm4r85hc739rqf90)
 
 ### Medium Priority - Polish
 
@@ -133,33 +132,23 @@ The implementation now reflects the [Supervision Model](../design/DESIGN-PRINCIP
 ### Immediate (Today/Tomorrow)
 
 ```
-[ ] 1. Add quality trend calculation to GET /deliverables
-    - Compute avg edit_distance for last 3-5 versions
-    - Return trend direction (improving/stable/declining)
+[x] 1. Quality trend calculation - DONE (in GET /deliverables)
+[x] 2. DeliverableCard quality display - DONE (trend arrow + percentage)
+[x] 3. Staging notification emails - DONE (unified_scheduler.py)
+[x] 4. Scheduled execution - DONE (yarnnn-unified-scheduler cron)
 
-[ ] 2. Update DeliverableCard to show quality trend
-    - Display sparkline or trend arrow
-    - Show latest edit_distance percentage
+[ ] 5. Version history timeline enhancement
+    - Expandable version content in detail view
+    - Quality score per version
+    - Diff view between versions
 
-[ ] 3. Test full loop end-to-end
-    - Create deliverable → Generate version → Review → Approve
+[ ] 6. Feedback summary display
+    - "YARNNN has learned: prefer bullet points..."
+    - Show on deliverable detail page
+
+[ ] 7. Test full loop end-to-end
+    - Create deliverable → Generate → Review → Approve
     - Verify feedback captured and quality tracked
-```
-
-### This Week
-
-```
-[ ] 4. Implement staging notification email
-    - Trigger email when version status = 'staged'
-    - Include deliverable title, preview, review link
-
-[ ] 5. Set up scheduled execution
-    - Cron job for checking due deliverables
-    - Trigger pipeline for deliverables past schedule time
-
-[ ] 6. Version history timeline
-    - Show all versions with status, date, edit distance
-    - Allow viewing any past version
 ```
 
 ---

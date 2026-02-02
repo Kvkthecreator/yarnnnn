@@ -577,15 +577,30 @@ export interface DeliverableVersion {
   draft_content?: string;
   final_content?: string;
   edit_distance_score?: number;
+  edit_categories?: {
+    additions?: string[];
+    deletions?: string[];
+    modifications?: string[];
+  };
   feedback_notes?: string;
   created_at: string;
   staged_at?: string;
   approved_at?: string;
 }
 
+// ADR-018: Feedback summary for learned preferences
+export interface FeedbackSummary {
+  has_feedback: boolean;
+  total_versions: number;
+  approved_versions: number;
+  avg_quality?: number;  // Percentage (0-100)
+  learned_preferences: string[];  // Human-readable preferences
+}
+
 export interface DeliverableDetail {
   deliverable: Deliverable;
   versions: DeliverableVersion[];
+  feedback_summary?: FeedbackSummary;
 }
 
 export interface VersionUpdate {

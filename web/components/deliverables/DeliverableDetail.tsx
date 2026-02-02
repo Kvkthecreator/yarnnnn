@@ -24,6 +24,7 @@ import {
   Loader2,
   ChevronRight,
   ChevronDown,
+  ChevronUp,
   FileText,
   RefreshCw,
   Copy,
@@ -32,11 +33,14 @@ import {
   ThumbsDown,
   Mail,
   Sparkles,
+  TrendingUp,
+  TrendingDown,
+  Minus,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { useFloatingChat } from '@/contexts/FloatingChatContext';
-import type { Deliverable, DeliverableVersion, VersionStatus } from '@/types';
+import type { Deliverable, DeliverableVersion, VersionStatus, FeedbackSummary } from '@/types';
 
 interface DeliverableDetailProps {
   deliverableId: string;
@@ -81,9 +85,11 @@ export function DeliverableDetail({
   const [loading, setLoading] = useState(true);
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
   const [versions, setVersions] = useState<DeliverableVersion[]>([]);
+  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummary | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [showAllVersions, setShowAllVersions] = useState(false);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
 
   // ADR-020: Set floating chat context
   const { setPageContext, open: openFloatingChat } = useFloatingChat();
@@ -116,6 +122,7 @@ export function DeliverableDetail({
       const detail = await api.deliverables.get(deliverableId);
       setDeliverable(detail.deliverable);
       setVersions(detail.versions);
+      setFeedbackSummary(detail.feedback_summary || null);
     } catch (err) {
       console.error('Failed to load deliverable:', err);
     } finally {
@@ -198,6 +205,25 @@ export function DeliverableDetail({
     if (day) str += ` on ${day}`;
     if (time) str += ` at ${time}`;
     return str;
+  };
+
+  // Format quality score as percentage (inverted: 0 = 100% quality, 1 = 0% quality)
+  const formatQualityScore = (score: number | undefined): string => {
+    if (score === undefined || score === null) return '';
+    const quality = Math.round((1 - score) * 100);
+    return `${quality}%`;
+  };
+
+  // Get quality indicator based on edit distance
+  const getQualityIndicator = (score: number | undefined) => {
+    if (score === undefined || score === null) return null;
+    if (score < 0.1) return { icon: <TrendingUp className="w-3 h-3" />, color: 'text-green-600', label: 'Excellent' };
+    if (score < 0.3) return { icon: <Minus className="w-3 h-3" />, color: 'text-muted-foreground', label: 'Good' };
+    return { icon: <TrendingDown className="w-3 h-3" />, color: 'text-amber-600', label: 'Needs work' };
+  };
+
+  const toggleVersionExpand = (versionId: string) => {
+    setExpandedVersionId(expandedVersionId === versionId ? null : versionId);
   };
 
   if (loading) {
@@ -294,6 +320,37 @@ export function DeliverableDetail({
             <p className="text-sm text-muted-foreground">
               This deliverable is paused. It won't run on schedule until resumed.
             </p>
+          </div>
+        )}
+
+        {/* Feedback Summary - What YARNNN has learned */}
+        {feedbackSummary?.has_feedback && (
+          <div className="mb-6 p-4 bg-gradient-to-r from-purple-50 to-blue-50 dark:from-purple-900/20 dark:to-blue-900/20 border border-purple-200 dark:border-purple-800 rounded-lg">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-purple-100 dark:bg-purple-800/50 rounded-lg">
+                <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-sm font-medium text-purple-900 dark:text-purple-100 mb-1">
+                  YARNNN is learning your preferences
+                </h3>
+                {feedbackSummary.avg_quality !== undefined && (
+                  <p className="text-xs text-purple-700 dark:text-purple-300 mb-2">
+                    Average quality: {feedbackSummary.avg_quality}% match across {feedbackSummary.approved_versions} approved {feedbackSummary.approved_versions === 1 ? 'version' : 'versions'}
+                  </p>
+                )}
+                {feedbackSummary.learned_preferences.length > 0 && (
+                  <ul className="text-xs text-purple-800 dark:text-purple-200 space-y-1">
+                    {feedbackSummary.learned_preferences.map((pref, i) => (
+                      <li key={i} className="flex items-start gap-1.5">
+                        <span className="text-purple-500 mt-0.5">•</span>
+                        <span>{pref}</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -431,7 +488,7 @@ export function DeliverableDetail({
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wide">
-                Previous Outputs
+                Previous Outputs ({olderVersions.length})
               </h2>
               <button
                 onClick={loadDeliverable}
@@ -446,48 +503,129 @@ export function DeliverableDetail({
               {displayedOlderVersions.map((version) => {
                 const statusConfig = VERSION_STATUS_CONFIG[version.status];
                 const content = version.final_content || version.draft_content;
+                const isExpanded = expandedVersionId === version.id;
+                const qualityIndicator = getQualityIndicator(version.edit_distance_score);
 
                 return (
                   <div
                     key={version.id}
-                    className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-muted/30 transition-colors"
+                    className="border border-border rounded-lg overflow-hidden transition-colors"
                   >
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="font-medium text-sm">
-                          {formatVersionPeriod(version, deliverable.schedule)}
-                        </span>
-                        <span className={cn(
-                          "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs",
-                          statusConfig.color
-                        )}>
-                          {statusConfig.icon}
-                          {statusConfig.label}
-                        </span>
-                      </div>
-                      {content && (
-                        <p className="text-xs text-muted-foreground mt-1 truncate max-w-md">
-                          {content.slice(0, 100)}...
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1 ml-4">
-                      {version.status === 'approved' && content && (
-                        <button
-                          onClick={() => handleCopy(content, version.id)}
-                          className="p-1.5 text-muted-foreground hover:text-foreground rounded-md hover:bg-muted"
-                          title="Copy"
-                        >
-                          {copiedId === version.id ? (
-                            <CheckCircle2 className="w-4 h-4 text-green-600" />
-                          ) : (
-                            <Copy className="w-4 h-4" />
+                    {/* Version header - always visible */}
+                    <button
+                      onClick={() => toggleVersionExpand(version.id)}
+                      className="w-full flex items-center justify-between p-4 hover:bg-muted/30 transition-colors text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">
+                            {formatVersionPeriod(version, deliverable.schedule)}
+                          </span>
+                          <span className={cn(
+                            "inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs",
+                            statusConfig.color
+                          )}>
+                            {statusConfig.icon}
+                            {statusConfig.label}
+                          </span>
+                          {/* Quality indicator for approved versions */}
+                          {version.status === 'approved' && qualityIndicator && (
+                            <span className={cn(
+                              "inline-flex items-center gap-1 text-xs",
+                              qualityIndicator.color
+                            )}>
+                              {qualityIndicator.icon}
+                              {formatQualityScore(version.edit_distance_score)} match
+                            </span>
                           )}
-                        </button>
-                      )}
-                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                    </div>
+                        </div>
+                        {!isExpanded && content && (
+                          <p className="text-xs text-muted-foreground mt-1 truncate max-w-md">
+                            {content.slice(0, 100)}...
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="flex items-center gap-1 ml-4">
+                        {isExpanded ? (
+                          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                        )}
+                      </div>
+                    </button>
+
+                    {/* Expanded content */}
+                    {isExpanded && content && (
+                      <div className="border-t border-border">
+                        {/* Actions bar */}
+                        <div className="flex items-center justify-between px-4 py-2 bg-muted/30">
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            <span>
+                              Created {new Date(version.created_at).toLocaleDateString(undefined, {
+                                month: 'short',
+                                day: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit',
+                              })}
+                            </span>
+                            {version.approved_at && (
+                              <span>
+                                Approved {new Date(version.approved_at).toLocaleDateString(undefined, {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleCopy(content, version.id);
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded-md hover:bg-muted"
+                            >
+                              {copiedId === version.id ? (
+                                <>
+                                  <CheckCircle2 className="w-3 h-3 text-green-600" />
+                                  Copied
+                                </>
+                              ) : (
+                                <>
+                                  <Copy className="w-3 h-3" />
+                                  Copy
+                                </>
+                              )}
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDownload(content, 'md');
+                              }}
+                              className="inline-flex items-center gap-1.5 px-2 py-1 text-xs border border-border rounded-md hover:bg-muted"
+                            >
+                              <Download className="w-3 h-3" />
+                              Download
+                            </button>
+                          </div>
+                        </div>
+                        {/* Feedback notes if any */}
+                        {version.feedback_notes && (
+                          <div className="px-4 py-2 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-800">
+                            <p className="text-xs text-amber-800 dark:text-amber-200">
+                              <strong>Your feedback:</strong> {version.feedback_notes}
+                            </p>
+                          </div>
+                        )}
+                        {/* Content */}
+                        <div className="p-4 bg-muted/20 max-h-96 overflow-y-auto">
+                          <pre className="whitespace-pre-wrap font-sans text-sm leading-relaxed">
+                            {content}
+                          </pre>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -499,7 +637,10 @@ export function DeliverableDetail({
                 className="w-full mt-3 py-2 text-sm text-muted-foreground hover:text-foreground flex items-center justify-center gap-1"
               >
                 {showAllVersions ? (
-                  <>Show less</>
+                  <>
+                    <ChevronUp className="w-4 h-4" />
+                    Show less
+                  </>
                 ) : (
                   <>
                     <ChevronDown className="w-4 h-4" />
