@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "How It Works",
-  description: "Set up once, review when ready, watch it learn. See how Yarn turns your recurring work into deliverables that improve themselves.",
+  description: "Set up once, review when ready, watch it learn. See how yarnnn turns your recurring work into deliverables that improve themselves.",
 };
 
 export default function HowItWorksPage() {
@@ -24,10 +24,10 @@ export default function HowItWorksPage() {
           {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              How Yarn works
+              How yarnnn works
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              Yarn turns your recurring work into deliverables that improve themselves.
+              yarnnn turns your recurring work into deliverables that improve themselves.
               Set it up once, review when ready, watch it learn from your edits.
             </p>
           </section>
@@ -42,7 +42,7 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-4">Set up your deliverable</h3>
                     <p className="text-white/50 leading-relaxed mb-6">
-                      Tell Yarn what you deliver regularly. A weekly client update?
+                      Tell yarnnn what you deliver regularly. A weekly client update?
                       Monthly investor report? Research digest? Describe it once:
                       what it is, who receives it, when it&apos;s due.
                     </p>
@@ -69,14 +69,14 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-4">Upload examples of good work</h3>
                     <p className="text-white/50 leading-relaxed mb-6">
-                      Show Yarn what &quot;good&quot; looks like. Upload past deliverables,
+                      Show yarnnn what &quot;good&quot; looks like. Upload past deliverables,
                       reference documents, or templates you like. The more examples,
-                      the better Yarn understands your preferences.
+                      the better yarnnn understands your preferences.
                     </p>
                     <div className="border border-white/10 rounded-xl p-4 bg-white/5">
                       <p className="text-white/30 text-sm italic">
                         &quot;I uploaded three of my best client updates from last quarter.
-                        Yarn picked up my format, my tone, even the metrics I always include.&quot;
+                        yarnnn picked up my format, my tone, even the metrics I always include.&quot;
                       </p>
                     </div>
                   </div>
@@ -88,7 +88,7 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-4">Review and refine</h3>
                     <p className="text-white/50 leading-relaxed mb-6">
-                      When it&apos;s time, Yarn produces a draft and notifies you.
+                      When it&apos;s time, yarnnn produces a draft and notifies you.
                       Review it, make edits, add feedback. When you&apos;re happy,
                       approve it and copy it out.
                     </p>
@@ -115,7 +115,7 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-4">Watch it get better</h3>
                     <p className="text-white/50 leading-relaxed mb-6">
-                      Here&apos;s the magic: every edit you make teaches Yarn what you want.
+                      Here&apos;s the magic: every edit you make teaches yarnnn what you want.
                       It stores your corrections, learns your preferences, and applies
                       them to future drafts. Over time, you edit less.
                     </p>
@@ -159,8 +159,8 @@ export default function HowItWorksPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-8">The feedback loop</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Most AI tools forget everything between sessions. Yarn is different.
-                When you edit a draft, Yarn doesn&apos;t just save your changes—it learns from them.
+                Most AI tools forget everything between sessions. yarnnn is different.
+                When you edit a draft, yarnnn doesn&apos;t just save your changes—it learns from them.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -171,7 +171,7 @@ export default function HowItWorksPage() {
                   </p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-5">
-                  <div className="text-lg font-medium mb-2">Yarn learns</div>
+                  <div className="text-lg font-medium mb-2">yarnnn learns</div>
                   <p className="text-white/50 text-sm">
                     Stores what you changed and categorizes the type of edit.
                   </p>
@@ -191,7 +191,7 @@ export default function HowItWorksPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-8">What you can deliver</h2>
               <p className="text-white/50 leading-relaxed mb-12">
-                If you produce it regularly, Yarn can learn it.
+                If you produce it regularly, yarnnn can learn it.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

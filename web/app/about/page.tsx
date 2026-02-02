@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "About",
-  description: "AI that gets better the more you use it. Yarn learns from every edit you make to deliver work that improves over time.",
+  description: "AI that gets better the more you use it. yarnnn learns from every edit you make to deliver work that improves over time.",
 };
 
 export default function AboutPage() {
@@ -39,7 +39,7 @@ export default function AboutPage() {
                 10th delivery was measurably better than your 1st?
               </p>
               <p className="text-white font-medium">
-                That&apos;s what we built Yarn to do.
+                That&apos;s what we built yarnnn to do.
               </p>
             </div>
           </section>
@@ -77,7 +77,7 @@ export default function AboutPage() {
                       specificity over vagueness, numbers over adjectives.
                     </p>
                     <p className="text-white/30 text-sm">
-                      Yarn stores these corrections. Categorizes them. Applies them next time.
+                      yarnnn stores these corrections. Categorizes them. Applies them next time.
                     </p>
                   </div>
                 </div>
@@ -88,7 +88,7 @@ export default function AboutPage() {
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      After 10 versions, Yarn knows your preferences. Your format.
+                      After 10 versions, yarnnn knows your preferences. Your format.
                       Your tone. The metrics you always include. The phrases you always cut.
                     </p>
                     <p className="text-white/30 text-sm">
@@ -100,16 +100,16 @@ export default function AboutPage() {
             </div>
           </section>
 
-          {/* What Makes Yarn Different */}
+          {/* What Makes yarnnn Different */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">What makes Yarn different</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-16">What makes yarnnn different</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                 <div>
                   <h3 className="text-lg font-medium mb-3">Deliverables, not chats</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Yarn isn&apos;t another chat interface. It&apos;s built around recurring work—
+                    yarnnn isn&apos;t another chat interface. It&apos;s built around recurring work—
                     things you produce regularly that follow a pattern. Set it up once,
                     review the drafts, approve when ready.
                   </p>
@@ -118,7 +118,7 @@ export default function AboutPage() {
                 <div>
                   <h3 className="text-lg font-medium mb-3">A feedback loop that works</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    When you edit a draft, Yarn doesn&apos;t just save the final version.
+                    When you edit a draft, yarnnn doesn&apos;t just save the final version.
                     It analyzes what you changed, categorizes the type of edit, and uses
                     that to improve future drafts.
                   </p>
@@ -129,7 +129,7 @@ export default function AboutPage() {
                   <p className="text-white/50 text-sm leading-relaxed">
                     See a quality trend for each deliverable. Track how close each draft
                     gets to your final version. Watch the number go up over time.
-                    That&apos;s Yarn working.
+                    That&apos;s yarnnn working.
                   </p>
                 </div>
 
@@ -137,7 +137,7 @@ export default function AboutPage() {
                   <h3 className="text-lg font-medium mb-3">Production on schedule</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     Set a schedule: every Monday, first of the month, bi-weekly Fridays.
-                    Yarn produces a draft and notifies you. You review, refine, approve.
+                    yarnnn produces a draft and notifies you. You review, refine, approve.
                     Done.
                   </p>
                 </div>
@@ -148,7 +148,7 @@ export default function AboutPage() {
           {/* Who It's For */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">Who Yarn is for</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-16">Who yarnnn is for</h2>
 
               <div className="space-y-6">
                 <div className="border border-white/10 rounded-2xl p-6">
@@ -171,8 +171,8 @@ export default function AboutPage() {
                   <h3 className="text-base font-medium mb-2">Anyone with patterned work</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     If you produce something regularly that follows a pattern,
-                    Yarn can learn it. Research digests. Team standups. Newsletter drafts.
-                    The format is yours—Yarn just gets better at producing it.
+                    yarnnn can learn it. Research digests. Team standups. Newsletter drafts.
+                    The format is yours—yarnnn just gets better at producing it.
                   </p>
                 </div>
               </div>

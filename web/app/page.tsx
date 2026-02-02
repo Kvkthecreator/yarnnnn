@@ -61,10 +61,10 @@ export default function LandingPage() {
                 </p>
               </div>
               <div className="glass-card-light p-6">
-                <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">Yarn&apos;s approach</div>
+                <div className="text-sm text-[#1a1a1a]/30 mb-4 font-mono uppercase tracking-wider">yarnnn&apos;s approach</div>
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Deliverables that improve themselves</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Set up a recurring deliverable once. Yarn learns from every edit you make.
+                  Set up a recurring deliverable once. yarnnn learns from every edit you make.
                   Your 10th version is better than your 1st—automatically.
                 </p>
               </div>
@@ -93,7 +93,7 @@ export default function LandingPage() {
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">02</div>
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Review & refine</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Yarn produces a draft on schedule. Edit it, add feedback,
+                  yarnnn produces a draft on schedule. Edit it, add feedback,
                   approve when it&apos;s ready.
                 </p>
               </div>
@@ -102,7 +102,7 @@ export default function LandingPage() {
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">03</div>
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Watch it learn</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Every edit teaches Yarn what you want. Over time,
+                  Every edit teaches yarnnn what you want. Over time,
                   drafts need fewer changes.
                 </p>
               </div>
@@ -120,7 +120,7 @@ export default function LandingPage() {
                   Your edits are the training data.
                 </h2>
                 <p className="text-[#1a1a1a]/50 leading-relaxed mb-6">
-                  Most AI forgets everything between sessions. Yarn treats your corrections
+                  Most AI forgets everything between sessions. yarnnn treats your corrections
                   like gold—storing what you changed, why you changed it, and applying those
                   lessons to future drafts.
                 </p>
@@ -162,7 +162,7 @@ export default function LandingPage() {
         <section className="border-t border-[#1a1a1a]/10 px-6 py-24 md:py-32">
           <div className="max-w-5xl mx-auto">
             <h2 className="text-2xl md:text-3xl font-medium mb-12 text-[#1a1a1a]">
-              What people deliver with Yarn
+              What people deliver with yarnnn
             </h2>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -209,7 +209,7 @@ export default function LandingPage() {
               <div className="glass-card-light p-6">
                 <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Anything recurring</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  If you deliver it regularly, Yarn can learn it.
+                  If you deliver it regularly, yarnnn can learn it.
                   Your patterns, your format, your voice.
                 </p>
               </div>
@@ -244,7 +244,7 @@ export default function LandingPage() {
                       <div className="text-[#1a1a1a]/50">{row.templates}</div>
                     </div>
                     <div>
-                      <div className="text-[#1a1a1a]/80 text-xs mb-1">Yarn</div>
+                      <div className="text-[#1a1a1a]/80 text-xs mb-1">yarnnn</div>
                       <div className="text-[#1a1a1a] font-medium">{row.yarn}</div>
                     </div>
                   </div>
@@ -260,7 +260,7 @@ export default function LandingPage() {
                     <th className="py-4 pr-4 text-sm font-medium text-[#1a1a1a]/50"></th>
                     <th className="py-4 px-4 text-sm font-medium text-[#1a1a1a]/50">ChatGPT</th>
                     <th className="py-4 px-4 text-sm font-medium text-[#1a1a1a]/50">Templates</th>
-                    <th className="py-4 pl-4 text-sm font-medium text-[#1a1a1a]">Yarn</th>
+                    <th className="py-4 pl-4 text-sm font-medium text-[#1a1a1a]">yarnnn</th>
                   </tr>
                 </thead>
                 <tbody className="text-sm">

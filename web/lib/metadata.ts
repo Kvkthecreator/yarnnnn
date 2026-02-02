@@ -14,7 +14,7 @@ export const BRAND = {
   name: "yarnnn",
   tagline: "Recurring work that gets better every time",
   description:
-    "Set up your recurring deliverables once. Yarn learns from every edit you make. Your 10th delivery is better than your 1st.",
+    "Set up your recurring deliverables once. yarnnn learns from every edit you make. Your 10th delivery is better than your 1st.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://yarnnn.com",
   ogImage: "/assets/logos/yarn-logo-light.png",
 };

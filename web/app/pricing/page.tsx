@@ -223,7 +223,7 @@ export default function PricingPage() {
                 Your 10th delivery is better than your 1st.
               </p>
               <p className="text-white/40 text-sm">
-                Same price as ChatGPT Plus. But Yarn learns from every edit.
+                Same price as ChatGPT Plus. But yarnnn learns from every edit.
               </p>
             </div>
 
