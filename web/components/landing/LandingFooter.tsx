@@ -32,7 +32,9 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
       <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
         {/* Brand */}
         <div className="flex flex-col items-start gap-2">
-          <div className="font-brand text-lg">yarnnn</div>
+          <Link href="/" className="font-brand text-lg hover:opacity-80 transition-opacity">
+            yarnnn
+          </Link>
           <div className={`flex gap-4 text-sm ${mutedClass}`}>
             <Link href="/privacy" className={`${hoverClass} transition-colors`}>
               Privacy

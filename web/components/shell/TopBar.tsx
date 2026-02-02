@@ -28,8 +28,8 @@ export function TopBar({ email }: TopBarProps) {
     <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0 sticky top-0 z-40">
       {/* Left section: Logo + Work Status */}
       <div className="flex items-center gap-4">
-        {/* Logo */}
-        <Link href="/dashboard" className="text-xl font-brand hover:opacity-80 transition-opacity">
+        {/* Logo - links to landing page */}
+        <Link href="/" className="text-xl font-brand hover:opacity-80 transition-opacity">
           yarnnn
         </Link>
 
