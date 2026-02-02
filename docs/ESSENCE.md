@@ -1,23 +1,47 @@
-# YARNNN Essence v5.0
+# YARNNN Essence v5.1
 
 **Purpose**: Foundation document for fresh implementation
-**Status**: Draft for review
+**Status**: Active
 **Date**: 2026-01-28
+**Updated**: 2026-02-02 (added supervision model)
 
 ---
 
 ## Core Thesis
 
-YARNNN is a **context-aware AI work platform**. Users accumulate knowledge (context), and AI agents use that knowledge to produce work outputs (reports, research, content).
+YARNNN is a **recurring deliverables platform**. AI produces scheduled work artifacts (reports, updates, briefs) that improve over time through user feedback.
 
 **The value proposition in one sentence:**
-> Your AI agents understand your world because they read from your accumulated context.
+> Your recurring deliverables, produced and improving every cycle. Set up once, refine over time, never start from scratch again.
 
 **What makes this different from ChatGPT/Claude directly:**
-- Persistent context that grows over time
-- Specialized agents for different work types
-- Structured outputs (not just chat)
-- Provenance: every output traces back to source context
+- Recurring scheduled outputs (not one-off conversations)
+- Accumulated context that makes the 10th delivery better than the 1st
+- Feedback loop: user edits train the system
+- Quality metrics: measurable improvement over time
+
+---
+
+## The Supervision Model
+
+YARNNN embodies a fundamental shift in how users relate to AI-assisted work:
+
+**From**: User as operator (does the work, AI assists)
+**To**: User as supervisor (AI does the work, user oversees)
+
+This has specific architectural implications:
+
+| Dimension | First-Class Entity | User Relationship |
+|-----------|-------------------|-------------------|
+| **Data/Workflow** | Deliverables | Objects to supervise |
+| **UI/Interaction** | TP (Thinking Partner) | Method of supervision |
+
+- **Deliverables** = what the user supervises (versions, quality, feedback)
+- **TP** = how the user supervises (refinement, delegation, conversation)
+
+Both are first-class in their respective dimensions. Neither is subordinate to the other.
+
+See [Design Principle: Supervision Model](design/DESIGN-PRINCIPLE-supervision-model.md) for full framework.
 
 ---
 
@@ -368,34 +392,61 @@ No separate BFF layer
 
 ---
 
-## UI Scope (3 Tabs)
+## UI Scope (Supervision Model)
+
+The UI reflects the supervision model: deliverables are visible objects, TP is the interaction method.
+
+### Primary View: Deliverables Dashboard (What User Supervises)
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  PROJECT: Q1 Planning                                        │
-├────────────────┬────────────────┬────────────────────────────┤
-│   CONTEXT      │     WORK       │         CHAT               │
-├────────────────┼────────────────┼────────────────────────────┤
-│                │                │                            │
-│ + Add block    │ + New request  │ "Help me understand..."   │
-│ + Upload doc   │                │                            │
-│                │ ┌────────────┐ │ ┌────────────────────────┐ │
-│ ▼ Blocks (24)  │ │ Research   │ │ │ Based on your context, │ │
-│   • Q1 goals   │ │ competitor │ │ │ I see three main...    │ │
-│   • Budget     │ │ analysis   │ │ └────────────────────────┘ │
-│   • Team plan  │ │ ──────────│ │                            │
-│                │ │ ✓ Complete │ │ [Type a message...]       │
-│ ▼ Documents(3) │ │ 📄 PDF     │ │                            │
-│   • data.xlsx  │ └────────────┘ │                            │
-│   • brief.pdf  │                │                            │
-│                │ ┌────────────┐ │                            │
-│                │ │ Report     │ │                            │
-│                │ │ exec deck  │ │                            │
-│                │ │ ──────────│ │                            │
-│                │ │ ⏳ Running │ │                            │
-│                │ └────────────┘ │                            │
-└────────────────┴────────────────┴────────────────────────────┘
+│  DELIVERABLES                                    [+ New] 💬 │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 📋 Weekly Status Report              Due: Tomorrow   │   │
+│  │    → Staged for review                               │   │
+│  │    Quality: ████████░░ 82% (improving)              │   │
+│  │    [Review Now]                                      │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │ 📋 Monthly Investor Update           Due: Feb 15     │   │
+│  │    → Next run in 13 days                            │   │
+│  │    Quality: ██████░░░░ 65%                          │   │
+│  └─────────────────────────────────────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+                                            💬 = Floating TP
 ```
+
+### Review View: Deliverable + TP Refinement (Supervision in Action)
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ ← Weekly Status Report - Review                             │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│  [Draft content displayed - the object being supervised]    │
+│                                                             │
+├─────────────────────────────────────────────────────────────┤
+│ Refine with AI:                        [TP interaction]     │
+│ [Shorter] [More detail] [More formal] [More casual]         │
+│ ┌────────────────────────────────────────────┐ [Send]       │
+│ │ Or tell me what to change...               │              │
+│ └────────────────────────────────────────────┘              │
+├─────────────────────────────────────────────────────────────┤
+│ [Discard]                        [Cancel] [Mark as Done]    │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### TP Availability
+
+TP manifests in two ways:
+1. **Inline refinements** - embedded in deliverable views (chips, custom instructions)
+2. **Floating chat** - available via 💬 trigger for conversational interaction
+
+Both are TP; they serve different interaction needs.
 
 ---
 
@@ -427,21 +478,26 @@ No separate BFF layer
 
 ### MVP is complete when:
 
-1. ✅ User can create project
-2. ✅ User can add text blocks
-3. ✅ User can upload documents (parsed to blocks)
-4. ✅ User can request work (research/content/report)
-5. ✅ Agent executes with context
-6. ✅ User can download output
-7. ✅ User can chat with Thinking Partner
-8. ✅ All outputs trace to source context
+1. ✅ User can create recurring deliverable (via wizard or TP)
+2. ✅ System produces deliverable versions on schedule
+3. ✅ User can review staged versions
+4. ✅ User can refine via TP (inline or conversational)
+5. ✅ User edits are captured as feedback
+6. ✅ User can approve/reject versions
+7. ✅ Quality improves over time (edit distance decreases)
+8. ✅ User can export approved deliverables
+
+### Core Quality Metric:
+- Edit distance between AI draft and user-approved final
+- Should decrease over successive versions
+- Target: <10% edits by version 4
 
 ### Not MVP:
+- ❌ Automated delivery (email/Slack send)
 - ❌ Team collaboration
 - ❌ Multiple workspaces
 - ❌ Billing/subscriptions
 - ❌ External integrations
-- ❌ Complex workflows
 
 ---
 

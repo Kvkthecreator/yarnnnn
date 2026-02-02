@@ -1,9 +1,13 @@
 # Design Consideration: Rethinking the Interface Paradigm
 
-> **Status**: Resolved → See [ADR-013](../adr/ADR-013-conversation-plus-surfaces.md)
+> **Status**: Resolved
 > **Date**: 2025-01-30
+> **Updated**: 2026-02-02
 > **Type**: First-principles exploration
-> **Decision**: Drawer pattern (Option E) adopted as "Conversation + Surfaces" architecture
+> **Decisions**:
+> - [ADR-013](../adr/ADR-013-conversation-plus-surfaces.md): Drawer pattern adopted
+> - [ADR-020](../adr/ADR-020-deliverable-centric-chat.md): Deliverable-centric application
+> - [Design Principle: Supervision Model](DESIGN-PRINCIPLE-supervision-model.md): Unified framework
 
 ---
 

@@ -1,9 +1,10 @@
 # ADR-020: Deliverable-Centric Chat Architecture
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-02-02
-**Supersedes:** Partially supersedes ADR-013 (Conversation + Surfaces)
+**Refines:** ADR-013 (Conversation + Surfaces) - clarifies, does not supersede
 **Builds On:** ADR-018 (Recurring Deliverables), ADR-007 (TP Tool Use)
+**See Also:** [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md)
 
 ## Context
 
@@ -11,49 +12,56 @@ ADR-013 established **conversation-first with surfaces as drawers** - the user t
 
 ADR-018 pivoted YARNNN to **recurring deliverables** as the core product - users set up deliverables, get regular outputs, and quality improves over time via the feedback loop.
 
-These two decisions now create tension:
+These two decisions appeared to create tension:
 
 1. **ADR-013 says**: Chat is the primary surface, content appears in drawers
 2. **ADR-018 says**: Deliverables are the core product and primary value
 
-If deliverables are truly first-class, why is the primary interface a chat that summons deliverables as secondary surfaces?
+### The Resolution: The Supervision Model
 
-### The Inversion Insight
+The apparent tension dissolves when we recognize **"first-class" operates in two different dimensions**:
 
-Current model (ADR-013):
+| Dimension | First-Class Entity | Role |
+|-----------|-------------------|------|
+| **Data/Workflow** | Deliverables | Objects the user supervises |
+| **UI/Interaction** | TP (Thinking Partner) | Method of supervision |
+
+This is the **supervision model**: the user is a supervisor overseeing AI-produced work.
+- **Deliverables** = *what* they supervise (data artifacts, versions, quality metrics)
+- **TP** = *how* they supervise (interaction layer, refinement mechanism, delegation interface)
+
+Neither is "primary" or "secondary"—they serve different purposes and are both first-class in their respective dimensions.
+
+See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) for the full conceptual framework.
+
+### Practical Architecture
+
 ```
 ┌─────────────────────────────────────────────────────┐
-│  CHAT (primary)                                      │
-│                                                      │
-│  TP: Your weekly report is ready                     │
-│      [View Report ↗]                                 │
-│                                                      │
-├─────────────────────────────────────────────────────┤
-│ ▼ Deliverable: Weekly Status Report        [×]      │
-│   (drawer - secondary)                              │
-└─────────────────────────────────────────────────────┘
-```
-
-Proposed model:
-```
-┌─────────────────────────────────────────────────────┐
-│  DELIVERABLE: Weekly Status Report (primary)        │
+│  DELIVERABLE VIEW (what user supervises)            │
 │  ─────────────────────────────────────────────────  │
 │                                                      │
-│  ## Key Accomplishments                              │
-│  - Shipped auth flow                                 │
-│  - Fixed 12 bugs                                     │
+│  ## Weekly Status Report                             │
+│  [Draft content visible for review]                 │
 │                                                      │
-│  [Review & Approve]  [Refine with AI ✨]            │
+│  ┌─────────────────────────────────────────────────┐│
+│  │ Refine with AI: (TP as inline interaction)      ││
+│  │ [Shorter] [More detail] [Custom instruction...] ││
+│  └─────────────────────────────────────────────────┘│
 │                                                      │
-└──────────────────────────────────────┬──────────────┤
-                                       │ 💬 Chat      │
-                                       │ (contextual  │
-                                       │  drawer)     │
-                                       └──────────────┘
+│  [Discard]                   [Cancel] [Mark as Done]│
+└─────────────────────────────────────────────────────┘
+                                        + 💬 Floating
+                                          chat for
+                                          conversational
+                                          interaction
 ```
 
-**The inversion**: Content becomes primary, chat becomes the contextual drawer.
+**Key insight**: TP manifests in two forms:
+1. **Inline refinements** - direct manipulation via TP (chips, custom instructions)
+2. **Floating chat** - conversational interaction with TP
+
+Both are TP; one is embedded in the deliverable view, one is available globally.
 
 ### User Mental Model
 
@@ -228,18 +236,18 @@ Existing routes remain, but semantics shift:
 
 ### Positive
 
-- **Content-first**: Users see their deliverables, not a chat window
-- **TP as assistant, not destination**: Chat supports the work, isn't the work
-- **Consistent access**: Chat available everywhere, contextually relevant
-- **Natural onboarding**: Users can set up deliverables via chat OR wizard
-- **Aligns with ADR-018**: Deliverables truly become first-class
+- **Supervision model clarity**: Users supervise deliverables (objects), TP is the interaction method
+- **Both first-class**: Deliverables first-class in data/workflow; TP first-class in interaction
+- **Consistent access**: TP available everywhere—inline refinements + floating chat
+- **Natural onboarding**: Users can set up deliverables via TP conversation OR wizard
+- **Aligns with ADR-018**: Deliverables are visible, accessible objects of supervision
 
 ### Negative
 
 - **Complexity**: Floating chat with page context is more complex than single chat page
 - **Migration**: Existing chat patterns need updating
 - **Mobile considerations**: Floating chat on mobile needs careful UX
-- **Session continuity**: More complex context model
+- **Two TP manifestations**: Users may need to understand inline vs. conversational TP
 
 ### Neutral
 
@@ -287,7 +295,11 @@ produces regularly. Your role is to:
 
 ## References
 
+- [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) - Canonical framework
 - ADR-013: Conversation + Surfaces UI Architecture
 - ADR-018: Recurring Deliverables Product Pivot
 - ADR-007: Unified Streaming with Tool Support
-- Implementation: `web/components/deliverables/DeliverableChatDrawer.tsx` (to be replaced)
+- Implementation:
+  - `web/components/deliverables/VersionReview.tsx` - Inline refinements (TP embedded)
+  - `web/components/FloatingChatPanel.tsx` - Conversational TP
+  - `web/hooks/useContentRefinement.ts` - TP refinement hook

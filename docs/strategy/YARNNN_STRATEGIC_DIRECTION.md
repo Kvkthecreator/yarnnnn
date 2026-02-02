@@ -97,9 +97,20 @@ Initial build: staged review only. "Your deliverable is ready for review" with c
 
 Automated direct delivery (email, Slack, etc.) is a Phase 2 feature once trust is established and the feedback loop has sufficient data.
 
-### Decision 5: TP Integration — Folded Into Deliverable Refinement
+### Decision 5: TP Integration — The Supervision Model
 
-The Thinking Partner chat interface is preserved but repositioned. It's not the entry point or primary product surface anymore. Instead, it's the mechanism for refining deliverables during the collaborative cold-start flow and for ongoing adjustments ("for next week's report, emphasize the budget section more").
+The Thinking Partner chat interface is preserved but repositioned within the **supervision model**:
+
+- **Deliverables** = the objects users supervise (first-class data entities)
+- **TP** = the method of supervision (first-class interaction surface)
+
+TP is not the entry point or primary product surface—deliverables are. But TP is how users interact with and refine deliverables. It manifests in two ways:
+1. **Inline refinements** — embedded in deliverable review (chips like "Shorter", "More formal")
+2. **Floating chat** — available globally for conversational interaction
+
+Both are TP; they serve different interaction needs. The user is a supervisor who oversees AI-produced work, and TP is their interface for exercising that supervision.
+
+See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) for the full framework.
 
 ---
 

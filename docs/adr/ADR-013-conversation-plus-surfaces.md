@@ -6,6 +6,10 @@ Accepted
 ## Date
 2025-01-30
 
+## Refinements
+- [ADR-020: Deliverable-Centric Chat](ADR-020-deliverable-centric-chat.md) - Clarifies application to deliverables
+- [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) - Provides conceptual framework
+
 ## Context
 
 ### The Fundamental Problem
@@ -211,3 +215,21 @@ Projects are conversational context, not routes. Settings could be a surface or 
 - Strategic thinking: "Age of Intelligence & Product Direction" (Jan 27, 2026)
 - Legacy implementation: `/Users/macbook/yarnnn-app-fullstack/components/desktop/`
 - Design patterns: iOS sheets, Android bottom sheets
+
+---
+
+## Addendum: Relationship to Supervision Model (2026-02-02)
+
+With the pivot to recurring deliverables (ADR-018), this ADR's framing has been clarified by the **supervision model**:
+
+- **Surfaces** in this ADR correspond to **deliverable views** (objects of supervision)
+- **Conversation** corresponds to **TP interaction** (method of supervision)
+
+The drawer pattern established here remains valid. What's clarified is:
+1. Surfaces aren't "secondary"—they're the objects users supervise
+2. Conversation isn't "primary"—it's the method of supervision
+3. Both are first-class in their respective dimensions (data vs. interaction)
+
+TP also manifests as **inline refinements** (embedded in deliverable views), not just as the floating drawer. Both are TP; one is conversational, one is direct manipulation.
+
+See [Design Principle: Supervision Model](../design/DESIGN-PRINCIPLE-supervision-model.md) for the full framework.
