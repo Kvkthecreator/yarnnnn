@@ -180,22 +180,8 @@ export function DeskProvider({ children }: DeskProviderProps) {
     initialize();
   }, [searchParams, refreshAttention]);
 
-  // ---------------------------------------------------------------------------
-  // Auto-open first attention item if idle
-  // ---------------------------------------------------------------------------
-  useEffect(() => {
-    if (!state.isLoading && state.surface.type === 'idle' && state.attention.length > 0) {
-      const first = state.attention[0];
-      dispatch({
-        type: 'SET_SURFACE',
-        surface: {
-          type: 'deliverable-review',
-          deliverableId: first.deliverableId,
-          versionId: first.versionId,
-        },
-      });
-    }
-  }, [state.isLoading, state.surface.type, state.attention]);
+  // Note: Removed auto-redirect from idle to deliverable-review
+  // The dashboard (idle) now shows attention items inline, user clicks to review
 
   // ---------------------------------------------------------------------------
   // Actions
