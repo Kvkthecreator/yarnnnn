@@ -8,13 +8,13 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Menu } from 'lucide-react';
+import { Menu, Home, Briefcase, Brain, FolderOpen } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider } from '@/contexts/TPContext';
 import { DomainBrowser } from '@/components/desk/DomainBrowser';
 import { UserMenu } from './UserMenu';
-import { ModeToggle } from '@/components/mode-toggle';
 import { DeskSurface } from '@/types/desk';
+import { cn } from '@/lib/utils';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -80,6 +80,39 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   );
 }
 
+// Domain navigation items - surfaces that exist
+// Home (idle) shows deliverables overview, so no separate deliverables tab needed
+const DOMAIN_NAV = [
+  { id: 'home', label: 'Home', icon: Home, surface: { type: 'idle' } as DeskSurface },
+  { id: 'work', label: 'Work', icon: Briefcase, surface: { type: 'work-list' } as DeskSurface },
+  { id: 'context', label: 'Context', icon: Brain, surface: { type: 'context-browser', scope: 'user' } as DeskSurface },
+  { id: 'documents', label: 'Docs', icon: FolderOpen, surface: { type: 'document-list' } as DeskSurface },
+] as const;
+
+// Get current domain from surface type
+function getCurrentDomain(surface: DeskSurface): string {
+  switch (surface.type) {
+    case 'idle':
+    case 'deliverable-review':
+    case 'deliverable-detail':
+      return 'home'; // Deliverables are part of home
+    case 'work-output':
+    case 'work-list':
+      return 'work';
+    case 'context-browser':
+    case 'context-editor':
+      return 'context';
+    case 'document-viewer':
+    case 'document-list':
+      return 'documents';
+    case 'project-detail':
+    case 'project-list':
+      return 'projects';
+    default:
+      return 'home';
+  }
+}
+
 // Inner component that can use desk context
 function AuthenticatedLayoutInner({
   children,
@@ -92,12 +125,13 @@ function AuthenticatedLayoutInner({
   browserOpen: boolean;
   setBrowserOpen: (open: boolean) => void;
 }) {
-  const { setSurface } = useDesk();
+  const { surface, setSurface } = useDesk();
+  const currentDomain = getCurrentDomain(surface);
 
   // Handle surface change from TP tool results
   const handleSurfaceChange = useCallback(
-    (surface: DeskSurface) => {
-      setSurface(surface);
+    (newSurface: DeskSurface) => {
+      setSurface(newSurface);
     },
     [setSurface]
   );
@@ -112,6 +146,25 @@ function AuthenticatedLayoutInner({
             <span className="text-xl font-brand">yarnnn</span>
           </div>
 
+          {/* Center: Domain Navigation */}
+          <nav className="hidden md:flex items-center gap-1">
+            {DOMAIN_NAV.map(({ id, label, icon: Icon, surface: navSurface }) => (
+              <button
+                key={id}
+                onClick={() => setSurface(navSurface)}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors',
+                  currentDomain === id
+                    ? 'bg-primary/10 text-primary font-medium'
+                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                )}
+              >
+                <Icon className="w-4 h-4" />
+                <span>{label}</span>
+              </button>
+            ))}
+          </nav>
+
           {/* Right: Browse + User */}
           <div className="flex items-center gap-2">
             <button
@@ -121,7 +174,6 @@ function AuthenticatedLayoutInner({
             >
               <Menu className="w-5 h-5" />
             </button>
-            <ModeToggle />
             <UserMenu email={userEmail} />
           </div>
         </header>
