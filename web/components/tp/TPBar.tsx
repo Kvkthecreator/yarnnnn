@@ -225,7 +225,7 @@ export function TPBar() {
           {hasStatus && (
             <div
               ref={statusRef}
-              className="mb-2 p-3 rounded-lg bg-card border border-border shadow-md animate-in fade-in slide-in-from-bottom-2 duration-200"
+              className="mb-2 p-3 rounded-lg bg-muted border border-border shadow-md animate-in fade-in slide-in-from-bottom-2 duration-200"
             >
               {renderStatus(status)}
             </div>
