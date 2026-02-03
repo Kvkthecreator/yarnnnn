@@ -38,14 +38,18 @@ export function Desk() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Main surface area */}
-      <div className="flex-1 overflow-hidden">
+    <div className="h-full relative">
+      {/* Main surface area - full height, content manages its own padding */}
+      <div className="h-full overflow-hidden pb-20 md:pb-24">
         <SurfaceRouter surface={surface} />
       </div>
 
-      {/* TP floating bar */}
-      <TPBar />
+      {/* TP floating bar - overlays bottom of screen */}
+      <div className="absolute inset-x-0 bottom-0 pointer-events-none">
+        <div className="pointer-events-auto">
+          <TPBar />
+        </div>
+      </div>
     </div>
   );
 }
