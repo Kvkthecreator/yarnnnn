@@ -8,7 +8,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Menu, Home, Briefcase, Brain, FolderOpen } from 'lucide-react';
+import { Menu, Home, Briefcase, Brain, FolderOpen, ChevronDown } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider } from '@/contexts/TPContext';
 import { DomainBrowser } from '@/components/desk/DomainBrowser';
@@ -95,7 +95,7 @@ function getCurrentDomain(surface: DeskSurface): string {
     case 'idle':
     case 'deliverable-review':
     case 'deliverable-detail':
-      return 'home'; // Deliverables are part of home
+      return 'home';
     case 'work-output':
     case 'work-list':
       return 'work';
@@ -113,6 +113,36 @@ function getCurrentDomain(surface: DeskSurface): string {
   }
 }
 
+// Get surface title for display in nav
+function getSurfaceTitle(surface: DeskSurface): string | null {
+  switch (surface.type) {
+    case 'idle':
+      return null; // No subtitle for home
+    case 'deliverable-review':
+      return 'Review';
+    case 'deliverable-detail':
+      return 'Deliverable';
+    case 'work-output':
+      return 'Output';
+    case 'work-list':
+      return null;
+    case 'context-browser':
+      return surface.scope === 'user' ? 'About Me' : 'Context';
+    case 'context-editor':
+      return 'Edit Memory';
+    case 'document-viewer':
+      return 'Document';
+    case 'document-list':
+      return null;
+    case 'project-detail':
+      return 'Project';
+    case 'project-list':
+      return null;
+    default:
+      return null;
+  }
+}
+
 // Inner component that can use desk context
 function AuthenticatedLayoutInner({
   children,
@@ -127,6 +157,7 @@ function AuthenticatedLayoutInner({
 }) {
   const { surface, setSurface } = useDesk();
   const currentDomain = getCurrentDomain(surface);
+  const surfaceTitle = getSurfaceTitle(surface);
 
   // Handle surface change from TP tool results
   const handleSurfaceChange = useCallback(
@@ -139,31 +170,69 @@ function AuthenticatedLayoutInner({
   return (
     <TPProvider onSurfaceChange={handleSurfaceChange}>
       <div className="flex flex-col h-screen bg-background">
-        {/* Top Bar */}
+        {/* Top Bar - Single unified bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
           {/* Left: Logo */}
           <div className="flex items-center gap-4">
-            <span className="text-xl font-brand">yarnnn</span>
+            <button
+              onClick={() => setSurface({ type: 'idle' })}
+              className="text-xl font-brand hover:opacity-80 transition-opacity"
+            >
+              yarnnn
+            </button>
           </div>
 
-          {/* Center: Domain Navigation */}
+          {/* Center: Domain Navigation with current view */}
           <nav className="hidden md:flex items-center gap-1">
-            {DOMAIN_NAV.map(({ id, label, icon: Icon, surface: navSurface }) => (
-              <button
-                key={id}
-                onClick={() => setSurface(navSurface)}
-                className={cn(
-                  'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors',
-                  currentDomain === id
-                    ? 'bg-primary/10 text-primary font-medium'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                )}
-              >
-                <Icon className="w-4 h-4" />
-                <span>{label}</span>
-              </button>
-            ))}
+            {DOMAIN_NAV.map(({ id, label, icon: Icon, surface: navSurface }) => {
+              const isActive = currentDomain === id;
+              const showTitle = isActive && surfaceTitle;
+
+              return (
+                <button
+                  key={id}
+                  onClick={() => setSurface(navSurface)}
+                  className={cn(
+                    'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors',
+                    isActive
+                      ? 'bg-primary/10 text-primary font-medium'
+                      : 'text-muted-foreground hover:text-foreground hover:bg-muted'
+                  )}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span>{label}</span>
+                  {showTitle && (
+                    <>
+                      <span className="text-primary/50">/</span>
+                      <span className="font-normal">{surfaceTitle}</span>
+                      <ChevronDown className="w-3 h-3 opacity-50" />
+                    </>
+                  )}
+                </button>
+              );
+            })}
           </nav>
+
+          {/* Mobile: Show current location */}
+          <div className="flex md:hidden items-center gap-2 text-sm">
+            {DOMAIN_NAV.find(d => d.id === currentDomain)?.icon && (
+              <>
+                {(() => {
+                  const domain = DOMAIN_NAV.find(d => d.id === currentDomain);
+                  if (!domain) return null;
+                  const Icon = domain.icon;
+                  return <Icon className="w-4 h-4" />;
+                })()}
+                <span className="font-medium">{DOMAIN_NAV.find(d => d.id === currentDomain)?.label}</span>
+                {surfaceTitle && (
+                  <>
+                    <span className="text-muted-foreground">/</span>
+                    <span className="text-muted-foreground">{surfaceTitle}</span>
+                  </>
+                )}
+              </>
+            )}
+          </div>
 
           {/* Right: Browse + User */}
           <div className="flex items-center gap-2">

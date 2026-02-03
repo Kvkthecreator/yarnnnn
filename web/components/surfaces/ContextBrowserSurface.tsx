@@ -72,108 +72,83 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
     groupedMemories[tag].push(m);
   });
 
-  const getScopeTitle = () => {
-    switch (scope) {
-      case 'user':
-        return 'About Me';
-      case 'project':
-        return 'Project Context';
-      case 'deliverable':
-        return 'Deliverable Context';
-      default:
-        return 'Context';
-    }
-  };
-
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4">
-        <div>
-          <h1 className="font-medium">Context: {getScopeTitle()}</h1>
-          <p className="text-xs text-muted-foreground">What YARNNN knows about you</p>
+    <div className="h-full overflow-auto">
+      <div className="max-w-4xl mx-auto px-6 py-6">
+        {/* Inline header with count and add button */}
+        <div className="flex items-center justify-between mb-6">
+          <p className="text-sm text-muted-foreground">
+            {loading ? 'Loading...' : `${memories.length} memor${memories.length === 1 ? 'y' : 'ies'}`}
+          </p>
+          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted">
+            <Plus className="w-3.5 h-3.5" />
+            Add
+          </button>
         </div>
 
-        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted">
-          <Plus className="w-3.5 h-3.5" />
-          Add
-        </button>
-      </div>
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : memories.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground mb-4">No memories yet</p>
+            <p className="text-sm text-muted-foreground">
+              Tell TP things you want it to remember, like your preferences, company info, or
+              important context.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {Object.entries(groupedMemories).map(([tag, tagMemories]) => (
+              <div key={tag}>
+                <h2 className="text-sm font-medium mb-3 flex items-center gap-2">
+                  <Tag className="w-3.5 h-3.5" />
+                  {tag.charAt(0).toUpperCase() + tag.slice(1)}
+                </h2>
 
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-4xl mx-auto px-6 py-6">
-          {loading ? (
-            <div className="flex items-center justify-center py-12">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : memories.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-muted-foreground mb-4">No memories yet</p>
-              <p className="text-sm text-muted-foreground">
-                Tell TP things you want it to remember, like your preferences, company info, or
-                important context.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {Object.entries(groupedMemories).map(([tag, tagMemories]) => (
-                <div key={tag}>
-                  <h2 className="text-sm font-medium mb-3 flex items-center gap-2">
-                    <Tag className="w-3.5 h-3.5" />
-                    {tag.charAt(0).toUpperCase() + tag.slice(1)}
-                  </h2>
+                <div className="space-y-2">
+                  {tagMemories.map((memory) => (
+                    <div
+                      key={memory.id}
+                      className="p-4 border border-border rounded-lg bg-muted/30"
+                    >
+                      <p className="text-sm whitespace-pre-wrap">{memory.content}</p>
 
-                  <div className="space-y-2">
-                    {tagMemories.map((memory) => (
-                      <div
-                        key={memory.id}
-                        className="p-4 border border-border rounded-lg bg-muted/30"
-                      >
-                        <p className="text-sm whitespace-pre-wrap">{memory.content}</p>
+                      <div className="mt-3 flex items-center justify-between">
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(memory.created_at), { addSuffix: true })}
+                        </span>
 
-                        <div className="mt-3 flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground">
-                            {formatDistanceToNow(new Date(memory.created_at), { addSuffix: true })}
-                          </span>
-
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() =>
-                                setSurface({ type: 'context-editor', memoryId: memory.id })
-                              }
-                              className="p-1.5 hover:bg-background rounded"
-                            >
-                              <Edit className="w-3.5 h-3.5 text-muted-foreground" />
-                            </button>
-                            <button
-                              onClick={() => handleDelete(memory.id)}
-                              disabled={deleting === memory.id}
-                              className="p-1.5 hover:bg-background rounded"
-                            >
-                              {deleting === memory.id ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-red-600" />
-                              )}
-                            </button>
-                          </div>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() =>
+                              setSurface({ type: 'context-editor', memoryId: memory.id })
+                            }
+                            className="p-1.5 hover:bg-background rounded"
+                          >
+                            <Edit className="w-3.5 h-3.5 text-muted-foreground" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(memory.id)}
+                            disabled={deleting === memory.id}
+                            className="p-1.5 hover:bg-background rounded"
+                          >
+                            {deleting === memory.id ? (
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                            ) : (
+                              <Trash2 className="w-3.5 h-3.5 text-muted-foreground hover:text-red-600" />
+                            )}
+                          </button>
                         </div>
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  ))}
                 </div>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Footer */}
-      <div className="shrink-0 h-12 border-t border-border flex items-center px-4">
-        <span className="text-xs text-muted-foreground">
-          {memories.length} memor{memories.length === 1 ? 'y' : 'ies'}
-        </span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
