@@ -9,11 +9,13 @@ import { useState, useEffect } from 'react';
 import { Loader2, Plus, Folder } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
+import { useTP } from '@/contexts/TPContext';
 import { formatDistanceToNow } from 'date-fns';
 import type { Project } from '@/types';
 
 export function ProjectListSurface() {
   const { setSurface } = useDesk();
+  const { sendMessage } = useTP();
   const [loading, setLoading] = useState(true);
   const [projects, setProjects] = useState<Project[]>([]);
 
@@ -39,7 +41,10 @@ export function ProjectListSurface() {
       <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4">
         <h1 className="font-medium">Projects</h1>
 
-        <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted">
+        <button
+          onClick={() => sendMessage("I'd like to create a new project")}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+        >
           <Plus className="w-3.5 h-3.5" />
           New Project
         </button>

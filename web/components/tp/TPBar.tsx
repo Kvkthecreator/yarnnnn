@@ -19,21 +19,26 @@ import { useDesk } from '@/contexts/DeskContext';
 import { useTP, TPStatus } from '@/contexts/TPContext';
 import { cn } from '@/lib/utils';
 
-// Human-readable tool names
+// Human-readable tool names - conversational tone
 const TOOL_LABELS: Record<string, string> = {
-  respond: 'Thinking...',
-  clarify: 'Asking...',
-  list_memories: 'Opening context...',
-  list_projects: 'Opening projects...',
-  list_deliverables: 'Opening deliverables...',
-  list_work: 'Opening work...',
-  get_deliverable: 'Opening deliverable...',
-  get_work: 'Opening work output...',
-  create_project: 'Creating project...',
-  create_memory: 'Saving to memory...',
-  create_work: 'Starting work...',
-  create_deliverable: 'Creating deliverable...',
-  run_deliverable: 'Running deliverable...',
+  respond: 'Composing response...',
+  clarify: 'Need to ask you something...',
+  list_memories: 'Pulling up your memories...',
+  list_projects: 'Loading your projects...',
+  list_deliverables: 'Checking your deliverables...',
+  list_work: 'Looking at your work...',
+  get_deliverable: 'Opening that deliverable...',
+  get_work: 'Fetching work details...',
+  create_project: 'Setting up the project...',
+  create_memory: 'Remembering this...',
+  create_work: 'Kicking off the work...',
+  create_deliverable: 'Creating your deliverable...',
+  run_deliverable: 'Generating the deliverable...',
+  update_deliverable: 'Updating deliverable...',
+  update_work: 'Updating work...',
+  delete_memory: 'Removing from memory...',
+  rename_project: 'Renaming project...',
+  update_project: 'Updating project...',
   // Default fallback handled in component
 };
 
@@ -135,7 +140,7 @@ export function TPBar() {
       case 'complete':
         if (!currentStatus.message) return null;
         return (
-          <div className="text-sm text-muted-foreground">
+          <div className="text-sm text-foreground">
             {currentStatus.message}
           </div>
         );

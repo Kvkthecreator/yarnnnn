@@ -9,6 +9,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, Plus, Edit, Trash2, Tag } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
+import { useTP } from '@/contexts/TPContext';
 import { formatDistanceToNow } from 'date-fns';
 import type { Memory } from '@/types';
 
@@ -19,6 +20,7 @@ interface ContextBrowserSurfaceProps {
 
 export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceProps) {
   const { setSurface } = useDesk();
+  const { sendMessage } = useTP();
   const [loading, setLoading] = useState(true);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
@@ -90,7 +92,10 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
           <p className="text-sm text-muted-foreground">
             {loading ? 'Loading...' : `${memories.length} memor${memories.length === 1 ? 'y' : 'ies'}`}
           </p>
-          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted">
+          <button
+            onClick={() => sendMessage("I'd like to add something to my memory")}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+          >
             <Plus className="w-3.5 h-3.5" />
             Add
           </button>

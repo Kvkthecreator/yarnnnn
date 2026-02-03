@@ -6,9 +6,10 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Loader2, Play, Pause, Calendar, Clock, FileText } from 'lucide-react';
+import { Loader2, Play, Pause, Calendar, Clock, FileText, Plus } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
+import { useTP } from '@/contexts/TPContext';
 import { formatDistanceToNow } from 'date-fns';
 import type { Deliverable, DeliverableStatus } from '@/types';
 
@@ -18,6 +19,7 @@ interface DeliverableListSurfaceProps {
 
 export function DeliverableListSurface({ status: initialStatus }: DeliverableListSurfaceProps) {
   const { setSurface } = useDesk();
+  const { sendMessage } = useTP();
   const [loading, setLoading] = useState(true);
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [currentFilter, setCurrentFilter] = useState<DeliverableStatus | 'all'>(initialStatus || 'all');
@@ -85,25 +87,34 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-6 py-6">
-        {/* Inline header with count and filters */}
+        {/* Inline header with count, filters, and new button */}
         <div className="flex items-center justify-between mb-6">
           <p className="text-sm text-muted-foreground">
             {loading ? 'Loading...' : `${deliverables.length} deliverable${deliverables.length === 1 ? '' : 's'}`}
           </p>
-          <div className="flex items-center gap-2">
-            {(['all', 'active', 'paused'] as const).map((f) => (
-              <button
-                key={f}
-                onClick={() => setCurrentFilter(f)}
-                className={`px-3 py-1.5 text-xs rounded-full border ${
-                  currentFilter === f
-                    ? 'bg-primary text-primary-foreground border-primary'
-                    : 'border-border hover:bg-muted'
-                }`}
-              >
-                {f.charAt(0).toUpperCase() + f.slice(1)}
-              </button>
-            ))}
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              {(['all', 'active', 'paused'] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setCurrentFilter(f)}
+                  className={`px-3 py-1.5 text-xs rounded-full border ${
+                    currentFilter === f
+                      ? 'bg-primary text-primary-foreground border-primary'
+                      : 'border-border hover:bg-muted'
+                  }`}
+                >
+                  {f.charAt(0).toUpperCase() + f.slice(1)}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={() => sendMessage("I'd like to create a new recurring deliverable")}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              New
+            </button>
           </div>
         </div>
 
@@ -113,10 +124,15 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
           </div>
         ) : deliverables.length === 0 ? (
           <div className="text-center py-12">
-            <p className="text-muted-foreground">No deliverables found</p>
-            <p className="text-sm text-muted-foreground mt-2">
-              Ask TP to help you create a recurring deliverable
-            </p>
+            <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
+            <p className="text-muted-foreground mb-4">No deliverables yet</p>
+            <button
+              onClick={() => sendMessage("I'd like to create a new recurring deliverable")}
+              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              <Plus className="w-4 h-4" />
+              Create your first deliverable
+            </button>
           </div>
         ) : (
           <div className="space-y-2">
