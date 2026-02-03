@@ -1,27 +1,26 @@
 'use client';
 
 /**
- * ADR-022: Chat-First Tab Architecture
+ * ADR-023: Supervisor Desk Architecture
  *
- * Route redirect - opens specific version as review tab.
+ * Route redirect - opens specific version as review surface.
  */
 
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { useTabs } from '@/contexts/TabContext';
 import { Loader2 } from 'lucide-react';
 
 export default function VersionReviewPage() {
   const params = useParams();
   const router = useRouter();
-  const { openVersionTab } = useTabs();
   const deliverableId = params.id as string;
   const versionId = params.versionId as string;
 
   useEffect(() => {
-    openVersionTab(deliverableId, versionId, 'Review');
-    router.replace('/dashboard');
-  }, [deliverableId, versionId, openVersionTab, router]);
+    router.replace(
+      `/dashboard?surface=deliverable-review&deliverableId=${deliverableId}&versionId=${versionId}`
+    );
+  }, [deliverableId, versionId, router]);
 
   return (
     <div className="h-screen flex items-center justify-center">

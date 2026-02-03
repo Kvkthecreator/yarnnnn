@@ -254,6 +254,131 @@ For recurring work, this stops all future runs and removes history.""",
 
 
 # =============================================================================
+# Memory Tools (ADR-023 Supervisor Desk Architecture)
+# =============================================================================
+
+LIST_MEMORIES_TOOL = {
+    "name": "list_memories",
+    "description": """List user's memories (context) with optional filtering.
+
+ADR-023: Memory tools allow TP to help users manage their context.
+
+Use this to help users see what context/memories they have stored.
+Memories can be scoped to user-level (global) or project-level.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "scope": {
+                "type": "string",
+                "enum": ["user", "project"],
+                "description": "Filter by scope: 'user' for global memories, 'project' for project-specific. Default: show all."
+            },
+            "project_id": {
+                "type": "string",
+                "description": "Filter to specific project's memories. Only used if scope='project'."
+            },
+            "tag": {
+                "type": "string",
+                "description": "Filter by tag (e.g., 'preference', 'fact', 'instruction')."
+            },
+            "search": {
+                "type": "string",
+                "description": "Search memories by content."
+            },
+            "limit": {
+                "type": "integer",
+                "description": "Maximum number of results. Default: 20"
+            }
+        },
+        "required": []
+    }
+}
+
+CREATE_MEMORY_TOOL = {
+    "name": "create_memory",
+    "description": """Create a new memory (context) for the user.
+
+ADR-023: Use this to store important context that should persist across sessions.
+
+MEMORY TYPES:
+- User preferences (tone, format, etc.)
+- Facts about the user or their work
+- Instructions for how to help them
+- Project-specific context
+
+TAG SUGGESTIONS:
+- 'preference': User preferences and settings
+- 'fact': Facts about user, company, or domain
+- 'instruction': How to help the user
+- 'context': Background context
+- 'goal': User's goals or objectives""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "content": {
+                "type": "string",
+                "description": "The memory content to store"
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Tags to categorize this memory (e.g., ['preference', 'communication'])"
+            },
+            "project_id": {
+                "type": "string",
+                "description": "Optional: Link to a project for project-scoped context"
+            }
+        },
+        "required": ["content"]
+    }
+}
+
+UPDATE_MEMORY_TOOL = {
+    "name": "update_memory",
+    "description": """Update an existing memory.
+
+Use this to modify or refine stored context when the user provides corrections
+or when information becomes outdated.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "memory_id": {
+                "type": "string",
+                "description": "UUID of the memory to update"
+            },
+            "content": {
+                "type": "string",
+                "description": "New content for the memory"
+            },
+            "tags": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Updated tags for the memory"
+            }
+        },
+        "required": ["memory_id"]
+    }
+}
+
+DELETE_MEMORY_TOOL = {
+    "name": "delete_memory",
+    "description": """Delete a memory.
+
+Use this when the user wants to remove stored context or when context is no longer relevant.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "memory_id": {
+                "type": "string",
+                "description": "UUID of the memory to delete"
+            }
+        },
+        "required": ["memory_id"]
+    }
+}
+
+
+# =============================================================================
 # Deliverable Tools (ADR-018 Recurring Deliverables)
 # =============================================================================
 
@@ -434,6 +559,11 @@ THINKING_PARTNER_TOOLS = [
     GET_WORK_TOOL,
     UPDATE_WORK_TOOL,
     DELETE_WORK_TOOL,
+    # Memory/Context management (ADR-023)
+    LIST_MEMORIES_TOOL,
+    CREATE_MEMORY_TOOL,
+    UPDATE_MEMORY_TOOL,
+    DELETE_MEMORY_TOOL,
     # Deliverable management (ADR-018, ADR-020)
     LIST_DELIVERABLES_TOOL,
     GET_DELIVERABLE_TOOL,
@@ -1725,6 +1855,247 @@ def summarize_type_config(deliverable_type: str, config: dict) -> str:
         return "Custom configuration"
 
 
+# =============================================================================
+# Memory Tool Handlers (ADR-023 Supervisor Desk Architecture)
+# =============================================================================
+
+async def handle_list_memories(auth, input: dict) -> dict:
+    """
+    List user's memories with optional filtering.
+
+    ADR-023: Memory tools for context management.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with optional scope, project_id, tag, search, limit
+
+    Returns:
+        Dict with memories list
+    """
+    scope = input.get("scope")
+    project_id = input.get("project_id")
+    tag = input.get("tag")
+    search = input.get("search")
+    limit = input.get("limit", 20)
+
+    # Build query
+    query = auth.client.table("memories")\
+        .select("id, content, tags, project_id, created_at, updated_at, projects(name)")\
+        .eq("user_id", auth.user_id)\
+        .order("created_at", desc=True)\
+        .limit(limit)
+
+    # Apply scope filter
+    if scope == "user":
+        query = query.is_("project_id", "null")
+    elif scope == "project":
+        if project_id:
+            query = query.eq("project_id", project_id)
+        else:
+            query = query.not_.is_("project_id", "null")
+
+    # Apply tag filter
+    if tag:
+        query = query.contains("tags", [tag])
+
+    # Apply search filter
+    if search:
+        query = query.ilike("content", f"%{search}%")
+
+    result = query.execute()
+    memories = result.data or []
+
+    # Format response
+    items = []
+    for m in memories:
+        project_name = None
+        if m.get("project_id") and m.get("projects"):
+            project_name = m["projects"].get("name")
+
+        items.append({
+            "id": m["id"],
+            "content": m["content"][:200] + "..." if len(m["content"]) > 200 else m["content"],
+            "tags": m.get("tags", []),
+            "scope": "project" if m.get("project_id") else "user",
+            "project_name": project_name,
+            "created_at": m["created_at"],
+        })
+
+    return {
+        "success": True,
+        "memories": items,
+        "count": len(items),
+        "message": f"Found {len(items)} memory/memories" if items else "No memories stored yet.",
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "context-browser",
+            "data": {
+                "scope": scope or "user",
+                "scopeId": project_id,
+            }
+        }
+    }
+
+
+async def handle_create_memory(auth, input: dict) -> dict:
+    """
+    Create a new memory.
+
+    ADR-023: Store context that persists across sessions.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with content, optional tags and project_id
+
+    Returns:
+        Dict with created memory details
+    """
+    content = input["content"]
+    tags = input.get("tags", [])
+    project_id = input.get("project_id")
+
+    # Build memory data
+    memory_data = {
+        "content": content,
+        "tags": tags,
+        "user_id": auth.user_id,
+    }
+
+    if project_id:
+        memory_data["project_id"] = project_id
+
+    # Create memory
+    result = auth.client.table("memories").insert(memory_data).execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Failed to create memory"
+        }
+
+    memory = result.data[0]
+    scope = "project" if project_id else "user"
+
+    return {
+        "success": True,
+        "memory": {
+            "id": memory["id"],
+            "content": content[:100] + "..." if len(content) > 100 else content,
+            "tags": tags,
+            "scope": scope,
+        },
+        "message": f"Memory stored ({scope}-level). I'll remember this for future conversations.",
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "context-editor",
+            "data": {"memoryId": memory["id"]}
+        }
+    }
+
+
+async def handle_update_memory(auth, input: dict) -> dict:
+    """
+    Update an existing memory.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with memory_id and optional content, tags
+
+    Returns:
+        Dict with updated memory details
+    """
+    from datetime import datetime
+
+    memory_id = input["memory_id"]
+    updates = {}
+
+    if "content" in input:
+        updates["content"] = input["content"]
+
+    if "tags" in input:
+        updates["tags"] = input["tags"]
+
+    if not updates:
+        return {
+            "success": False,
+            "error": "No updates provided"
+        }
+
+    updates["updated_at"] = datetime.utcnow().isoformat()
+
+    # Apply update
+    result = auth.client.table("memories")\
+        .update(updates)\
+        .eq("id", memory_id)\
+        .eq("user_id", auth.user_id)\
+        .execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Memory not found or access denied"
+        }
+
+    memory = result.data[0]
+
+    return {
+        "success": True,
+        "memory": {
+            "id": memory["id"],
+            "content": memory["content"][:100] + "..." if len(memory["content"]) > 100 else memory["content"],
+            "tags": memory.get("tags", []),
+        },
+        "message": "Memory updated."
+    }
+
+
+async def handle_delete_memory(auth, input: dict) -> dict:
+    """
+    Delete a memory.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with memory_id
+
+    Returns:
+        Dict confirming deletion
+    """
+    memory_id = input["memory_id"]
+
+    # Verify ownership and get content preview
+    try:
+        memory_result = auth.client.table("memories")\
+            .select("id, content")\
+            .eq("id", memory_id)\
+            .eq("user_id", auth.user_id)\
+            .single()\
+            .execute()
+    except Exception:
+        return {
+            "success": False,
+            "error": "Memory not found or access denied"
+        }
+
+    if not memory_result.data:
+        return {
+            "success": False,
+            "error": "Memory not found or access denied"
+        }
+
+    content_preview = memory_result.data["content"][:50] + "..." if len(memory_result.data["content"]) > 50 else memory_result.data["content"]
+
+    # Delete memory
+    auth.client.table("memories")\
+        .delete()\
+        .eq("id", memory_id)\
+        .execute()
+
+    return {
+        "success": True,
+        "message": f"Memory deleted: \"{content_preview}\""
+    }
+
+
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     # Project tools (ADR-007)
@@ -1738,6 +2109,11 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "get_work": handle_get_work,
     "update_work": handle_update_work,
     "delete_work": handle_delete_work,
+    # Memory/Context tools (ADR-023)
+    "list_memories": handle_list_memories,
+    "create_memory": handle_create_memory,
+    "update_memory": handle_update_memory,
+    "delete_memory": handle_delete_memory,
     # Deliverable tools (ADR-018, ADR-020)
     "list_deliverables": handle_list_deliverables,
     "get_deliverable": handle_get_deliverable,

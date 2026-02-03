@@ -1,0 +1,66 @@
+'use client';
+
+/**
+ * ADR-023: Supervisor Desk Architecture
+ * Routes to the appropriate surface component based on type
+ */
+
+import { DeskSurface } from '@/types/desk';
+import { DeliverableReviewSurface } from '@/components/surfaces/DeliverableReviewSurface';
+import { DeliverableDetailSurface } from '@/components/surfaces/DeliverableDetailSurface';
+import { WorkOutputSurface } from '@/components/surfaces/WorkOutputSurface';
+import { WorkListSurface } from '@/components/surfaces/WorkListSurface';
+import { ContextBrowserSurface } from '@/components/surfaces/ContextBrowserSurface';
+import { ContextEditorSurface } from '@/components/surfaces/ContextEditorSurface';
+import { DocumentViewerSurface } from '@/components/surfaces/DocumentViewerSurface';
+import { DocumentListSurface } from '@/components/surfaces/DocumentListSurface';
+import { ProjectDetailSurface } from '@/components/surfaces/ProjectDetailSurface';
+import { ProjectListSurface } from '@/components/surfaces/ProjectListSurface';
+import { IdleSurface } from '@/components/surfaces/IdleSurface';
+
+interface SurfaceRouterProps {
+  surface: DeskSurface;
+}
+
+export function SurfaceRouter({ surface }: SurfaceRouterProps) {
+  switch (surface.type) {
+    case 'deliverable-review':
+      return (
+        <DeliverableReviewSurface
+          deliverableId={surface.deliverableId}
+          versionId={surface.versionId}
+        />
+      );
+
+    case 'deliverable-detail':
+      return <DeliverableDetailSurface deliverableId={surface.deliverableId} />;
+
+    case 'work-output':
+      return <WorkOutputSurface workId={surface.workId} outputId={surface.outputId} />;
+
+    case 'work-list':
+      return <WorkListSurface filter={surface.filter} />;
+
+    case 'context-browser':
+      return <ContextBrowserSurface scope={surface.scope} scopeId={surface.scopeId} />;
+
+    case 'context-editor':
+      return <ContextEditorSurface memoryId={surface.memoryId} />;
+
+    case 'document-viewer':
+      return <DocumentViewerSurface documentId={surface.documentId} />;
+
+    case 'document-list':
+      return <DocumentListSurface projectId={surface.projectId} />;
+
+    case 'project-detail':
+      return <ProjectDetailSurface projectId={surface.projectId} />;
+
+    case 'project-list':
+      return <ProjectListSurface />;
+
+    case 'idle':
+    default:
+      return <IdleSurface />;
+  }
+}

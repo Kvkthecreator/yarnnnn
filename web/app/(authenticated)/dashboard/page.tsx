@@ -1,25 +1,13 @@
 'use client';
 
 /**
- * ADR-022: Chat-First Tab Architecture
+ * ADR-023: Supervisor Desk Architecture
  *
- * Main dashboard with IDE-like tabs:
- * - Chat tab is home (always present)
- * - Output tabs open when viewing deliverables, versions
- * - Each tab is a full-page view
+ * Single desk view - one surface at a time, TP always present
  */
 
-import { ChatHeader } from '@/components/shell/ChatHeader';
-import { TabBar, TabContent } from '@/components/tabs';
+import { Desk } from '@/components/desk/Desk';
 
 export default function DashboardPage() {
-  return (
-    <div className="h-screen flex flex-col">
-      <ChatHeader />
-      <TabBar />
-      <div className="flex-1 overflow-hidden">
-        <TabContent />
-      </div>
-    </div>
-  );
+  return <Desk />;
 }

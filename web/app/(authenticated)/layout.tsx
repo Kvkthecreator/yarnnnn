@@ -1,32 +1,19 @@
-import { Suspense } from "react";
-import { ProjectProvider } from "@/contexts/ProjectContext";
-import { WorkStatusProvider } from "@/contexts/WorkStatusContext";
-import { SurfaceProvider } from "@/contexts/SurfaceContext";
-import { TabProvider } from "@/contexts/TabContext";
-import { SurfaceRouter } from "@/components/surfaces";
+import { Suspense } from 'react';
+import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
 
 /**
- * ADR-022: Chat-First Tab Architecture
+ * ADR-023: Supervisor Desk Architecture
  *
  * Layout for authenticated routes:
- * - Chat tab is home (always present)
- * - Output tabs open for deliverables, versions, etc.
- * - Drawer available within tabs for TP chat
+ * - Single desk view (one surface at a time)
+ * - TP always present at bottom
+ * - Domain browser as escape hatch
  */
 export default function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <ProjectProvider>
-      <WorkStatusProvider>
-        <SurfaceProvider>
-          <TabProvider>
-            <Suspense fallback={<LayoutFallback />}>
-              {children}
-              <SurfaceRouter />
-            </Suspense>
-          </TabProvider>
-        </SurfaceProvider>
-      </WorkStatusProvider>
-    </ProjectProvider>
+    <Suspense fallback={<LayoutFallback />}>
+      <AuthenticatedLayout>{children}</AuthenticatedLayout>
+    </Suspense>
   );
 }
 

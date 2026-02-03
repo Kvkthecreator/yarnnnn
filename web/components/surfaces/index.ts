@@ -1,11 +1,25 @@
 /**
- * ADR-013: Conversation + Surfaces
+ * ADR-023: Supervisor Desk Architecture
  * Surface component exports
  */
 
-export { Drawer, SidePanel } from './Drawer';
-export { SurfaceRouter } from './SurfaceRouter';
-export { OutputSurface } from './OutputSurface';
-export { ContextSurface } from './ContextSurface';
-export { ScheduleSurface } from './ScheduleSurface';
-export { ExportSurface } from './ExportSurface';
+// Core surfaces
+export { DeliverableReviewSurface } from './DeliverableReviewSurface';
+export { DeliverableDetailSurface } from './DeliverableDetailSurface';
+export { IdleSurface } from './IdleSurface';
+
+// Work surfaces
+export { WorkOutputSurface } from './WorkOutputSurface';
+export { WorkListSurface } from './WorkListSurface';
+
+// Context/Memory surfaces
+export { ContextBrowserSurface } from './ContextBrowserSurface';
+export { ContextEditorSurface } from './ContextEditorSurface';
+
+// Document surfaces
+export { DocumentViewerSurface } from './DocumentViewerSurface';
+export { DocumentListSurface } from './DocumentListSurface';
+
+// Project surfaces
+export { ProjectDetailSurface } from './ProjectDetailSurface';
+export { ProjectListSurface } from './ProjectListSurface';

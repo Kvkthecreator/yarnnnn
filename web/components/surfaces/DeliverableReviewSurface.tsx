@@ -1,10 +1,8 @@
 'use client';
 
 /**
- * ADR-022: Chat-First Tab Architecture
- *
- * Full-page view for reviewing/editing a version.
- * This is where users refine and approve deliverable outputs.
+ * ADR-023: Supervisor Desk Architecture
+ * DeliverableReviewSurface - Review and edit a staged deliverable version
  */
 
 import { useState, useEffect, useRef } from 'react';
@@ -16,34 +14,24 @@ import {
   Download,
   Mail,
   CheckCircle2,
-  Send,
   Undo2,
-  Sparkles,
-  MessageSquare,
+  ChevronRight,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { cn } from '@/lib/utils';
-import { useTabs } from '@/contexts/TabContext';
-import { useSurface } from '@/contexts/SurfaceContext';
+import { useDesk } from '@/contexts/DeskContext';
 import { useContentRefinement } from '@/hooks/useContentRefinement';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
-interface VersionTabViewProps {
+interface DeliverableReviewSurfaceProps {
   deliverableId: string;
   versionId: string;
 }
 
-// Quick refinement presets
-const QUICK_REFINEMENTS = [
-  { label: 'Shorter', instruction: 'Make this more concise - cut it down to the key points.' },
-  { label: 'More detail', instruction: 'Add more detail and specifics.' },
-  { label: 'More formal', instruction: 'Adjust the tone to be more professional.' },
-  { label: 'More casual', instruction: 'Adjust the tone to be more conversational.' },
-];
-
-export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps) {
-  const { updateTab, closeTab, goToChat } = useTabs();
-  const { openSurface } = useSurface();
+export function DeliverableReviewSurface({
+  deliverableId,
+  versionId,
+}: DeliverableReviewSurfaceProps) {
+  const { attention, nextAttention, removeAttention, clearSurface } = useDesk();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
@@ -51,12 +39,8 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
   const [editedContent, setEditedContent] = useState('');
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [copied, setCopied] = useState(false);
-
-  // Inline refinement
-  const [customInstruction, setCustomInstruction] = useState('');
   const [contentHistory, setContentHistory] = useState<string[]>([]);
   const [lastAppliedLabel, setLastAppliedLabel] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
 
   const { refineContent, isRefining, error: refinementError } = useContentRefinement({
     deliverableId,
@@ -64,6 +48,7 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
     deliverableType: deliverable?.deliverable_type,
   });
 
+  // Load version data
   useEffect(() => {
     loadVersion();
   }, [deliverableId, versionId]);
@@ -74,12 +59,10 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
       const detail = await api.deliverables.get(deliverableId);
       setDeliverable(detail.deliverable);
 
-      const targetVersion = detail.versions.find(v => v.id === versionId);
+      const targetVersion = detail.versions.find((v) => v.id === versionId);
       if (targetVersion) {
         setVersion(targetVersion);
         setEditedContent(targetVersion.draft_content || '');
-        // Update tab title
-        updateTab(`version-${versionId}`, { title: `Review: ${detail.deliverable.title}` });
       }
     } catch (err) {
       console.error('Failed to load version:', err);
@@ -88,38 +71,7 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
     }
   };
 
-  const handleRefine = async (instruction: string, label?: string) => {
-    if (!editedContent.trim() || isRefining) return;
-
-    setContentHistory(prev => [...prev, editedContent]);
-    setLastAppliedLabel(label || 'Custom');
-
-    const refined = await refineContent(editedContent, instruction);
-    if (refined) {
-      setEditedContent(refined);
-      // Mark tab as dirty
-      updateTab(`version-${versionId}`, { isDirty: true });
-    } else {
-      setContentHistory(prev => prev.slice(0, -1));
-      setLastAppliedLabel(null);
-    }
-  };
-
-  const handleCustomRefine = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customInstruction.trim()) return;
-    await handleRefine(customInstruction);
-    setCustomInstruction('');
-  };
-
-  const handleUndo = () => {
-    if (contentHistory.length === 0) return;
-    const previousContent = contentHistory[contentHistory.length - 1];
-    setEditedContent(previousContent);
-    setContentHistory(prev => prev.slice(0, -1));
-    setLastAppliedLabel(null);
-  };
-
+  // Handle approval
   const handleApprove = async () => {
     if (!version) return;
 
@@ -132,9 +84,15 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
         feedback_notes: feedbackNotes || undefined,
       });
 
-      // Close this tab and go back to chat
-      closeTab(`version-${versionId}`);
-      goToChat();
+      // Remove from attention queue
+      removeAttention(versionId);
+
+      // Go to next or idle
+      if (attention.length > 1) {
+        nextAttention();
+      } else {
+        clearSurface();
+      }
     } catch (err) {
       console.error('Failed to approve:', err);
       alert('Failed to approve. Please try again.');
@@ -143,11 +101,12 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
     }
   };
 
+  // Handle discard
   const handleDiscard = async () => {
     if (!version) return;
 
     if (!feedbackNotes.trim()) {
-      alert('Please add a note explaining why you\'re discarding this version.');
+      alert("Please add a note explaining why you're discarding this version.");
       return;
     }
 
@@ -158,8 +117,13 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
         feedback_notes: feedbackNotes,
       });
 
-      closeTab(`version-${versionId}`);
-      goToChat();
+      removeAttention(versionId);
+
+      if (attention.length > 1) {
+        nextAttention();
+      } else {
+        clearSurface();
+      }
     } catch (err) {
       console.error('Failed to discard:', err);
       alert('Failed to discard. Please try again.');
@@ -168,15 +132,33 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
     }
   };
 
+  // Handle skip (go to next without action)
+  const handleSkip = () => {
+    if (attention.length > 1) {
+      // Move current to end of queue
+      nextAttention();
+    }
+  };
+
+  // Handle copy
   const handleCopy = async () => {
     await navigator.clipboard.writeText(editedContent);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleOpenTPDrawer = () => {
-    openSurface('context', { deliverableId, versionId });
+  // Handle undo
+  const handleUndo = () => {
+    if (contentHistory.length === 0) return;
+    const previousContent = contentHistory[contentHistory.length - 1];
+    setEditedContent(previousContent);
+    setContentHistory((prev) => prev.slice(0, -1));
+    setLastAppliedLabel(null);
   };
+
+  const hasEdits = version && editedContent !== version.draft_content;
+  const canUndo = contentHistory.length > 0;
+  const hasNext = attention.length > 1;
 
   if (loading) {
     return (
@@ -194,40 +176,43 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
     );
   }
 
-  const hasEdits = editedContent !== version.draft_content;
-  const canUndo = contentHistory.length > 0;
-
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
       <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4">
         <div>
           <h1 className="font-medium">{deliverable.title}</h1>
-          <p className="text-xs text-muted-foreground">Review draft</p>
+          <p className="text-xs text-muted-foreground">Review draft v{version.version_number}</p>
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Ask TP */}
-          <button
-            onClick={handleOpenTPDrawer}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
-          >
-            <MessageSquare className="w-3.5 h-3.5" />
-            Ask TP
-          </button>
+          {/* Next indicator */}
+          {hasNext && (
+            <button
+              onClick={handleSkip}
+              className="inline-flex items-center gap-1 px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+            >
+              Next
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          )}
 
-          {/* Export */}
+          {/* Export actions */}
           <button
             onClick={handleCopy}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
           >
-            {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+            {copied ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
             {copied ? 'Copied' : 'Copy'}
           </button>
-          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted">
+          <button className="p-1.5 border border-border rounded-md hover:bg-muted">
             <Download className="w-3.5 h-3.5" />
           </button>
-          <button className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted">
+          <button className="p-1.5 border border-border rounded-md hover:bg-muted">
             <Mail className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -247,7 +232,10 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
           {lastAppliedLabel && !isRefining && (
             <div className="mb-4 px-3 py-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-md text-sm flex items-center justify-between">
               <span>Applied: {lastAppliedLabel}</span>
-              <button onClick={handleUndo} className="inline-flex items-center gap-1 text-xs hover:underline">
+              <button
+                onClick={handleUndo}
+                className="inline-flex items-center gap-1 text-xs hover:underline"
+              >
                 <Undo2 className="w-3.5 h-3.5" />
                 Undo
               </button>
@@ -256,7 +244,7 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
 
           {hasEdits && !lastAppliedLabel && (
             <div className="mb-4 px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-md text-sm">
-              You've made edits. Your changes help improve future outputs.
+              You&apos;ve made edits. Your changes help improve future outputs.
             </div>
           )}
 
@@ -269,69 +257,15 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
           {/* Editor */}
           <textarea
             value={editedContent}
-            onChange={(e) => {
-              setEditedContent(e.target.value);
-              updateTab(`version-${versionId}`, { isDirty: true });
-            }}
+            onChange={(e) => setEditedContent(e.target.value)}
             disabled={isRefining}
             className="w-full min-h-[350px] px-4 py-4 border border-border rounded-lg bg-background text-sm font-mono leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y disabled:opacity-50"
             placeholder="Draft content..."
           />
 
-          {/* Refinement controls */}
-          <div className="mt-4 p-4 border border-border rounded-lg bg-muted/30">
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <span className="text-sm font-medium">Refine with AI</span>
-            </div>
-
-            <div className="flex flex-wrap gap-2 mb-3">
-              {QUICK_REFINEMENTS.map((preset) => (
-                <button
-                  key={preset.label}
-                  onClick={() => handleRefine(preset.instruction, preset.label)}
-                  disabled={isRefining || !editedContent.trim()}
-                  className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-background hover:border-primary/50 disabled:opacity-50"
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-
-            <form onSubmit={handleCustomRefine} className="flex gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={customInstruction}
-                onChange={(e) => setCustomInstruction(e.target.value)}
-                disabled={isRefining}
-                placeholder="Or tell me what to change..."
-                className="flex-1 px-3 py-2 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={isRefining || !customInstruction.trim()}
-                className="px-3 py-2 bg-primary text-primary-foreground rounded-md disabled:opacity-50"
-              >
-                {isRefining ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </button>
-            </form>
-
-            {canUndo && !isRefining && (
-              <div className="mt-3 pt-3 border-t border-border">
-                <button onClick={handleUndo} className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground">
-                  <Undo2 className="w-3.5 h-3.5" />
-                  Undo last change
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* Feedback notes */}
           <div className="mt-4">
-            <label className="block text-sm font-medium mb-2">
-              Notes (required for discard)
-            </label>
+            <label className="block text-sm font-medium mb-2">Notes (required for discard)</label>
             <textarea
               value={feedbackNotes}
               onChange={(e) => setFeedbackNotes(e.target.value)}
@@ -340,6 +274,19 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
               className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
             />
           </div>
+
+          {/* Undo helper */}
+          {canUndo && !isRefining && (
+            <div className="mt-3">
+              <button
+                onClick={handleUndo}
+                className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                Undo last change
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -355,19 +302,25 @@ export function VersionTabView({ deliverableId, versionId }: VersionTabViewProps
         </button>
 
         <div className="flex items-center gap-3">
-          <button
-            onClick={() => closeTab(`version-${versionId}`)}
-            disabled={isRefining}
-            className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-          >
-            Cancel
-          </button>
+          {hasNext && (
+            <button
+              onClick={handleSkip}
+              disabled={isRefining}
+              className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            >
+              Skip
+            </button>
+          )}
           <button
             onClick={handleApprove}
             disabled={saving || isRefining}
             className="inline-flex items-center gap-1.5 px-6 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50"
           >
-            {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+            {saving ? (
+              <Loader2 className="w-4 h-4 animate-spin" />
+            ) : (
+              <Check className="w-4 h-4" />
+            )}
             {saving ? 'Saving...' : 'Mark as Done'}
           </button>
         </div>

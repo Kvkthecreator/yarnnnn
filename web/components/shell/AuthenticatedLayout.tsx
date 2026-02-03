@@ -1,34 +1,31 @@
 'use client';
 
 /**
- * ADR-014: Top Bar with Minimal Chrome
- * ADR-018: Simplified layout for deliverables-first experience
+ * ADR-023: Supervisor Desk Architecture
+ * Simplified layout - single desk, no surface drawer
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { TopBar } from './TopBar';
-import { useSurface } from '@/contexts/SurfaceContext';
-import { useMediaQuery } from '@/hooks/useMediaQuery';
+import { Menu } from 'lucide-react';
+import { DeskProvider, useDesk } from '@/contexts/DeskContext';
+import { TPProvider } from '@/contexts/TPContext';
+import { DomainBrowser } from '@/components/desk/DomainBrowser';
+import { UserMenu } from './UserMenu';
+import { ModeToggle } from '@/components/mode-toggle';
+import { DeskSurface } from '@/types/desk';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
 }
 
-export default function AuthenticatedLayout({
-  children,
-}: AuthenticatedLayoutProps) {
+export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
+  const [browserOpen, setBrowserOpen] = useState(false);
   const router = useRouter();
   const supabase = createClient();
-
-  // ADR-013: Surface state for layout adjustment
-  // Note: Chat page removed - FloatingChatPanel (Cmd+K) is now the primary chat interface
-  const { state: surfaceState } = useSurface();
-  const isDesktop = useMediaQuery('(min-width: 1024px)');
-  const surfaceOpen = surfaceState.isOpen && isDesktop;
 
   useEffect(() => {
     const checkAuth = async () => {
@@ -71,19 +68,70 @@ export default function AuthenticatedLayout({
   }
 
   return (
-    <div className="flex flex-col min-h-screen bg-background">
-      {/* Top Bar */}
-      <TopBar email={userEmail} />
-
-      {/* Main content area */}
-      <main
-        className="flex-1 overflow-hidden transition-all duration-300"
-        style={{
-          marginRight: surfaceOpen ? '480px' : '0',
-        }}
+    <DeskProvider>
+      <AuthenticatedLayoutInner
+        userEmail={userEmail}
+        browserOpen={browserOpen}
+        setBrowserOpen={setBrowserOpen}
       >
         {children}
-      </main>
-    </div>
+      </AuthenticatedLayoutInner>
+    </DeskProvider>
+  );
+}
+
+// Inner component that can use desk context
+function AuthenticatedLayoutInner({
+  children,
+  userEmail,
+  browserOpen,
+  setBrowserOpen,
+}: {
+  children: React.ReactNode;
+  userEmail?: string;
+  browserOpen: boolean;
+  setBrowserOpen: (open: boolean) => void;
+}) {
+  const { setSurface } = useDesk();
+
+  // Handle surface change from TP tool results
+  const handleSurfaceChange = useCallback(
+    (surface: DeskSurface) => {
+      setSurface(surface);
+    },
+    [setSurface]
+  );
+
+  return (
+    <TPProvider onSurfaceChange={handleSurfaceChange}>
+      <div className="flex flex-col h-screen bg-background">
+        {/* Top Bar */}
+        <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
+          {/* Left: Logo */}
+          <div className="flex items-center gap-4">
+            <span className="text-xl font-brand">yarnnn</span>
+          </div>
+
+          {/* Right: Browse + User */}
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setBrowserOpen(true)}
+              className="p-2 hover:bg-muted rounded-md transition-colors"
+              aria-label="Browse all"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+            <ModeToggle />
+            <UserMenu email={userEmail} />
+          </div>
+        </header>
+
+        {/* Main content */}
+        <main className="flex-1 overflow-hidden">{children}</main>
+
+        {/* Domain Browser */}
+        <DomainBrowser isOpen={browserOpen} onClose={() => setBrowserOpen(false)} />
+      </div>
+    </TPProvider>
   );
 }
