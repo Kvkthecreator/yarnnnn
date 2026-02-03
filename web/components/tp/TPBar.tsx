@@ -172,10 +172,10 @@ export function TPBar() {
       {/* Main TP Bar */}
       <div
         className={cn(
-          'shrink-0 bg-transparent',
+          'shrink-0 bg-background',
           'transition-all duration-200',
           mobileExpanded
-            ? 'fixed inset-x-0 bottom-0 z-50 bg-background/95 backdrop-blur-sm md:relative md:bg-transparent md:backdrop-blur-none'
+            ? 'fixed inset-x-0 bottom-0 z-50 bg-background md:relative'
             : 'hidden md:block'
         )}
       >
