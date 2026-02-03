@@ -3,12 +3,17 @@
 /**
  * ADR-023: Supervisor Desk Architecture
  * Simplified layout - single desk, no surface drawer
+ *
+ * Navigation model:
+ * - Routes: /dashboard (surfaces), /settings, /projects/[id]
+ * - Surfaces: Query-param states within /dashboard
+ * - Domain dropdown shows surfaces when on /dashboard, routes otherwise
  */
 
 import { useEffect, useState, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { LayoutDashboard, Brain, FolderOpen, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Brain, FolderOpen, ChevronDown, Settings } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider } from '@/contexts/TPContext';
 import { UserMenu } from './UserMenu';
@@ -74,22 +79,40 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   );
 }
 
-// Domain navigation - simple list, dropdown navigates between domains
-interface DomainNavItem {
+// =============================================================================
+// Navigation Types
+// =============================================================================
+
+// Surface domains - navigable within /dashboard via query params
+interface SurfaceDomainItem {
   id: string;
   label: string;
   icon: typeof LayoutDashboard;
   surface: DeskSurface;
 }
 
-const DOMAIN_NAV: DomainNavItem[] = [
+// Route pages - separate Next.js routes outside /dashboard
+interface RouteItem {
+  id: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  path: string;
+}
+
+// Surface domains available via dropdown when on /dashboard
+const SURFACE_DOMAINS: SurfaceDomainItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, surface: { type: 'idle' } },
   { id: 'context', label: 'Context', icon: Brain, surface: { type: 'context-browser', scope: 'user' } },
   { id: 'documents', label: 'Docs', icon: FolderOpen, surface: { type: 'document-list' } },
 ];
 
-// Get current domain from surface type
-function getCurrentDomain(surface: DeskSurface): string {
+// Route pages (non-surface pages)
+const ROUTE_PAGES: RouteItem[] = [
+  { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
+];
+
+// Get current surface domain from surface type
+function getCurrentSurfaceDomain(surface: DeskSurface): string {
   switch (surface.type) {
     case 'idle':
     case 'deliverable-review':
@@ -110,6 +133,22 @@ function getCurrentDomain(surface: DeskSurface): string {
   }
 }
 
+// Get route info from pathname
+function getRouteFromPathname(pathname: string): RouteItem | null {
+  // Check if on a route page
+  for (const route of ROUTE_PAGES) {
+    if (pathname === route.path || pathname.startsWith(route.path + '/')) {
+      return route;
+    }
+  }
+  return null;
+}
+
+// Check if pathname is the dashboard (surfaces live here)
+function isDashboardRoute(pathname: string): boolean {
+  return pathname === '/dashboard' || pathname.startsWith('/dashboard/');
+}
+
 
 // Inner component that can use desk context
 function AuthenticatedLayoutInner({
@@ -119,17 +158,35 @@ function AuthenticatedLayoutInner({
   children: React.ReactNode;
   userEmail?: string;
 }) {
+  const router = useRouter();
+  const pathname = usePathname();
   const { surface, setSurface } = useDesk();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const currentDomain = getCurrentDomain(surface);
+
+  // Determine navigation context
+  const isOnDashboard = isDashboardRoute(pathname);
+  const currentRoute = getRouteFromPathname(pathname);
+  const currentSurfaceDomain = getCurrentSurfaceDomain(surface);
 
   // Handle surface change from TP tool results
   const handleSurfaceChange = useCallback(
     (newSurface: DeskSurface) => {
+      // If not on dashboard, navigate there first
+      if (!isDashboardRoute(window.location.pathname)) {
+        router.push('/dashboard');
+      }
       setSurface(newSurface);
     },
-    [setSurface]
+    [setSurface, router]
   );
+
+  // Navigate to dashboard (handles both route nav and surface reset)
+  const navigateToDashboard = useCallback(() => {
+    if (!isOnDashboard) {
+      router.push('/dashboard');
+    }
+    setSurface({ type: 'idle' });
+  }, [isOnDashboard, router, setSurface]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -140,26 +197,42 @@ function AuthenticatedLayoutInner({
     }
   }, [dropdownOpen]);
 
-  // Get current domain info
-  const currentDomainInfo = DOMAIN_NAV.find(d => d.id === currentDomain);
-  const CurrentIcon = currentDomainInfo?.icon || LayoutDashboard;
+  // Get current display info based on context
+  const getCurrentDisplay = () => {
+    if (currentRoute) {
+      // On a route page (e.g., /settings)
+      return {
+        icon: currentRoute.icon,
+        label: currentRoute.label,
+      };
+    }
+    // On dashboard - show surface domain
+    const domainInfo = SURFACE_DOMAINS.find(d => d.id === currentSurfaceDomain);
+    return {
+      icon: domainInfo?.icon || LayoutDashboard,
+      label: domainInfo?.label || 'Dashboard',
+    };
+  };
+
+  const display = getCurrentDisplay();
+  const CurrentIcon = display.icon;
 
   return (
     <TPProvider onSurfaceChange={handleSurfaceChange}>
       <div className="flex flex-col h-screen bg-background">
         {/* Top Bar - Single unified bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
-          {/* Left: Logo */}
+          {/* Left: Logo - always navigates to dashboard */}
           <div className="flex items-center gap-4">
             <button
-              onClick={() => setSurface({ type: 'idle' })}
+              onClick={navigateToDashboard}
               className="text-xl font-brand hover:opacity-80 transition-opacity"
             >
               yarnnn
             </button>
           </div>
 
-          {/* Center: Current domain with dropdown to navigate */}
+          {/* Center: Current context with dropdown to navigate */}
           <div className="relative">
             <button
               onClick={(e) => {
@@ -169,24 +242,29 @@ function AuthenticatedLayoutInner({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary/10 text-primary font-medium"
             >
               <CurrentIcon className="w-4 h-4" />
-              <span>{currentDomainInfo?.label || 'Dashboard'}</span>
+              <span>{display.label}</span>
               <ChevronDown className={cn(
                 'w-3 h-3 opacity-50 transition-transform',
                 dropdownOpen && 'rotate-180'
               )} />
             </button>
 
-            {/* Dropdown: Navigate to other domains */}
+            {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-40 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {DOMAIN_NAV.map((domain) => {
+                {/* Surface domains (always available) */}
+                {SURFACE_DOMAINS.map((domain) => {
                   const Icon = domain.icon;
-                  const isActive = currentDomain === domain.id;
+                  const isActive = isOnDashboard && currentSurfaceDomain === domain.id;
                   return (
                     <button
                       key={domain.id}
                       onClick={(e) => {
                         e.stopPropagation();
+                        // Navigate to dashboard if not there
+                        if (!isOnDashboard) {
+                          router.push('/dashboard');
+                        }
                         setSurface(domain.surface);
                         setDropdownOpen(false);
                       }}
