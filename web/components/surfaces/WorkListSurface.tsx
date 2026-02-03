@@ -62,31 +62,29 @@ export function WorkListSurface({ filter = 'all' }: WorkListSurfaceProps) {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4">
-        <h1 className="font-medium">Work</h1>
-
-        <div className="flex items-center gap-2">
-          {(['all', 'active', 'completed'] as const).map((f) => (
-            <button
-              key={f}
-              onClick={() => setCurrentFilter(f)}
-              className={`px-3 py-1.5 text-xs rounded-full border ${
-                currentFilter === f
-                  ? 'bg-primary text-primary-foreground border-primary'
-                  : 'border-border hover:bg-muted'
-              }`}
-            >
-              {f.charAt(0).toUpperCase() + f.slice(1)}
-            </button>
-          ))}
+    <div className="h-full overflow-auto">
+      <div className="max-w-4xl mx-auto px-6 py-6">
+        {/* Inline header with count and filters */}
+        <div className="flex items-center justify-between mb-6">
+          <p className="text-sm text-muted-foreground">
+            {loading ? 'Loading...' : `${work.length} item${work.length === 1 ? '' : 's'}`}
+          </p>
+          <div className="flex items-center gap-2">
+            {(['all', 'active', 'completed'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setCurrentFilter(f)}
+                className={`px-3 py-1.5 text-xs rounded-full border ${
+                  currentFilter === f
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-border hover:bg-muted'
+                }`}
+              >
+                {f.charAt(0).toUpperCase() + f.slice(1)}
+              </button>
+            ))}
+          </div>
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-4xl mx-auto px-6 py-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -130,7 +128,6 @@ export function WorkListSurface({ filter = 'all' }: WorkListSurfaceProps) {
               ))}
             </div>
           )}
-        </div>
       </div>
     </div>
   );

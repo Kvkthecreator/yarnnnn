@@ -80,37 +80,35 @@ export function DocumentListSurface({ projectId }: DocumentListSurfaceProps) {
   };
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="shrink-0 h-14 border-b border-border flex items-center justify-between px-4">
-        <h1 className="font-medium">Documents</h1>
-
-        <div className="flex items-center gap-2">
-          <input
-            ref={fileInputRef}
-            type="file"
-            onChange={handleUpload}
-            className="hidden"
-            accept=".pdf,.doc,.docx,.txt,.md"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploading}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted disabled:opacity-50"
-          >
-            {uploading ? (
-              <Loader2 className="w-3.5 h-3.5 animate-spin" />
-            ) : (
-              <Upload className="w-3.5 h-3.5" />
-            )}
-            Upload
-          </button>
+    <div className="h-full overflow-auto">
+      <div className="max-w-4xl mx-auto px-6 py-6">
+        {/* Inline header with count and upload */}
+        <div className="flex items-center justify-between mb-6">
+          <p className="text-sm text-muted-foreground">
+            {loading ? 'Loading...' : `${documents.length} document${documents.length === 1 ? '' : 's'}`}
+          </p>
+          <div className="flex items-center gap-2">
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleUpload}
+              className="hidden"
+              accept=".pdf,.doc,.docx,.txt,.md"
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted disabled:opacity-50"
+            >
+              {uploading ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Upload className="w-3.5 h-3.5" />
+              )}
+              Upload
+            </button>
+          </div>
         </div>
-      </div>
-
-      {/* Content */}
-      <div className="flex-1 overflow-auto">
-        <div className="max-w-4xl mx-auto px-6 py-6">
           {loading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -153,7 +151,6 @@ export function DocumentListSurface({ projectId }: DocumentListSurfaceProps) {
               ))}
             </div>
           )}
-        </div>
       </div>
     </div>
   );
