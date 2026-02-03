@@ -62,12 +62,22 @@ export interface ClarificationRequest {
   options?: string[];
 }
 
+// Status for real-time display in TPBar
+export type TPStatus =
+  | { type: 'idle' }
+  | { type: 'thinking' }  // Before first tool call
+  | { type: 'tool'; toolName: string }  // Calling a tool
+  | { type: 'streaming'; content: string }  // Streaming respond() content
+  | { type: 'clarify'; question: string; options?: string[] }  // Waiting for user input
+  | { type: 'complete'; message?: string };  // Done, optionally show brief confirmation
+
 interface TPContextValue {
   state: TPState;
   messages: TPMessage[];
   isLoading: boolean;
   error: string | null;
   pendingClarification: ClarificationRequest | null;
+  status: TPStatus;  // Real-time status for UI
 
   // Actions
   sendMessage: (
@@ -76,6 +86,7 @@ interface TPContextValue {
   ) => Promise<TPToolResult[] | null>;
   clearMessages: () => void;
   clearClarification: () => void;
+  respondToClarification: (answer: string) => void;
   onSurfaceChange?: (surface: DeskSurface) => void;
 }
 
@@ -93,6 +104,7 @@ interface TPProviderProps {
 export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const [state, dispatch] = useReducer(tpReducer, initialState);
   const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
+  const [status, setStatus] = useState<TPStatus>({ type: 'idle' });
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // ---------------------------------------------------------------------------
@@ -118,6 +130,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
       };
       dispatch({ type: 'ADD_MESSAGE', message: userMessage });
       dispatch({ type: 'SET_LOADING', isLoading: true });
+      setStatus({ type: 'thinking' });
 
       try {
         // Build request body
@@ -189,6 +202,11 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               // API sends: {content}, {tool_use}, {tool_result}, {done}, {error}
               if (event.content) {
                 assistantContent += event.content;
+                // Update streaming status for respond content
+                setStatus({ type: 'streaming', content: assistantContent });
+              } else if (event.tool_use) {
+                // Tool is being called - show in status
+                setStatus({ type: 'tool', toolName: event.tool_use.name });
               } else if (event.tool_result) {
                 const result: TPToolResult = {
                   toolName: event.tool_result.name,
@@ -208,24 +226,26 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     if (newSurface) {
                       onSurfaceChange(newSurface);
                     }
+                    // Show completion status
+                    setStatus({ type: 'complete' });
                   } else if (action.type === 'RESPOND') {
                     // Conversation - the message is the response
                     const message = action.data?.message as string;
                     if (message) {
                       assistantContent = message;
+                      setStatus({ type: 'streaming', content: message });
                     }
                   } else if (action.type === 'CLARIFY') {
-                    // Clarification request - show modal/prompt
-                    setPendingClarification({
-                      question: action.data?.question as string || '',
-                      options: action.data?.options as string[] | undefined,
-                    });
+                    // Clarification request - show in status bar
+                    const question = action.data?.question as string || '';
+                    const options = action.data?.options as string[] | undefined;
+                    setPendingClarification({ question, options });
+                    setStatus({ type: 'clarify', question, options });
                   }
                 }
               } else if (event.error) {
                 throw new Error(event.error);
               }
-              // event.done and event.tool_use are informational, no action needed
             } catch (parseErr) {
               // Log parse errors but don't crash - might be malformed server data
               console.warn('Failed to parse SSE event:', data, parseErr);
@@ -259,16 +279,27 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         dispatch({ type: 'ADD_MESSAGE', message: assistantMessage });
         dispatch({ type: 'SET_LOADING', isLoading: false });
 
+        // Set complete status, then fade to idle (unless clarify is pending)
+        if (!pendingClarification) {
+          setStatus({ type: 'complete', message: assistantContent?.slice(0, 100) });
+          // Reset to idle after a brief delay
+          setTimeout(() => {
+            setStatus(prev => prev.type === 'complete' ? { type: 'idle' } : prev);
+          }, 3000);
+        }
+
         return toolResults.length > 0 ? toolResults : null;
       } catch (err) {
         if ((err as Error).name === 'AbortError') {
           // Request was cancelled
           dispatch({ type: 'SET_LOADING', isLoading: false });
+          setStatus({ type: 'idle' });
           return null;
         }
 
         const errorMessage = err instanceof Error ? err.message : 'Failed to send message';
         dispatch({ type: 'SET_ERROR', error: errorMessage });
+        setStatus({ type: 'idle' });
 
         // Add error message
         const errorAssistantMessage: TPMessage = {
@@ -297,7 +328,18 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   // ---------------------------------------------------------------------------
   const clearClarification = useCallback(() => {
     setPendingClarification(null);
+    setStatus({ type: 'idle' });
   }, []);
+
+  // ---------------------------------------------------------------------------
+  // Respond to clarification (send answer back to TP)
+  // ---------------------------------------------------------------------------
+  const respondToClarification = useCallback((answer: string) => {
+    setPendingClarification(null);
+    setStatus({ type: 'idle' });
+    // Send the answer as a new message
+    sendMessage(answer);
+  }, [sendMessage]);
 
   // ---------------------------------------------------------------------------
   // Context value
@@ -308,9 +350,11 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     isLoading: state.isLoading,
     error: state.error,
     pendingClarification,
+    status,
     sendMessage,
     clearMessages,
     clearClarification,
+    respondToClarification,
     onSurfaceChange,
   };
 
