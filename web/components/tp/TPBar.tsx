@@ -221,11 +221,11 @@ export function TPBar() {
             </div>
           )}
 
-          {/* Status area */}
+          {/* Status area - prominent when visible for user assurance */}
           {hasStatus && (
             <div
               ref={statusRef}
-              className="mb-2 p-3 rounded-lg bg-muted/50 animate-in fade-in slide-in-from-bottom-2 duration-200"
+              className="mb-2 p-3 rounded-lg bg-card border border-border shadow-md animate-in fade-in slide-in-from-bottom-2 duration-200"
             >
               {renderStatus(status)}
             </div>
