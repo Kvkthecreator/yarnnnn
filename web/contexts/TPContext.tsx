@@ -156,13 +156,18 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         let assistantContent = '';
         const toolResults: TPToolResult[] = [];
         const decoder = new TextDecoder();
+        let buffer = ''; // Buffer for incomplete lines
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          const chunk = decoder.decode(value, { stream: true });
-          const lines = chunk.split('\n');
+          // Append new chunk to buffer
+          buffer += decoder.decode(value, { stream: true });
+
+          // Split by newlines, keeping incomplete last line in buffer
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || ''; // Keep last (potentially incomplete) line
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
@@ -196,10 +201,23 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               }
               // event.done and event.tool_use are informational, no action needed
             } catch (parseErr) {
-              // Ignore parse errors for partial chunks, but rethrow real errors
-              if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') {
-                throw parseErr;
+              // Log parse errors but don't crash - might be malformed server data
+              console.warn('Failed to parse SSE event:', data, parseErr);
+            }
+          }
+        }
+
+        // Process any remaining buffer content
+        if (buffer.startsWith('data: ')) {
+          const data = buffer.slice(6);
+          if (data && data !== '[DONE]') {
+            try {
+              const event = JSON.parse(data);
+              if (event.content) {
+                assistantContent += event.content;
               }
+            } catch {
+              // Ignore final incomplete chunk
             }
           }
         }
