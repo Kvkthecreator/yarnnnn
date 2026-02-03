@@ -719,7 +719,12 @@ async def handle_list_projects(auth, input: dict) -> dict:
             for p in projects
         ],
         "count": len(projects),
-        "message": f"Found {len(projects)} project(s)" if projects else "No projects yet"
+        "message": f"Found {len(projects)} project(s)" if projects else "No projects yet",
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "project-list",
+            "data": {}
+        }
     }
 
 
@@ -1101,7 +1106,12 @@ async def handle_list_work(auth, input: dict) -> dict:
         "success": True,
         "work": work_items,
         "count": len(work_items),
-        "message": f"Found {len(work_items)} work item(s)"
+        "message": f"Found {len(work_items)} work item(s)",
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "work-list",
+            "data": {}
+        }
     }
 
 
@@ -1200,7 +1210,12 @@ async def handle_get_work(auth, input: dict) -> dict:
         "work": work_info,
         "outputs": list(reversed(output_list)),  # Most recent first
         "output_count": len(outputs),
-        "message": f"Work has {len(outputs)} output(s)"
+        "message": f"Work has {len(outputs)} output(s)",
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "work-output",
+            "data": {"workId": work_id}
+        }
     }
 
 
@@ -1537,7 +1552,12 @@ async def handle_list_deliverables(auth, input: dict) -> dict:
         "success": True,
         "deliverables": items,
         "count": len(items),
-        "message": f"Found {len(items)} deliverable(s)" if items else "No deliverables yet. Would you like to create one?"
+        "message": f"Found {len(items)} deliverable(s)" if items else "No deliverables yet. Would you like to create one?",
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "deliverable-list",
+            "data": {}
+        }
     }
 
 
@@ -1608,6 +1628,11 @@ async def handle_get_deliverable(auth, input: dict) -> dict:
             for v in versions_sorted[:5]  # Last 5 versions
         ],
         "version_count": len(versions),
+        "ui_action": {
+            "type": "OPEN_SURFACE",
+            "surface": "deliverable",
+            "data": {"deliverableId": deliverable_id}
+        }
     }
 
 

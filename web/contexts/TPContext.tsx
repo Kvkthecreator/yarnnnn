@@ -208,11 +208,13 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                 // Tool is being called - show in status
                 setStatus({ type: 'tool', toolName: event.tool_use.name });
               } else if (event.tool_result) {
+                // tool_result contains: { tool_use_id, name, result: { success, ..., ui_action } }
+                const toolResult = event.tool_result.result || event.tool_result;
                 const result: TPToolResult = {
                   toolName: event.tool_result.name,
-                  success: event.tool_result.success ?? true,
-                  data: event.tool_result,
-                  uiAction: event.tool_result.ui_action,
+                  success: toolResult.success ?? true,
+                  data: toolResult,
+                  uiAction: toolResult.ui_action,
                 };
                 toolResults.push(result);
 
@@ -226,8 +228,13 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     if (newSurface) {
                       onSurfaceChange(newSurface);
                     }
+                    // Use tool result message as assistant content (e.g., "Found 3 deliverables")
+                    const navMessage = result.data?.message as string;
+                    if (navMessage && !assistantContent) {
+                      assistantContent = navMessage;
+                    }
                     // Show completion status
-                    setStatus({ type: 'complete' });
+                    setStatus({ type: 'complete', message: navMessage });
                   } else if (action.type === 'RESPOND') {
                     // Conversation - the message is the response
                     const message = action.data?.message as string;

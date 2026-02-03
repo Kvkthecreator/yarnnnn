@@ -6,6 +6,7 @@
 // Core surfaces
 export { DeliverableReviewSurface } from './DeliverableReviewSurface';
 export { DeliverableDetailSurface } from './DeliverableDetailSurface';
+export { DeliverableListSurface } from './DeliverableListSurface';
 export { IdleSurface } from './IdleSurface';
 
 // Work surfaces

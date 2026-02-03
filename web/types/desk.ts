@@ -11,6 +11,7 @@ export type DeskSurface =
   // Deliverables domain
   | { type: 'deliverable-review'; deliverableId: string; versionId: string }
   | { type: 'deliverable-detail'; deliverableId: string }
+  | { type: 'deliverable-list'; status?: 'active' | 'paused' | 'archived' }
   // Work domain
   | { type: 'work-output'; workId: string; outputId?: string }
   | { type: 'work-list'; filter?: 'active' | 'completed' | 'all' }
@@ -121,6 +122,11 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
         deliverableId: data.deliverableId as string,
         versionId: data.versionId as string,
       };
+    case 'deliverable-list':
+      return {
+        type: 'deliverable-list',
+        status: data.status as 'active' | 'paused' | 'archived' | undefined,
+      };
 
     // Work
     case 'output':
@@ -182,6 +188,9 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
     case 'deliverable-detail':
       params.set('did', surface.deliverableId);
       break;
+    case 'deliverable-list':
+      if (surface.status) params.set('status', surface.status);
+      break;
     case 'work-output':
       params.set('wid', surface.workId);
       if (surface.outputId) params.set('oid', surface.outputId);
@@ -228,6 +237,8 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
       if (did) return { type: 'deliverable-detail', deliverableId: did };
       break;
     }
+    case 'deliverable-list':
+      return { type: 'deliverable-list', status: (params.get('status') as 'active' | 'paused' | 'archived') || undefined };
     case 'work-output': {
       const wid = params.get('wid');
       if (wid) return { type: 'work-output', workId: wid, outputId: params.get('oid') || undefined };

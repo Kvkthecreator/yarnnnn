@@ -8,6 +8,7 @@
 import { DeskSurface } from '@/types/desk';
 import { DeliverableReviewSurface } from '@/components/surfaces/DeliverableReviewSurface';
 import { DeliverableDetailSurface } from '@/components/surfaces/DeliverableDetailSurface';
+import { DeliverableListSurface } from '@/components/surfaces/DeliverableListSurface';
 import { WorkOutputSurface } from '@/components/surfaces/WorkOutputSurface';
 import { WorkListSurface } from '@/components/surfaces/WorkListSurface';
 import { ContextBrowserSurface } from '@/components/surfaces/ContextBrowserSurface';
@@ -34,6 +35,9 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
 
     case 'deliverable-detail':
       return <DeliverableDetailSurface deliverableId={surface.deliverableId} />;
+
+    case 'deliverable-list':
+      return <DeliverableListSurface status={surface.status} />;
 
     case 'work-output':
       return <WorkOutputSurface workId={surface.workId} outputId={surface.outputId} />;
