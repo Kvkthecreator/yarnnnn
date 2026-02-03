@@ -214,7 +214,8 @@ create their first recurring deliverable through conversation.
         context: ContextBundle,
         include_context: bool,
         with_tools: bool = False,
-        is_onboarding: bool = False
+        is_onboarding: bool = False,
+        surface_content: Optional[str] = None
     ) -> str:
         """Build system prompt with memory context.
 
@@ -223,6 +224,7 @@ create their first recurring deliverable through conversation.
             include_context: Whether to include memory context
             with_tools: Whether to include tool usage instructions
             is_onboarding: Whether user has no deliverables (enables onboarding mode)
+            surface_content: ADR-023 - Content of what user is currently viewing
         """
         base_prompt = self.SYSTEM_PROMPT_WITH_TOOLS if with_tools else self.SYSTEM_PROMPT
 
@@ -232,6 +234,11 @@ create their first recurring deliverable through conversation.
             context_text = self._format_memories(context)
             if not context_text:
                 context_text = "No context available yet. As we chat, I'll learn more about you and this project."
+
+        # ADR-023: Prepend surface content if user is viewing something specific
+        # This allows TP to understand "this" references
+        if surface_content:
+            context_text = f"{surface_content}\n\n---\n\n{context_text}"
 
         # Tools prompt has {onboarding_context} placeholder, non-tools doesn't
         if with_tools:
@@ -320,8 +327,14 @@ create their first recurring deliverable through conversation.
         include_context = params.get("include_context", True)
         history = params.get("history", [])
         is_onboarding = params.get("is_onboarding", False)
+        surface_content = params.get("surface_content")  # ADR-023: What user is viewing
 
-        system = self._build_system_prompt(context, include_context, with_tools=True, is_onboarding=is_onboarding)
+        system = self._build_system_prompt(
+            context, include_context,
+            with_tools=True,
+            is_onboarding=is_onboarding,
+            surface_content=surface_content
+        )
 
         # Build messages list - filter out empty assistant messages which cause 400 errors
         messages = [
@@ -469,8 +482,14 @@ create their first recurring deliverable through conversation.
         include_context = params.get("include_context", True)
         history = params.get("history", [])
         is_onboarding = params.get("is_onboarding", False)
+        surface_content = params.get("surface_content")  # ADR-023: What user is viewing
 
-        system = self._build_system_prompt(context, include_context, with_tools=True, is_onboarding=is_onboarding)
+        system = self._build_system_prompt(
+            context, include_context,
+            with_tools=True,
+            is_onboarding=is_onboarding,
+            surface_content=surface_content
+        )
 
         # Build messages list - filter out empty assistant messages which cause 400 errors
         # Empty assistant messages can occur when navigation tools are used without text response

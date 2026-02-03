@@ -38,10 +38,24 @@ class ChatHistoryMessage(BaseModel):
     content: str
 
 
+class SurfaceContext(BaseModel):
+    """Surface context for TP - what the user is currently viewing."""
+    type: str  # e.g., "deliverable-review", "work-output", "idle"
+    deliverableId: Optional[str] = None
+    versionId: Optional[str] = None
+    workId: Optional[str] = None
+    outputId: Optional[str] = None
+    projectId: Optional[str] = None
+    memoryId: Optional[str] = None
+    documentId: Optional[str] = None
+    # Additional fields as needed based on DeskSurface types
+
+
 class ChatRequest(BaseModel):
     content: str
     include_context: bool = True
     session_id: Optional[str] = None  # Optional: continue existing session
+    surface_context: Optional[SurfaceContext] = None  # ADR-023: What user is viewing
 
 
 # =============================================================================
@@ -254,6 +268,130 @@ async def load_memories(
 
 
 # =============================================================================
+# Surface Context Loading (ADR-023)
+# =============================================================================
+
+async def load_surface_content(
+    client,
+    user_id: str,
+    surface: SurfaceContext
+) -> Optional[str]:
+    """
+    Load the actual content of the surface the user is viewing.
+
+    Returns a formatted string describing what the user is looking at,
+    suitable for injection into the TP system prompt.
+    """
+    try:
+        surface_type = surface.type
+
+        if surface_type == "deliverable-review" and surface.deliverableId and surface.versionId:
+            # User is reviewing a deliverable version - fetch the content
+            deliverable_result = client.table("deliverables")\
+                .select("title, deliverable_type")\
+                .eq("id", surface.deliverableId)\
+                .eq("user_id", user_id)\
+                .single()\
+                .execute()
+
+            version_result = client.table("deliverable_versions")\
+                .select("content, version_number, status")\
+                .eq("id", surface.versionId)\
+                .single()\
+                .execute()
+
+            if deliverable_result.data and version_result.data:
+                d = deliverable_result.data
+                v = version_result.data
+                content = v.get("content", "")
+                # Truncate if too long
+                if len(content) > 8000:
+                    content = content[:8000] + "\n\n[Content truncated...]"
+
+                return f"""## Currently Viewing: {d['title']} (v{v['version_number']})
+Type: {d.get('deliverable_type', 'custom').replace('_', ' ').title()}
+Status: {v['status']}
+
+### Content:
+{content}
+"""
+
+        elif surface_type == "deliverable-detail" and surface.deliverableId:
+            # User is viewing deliverable details (not content)
+            result = client.table("deliverables")\
+                .select("title, deliverable_type, status, schedule, type_config")\
+                .eq("id", surface.deliverableId)\
+                .eq("user_id", user_id)\
+                .single()\
+                .execute()
+
+            if result.data:
+                d = result.data
+                return f"""## Currently Viewing: {d['title']} (Deliverable Detail)
+Type: {d.get('deliverable_type', 'custom').replace('_', ' ').title()}
+Status: {d['status']}
+Schedule: {d.get('schedule', {})}
+"""
+
+        elif surface_type == "work-output" and surface.workId:
+            # User is viewing work output
+            work_result = client.table("work_tickets")\
+                .select("task, agent_type, status")\
+                .eq("id", surface.workId)\
+                .eq("user_id", user_id)\
+                .single()\
+                .execute()
+
+            # Get the latest output
+            output_result = client.table("work_outputs")\
+                .select("title, content, output_type")\
+                .eq("ticket_id", surface.workId)\
+                .order("created_at", desc=True)\
+                .limit(1)\
+                .execute()
+
+            if work_result.data:
+                w = work_result.data
+                content_section = ""
+                if output_result.data:
+                    o = output_result.data[0]
+                    content = o.get("content", "")
+                    if len(content) > 8000:
+                        content = content[:8000] + "\n\n[Content truncated...]"
+                    content_section = f"\n### Output: {o.get('title', 'Untitled')}\n{content}"
+
+                return f"""## Currently Viewing: Work Output
+Task: {w['task'][:200]}
+Agent: {w['agent_type']}
+Status: {w['status']}{content_section}
+"""
+
+        elif surface_type == "context-browser":
+            # User is browsing their context/memories - just note it
+            return "## Currently Viewing: Context Browser\nUser is browsing their stored memories and context."
+
+        elif surface_type == "project-detail" and surface.projectId:
+            result = client.table("projects")\
+                .select("name, description")\
+                .eq("id", surface.projectId)\
+                .single()\
+                .execute()
+
+            if result.data:
+                p = result.data
+                return f"""## Currently Viewing: Project - {p['name']}
+Description: {p.get('description', 'No description')}
+"""
+
+        # For list views and idle, no specific content needed
+        return None
+
+    except Exception as e:
+        logger.warning(f"Failed to load surface content: {e}")
+        return None
+
+
+# =============================================================================
 # Background Extraction
 # =============================================================================
 
@@ -324,6 +462,18 @@ async def global_chat(
     except Exception:
         pass  # Default to non-onboarding if check fails
 
+    # ADR-023: Load surface content if user is viewing something specific
+    surface_content = None
+    if request.surface_context:
+        logger.info(f"[TP] Surface context received: {request.surface_context.type}")
+        surface_content = await load_surface_content(
+            auth.client,
+            auth.user_id,
+            request.surface_context
+        )
+        if surface_content:
+            logger.info(f"[TP] Loaded surface content ({len(surface_content)} chars)")
+
     agent = ThinkingPartnerAgent()
 
     async def response_stream():
@@ -343,6 +493,7 @@ async def global_chat(
                     "include_context": request.include_context,
                     "history": history,
                     "is_onboarding": is_onboarding,
+                    "surface_content": surface_content,  # ADR-023: What user is viewing
                 },
             ):
                 if event.type == "text":
