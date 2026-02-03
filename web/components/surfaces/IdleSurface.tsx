@@ -3,12 +3,20 @@
 /**
  * ADR-023: Supervisor Desk Architecture
  * IdleSurface - Dashboard view showing all domains
+ *
+ * Handles three onboarding states:
+ * - cold_start: Full welcome experience (WelcomePrompt)
+ * - minimal_context: Normal dashboard with context banner
+ * - active: Normal dashboard
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Clock, Loader2, Pause, AlertCircle, Briefcase, Brain, FileText, ChevronRight } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
+import { useTP } from '@/contexts/TPContext';
+import { useOnboardingState } from '@/hooks/useOnboardingState';
+import { WelcomePrompt, MinimalContextBanner } from '@/components/WelcomePrompt';
 import { formatDistanceToNow } from 'date-fns';
 import type { Deliverable, ScheduleConfig, Work, Document as DocType } from '@/types';
 
@@ -33,8 +41,21 @@ interface DashboardData {
 
 export function IdleSurface() {
   const { setSurface, attention } = useDesk();
+  const { sendMessage } = useTP();
+  const {
+    state: onboardingState,
+    isLoading: onboardingLoading,
+    memoryCount,
+    dismiss: dismissBanner,
+    isDismissed,
+  } = useOnboardingState();
+
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [pasteModalOpen, setPasteModalOpen] = useState(false);
+  const [pasteContent, setPasteContent] = useState('');
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -62,40 +83,65 @@ export function IdleSurface() {
     }
   };
 
-  // Show onboarding if no deliverables
-  if (!loading && (!data?.deliverables || data.deliverables.length === 0)) {
-    return (
-      <div className="h-full flex items-center justify-center">
-        <div className="text-center max-w-md px-6">
-          <h1 className="text-xl font-semibold mb-2">Welcome to YARNNN</h1>
-          <p className="text-muted-foreground mb-6">
-            Tell me what recurring work you produce, and I&apos;ll help you automate it.
-          </p>
+  // =============================================================================
+  // WelcomePrompt Callbacks
+  // =============================================================================
 
-          <div className="space-y-2">
-            <p className="text-sm text-muted-foreground mb-3">Common examples:</p>
-            <div className="flex flex-wrap justify-center gap-2">
-              {[
-                'Weekly status report',
-                'Monthly client update',
-                'Team meeting notes',
-                'Competitive research',
-              ].map((example) => (
-                <button
-                  key={example}
-                  className="px-3 py-1.5 text-sm border border-border rounded-full hover:bg-muted hover:border-primary/50"
-                >
-                  {example}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const handleUpload = () => {
+    fileInputRef.current?.click();
+  };
 
-  if (loading) {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploading(true);
+    try {
+      await api.documents.upload(file);
+      // Reload dashboard data and transition out of cold_start
+      await loadDashboardData();
+    } catch (err) {
+      console.error('Failed to upload document:', err);
+      alert('Failed to upload. Please try again.');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const handlePaste = () => {
+    setPasteModalOpen(true);
+  };
+
+  const handlePasteSubmit = async () => {
+    if (!pasteContent.trim()) return;
+
+    // Send pasted content to TP as context
+    await sendMessage(`Here's some context about me and my work:\n\n${pasteContent}`);
+    setPasteModalOpen(false);
+    setPasteContent('');
+    // Reload to check if we've transitioned out of cold_start
+    await loadDashboardData();
+  };
+
+  const handleStart = () => {
+    // Focus the TP input - dismiss welcome and let user start typing
+    dismissBanner();
+  };
+
+  const handleSelectPrompt = (prompt: string) => {
+    // Send the starter prompt to TP
+    sendMessage(prompt);
+    dismissBanner();
+  };
+
+  // =============================================================================
+  // Loading State
+  // =============================================================================
+
+  if (loading || onboardingLoading) {
     return (
       <div className="h-full flex items-center justify-center">
         <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -103,12 +149,108 @@ export function IdleSurface() {
     );
   }
 
+  // =============================================================================
+  // Cold Start: Full Welcome Experience
+  // =============================================================================
+
+  // Show full welcome if:
+  // 1. Onboarding state is cold_start
+  // 2. No deliverables exist (fallback check)
+  // 3. User hasn't dismissed the welcome
+  const showColdStart =
+    !isDismissed &&
+    (onboardingState === 'cold_start' ||
+      (!data?.deliverables || data.deliverables.length === 0));
+
+  if (showColdStart) {
+    return (
+      <div className="h-full flex items-center justify-center overflow-auto">
+        {/* Hidden file input for upload */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileChange}
+          className="hidden"
+          accept=".pdf,.doc,.docx,.txt,.md"
+        />
+
+        {uploading ? (
+          <div className="text-center">
+            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
+            <p className="text-sm text-muted-foreground">Uploading and processing...</p>
+          </div>
+        ) : (
+          <WelcomePrompt
+            onUpload={handleUpload}
+            onPaste={handlePaste}
+            onStart={handleStart}
+            onSelectPrompt={handleSelectPrompt}
+          />
+        )}
+
+        {/* Paste Modal */}
+        {pasteModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center">
+            <div
+              className="absolute inset-0 bg-black/50"
+              onClick={() => setPasteModalOpen(false)}
+            />
+            <div className="relative bg-background rounded-2xl shadow-xl max-w-lg w-full mx-4 p-6">
+              <h3 className="text-lg font-semibold mb-2">Paste context</h3>
+              <p className="text-sm text-muted-foreground mb-4">
+                Share information about yourself, your work, or your preferences.
+              </p>
+              <textarea
+                value={pasteContent}
+                onChange={(e) => setPasteContent(e.target.value)}
+                placeholder="e.g., I'm a product manager at a fintech startup. I send weekly status reports to my team every Monday..."
+                className="w-full h-40 p-3 border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+                autoFocus
+              />
+              <div className="flex justify-end gap-2 mt-4">
+                <button
+                  onClick={() => setPasteModalOpen(false)}
+                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handlePasteSubmit}
+                  disabled={!pasteContent.trim()}
+                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
+                >
+                  Share with TP
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // =============================================================================
+  // Active Dashboard
+  // =============================================================================
+
   const activeDeliverables = data?.deliverables.filter((d) => d.status === 'active') || [];
   const pausedDeliverables = data?.deliverables.filter((d) => d.status === 'paused') || [];
+
+  // Show minimal context banner if user has some context but not much
+  const showMinimalContextBanner =
+    !isDismissed && onboardingState === 'minimal_context';
 
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-3xl mx-auto px-6 py-6 space-y-8">
+        {/* Minimal Context Banner */}
+        {showMinimalContextBanner && (
+          <MinimalContextBanner
+            memoryCount={memoryCount}
+            onDismiss={dismissBanner}
+          />
+        )}
+
         {/* Needs Attention */}
         {attention.length > 0 && (
           <DashboardSection
@@ -145,7 +287,7 @@ export function IdleSurface() {
           action={
             data && data.deliverables.length > 3 ? (
               <button
-                onClick={() => setSurface({ type: 'idle' })}
+                onClick={() => setSurface({ type: 'deliverable-list' })}
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
               >
                 View all ({data.deliverables.length})
