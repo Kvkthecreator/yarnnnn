@@ -254,6 +254,32 @@ export function DeliverableReviewSurface({
             </div>
           )}
 
+          {/* Refinement buttons */}
+          <div className="mb-3 flex gap-2 flex-wrap">
+            {[
+              { label: 'Shorter', instruction: 'Make this more concise' },
+              { label: 'More detail', instruction: 'Add more detail to this' },
+              { label: 'More formal', instruction: 'Make the tone more formal' },
+              { label: 'Simpler', instruction: 'Use simpler language' },
+            ].map(({ label, instruction }) => (
+              <button
+                key={label}
+                onClick={async () => {
+                  setContentHistory((prev) => [...prev, editedContent]);
+                  const refined = await refineContent(editedContent, instruction);
+                  if (refined) {
+                    setEditedContent(refined);
+                    setLastAppliedLabel(label);
+                  }
+                }}
+                disabled={isRefining || !editedContent.trim()}
+                className="px-3 py-1.5 text-xs border border-border rounded-full hover:bg-muted hover:border-primary/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+
           {/* Editor */}
           <textarea
             value={editedContent}
