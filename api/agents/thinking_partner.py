@@ -323,8 +323,11 @@ create their first recurring deliverable through conversation.
 
         system = self._build_system_prompt(context, include_context, with_tools=True, is_onboarding=is_onboarding)
 
-        # Build messages list
-        messages = list(history)
+        # Build messages list - filter out empty assistant messages which cause 400 errors
+        messages = [
+            m for m in history
+            if not (m.get("role") == "assistant" and not m.get("content"))
+        ]
         messages.append({"role": "user", "content": task})
 
         tool_executions: list[ToolExecution] = []
@@ -469,8 +472,12 @@ create their first recurring deliverable through conversation.
 
         system = self._build_system_prompt(context, include_context, with_tools=True, is_onboarding=is_onboarding)
 
-        # Build messages list
-        messages = list(history)
+        # Build messages list - filter out empty assistant messages which cause 400 errors
+        # Empty assistant messages can occur when navigation tools are used without text response
+        messages = [
+            m for m in history
+            if not (m.get("role") == "assistant" and not m.get("content"))
+        ]
         messages.append({"role": "user", "content": task})
 
         # Create tool executor that uses our auth context
