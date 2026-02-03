@@ -14,6 +14,7 @@ Endpoints:
 
 import json
 import asyncio
+import logging
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -22,6 +23,8 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
+
+logger = logging.getLogger(__name__)
 from services.extraction import extract_from_conversation
 from services.embeddings import get_embedding
 from agents.base import ContextBundle, Memory
@@ -330,6 +333,7 @@ async def global_chat(
         try:
             # Append user message to session
             await append_message(auth.client, session_id, "user", request.content)
+            logger.info(f"[TP-STREAM] Starting stream for message: {request.content[:50]}...")
 
             async for event in agent.execute_stream_with_tools(
                 task=request.content,
@@ -346,10 +350,15 @@ async def global_chat(
                     yield f"data: {json.dumps({'content': event.content})}\n\n"
                 elif event.type == "tool_use":
                     tools_used.append(event.content["name"])
+                    logger.info(f"[TP-STREAM] Tool use: {event.content['name']}")
                     yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
                 elif event.type == "tool_result":
+                    result = event.content.get("result", {})
+                    ui_action = result.get("ui_action")
+                    logger.info(f"[TP-STREAM] Tool result for {event.content.get('name')}: ui_action={ui_action}, success={result.get('success')}")
                     yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
                 elif event.type == "done":
+                    logger.info(f"[TP-STREAM] Stream done, tools_used={tools_used}")
                     pass  # Will send done event after saving
 
             # Append assistant response to session

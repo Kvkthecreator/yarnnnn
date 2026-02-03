@@ -5,9 +5,12 @@ ADR-007: Tool infrastructure for agent authority
 """
 
 import os
+import logging
 from typing import AsyncGenerator, Optional, Any
 from dataclasses import dataclass
 from anthropic import AsyncAnthropic
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -245,6 +248,7 @@ async def chat_completion_stream_with_tools(
             # Execute each tool and yield events
             tool_results = []
             for tool_use in tool_uses:
+                logger.info(f"[ANTHROPIC] Executing tool: {tool_use.name} with input: {str(tool_use.input)[:200]}")
                 # Signal that tool is being used
                 yield StreamEvent(
                     type="tool_use",
@@ -257,6 +261,7 @@ async def chat_completion_stream_with_tools(
 
                 # Execute the tool
                 result = await tool_executor(tool_use.name, tool_use.input)
+                logger.info(f"[ANTHROPIC] Tool {tool_use.name} result: ui_action={result.get('ui_action')}, success={result.get('success')}")
 
                 # Signal tool result
                 yield StreamEvent(

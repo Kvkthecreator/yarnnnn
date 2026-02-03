@@ -2285,17 +2285,25 @@ async def execute_tool(auth, tool_name: str, tool_input: dict) -> dict:
     Returns:
         Tool result dict
     """
+    import logging
+    logger = logging.getLogger(__name__)
+
     handler = TOOL_HANDLERS.get(tool_name)
 
     if not handler:
+        logger.warning(f"[TOOL] Unknown tool: {tool_name}")
         return {
             "success": False,
             "error": f"Unknown tool: {tool_name}"
         }
 
     try:
-        return await handler(auth, tool_input)
+        logger.info(f"[TOOL] Executing {tool_name} with input: {str(tool_input)[:200]}")
+        result = await handler(auth, tool_input)
+        logger.info(f"[TOOL] {tool_name} result: success={result.get('success')}, ui_action={result.get('ui_action')}")
+        return result
     except Exception as e:
+        logger.error(f"[TOOL] {tool_name} failed with error: {e}")
         return {
             "success": False,
             "error": str(e)

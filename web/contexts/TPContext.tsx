@@ -206,25 +206,31 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                 setStatus({ type: 'streaming', content: assistantContent });
               } else if (event.tool_use) {
                 // Tool is being called - show in status
+                console.log('[TP] tool_use:', event.tool_use.name);
                 setStatus({ type: 'tool', toolName: event.tool_use.name });
               } else if (event.tool_result) {
                 // tool_result contains: { tool_use_id, name, result: { success, ..., ui_action } }
+                console.log('[TP] tool_result raw:', JSON.stringify(event.tool_result).slice(0, 500));
                 const toolResult = event.tool_result.result || event.tool_result;
+                console.log('[TP] toolResult (extracted):', JSON.stringify(toolResult).slice(0, 500));
                 const result: TPToolResult = {
                   toolName: event.tool_result.name,
                   success: toolResult.success ?? true,
                   data: toolResult,
                   uiAction: toolResult.ui_action,
                 };
+                console.log('[TP] uiAction:', result.uiAction);
                 toolResults.push(result);
 
                 // Handle different ui_action types
                 if (result.uiAction) {
                   const action = result.uiAction;
+                  console.log('[TP] Processing ui_action:', action.type, action.surface);
 
                   if (action.type === 'OPEN_SURFACE' && onSurfaceChange) {
                     // Navigation - open a surface
                     const newSurface = mapToolActionToSurface(action);
+                    console.log('[TP] Mapped surface:', newSurface);
                     if (newSurface) {
                       onSurfaceChange(newSurface);
                     }
@@ -238,6 +244,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                   } else if (action.type === 'RESPOND') {
                     // Conversation - the message is the response
                     const message = action.data?.message as string;
+                    console.log('[TP] RESPOND message:', message?.slice(0, 100));
                     if (message) {
                       assistantContent = message;
                       setStatus({ type: 'streaming', content: message });
@@ -246,12 +253,18 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     // Clarification request - show in status bar
                     const question = action.data?.question as string || '';
                     const options = action.data?.options as string[] | undefined;
+                    console.log('[TP] CLARIFY:', question, options);
                     setPendingClarification({ question, options });
                     setStatus({ type: 'clarify', question, options });
                   }
+                } else {
+                  console.log('[TP] No uiAction in tool result');
                 }
               } else if (event.error) {
+                console.error('[TP] Error event:', event.error);
                 throw new Error(event.error);
+              } else if (event.done) {
+                console.log('[TP] Stream done, tools_used:', event.tools_used);
               }
             } catch (parseErr) {
               // Log parse errors but don't crash - might be malformed server data
