@@ -432,19 +432,27 @@ TP responses appear inline above the input. The focus remains on the desk conten
 
 TP uses a "tool-first" model where every response is a tool call. But tools can (and often should) be combined:
 
-**Pattern:** Navigation tool → then `respond()` with contextual follow-up
+**Pattern:** Navigation tool → ALWAYS `respond()` with contextual follow-up
+
+Navigation tools MUST be followed by `respond()`. This message becomes the "handoff" shown at the top of the new surface, providing continuity between conversation and content.
 
 ```
 User: "show me my memories"
 
 TP calls: list_memories()
-→ Surface opens to context browser
 → TPBar shows: "Pulling up your memories..."
 
 TP then calls: respond("Here's everything I remember about you. Want to add something new?")
-→ TPBar shows the friendly message
+→ Surface opens to context browser
+→ HandoffBanner shows TP's message at top of surface
 → Conversation continues naturally
 ```
+
+**Implementation:**
+- `TPContext` tracks pending navigation and follow-up respond message
+- Navigation executes AFTER all tool results processed
+- If there's a respond message, it's passed as `handoffMessage` to `setSurfaceWithHandoff()`
+- `HandoffBanner` component displays the message at top of surface, auto-dismisses after 8s
 
 **Ambiguous requests → clarify():**
 

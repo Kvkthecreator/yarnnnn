@@ -18,13 +18,16 @@ import { DocumentListSurface } from '@/components/surfaces/DocumentListSurface';
 import { ProjectDetailSurface } from '@/components/surfaces/ProjectDetailSurface';
 import { ProjectListSurface } from '@/components/surfaces/ProjectListSurface';
 import { IdleSurface } from '@/components/surfaces/IdleSurface';
+import { HandoffBanner } from './HandoffBanner';
 
 interface SurfaceRouterProps {
   surface: DeskSurface;
 }
 
 export function SurfaceRouter({ surface }: SurfaceRouterProps) {
-  switch (surface.type) {
+  // Render the handoff banner above the surface content
+  const renderSurface = () => {
+    switch (surface.type) {
     case 'deliverable-review':
       return (
         <DeliverableReviewSurface
@@ -66,5 +69,17 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
     case 'idle':
     default:
       return <IdleSurface />;
-  }
+    }
+  };
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Handoff banner from TP - shown when navigating via tool */}
+      <HandoffBanner />
+      {/* Surface content */}
+      <div className="flex-1 overflow-hidden">
+        {renderSurface()}
+      </div>
+    </div>
+  );
 }

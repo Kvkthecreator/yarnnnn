@@ -160,7 +160,7 @@ function AuthenticatedLayoutInner({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { surface, setSurface } = useDesk();
+  const { surface, setSurface, setSurfaceWithHandoff } = useDesk();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Determine navigation context
@@ -168,16 +168,21 @@ function AuthenticatedLayoutInner({
   const currentRoute = getRouteFromPathname(pathname);
   const currentSurfaceDomain = getCurrentSurfaceDomain(surface);
 
-  // Handle surface change from TP tool results
+  // Handle surface change from TP tool results (with optional handoff message)
   const handleSurfaceChange = useCallback(
-    (newSurface: DeskSurface) => {
+    (newSurface: DeskSurface, handoffMessage?: string) => {
       // If not on dashboard, navigate there first
       if (!isDashboardRoute(window.location.pathname)) {
         router.push('/dashboard');
       }
-      setSurface(newSurface);
+      // Use handoff version if we have a message from TP
+      if (handoffMessage) {
+        setSurfaceWithHandoff(newSurface, handoffMessage);
+      } else {
+        setSurface(newSurface);
+      }
     },
-    [setSurface, router]
+    [setSurface, setSurfaceWithHandoff, router]
   );
 
   // Navigate to dashboard (handles both route nav and surface reset)

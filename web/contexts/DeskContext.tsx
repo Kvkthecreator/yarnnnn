@@ -26,6 +26,7 @@ const initialState: DeskState = {
   attention: [],
   isLoading: true,
   error: null,
+  handoffMessage: null,
 };
 
 // =============================================================================
@@ -35,7 +36,13 @@ const initialState: DeskState = {
 function deskReducer(state: DeskState, action: DeskAction): DeskState {
   switch (action.type) {
     case 'SET_SURFACE':
-      return { ...state, surface: action.surface, error: null };
+      return { ...state, surface: action.surface, error: null, handoffMessage: null };
+
+    case 'SET_SURFACE_WITH_HANDOFF':
+      return { ...state, surface: action.surface, handoffMessage: action.handoffMessage, error: null };
+
+    case 'CLEAR_HANDOFF':
+      return { ...state, handoffMessage: null };
 
     case 'SET_ATTENTION':
       return { ...state, attention: action.items };
@@ -94,10 +101,15 @@ interface DeskContextValue {
   attention: AttentionItem[];
   isLoading: boolean;
   error: string | null;
+  /** Message from TP shown at top of surface after navigation */
+  handoffMessage: string | null;
 
   // Actions
   setSurface: (surface: DeskSurface) => void;
+  /** Set surface with a handoff message from TP */
+  setSurfaceWithHandoff: (surface: DeskSurface, message: string) => void;
   clearSurface: () => void;
+  clearHandoff: () => void;
   nextAttention: () => void;
   refreshAttention: () => Promise<void>;
   removeAttention: (versionId: string) => void;
@@ -216,6 +228,22 @@ export function DeskProvider({ children }: DeskProviderProps) {
     dispatch({ type: 'REMOVE_ATTENTION', versionId });
   }, []);
 
+  const setSurfaceWithHandoff = useCallback(
+    (surface: DeskSurface, message: string) => {
+      dispatch({ type: 'SET_SURFACE_WITH_HANDOFF', surface, handoffMessage: message });
+
+      // Update URL (shallow, no navigation)
+      const params = surfaceToParams(surface);
+      const newUrl = `${pathname}?${params.toString()}`;
+      router.replace(newUrl, { scroll: false });
+    },
+    [pathname, router]
+  );
+
+  const clearHandoff = useCallback(() => {
+    dispatch({ type: 'CLEAR_HANDOFF' });
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Context value
   // ---------------------------------------------------------------------------
@@ -225,8 +253,11 @@ export function DeskProvider({ children }: DeskProviderProps) {
     attention: state.attention,
     isLoading: state.isLoading,
     error: state.error,
+    handoffMessage: state.handoffMessage,
     setSurface,
+    setSurfaceWithHandoff,
     clearSurface,
+    clearHandoff,
     nextAttention,
     refreshAttention,
     removeAttention,

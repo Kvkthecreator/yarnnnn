@@ -73,14 +73,18 @@ export interface DeskState {
   attention: AttentionItem[];
   isLoading: boolean;
   error: string | null;
+  /** Message from TP shown briefly at top of surface after navigation */
+  handoffMessage: string | null;
 }
 
 export type DeskAction =
   | { type: 'SET_SURFACE'; surface: DeskSurface }
+  | { type: 'SET_SURFACE_WITH_HANDOFF'; surface: DeskSurface; handoffMessage: string }
   | { type: 'SET_ATTENTION'; items: AttentionItem[] }
   | { type: 'ADD_ATTENTION'; item: AttentionItem }
   | { type: 'REMOVE_ATTENTION'; versionId: string }
   | { type: 'CLEAR_SURFACE' }
+  | { type: 'CLEAR_HANDOFF' }
   | { type: 'NEXT_ATTENTION' }
   | { type: 'SET_LOADING'; isLoading: boolean }
   | { type: 'SET_ERROR'; error: string | null };

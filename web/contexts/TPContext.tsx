@@ -87,7 +87,7 @@ interface TPContextValue {
   clearMessages: () => void;
   clearClarification: () => void;
   respondToClarification: (answer: string) => void;
-  onSurfaceChange?: (surface: DeskSurface) => void;
+  onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
 }
 
 const TPContext = createContext<TPContextValue | null>(null);
@@ -98,7 +98,8 @@ const TPContext = createContext<TPContextValue | null>(null);
 
 interface TPProviderProps {
   children: ReactNode;
-  onSurfaceChange?: (surface: DeskSurface) => void;
+  /** Called when TP navigates to a surface. Optional handoffMessage for context continuity. */
+  onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
 }
 
 export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
@@ -179,6 +180,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         const toolResults: TPToolResult[] = [];
         const decoder = new TextDecoder();
         let buffer = ''; // Buffer for incomplete lines
+        // Track pending navigation for handoff pattern
+        let pendingSurface: DeskSurface | null = null;
+        let pendingHandoff: string | null = null;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -229,10 +233,12 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
 
                   if (action.type === 'OPEN_SURFACE' && onSurfaceChange) {
                     // Navigation - open a surface
+                    // Don't navigate yet - wait to see if there's a follow-up RESPOND
                     const newSurface = mapToolActionToSurface(action);
-                    console.log('[TP] Mapped surface:', newSurface);
+                    console.log('[TP] Mapped surface (pending):', newSurface);
                     if (newSurface) {
-                      onSurfaceChange(newSurface);
+                      // Store pending navigation
+                      pendingSurface = newSurface;
                     }
                     // Use tool result message as assistant content (e.g., "Found 3 deliverables")
                     const navMessage = result.data?.message as string;
@@ -247,6 +253,10 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     console.log('[TP] RESPOND message:', message?.slice(0, 100));
                     if (message) {
                       assistantContent = message;
+                      // If we have a pending surface navigation, this is the handoff message
+                      if (pendingSurface) {
+                        pendingHandoff = message;
+                      }
                       setStatus({ type: 'streaming', content: message });
                     }
                   } else if (action.type === 'CLARIFY') {
@@ -286,6 +296,13 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               // Ignore final incomplete chunk
             }
           }
+        }
+
+        // Execute pending surface navigation with optional handoff message
+        // This happens after all tool results are processed so we capture any follow-up respond()
+        if (pendingSurface && onSurfaceChange) {
+          console.log('[TP] Executing navigation with handoff:', pendingHandoff?.slice(0, 50));
+          onSurfaceChange(pendingSurface, pendingHandoff || undefined);
         }
 
         // Add assistant message
