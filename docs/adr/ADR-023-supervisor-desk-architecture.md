@@ -428,6 +428,52 @@ function getChipsForSurface(surface: DeskSurface): Chip[] {
 
 TP responses appear inline above the input. The focus remains on the desk content.
 
+### TP Tool + Conversation Blending
+
+TP uses a "tool-first" model where every response is a tool call. But tools can (and often should) be combined:
+
+**Pattern:** Navigation tool → then `respond()` with contextual follow-up
+
+```
+User: "show me my memories"
+
+TP calls: list_memories()
+→ Surface opens to context browser
+→ TPBar shows: "Pulling up your memories..."
+
+TP then calls: respond("Here's everything I remember about you. Want to add something new?")
+→ TPBar shows the friendly message
+→ Conversation continues naturally
+```
+
+**Ambiguous requests → clarify():**
+
+```
+User: "create a task"
+
+TP calls: clarify("What kind of task?", [
+  "One-time work item",
+  "Recurring deliverable (like a weekly report)",
+  "Just a reminder/note"
+])
+→ TPBar shows the question with option buttons
+→ User clicks option → TP proceeds with appropriate tool
+```
+
+**Domain vocabulary mapping in system prompt:**
+- "task", "work", "job" → Could be `work` OR `deliverable` (clarify)
+- "report", "update", "document" → Usually `deliverable`
+- "note", "remember this" → Usually `memory`
+- "project", "workspace" → `project`
+
+**Surface "Add/New" buttons:**
+All surfaces with creation actions wire their buttons to TP rather than custom forms:
+- ContextBrowserSurface "Add" → `sendMessage("I'd like to add something to my memory")`
+- ProjectListSurface "New Project" → `sendMessage("I'd like to create a new project")`
+- DeliverableListSurface "New" → `sendMessage("I'd like to create a new recurring deliverable")`
+
+This keeps TP as the primary interaction point while providing UI affordances for discoverability.
+
 ### New Context/Memory Tools
 
 To complete the context domain, add these TP tools:
