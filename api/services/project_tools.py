@@ -379,6 +379,60 @@ Use this when the user wants to remove stored context or when context is no long
 
 
 # =============================================================================
+# Communication Tools (ADR-023 Unified Tool Model)
+# =============================================================================
+
+RESPOND_TOOL = {
+    "name": "respond",
+    "description": """Send a conversational response to the user.
+
+Use this tool when you need to communicate through text - explanations, answers,
+thinking through ideas, or any message that doesn't require navigation or action.
+
+This is an EXPLICIT choice - you're deciding that conversation is the right response.
+The message will appear in the chat interface.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "message": {
+                "type": "string",
+                "description": "The message to send to the user"
+            }
+        },
+        "required": ["message"]
+    }
+}
+
+CLARIFY_TOOL = {
+    "name": "clarify",
+    "description": """Ask the user for clarification or input before proceeding.
+
+Use this when you need more information to complete a task, or when offering
+choices that the user should decide between. Appears as a focused modal/prompt.
+
+Examples:
+- "Which project should I add this to?" with options
+- "Do you want the detailed or summary version?"
+- "What timeframe should I use for the analysis?" """,
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "question": {
+                "type": "string",
+                "description": "The question to ask the user"
+            },
+            "options": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Optional list of choices to present (if applicable)"
+            }
+        },
+        "required": ["question"]
+    }
+}
+
+
+# =============================================================================
 # Deliverable Tools (ADR-018 Recurring Deliverables)
 # =============================================================================
 
@@ -546,27 +600,29 @@ Returns the created deliverable with a link to configure further.""",
 }
 
 
-# Tools available to Thinking Partner
+# Tools available to Thinking Partner (ADR-023 Unified Tool Model)
+# All outputs are tools - including conversation itself
 THINKING_PARTNER_TOOLS = [
-    # Project management (ADR-007)
+    # Communication (conversation as explicit tool choice)
+    RESPOND_TOOL,
+    CLARIFY_TOOL,
+    # Navigation (open surfaces to show data)
     LIST_PROJECTS_TOOL,
+    LIST_MEMORIES_TOOL,
+    LIST_DELIVERABLES_TOOL,
+    LIST_WORK_TOOL,
+    GET_DELIVERABLE_TOOL,
+    GET_WORK_TOOL,
+    # Actions (CRUD operations)
     CREATE_PROJECT_TOOL,
     RENAME_PROJECT_TOOL,
     UPDATE_PROJECT_TOOL,
-    # Unified work management (ADR-017)
     CREATE_WORK_TOOL,
-    LIST_WORK_TOOL,
-    GET_WORK_TOOL,
     UPDATE_WORK_TOOL,
     DELETE_WORK_TOOL,
-    # Memory/Context management (ADR-023)
-    LIST_MEMORIES_TOOL,
     CREATE_MEMORY_TOOL,
     UPDATE_MEMORY_TOOL,
     DELETE_MEMORY_TOOL,
-    # Deliverable management (ADR-018, ADR-020)
-    LIST_DELIVERABLES_TOOL,
-    GET_DELIVERABLE_TOOL,
     RUN_DELIVERABLE_TOOL,
     UPDATE_DELIVERABLE_TOOL,
     CREATE_DELIVERABLE_TOOL,
@@ -576,6 +632,57 @@ THINKING_PARTNER_TOOLS = [
 # =============================================================================
 # Tool Handlers
 # =============================================================================
+
+# -----------------------------------------------------------------------------
+# Communication Handlers (ADR-023)
+# -----------------------------------------------------------------------------
+
+async def handle_respond(auth, input: dict) -> dict:
+    """
+    Handle conversational response.
+
+    The message is passed through to the UI which displays it in the chat.
+    This makes conversation an explicit tool choice rather than a default.
+    """
+    message = input.get("message", "")
+
+    return {
+        "success": True,
+        "message": message,
+        "ui_action": {
+            "type": "RESPOND",
+            "data": {"message": message}
+        }
+    }
+
+
+async def handle_clarify(auth, input: dict) -> dict:
+    """
+    Handle clarification request.
+
+    Presents a focused question to the user, optionally with choices.
+    UI displays this as a modal/prompt for focused input.
+    """
+    question = input.get("question", "")
+    options = input.get("options", [])
+
+    return {
+        "success": True,
+        "question": question,
+        "options": options,
+        "ui_action": {
+            "type": "CLARIFY",
+            "data": {
+                "question": question,
+                "options": options
+            }
+        }
+    }
+
+
+# -----------------------------------------------------------------------------
+# Project Handlers
+# -----------------------------------------------------------------------------
 
 async def handle_list_projects(auth, input: dict) -> dict:
     """
@@ -2102,6 +2209,9 @@ async def handle_delete_memory(auth, input: dict) -> dict:
 
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
+    # Communication tools (ADR-023 Unified Tool Model)
+    "respond": handle_respond,
+    "clarify": handle_clarify,
     # Project tools (ADR-007)
     "list_projects": handle_list_projects,
     "create_project": handle_create_project,

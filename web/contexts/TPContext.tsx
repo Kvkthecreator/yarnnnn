@@ -5,7 +5,7 @@
  * TP (Thinking Partner) context - manages conversation state
  */
 
-import React, { createContext, useContext, useReducer, useCallback, useRef, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useRef, useState, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { TPState, TPAction, TPMessage, TPToolResult, mapToolActionToSurface, DeskSurface } from '@/types/desk';
 
@@ -56,11 +56,18 @@ function tpReducer(state: TPState, action: TPAction): TPState {
 // Context
 // =============================================================================
 
+// Clarification request from TP
+export interface ClarificationRequest {
+  question: string;
+  options?: string[];
+}
+
 interface TPContextValue {
   state: TPState;
   messages: TPMessage[];
   isLoading: boolean;
   error: string | null;
+  pendingClarification: ClarificationRequest | null;
 
   // Actions
   sendMessage: (
@@ -68,6 +75,7 @@ interface TPContextValue {
     context?: { surface?: DeskSurface; projectId?: string }
   ) => Promise<TPToolResult[] | null>;
   clearMessages: () => void;
+  clearClarification: () => void;
   onSurfaceChange?: (surface: DeskSurface) => void;
 }
 
@@ -84,6 +92,7 @@ interface TPProviderProps {
 
 export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const [state, dispatch] = useReducer(tpReducer, initialState);
+  const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // ---------------------------------------------------------------------------
@@ -189,11 +198,28 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                 };
                 toolResults.push(result);
 
-                // If tool has ui_action, trigger surface change
-                if (result.uiAction && onSurfaceChange) {
-                  const newSurface = mapToolActionToSurface(result.uiAction);
-                  if (newSurface) {
-                    onSurfaceChange(newSurface);
+                // Handle different ui_action types
+                if (result.uiAction) {
+                  const action = result.uiAction;
+
+                  if (action.type === 'OPEN_SURFACE' && onSurfaceChange) {
+                    // Navigation - open a surface
+                    const newSurface = mapToolActionToSurface(action);
+                    if (newSurface) {
+                      onSurfaceChange(newSurface);
+                    }
+                  } else if (action.type === 'RESPOND') {
+                    // Conversation - the message is the response
+                    const message = action.data?.message as string;
+                    if (message) {
+                      assistantContent = message;
+                    }
+                  } else if (action.type === 'CLARIFY') {
+                    // Clarification request - show modal/prompt
+                    setPendingClarification({
+                      question: action.data?.question as string || '',
+                      options: action.data?.options as string[] | undefined,
+                    });
                   }
                 }
               } else if (event.error) {
@@ -267,6 +293,13 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   }, []);
 
   // ---------------------------------------------------------------------------
+  // Clear clarification
+  // ---------------------------------------------------------------------------
+  const clearClarification = useCallback(() => {
+    setPendingClarification(null);
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Context value
   // ---------------------------------------------------------------------------
   const value: TPContextValue = {
@@ -274,8 +307,10 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     messages: state.messages,
     isLoading: state.isLoading,
     error: state.error,
+    pendingClarification,
     sendMessage,
     clearMessages,
+    clearClarification,
     onSurfaceChange,
   };
 
