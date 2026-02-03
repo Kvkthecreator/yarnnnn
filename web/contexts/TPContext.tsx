@@ -172,14 +172,15 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
             try {
               const event = JSON.parse(data);
 
-              if (event.type === 'text') {
+              // API sends: {content}, {tool_use}, {tool_result}, {done}, {error}
+              if (event.content) {
                 assistantContent += event.content;
-              } else if (event.type === 'tool_result') {
+              } else if (event.tool_result) {
                 const result: TPToolResult = {
-                  toolName: event.name,
-                  success: event.result?.success ?? true,
-                  data: event.result,
-                  uiAction: event.result?.ui_action,
+                  toolName: event.tool_result.name,
+                  success: event.tool_result.success ?? true,
+                  data: event.tool_result,
+                  uiAction: event.tool_result.ui_action,
                 };
                 toolResults.push(result);
 
@@ -190,9 +191,15 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     onSurfaceChange(newSurface);
                   }
                 }
+              } else if (event.error) {
+                throw new Error(event.error);
               }
-            } catch {
-              // Ignore parse errors for partial chunks
+              // event.done and event.tool_use are informational, no action needed
+            } catch (parseErr) {
+              // Ignore parse errors for partial chunks, but rethrow real errors
+              if (parseErr instanceof Error && parseErr.message !== 'Unexpected end of JSON input') {
+                throw parseErr;
+              }
             }
           }
         }
