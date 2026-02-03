@@ -8,7 +8,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Home, Briefcase, Brain, FolderOpen, ChevronDown } from 'lucide-react';
+import { LayoutDashboard, Brain, FolderOpen, ChevronDown } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider } from '@/contexts/TPContext';
 import { UserMenu } from './UserMenu';
@@ -78,13 +78,12 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 interface DomainNavItem {
   id: string;
   label: string;
-  icon: typeof Home;
+  icon: typeof LayoutDashboard;
   surface: DeskSurface;
 }
 
 const DOMAIN_NAV: DomainNavItem[] = [
-  { id: 'home', label: 'Home', icon: Home, surface: { type: 'idle' } },
-  { id: 'work', label: 'Work', icon: Briefcase, surface: { type: 'work-list' } },
+  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, surface: { type: 'idle' } },
   { id: 'context', label: 'Context', icon: Brain, surface: { type: 'context-browser', scope: 'user' } },
   { id: 'documents', label: 'Docs', icon: FolderOpen, surface: { type: 'document-list' } },
 ];
@@ -95,21 +94,19 @@ function getCurrentDomain(surface: DeskSurface): string {
     case 'idle':
     case 'deliverable-review':
     case 'deliverable-detail':
-      return 'home';
     case 'work-output':
     case 'work-list':
-      return 'work';
+    case 'project-detail':
+    case 'project-list':
+      return 'dashboard';
     case 'context-browser':
     case 'context-editor':
       return 'context';
     case 'document-viewer':
     case 'document-list':
       return 'documents';
-    case 'project-detail':
-    case 'project-list':
-      return 'projects';
     default:
-      return 'home';
+      return 'dashboard';
   }
 }
 
@@ -145,7 +142,7 @@ function AuthenticatedLayoutInner({
 
   // Get current domain info
   const currentDomainInfo = DOMAIN_NAV.find(d => d.id === currentDomain);
-  const CurrentIcon = currentDomainInfo?.icon || Home;
+  const CurrentIcon = currentDomainInfo?.icon || LayoutDashboard;
 
   return (
     <TPProvider onSurfaceChange={handleSurfaceChange}>
@@ -172,7 +169,7 @@ function AuthenticatedLayoutInner({
               className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary/10 text-primary font-medium"
             >
               <CurrentIcon className="w-4 h-4" />
-              <span>{currentDomainInfo?.label || 'Home'}</span>
+              <span>{currentDomainInfo?.label || 'Dashboard'}</span>
               <ChevronDown className={cn(
                 'w-3 h-3 opacity-50 transition-transform',
                 dropdownOpen && 'rotate-180'
