@@ -1878,10 +1878,11 @@ async def handle_list_memories(auth, input: dict) -> dict:
     search = input.get("search")
     limit = input.get("limit", 20)
 
-    # Build query
+    # Build query - filter is_active=true since schema uses soft delete
     query = auth.client.table("memories")\
         .select("id, content, tags, project_id, created_at, updated_at, projects(name)")\
         .eq("user_id", auth.user_id)\
+        .eq("is_active", True)\
         .order("created_at", desc=True)\
         .limit(limit)
 
@@ -1955,10 +1956,12 @@ async def handle_create_memory(auth, input: dict) -> dict:
     project_id = input.get("project_id")
 
     # Build memory data
+    # Note: source_type is required by schema (006_unified_memory.sql)
     memory_data = {
         "content": content,
         "tags": tags,
         "user_id": auth.user_id,
+        "source_type": "manual",  # Created via TP tool
     }
 
     if project_id:
@@ -2062,12 +2065,13 @@ async def handle_delete_memory(auth, input: dict) -> dict:
     """
     memory_id = input["memory_id"]
 
-    # Verify ownership and get content preview
+    # Verify ownership and get content preview (only active memories)
     try:
         memory_result = auth.client.table("memories")\
             .select("id, content")\
             .eq("id", memory_id)\
             .eq("user_id", auth.user_id)\
+            .eq("is_active", True)\
             .single()\
             .execute()
     except Exception:
@@ -2084,9 +2088,9 @@ async def handle_delete_memory(auth, input: dict) -> dict:
 
     content_preview = memory_result.data["content"][:50] + "..." if len(memory_result.data["content"]) > 50 else memory_result.data["content"]
 
-    # Delete memory
+    # Soft delete memory (schema uses is_active pattern)
     auth.client.table("memories")\
-        .delete()\
+        .update({"is_active": False})\
         .eq("id", memory_id)\
         .execute()
 
