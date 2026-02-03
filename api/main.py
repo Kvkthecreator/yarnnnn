@@ -10,10 +10,17 @@ Single FastAPI application with route groups:
 """
 
 import os
+import logging
 from dotenv import load_dotenv
 
 # Load environment variables
 load_dotenv()
+
+# Configure logging - ensure INFO level logs are visible
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware

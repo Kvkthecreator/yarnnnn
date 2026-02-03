@@ -2286,24 +2286,36 @@ async def execute_tool(auth, tool_name: str, tool_input: dict) -> dict:
         Tool result dict
     """
     import logging
+    import sys
     logger = logging.getLogger(__name__)
 
     handler = TOOL_HANDLERS.get(tool_name)
 
     if not handler:
-        logger.warning(f"[TOOL] Unknown tool: {tool_name}")
+        msg = f"[TOOL] Unknown tool: {tool_name}"
+        print(msg, file=sys.stderr, flush=True)
+        logger.warning(msg)
         return {
             "success": False,
             "error": f"Unknown tool: {tool_name}"
         }
 
     try:
-        logger.info(f"[TOOL] Executing {tool_name} with input: {str(tool_input)[:200]}")
+        msg = f"[TOOL] Executing {tool_name} with input: {str(tool_input)[:200]}"
+        print(msg, file=sys.stderr, flush=True)
+        logger.info(msg)
+
         result = await handler(auth, tool_input)
-        logger.info(f"[TOOL] {tool_name} result: success={result.get('success')}, ui_action={result.get('ui_action')}")
+
+        msg = f"[TOOL] {tool_name} result: success={result.get('success')}, ui_action={result.get('ui_action')}"
+        print(msg, file=sys.stderr, flush=True)
+        logger.info(msg)
+
         return result
     except Exception as e:
-        logger.error(f"[TOOL] {tool_name} failed with error: {e}")
+        msg = f"[TOOL] {tool_name} failed with error: {e}"
+        print(msg, file=sys.stderr, flush=True)
+        logger.error(msg)
         return {
             "success": False,
             "error": str(e)

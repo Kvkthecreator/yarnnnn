@@ -350,15 +350,21 @@ async def global_chat(
                     yield f"data: {json.dumps({'content': event.content})}\n\n"
                 elif event.type == "tool_use":
                     tools_used.append(event.content["name"])
-                    logger.info(f"[TP-STREAM] Tool use: {event.content['name']}")
+                    msg = f"[TP-STREAM] Tool use: {event.content['name']}"
+                    print(msg, flush=True)
+                    logger.info(msg)
                     yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
                 elif event.type == "tool_result":
                     result = event.content.get("result", {})
                     ui_action = result.get("ui_action")
-                    logger.info(f"[TP-STREAM] Tool result for {event.content.get('name')}: ui_action={ui_action}, success={result.get('success')}")
+                    msg = f"[TP-STREAM] Tool result for {event.content.get('name')}: ui_action={ui_action}, success={result.get('success')}"
+                    print(msg, flush=True)
+                    logger.info(msg)
                     yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
                 elif event.type == "done":
-                    logger.info(f"[TP-STREAM] Stream done, tools_used={tools_used}")
+                    msg = f"[TP-STREAM] Stream done, tools_used={tools_used}"
+                    print(msg, flush=True)
+                    logger.info(msg)
                     pass  # Will send done event after saving
 
             # Append assistant response to session
