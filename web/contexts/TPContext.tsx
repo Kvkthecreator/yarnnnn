@@ -113,7 +113,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
       try {
         // Build request body
         const body: Record<string, unknown> = {
-          message: content,
+          content: content,  // Must match ChatRequest.content in api/routes/chat.py
           include_context: true,
         };
 

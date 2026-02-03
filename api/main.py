@@ -27,17 +27,16 @@ app = FastAPI(
 )
 
 # CORS - allow frontend origins
-allowed_origins = [
-    "http://localhost:3000",
-    "https://yarnnn.com",
-    "https://www.yarnnn.com",
-    "https://yarnnnn.vercel.app",
-    "https://yarnnnn-*.vercel.app",
-]
-
+# Note: allow_origin_regex is used for Vercel preview deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allow_origins=[
+        "http://localhost:3000",
+        "https://yarnnn.com",
+        "https://www.yarnnn.com",
+        "https://yarnnnn.vercel.app",
+    ],
+    allow_origin_regex=r"https://yarnnnn-.*\.vercel\.app",  # Vercel preview URLs
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
