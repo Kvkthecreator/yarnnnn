@@ -1929,7 +1929,7 @@ async def handle_list_memories(auth, input: dict) -> dict:
         "message": f"Found {len(items)} memory/memories" if items else "No memories stored yet.",
         "ui_action": {
             "type": "OPEN_SURFACE",
-            "surface": "context-browser",
+            "surface": "context",
             "data": {
                 "scope": scope or "user",
                 "scopeId": project_id,
@@ -1990,7 +1990,7 @@ async def handle_create_memory(auth, input: dict) -> dict:
         "message": f"Memory stored ({scope}-level). I'll remember this for future conversations.",
         "ui_action": {
             "type": "OPEN_SURFACE",
-            "surface": "context-editor",
+            "surface": "memory-edit",
             "data": {"memoryId": memory["id"]}
         }
     }

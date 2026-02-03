@@ -156,6 +156,12 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'project-list':
       return { type: 'project-list' };
 
+    // Dashboard/Home
+    case 'dashboard':
+    case 'home':
+    case 'idle':
+      return { type: 'idle' };
+
     default:
       return null;
   }
