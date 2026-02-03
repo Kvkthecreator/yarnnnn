@@ -8,11 +8,10 @@
 import { Loader2 } from 'lucide-react';
 import { useDesk } from '@/contexts/DeskContext';
 import { SurfaceRouter } from './SurfaceRouter';
-import { AttentionBar } from './AttentionBar';
 import { TPBar } from '@/components/tp/TPBar';
 
 export function Desk() {
-  const { surface, attention, isLoading, error } = useDesk();
+  const { surface, isLoading, error } = useDesk();
 
   if (isLoading) {
     return (
@@ -44,9 +43,6 @@ export function Desk() {
       <div className="flex-1 overflow-hidden">
         <SurfaceRouter surface={surface} />
       </div>
-
-      {/* Attention bar (if items exist) */}
-      {attention.length > 0 && <AttentionBar items={attention} />}
 
       {/* TP floating bar */}
       <TPBar />
