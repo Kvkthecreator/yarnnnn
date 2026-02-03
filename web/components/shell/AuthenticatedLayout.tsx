@@ -8,10 +8,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { Menu, Home, Briefcase, Brain, FolderOpen, ChevronDown } from 'lucide-react';
+import { Home, Briefcase, Brain, FolderOpen, ChevronDown } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider } from '@/contexts/TPContext';
-import { DomainBrowser } from '@/components/desk/DomainBrowser';
 import { UserMenu } from './UserMenu';
 import { DeskSurface } from '@/types/desk';
 import { cn } from '@/lib/utils';
@@ -23,7 +22,6 @@ interface AuthenticatedLayoutProps {
 export default function AuthenticatedLayout({ children }: AuthenticatedLayoutProps) {
   const [userEmail, setUserEmail] = useState<string | undefined>();
   const [loading, setLoading] = useState(true);
-  const [browserOpen, setBrowserOpen] = useState(false);
   const router = useRouter();
   const supabase = createClient();
 
@@ -69,11 +67,7 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 
   return (
     <DeskProvider>
-      <AuthenticatedLayoutInner
-        userEmail={userEmail}
-        browserOpen={browserOpen}
-        setBrowserOpen={setBrowserOpen}
-      >
+      <AuthenticatedLayoutInner userEmail={userEmail}>
         {children}
       </AuthenticatedLayoutInner>
     </DeskProvider>
@@ -147,13 +141,9 @@ function getSurfaceTitle(surface: DeskSurface): string | null {
 function AuthenticatedLayoutInner({
   children,
   userEmail,
-  browserOpen,
-  setBrowserOpen,
 }: {
   children: React.ReactNode;
   userEmail?: string;
-  browserOpen: boolean;
-  setBrowserOpen: (open: boolean) => void;
 }) {
   const { surface, setSurface } = useDesk();
   const currentDomain = getCurrentDomain(surface);
@@ -234,24 +224,12 @@ function AuthenticatedLayoutInner({
             )}
           </div>
 
-          {/* Right: Browse + User */}
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setBrowserOpen(true)}
-              className="p-2 hover:bg-muted rounded-md transition-colors"
-              aria-label="Browse all"
-            >
-              <Menu className="w-5 h-5" />
-            </button>
-            <UserMenu email={userEmail} />
-          </div>
+          {/* Right: User menu only */}
+          <UserMenu email={userEmail} />
         </header>
 
         {/* Main content */}
         <main className="flex-1 overflow-hidden">{children}</main>
-
-        {/* Domain Browser */}
-        <DomainBrowser isOpen={browserOpen} onClose={() => setBrowserOpen(false)} />
       </div>
     </TPProvider>
   );

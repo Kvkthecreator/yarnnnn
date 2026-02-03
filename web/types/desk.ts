@@ -63,11 +63,6 @@ export interface TPUIAction {
   data: Record<string, unknown>;
 }
 
-export interface Chip {
-  label: string;
-  prompt: string;
-}
-
 // =============================================================================
 // Desk State
 // =============================================================================
@@ -105,46 +100,6 @@ export type TPAction =
   | { type: 'CLEAR_MESSAGES' }
   | { type: 'SET_LOADING'; isLoading: boolean }
   | { type: 'SET_ERROR'; error: string | null };
-
-// =============================================================================
-// Domain Browser
-// =============================================================================
-
-export interface BrowserData {
-  deliverables: BrowserDeliverable[];
-  recentWork: BrowserWork[];
-  userMemoryCount: number;
-  deliverableContexts: BrowserDeliverableContext[];
-  recentDocuments: BrowserDocument[];
-}
-
-export interface BrowserDeliverable {
-  id: string;
-  title: string;
-  status: 'active' | 'paused' | 'archived';
-  scheduleDescription: string;
-  nextRunAt?: string;
-}
-
-export interface BrowserWork {
-  id: string;
-  title: string;
-  status: string;
-  agentType: string;
-  completedAt?: string;
-}
-
-export interface BrowserDeliverableContext {
-  deliverableId: string;
-  deliverableTitle: string;
-  memoryCount: number;
-}
-
-export interface BrowserDocument {
-  id: string;
-  filename: string;
-  uploadedAt: string;
-}
 
 // =============================================================================
 // Utility functions
