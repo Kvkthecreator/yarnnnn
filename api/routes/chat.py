@@ -388,6 +388,11 @@ async def global_chat(
             )
 
         except Exception as e:
+            import traceback
+            error_msg = f"[TP-STREAM] Error: {type(e).__name__}: {str(e)}"
+            print(error_msg, flush=True)
+            logger.error(error_msg)
+            logger.error(f"[TP-STREAM] Traceback: {traceback.format_exc()}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(
@@ -485,6 +490,11 @@ async def project_chat(
             )
 
         except Exception as e:
+            import traceback
+            error_msg = f"[TP-STREAM] Project chat error: {type(e).__name__}: {str(e)}"
+            print(error_msg, flush=True)
+            logger.error(error_msg)
+            logger.error(f"[TP-STREAM] Traceback: {traceback.format_exc()}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
     return StreamingResponse(
