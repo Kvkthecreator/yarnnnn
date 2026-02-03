@@ -5,7 +5,7 @@
  * Desk context - manages current surface and attention queue
  */
 
-import React, { createContext, useContext, useReducer, useCallback, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useEffect, useRef, ReactNode } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import {
   DeskState,
@@ -118,6 +118,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
   const searchParams = useSearchParams();
   const router = useRouter();
   const pathname = usePathname();
+  const initializedRef = useRef(false);
 
   // ---------------------------------------------------------------------------
   // Load attention queue on mount
@@ -154,9 +155,13 @@ export function DeskProvider({ children }: DeskProviderProps) {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Initialize: handle deep links and load attention
+  // Initialize: handle deep links and load attention (only once on mount)
   // ---------------------------------------------------------------------------
   useEffect(() => {
+    // Only run initialization once
+    if (initializedRef.current) return;
+    initializedRef.current = true;
+
     const initialize = async () => {
       dispatch({ type: 'SET_LOADING', isLoading: true });
 

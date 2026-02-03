@@ -5,7 +5,7 @@
  * ContextBrowserSurface - Browse memories/context
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Loader2, Plus, Edit, Trash2, Tag } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
@@ -22,12 +22,17 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
   const [loading, setLoading] = useState(true);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const loadedRef = useRef<string | null>(null);
 
-  useEffect(() => {
-    loadMemories();
-  }, [scope, scopeId]);
+  // Memoize load function to track what we've already loaded
+  const loadMemories = useCallback(async () => {
+    const loadKey = `${scope}:${scopeId || 'none'}`;
 
-  const loadMemories = async () => {
+    // Skip if we've already loaded this exact scope/scopeId combination
+    if (loadedRef.current === loadKey && memories.length > 0) {
+      return;
+    }
+
     setLoading(true);
     try {
       // For user scope, use userMemories; for project scope, use projectMemories
@@ -41,12 +46,17 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
         // TODO: Handle deliverable scope when API supports it
         setMemories([]);
       }
+      loadedRef.current = loadKey;
     } catch (err) {
       console.error('Failed to load memories:', err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [scope, scopeId, memories.length]);
+
+  useEffect(() => {
+    loadMemories();
+  }, [loadMemories]);
 
   const handleDelete = async (memoryId: string) => {
     if (!confirm('Are you sure you want to delete this memory?')) return;
