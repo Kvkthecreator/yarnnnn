@@ -5,7 +5,7 @@
  * Simplified layout - single desk, no surface drawer
  */
 
-import { useEffect, useState, useCallback, useRef } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Home, Briefcase, Brain, FolderOpen, ChevronDown } from 'lucide-react';
@@ -74,55 +74,19 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   );
 }
 
-// Domain navigation with dropdown surfaces
+// Domain navigation - simple list, dropdown navigates between domains
 interface DomainNavItem {
   id: string;
   label: string;
   icon: typeof Home;
-  defaultSurface: DeskSurface;
-  surfaces: { label: string; surface: DeskSurface }[];
+  surface: DeskSurface;
 }
 
 const DOMAIN_NAV: DomainNavItem[] = [
-  {
-    id: 'home',
-    label: 'Home',
-    icon: Home,
-    defaultSurface: { type: 'idle' },
-    surfaces: [
-      { label: 'Dashboard', surface: { type: 'idle' } },
-      { label: 'Review', surface: { type: 'idle' } }, // Will navigate to specific review when clicked from attention
-    ],
-  },
-  {
-    id: 'work',
-    label: 'Work',
-    icon: Briefcase,
-    defaultSurface: { type: 'work-list' },
-    surfaces: [
-      { label: 'All Work', surface: { type: 'work-list' } },
-      { label: 'Active', surface: { type: 'work-list', filter: 'active' } },
-      { label: 'Completed', surface: { type: 'work-list', filter: 'completed' } },
-    ],
-  },
-  {
-    id: 'context',
-    label: 'Context',
-    icon: Brain,
-    defaultSurface: { type: 'context-browser', scope: 'user' },
-    surfaces: [
-      { label: 'About Me', surface: { type: 'context-browser', scope: 'user' } },
-    ],
-  },
-  {
-    id: 'documents',
-    label: 'Docs',
-    icon: FolderOpen,
-    defaultSurface: { type: 'document-list' },
-    surfaces: [
-      { label: 'All Documents', surface: { type: 'document-list' } },
-    ],
-  },
+  { id: 'home', label: 'Home', icon: Home, surface: { type: 'idle' } },
+  { id: 'work', label: 'Work', icon: Briefcase, surface: { type: 'work-list' } },
+  { id: 'context', label: 'Context', icon: Brain, surface: { type: 'context-browser', scope: 'user' } },
+  { id: 'documents', label: 'Docs', icon: FolderOpen, surface: { type: 'document-list' } },
 ];
 
 // Get current domain from surface type
@@ -149,37 +113,6 @@ function getCurrentDomain(surface: DeskSurface): string {
   }
 }
 
-// Get surface title for display in nav
-function getSurfaceTitle(surface: DeskSurface): string | null {
-  switch (surface.type) {
-    case 'idle':
-      return 'Dashboard';
-    case 'deliverable-review':
-      return 'Review';
-    case 'deliverable-detail':
-      return 'Deliverable';
-    case 'work-output':
-      return 'Output';
-    case 'work-list':
-      if (surface.filter === 'active') return 'Active';
-      if (surface.filter === 'completed') return 'Completed';
-      return 'All Work';
-    case 'context-browser':
-      return surface.scope === 'user' ? 'About Me' : 'Context';
-    case 'context-editor':
-      return 'Edit Memory';
-    case 'document-viewer':
-      return 'Document';
-    case 'document-list':
-      return 'All Documents';
-    case 'project-detail':
-      return 'Project';
-    case 'project-list':
-      return 'All Projects';
-    default:
-      return null;
-  }
-}
 
 // Inner component that can use desk context
 function AuthenticatedLayoutInner({
@@ -190,9 +123,8 @@ function AuthenticatedLayoutInner({
   userEmail?: string;
 }) {
   const { surface, setSurface } = useDesk();
-  const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const currentDomain = getCurrentDomain(surface);
-  const surfaceTitle = getSurfaceTitle(surface);
 
   // Handle surface change from TP tool results
   const handleSurfaceChange = useCallback(
@@ -204,12 +136,16 @@ function AuthenticatedLayoutInner({
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => setOpenDropdown(null);
-    if (openDropdown) {
+    const handleClickOutside = () => setDropdownOpen(false);
+    if (dropdownOpen) {
       document.addEventListener('click', handleClickOutside);
       return () => document.removeEventListener('click', handleClickOutside);
     }
-  }, [openDropdown]);
+  }, [dropdownOpen]);
+
+  // Get current domain info
+  const currentDomainInfo = DOMAIN_NAV.find(d => d.id === currentDomain);
+  const CurrentIcon = currentDomainInfo?.icon || Home;
 
   return (
     <TPProvider onSurfaceChange={handleSurfaceChange}>
@@ -226,95 +162,49 @@ function AuthenticatedLayoutInner({
             </button>
           </div>
 
-          {/* Center: Domain Navigation with dropdowns */}
-          <nav className="hidden md:flex items-center gap-1">
-            {DOMAIN_NAV.map((domain) => {
-              const Icon = domain.icon;
-              const isActive = currentDomain === domain.id;
-              const isOpen = openDropdown === domain.id;
+          {/* Center: Current domain with dropdown to navigate */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDropdownOpen(!dropdownOpen);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary/10 text-primary font-medium"
+            >
+              <CurrentIcon className="w-4 h-4" />
+              <span>{currentDomainInfo?.label || 'Home'}</span>
+              <ChevronDown className={cn(
+                'w-3 h-3 opacity-50 transition-transform',
+                dropdownOpen && 'rotate-180'
+              )} />
+            </button>
 
-              return (
-                <div key={domain.id} className="relative">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (isActive && domain.surfaces.length > 1) {
-                        // Toggle dropdown if active and has multiple surfaces
-                        setOpenDropdown(isOpen ? null : domain.id);
-                      } else {
-                        // Navigate to default surface
-                        setSurface(domain.defaultSurface);
-                        setOpenDropdown(null);
-                      }
-                    }}
-                    className={cn(
-                      'flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors',
-                      isActive
-                        ? 'bg-primary/10 text-primary font-medium'
-                        : 'text-muted-foreground hover:text-foreground hover:bg-muted'
-                    )}
-                  >
-                    <Icon className="w-4 h-4" />
-                    <span>{domain.label}</span>
-                    {isActive && surfaceTitle && (
-                      <>
-                        <span className="text-primary/50">/</span>
-                        <span className="font-normal">{surfaceTitle}</span>
-                      </>
-                    )}
-                    {isActive && domain.surfaces.length > 1 && (
-                      <ChevronDown className={cn(
-                        'w-3 h-3 opacity-50 transition-transform',
-                        isOpen && 'rotate-180'
-                      )} />
-                    )}
-                  </button>
-
-                  {/* Dropdown menu */}
-                  {isOpen && domain.surfaces.length > 1 && (
-                    <div className="absolute top-full left-0 mt-1 w-40 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                      {domain.surfaces.map((item, idx) => (
-                        <button
-                          key={idx}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setSurface(item.surface);
-                            setOpenDropdown(null);
-                          }}
-                          className={cn(
-                            'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors',
-                            surfaceTitle === item.label && 'bg-primary/5 text-primary'
-                          )}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </nav>
-
-          {/* Mobile: Show current location */}
-          <div className="flex md:hidden items-center gap-2 text-sm">
-            {(() => {
-              const domain = DOMAIN_NAV.find(d => d.id === currentDomain);
-              if (!domain) return null;
-              const Icon = domain.icon;
-              return (
-                <>
-                  <Icon className="w-4 h-4" />
-                  <span className="font-medium">{domain.label}</span>
-                  {surfaceTitle && (
-                    <>
-                      <span className="text-muted-foreground">/</span>
-                      <span className="text-muted-foreground">{surfaceTitle}</span>
-                    </>
-                  )}
-                </>
-              );
-            })()}
+            {/* Dropdown: Navigate to other domains */}
+            {dropdownOpen && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-40 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+                {DOMAIN_NAV.map((domain) => {
+                  const Icon = domain.icon;
+                  const isActive = currentDomain === domain.id;
+                  return (
+                    <button
+                      key={domain.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSurface(domain.surface);
+                        setDropdownOpen(false);
+                      }}
+                      className={cn(
+                        'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                        isActive && 'bg-primary/5 text-primary'
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {domain.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Right: User menu only */}
