@@ -13,7 +13,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const linkClass = inverted
-    ? "text-background/80 hover:text-background"
+    ? "text-white/70 hover:text-white"
     : "text-muted-foreground hover:text-foreground";
 
   const navLinks = [
@@ -36,7 +36,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
           height={32}
           className={inverted ? "invert" : ""}
         />
-        <span className={`text-xl font-brand ${inverted ? "text-background" : ""}`}>yarnnn</span>
+        <span className={`text-xl font-brand ${inverted ? "text-white" : ""}`}>yarnnn</span>
       </Link>
 
       {/* Desktop nav */}
