@@ -1,7 +1,13 @@
 # Design Spec: Tab-Based Supervision UI
 
-**Status:** Draft
+> **⚠️ LEGACY DOCUMENT**
+> This design was superseded by [ADR-023: Supervisor Desk Architecture](../adr/ADR-023-supervisor-desk-architecture.md).
+> The tab-based approach was abandoned in favor of a simpler single-surface "desk" model.
+> Kept for historical reference only.
+
+**Status:** Superseded
 **Date:** 2026-02-02
+**Superseded By:** ADR-023 (Supervisor Desk Architecture)
 **Supersedes:** ADR-021 (Review-First Supervision UX) - extends and refines
 **Inspired By:** Claude Code IDE patterns, legacy CHAT_FIRST_ARCHITECTURE
 

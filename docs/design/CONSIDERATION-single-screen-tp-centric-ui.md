@@ -1,10 +1,17 @@
 # Design Consideration: Rethinking the Interface Paradigm
 
-> **Status**: Resolved
+> **⚠️ LEGACY DOCUMENT**
+> This exploration informed several iterations of the UI architecture, but the specific decisions
+> referenced here have been superseded. See [ADR-023: Supervisor Desk Architecture](../adr/ADR-023-supervisor-desk-architecture.md)
+> for the current implementation.
+> Kept for historical reference and the first-principles thinking remains valuable.
+
+> **Status**: Resolved (Legacy)
 > **Date**: 2025-01-30
 > **Updated**: 2026-02-02
 > **Type**: First-principles exploration
-> **Decisions**:
+> **Final Implementation**: [ADR-023](../adr/ADR-023-supervisor-desk-architecture.md) - Supervisor Desk
+> **Legacy Decisions** (superseded):
 > - [ADR-013](../adr/ADR-013-conversation-plus-surfaces.md): Drawer pattern adopted
 > - [ADR-020](../adr/ADR-020-deliverable-centric-chat.md): Deliverable-centric application
 > - [Design Principle: Supervision Model](DESIGN-PRINCIPLE-supervision-model.md): Unified framework

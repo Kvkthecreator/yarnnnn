@@ -2,11 +2,19 @@
 
 **The source of truth for YARNNN development.**
 
+## Current Architecture (as of 2026-02-03)
+
+> **Active ADR:** [ADR-023: Supervisor Desk Architecture](adr/ADR-023-supervisor-desk-architecture.md)
+>
+> The UI follows the "Supervisor Desk" model — one surface at a time, TP floating input bar,
+> attention queue for staged items. No tabs, no navigation pages.
+
 ## Quick Links
 
 | Document | Purpose |
 |----------|---------|
 | [ESSENCE.md](ESSENCE.md) | Core product spec - domain model, agents, data flow |
+| [ADR-023](adr/ADR-023-supervisor-desk-architecture.md) | **Current** UI architecture - Supervisor Desk |
 | [database/ACCESS.md](database/ACCESS.md) | Database connection strings and credentials |
 | [development/SETUP.md](development/SETUP.md) | Local development setup |
 | [adr/](adr/) | Architecture Decision Records |
