@@ -6,7 +6,11 @@
  */
 
 import React, { createContext, useContext, useReducer, useCallback, useRef, ReactNode } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { TPState, TPAction, TPMessage, TPToolResult, mapToolActionToSurface, DeskSurface } from '@/types/desk';
+
+// API base URL - must match the Python backend
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 // =============================================================================
 // Initial State
@@ -122,11 +126,20 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
           body.surface_context = context.surface;
         }
 
+        // Get auth token for API request
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
         // Send to chat endpoint
-        const response = await fetch('/api/chat', {
+        const response = await fetch(`${API_BASE_URL}/api/chat`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+          },
           body: JSON.stringify(body),
+          credentials: 'include',
           signal: abortControllerRef.current.signal,
         });
 
