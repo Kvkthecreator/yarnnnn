@@ -396,7 +396,10 @@ export function TPBar() {
 
                   {/* Dropdown menu */}
                   {projectDropdownOpen && (
-                    <div className="absolute bottom-full left-0 mb-1 w-52 py-1 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <div
+                      className="absolute bottom-full left-0 mb-1 w-52 py-1 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-150"
+                      onClick={(e) => e.stopPropagation()}
+                    >
                       {/* Header */}
                       <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border mb-1">
                         TP context scope
@@ -405,7 +408,8 @@ export function TPBar() {
                       {/* Personal option */}
                       <button
                         type="button"
-                        onClick={(e) => {
+                        onMouseDown={(e) => {
+                          e.preventDefault();
                           e.stopPropagation();
                           setSelectedProject(null);
                           setProjectDropdownOpen(false);
@@ -433,7 +437,8 @@ export function TPBar() {
                         <button
                           key={project.id}
                           type="button"
-                          onClick={(e) => {
+                          onMouseDown={(e) => {
+                            e.preventDefault();
                             e.stopPropagation();
                             setSelectedProject({ id: project.id, name: project.name });
                             setProjectDropdownOpen(false);
