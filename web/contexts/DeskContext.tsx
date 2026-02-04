@@ -176,7 +176,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
   }, []);
 
   // ---------------------------------------------------------------------------
-  // Initialize: handle deep links and load attention (only once on mount)
+  // Initialize: load attention queue on mount
   // ---------------------------------------------------------------------------
   useEffect(() => {
     // Only run initialization once
@@ -186,25 +186,68 @@ export function DeskProvider({ children }: DeskProviderProps) {
     const initialize = async () => {
       dispatch({ type: 'SET_LOADING', isLoading: true });
 
-      // Check URL params for deep link
-      const surfaceFromUrl = paramsToSurface(searchParams);
-      if (surfaceFromUrl.type !== 'idle') {
-        dispatch({ type: 'SET_SURFACE', surface: surfaceFromUrl });
-      }
-
       // Load attention queue
       await refreshAttention();
-
-      // If no deep link and we have attention items, show first one
-      if (surfaceFromUrl.type === 'idle') {
-        // Will be handled after attention loads
-      }
 
       dispatch({ type: 'SET_LOADING', isLoading: false });
     };
 
     initialize();
-  }, [searchParams, refreshAttention]);
+  }, [refreshAttention]);
+
+  // ---------------------------------------------------------------------------
+  // Sync surface state with URL params (handles back/forward navigation)
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    // Only sync when on dashboard routes
+    if (pathname !== '/dashboard' && !pathname.startsWith('/dashboard/')) {
+      return;
+    }
+
+    // Parse surface from current URL params
+    const surfaceFromUrl = paramsToSurface(searchParams);
+
+    // Compare with current state to avoid unnecessary updates
+    const currentType = state.surface.type;
+    const urlType = surfaceFromUrl.type;
+
+    // Simple comparison - if types differ, update state
+    // For complex surfaces, also check IDs
+    let shouldUpdate = currentType !== urlType;
+
+    if (!shouldUpdate && currentType === urlType) {
+      // Same type, check if IDs differ for surfaces with IDs
+      if (currentType === 'deliverable-detail') {
+        const current = state.surface as { type: 'deliverable-detail'; deliverableId: string };
+        const url = surfaceFromUrl as { type: 'deliverable-detail'; deliverableId: string };
+        shouldUpdate = current.deliverableId !== url.deliverableId;
+      } else if (currentType === 'deliverable-review') {
+        const current = state.surface as { type: 'deliverable-review'; deliverableId: string; versionId: string };
+        const url = surfaceFromUrl as { type: 'deliverable-review'; deliverableId: string; versionId: string };
+        shouldUpdate = current.deliverableId !== url.deliverableId || current.versionId !== url.versionId;
+      } else if (currentType === 'work-output') {
+        const current = state.surface as { type: 'work-output'; workId: string };
+        const url = surfaceFromUrl as { type: 'work-output'; workId: string };
+        shouldUpdate = current.workId !== url.workId;
+      } else if (currentType === 'context-editor') {
+        const current = state.surface as { type: 'context-editor'; memoryId: string };
+        const url = surfaceFromUrl as { type: 'context-editor'; memoryId: string };
+        shouldUpdate = current.memoryId !== url.memoryId;
+      } else if (currentType === 'document-viewer') {
+        const current = state.surface as { type: 'document-viewer'; documentId: string };
+        const url = surfaceFromUrl as { type: 'document-viewer'; documentId: string };
+        shouldUpdate = current.documentId !== url.documentId;
+      } else if (currentType === 'project-detail') {
+        const current = state.surface as { type: 'project-detail'; projectId: string };
+        const url = surfaceFromUrl as { type: 'project-detail'; projectId: string };
+        shouldUpdate = current.projectId !== url.projectId;
+      }
+    }
+
+    if (shouldUpdate) {
+      dispatch({ type: 'SET_SURFACE', surface: surfaceFromUrl });
+    }
+  }, [searchParams, pathname, state.surface]);
 
   // Note: Removed auto-redirect from idle to deliverable-review
   // The dashboard (idle) now shows attention items inline, user clicks to review
@@ -221,7 +264,8 @@ export function DeskProvider({ children }: DeskProviderProps) {
       if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
         const params = surfaceToParams(surface);
         const newUrl = `${pathname}?${params.toString()}`;
-        router.replace(newUrl, { scroll: false });
+        // Use push instead of replace so browser back/forward works
+        router.push(newUrl, { scroll: false });
       }
     },
     [pathname, router]
@@ -231,7 +275,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
     dispatch({ type: 'CLEAR_SURFACE' });
     // Only update URL when on /dashboard
     if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
-      router.replace(pathname, { scroll: false });
+      router.push(pathname, { scroll: false });
     }
   }, [pathname, router]);
 
@@ -251,7 +295,8 @@ export function DeskProvider({ children }: DeskProviderProps) {
       if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
         const params = surfaceToParams(surface);
         const newUrl = `${pathname}?${params.toString()}`;
-        router.replace(newUrl, { scroll: false });
+        // Use push instead of replace so browser back/forward works
+        router.push(newUrl, { scroll: false });
       }
     },
     [pathname, router]
