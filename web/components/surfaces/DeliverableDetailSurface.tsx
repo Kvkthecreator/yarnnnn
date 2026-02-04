@@ -31,6 +31,8 @@ import {
   Sparkles,
   AlertTriangle,
   FolderOpen,
+  ChevronRight,
+  Eye,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
@@ -129,7 +131,8 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
   };
 
   const openVersionReview = (version: DeliverableVersion) => {
-    if (version.status === 'staged' || version.status === 'reviewing') {
+    // Allow viewing any version that has content
+    if (version.draft_content || version.final_content) {
       setSurface({
         type: 'deliverable-review',
         deliverableId,
@@ -381,6 +384,58 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
             )}
           </button>
 
+          {/* Latest Output Preview */}
+          {(() => {
+            // Find latest version with content (approved > staged > other)
+            const latestWithContent = versions.find(
+              (v) =>
+                (v.status === 'approved' && v.final_content) ||
+                (v.status === 'staged' && v.draft_content) ||
+                v.draft_content ||
+                v.final_content
+            );
+
+            if (!latestWithContent) return null;
+
+            const content =
+              latestWithContent.final_content || latestWithContent.draft_content || '';
+            const truncated = content.length > 500 ? content.slice(0, 500) + '...' : content;
+
+            return (
+              <div className="border border-border rounded-lg">
+                <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
+                  <h2 className="text-sm font-medium">Latest Output</h2>
+                  <button
+                    onClick={() => openVersionReview(latestWithContent)}
+                    className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
+                  >
+                    View full
+                    <ChevronRight className="w-3 h-3" />
+                  </button>
+                </div>
+                <div className="p-4">
+                  <div className="flex items-center gap-2 mb-2 text-xs text-muted-foreground">
+                    <span className="capitalize">{latestWithContent.status}</span>
+                    <span>•</span>
+                    <span>v{latestWithContent.version_number}</span>
+                  </div>
+                  <div className="prose prose-sm dark:prose-invert max-w-none text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">
+                    {truncated}
+                  </div>
+                  {content.length > 500 && (
+                    <button
+                      onClick={() => openVersionReview(latestWithContent)}
+                      className="mt-3 text-xs text-primary hover:underline flex items-center gap-1"
+                    >
+                      <Eye className="w-3 h-3" />
+                      Read more
+                    </button>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
+
           {/* What It Generates */}
           <div className="border border-border rounded-lg">
             <div className="px-4 py-3 border-b border-border bg-muted/30">
@@ -497,16 +552,18 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
                   No versions yet. Run now to generate the first one.
                 </p>
               ) : (
-                versions.slice(0, 5).map((version) => (
+                versions.slice(0, 5).map((version) => {
+                  const hasContent = version.draft_content || version.final_content;
+                  return (
                   <button
                     key={version.id}
                     onClick={() => openVersionReview(version)}
-                    disabled={version.status !== 'staged' && version.status !== 'reviewing'}
+                    disabled={!hasContent}
                     className={cn(
                       'w-full px-4 py-3 text-left',
-                      version.status === 'staged' || version.status === 'reviewing'
+                      hasContent
                         ? 'hover:bg-muted cursor-pointer'
-                        : 'cursor-default'
+                        : 'cursor-default opacity-60'
                     )}
                   >
                     <div className="flex items-center justify-between">
@@ -537,8 +594,17 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
                         "{version.feedback_notes}"
                       </p>
                     )}
+
+                    {/* Visual indicator for clickable versions */}
+                    {hasContent && (
+                      <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
+                        <Eye className="w-3 h-3" />
+                        <span>View output</span>
+                      </div>
+                    )}
                   </button>
-                ))
+                  );
+                })
               )}
             </div>
             {versions.length > 5 && (
