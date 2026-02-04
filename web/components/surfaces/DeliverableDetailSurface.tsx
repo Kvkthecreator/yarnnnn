@@ -232,10 +232,10 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
           <div className="min-w-0 flex-1">
             <h1 className="font-medium text-lg truncate">{deliverable.title}</h1>
             <div className="flex items-center gap-3 text-xs text-muted-foreground mt-0.5">
-              {deliverable.project_id && (
+              {deliverable.project_name && (
                 <span className="flex items-center gap-1">
                   <FolderOpen className="w-3 h-3" />
-                  Project linked
+                  {deliverable.project_name}
                 </span>
               )}
               <span className="flex items-center gap-1">

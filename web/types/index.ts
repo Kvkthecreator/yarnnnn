@@ -524,6 +524,7 @@ export interface Deliverable {
   deliverable_type: DeliverableType;
   type_config?: TypeConfig;
   project_id?: string;
+  project_name?: string;  // For UI display
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;
   sources: DataSource[];

@@ -31,6 +31,7 @@ import {
   TrendingDown,
   Minus,
   Plus,
+  FolderOpen,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
@@ -591,6 +592,12 @@ function DeliverableCard({
               <span className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium">
                 {typeLabel}
               </span>
+              {deliverable.project_name && (
+                <span className="flex items-center gap-1">
+                  <FolderOpen className="w-3 h-3" />
+                  {deliverable.project_name}
+                </span>
+              )}
               {formatSchedule(deliverable.schedule) && (
                 <span>{formatSchedule(deliverable.schedule)}</span>
               )}

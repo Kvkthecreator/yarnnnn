@@ -477,6 +477,7 @@ class DeliverableResponse(BaseModel):
     deliverable_type: str = "custom"
     type_config: Optional[dict] = None
     project_id: Optional[str] = None
+    project_name: Optional[str] = None  # For UI display
     recipient_context: Optional[dict] = None
     schedule: dict
     sources: list[dict] = Field(default_factory=list)
@@ -649,10 +650,10 @@ async def list_deliverables(
     - quality_trend: "improving" | "stable" | "declining"
     - avg_edit_distance: Average over recent versions
     """
-    # Fetch deliverables with versions including edit_distance_score
+    # Fetch deliverables with versions and project name
     query = (
         auth.client.table("deliverables")
-        .select("*, deliverable_versions(id, status, version_number, edit_distance_score, approved_at)")
+        .select("*, deliverable_versions(id, status, version_number, edit_distance_score, approved_at), projects(name)")
         .eq("user_id", auth.user_id)
         .order("created_at", desc=True)
         .limit(limit)
@@ -715,12 +716,17 @@ async def list_deliverables(
                 else:
                     quality_trend = "stable"
 
+        # Extract project name from join
+        project_data = d.get("projects")
+        project_name = project_data.get("name") if project_data else None
+
         responses.append(DeliverableResponse(
             id=d["id"],
             title=d["title"],
             deliverable_type=d.get("deliverable_type", "custom"),
             type_config=d.get("type_config"),
             project_id=d.get("project_id"),
+            project_name=project_name,
             recipient_context=d.get("recipient_context"),
             schedule=d["schedule"],
             sources=d.get("sources", []),
@@ -750,10 +756,10 @@ async def get_deliverable(
     """
     Get deliverable with recent version history.
     """
-    # Get deliverable
+    # Get deliverable with project name
     result = (
         auth.client.table("deliverables")
-        .select("*")
+        .select("*, projects(name)")
         .eq("id", str(deliverable_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -764,6 +770,8 @@ async def get_deliverable(
         raise HTTPException(status_code=404, detail="Deliverable not found")
 
     deliverable = result.data
+    project_data = deliverable.get("projects")
+    project_name = project_data.get("name") if project_data else None
 
     # Get recent versions
     versions_result = (
@@ -788,6 +796,7 @@ async def get_deliverable(
             deliverable_type=deliverable.get("deliverable_type", "custom"),
             type_config=deliverable.get("type_config"),
             project_id=deliverable.get("project_id"),
+            project_name=project_name,
             recipient_context=deliverable.get("recipient_context"),
             schedule=deliverable["schedule"],
             sources=deliverable.get("sources", []),
