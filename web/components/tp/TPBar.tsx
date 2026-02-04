@@ -347,40 +347,47 @@ export function TPBar() {
 
                 <span className="text-muted-foreground/40 text-[10px]">·</span>
 
-                {/* Context chips - inline selection (ADR-024) */}
-                <div className="flex items-center gap-1 overflow-x-auto">
-                  {/* Personal chip */}
-                  <button
-                    type="button"
-                    onClick={() => setSelectedProject(null)}
+                {/* Context selector - native select styled as chip (ADR-024) */}
+                <div className="shrink-0 flex items-center gap-1 text-[11px]">
+                  {selectedProject ? (
+                    <FolderOpen className="w-3 h-3 text-primary opacity-60" />
+                  ) : (
+                    <User className="w-3 h-3 text-muted-foreground opacity-60" />
+                  )}
+                  <select
+                    value={selectedProject?.id || ''}
+                    onChange={(e) => {
+                      const projectId = e.target.value;
+                      if (!projectId) {
+                        setSelectedProject(null);
+                      } else {
+                        const project = projects.find((p) => p.id === projectId);
+                        if (project) {
+                          setSelectedProject({ id: project.id, name: project.name });
+                        }
+                      }
+                    }}
                     className={cn(
-                      'shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-colors',
-                      !selectedProject
-                        ? 'bg-primary/15 text-primary font-medium'
-                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
+                      'bg-transparent border-none cursor-pointer',
+                      'text-[11px] py-0.5 pr-4 -mr-2',
+                      'focus:outline-none focus:ring-0',
+                      'appearance-none',
+                      selectedProject ? 'text-primary font-medium' : 'text-muted-foreground'
                     )}
+                    style={{
+                      backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E")`,
+                      backgroundRepeat: 'no-repeat',
+                      backgroundPosition: 'right 0 center',
+                      backgroundSize: '12px',
+                    }}
                   >
-                    <User className="w-3 h-3" />
-                    <span>Personal</span>
-                  </button>
-
-                  {/* Project chips */}
-                  {projects.map((project) => (
-                    <button
-                      key={project.id}
-                      type="button"
-                      onClick={() => setSelectedProject({ id: project.id, name: project.name })}
-                      className={cn(
-                        'shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-colors',
-                        selectedProject?.id === project.id
-                          ? 'bg-primary/15 text-primary font-medium'
-                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-                      )}
-                    >
-                      <FolderOpen className="w-3 h-3" />
-                      <span className="truncate max-w-[80px]">{project.name}</span>
-                    </button>
-                  ))}
+                    <option value="">Personal</option>
+                    {projects.map((project) => (
+                      <option key={project.id} value={project.id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
 
                 {/* Deliverable indicator (only show if active) */}
