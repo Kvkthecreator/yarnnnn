@@ -15,10 +15,11 @@ import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { LayoutDashboard, Brain, FolderOpen, ChevronDown, Settings } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
-import { TPProvider } from '@/contexts/TPContext';
+import { TPProvider, useTP } from '@/contexts/TPContext';
 import { UserMenu } from './UserMenu';
 import { DeskSurface } from '@/types/desk';
 import { cn } from '@/lib/utils';
+import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -294,6 +295,22 @@ function AuthenticatedLayoutInner({
         {/* Main content */}
         <main className="flex-1 overflow-hidden">{children}</main>
       </div>
+
+      {/* Setup Confirmation Modal - rendered inside TPProvider */}
+      <SetupConfirmModalWrapper />
     </TPProvider>
+  );
+}
+
+// Separate component to access TPContext inside TPProvider
+function SetupConfirmModalWrapper() {
+  const { setupConfirmModal, closeSetupConfirmModal } = useTP();
+
+  return (
+    <SetupConfirmModal
+      open={setupConfirmModal.open}
+      data={setupConfirmModal.data}
+      onClose={closeSetupConfirmModal}
+    />
   );
 }

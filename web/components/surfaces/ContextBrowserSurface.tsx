@@ -37,15 +37,25 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
 
     setLoading(true);
     try {
-      // For user scope, use userMemories; for project scope, use projectMemories
       if (scope === 'user') {
+        // User-scoped memories (project_id IS NULL)
         const data = await api.userMemories.list();
         setMemories(data);
       } else if (scope === 'project' && scopeId) {
+        // Project-scoped memories
         const data = await api.projectMemories.list(scopeId);
         setMemories(data);
+      } else if (scope === 'deliverable' && scopeId) {
+        // Deliverable scope: fetch deliverable to get its project_id, then load project memories
+        const detail = await api.deliverables.get(scopeId);
+        if (detail.deliverable?.project_id) {
+          const data = await api.projectMemories.list(detail.deliverable.project_id);
+          setMemories(data);
+        } else {
+          // Deliverable has no linked project yet
+          setMemories([]);
+        }
       } else {
-        // TODO: Handle deliverable scope when API supports it
         setMemories([]);
       }
       loadedRef.current = loadKey;
@@ -109,8 +119,11 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
           <div className="text-center py-12">
             <p className="text-muted-foreground mb-4">No memories yet</p>
             <p className="text-sm text-muted-foreground">
-              Tell TP things you want it to remember, like your preferences, company info, or
-              important context.
+              {scope === 'deliverable'
+                ? 'This deliverable has no specific context. It will use your general context when generating.'
+                : scope === 'project'
+                ? 'This project has no memories yet. Add context specific to this project.'
+                : 'Tell TP things you want it to remember, like your preferences, company info, or important context.'}
             </p>
           </div>
         ) : (

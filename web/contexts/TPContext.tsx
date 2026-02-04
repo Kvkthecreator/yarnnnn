@@ -8,6 +8,7 @@
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { TPState, TPAction, TPMessage, TPToolResult, mapToolActionToSurface, DeskSurface } from '@/types/desk';
+import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 
 // API base URL - must match the Python backend
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -78,6 +79,7 @@ interface TPContextValue {
   error: string | null;
   pendingClarification: ClarificationRequest | null;
   status: TPStatus;  // Real-time status for UI
+  setupConfirmModal: { open: boolean; data: SetupConfirmData | null };  // Setup confirmation modal state
 
   // Actions
   sendMessage: (
@@ -87,6 +89,7 @@ interface TPContextValue {
   clearMessages: () => void;
   clearClarification: () => void;
   respondToClarification: (answer: string) => void;
+  closeSetupConfirmModal: () => void;
   onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
 }
 
@@ -106,6 +109,10 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const [state, dispatch] = useReducer(tpReducer, initialState);
   const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
   const [status, setStatus] = useState<TPStatus>({ type: 'idle' });
+  const [setupConfirmModal, setSetupConfirmModal] = useState<{ open: boolean; data: SetupConfirmData | null }>({
+    open: false,
+    data: null,
+  });
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // ---------------------------------------------------------------------------
@@ -266,6 +273,15 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     console.log('[TP] CLARIFY:', question, options);
                     setPendingClarification({ question, options });
                     setStatus({ type: 'clarify', question, options });
+                  } else if (action.type === 'SHOW_SETUP_CONFIRM') {
+                    // Setup confirmation modal for new deliverable
+                    console.log('[TP] SHOW_SETUP_CONFIRM:', action.data);
+                    const setupData = action.data as unknown as SetupConfirmData;
+                    setSetupConfirmModal({
+                      open: true,
+                      data: setupData,
+                    });
+                    setStatus({ type: 'complete', message: 'Deliverable created' });
                   }
                 } else {
                   console.log('[TP] No uiAction in tool result');
@@ -379,6 +395,13 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   }, [sendMessage]);
 
   // ---------------------------------------------------------------------------
+  // Close setup confirmation modal
+  // ---------------------------------------------------------------------------
+  const closeSetupConfirmModal = useCallback(() => {
+    setSetupConfirmModal({ open: false, data: null });
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Context value
   // ---------------------------------------------------------------------------
   const value: TPContextValue = {
@@ -388,10 +411,12 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     error: state.error,
     pendingClarification,
     status,
+    setupConfirmModal,
     sendMessage,
     clearMessages,
     clearClarification,
     respondToClarification,
+    closeSetupConfirmModal,
     onSurfaceChange,
   };
 

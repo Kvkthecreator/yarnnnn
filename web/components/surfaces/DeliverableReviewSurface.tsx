@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
+import { cacheEntity } from '@/lib/entity-cache';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
 interface DeliverableReviewSurfaceProps {
@@ -51,6 +52,11 @@ export function DeliverableReviewSurface({
     try {
       const detail = await api.deliverables.get(deliverableId);
       setDeliverable(detail.deliverable);
+
+      // Cache the deliverable name for TPBar display
+      if (detail.deliverable?.title) {
+        cacheEntity(deliverableId, detail.deliverable.title, 'deliverable');
+      }
 
       const targetVersion = detail.versions.find((v) => v.id === versionId);
       if (targetVersion) {

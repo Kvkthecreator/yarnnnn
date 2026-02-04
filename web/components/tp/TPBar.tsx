@@ -32,6 +32,7 @@ import { useDesk } from '@/contexts/DeskContext';
 import { useTP, TPStatus } from '@/contexts/TPContext';
 import { cn } from '@/lib/utils';
 import { getTPStateIndicators } from '@/lib/tp-chips';
+import { getEntityName } from '@/lib/entity-cache';
 
 // Human-readable tool names - conversational tone
 const TOOL_LABELS: Record<string, string> = {
@@ -90,6 +91,16 @@ export function TPBar() {
   // Get state indicators from current surface
   const indicators = getTPStateIndicators(surface);
   const SurfaceIcon = SURFACE_ICONS[indicators.surface.icon] || LayoutDashboard;
+
+  // Get dynamic entity names from cache (if available)
+  const deliverableId = indicators.deliverable.id;
+  const cachedDeliverableName = deliverableId ? getEntityName(deliverableId) : undefined;
+
+  // Use cached name if available, otherwise fall back to generic label
+  const surfaceLabel = cachedDeliverableName || indicators.surface.label;
+  const contextLabel = cachedDeliverableName
+    ? `${cachedDeliverableName} context`
+    : indicators.context.label;
 
   // Handle form submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -320,7 +331,7 @@ export function TPBar() {
               {/* Surface indicator */}
               <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
                 <MapPin className="w-3 h-3" />
-                <span>{indicators.surface.label}</span>
+                <span className="truncate max-w-[120px]">{surfaceLabel}</span>
               </div>
 
               <span className="text-muted-foreground/30">·</span>
@@ -328,7 +339,7 @@ export function TPBar() {
               {/* Context indicator */}
               <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
                 <Brain className="w-3 h-3" />
-                <span>{indicators.context.label}</span>
+                <span className="truncate max-w-[150px]">{contextLabel}</span>
               </div>
 
               {/* Deliverable indicator (only show if active) */}
@@ -337,7 +348,7 @@ export function TPBar() {
                   <span className="text-muted-foreground/30">·</span>
                   <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-primary/70">
                     <Calendar className="w-3 h-3" />
-                    <span>Deliverable</span>
+                    <span>Active</span>
                   </div>
                 </>
               )}

@@ -1,6 +1,6 @@
 # Deliverable Workflow Design
 
-> **Status**: In Progress
+> **Status**: Core Implementation Complete
 > **Last Updated**: 2026-02-04
 > **Related**: ADR-018, ADR-019, ADR-023, ADR-005 (Memory), ADR-015 (Unified Context)
 
@@ -12,13 +12,22 @@
 - [x] Handoff message pattern for TP navigation - `web/contexts/DeskContext.tsx`
 - [x] Data model for context scopes (user vs deliverable) - `memories.project_id`
 - [x] Basic surfaces: IdleSurface, DeliverableListSurface, DeliverableDetailSurface, DeliverableReviewSurface
+- [x] **TP system prompt: context clarification** - `api/agents/thinking_partner.py`
+- [x] **Setup Confirmation modal** - `web/components/modals/SetupConfirmModal.tsx`, `api/services/project_tools.py`
+- [x] **Dynamic TP bar labels** - `web/lib/entity-cache.ts`, `web/components/tp/TPBar.tsx`
+- [x] **Context surface streamlining** - Deliverable scope enabled in `web/components/surfaces/ContextBrowserSurface.tsx`
 
 ### What's Pending
-- [ ] Setup Confirmation surface (post-creation review)
-- [ ] Context panel in Review surface
-- [ ] TP system prompt updates for context clarification pattern
-- [ ] Export nudge post-approval flow
-- [ ] Dynamic context/deliverable names in TP bar indicators
+1. [ ] Export nudge post-approval flow
+2. [ ] Make TP bar indicators clickable (context → open context browser)
+3. [ ] Add tentative state indicator (e.g., "Q4 Planning?" when inferred)
+
+### Decisions Made (2026-02-04)
+- **Setup Confirmation**: Modal within deliverable flow, shown per deliverable
+- **Context clarification**: Always state it (not just when ambiguous)
+- **Review context panel**: Skip - use existing context surfaces instead
+- **Modal context verbosity**: Detailed (counts, sample memories)
+- **Context basket selection**: Not in scope - TP uses `clarify()` upstream if ambiguous
 
 ---
 
@@ -50,7 +59,7 @@ This is similar to how Claude Code infers the "topic" of a session - but users n
 | Layer | When | How | Status |
 |-------|------|-----|--------|
 | **Visual Cues (TP Bar)** | Always visible | Ambient indicators below input | ✅ Implemented |
-| **Conversational Assurance** | During key decisions | TP explicitly states what it's doing | ⚠️ Needs prompt update |
+| **Conversational Assurance** | During key decisions | TP explicitly states what it's doing | ✅ Implemented |
 
 Both are complementary:
 - Visual cues = "Here's what I'm looking at right now"
@@ -120,7 +129,7 @@ The indicators update automatically when the user navigates between surfaces via
 
 ### Pending Enhancements
 
-- [ ] Show actual deliverable/project names instead of generic labels
+- [x] Show actual deliverable/project names instead of generic labels - via entity-cache.ts
 - [ ] Make indicators clickable (context → open context browser)
 - [ ] Add tentative state indicator (e.g., "Q4 Planning?" when inferred)
 
@@ -212,51 +221,18 @@ TP responds: "I'll set up a weekly board report using your TechStart
 [No, different context] → "Tell me about this board context"
 ```
 
-**Status:** ⚠️ TP system prompt needs update to implement this pattern
+**Status:** ✅ Implemented in `api/agents/thinking_partner.py`
 
-#### 1C. Setup Confirmation (Surface)
+#### 1C. Setup Confirmation (Modal)
 
-After TP creates deliverable, show **Setup Confirmation** surface:
+After TP creates deliverable, show **Setup Confirmation** modal (see Implementation Details below):
 
-```
-┌─────────────────────────────────────────────────────┐
-│ ✓ Weekly Board Update                               │
-│   Ready to generate your first draft                │
-├─────────────────────────────────────────────────────┤
-│                                                     │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ 📋 WHAT I'LL CREATE                             │ │
-│ │ Type: Board Update                              │ │
-│ │ For: TechStart Board                            │ │
-│ │ Tone: Professional, data-driven                 │ │
-│ └─────────────────────────────────────────────────┘ │
-│                                                     │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ 🧠 CONTEXT I'LL USE                     [Edit]  │ │
-│ │                                                 │ │
-│ │ Your context (always included):                 │ │
-│ │ • 143 memories about you and your work          │ │
-│ │                                                 │ │
-│ │ Board-specific context:                         │ │
-│ │ • "Board prefers executive summaries"           │ │
-│ │ • "5 members, quarterly meetings"               │ │
-│ │ • Q3_financials.pdf                             │ │
-│ │                                                 │ │
-│ │ [+ Add document] [+ Add context]                │ │
-│ └─────────────────────────────────────────────────┘ │
-│                                                     │
-│ ┌─────────────────────────────────────────────────┐ │
-│ │ 📅 SCHEDULE                                     │ │
-│ │ Every Monday at 9:00 AM                         │ │
-│ │ First draft: Feb 10, 2026                       │ │
-│ └─────────────────────────────────────────────────┘ │
-│                                                     │
-│ [Run First Draft Now]        [Just Add to Schedule] │
-│                                                     │
-└─────────────────────────────────────────────────────┘
-```
+- Shows what will be created (title, schedule)
+- Shows context that will be used (detailed: memory counts, document counts, sample memories)
+- Actions: "Run First Draft Now" or "Just Add to Schedule"
+- Edit button to modify context before first run
 
-**Status:** ❌ Not implemented - needs new surface or extension of DeliverableDetailSurface
+**Status:** ✅ Implemented - `web/components/modals/SetupConfirmModal.tsx`
 
 ---
 
@@ -289,30 +265,9 @@ Dashboard shows "Needs Attention" section with staged items.
 - Approve / Reject & Refine / Discard buttons
 - Optional feedback notes
 
-**Proposed Enhancement - Add Context Panel:**
+**Decision:** Skip dedicated context panel - use existing context surfaces instead. User can navigate to ContextBrowserSurface if they need to see/edit context.
 
-```
-┌─────────────────────────────────────────────────────┐
-│ Review: Weekly Status Report (v3)                   │
-├───────────────────────┬─────────────────────────────┤
-│                       │                             │
-│ GENERATED OUTPUT      │ CONTEXT PANEL (collapsible) │
-│                       │                             │
-│ [Draft content here]  │ Sources Used:               │
-│                       │ • 12 memories               │
-│                       │ • 2 documents               │
-│                       │ • Previous feedback         │
-│                       │                             │
-│                       │ Quality Trend:              │
-│                       │ v1: 0.45 → v2: 0.28 ↓      │
-│                       │ (less editing needed)       │
-│                       │                             │
-├───────────────────────┴─────────────────────────────┤
-│ [Approve] [Edit & Approve] [Reject] [Skip for Now]  │
-└─────────────────────────────────────────────────────┘
-```
-
-**Status:** ⚠️ Context panel not implemented
+**Status:** ✅ Review surface complete as-is
 
 ---
 
@@ -360,7 +315,7 @@ User returns to dashboard and sees their deliverables.
 | DeliverableListSurface | List all deliverables | `web/components/surfaces/DeliverableListSurface.tsx` | ✅ |
 | DeliverableDetailSurface | Single deliverable + versions | `web/components/surfaces/DeliverableDetailSurface.tsx` | ✅ |
 | DeliverableReviewSurface | Review staged version | `web/components/surfaces/DeliverableReviewSurface.tsx` | ✅ |
-| **DeliverableSetupSurface** | Post-creation setup review | - | ❌ Needed |
+| SetupConfirmModal | Post-creation setup review | `web/components/modals/SetupConfirmModal.tsx` | ✅ |
 
 ---
 
@@ -386,11 +341,11 @@ User returns to dashboard and sees their deliverables.
 
 | Decision | Resolution |
 |----------|------------|
-| Setup Flow | Conversational → Clarify (if needed) → Setup Confirmation Surface |
+| Setup Flow | Conversational → Context stated → Setup Confirmation Modal |
 | Context terminology | "Your context" + "Deliverable context" (hide "project") |
 | Context visibility | Always show what context will be used before first run |
-| Clarification | TP states inference explicitly, asks when ambiguous |
-| Review info | Output + collapsible context panel (what was used) |
+| Clarification | TP always states context explicitly before creating |
+| Review info | Output only (use existing context surfaces if needed) |
 | Post-approval | Export nudge with "next run" info |
 | TP Bar indicators | 3 visual cues below input: Surface, Context, Deliverable |
 | Two-layer assurance | Visual cues (ambient) + Conversational (explicit) |
@@ -398,36 +353,359 @@ User returns to dashboard and sees their deliverables.
 
 ---
 
-## Next Steps (Priority Order)
+## Implementation Details
 
-1. **TP System Prompt Updates**
-   - Add context clarification pattern
-   - Explicit statement of inferred context
-   - File: `api/agents/thinking_partner.py`
+### 1. TP System Prompt: Context Clarification
 
-2. **Setup Confirmation Surface**
-   - New surface or extend DeliverableDetailSurface
-   - Show "Context I'll Use" section
-   - Add document/context attachment
+**Goal**: TP always explicitly states what context will be used when creating a deliverable.
 
-3. **Review Surface Context Panel**
-   - Add collapsible panel showing sources used
-   - Quality trend indicator
+**Files**: `api/agents/thinking_partner.py`, `api/services/project_tools.py`
 
-4. **Dynamic TP Bar Labels**
-   - Fetch actual deliverable/project names
-   - Show in indicators instead of generic labels
+#### Addition to SYSTEM_PROMPT_WITH_TOOLS
 
-5. **Export Nudge Flow**
-   - Post-approval options modal/inline
-   - Copy, PDF, Email actions
+Add after "## Response Patterns (IMPORTANT)":
+
+```markdown
+---
+
+## Deliverable Creation: Context Assurance Pattern
+
+When creating a deliverable, you MUST explicitly state what context will be used. This is non-negotiable - users need to verify you understood correctly.
+
+**The Pattern:**
+
+1. **Infer the context** - Based on conversation, existing projects, or user's current surface
+2. **State it explicitly** - "I'll use your [X] context for this"
+3. **Allow correction** - Give user opportunity to adjust before creating
+
+**Examples:**
+
+User: "I need a weekly report for the board"
+
+GOOD (state context explicitly):
+→ `respond("I'll set up a weekly board report. I'll use your TechStart Board context - that includes your investor updates and quarterly metrics. Sound right, or should I use different context?")`
+→ Wait for confirmation
+→ Then `create_deliverable(...)`
+
+BAD (create without stating context):
+→ `create_deliverable(...)` immediately
+→ `respond("Done! I created your board report.")`
+
+**When context is ambiguous:**
+
+If user has multiple relevant contexts or you're unsure which applies:
+→ `clarify("Which context should I use for this deliverable?", ["TechStart Board (investor updates, metrics)", "General context (your preferences only)", "Create new context for this"])`
+
+**When context is new:**
+
+If this is clearly a new topic with no existing context:
+→ `respond("I'll create a new context basket for your board reports. As you refine this deliverable, I'll learn what's specific to this work. Ready to set it up?")`
+
+**After creation - always state what was used:**
+
+→ `respond("Done! I've created 'Weekly Board Update'. It will use your TechStart Board context (12 memories + 2 documents) plus your general preferences. First draft will be ready Monday at 9am. Want me to generate a preview now?")`
+```
+
+#### Update to CREATE_DELIVERABLE_TOOL Description
+
+```python
+CREATE_DELIVERABLE_TOOL = {
+    "name": "create_deliverable",
+    "description": """Create a new recurring deliverable for the user.
+
+IMPORTANT: Before calling this tool, you MUST have:
+1. Stated what context you'll use ("I'll use your [X] context")
+2. Given user opportunity to confirm or correct
+
+Never create a deliverable without first confirming context with the user.
+
+ADR-020: TP can scaffold deliverables on behalf of users.
+
+Use this when the user describes something they need to produce regularly:
+- "I need to send weekly updates to my manager"
+- "Can you help me create a monthly investor report?"
+- "I want to track my competitors weekly"
+
+After stating context and getting confirmation, create the deliverable.
+Then follow up with respond() to confirm what was created and what context
+will be used for generation.
+
+TYPES:
+- status_report: Regular progress/status updates
+- stakeholder_update: Updates for clients, investors, partners
+- research_brief: Competitive intel, market research, trends
+- meeting_summary: Recap of recurring meetings
+- custom: Anything else
+
+Returns the created deliverable. Always follow with respond() to:
+1. Confirm creation
+2. State what context will be used
+3. Offer to generate first draft""",
+    ...
+}
+```
+
+---
+
+### 2. Setup Confirmation Modal
+
+**Goal**: After TP creates a deliverable, show a modal with detailed context info before first run.
+
+**Files**: `api/services/project_tools.py`, `web/contexts/TPContext.tsx`, `web/components/modals/SetupConfirmModal.tsx` (new)
+
+#### Backend: New ui_action Type
+
+In `handle_create_deliverable()`:
+
+```python
+return {
+    "success": True,
+    "deliverable": {...},
+    "message": f"Created '{title}'",
+    "ui_action": {
+        "type": "SHOW_SETUP_CONFIRM",
+        "data": {
+            "deliverableId": deliverable["id"],
+            "title": title,
+            "schedule": schedule_desc,
+            "context": {
+                "user_memory_count": user_memory_count,
+                "deliverable_memory_count": deliverable_memory_count,
+                "document_count": document_count,
+                "sample_memories": [...],  # First 3 for preview
+            }
+        }
+    }
+}
+```
+
+#### Frontend: Handle in TPContext.tsx
+
+```typescript
+if (action.type === 'SHOW_SETUP_CONFIRM') {
+  setSetupConfirmModal({
+    open: true,
+    data: action.data
+  });
+}
+```
+
+#### Modal Component
+
+```tsx
+// web/components/modals/SetupConfirmModal.tsx
+
+interface SetupConfirmModalProps {
+  open: boolean;
+  onClose: () => void;
+  data: {
+    deliverableId: string;
+    title: string;
+    schedule: string;
+    context: {
+      user_memory_count: number;
+      deliverable_memory_count: number;
+      document_count: number;
+      sample_memories: string[];
+    };
+  };
+  onConfirm: (runNow: boolean) => void;
+}
+
+export function SetupConfirmModal({ open, onClose, data, onConfirm }: SetupConfirmModalProps) {
+  return (
+    <Dialog open={open} onOpenChange={onClose}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <CheckCircle className="w-5 h-5 text-green-500" />
+            {data.title}
+          </DialogTitle>
+          <DialogDescription>
+            Ready to generate your first draft
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="space-y-4 py-4">
+          {/* What I'll Create */}
+          <section className="p-3 rounded-lg bg-muted">
+            <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+              <FileText className="w-4 h-4" />
+              What I'll Create
+            </h4>
+            <p className="text-sm text-muted-foreground">
+              {data.title} • {data.schedule}
+            </p>
+          </section>
+
+          {/* Context I'll Use - Detailed */}
+          <section className="p-3 rounded-lg bg-muted">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-sm font-medium flex items-center gap-2">
+                <Brain className="w-4 h-4" />
+                Context I'll Use
+              </h4>
+              <Button variant="ghost" size="sm" onClick={() => {/* open context browser */}}>
+                Edit
+              </Button>
+            </div>
+
+            <div className="space-y-2 text-sm text-muted-foreground">
+              <div>
+                <span className="font-medium">Your context:</span>{' '}
+                {data.context.user_memory_count} memories
+              </div>
+              {data.context.deliverable_memory_count > 0 && (
+                <div>
+                  <span className="font-medium">Deliverable context:</span>{' '}
+                  {data.context.deliverable_memory_count} memories
+                </div>
+              )}
+              {data.context.document_count > 0 && (
+                <div>
+                  <span className="font-medium">Documents:</span>{' '}
+                  {data.context.document_count} attached
+                </div>
+              )}
+
+              {/* Sample memories preview */}
+              {data.context.sample_memories.length > 0 && (
+                <div className="mt-2 pt-2 border-t border-border">
+                  <p className="text-xs text-muted-foreground mb-1">Preview:</p>
+                  <ul className="text-xs space-y-1">
+                    {data.context.sample_memories.map((mem, i) => (
+                      <li key={i} className="truncate">• {mem}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+
+            <div className="flex gap-2 mt-3">
+              <Button variant="outline" size="sm">
+                <Plus className="w-3 h-3 mr-1" />
+                Add context
+              </Button>
+              <Button variant="outline" size="sm">
+                <FileUp className="w-3 h-3 mr-1" />
+                Add document
+              </Button>
+            </div>
+          </section>
+        </div>
+
+        <DialogFooter className="flex gap-2">
+          <Button variant="outline" onClick={() => onConfirm(false)}>
+            Just Add to Schedule
+          </Button>
+          <Button onClick={() => onConfirm(true)}>
+            Run First Draft Now
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+```
+
+#### Flow After Modal
+
+| User Action | Result |
+|-------------|--------|
+| "Run First Draft Now" | Close modal → call `run_deliverable` → navigate to DeliverableDetailSurface |
+| "Just Add to Schedule" | Close modal → navigate to DeliverableDetailSurface |
+| "Edit" context | Open ContextBrowserSurface for deliverable scope |
+
+#### Future Enhancement
+
+Downstream, consider adding approval mode settings (per-deliverable or user-level) to bypass certain workflow steps. This should be addressed after the core workflow is hardened.
+
+---
+
+### 3. Dynamic TP Bar Labels
+
+**Goal**: Show actual deliverable/project names instead of generic labels.
+
+**Files**: `web/lib/entity-cache.ts` (new), `web/components/tp/TPBar.tsx`, surface components
+
+#### Entity Cache
+
+```typescript
+// web/lib/entity-cache.ts
+const entityCache = new Map<string, { name: string; type: string }>();
+
+export function cacheEntity(id: string, name: string, type: 'deliverable' | 'project') {
+  entityCache.set(id, { name, type });
+}
+
+export function getEntityName(id: string): string | undefined {
+  return entityCache.get(id)?.name;
+}
+```
+
+#### Surface Integration
+
+Surfaces populate cache when loading:
+
+```typescript
+// In DeliverableDetailSurface
+useEffect(() => {
+  if (deliverable) {
+    cacheEntity(deliverable.id, deliverable.title, 'deliverable');
+  }
+}, [deliverable]);
+```
+
+#### TPBar Integration
+
+```typescript
+// In TPBar
+import { getEntityName } from '@/lib/entity-cache';
+
+const entityName = surface.type === 'deliverable-detail'
+  ? getEntityName(surface.deliverableId)
+  : undefined;
+
+// Use in indicator
+<span>{entityName || indicators.surface.label}</span>
+```
+
+---
+
+### 4. Context Surface Streamlining
+
+**Goal**: Enable deliverable scope in existing context surfaces.
+
+**Files**: `web/components/surfaces/ContextBrowserSurface.tsx`
+
+#### Enable Deliverable Scope
+
+```typescript
+// Currently only supports 'user' | 'project'
+// Update to include 'deliverable'
+scope: 'user' | 'project' | 'deliverable';
+```
+
+The deliverable scope maps to the project_id linked to the deliverable (each deliverable has an associated project for context isolation).
+
+---
+
+### 5. Export Nudge Flow (Deferred)
+
+Lower priority - doesn't affect core assurance loop. Address after items 1-4 are complete.
 
 ---
 
 ## Open Questions
 
-1. **How explicit should context inference be?** Always state it, or only when ambiguous?
-2. **Should existing context baskets be shown as options** when creating new deliverable?
-3. **Is Setup Confirmation a new surface type** or part of DeliverableDetailSurface?
-4. **Review context panel:** Two-panel always or collapsible?
-5. **Post-approval flow:** Modal, toast, or inline surface change?
+### Resolved (2026-02-04)
+1. ~~How explicit should context inference be?~~ → **Always state it**
+2. ~~Is Setup Confirmation a new surface type?~~ → **Modal within deliverable flow**
+3. ~~Review context panel: Two-panel or collapsible?~~ → **Skip - use existing context surfaces**
+4. ~~Setup Confirm modal: When to show?~~ → **Always, per deliverable**
+5. ~~Context clarification verbosity in modal?~~ → **Detailed (counts, sample memories)**
+6. ~~Existing context baskets as options during creation?~~ → **Not in scope - TP uses `clarify()` upstream if ambiguous**
+
+### Still Open
+1. **Post-approval flow:** Modal, toast, or inline surface change?
+2. **Approval mode settings:** Per-deliverable or user-level bypass for workflow steps? (Address after core workflow hardened)

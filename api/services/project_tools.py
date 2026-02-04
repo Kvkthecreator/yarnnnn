@@ -535,15 +535,20 @@ CREATE_DELIVERABLE_TOOL = {
     "name": "create_deliverable",
     "description": """Create a new recurring deliverable for the user.
 
-ADR-020: TP can scaffold deliverables on behalf of users.
+IMPORTANT: Before calling this tool, you MUST have:
+1. Stated what context you'll use ("I'll use your [X] context")
+2. Given user opportunity to confirm or correct
+
+Never create a deliverable without first confirming context with the user.
 
 Use this when the user describes something they need to produce regularly:
 - "I need to send weekly updates to my manager"
 - "Can you help me create a monthly investor report?"
 - "I want to track my competitors weekly"
 
-This creates the basic deliverable structure. After creation, guide the user
-to the deliverables dashboard to fine-tune configuration if needed.
+After stating context and getting confirmation, create the deliverable.
+Then follow up with respond() to confirm what was created and what context
+will be used for generation.
 
 TYPES:
 - status_report: Regular progress/status updates
@@ -552,7 +557,10 @@ TYPES:
 - meeting_summary: Recap of recurring meetings
 - custom: Anything else
 
-Returns the created deliverable with a link to configure further.""",
+Returns the created deliverable. Always follow with respond() to:
+1. Confirm creation
+2. State what context will be used
+3. Offer to generate first draft""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -1912,6 +1920,33 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     # Format schedule for display
     schedule_desc = format_schedule_description(schedule)
 
+    # Fetch context counts for Setup Confirmation modal
+    user_memory_count = 0
+    deliverable_memory_count = 0
+    document_count = 0
+    sample_memories = []
+
+    try:
+        # Count user-level memories (project_id IS NULL)
+        user_mem_result = auth.client.table("memories").select("id, content", count="exact").is_("project_id", "null").execute()
+        user_memory_count = user_mem_result.count or 0
+
+        # Get sample user memories (first 3)
+        if user_mem_result.data:
+            sample_memories = [m["content"][:100] for m in user_mem_result.data[:3]]
+
+        # Count deliverable-specific memories (if project_id provided)
+        if project_id:
+            deliv_mem_result = auth.client.table("memories").select("id", count="exact").eq("project_id", project_id).execute()
+            deliverable_memory_count = deliv_mem_result.count or 0
+
+            # Count documents for this project
+            doc_result = auth.client.table("documents").select("id", count="exact").eq("project_id", project_id).execute()
+            document_count = doc_result.count or 0
+    except Exception:
+        # If context fetch fails, continue with zeros - modal will still work
+        pass
+
     return {
         "success": True,
         "deliverable": {
@@ -1924,9 +1959,18 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
         },
         "message": f"Created '{title}' - {schedule_desc}. First draft will be ready for review at your next scheduled time.",
         "ui_action": {
-            "type": "OPEN_SURFACE",
-            "surface": "deliverable",
-            "data": {"deliverableId": deliverable["id"]}
+            "type": "SHOW_SETUP_CONFIRM",
+            "data": {
+                "deliverableId": deliverable["id"],
+                "title": title,
+                "schedule": schedule_desc,
+                "context": {
+                    "user_memory_count": user_memory_count,
+                    "deliverable_memory_count": deliverable_memory_count,
+                    "document_count": document_count,
+                    "sample_memories": sample_memories,
+                }
+            }
         },
         "instruction_to_assistant": "Confirm the deliverable was created. Let the user know they can find it in their deliverables dashboard and can fine-tune the configuration there. Offer to generate the first version now if they'd like."
     }

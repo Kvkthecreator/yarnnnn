@@ -22,6 +22,7 @@ import {
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { formatDistanceToNow, format } from 'date-fns';
+import { cacheEntity } from '@/lib/entity-cache';
 import type { Deliverable, DeliverableVersion, FeedbackSummary } from '@/types';
 
 interface DeliverableDetailSurfaceProps {
@@ -47,6 +48,11 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
       setDeliverable(detail.deliverable);
       setVersions(detail.versions);
       setFeedbackSummary(detail.feedback_summary || null);
+
+      // Cache the deliverable name for TPBar display
+      if (detail.deliverable?.title) {
+        cacheEntity(deliverableId, detail.deliverable.title, 'deliverable');
+      }
     } catch (err) {
       console.error('Failed to load deliverable:', err);
     } finally {

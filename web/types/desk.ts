@@ -59,7 +59,7 @@ export interface TPToolResult {
 }
 
 export interface TPUIAction {
-  type: 'OPEN_SURFACE' | 'RESPOND' | 'CLARIFY';
+  type: 'OPEN_SURFACE' | 'RESPOND' | 'CLARIFY' | 'SHOW_SETUP_CONFIRM';
   surface?: string;
   data: Record<string, unknown>;
 }
