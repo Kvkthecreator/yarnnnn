@@ -304,7 +304,8 @@ create their first recurring deliverable through conversation.
         include_context: bool,
         with_tools: bool = False,
         is_onboarding: bool = False,
-        surface_content: Optional[str] = None
+        surface_content: Optional[str] = None,
+        selected_project_name: Optional[str] = None
     ) -> str:
         """Build system prompt with memory context.
 
@@ -314,6 +315,7 @@ create their first recurring deliverable through conversation.
             with_tools: Whether to include tool usage instructions
             is_onboarding: Whether user has no deliverables (enables onboarding mode)
             surface_content: ADR-023 - Content of what user is currently viewing
+            selected_project_name: ADR-024 - Name of user's selected project context
         """
         base_prompt = self.SYSTEM_PROMPT_WITH_TOOLS if with_tools else self.SYSTEM_PROMPT
 
@@ -323,6 +325,15 @@ create their first recurring deliverable through conversation.
             context_text = self._format_memories(context)
             if not context_text:
                 context_text = "No context available yet. As we chat, I'll learn more about you and this project."
+
+        # ADR-024: Add selected context scope notice at the top
+        # This tells TP what context basket they're working under
+        if selected_project_name:
+            context_scope = f"## Current Context Scope: {selected_project_name}\n\nThe user has selected the \"{selected_project_name}\" project as their current context. When asked about context, refer to this project. New memories and deliverables should default to this project unless specified otherwise.\n\n---\n\n"
+        else:
+            context_scope = "## Current Context Scope: Personal\n\nThe user is working in their personal context (no specific project selected). Memories here are about the user themselves - their preferences, habits, and general information.\n\n---\n\n"
+
+        context_text = context_scope + context_text
 
         # ADR-023: Prepend surface content if user is viewing something specific
         # This allows TP to understand "this" references
@@ -407,6 +418,7 @@ create their first recurring deliverable through conversation.
             parameters:
                 - include_context: bool (default True)
                 - history: list of prior messages
+                - selected_project_name: ADR-024 - Name of selected project context
             max_iterations: Maximum tool use cycles (safety limit)
 
         Returns:
@@ -417,12 +429,14 @@ create their first recurring deliverable through conversation.
         history = params.get("history", [])
         is_onboarding = params.get("is_onboarding", False)
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
+        selected_project_name = params.get("selected_project_name")  # ADR-024: Selected context
 
         system = self._build_system_prompt(
             context, include_context,
             with_tools=True,
             is_onboarding=is_onboarding,
-            surface_content=surface_content
+            surface_content=surface_content,
+            selected_project_name=selected_project_name
         )
 
         # Build messages list - filter out empty assistant messages which cause 400 errors
@@ -572,12 +586,14 @@ create their first recurring deliverable through conversation.
         history = params.get("history", [])
         is_onboarding = params.get("is_onboarding", False)
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
+        selected_project_name = params.get("selected_project_name")  # ADR-024: Selected context
 
         system = self._build_system_prompt(
             context, include_context,
             with_tools=True,
             is_onboarding=is_onboarding,
-            surface_content=surface_content
+            surface_content=surface_content,
+            selected_project_name=selected_project_name
         )
 
         # Build messages list - filter out empty assistant messages which cause 400 errors

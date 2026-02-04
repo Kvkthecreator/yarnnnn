@@ -56,6 +56,7 @@ class ChatRequest(BaseModel):
     include_context: bool = True
     session_id: Optional[str] = None  # Optional: continue existing session
     surface_context: Optional[SurfaceContext] = None  # ADR-023: What user is viewing
+    project_id: Optional[str] = None  # ADR-024: Selected project for context routing
 
 
 # =============================================================================
@@ -441,11 +442,27 @@ async def global_chat(
     existing_messages = await get_session_messages(auth.client, session_id)
     history = [{"role": m["role"], "content": m["content"]} for m in existing_messages]
 
-    # Load user memories
+    # ADR-024: Parse selected project context
+    selected_project_id = UUID(request.project_id) if request.project_id else None
+    selected_project_name = None
+    if selected_project_id:
+        try:
+            project_result = auth.client.table("projects")\
+                .select("name")\
+                .eq("id", str(selected_project_id))\
+                .single()\
+                .execute()
+            if project_result.data:
+                selected_project_name = project_result.data["name"]
+                logger.info(f"[TP] Selected project context: {selected_project_name} ({selected_project_id})")
+        except Exception as e:
+            logger.warning(f"[TP] Failed to load project name: {e}")
+
+    # Load memories - include project context if selected (ADR-024)
     context = await load_memories(
         auth.client,
         auth.user_id,
-        project_id=None,
+        project_id=selected_project_id,
         query=request.content if request.include_context else None
     )
 
@@ -494,6 +511,8 @@ async def global_chat(
                     "history": history,
                     "is_onboarding": is_onboarding,
                     "surface_content": surface_content,  # ADR-023: What user is viewing
+                    "selected_project_id": str(selected_project_id) if selected_project_id else None,  # ADR-024
+                    "selected_project_name": selected_project_name,  # ADR-024
                 },
             ):
                 if event.type == "text":
