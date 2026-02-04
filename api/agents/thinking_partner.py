@@ -272,14 +272,34 @@ create their first recurring deliverable through conversation.
         super().__init__(model)
         self.tools = THINKING_PARTNER_TOOLS
 
-    def _format_memories(self, context: ContextBundle) -> str:
-        """Format memories for system prompt."""
+    def _format_memories(self, context: ContextBundle, selected_project_name: Optional[str] = None) -> str:
+        """Format memories for system prompt with counts and unified summary."""
         sections = []
 
-        # User memories (portable, about the person)
+        # Get counts for summary
         user_memories = context.user_memories
+        project_memories = context.project_memories
+        user_count = len(user_memories)
+        project_count = len(project_memories)
+        total_count = user_count + project_count
+
+        # Build summary line (always shown)
+        if selected_project_name:
+            if total_count > 0:
+                summary = f"**Context loaded:** {user_count} personal memories + {project_count} {selected_project_name} memories"
+            else:
+                summary = f"**Context:** No memories yet for Personal or {selected_project_name}"
+        else:
+            if user_count > 0:
+                summary = f"**Context loaded:** {user_count} personal memories"
+            else:
+                summary = "**Context:** No personal memories yet"
+
+        sections.append(summary)
+
+        # User memories (portable, about the person)
         if user_memories:
-            lines = ["## About You\n"]
+            lines = ["\n## About You\n"]
             for mem in user_memories:
                 tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
                 source_marker = " (from document)" if mem.source_type == "document" else ""
@@ -287,16 +307,16 @@ create their first recurring deliverable through conversation.
             sections.append("\n".join(lines))
 
         # Project memories (task-specific)
-        project_memories = context.project_memories
         if project_memories:
-            lines = ["## Project Context\n"]
+            project_label = selected_project_name or "Project"
+            lines = [f"\n## {project_label} Context\n"]
             for mem in project_memories:
                 tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
                 source_marker = " (from document)" if mem.source_type == "document" else ""
                 lines.append(f"- {mem.content}{tags_str}{source_marker}")
             sections.append("\n".join(lines))
 
-        return "\n\n".join(sections) if sections else ""
+        return "\n".join(sections) if sections else ""
 
     def _build_system_prompt(
         self,
@@ -322,16 +342,16 @@ create their first recurring deliverable through conversation.
         if not include_context:
             context_text = "No context loaded for this conversation."
         else:
-            context_text = self._format_memories(context)
+            context_text = self._format_memories(context, selected_project_name)
             if not context_text:
                 context_text = "No context available yet. As we chat, I'll learn more about you and this project."
 
         # ADR-024: Add selected context scope notice at the top
         # This tells TP what context basket they're working under
         if selected_project_name:
-            context_scope = f"## Current Context Scope: {selected_project_name}\n\nThe user has selected the \"{selected_project_name}\" project as their current context. When asked about context, refer to this project. New memories and deliverables should default to this project unless specified otherwise.\n\n---\n\n"
+            context_scope = f"## Current Context Scope: {selected_project_name}\n\nThe user has selected \"{selected_project_name}\" as their current context. When they ask about context, refer to this. New memories and deliverables should default to this project.\n\n---\n\n"
         else:
-            context_scope = "## Current Context Scope: Personal\n\nThe user is working in their personal context (no specific project selected). Memories here are about the user themselves - their preferences, habits, and general information.\n\n---\n\n"
+            context_scope = "## Current Context Scope: Personal\n\nThe user is working in their personal context (no specific project selected). Memories are about the user themselves - their preferences, habits, and general information.\n\n---\n\n"
 
         context_text = context_scope + context_text
 

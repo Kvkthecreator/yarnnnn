@@ -2,25 +2,27 @@
 
 > **Status**: Core Implementation Complete
 > **Last Updated**: 2026-02-04
-> **Related**: ADR-018, ADR-019, ADR-023, ADR-005 (Memory), ADR-015 (Unified Context)
+> **Related**: ADR-018, ADR-019, ADR-023, ADR-024 (Context Classification), ADR-005 (Memory), ADR-015 (Unified Context)
 
 ## Quick Reference
 
 ### What's Implemented
 - [x] TP Bar state indicators (below input, Claude Code style) - `web/components/tp/TPBar.tsx`
+- [x] **Project context selector dropdown** (ADR-024) - user can switch context scope
+- [x] **TP receives selected project context** - `api/routes/chat.py` passes `project_id` + `project_name`
 - [x] State indicator utilities - `web/lib/tp-chips.ts`
 - [x] Handoff message pattern for TP navigation - `web/contexts/DeskContext.tsx`
-- [x] Data model for context scopes (user vs deliverable) - `memories.project_id`
+- [x] Data model for context scopes (user vs project) - `memories.project_id`
 - [x] Basic surfaces: IdleSurface, DeliverableListSurface, DeliverableDetailSurface, DeliverableReviewSurface
 - [x] **TP system prompt: context clarification** - `api/agents/thinking_partner.py`
 - [x] **Setup Confirmation modal** - `web/components/modals/SetupConfirmModal.tsx`, `api/services/project_tools.py`
 - [x] **Dynamic TP bar labels** - `web/lib/entity-cache.ts`, `web/components/tp/TPBar.tsx`
-- [x] **Context surface streamlining** - Deliverable scope enabled in `web/components/surfaces/ContextBrowserSurface.tsx`
+- [x] **Context surface streamlining** - Project scope enabled in `web/components/surfaces/ContextBrowserSurface.tsx`
 
 ### What's Pending
 1. [ ] Export functionality (Download/Email) - buttons removed pending design decision
 2. [ ] Make TP bar indicators clickable (context → open context browser)
-3. [ ] Add tentative state indicator (e.g., "Q4 Planning?" when inferred)
+3. [ ] Unified context summary in TP prompt (memory counts + scope)
 
 ### Recent Fixes (Post-Approval Flow)
 - [x] Queue removal timing: now removes after API success
@@ -84,60 +86,85 @@ Both are complementary:
 
 ---
 
-## TP Bar: Visual State Indicators
+## TP Bar: Visual State Indicators (ADR-024)
 
 ### Implementation Details
 
 **Location**: `web/components/tp/TPBar.tsx`
 **Utilities**: `web/lib/tp-chips.ts`
+**State Management**: `web/contexts/DeskContext.tsx` (selectedProject)
 
 ### Current Layout (Claude Code Style)
 
 ```
 ┌───────────────────────────────────────────────────┐
 │ Ask anything...                            [→]    │
+├───────────────────────────────────────────────────┤
+│ TP sees: 📍 Dashboard · 🧠 Personal context ▾ · 📅 Active │
 └───────────────────────────────────────────────────┘
- 📍 Dashboard · 🧠 Your context · 📅 Deliverable
 ```
 
 The indicators are positioned **below** the input field, matching Claude Code's status line pattern.
 
-### Three Indicators
+### Two Primary Indicators + Deliverable Badge
 
 1. **📍 Surface** - What TP is currently "seeing"
    - `Dashboard` - Idle/overview
-   - `Deliverable` - Specific deliverable detail
+   - `Deliverable` - Specific deliverable detail (shows actual name)
    - `Review` - Reviewing a staged version
    - Updates automatically when user navigates
 
-2. **🧠 Context** - What context basket TP is working under
-   - `Your context` - General user context only (default)
-   - `Deliverable context` - When on a specific deliverable
-   - `Project context` - When on a specific project
+2. **🧠 Context Selector (Dropdown)** - What context basket TP is working under
+   - **Personal context** (default) - User-scoped memories only
+   - **{Project Name} context** - Project-scoped memories + user memories
+   - **User can change this** - Dropdown allows switching projects
+   - **TP receives this selection** - Sent via `project_id` in API request
 
-3. **📅 Deliverable** - Whether TP is focused on a specific deliverable
+3. **📅 Active Deliverable** (Badge) - Whether viewing a specific deliverable
    - Hidden when not on a deliverable surface
-   - Shows "Deliverable" badge when viewing/editing one
+   - Shows "Active deliverable" when viewing/editing one
 
-### How It Works
+### Data Flow: What TP Receives
 
-```typescript
-// web/lib/tp-chips.ts
-export function getTPStateIndicators(surface: DeskSurface): TPStateIndicators {
-  // Derives all three indicators from the current surface
-  // - Surface label: getSurfaceLabel(surface)
-  // - Context scope: getContextScope(surface)
-  // - Deliverable focus: based on surface.type
-}
+When user sends a message, the following context is passed to TP:
+
+```
+Frontend (TPBar)
+      │
+      ├─ surface: { type: "idle" | "deliverable-detail" | ... }
+      ├─ projectId: UUID | null (from selectedProject)
+      │
+      ▼
+Backend (chat.py)
+      │
+      ├─ Fetches project_name from DB
+      ├─ Loads memories: user-scoped + project-scoped (if project selected)
+      ├─ Loads surface_content (if viewing a deliverable/work)
+      │
+      ▼
+TP System Prompt includes:
+      ├─ ## Current Context Scope: {Project Name | Personal}
+      ├─ ## About You (user memories)
+      ├─ ## Project Context (project memories, if project selected)
+      └─ [Surface content, if applicable]
 ```
 
-The indicators update automatically when the user navigates between surfaces via `useDesk().surface`.
+### Key Implementation Files
+
+| File | Role |
+|------|------|
+| `web/components/tp/TPBar.tsx` | Renders dropdown, sends projectId |
+| `web/contexts/DeskContext.tsx` | Stores selectedProject state |
+| `web/contexts/TPContext.tsx` | Sends projectId in API request |
+| `api/routes/chat.py` | Parses project_id, loads memories, passes to TP |
+| `api/agents/thinking_partner.py` | Injects context scope into system prompt |
 
 ### Pending Enhancements
 
 - [x] Show actual deliverable/project names instead of generic labels - via entity-cache.ts
+- [x] Project context selector dropdown (ADR-024)
 - [ ] Make indicators clickable (context → open context browser)
-- [ ] Add tentative state indicator (e.g., "Q4 Planning?" when inferred)
+- [ ] Memory counts in TP prompt ("12 personal + 45 project memories")
 
 ---
 
@@ -147,38 +174,44 @@ The indicators update automatically when the user navigates between surfaces via
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│ YOUR CONTEXT (always available)                     │
-│ "Things YARNNN knows about you"                     │
+│ PERSONAL CONTEXT (always included)                  │
+│ memories where project_id IS NULL                   │
 │ • Preferences: "I prefer bullet points"             │
 │ • Identity: "I'm a PM at a fintech startup"         │
+│ • Domain expertise: "10 years in fintech"           │
 │ • Habits: "Weekly reports to Sarah on Mondays"      │
 └─────────────────────────────────────────────────────┘
          │
-         │ Always included in every deliverable
+         │ Always loaded alongside project context
          ▼
 ┌─────────────────────────────────────────────────────┐
-│ DELIVERABLE-SPECIFIC CONTEXT                        │
-│ "Things specific to THIS recurring work"            │
-│ • Recipient details: "Board is conservative"        │
-│ • Previous outputs: Learning from v1, v2 edits      │
+│ PROJECT CONTEXT (when project selected)             │
+│ memories where project_id = selected_project_id     │
+│ • Requirements: "Report needs 3 sections"           │
+│ • Deadlines: "Due Fridays by 5pm"                   │
+│ • Client details: "Board prefers formal tone"       │
 │ • Attached documents: "Q3 financials.pdf"           │
-│ • Topic inference: "This is about board reporting"  │
 └─────────────────────────────────────────────────────┘
 ```
 
-### Data Model (Implemented)
+### Data Model (ADR-024)
 
-| Layer | Schema | User Sees As |
-|-------|--------|--------------|
-| User context | `memories` where `project_id IS NULL` | "Your context" |
-| Deliverable context | `memories` where `project_id = X` | "This deliverable's context" |
-| Topic/basket | `projects` table | Hidden - just powers isolation |
+| Layer | Schema | TPBar Shows | TP System Prompt Shows |
+|-------|--------|-------------|------------------------|
+| Personal | `memories` where `project_id IS NULL` | "Personal context" | `## About You` |
+| Project | `memories` where `project_id = X` | "{Project Name} context" | `## Project Context` |
 
 **Key Implementation Details:**
-- `memories` table has nullable `project_id`
-- `load_context_for_work()` in backend combines both scopes
-- Each deliverable creates/links to a project for context isolation
-- UI terminology: "Your context" + "Deliverable context" (never expose "project")
+- `memories` table has nullable `project_id` (NULL = personal, UUID = project)
+- User selects context via TPBar dropdown
+- Selection is stored in `DeskContext.selectedProject`
+- API receives `project_id` and loads both scopes
+- Deliverables are linked to projects via `deliverables.project_id`
+
+**Context Routing (ADR-024):**
+- **Personal memories** = facts about the user (preferences, expertise, habits)
+- **Project memories** = facts specific to an initiative (requirements, deadlines, client details)
+- TP states routing decisions: "I'll save this to [Personal/Project Name]..."
 
 ---
 
