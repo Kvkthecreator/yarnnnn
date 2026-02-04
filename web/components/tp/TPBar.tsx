@@ -108,16 +108,19 @@ export function TPBar() {
   // Use cached name if available, otherwise fall back to generic label
   const surfaceLabel = cachedDeliverableName || indicators.surface.label;
 
-  // Close dropdown when clicking outside
+  // Close dropdown when clicking outside (only when open)
   useEffect(() => {
+    if (!projectDropdownOpen) return;
+
     const handleClickOutside = (event: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setProjectDropdownOpen(false);
       }
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+    // Use click instead of mousedown to allow button clicks to complete first
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, [projectDropdownOpen]);
 
   // Refresh projects when dropdown opens
   useEffect(() => {
@@ -372,7 +375,10 @@ export function TPBar() {
                 <div className="relative shrink-0" ref={dropdownRef}>
                   <button
                     type="button"
-                    onClick={() => setProjectDropdownOpen(!projectDropdownOpen)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setProjectDropdownOpen(!projectDropdownOpen);
+                    }}
                     className={cn(
                       'flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded',
                       'hover:bg-muted transition-colors',
@@ -399,7 +405,8 @@ export function TPBar() {
                       {/* Personal option */}
                       <button
                         type="button"
-                        onClick={() => {
+                        onClick={(e) => {
+                          e.stopPropagation();
                           setSelectedProject(null);
                           setProjectDropdownOpen(false);
                         }}
@@ -426,7 +433,8 @@ export function TPBar() {
                         <button
                           key={project.id}
                           type="button"
-                          onClick={() => {
+                          onClick={(e) => {
+                            e.stopPropagation();
                             setSelectedProject({ id: project.id, name: project.name });
                             setProjectDropdownOpen(false);
                           }}
