@@ -4,20 +4,34 @@
  * ADR-023: Supervisor Desk Architecture
  * TPBar - Status hub and input for Thinking Partner
  *
- * Design: Status area above input shows TP's current state
- * - Idle: Subtle placeholder
- * - Thinking: "Processing..."
- * - Tool: "Opening context..." with spinner
- * - Streaming: Real-time response text
- * - Clarify: Question with inline option buttons
- * - Complete: Brief confirmation, fades to idle
+ * Design: Claude Code-style bottom bar with:
+ * - State indicators above input (surface, context, deliverable)
+ * - Status area for thinking/streaming/clarify states
+ * - Input field with send button
+ * - History toggle for recent messages
  */
 
 import { useState, useRef, useEffect } from 'react';
-import { Send, Loader2, MessageCircle, X, ChevronDown, ChevronUp } from 'lucide-react';
+import {
+  Send,
+  Loader2,
+  MessageCircle,
+  X,
+  ChevronDown,
+  ChevronUp,
+  LayoutDashboard,
+  Calendar,
+  Briefcase,
+  Brain,
+  FileText,
+  Folder,
+  FileCheck,
+  MapPin,
+} from 'lucide-react';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP, TPStatus } from '@/contexts/TPContext';
 import { cn } from '@/lib/utils';
+import { getTPStateIndicators } from '@/lib/tp-chips';
 
 // Human-readable tool names - conversational tone
 const TOOL_LABELS: Record<string, string> = {
@@ -39,12 +53,22 @@ const TOOL_LABELS: Record<string, string> = {
   delete_memory: 'Removing from memory...',
   rename_project: 'Renaming project...',
   update_project: 'Updating project...',
-  // Default fallback handled in component
 };
 
 function getToolLabel(toolName: string): string {
   return TOOL_LABELS[toolName] || `Running ${toolName}...`;
 }
+
+// Icon component mapping
+const SURFACE_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  LayoutDashboard,
+  Calendar,
+  Briefcase,
+  Brain,
+  FileText,
+  Folder,
+  FileCheck,
+};
 
 export function TPBar() {
   const { surface } = useDesk();
@@ -55,13 +79,17 @@ export function TPBar() {
     pendingClarification,
     respondToClarification,
     clearClarification,
-    messages
+    messages,
   } = useTP();
   const [input, setInput] = useState('');
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
+
+  // Get state indicators from current surface
+  const indicators = getTPStateIndicators(surface);
+  const SurfaceIcon = SURFACE_ICONS[indicators.surface.icon] || LayoutDashboard;
 
   // Handle form submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -111,11 +139,7 @@ export function TPBar() {
         );
 
       case 'streaming':
-        return (
-          <div className="text-sm text-foreground">
-            {currentStatus.content}
-          </div>
-        );
+        return <div className="text-sm text-foreground">{currentStatus.content}</div>;
 
       case 'clarify':
         return (
@@ -139,11 +163,7 @@ export function TPBar() {
 
       case 'complete':
         if (!currentStatus.message) return null;
-        return (
-          <div className="text-sm text-foreground">
-            {currentStatus.message}
-          </div>
-        );
+        return <div className="text-sm text-foreground">{currentStatus.message}</div>;
 
       default:
         return null;
@@ -151,7 +171,7 @@ export function TPBar() {
   };
 
   const hasStatus = status.type !== 'idle';
-  const recentMessages = messages.slice(-3); // Show last 3 messages in history
+  const recentMessages = messages.slice(-3);
 
   return (
     <>
@@ -208,7 +228,7 @@ export function TPBar() {
           {/* Message history (collapsed by default) */}
           {historyExpanded && !hasStatus && (
             <div className="mb-2 p-3 rounded-lg bg-muted/50 max-h-48 overflow-y-auto">
-              {recentMessages.map((msg, i) => (
+              {recentMessages.map((msg) => (
                 <div
                   key={msg.id}
                   className={cn(
@@ -216,9 +236,7 @@ export function TPBar() {
                     msg.role === 'user' ? 'text-muted-foreground' : 'text-foreground'
                   )}
                 >
-                  <span className="font-medium">
-                    {msg.role === 'user' ? 'You: ' : 'TP: '}
-                  </span>
+                  <span className="font-medium">{msg.role === 'user' ? 'You: ' : 'TP: '}</span>
                   {msg.content.slice(0, 150)}
                   {msg.content.length > 150 && '...'}
                 </div>
@@ -237,8 +255,8 @@ export function TPBar() {
           )}
         </div>
 
-        {/* Input container */}
-        <div className="p-4 pb-6 md:pb-4">
+        {/* Input container with state indicators below */}
+        <div className="p-4 pb-2 md:pb-2">
           <div className="max-w-2xl mx-auto">
             <form onSubmit={handleSubmit}>
               <div className="relative flex items-center gap-2">
@@ -263,9 +281,7 @@ export function TPBar() {
                     onChange={(e) => setInput(e.target.value)}
                     disabled={isLoading}
                     placeholder={
-                      status.type === 'clarify'
-                        ? 'Type your answer...'
-                        : 'Ask anything...'
+                      status.type === 'clarify' ? 'Type your answer...' : 'Ask anything...'
                     }
                     className={cn(
                       'w-full px-5 py-3 pr-14',
@@ -298,6 +314,34 @@ export function TPBar() {
                 </div>
               </div>
             </form>
+
+            {/* State indicators - Claude Code style: BELOW input */}
+            <div className="flex items-center gap-2 mt-2 px-1 overflow-x-auto">
+              {/* Surface indicator */}
+              <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
+                <MapPin className="w-3 h-3" />
+                <span>{indicators.surface.label}</span>
+              </div>
+
+              <span className="text-muted-foreground/30">·</span>
+
+              {/* Context indicator */}
+              <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
+                <Brain className="w-3 h-3" />
+                <span>{indicators.context.label}</span>
+              </div>
+
+              {/* Deliverable indicator (only show if active) */}
+              {indicators.deliverable.active && (
+                <>
+                  <span className="text-muted-foreground/30">·</span>
+                  <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-primary/70">
+                    <Calendar className="w-3 h-3" />
+                    <span>Deliverable</span>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
