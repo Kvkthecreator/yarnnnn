@@ -107,11 +107,6 @@ export function TPBar() {
 
   // Use cached name if available, otherwise fall back to generic label
   const surfaceLabel = cachedDeliverableName || indicators.surface.label;
-  const contextLabel = selectedProject
-    ? `${selectedProject.name} context`
-    : cachedDeliverableName
-      ? `${cachedDeliverableName} context`
-      : indicators.context.label;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -365,15 +360,15 @@ export function TPBar() {
                 {/* Label */}
                 <span className="shrink-0 text-[11px] text-muted-foreground/60">TP sees:</span>
 
-                {/* Surface indicator */}
+                {/* Surface indicator - where user is looking */}
                 <div className="shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground">
                   <MapPin className="w-3 h-3 opacity-60" />
-                  <span className="truncate max-w-[100px]">{surfaceLabel}</span>
+                  <span className="truncate max-w-[120px]">{surfaceLabel}</span>
                 </div>
 
                 <span className="text-muted-foreground/40 text-[10px]">·</span>
 
-                {/* Project selector dropdown (ADR-024) */}
+                {/* Context selector - unified project/personal context (ADR-024) */}
                 <div className="relative shrink-0" ref={dropdownRef}>
                   <button
                     type="button"
@@ -386,20 +381,21 @@ export function TPBar() {
                         : 'text-muted-foreground'
                     )}
                   >
-                    {selectedProject ? (
-                      <FolderOpen className="w-3 h-3" />
-                    ) : (
-                      <User className="w-3 h-3 opacity-60" />
-                    )}
-                    <span className="truncate max-w-[100px]">
-                      {selectedProject?.name || 'Personal'}
+                    <Brain className="w-3 h-3 opacity-60" />
+                    <span className="truncate max-w-[120px]">
+                      {selectedProject ? selectedProject.name : 'Personal'} context
                     </span>
                     <ChevronDown className="w-3 h-3 opacity-60" />
                   </button>
 
                   {/* Dropdown menu */}
                   {projectDropdownOpen && (
-                    <div className="absolute bottom-full left-0 mb-1 w-48 py-1 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                    <div className="absolute bottom-full left-0 mb-1 w-52 py-1 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                      {/* Header */}
+                      <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border mb-1">
+                        TP context scope
+                      </div>
+
                       {/* Personal option */}
                       <button
                         type="button"
@@ -414,8 +410,11 @@ export function TPBar() {
                         )}
                       >
                         <User className="w-4 h-4 opacity-60" />
-                        <span className="flex-1 truncate">Personal</span>
-                        {!selectedProject && <Check className="w-4 h-4" />}
+                        <div className="flex-1 min-w-0">
+                          <span className="block truncate">Personal</span>
+                          <span className="block text-xs text-muted-foreground">Your memories & preferences</span>
+                        </div>
+                        {!selectedProject && <Check className="w-4 h-4 shrink-0" />}
                       </button>
 
                       {projects.length > 0 && (
@@ -438,20 +437,15 @@ export function TPBar() {
                           )}
                         >
                           <FolderOpen className="w-4 h-4 opacity-60" />
-                          <span className="flex-1 truncate">{project.name}</span>
-                          {selectedProject?.id === project.id && <Check className="w-4 h-4" />}
+                          <div className="flex-1 min-w-0">
+                            <span className="block truncate">{project.name}</span>
+                            <span className="block text-xs text-muted-foreground">Project-scoped context</span>
+                          </div>
+                          {selectedProject?.id === project.id && <Check className="w-4 h-4 shrink-0" />}
                         </button>
                       ))}
                     </div>
                   )}
-                </div>
-
-                <span className="text-muted-foreground/40 text-[10px]">·</span>
-
-                {/* Context indicator */}
-                <div className="shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground">
-                  <Brain className="w-3 h-3 opacity-60" />
-                  <span className="truncate max-w-[100px]">{contextLabel}</span>
                 </div>
 
                 {/* Deliverable indicator (only show if active) */}
@@ -460,7 +454,7 @@ export function TPBar() {
                     <span className="text-muted-foreground/40 text-[10px]">·</span>
                     <div className="shrink-0 flex items-center gap-1 text-[11px] text-primary/60">
                       <Calendar className="w-3 h-3" />
-                      <span>Active</span>
+                      <span>Active deliverable</span>
                     </div>
                   </>
                 )}
