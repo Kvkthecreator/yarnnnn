@@ -76,7 +76,8 @@ export function SetupConfirmModal({
     // Navigate to context browser for this deliverable's scope
     const surface: DeskSurface = {
       type: "context-browser",
-      scope: "user", // For now, user context - deliverable scope TBD
+      scope: "deliverable",
+      scopeId: data.deliverableId,
     };
     setSurface(surface);
     onClose();

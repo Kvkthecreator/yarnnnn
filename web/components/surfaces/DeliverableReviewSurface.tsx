@@ -14,10 +14,9 @@ import {
   XCircle,
   Loader2,
   Copy,
-  Download,
-  Mail,
   CheckCircle2,
   ChevronRight,
+  ArrowLeft,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
@@ -33,7 +32,7 @@ export function DeliverableReviewSurface({
   deliverableId,
   versionId,
 }: DeliverableReviewSurfaceProps) {
-  const { attention, nextAttention, removeAttention, clearSurface } = useDesk();
+  const { attention, nextAttention, removeAttention, clearSurface, setSurface } = useDesk();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
@@ -41,6 +40,7 @@ export function DeliverableReviewSurface({
   const [editedContent, setEditedContent] = useState('');
   const [feedbackNotes, setFeedbackNotes] = useState('');
   const [copied, setCopied] = useState(false);
+  const [approvalResult, setApprovalResult] = useState<'approved' | 'discarded' | null>(null);
 
   // Load version data
   useEffect(() => {
@@ -83,19 +83,23 @@ export function DeliverableReviewSurface({
         feedback_notes: feedbackNotes || undefined,
       });
 
-      // Remove from attention queue
+      // Show approval feedback briefly, then navigate
+      setApprovalResult('approved');
+
+      // Remove from attention queue AFTER API success
       removeAttention(versionId);
 
-      // Go to next or idle
-      if (attention.length > 1) {
-        nextAttention();
-      } else {
-        clearSurface();
-      }
+      // Brief delay to show feedback, then navigate
+      setTimeout(() => {
+        if (attention.length > 1) {
+          nextAttention();
+        } else {
+          clearSurface();
+        }
+      }, 1500);
     } catch (err) {
       console.error('Failed to approve:', err);
       alert('Failed to approve. Please try again.');
-    } finally {
       setSaving(false);
     }
   };
@@ -116,19 +120,30 @@ export function DeliverableReviewSurface({
         feedback_notes: feedbackNotes,
       });
 
+      // Show discard feedback briefly, then navigate
+      setApprovalResult('discarded');
+
+      // Remove from attention queue AFTER API success
       removeAttention(versionId);
 
-      if (attention.length > 1) {
-        nextAttention();
-      } else {
-        clearSurface();
-      }
+      // Brief delay to show feedback, then navigate
+      setTimeout(() => {
+        if (attention.length > 1) {
+          nextAttention();
+        } else {
+          clearSurface();
+        }
+      }, 1500);
     } catch (err) {
       console.error('Failed to discard:', err);
       alert('Failed to discard. Please try again.');
-    } finally {
       setSaving(false);
     }
+  };
+
+  // Navigate back to deliverable detail
+  const handleBack = () => {
+    setSurface({ type: 'deliverable-detail', deliverableId });
   };
 
   // Handle skip (go to next without action)
@@ -164,37 +179,70 @@ export function DeliverableReviewSurface({
     );
   }
 
+  // Show approval/discard result feedback
+  if (approvalResult) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 ${
+            approvalResult === 'approved' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
+          }`}>
+            {approvalResult === 'approved' ? (
+              <CheckCircle2 className="w-6 h-6 text-green-600" />
+            ) : (
+              <XCircle className="w-6 h-6 text-red-600" />
+            )}
+          </div>
+          <h2 className="text-lg font-medium mb-1">
+            {approvalResult === 'approved' ? 'Approved' : 'Discarded'}
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            {approvalResult === 'approved'
+              ? `${deliverable.title} v${version.version_number} is ready`
+              : `${deliverable.title} v${version.version_number} was discarded`}
+          </p>
+          {attention.length > 1 && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Moving to next item...
+            </p>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-6 py-6">
-        {/* Inline header: title + export actions */}
+        {/* Inline header: back button + title + copy action */}
         <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-lg font-medium">{deliverable.title}</h1>
-            <p className="text-sm text-muted-foreground">
-              Review draft v{version.version_number}
-              {hasEdits && <span className="text-amber-600 ml-2">• Edited</span>}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <button
-              onClick={handleCopy}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+              onClick={handleBack}
+              className="p-1.5 -ml-1.5 hover:bg-muted rounded-md"
+              title="Back to deliverable"
             >
-              {copied ? (
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-              ) : (
-                <Copy className="w-3.5 h-3.5" />
-              )}
-              {copied ? 'Copied' : 'Copy'}
+              <ArrowLeft className="w-4 h-4 text-muted-foreground" />
             </button>
-            <button className="p-1.5 border border-border rounded-md hover:bg-muted">
-              <Download className="w-3.5 h-3.5" />
-            </button>
-            <button className="p-1.5 border border-border rounded-md hover:bg-muted">
-              <Mail className="w-3.5 h-3.5" />
-            </button>
+            <div>
+              <h1 className="text-lg font-medium">{deliverable.title}</h1>
+              <p className="text-sm text-muted-foreground">
+                Review draft v{version.version_number}
+                {hasEdits && <span className="text-amber-600 ml-2">• Edited</span>}
+              </p>
+            </div>
           </div>
+          <button
+            onClick={handleCopy}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+          >
+            {copied ? (
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
+            ) : (
+              <Copy className="w-3.5 h-3.5" />
+            )}
+            {copied ? 'Copied' : 'Copy'}
+          </button>
         </div>
 
         {/* Content editor */}
