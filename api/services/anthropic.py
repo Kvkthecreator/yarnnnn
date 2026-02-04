@@ -175,6 +175,7 @@ async def chat_completion_stream_with_tools(
     model: str = "claude-sonnet-4-20250514",
     max_tokens: int = 4096,
     max_tool_rounds: int = 5,
+    tool_choice: Optional[dict] = None,
 ) -> AsyncGenerator[StreamEvent, None]:
     """
     Streaming chat completion with tool support.
@@ -193,6 +194,7 @@ async def chat_completion_stream_with_tools(
         model: Model ID
         max_tokens: Maximum response tokens
         max_tool_rounds: Maximum tool use cycles
+        tool_choice: Optional tool choice config {"type": "auto"|"any"|"tool", "name": "..."}
 
     Yields:
         StreamEvent objects
@@ -204,13 +206,20 @@ async def chat_completion_stream_with_tools(
         # Accumulate the full response for this round
         full_response = None
 
-        async with client.messages.stream(
-            model=model,
-            max_tokens=max_tokens,
-            system=system,
-            messages=working_messages,
-            tools=tools,
-        ) as stream:
+        # Build kwargs for the stream call
+        stream_kwargs = {
+            "model": model,
+            "max_tokens": max_tokens,
+            "system": system,
+            "messages": working_messages,
+            "tools": tools,
+        }
+        # Only use tool_choice on first round to force initial tool use
+        # After that, let model decide (it might want to respond after action)
+        if tool_choice and round_num == 0:
+            stream_kwargs["tool_choice"] = tool_choice
+
+        async with client.messages.stream(**stream_kwargs) as stream:
             # Stream text as it arrives
             async for text in stream.text_stream:
                 yield StreamEvent(type="text", content=text)

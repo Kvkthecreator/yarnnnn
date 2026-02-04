@@ -629,11 +629,13 @@ create their first recurring deliverable through conversation.
             return await execute_tool(auth, tool_name, tool_input)
 
         # Use the streaming with tools function
+        # Force tool use with tool_choice=any - TP must use a tool for every response
         async for event in chat_completion_stream_with_tools(
             messages=messages,
             system=system,
             tools=self.tools,
             tool_executor=tool_executor,
             model=self.model,
+            tool_choice={"type": "any"},  # Force tool use on first round
         ):
             yield event
