@@ -18,9 +18,15 @@
 - [x] **Context surface streamlining** - Deliverable scope enabled in `web/components/surfaces/ContextBrowserSurface.tsx`
 
 ### What's Pending
-1. [ ] Export nudge post-approval flow
+1. [ ] Export functionality (Download/Email) - buttons removed pending design decision
 2. [ ] Make TP bar indicators clickable (context → open context browser)
 3. [ ] Add tentative state indicator (e.g., "Q4 Planning?" when inferred)
+
+### Recent Fixes (Post-Approval Flow)
+- [x] Queue removal timing: now removes after API success
+- [x] Post-approval feedback: brief confirmation screen before navigation
+- [x] Back navigation: can return to deliverable detail from review
+- [x] SetupConfirmModal: "Edit context" uses deliverable scope
 
 ### Decisions Made (2026-02-04)
 - **Setup Confirmation**: Modal within deliverable flow, shown per deliverable
@@ -707,5 +713,6 @@ Lower priority - doesn't affect core assurance loop. Address after items 1-4 are
 6. ~~Existing context baskets as options during creation?~~ → **Not in scope - TP uses `clarify()` upstream if ambiguous**
 
 ### Still Open
-1. **Post-approval flow:** Modal, toast, or inline surface change?
-2. **Approval mode settings:** Per-deliverable or user-level bypass for workflow steps? (Address after core workflow hardened)
+1. ~~**Post-approval flow:** Modal, toast, or inline surface change?~~ → **Inline feedback screen (implemented)**
+2. **Export functionality:** What formats? Download only, or email delivery too?
+3. **Approval mode settings:** Per-deliverable or user-level bypass for workflow steps? (Address after core workflow hardened)
