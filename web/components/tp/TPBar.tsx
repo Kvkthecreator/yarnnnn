@@ -266,25 +266,28 @@ export function TPBar() {
           )}
         </div>
 
-        {/* Input container with state indicators below */}
-        <div className="p-4 pb-2 md:pb-2">
+        {/* Input container with integrated state indicators */}
+        <div className="p-4 pb-3 md:pb-3">
           <div className="max-w-2xl mx-auto">
-            <form onSubmit={handleSubmit}>
-              <div className="relative flex items-center gap-2">
-                {/* Close button on mobile */}
-                {mobileExpanded && (
-                  <button
-                    type="button"
-                    onClick={() => setMobileExpanded(false)}
-                    className="md:hidden p-2 text-muted-foreground hover:text-foreground"
-                    aria-label="Close"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                )}
+            {/* Close button on mobile - outside the input group */}
+            {mobileExpanded && (
+              <div className="flex justify-end mb-2 md:hidden">
+                <button
+                  type="button"
+                  onClick={() => setMobileExpanded(false)}
+                  className="p-2 text-muted-foreground hover:text-foreground"
+                  aria-label="Close"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+            )}
 
-                {/* Input field */}
-                <div className="flex-1 relative">
+            {/* Input group - input + indicators as unified component */}
+            <div className="border border-border rounded-2xl bg-background shadow-sm overflow-hidden">
+              <form onSubmit={handleSubmit}>
+                <div className="relative flex items-center">
+                  {/* Input field */}
                   <input
                     ref={inputRef}
                     type="text"
@@ -295,11 +298,10 @@ export function TPBar() {
                       status.type === 'clarify' ? 'Type your answer...' : 'Ask anything...'
                     }
                     className={cn(
-                      'w-full px-5 py-3 pr-14',
-                      'border border-border rounded-full',
-                      'text-sm bg-background',
-                      'shadow-lg shadow-black/5',
-                      'focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary',
+                      'w-full px-4 py-3 pr-12',
+                      'text-sm bg-transparent',
+                      'border-0',
+                      'focus:outline-none focus:ring-0',
                       'disabled:opacity-50'
                     )}
                   />
@@ -310,10 +312,11 @@ export function TPBar() {
                     disabled={isLoading || !input.trim()}
                     className={cn(
                       'absolute right-2 top-1/2 -translate-y-1/2',
-                      'p-2.5 rounded-full',
-                      'bg-primary text-primary-foreground',
-                      'disabled:opacity-50',
-                      'hover:bg-primary/90 transition-colors'
+                      'p-2 rounded-full',
+                      'text-muted-foreground',
+                      'disabled:opacity-30',
+                      'hover:text-foreground hover:bg-muted transition-colors',
+                      input.trim() && !isLoading && 'text-primary hover:text-primary'
                     )}
                   >
                     {isLoading ? (
@@ -323,35 +326,35 @@ export function TPBar() {
                     )}
                   </button>
                 </div>
+              </form>
+
+              {/* State indicators - inside the input container, subtle divider */}
+              <div className="flex items-center gap-1 px-4 py-1.5 border-t border-border/50 bg-muted/30">
+                {/* Surface indicator */}
+                <div className="shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <MapPin className="w-3 h-3 opacity-60" />
+                  <span className="truncate max-w-[100px]">{surfaceLabel}</span>
+                </div>
+
+                <span className="text-muted-foreground/40 text-[10px]">·</span>
+
+                {/* Context indicator */}
+                <div className="shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground">
+                  <Brain className="w-3 h-3 opacity-60" />
+                  <span className="truncate max-w-[120px]">{contextLabel}</span>
+                </div>
+
+                {/* Deliverable indicator (only show if active) */}
+                {indicators.deliverable.active && (
+                  <>
+                    <span className="text-muted-foreground/40 text-[10px]">·</span>
+                    <div className="shrink-0 flex items-center gap-1 text-[11px] text-primary/60">
+                      <Calendar className="w-3 h-3" />
+                      <span>Active</span>
+                    </div>
+                  </>
+                )}
               </div>
-            </form>
-
-            {/* State indicators - Claude Code style: BELOW input */}
-            <div className="flex items-center gap-2 mt-2 px-1 overflow-x-auto">
-              {/* Surface indicator */}
-              <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
-                <MapPin className="w-3 h-3" />
-                <span className="truncate max-w-[120px]">{surfaceLabel}</span>
-              </div>
-
-              <span className="text-muted-foreground/30">·</span>
-
-              {/* Context indicator */}
-              <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-muted-foreground">
-                <Brain className="w-3 h-3" />
-                <span className="truncate max-w-[150px]">{contextLabel}</span>
-              </div>
-
-              {/* Deliverable indicator (only show if active) */}
-              {indicators.deliverable.active && (
-                <>
-                  <span className="text-muted-foreground/30">·</span>
-                  <div className="shrink-0 flex items-center gap-1.5 px-2 py-1 text-xs text-primary/70">
-                    <Calendar className="w-3 h-3" />
-                    <span>Active</span>
-                  </div>
-                </>
-              )}
             </div>
           </div>
         </div>
