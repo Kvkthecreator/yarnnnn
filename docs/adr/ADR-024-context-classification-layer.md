@@ -1,6 +1,6 @@
 # ADR-024: Context Classification Layer
 
-**Status:** Accepted
+**Status:** Implemented
 **Date:** 2026-02-04
 **Related:** ADR-005 (Unified Memory), ADR-007 (TP Authority), ADR-015 (Unified Context)
 **Decision Makers:** Kevin Kim
@@ -235,12 +235,12 @@ No schema changes required. This is purely:
 
 ## Verification Checklist
 
-- [ ] ContextBrowserSurface shows project selector
-- [ ] Projects endpoint returns all user projects
-- [ ] TP articulates routing decisions in responses
-- [ ] Confirmation modals show target bucket
-- [ ] suggest_project_for_memory tool functional
-- [ ] Work execution receives correct context
+- [x] ContextBrowserSurface shows project selector
+- [x] Projects endpoint returns all user projects
+- [x] TP articulates routing decisions in responses (system prompt updated)
+- [x] Confirmation modals show target bucket (create_memory returns attribution)
+- [x] suggest_project_for_memory tool functional
+- [x] Work execution receives correct context (already working per ADR-015)
 
 ## References
 

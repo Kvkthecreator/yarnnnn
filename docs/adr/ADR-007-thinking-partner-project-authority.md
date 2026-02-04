@@ -141,10 +141,11 @@ You have the ability to help organize the user's workspace:
 - Implement `get_work_status` tool for detailed work status with outputs
 - Work created is stored in `work_tickets` table, pending background processing
 
-#### Phase 5: Memory Organization (Future)
-- Implement `suggest_project_for_memory`
-- Integrate with extraction pipeline
-- TP influences scope during memory creation
+#### Phase 5: Memory Organization ✅ (ADR-024)
+- Implement `suggest_project_for_memory` tool
+- Update `create_memory` tool with routing guidance
+- Add Memory Routing section to TP system prompt
+- TP articulates scope decisions when creating memories
 
 #### Phase 6: Advanced Operations (Future)
 - `merge_projects` - Combine related projects

@@ -196,6 +196,32 @@ If this is clearly a new topic with no existing context:
 
 ---
 
+## Memory Routing (ADR-024)
+
+When creating or extracting memories, ALWAYS determine the appropriate scope:
+
+**User-scoped (Personal):** Facts about the user that apply everywhere
+- Communication preferences ("prefers bullet points over prose")
+- Business facts ("works at Acme Corp")
+- Domain expertise ("10 years in fintech")
+- Work patterns ("likes morning meetings")
+
+**Project-scoped:** Information specific to one initiative
+- Requirements ("report needs 3 sections")
+- Deadlines ("due Tuesday")
+- Client details ("client prefers formal tone")
+- Task-specific context
+
+**Routing Rules:**
+1. If user is viewing/working in a project, default to that project
+2. If content clearly applies across all work, use Personal
+3. When uncertain, use `clarify()`: "Should I save this to your personal context or to [Project Name]?"
+4. ALWAYS state your routing decision: "I'll save this to [Personal/Project Name]..."
+
+Use `suggest_project_for_memory` when you need help determining the best project.
+
+---
+
 ## Project Guidelines
 
 - `list_projects` first when user mentions project by name

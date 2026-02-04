@@ -299,12 +299,26 @@ CREATE_MEMORY_TOOL = {
     "description": """Create a new memory (context) for the user.
 
 ADR-023: Use this to store important context that should persist across sessions.
+ADR-024: Memory Routing - ALWAYS determine the appropriate scope before creating.
 
-MEMORY TYPES:
-- User preferences (tone, format, etc.)
-- Facts about the user or their work
-- Instructions for how to help them
-- Project-specific context
+MEMORY ROUTING (decide scope first):
+- User-scoped (project_id omitted): Facts about the user that apply everywhere
+  - Communication preferences ("prefers bullet points over prose")
+  - Business facts ("works at Acme Corp", "10 years in fintech")
+  - Domain expertise ("expert in machine learning")
+  - Work patterns ("likes morning meetings")
+
+- Project-scoped (project_id provided): Information specific to one initiative
+  - Requirements ("report needs 3 sections")
+  - Deadlines ("due Tuesday to Sarah")
+  - Client details ("client prefers formal tone")
+  - Task-specific context
+
+ROUTING RULES:
+1. Default to project-scoped if user is in a project context
+2. If content clearly applies across all work, use user-scoped
+3. When uncertain, ask the user: "Should I save this to your personal context or to [Project Name]?"
+4. ALWAYS state your routing decision when creating memory
 
 TAG SUGGESTIONS:
 - 'preference': User preferences and settings
@@ -326,7 +340,7 @@ TAG SUGGESTIONS:
             },
             "project_id": {
                 "type": "string",
-                "description": "Optional: Link to a project for project-scoped context"
+                "description": "Link to a project for project-scoped context. Omit for user-scoped (personal) context that applies everywhere."
             }
         },
         "required": ["content"]
@@ -374,6 +388,35 @@ Use this when the user wants to remove stored context or when context is no long
             }
         },
         "required": ["memory_id"]
+    }
+}
+
+
+SUGGEST_PROJECT_FOR_MEMORY_TOOL = {
+    "name": "suggest_project_for_memory",
+    "description": """ADR-024: Suggest which project a memory belongs to based on content.
+
+Use this when you need to determine where extracted context should be stored.
+This tool analyzes the content and compares it against existing projects.
+
+Returns a suggestion with confidence score:
+- High confidence (>0.7): Content clearly relates to an existing project
+- Medium confidence (0.4-0.7): Content may relate to a project
+- Low confidence (<0.4): Content is likely user-level (personal)
+
+After getting a suggestion, you can:
+1. Use create_memory with the suggested project_id
+2. Ask the user to confirm if confidence is medium
+3. Store as user-scoped if no good project match""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "memory_content": {
+                "type": "string",
+                "description": "The content to analyze for project routing"
+            }
+        },
+        "required": ["memory_content"]
     }
 }
 
@@ -631,6 +674,7 @@ THINKING_PARTNER_TOOLS = [
     CREATE_MEMORY_TOOL,
     UPDATE_MEMORY_TOOL,
     DELETE_MEMORY_TOOL,
+    SUGGEST_PROJECT_FOR_MEMORY_TOOL,  # ADR-024: Memory routing
     RUN_DELIVERABLE_TOOL,
     UPDATE_DELIVERABLE_TOOL,
     CREATE_DELIVERABLE_TOOL,
@@ -2119,13 +2163,14 @@ async def handle_create_memory(auth, input: dict) -> dict:
     Create a new memory.
 
     ADR-023: Store context that persists across sessions.
+    ADR-024: Includes project attribution for transparent routing.
 
     Args:
         auth: UserClient with authenticated Supabase client
         input: Tool input with content, optional tags and project_id
 
     Returns:
-        Dict with created memory details
+        Dict with created memory details including project attribution
     """
     content = input["content"]
     tags = input.get("tags", [])
@@ -2140,8 +2185,20 @@ async def handle_create_memory(auth, input: dict) -> dict:
         "source_type": "manual",  # Created via TP tool
     }
 
+    # Get project name for attribution if project_id provided
+    project_name = None
     if project_id:
         memory_data["project_id"] = project_id
+        try:
+            project_result = auth.client.table("projects")\
+                .select("name")\
+                .eq("id", project_id)\
+                .single()\
+                .execute()
+            if project_result.data:
+                project_name = project_result.data["name"]
+        except Exception:
+            pass
 
     # Create memory
     result = auth.client.table("memories").insert(memory_data).execute()
@@ -2155,6 +2212,14 @@ async def handle_create_memory(auth, input: dict) -> dict:
     memory = result.data[0]
     scope = "project" if project_id else "user"
 
+    # ADR-024: Build attribution message for transparency
+    if project_id and project_name:
+        scope_display = f"'{project_name}' project"
+        attribution_message = f"Saved to {scope_display} context."
+    else:
+        scope_display = "Personal"
+        attribution_message = "Saved to your personal context (applies across all projects)."
+
     return {
         "success": True,
         "memory": {
@@ -2162,12 +2227,24 @@ async def handle_create_memory(auth, input: dict) -> dict:
             "content": content[:100] + "..." if len(content) > 100 else content,
             "tags": tags,
             "scope": scope,
+            "project_id": project_id,
+            "project_name": project_name,
         },
-        "message": f"Memory stored ({scope}-level). I'll remember this for future conversations.",
+        "message": f"Memory stored. {attribution_message}",
+        # ADR-024: Include attribution for confirmation UI
+        "attribution": {
+            "scope": scope,
+            "scope_display": scope_display,
+            "project_id": project_id,
+            "project_name": project_name,
+        },
         "ui_action": {
             "type": "OPEN_SURFACE",
-            "surface": "memory-edit",
-            "data": {"memoryId": memory["id"]}
+            "surface": "context",
+            "data": {
+                "scope": scope,
+                "scopeId": project_id,
+            }
         }
     }
 
@@ -2276,6 +2353,213 @@ async def handle_delete_memory(auth, input: dict) -> dict:
     }
 
 
+async def handle_suggest_project_for_memory(auth, input: dict) -> dict:
+    """
+    ADR-024: Suggest which project a memory belongs to based on content.
+
+    Uses semantic similarity against project memories to determine routing.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with memory_content
+
+    Returns:
+        Dict with suggested project and confidence
+    """
+    from routes.projects import get_or_create_workspace
+
+    memory_content = input["memory_content"]
+    content_lower = memory_content.lower()
+
+    # Get user's projects with their descriptions
+    workspace = await get_or_create_workspace(auth)
+    projects_result = auth.client.table("projects")\
+        .select("id, name, description")\
+        .eq("workspace_id", workspace["id"])\
+        .execute()
+
+    projects = projects_result.data or []
+
+    if not projects:
+        # No projects exist - default to user-scoped
+        return {
+            "success": True,
+            "suggested_scope": "user",
+            "suggested_project_id": None,
+            "suggested_project_name": "Personal",
+            "confidence": 0.9,
+            "reason": "No projects exist yet. This will be stored as personal context.",
+            "alternatives": []
+        }
+
+    # Score each project based on name/description match and memory overlap
+    suggestions = []
+
+    for project in projects:
+        score = 0.0
+        reasons = []
+
+        project_name = project["name"].lower()
+        project_desc = (project.get("description") or "").lower()
+
+        # Check if project name appears in content
+        if project_name in content_lower:
+            score += 0.4
+            reasons.append(f"mentions '{project['name']}'")
+
+        # Check if content keywords appear in project name/description
+        content_words = set(content_lower.split())
+        name_words = set(project_name.split())
+        desc_words = set(project_desc.split())
+
+        # Remove common words
+        stopwords = {'the', 'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been',
+                     'being', 'have', 'has', 'had', 'do', 'does', 'did', 'will',
+                     'would', 'could', 'should', 'may', 'might', 'must', 'shall',
+                     'to', 'of', 'in', 'for', 'on', 'with', 'at', 'by', 'from',
+                     'as', 'into', 'through', 'during', 'before', 'after', 'above',
+                     'below', 'between', 'under', 'again', 'further', 'then', 'once',
+                     'and', 'but', 'or', 'nor', 'so', 'yet', 'both', 'either',
+                     'neither', 'not', 'only', 'own', 'same', 'than', 'too', 'very',
+                     'can', 'just', 'now', 'i', 'me', 'my', 'we', 'our', 'you', 'your',
+                     'he', 'she', 'it', 'they', 'them', 'their', 'this', 'that', 'these',
+                     'those', 'which', 'who', 'whom', 'what', 'when', 'where', 'why', 'how'}
+
+        content_keywords = content_words - stopwords
+        name_keywords = name_words - stopwords
+        desc_keywords = desc_words - stopwords
+
+        # Name keyword overlap
+        name_overlap = content_keywords & name_keywords
+        if name_overlap:
+            score += 0.3 * min(len(name_overlap) / max(len(content_keywords), 1), 1.0)
+            reasons.append(f"keywords: {', '.join(list(name_overlap)[:3])}")
+
+        # Description keyword overlap
+        desc_overlap = content_keywords & desc_keywords
+        if desc_overlap:
+            score += 0.2 * min(len(desc_overlap) / max(len(content_keywords), 1), 1.0)
+
+        # Check for project-specific context in the project's memories
+        try:
+            project_memories = auth.client.table("memories")\
+                .select("content")\
+                .eq("project_id", project["id"])\
+                .eq("is_active", True)\
+                .limit(10)\
+                .execute()
+
+            if project_memories.data:
+                # Check if content relates to existing project memories
+                project_memory_text = " ".join([m["content"].lower() for m in project_memories.data])
+                project_mem_words = set(project_memory_text.split()) - stopwords
+                mem_overlap = content_keywords & project_mem_words
+                if mem_overlap:
+                    score += 0.2 * min(len(mem_overlap) / max(len(content_keywords), 1), 1.0)
+                    reasons.append(f"relates to existing context")
+        except Exception:
+            pass
+
+        suggestions.append({
+            "project_id": project["id"],
+            "project_name": project["name"],
+            "score": min(score, 1.0),
+            "reasons": reasons
+        })
+
+    # Sort by score descending
+    suggestions.sort(key=lambda x: x["score"], reverse=True)
+
+    # Determine best suggestion
+    best = suggestions[0] if suggestions else None
+
+    # Heuristics for user-scoped content
+    user_scope_indicators = [
+        "i prefer", "i like", "my style", "always", "never",
+        "in general", "typically", "usually", "my background",
+        "i work at", "my company", "my role", "i am", "i have been"
+    ]
+    is_user_scoped = any(indicator in content_lower for indicator in user_scope_indicators)
+
+    if is_user_scoped:
+        # Content appears to be about the user, not a project
+        return {
+            "success": True,
+            "suggested_scope": "user",
+            "suggested_project_id": None,
+            "suggested_project_name": "Personal",
+            "confidence": 0.8,
+            "reason": "Content describes personal preferences or user-level facts.",
+            "alternatives": [
+                {
+                    "project_id": s["project_id"],
+                    "project_name": s["project_name"],
+                    "confidence": s["score"]
+                }
+                for s in suggestions[:3] if s["score"] > 0.2
+            ]
+        }
+
+    if best and best["score"] >= 0.5:
+        # Good match to a project
+        reason_text = ", ".join(best["reasons"]) if best["reasons"] else "Content relates to this project"
+        return {
+            "success": True,
+            "suggested_scope": "project",
+            "suggested_project_id": best["project_id"],
+            "suggested_project_name": best["project_name"],
+            "confidence": best["score"],
+            "reason": reason_text,
+            "alternatives": [
+                {
+                    "project_id": s["project_id"],
+                    "project_name": s["project_name"],
+                    "confidence": s["score"]
+                }
+                for s in suggestions[1:4] if s["score"] > 0.2
+            ]
+        }
+    elif best and best["score"] >= 0.3:
+        # Medium confidence - might relate to a project
+        return {
+            "success": True,
+            "suggested_scope": "uncertain",
+            "suggested_project_id": best["project_id"],
+            "suggested_project_name": best["project_name"],
+            "confidence": best["score"],
+            "reason": f"May relate to {best['project_name']}, but not certain. Consider asking the user.",
+            "alternatives": [
+                {"project_id": None, "project_name": "Personal", "confidence": 0.5},
+                *[
+                    {
+                        "project_id": s["project_id"],
+                        "project_name": s["project_name"],
+                        "confidence": s["score"]
+                    }
+                    for s in suggestions[:3] if s["score"] > 0.2
+                ]
+            ]
+        }
+    else:
+        # Low confidence - default to user-scoped
+        return {
+            "success": True,
+            "suggested_scope": "user",
+            "suggested_project_id": None,
+            "suggested_project_name": "Personal",
+            "confidence": 0.7,
+            "reason": "Content appears to be general/cross-project. Storing as personal context.",
+            "alternatives": [
+                {
+                    "project_id": s["project_id"],
+                    "project_name": s["project_name"],
+                    "confidence": s["score"]
+                }
+                for s in suggestions[:3] if s["score"] > 0.1
+            ]
+        }
+
+
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     # Communication tools (ADR-023 Unified Tool Model)
@@ -2292,11 +2576,12 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "get_work": handle_get_work,
     "update_work": handle_update_work,
     "delete_work": handle_delete_work,
-    # Memory/Context tools (ADR-023)
+    # Memory/Context tools (ADR-023, ADR-024)
     "list_memories": handle_list_memories,
     "create_memory": handle_create_memory,
     "update_memory": handle_update_memory,
     "delete_memory": handle_delete_memory,
+    "suggest_project_for_memory": handle_suggest_project_for_memory,
     # Deliverable tools (ADR-018, ADR-020)
     "list_deliverables": handle_list_deliverables,
     "get_deliverable": handle_get_deliverable,
