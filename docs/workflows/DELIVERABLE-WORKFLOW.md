@@ -1,8 +1,26 @@
 # Deliverable Workflow Design
 
-> **Status**: Draft - Active Discussion
+> **Status**: In Progress
 > **Last Updated**: 2026-02-04
 > **Related**: ADR-018, ADR-019, ADR-023, ADR-005 (Memory), ADR-015 (Unified Context)
+
+## Quick Reference
+
+### What's Implemented
+- [x] TP Bar state indicators (below input, Claude Code style) - `web/components/tp/TPBar.tsx`
+- [x] State indicator utilities - `web/lib/tp-chips.ts`
+- [x] Handoff message pattern for TP navigation - `web/contexts/DeskContext.tsx`
+- [x] Data model for context scopes (user vs deliverable) - `memories.project_id`
+- [x] Basic surfaces: IdleSurface, DeliverableListSurface, DeliverableDetailSurface, DeliverableReviewSurface
+
+### What's Pending
+- [ ] Setup Confirmation surface (post-creation review)
+- [ ] Context panel in Review surface
+- [ ] TP system prompt updates for context clarification pattern
+- [ ] Export nudge post-approval flow
+- [ ] Dynamic context/deliverable names in TP bar indicators
+
+---
 
 ## Overview
 
@@ -13,18 +31,102 @@ This document defines the user-facing workflow for deliverables from creation th
 
 ---
 
-## Context Architecture (Foundation)
+## Core Concept: Assurance & Authority
 
-Before diving into workflow, it's important to understand how context flows AND how users gain assurance about what context is being used.
+### The Problem We're Solving
 
-### The Core Problem: User Assurance & Authority
+Users need confidence that YARNNN:
+1. **Understands their intent** - "Yes, this is what I meant"
+2. **Uses the right context** - "Yes, draw from these sources"
+3. **Can be corrected** - "No, I meant something different"
 
-When a user says "create a weekly status report", they need to know:
-1. **What context will this draw from?** (assurance)
-2. **Is YARNNN understanding my intent correctly?** (clarification)
-3. **Can I adjust if it's wrong?** (authority)
+This is similar to how Claude Code infers the "topic" of a session - but users need visibility and control because:
+- Deliverables are recurring (mistakes compound)
+- Context directly affects output quality
+- Users are "supervisors" who need oversight
 
-This is similar to how Claude Code infers the "topic" of a session - but users need visibility and control.
+### Two Layers of Assurance
+
+| Layer | When | How | Status |
+|-------|------|-----|--------|
+| **Visual Cues (TP Bar)** | Always visible | Ambient indicators below input | ✅ Implemented |
+| **Conversational Assurance** | During key decisions | TP explicitly states what it's doing | ⚠️ Needs prompt update |
+
+Both are complementary:
+- Visual cues = "Here's what I'm looking at right now"
+- Conversational = "Here's what I understood and will do"
+
+### The Assurance Pattern
+
+**At every decision point, show what we understood and allow correction:**
+
+| Stage | What User Sees | How They Correct |
+|-------|---------------|------------------|
+| **Intent** | "I'll create a board update" | "No, status report" |
+| **Context** | "Using your TechStart Board context" | "No, different board" |
+| **Schedule** | "Every Monday at 9am" | "Make it Fridays" |
+| **Output** | Draft content | Edit before approve |
+
+---
+
+## TP Bar: Visual State Indicators
+
+### Implementation Details
+
+**Location**: `web/components/tp/TPBar.tsx`
+**Utilities**: `web/lib/tp-chips.ts`
+
+### Current Layout (Claude Code Style)
+
+```
+┌───────────────────────────────────────────────────┐
+│ Ask anything...                            [→]    │
+└───────────────────────────────────────────────────┘
+ 📍 Dashboard · 🧠 Your context · 📅 Deliverable
+```
+
+The indicators are positioned **below** the input field, matching Claude Code's status line pattern.
+
+### Three Indicators
+
+1. **📍 Surface** - What TP is currently "seeing"
+   - `Dashboard` - Idle/overview
+   - `Deliverable` - Specific deliverable detail
+   - `Review` - Reviewing a staged version
+   - Updates automatically when user navigates
+
+2. **🧠 Context** - What context basket TP is working under
+   - `Your context` - General user context only (default)
+   - `Deliverable context` - When on a specific deliverable
+   - `Project context` - When on a specific project
+
+3. **📅 Deliverable** - Whether TP is focused on a specific deliverable
+   - Hidden when not on a deliverable surface
+   - Shows "Deliverable" badge when viewing/editing one
+
+### How It Works
+
+```typescript
+// web/lib/tp-chips.ts
+export function getTPStateIndicators(surface: DeskSurface): TPStateIndicators {
+  // Derives all three indicators from the current surface
+  // - Surface label: getSurfaceLabel(surface)
+  // - Context scope: getContextScope(surface)
+  // - Deliverable focus: based on surface.type
+}
+```
+
+The indicators update automatically when the user navigates between surfaces via `useDesk().surface`.
+
+### Pending Enhancements
+
+- [ ] Show actual deliverable/project names instead of generic labels
+- [ ] Make indicators clickable (context → open context browser)
+- [ ] Add tentative state indicator (e.g., "Q4 Planning?" when inferred)
+
+---
+
+## Context Architecture
 
 ### Mental Model: Context Baskets
 
@@ -49,48 +151,7 @@ This is similar to how Claude Code infers the "topic" of a session - but users n
 └─────────────────────────────────────────────────────┘
 ```
 
-### The Assurance & Clarification Pattern
-
-**Scenario 1: Clear intent**
-```
-User: "I need a weekly status report for Sarah"
-TP: [creates deliverable]
-    → Shows: "I'll set up a weekly status report for Sarah using your
-              work context. First draft Monday 9am."
-    → User sees confirmation, can adjust
-```
-
-**Scenario 2: Ambiguous intent - needs clarification**
-```
-User: "Create a report"
-TP: [clarify] "What kind of report?"
-    → Options: Status update, Research brief, Board update, Something else
-User: "Board update"
-TP: [clarify] "Is this for the TechStart board or a different context?"
-    → Shows existing relevant context if any
-    → User confirms or provides new context
-```
-
-**Scenario 3: Wrong context inferred**
-```
-User: "Weekly update for the marketing team"
-TP: [creates deliverable, infers wrong project]
-    → Shows: "I'll use your Product Launch context for this"
-User: "No, this is for a different project - the rebrand"
-TP: [adjusts] "Got it, I'll create a new context basket for the rebrand
-              marketing updates. What should I know about it?"
-```
-
-### Key Principle: Show What We're Using
-
-At every stage, the user should be able to see:
-- **What context basket** this deliverable draws from
-- **What's in that basket** (memories, docs, feedback)
-- **How to adjust it** if wrong
-
-This is NOT about exposing "projects" as an organizational concept - it's about giving users **visibility into YARNNN's understanding**.
-
-### Data Model (Already Implemented)
+### Data Model (Implemented)
 
 | Layer | Schema | User Sees As |
 |-------|--------|--------------|
@@ -98,12 +159,11 @@ This is NOT about exposing "projects" as an organizational concept - it's about 
 | Deliverable context | `memories` where `project_id = X` | "This deliverable's context" |
 | Topic/basket | `projects` table | Hidden - just powers isolation |
 
-**Current Implementation:** ✅ Data model fully supports this
+**Key Implementation Details:**
 - `memories` table has nullable `project_id`
-- `load_context_for_work()` combines both scopes
+- `load_context_for_work()` in backend combines both scopes
 - Each deliverable creates/links to a project for context isolation
-
-**Gap:** ⚠️ UI doesn't surface this clearly to users yet
+- UI terminology: "Your context" + "Deliverable context" (never expose "project")
 
 ---
 
@@ -113,8 +173,8 @@ This is NOT about exposing "projects" as an organizational concept - it's about 
 
 **Entry Points:**
 - TP conversation: "I need a weekly status report"
-- Dashboard "+" button → triggers TP
-- Empty state CTA → triggers TP
+- Dashboard "+" button → triggers TP message
+- Empty state CTA → triggers TP message
 
 **Three Sub-stages:**
 
@@ -152,19 +212,11 @@ TP responds: "I'll set up a weekly board report using your TechStart
 [No, different context] → "Tell me about this board context"
 ```
 
-**Behind the scenes:**
-- TP calls `create_deliverable` tool
-- Backend creates deliverable + associated project (for context isolation)
-- Returns deliverable ID for navigation
-
-**Open Questions:**
-- [x] Should TP show a "type picker" UI or stay fully conversational? → Conversational with clarify()
-- [ ] How explicit should context inference be? Always state it, or only when ambiguous?
-- [ ] Should existing "context baskets" be shown as options?
+**Status:** ⚠️ TP system prompt needs update to implement this pattern
 
 #### 1C. Setup Confirmation (Surface)
 
-After TP creates deliverable, show **Setup Confirmation** - this gives the user visual assurance:
+After TP creates deliverable, show **Setup Confirmation** surface:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -204,21 +256,7 @@ After TP creates deliverable, show **Setup Confirmation** - this gives the user 
 └─────────────────────────────────────────────────────┘
 ```
 
-**Key Assurance Elements:**
-- **"Context I'll Use"** - Shows exactly what YARNNN will draw from
-- **Two-layer display** - "Your context" (portable) + "Board-specific" (isolated)
-- **Edit affordance** - User can adjust before first run
-- **Add actions** - Attach docs or add memories right here
-
-**Open Questions:**
-- [ ] Is this a new surface type or part of DeliverableDetailSurface?
-- [ ] Should "Run First Draft Now" be the primary CTA? (Probably yes - get to value fast)
-- [ ] How much context detail to show? (Summary vs. expandable list)
-
-**Resolved:**
-- ✅ User sees "this deliverable's context", not "project"
-- ✅ Document attachment is prominent and in-flow
-- ✅ Two-layer context display (your context + deliverable-specific)
+**Status:** ❌ Not implemented - needs new surface or extension of DeliverableDetailSurface
 
 ---
 
@@ -231,14 +269,7 @@ After TP creates deliverable, show **Setup Confirmation** - this gives the user 
 2. **Synthesize**: Content agent generates draft using type-specific prompt
 3. **Stage**: Validate output, create version, notify user
 
-**User sees:**
-- Work ticket created (visible in Recent Work?)
-- Notification when complete (how? badge? toast? email?)
-
-**Open Questions:**
-- [ ] Should generation progress be visible in UI?
-- [ ] How to handle generation failures gracefully?
-- [ ] Push notification vs. pull (user checks dashboard)?
+**Status:** ✅ Backend implemented, ⚠️ UI notification needs work
 
 ---
 
@@ -249,66 +280,45 @@ When a version is staged, user reviews the generated content.
 #### 3A. Attention Queue
 Dashboard shows "Needs Attention" section with staged items.
 
+**Status:** ✅ Implemented in IdleSurface
+
 #### 3B. Review Surface
 
-**Current Implementation:**
+**Current Implementation:** `web/components/surfaces/DeliverableReviewSurface.tsx`
 - Shows draft content in editor
 - Approve / Reject & Refine / Discard buttons
 - Optional feedback notes
 
-**Proposed Enhancement - Two-Panel Review:**
+**Proposed Enhancement - Add Context Panel:**
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │ Review: Weekly Status Report (v3)                   │
 ├───────────────────────┬─────────────────────────────┤
 │                       │                             │
-│ GENERATED OUTPUT      │ CONTEXT PANEL               │
+│ GENERATED OUTPUT      │ CONTEXT PANEL (collapsible) │
 │                       │                             │
-│ [Draft content here]  │ ┌─────────────────────────┐ │
-│                       │ │ Sources Used            │ │
-│                       │ │ • 12 memories           │ │
-│                       │ │ • 2 documents           │ │
-│                       │ │ • Previous feedback     │ │
-│                       │ └─────────────────────────┘ │
+│ [Draft content here]  │ Sources Used:               │
+│                       │ • 12 memories               │
+│                       │ • 2 documents               │
+│                       │ • Previous feedback         │
 │                       │                             │
-│                       │ ┌─────────────────────────┐ │
-│                       │ │ Quality Trend           │ │
-│                       │ │ v1: 0.45 → v2: 0.28 ↓  │ │
-│                       │ │ (less editing needed)   │ │
-│                       │ └─────────────────────────┘ │
-│                       │                             │
-│                       │ ┌─────────────────────────┐ │
-│                       │ │ Compare to Previous     │ │
-│                       │ │ [Show Diff]             │ │
-│                       │ └─────────────────────────┘ │
+│                       │ Quality Trend:              │
+│                       │ v1: 0.45 → v2: 0.28 ↓      │
+│                       │ (less editing needed)       │
 │                       │                             │
 ├───────────────────────┴─────────────────────────────┤
 │ [Approve] [Edit & Approve] [Reject] [Skip for Now]  │
 └─────────────────────────────────────────────────────┘
 ```
 
-**Context Panel Shows:**
-- What sources were used for this generation
-- Quality trend (edit distance over versions)
-- Comparison to previous version
-- Feedback history summary
-
-**Open Questions:**
-- [ ] Two-panel always or collapsible?
-- [ ] What's the minimum context to show?
-- [ ] Should "Skip for Now" exist? (defer review)
-- [ ] Inline editing vs. open in editor mode?
+**Status:** ⚠️ Context panel not implemented
 
 ---
 
 ### Phase 4: Post-Approval Actions
 
-After approving, what happens next?
-
-**Current:** Version saved with final_content, feedback captured.
-
-**Proposed - Export Nudge:**
+After approving, show export options:
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -319,19 +329,13 @@ After approving, what happens next?
 │                                                     │
 │ [Copy to Clipboard]  [Download PDF]  [Send Email]   │
 │                                                     │
-│ ─────────────────────────────────────────────────── │
-│                                                     │
 │ Next version: Monday, Feb 10 at 9:00 AM             │
 │ [View in Deliverables]  [Dismiss]                   │
 │                                                     │
 └─────────────────────────────────────────────────────┘
 ```
 
-**Open Questions:**
-- [ ] Is this a modal, toast, or inline surface change?
-- [ ] PDF generation - build or defer?
-- [ ] Email sending - to whom? (recipient vs. self)
-- [ ] Should this be skippable via preference?
+**Status:** ❌ Not implemented
 
 ---
 
@@ -339,297 +343,42 @@ After approving, what happens next?
 
 User returns to dashboard and sees their deliverables.
 
-**Dashboard View:**
+**Dashboard View (IdleSurface):**
 - Active deliverables with next run time
 - Attention items (staged versions)
-- Quality indicators (trend arrows?)
+- Quick links to Context and Documents
 
-**Deliverable List Surface:**
-- All deliverables with status
-- Quick actions: Run Now, Pause, Settings
-- Filter by status
-
-**Deliverable Detail Surface:**
-- Version history with quality trend
-- Settings (schedule, sources, recipient)
-- Feedback summary ("YARNNN has learned...")
+**Status:** ✅ Implemented
 
 ---
 
 ## Surface Inventory
 
-| Surface | Purpose | Status |
-|---------|---------|--------|
-| IdleSurface (Dashboard) | Overview, attention queue | ✅ Exists |
-| DeliverableListSurface | List all deliverables | ✅ Exists |
-| DeliverableDetailSurface | Single deliverable + versions | ✅ Exists |
-| DeliverableReviewSurface | Review staged version | ✅ Exists |
-| **DeliverableSetupSurface** | Post-creation setup review | ❓ New? |
+| Surface | Purpose | File | Status |
+|---------|---------|------|--------|
+| IdleSurface | Dashboard, attention queue | `web/components/surfaces/IdleSurface.tsx` | ✅ |
+| DeliverableListSurface | List all deliverables | `web/components/surfaces/DeliverableListSurface.tsx` | ✅ |
+| DeliverableDetailSurface | Single deliverable + versions | `web/components/surfaces/DeliverableDetailSurface.tsx` | ✅ |
+| DeliverableReviewSurface | Review staged version | `web/components/surfaces/DeliverableReviewSurface.tsx` | ✅ |
+| **DeliverableSetupSurface** | Post-creation setup review | - | ❌ Needed |
 
 ---
 
-## Key Decision Points
-
-### 1. Setup Flow
-**Option A:** Fully conversational (current)
-- TP gathers everything through chat
-- Pros: Natural, low friction
-- Cons: User doesn't see full config until later
-
-**Option B:** Conversational + Setup Surface
-- TP creates basic deliverable
-- Setup surface shows full config for review/adjustment
-- Pros: Clear confirmation, easy to adjust
-- Cons: Extra step
-
-**Option C:** Hybrid based on completeness
-- If TP gathered enough info → show setup surface
-- If minimal info → continue conversation
-- Pros: Adaptive
-- Cons: Inconsistent UX
-
-### 2. Review Information Density
-**Option A:** Output only (current)
-- Just the draft content
-- User focuses on output quality
-
-**Option B:** Output + Context panel
-- Shows what went into generation
-- Helps user understand and trust output
-
-**Option C:** Output + Collapsible context
-- Context available but not prominent
-- Best of both worlds?
-
-### 3. Post-Approval Flow
-**Option A:** Silent success
-- Approve → back to dashboard
-- User exports manually later
-
-**Option B:** Export nudge
-- Approve → export options shown
-- Encourages action on approved content
-
-**Option C:** Configurable per deliverable
-- Some deliverables auto-send, others manual
-- Future feature
-
----
-
-## Open Items for Discussion
-
-1. **Attachment/Files**: Where in the flow should users attach documents as context sources?
-   - During creation?
-   - In setup surface?
-   - Anytime via settings?
-
-2. **Type Selection**: Should type selection be:
-   - Inferred from conversation?
-   - Explicit picker UI?
-   - Suggested by TP with confirmation?
-
-3. **Scheduling UX**: When/how to set schedule:
-   - During creation conversation?
-   - In setup surface?
-   - Default schedule with easy override?
-
-4. **Learning Feedback**: How to show "YARNNN is learning from your edits"?
-   - Quality trend in review surface?
-   - Summary in detail surface?
-   - Explicit "what I learned" message?
-
----
-
-## TP Bar: Visual State Indicators
-
-### The Gap in Current UX
-
-Looking at the TP interface, the user has **no visibility** into what TP "sees" or "knows" during conversation. The screenshot shows:
-- User creating a deliverable
-- No indicator of what surface TP is looking at
-- No indicator of what context TP is working under
-- No indicator of whether this connects to existing work
-
-This is different from the conversational assurance pattern (which happens DURING interaction). These are **ambient indicators** that show TP's current state at all times.
-
-### Two Layers of Assurance
-
-| Layer | When | How |
-|-------|------|-----|
-| **Visual Cues (TP Bar)** | Always visible | Ambient indicators in UI |
-| **Conversational Assurance** | During key decisions | TP explicitly states what it's doing |
-
-Both are needed - they're complementary:
-- Visual cues = "Here's what I'm looking at right now"
-- Conversational = "Here's what I understood and will do"
-
-### Proposed TP Bar State Indicators
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  TP                                                          │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │ 📍 Dashboard │ 🧠 Your context │ 📋 No deliverable      ││
-│  └─────────────────────────────────────────────────────────┘│
-│                                                              │
-│  [Chat history...]                                           │
-│                                                              │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │ Ask anything...                                         ││
-│  └─────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
-```
-
-**Three indicators:**
-
-1. **📍 Surface** - What TP is currently "seeing"
-   - `Dashboard` - Idle/overview
-   - `Weekly Report` - Specific deliverable detail
-   - `Review: v3` - Reviewing a staged version
-   - Changes when user navigates surfaces
-
-2. **🧠 Context** - What context basket TP is working under
-   - `Your context` - General user context only
-   - `Board Updates` - Specific deliverable/topic context
-   - `New topic` - When TP has inferred a new context
-   - Clickable to show what's in the basket?
-
-3. **📋 Deliverable** - Whether TP is focused on a specific deliverable
-   - `No deliverable` - General conversation
-   - `Weekly Report` - Working on specific deliverable
-   - `Creating new` - In creation flow
-
-### State Transitions
-
-**Scenario: User opens dashboard and starts chatting**
-```
-Initial state:
-📍 Dashboard │ 🧠 Your context │ 📋 No deliverable
-
-User: "I need a weekly report for the board"
-
-During creation:
-📍 Dashboard │ 🧠 Board context │ 📋 Creating: Weekly Report
-
-After creation complete:
-📍 Setup: Weekly Report │ 🧠 Board context │ 📋 Weekly Report
-```
-
-**Scenario: User navigates to existing deliverable, then asks TP**
-```
-User clicks "Weekly Status Report" in list
-
-State updates:
-📍 Weekly Status Report │ 🧠 Status context │ 📋 Weekly Status Report
-
-User: "Can you make this more concise?"
-
-TP knows it's about THIS deliverable, not asking generally
-```
-
-**Scenario: User on dashboard asks about something new**
-```
-State:
-📍 Dashboard │ 🧠 Your context │ 📋 No deliverable
-
-User: "What about the Q4 planning doc?"
-
-TP: "I see you have a Q4 Planning context with 12 memories.
-     Want me to work on something related to that?"
-
-State could update to:
-📍 Dashboard │ 🧠 Q4 Planning? │ 📋 No deliverable
-                    ↑ tentative, indicated with "?"
-```
-
-### Open Design Questions
-
-1. **Where do indicators live?**
-   - Top of TP panel (as shown above)?
-   - Bottom of TP panel near input?
-   - Integrated into input placeholder?
-
-2. **How prominent?**
-   - Always visible vs. collapsed/expandable
-   - Subtle text vs. chips/badges
-
-3. **Interaction on click?**
-   - Context indicator → opens context browser?
-   - Deliverable indicator → navigates to deliverable?
-   - Surface indicator → just informational?
-
-4. **Mobile/narrow view?**
-   - Show all three? Collapse to icons?
-   - Priority order if space constrained?
-
-### Relationship to Conversational Assurance
-
-The visual cues DON'T replace the conversational pattern - they augment it:
-
-| What | Visual Cue Shows | TP Says Explicitly |
-|------|------------------|-------------------|
-| Context | `🧠 Board context` | "I'll use your Board context for this" |
-| Intent | - | "I'll create a weekly board update" |
-| Schedule | - | "Set for every Monday at 9am" |
-| Confirmation | Surface updates | "Done! Here's the setup review" |
-
-Visual = ambient awareness
-Conversational = explicit confirmation for decisions
-
----
-
-## Core Concept: Assurance & Authority
-
-### The Problem We're Solving
-
-Users need confidence that YARNNN:
-1. **Understands their intent** - "Yes, this is what I meant"
-2. **Uses the right context** - "Yes, draw from these sources"
-3. **Can be corrected** - "No, I meant something different"
-
-This is similar to Claude Code's topic inference - but we make it explicit because:
-- Deliverables are recurring (mistakes compound)
-- Context directly affects output quality
-- Users are "supervisors" who need oversight
-
-### The Assurance Pattern
-
-**At every decision point, show what we understood and allow correction:**
-
-| Stage | What User Sees | How They Correct |
-|-------|---------------|------------------|
-| **Intent** | "I'll create a board update" | "No, status report" |
-| **Context** | "Using your TechStart Board context" | "No, different board" |
-| **Schedule** | "Every Monday at 9am" | "Make it Fridays" |
-| **Output** | Draft content | Edit before approve |
-
-### Clarification vs. Confirmation
-
-**Clarification** (TP asks before acting):
-- Ambiguous request
-- Multiple possible contexts
-- Missing critical info
-
-**Confirmation** (TP shows after acting):
-- Setup confirmation surface
-- "Here's what I set up, adjust if needed"
-- Visual assurance before first run
-
-### Context Architecture Decisions
-
-**Resolved:**
-- ✅ Schema supports project-scoped memories (nullable project_id)
-- ✅ API has separate endpoints for scopes
-- ✅ Each deliverable gets isolated context automatically
-- ✅ UI terminology: "Your context" + "This deliverable's context" (not "project")
-- ✅ TP states context inference explicitly
-- ✅ Setup confirmation shows context before first run
-
-**Implementation approach:**
-- Keep `project_id` in schema (powers isolation)
-- UI never shows "project" - shows "deliverable context"
-- TP verbalizes: "I'll use your [X] context for this"
-- Setup surface shows what context will be used
+## Key Files
+
+### TP Bar & State Indicators
+- `web/components/tp/TPBar.tsx` - Main TP input bar with state indicators
+- `web/lib/tp-chips.ts` - Utilities for deriving state from surface
+
+### Context Management
+- `web/contexts/DeskContext.tsx` - Desk state, surface navigation, handoff messages
+- `web/contexts/TPContext.tsx` - TP conversation state, message streaming
+- `web/types/desk.ts` - Type definitions for surfaces, actions, state
+
+### Surfaces
+- `web/components/desk/SurfaceRouter.tsx` - Routes to appropriate surface component
+- `web/components/desk/HandoffBanner.tsx` - Shows TP message after navigation
+- `web/components/surfaces/*.tsx` - Individual surface implementations
 
 ---
 
@@ -643,19 +392,42 @@ This is similar to Claude Code's topic inference - but we make it explicit becau
 | Clarification | TP states inference explicitly, asks when ambiguous |
 | Review info | Output + collapsible context panel (what was used) |
 | Post-approval | Export nudge with "next run" info |
-| **TP Bar indicators** | 3 visual cues: Surface, Context, Deliverable |
-| **Two-layer assurance** | Visual cues (ambient) + Conversational (explicit) |
+| TP Bar indicators | 3 visual cues below input: Surface, Context, Deliverable |
+| Two-layer assurance | Visual cues (ambient) + Conversational (explicit) |
+| TP Bar position | Below input field (Claude Code style) |
 
-## Next Steps
+---
 
-1. [x] ~~Decide: "Project" vs "Deliverable context" terminology~~ → Deliverable context
-2. [x] ~~Decide on Setup Flow~~ → Three-stage with clarification
-3. [x] ~~Two-layer assurance model~~ → Visual cues (ambient) + Conversational (explicit)
-4. [ ] **TP Bar design decisions**: Where to place indicators, interaction on click
-5. [ ] Decide on Review Information Density details (how much to show)
-6. [ ] Decide on Post-Approval Flow details (modal vs inline)
-7. [ ] Update TP system prompt for context clarification pattern
-8. [ ] Create/update Setup Confirmation surface
-9. [ ] Update Review surface with context panel
-10. [ ] Implement TP Bar state indicators
-11. [ ] Implementation plan for remaining gaps
+## Next Steps (Priority Order)
+
+1. **TP System Prompt Updates**
+   - Add context clarification pattern
+   - Explicit statement of inferred context
+   - File: `api/agents/thinking_partner.py`
+
+2. **Setup Confirmation Surface**
+   - New surface or extend DeliverableDetailSurface
+   - Show "Context I'll Use" section
+   - Add document/context attachment
+
+3. **Review Surface Context Panel**
+   - Add collapsible panel showing sources used
+   - Quality trend indicator
+
+4. **Dynamic TP Bar Labels**
+   - Fetch actual deliverable/project names
+   - Show in indicators instead of generic labels
+
+5. **Export Nudge Flow**
+   - Post-approval options modal/inline
+   - Copy, PDF, Email actions
+
+---
+
+## Open Questions
+
+1. **How explicit should context inference be?** Always state it, or only when ambiguous?
+2. **Should existing context baskets be shown as options** when creating new deliverable?
+3. **Is Setup Confirmation a new surface type** or part of DeliverableDetailSurface?
+4. **Review context panel:** Two-panel always or collapsible?
+5. **Post-approval flow:** Modal, toast, or inline surface change?
