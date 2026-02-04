@@ -7,7 +7,7 @@
  *
  * Design: Claude Code-style bottom bar with:
  * - State indicators above input (surface, context, project, deliverable)
- * - Project selector dropdown for context routing (ADR-024)
+ * - Inline context chips for context routing (ADR-024) - Personal + Projects as clickable chips
  * - Status area for thinking/streaming/clarify states
  * - Input field with send button
  * - History toggle for recent messages
@@ -19,8 +19,8 @@ import {
   Loader2,
   MessageCircle,
   X,
-  ChevronDown,
   ChevronUp,
+  ChevronDown,
   LayoutDashboard,
   Calendar,
   Briefcase,
@@ -30,7 +30,6 @@ import {
   FileCheck,
   MapPin,
   FolderOpen,
-  Check,
   User,
 } from 'lucide-react';
 import { useDesk } from '@/contexts/DeskContext';
@@ -88,14 +87,12 @@ export function TPBar() {
     clearClarification,
     messages,
   } = useTP();
-  const { projects, reload: reloadProjects } = useProjects();
+  const { projects } = useProjects();
   const [input, setInput] = useState('');
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
-  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Get state indicators from current surface
   const indicators = getTPStateIndicators(surface);
@@ -107,28 +104,6 @@ export function TPBar() {
 
   // Use cached name if available, otherwise fall back to generic label
   const surfaceLabel = cachedDeliverableName || indicators.surface.label;
-
-  // Close dropdown when clicking outside (only when open)
-  useEffect(() => {
-    if (!projectDropdownOpen) return;
-
-    const handleClickOutside = (event: MouseEvent) => {
-      // Check if click is inside the dropdown ref
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setProjectDropdownOpen(false);
-      }
-    };
-
-    // Use setTimeout to defer listener attachment, preventing immediate closure
-    const timeoutId = setTimeout(() => {
-      document.addEventListener('mousedown', handleClickOutside);
-    }, 10);
-
-    return () => {
-      clearTimeout(timeoutId);
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [projectDropdownOpen]);
 
   // Handle form submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -372,106 +347,40 @@ export function TPBar() {
 
                 <span className="text-muted-foreground/40 text-[10px]">·</span>
 
-                {/* Context selector - unified project/personal context (ADR-024) */}
-                <div className="relative shrink-0" ref={dropdownRef}>
+                {/* Context chips - inline selection (ADR-024) */}
+                <div className="flex items-center gap-1 overflow-x-auto">
+                  {/* Personal chip */}
                   <button
                     type="button"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setProjectDropdownOpen(!projectDropdownOpen);
-                    }}
+                    onClick={() => setSelectedProject(null)}
                     className={cn(
-                      'flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded',
-                      'hover:bg-muted transition-colors',
-                      selectedProject
-                        ? 'text-primary/80 bg-primary/5'
-                        : 'text-muted-foreground'
+                      'shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-colors',
+                      !selectedProject
+                        ? 'bg-primary/15 text-primary font-medium'
+                        : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                     )}
                   >
-                    <Brain className="w-3 h-3 opacity-60" />
-                    <span className="truncate max-w-[120px]">
-                      {selectedProject ? selectedProject.name : 'Personal'} context
-                    </span>
-                    <ChevronDown className="w-3 h-3 opacity-60" />
+                    <User className="w-3 h-3" />
+                    <span>Personal</span>
                   </button>
 
-                  {/* Dropdown menu */}
-                  {projectDropdownOpen && (
-                    <div
-                      className="absolute bottom-full left-0 mb-1 w-52 py-1 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-150"
-                      onMouseDown={(e) => e.stopPropagation()}
-                    >
-                      {/* Header */}
-                      <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border mb-1">
-                        TP context scope
-                      </div>
-
-                      {/* Personal option */}
-                      <div
-                        role="button"
-                        tabIndex={0}
-                        onClick={() => {
-                          console.log('[TPBar] Personal clicked');
-                          setSelectedProject(null);
-                          setProjectDropdownOpen(false);
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter' || e.key === ' ') {
-                            setSelectedProject(null);
-                            setProjectDropdownOpen(false);
-                          }
-                        }}
-                        className={cn(
-                          'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer',
-                          'hover:bg-muted transition-colors',
-                          !selectedProject && 'text-primary'
-                        )}
-                      >
-                        <User className="w-4 h-4 opacity-60" />
-                        <div className="flex-1 min-w-0">
-                          <span className="block truncate">Personal</span>
-                          <span className="block text-xs text-muted-foreground">Your memories & preferences</span>
-                        </div>
-                        {!selectedProject && <Check className="w-4 h-4 shrink-0" />}
-                      </div>
-
-                      {projects.length > 0 && (
-                        <div className="h-px bg-border my-1" />
+                  {/* Project chips */}
+                  {projects.map((project) => (
+                    <button
+                      key={project.id}
+                      type="button"
+                      onClick={() => setSelectedProject({ id: project.id, name: project.name })}
+                      className={cn(
+                        'shrink-0 flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full transition-colors',
+                        selectedProject?.id === project.id
+                          ? 'bg-primary/15 text-primary font-medium'
+                          : 'text-muted-foreground hover:bg-muted hover:text-foreground'
                       )}
-
-                      {/* Project options */}
-                      {projects.map((project) => (
-                        <div
-                          key={project.id}
-                          role="button"
-                          tabIndex={0}
-                          onClick={() => {
-                            console.log('[TPBar] Project clicked:', project.name);
-                            setSelectedProject({ id: project.id, name: project.name });
-                            setProjectDropdownOpen(false);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === 'Enter' || e.key === ' ') {
-                              setSelectedProject({ id: project.id, name: project.name });
-                              setProjectDropdownOpen(false);
-                            }
-                          }}
-                          className={cn(
-                            'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer',
-                            'hover:bg-muted transition-colors',
-                            selectedProject?.id === project.id && 'text-primary'
-                          )}
-                        >
-                          <FolderOpen className="w-4 h-4 opacity-60" />
-                          <div className="flex-1 min-w-0">
-                            <span className="block truncate">{project.name}</span>
-                            <span className="block text-xs text-muted-foreground">Project-scoped context</span>
-                          </div>
-                          {selectedProject?.id === project.id && <Check className="w-4 h-4 shrink-0" />}
-                        </div>
-                      ))}
-                    </div>
-                  )}
+                    >
+                      <FolderOpen className="w-3 h-3" />
+                      <span className="truncate max-w-[80px]">{project.name}</span>
+                    </button>
+                  ))}
                 </div>
 
                 {/* Deliverable indicator (only show if active) */}
