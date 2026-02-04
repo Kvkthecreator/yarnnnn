@@ -207,17 +207,23 @@ export function DeskProvider({ children }: DeskProviderProps) {
     (surface: DeskSurface) => {
       dispatch({ type: 'SET_SURFACE', surface });
 
-      // Update URL (shallow, no navigation)
-      const params = surfaceToParams(surface);
-      const newUrl = `${pathname}?${params.toString()}`;
-      router.replace(newUrl, { scroll: false });
+      // Only update URL with surface params when on /dashboard
+      // Other routes (like /settings) don't use the surface system
+      if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+        const params = surfaceToParams(surface);
+        const newUrl = `${pathname}?${params.toString()}`;
+        router.replace(newUrl, { scroll: false });
+      }
     },
     [pathname, router]
   );
 
   const clearSurface = useCallback(() => {
     dispatch({ type: 'CLEAR_SURFACE' });
-    router.replace(pathname, { scroll: false });
+    // Only update URL when on /dashboard
+    if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+      router.replace(pathname, { scroll: false });
+    }
   }, [pathname, router]);
 
   const nextAttention = useCallback(() => {
@@ -232,10 +238,12 @@ export function DeskProvider({ children }: DeskProviderProps) {
     (surface: DeskSurface, message: string) => {
       dispatch({ type: 'SET_SURFACE_WITH_HANDOFF', surface, handoffMessage: message });
 
-      // Update URL (shallow, no navigation)
-      const params = surfaceToParams(surface);
-      const newUrl = `${pathname}?${params.toString()}`;
-      router.replace(newUrl, { scroll: false });
+      // Only update URL with surface params when on /dashboard
+      if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+        const params = surfaceToParams(surface);
+        const newUrl = `${pathname}?${params.toString()}`;
+        router.replace(newUrl, { scroll: false });
+      }
     },
     [pathname, router]
   );

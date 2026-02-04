@@ -258,7 +258,7 @@ function AuthenticatedLayoutInner({
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-40 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* Surface domains (always available) */}
+                {/* Surface domains - navigate to /dashboard with surface */}
                 {SURFACE_DOMAINS.map((domain) => {
                   const Icon = domain.icon;
                   const isActive = isOnDashboard && currentSurfaceDomain === domain.id;
@@ -281,6 +281,32 @@ function AuthenticatedLayoutInner({
                     >
                       <Icon className="w-4 h-4" />
                       {domain.label}
+                    </button>
+                  );
+                })}
+
+                {/* Divider */}
+                <div className="border-t border-border my-1" />
+
+                {/* Route pages - navigate to separate routes */}
+                {ROUTE_PAGES.map((route) => {
+                  const Icon = route.icon;
+                  const isActive = currentRoute?.id === route.id;
+                  return (
+                    <button
+                      key={route.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(route.path);
+                        setDropdownOpen(false);
+                      }}
+                      className={cn(
+                        'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                        isActive && 'bg-primary/5 text-primary'
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {route.label}
                     </button>
                   );
                 })}
