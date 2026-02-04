@@ -578,31 +578,28 @@ CREATE_DELIVERABLE_TOOL = {
     "name": "create_deliverable",
     "description": """Create a new recurring deliverable for the user.
 
-IMPORTANT: Before calling this tool, you MUST have:
-1. Stated what context you'll use ("I'll use your [X] context")
-2. Given user opportunity to confirm or correct
+**CRITICAL: Use the EXACT parameters the user specified!**
+- If user said "monthly" → frequency MUST be "monthly"
+- If user said "board update" → type should be "stakeholder_update" or "board_update"
+- If user said it's for "Marcus" → recipient_name MUST be "Marcus"
 
-Never create a deliverable without first confirming context with the user.
+**Before calling this tool, you MUST have:**
+1. Parsed the user's request to extract: title, frequency, type, recipient
+2. Confirmed your understanding with the user
+3. Received confirmation ("yes", "sounds good", etc.)
 
-Use this when the user describes something they need to produce regularly:
-- "I need to send weekly updates to my manager"
-- "Can you help me create a monthly investor report?"
-- "I want to track my competitors weekly"
+**Never create with defaults that contradict what the user said!**
 
-After stating context and getting confirmation, create the deliverable.
-Then follow up with respond() to confirm what was created and what context
-will be used for generation.
-
-TYPES:
-- status_report: Regular progress/status updates
-- stakeholder_update: Updates for clients, investors, partners
+**TYPES:**
+- status_report: Regular progress/status updates (for managers, teams)
+- stakeholder_update: Updates for clients, investors, board members
 - research_brief: Competitive intel, market research, trends
 - meeting_summary: Recap of recurring meetings
 - custom: Anything else
 
 Returns the created deliverable. Always follow with respond() to:
-1. Confirm creation
-2. State what context will be used
+1. Confirm creation with the actual parameters used
+2. State what context will be used for generation
 3. Offer to generate first draft""",
     "input_schema": {
         "type": "object",
