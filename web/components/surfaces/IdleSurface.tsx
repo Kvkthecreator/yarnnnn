@@ -48,6 +48,7 @@ export function IdleSurface() {
     memoryCount,
     dismiss: dismissBanner,
     isDismissed,
+    reload: reloadOnboardingState,
   } = useOnboardingState();
 
   const [loading, setLoading] = useState(true);
@@ -98,8 +99,11 @@ export function IdleSurface() {
     setUploading(true);
     try {
       await api.documents.upload(file);
-      // Reload dashboard data and transition out of cold_start
-      await loadDashboardData();
+      // Reload both dashboard data and onboarding state to transition out of cold_start
+      await Promise.all([
+        loadDashboardData(),
+        reloadOnboardingState(),
+      ]);
     } catch (err) {
       console.error('Failed to upload document:', err);
       alert('Failed to upload. Please try again.');
@@ -123,7 +127,10 @@ export function IdleSurface() {
     setPasteModalOpen(false);
     setPasteContent('');
     // Reload to check if we've transitioned out of cold_start
-    await loadDashboardData();
+    await Promise.all([
+      loadDashboardData(),
+      reloadOnboardingState(),
+    ]);
   };
 
   const handleStart = () => {
