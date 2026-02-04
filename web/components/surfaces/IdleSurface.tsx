@@ -4,6 +4,12 @@
  * ADR-023: Supervisor Desk Architecture
  * IdleSurface - Dashboard view showing all domains
  *
+ * Priority order (calm control room, not alarm board):
+ * 1. System Status - at-a-glance health overview
+ * 2. Upcoming Schedule - what's generating soon (primary focus)
+ * 3. Attention Items - things needing input (secondary)
+ * 4. Quick Actions - create, browse context
+ *
  * Handles three onboarding states:
  * - cold_start: Full welcome experience (WelcomePrompt)
  * - minimal_context: Normal dashboard with context banner
@@ -11,7 +17,21 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { Clock, Loader2, Pause, AlertCircle, Briefcase, Brain, FileText, ChevronRight } from 'lucide-react';
+import {
+  Clock,
+  Loader2,
+  Pause,
+  AlertCircle,
+  Calendar,
+  Brain,
+  FileText,
+  ChevronRight,
+  CheckCircle2,
+  TrendingUp,
+  TrendingDown,
+  Minus,
+  Plus,
+} from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP } from '@/contexts/TPContext';
@@ -31,6 +51,21 @@ function formatSchedule(schedule?: ScheduleConfig): string | null {
   if (frequency === 'custom') return 'Custom schedule';
   return frequency;
 }
+
+// Deliverable type labels for display
+const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
+  status_report: 'Status Report',
+  stakeholder_update: 'Stakeholder Update',
+  research_brief: 'Research Brief',
+  meeting_summary: 'Meeting Summary',
+  custom: 'Custom',
+  client_proposal: 'Client Proposal',
+  performance_self_assessment: 'Self-Assessment',
+  newsletter_section: 'Newsletter',
+  changelog: 'Changelog',
+  one_on_one_prep: '1:1 Prep',
+  board_update: 'Board Update',
+};
 
 interface DashboardData {
   deliverables: Deliverable[];
@@ -243,13 +278,36 @@ export function IdleSurface() {
   const activeDeliverables = data?.deliverables.filter((d) => d.status === 'active') || [];
   const pausedDeliverables = data?.deliverables.filter((d) => d.status === 'paused') || [];
 
+  // Sort active deliverables by next_run_at (soonest first)
+  const upcomingDeliverables = [...activeDeliverables].sort((a, b) => {
+    if (!a.next_run_at) return 1;
+    if (!b.next_run_at) return -1;
+    return new Date(a.next_run_at).getTime() - new Date(b.next_run_at).getTime();
+  });
+
+  // Find next scheduled deliverable for status strip
+  const nextDeliverable = upcomingDeliverables[0];
+
+  // Calculate overall quality trend
+  const qualityTrends = activeDeliverables
+    .map((d) => d.quality_trend)
+    .filter(Boolean);
+  const overallQuality =
+    qualityTrends.length === 0
+      ? 'stable'
+      : qualityTrends.includes('declining')
+        ? 'declining'
+        : qualityTrends.includes('improving')
+          ? 'improving'
+          : 'stable';
+
   // Show minimal context banner if user has some context but not much
   const showMinimalContextBanner =
     !isDismissed && onboardingState === 'minimal_context';
 
   return (
     <div className="h-full overflow-auto">
-      <div className="max-w-3xl mx-auto px-6 py-6 space-y-8">
+      <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
         {/* Minimal Context Banner */}
         {showMinimalContextBanner && (
           <MinimalContextBanner
@@ -258,69 +316,116 @@ export function IdleSurface() {
           />
         )}
 
-        {/* Needs Attention */}
-        {attention.length > 0 && (
-          <DashboardSection
-            icon={<AlertCircle className="w-4 h-4 text-amber-500" />}
-            title={`Needs Attention (${attention.length})`}
-          >
-            {attention.map((item) => (
-              <button
-                key={item.versionId}
-                onClick={() =>
-                  setSurface({
-                    type: 'deliverable-review',
-                    deliverableId: item.deliverableId,
-                    versionId: item.versionId,
-                  })
-                }
-                className="w-full p-3 border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/30 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-950/50 text-left"
-              >
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">{item.title}</span>
-                  <span className="text-xs text-muted-foreground">
-                    staged {formatDistanceToNow(new Date(item.stagedAt), { addSuffix: false })} ago
+        {/* System Status Strip */}
+        {activeDeliverables.length > 0 && (
+          <div className="flex items-center gap-4 px-4 py-3 bg-muted/30 rounded-lg text-sm">
+            <div className="flex items-center gap-2 text-green-600 dark:text-green-500">
+              <CheckCircle2 className="w-4 h-4" />
+              <span>{activeDeliverables.length} active</span>
+            </div>
+            {pausedDeliverables.length > 0 && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                <Pause className="w-3.5 h-3.5" />
+                <span>{pausedDeliverables.length} paused</span>
+              </div>
+            )}
+            <span className="text-muted-foreground">·</span>
+            {nextDeliverable?.next_run_at && (
+              <div className="flex items-center gap-1.5 text-muted-foreground">
+                <Clock className="w-3.5 h-3.5" />
+                <span>
+                  Next:{' '}
+                  <span className="text-foreground">{nextDeliverable.title}</span>{' '}
+                  {formatDistanceToNow(new Date(nextDeliverable.next_run_at), { addSuffix: true })}
+                </span>
+              </div>
+            )}
+            {overallQuality !== 'stable' && (
+              <>
+                <span className="text-muted-foreground">·</span>
+                <div className="flex items-center gap-1.5">
+                  {overallQuality === 'improving' ? (
+                    <TrendingUp className="w-3.5 h-3.5 text-green-500" />
+                  ) : (
+                    <TrendingDown className="w-3.5 h-3.5 text-amber-500" />
+                  )}
+                  <span className="text-muted-foreground">
+                    Quality {overallQuality}
                   </span>
                 </div>
-              </button>
-            ))}
-          </DashboardSection>
+              </>
+            )}
+          </div>
         )}
 
-        {/* Deliverables */}
+        {/* Upcoming Schedule (primary focus) */}
         <DashboardSection
-          icon={<Briefcase className="w-4 h-4" />}
-          title="Deliverables"
+          icon={<Calendar className="w-4 h-4" />}
+          title="Upcoming Schedule"
           action={
-            data && data.deliverables.length > 3 ? (
+            data && data.deliverables.length > 0 ? (
               <button
                 onClick={() => setSurface({ type: 'deliverable-list' })}
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
               >
-                View all ({data.deliverables.length})
+                All deliverables ({data.deliverables.length})
                 <ChevronRight className="w-3 h-3" />
               </button>
             ) : undefined
           }
         >
-          {activeDeliverables.slice(0, 5).map((d) => (
-            <DeliverableCard
-              key={d.id}
-              deliverable={d}
-              onClick={() => setSurface({ type: 'deliverable-detail', deliverableId: d.id })}
-            />
-          ))}
-          {pausedDeliverables.length > 0 && (
-            <p className="text-xs text-muted-foreground pt-2">
-              + {pausedDeliverables.length} paused
-            </p>
+          {upcomingDeliverables.length > 0 ? (
+            upcomingDeliverables.slice(0, 5).map((d) => (
+              <DeliverableCard
+                key={d.id}
+                deliverable={d}
+                onClick={() => setSurface({ type: 'deliverable-detail', deliverableId: d.id })}
+              />
+            ))
+          ) : (
+            <div className="text-center py-8 text-muted-foreground">
+              <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p className="text-sm">No scheduled deliverables yet</p>
+              <p className="text-xs mt-1">Ask TP to help you set one up</p>
+            </div>
           )}
         </DashboardSection>
+
+        {/* Needs Attention (secondary) */}
+        {attention.length > 0 && (
+          <DashboardSection
+            icon={<AlertCircle className="w-4 h-4 text-amber-500" />}
+            title={`Review Staged (${attention.length})`}
+          >
+            <div className="space-y-2">
+              {attention.map((item) => (
+                <button
+                  key={item.versionId}
+                  onClick={() =>
+                    setSurface({
+                      type: 'deliverable-review',
+                      deliverableId: item.deliverableId,
+                      versionId: item.versionId,
+                    })
+                  }
+                  className="w-full p-3 border border-amber-200 dark:border-amber-900 bg-amber-50/50 dark:bg-amber-950/20 rounded-lg hover:bg-amber-100 dark:hover:bg-amber-950/40 text-left"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm">{item.title}</span>
+                    <span className="text-xs text-muted-foreground">
+                      {formatDistanceToNow(new Date(item.stagedAt), { addSuffix: true })}
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </DashboardSection>
+        )}
 
         {/* Recent Work */}
         {data?.recentWork && data.recentWork.length > 0 && (
           <DashboardSection
-            icon={<Briefcase className="w-4 h-4" />}
+            icon={<FileText className="w-4 h-4" />}
             title="Recent Work"
             action={
               <button
@@ -355,8 +460,20 @@ export function IdleSurface() {
           </DashboardSection>
         )}
 
-        {/* Quick Links */}
-        <div className="grid grid-cols-2 gap-4">
+        {/* Quick Actions */}
+        <div className="grid grid-cols-3 gap-3">
+          {/* Create Deliverable - Primary */}
+          <button
+            onClick={() => sendMessage('Help me create a new deliverable')}
+            className="p-4 border-2 border-dashed border-primary/30 rounded-lg hover:border-primary/50 hover:bg-primary/5 text-left"
+          >
+            <div className="flex items-center gap-2 mb-1">
+              <Plus className="w-4 h-4 text-primary" />
+              <span className="text-sm font-medium">New Deliverable</span>
+            </div>
+            <p className="text-xs text-muted-foreground">Set up recurring work</p>
+          </button>
+
           {/* Context */}
           <button
             onClick={() => setSurface({ type: 'context-browser', scope: 'user' })}
@@ -426,6 +543,33 @@ function DeliverableCard({
   deliverable: Deliverable;
   onClick: () => void;
 }) {
+  const typeLabel =
+    DELIVERABLE_TYPE_LABELS[deliverable.deliverable_type] || deliverable.deliverable_type;
+
+  // Quality indicator
+  const QualityIndicator = () => {
+    if (!deliverable.quality_trend) return null;
+    if (deliverable.quality_trend === 'improving') {
+      return (
+        <span title="Quality improving">
+          <TrendingUp className="w-3 h-3 text-green-500" />
+        </span>
+      );
+    }
+    if (deliverable.quality_trend === 'declining') {
+      return (
+        <span title="Quality declining">
+          <TrendingDown className="w-3 h-3 text-amber-500" />
+        </span>
+      );
+    }
+    return (
+      <span title="Quality stable">
+        <Minus className="w-3 h-3 text-muted-foreground" />
+      </span>
+    );
+  };
+
   return (
     <button
       onClick={onClick}
@@ -439,10 +583,18 @@ function DeliverableCard({
             <span className="w-2 h-2 rounded-full bg-green-500" />
           )}
           <div>
-            <span className="text-sm font-medium">{deliverable.title}</span>
-            {formatSchedule(deliverable.schedule) && (
-              <p className="text-xs text-muted-foreground">{formatSchedule(deliverable.schedule)}</p>
-            )}
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">{deliverable.title}</span>
+              <QualityIndicator />
+            </div>
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+              <span className="px-1.5 py-0.5 bg-muted rounded text-[10px] font-medium">
+                {typeLabel}
+              </span>
+              {formatSchedule(deliverable.schedule) && (
+                <span>{formatSchedule(deliverable.schedule)}</span>
+              )}
+            </div>
           </div>
         </div>
         {deliverable.next_run_at && (
