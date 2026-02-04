@@ -68,6 +68,12 @@ export interface TPUIAction {
 // Desk State
 // =============================================================================
 
+/** Selected project context for TP routing (ADR-024) */
+export interface SelectedProject {
+  id: string;
+  name: string;
+}
+
 export interface DeskState {
   surface: DeskSurface;
   attention: AttentionItem[];
@@ -75,6 +81,8 @@ export interface DeskState {
   error: string | null;
   /** Message from TP shown briefly at top of surface after navigation */
   handoffMessage: string | null;
+  /** Currently selected project for context routing (ADR-024) */
+  selectedProject: SelectedProject | null;
 }
 
 export type DeskAction =
@@ -87,7 +95,8 @@ export type DeskAction =
   | { type: 'CLEAR_HANDOFF' }
   | { type: 'NEXT_ATTENTION' }
   | { type: 'SET_LOADING'; isLoading: boolean }
-  | { type: 'SET_ERROR'; error: string | null };
+  | { type: 'SET_ERROR'; error: string | null }
+  | { type: 'SET_SELECTED_PROJECT'; project: SelectedProject | null };
 
 // =============================================================================
 // TP State

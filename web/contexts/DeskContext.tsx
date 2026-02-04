@@ -12,6 +12,7 @@ import {
   DeskAction,
   DeskSurface,
   AttentionItem,
+  SelectedProject,
   surfaceToParams,
   paramsToSurface,
 } from '@/types/desk';
@@ -27,6 +28,7 @@ const initialState: DeskState = {
   isLoading: true,
   error: null,
   handoffMessage: null,
+  selectedProject: null,
 };
 
 // =============================================================================
@@ -86,6 +88,9 @@ function deskReducer(state: DeskState, action: DeskAction): DeskState {
     case 'SET_ERROR':
       return { ...state, error: action.error, isLoading: false };
 
+    case 'SET_SELECTED_PROJECT':
+      return { ...state, selectedProject: action.project };
+
     default:
       return state;
   }
@@ -103,6 +108,8 @@ interface DeskContextValue {
   error: string | null;
   /** Message from TP shown at top of surface after navigation */
   handoffMessage: string | null;
+  /** Currently selected project for context routing (ADR-024) */
+  selectedProject: SelectedProject | null;
 
   // Actions
   setSurface: (surface: DeskSurface) => void;
@@ -113,6 +120,8 @@ interface DeskContextValue {
   nextAttention: () => void;
   refreshAttention: () => Promise<void>;
   removeAttention: (versionId: string) => void;
+  /** Set selected project for context routing (ADR-024) */
+  setSelectedProject: (project: SelectedProject | null) => void;
 }
 
 const DeskContext = createContext<DeskContextValue | null>(null);
@@ -252,6 +261,10 @@ export function DeskProvider({ children }: DeskProviderProps) {
     dispatch({ type: 'CLEAR_HANDOFF' });
   }, []);
 
+  const setSelectedProject = useCallback((project: SelectedProject | null) => {
+    dispatch({ type: 'SET_SELECTED_PROJECT', project });
+  }, []);
+
   // ---------------------------------------------------------------------------
   // Context value
   // ---------------------------------------------------------------------------
@@ -262,6 +275,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
     isLoading: state.isLoading,
     error: state.error,
     handoffMessage: state.handoffMessage,
+    selectedProject: state.selectedProject,
     setSurface,
     setSurfaceWithHandoff,
     clearSurface,
@@ -269,6 +283,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
     nextAttention,
     refreshAttention,
     removeAttention,
+    setSelectedProject,
   };
 
   return <DeskContext.Provider value={value}>{children}</DeskContext.Provider>;
