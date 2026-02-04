@@ -113,21 +113,22 @@ export function TPBar() {
     if (!projectDropdownOpen) return;
 
     const handleClickOutside = (event: MouseEvent) => {
+      // Check if click is inside the dropdown ref
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setProjectDropdownOpen(false);
       }
     };
-    // Use click instead of mousedown to allow button clicks to complete first
-    document.addEventListener('click', handleClickOutside);
-    return () => document.removeEventListener('click', handleClickOutside);
-  }, [projectDropdownOpen]);
 
-  // Refresh projects when dropdown opens
-  useEffect(() => {
-    if (projectDropdownOpen) {
-      reloadProjects();
-    }
-  }, [projectDropdownOpen, reloadProjects]);
+    // Use setTimeout to defer listener attachment, preventing immediate closure
+    const timeoutId = setTimeout(() => {
+      document.addEventListener('mousedown', handleClickOutside);
+    }, 10);
+
+    return () => {
+      clearTimeout(timeoutId);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [projectDropdownOpen]);
 
   // Handle form submit
   const handleSubmit = (e: React.FormEvent) => {
@@ -398,7 +399,7 @@ export function TPBar() {
                   {projectDropdownOpen && (
                     <div
                       className="absolute bottom-full left-0 mb-1 w-52 py-1 bg-background border border-border rounded-lg shadow-lg z-50 animate-in fade-in slide-in-from-bottom-2 duration-150"
-                      onClick={(e) => e.stopPropagation()}
+                      onMouseDown={(e) => e.stopPropagation()}
                     >
                       {/* Header */}
                       <div className="px-3 py-1.5 text-xs text-muted-foreground border-b border-border mb-1">
@@ -406,16 +407,22 @@ export function TPBar() {
                       </div>
 
                       {/* Personal option */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          console.log('[TPBar] Personal clicked');
                           setSelectedProject(null);
                           setProjectDropdownOpen(false);
                         }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            setSelectedProject(null);
+                            setProjectDropdownOpen(false);
+                          }
+                        }}
                         className={cn(
-                          'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left',
+                          'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer',
                           'hover:bg-muted transition-colors',
                           !selectedProject && 'text-primary'
                         )}
@@ -426,7 +433,7 @@ export function TPBar() {
                           <span className="block text-xs text-muted-foreground">Your memories & preferences</span>
                         </div>
                         {!selectedProject && <Check className="w-4 h-4 shrink-0" />}
-                      </button>
+                      </div>
 
                       {projects.length > 0 && (
                         <div className="h-px bg-border my-1" />
@@ -434,17 +441,23 @@ export function TPBar() {
 
                       {/* Project options */}
                       {projects.map((project) => (
-                        <button
+                        <div
                           key={project.id}
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            e.stopPropagation();
+                          role="button"
+                          tabIndex={0}
+                          onClick={() => {
+                            console.log('[TPBar] Project clicked:', project.name);
                             setSelectedProject({ id: project.id, name: project.name });
                             setProjectDropdownOpen(false);
                           }}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' || e.key === ' ') {
+                              setSelectedProject({ id: project.id, name: project.name });
+                              setProjectDropdownOpen(false);
+                            }
+                          }}
                           className={cn(
-                            'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left',
+                            'w-full flex items-center gap-2 px-3 py-1.5 text-sm text-left cursor-pointer',
                             'hover:bg-muted transition-colors',
                             selectedProject?.id === project.id && 'text-primary'
                           )}
@@ -455,7 +468,7 @@ export function TPBar() {
                             <span className="block text-xs text-muted-foreground">Project-scoped context</span>
                           </div>
                           {selectedProject?.id === project.id && <Check className="w-4 h-4 shrink-0" />}
-                        </button>
+                        </div>
                       ))}
                     </div>
                   )}
