@@ -329,7 +329,10 @@ export function TPBar() {
               </form>
 
               {/* State indicators - inside the input container, subtle divider */}
-              <div className="flex items-center gap-1 px-4 py-1.5 border-t border-border/50 bg-muted/30">
+              <div className="flex items-center gap-2 px-4 py-1.5 border-t border-border/50 bg-muted/30">
+                {/* Label */}
+                <span className="shrink-0 text-[11px] text-muted-foreground/60">TP sees:</span>
+
                 {/* Surface indicator */}
                 <div className="shrink-0 flex items-center gap-1 text-[11px] text-muted-foreground">
                   <MapPin className="w-3 h-3 opacity-60" />
