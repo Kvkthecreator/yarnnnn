@@ -6,10 +6,11 @@
  * TP (Thinking Partner) context - manages conversation state
  */
 
-import React, { createContext, useContext, useReducer, useCallback, useRef, useState, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, useCallback, useRef, useState, useEffect, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { TPState, TPAction, TPMessage, TPToolResult, mapToolActionToSurface, DeskSurface, Todo } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
+import { api } from '@/lib/api/client';
 
 // API base URL - must match the Python backend
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -138,6 +139,39 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     data: null,
   });
   const abortControllerRef = useRef<AbortController | null>(null);
+  const historyLoadedRef = useRef(false);
+
+  // ---------------------------------------------------------------------------
+  // Load chat history on mount
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    if (historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
+
+    const loadHistory = async () => {
+      try {
+        // Load the most recent session's messages
+        const result = await api.chat.globalHistory(1);
+        if (result.sessions && result.sessions.length > 0) {
+          const session = result.sessions[0];
+          if (session.messages && session.messages.length > 0) {
+            const messages: TPMessage[] = session.messages.map((m) => ({
+              id: m.id,
+              role: m.role as 'user' | 'assistant',
+              content: m.content,
+              timestamp: new Date(m.created_at),
+            }));
+            dispatch({ type: 'SET_MESSAGES', messages });
+          }
+        }
+      } catch (err) {
+        console.warn('[TPContext] Failed to load chat history:', err);
+        // Non-blocking - user can still chat
+      }
+    };
+
+    loadHistory();
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Send message to TP

@@ -321,10 +321,36 @@ export const api = {
         method: "POST",
         body: JSON.stringify({ message }),
       }),
-    history: (projectId: string) =>
-      request<Array<{ role: string; content: string }>>(
-        `/api/projects/${projectId}/chat/history`
-      ),
+    // Get global chat history (no project)
+    globalHistory: (limit: number = 1) =>
+      request<{
+        sessions: Array<{
+          id: string;
+          created_at: string;
+          messages: Array<{
+            id: string;
+            role: string;
+            content: string;
+            sequence_number: number;
+            created_at: string;
+          }>;
+        }>;
+      }>(`/api/chat/history?limit=${limit}`),
+    // Get project chat history
+    history: (projectId: string, limit: number = 1) =>
+      request<{
+        sessions: Array<{
+          id: string;
+          created_at: string;
+          messages: Array<{
+            id: string;
+            role: string;
+            content: string;
+            sequence_number: number;
+            created_at: string;
+          }>;
+        }>;
+      }>(`/api/projects/${projectId}/chat/history?limit=${limit}`),
   },
 
   // Subscription endpoints (Lemon Squeezy)
