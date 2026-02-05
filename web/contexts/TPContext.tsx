@@ -259,6 +259,8 @@ export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPP
         // Track pending navigation for handoff pattern
         let pendingSurface: DeskSurface | null = null;
         let pendingHandoff: string | null = null;
+        // Track if clarify was called during this stream (avoids stale closure issue)
+        let clarifyWasCalled = false;
 
         while (true) {
           const { done, value } = await reader.read();
@@ -340,6 +342,7 @@ export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPP
                     const question = action.data?.question as string || '';
                     const options = action.data?.options as string[] | undefined;
                     console.log('[TP] CLARIFY:', question, options);
+                    clarifyWasCalled = true;  // Track locally to avoid stale closure
                     setPendingClarification({ question, options });
                     setStatus({ type: 'clarify', question, options });
                   } else if (action.type === 'SHOW_SETUP_CONFIRM') {
@@ -411,7 +414,8 @@ export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPP
         dispatch({ type: 'SET_LOADING', isLoading: false });
 
         // Set complete status, then fade to idle (unless clarify is pending)
-        if (!pendingClarification) {
+        // Use clarifyWasCalled (local) instead of pendingClarification (stale closure)
+        if (!clarifyWasCalled) {
           setStatus({ type: 'complete', message: assistantContent?.slice(0, 100) });
           // Reset to idle after a brief delay
           setTimeout(() => {
