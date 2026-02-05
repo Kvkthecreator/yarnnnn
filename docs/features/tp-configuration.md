@@ -65,6 +65,11 @@ The TP system prompt (`SYSTEM_PROMPT_WITH_TOOLS`) follows this structure:
 
 Sessions use a `daily` scope - messages within the same day are grouped together.
 
+**History Limits** (Claude Code alignment):
+- Maximum 30 messages loaded into context (prevents overflow)
+- Always starts with a user message (Anthropic API requirement)
+- Most recent messages are prioritized
+
 **Message Storage** (as of 2025-02-05):
 - User messages: Plain text content
 - Assistant messages: Text content + metadata
@@ -92,24 +97,49 @@ Sessions use a `daily` scope - messages within the same day are grouped together
 }
 ```
 
-This allows Claude to understand what tools it called in previous turns, maintaining conversation coherence.
+### History Reconstruction (Claude Code Pattern)
+
+When loading history, we reconstruct Anthropic-format messages with proper `tool_use` and `tool_result` blocks:
+
+```python
+# Stored format (simplified)
+{"role": "assistant", "content": "...", "metadata": {"tool_history": [...]}}
+
+# Reconstructed for Claude API (structured)
+[
+  {"role": "assistant", "content": [
+    {"type": "tool_use", "id": "tool_list_deliverables_0", "name": "list_deliverables", "input": {}},
+    {"type": "text", "text": "You have 10 deliverables."}
+  ]},
+  {"role": "user", "content": [
+    {"type": "tool_result", "tool_use_id": "tool_list_deliverables_0", "content": "..."}
+  ]}
+]
+```
+
+This matches how Claude Code maintains tool context across turns, improving coherence.
 
 ---
 
 ## Configuration Changelog
 
-### 2025-02-05: Coherence Fix
+### 2025-02-05: Structured History & Context Limits (Claude Code Alignment)
 
-**Problem**: TP was repeating previous responses instead of answering new questions.
+**Problem**:
+1. TP was repeating previous responses (coherence issue)
+2. Long sessions could overflow context window
+3. Simplified text-based history lost tool context fidelity
 
-**Root Cause**: Tool calls weren't being stored in session history. When loading history, Claude only saw the text output from `respond()`, not the tools it had called (e.g., `list_deliverables`).
+**Root Cause**: Tool calls weren't stored properly, and history wasn't limited or structured like Claude Code.
 
 **Fix**:
-1. Store `tool_history` in message metadata when saving assistant messages
-2. Reconstruct tool context when loading history (prefix with `[Called tool_name]`)
+1. Added `MAX_HISTORY_MESSAGES = 30` limit to prevent context overflow
+2. Implemented `build_history_for_claude()` helper function
+3. Reconstruct proper Anthropic `tool_use`/`tool_result` message blocks
+4. Store `tool_history` in message metadata with input/result summaries
 
 **Files Changed**:
-- `api/routes/chat.py`: Track tool calls during streaming, store in metadata
+- `api/routes/chat.py`: New `build_history_for_claude()` function, both endpoints updated
 
 ### 2025-02-05: Clarification Response Handling
 

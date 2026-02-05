@@ -164,6 +164,139 @@ async def get_session_messages(
 
 
 # =============================================================================
+# History Building (Claude Code Alignment)
+# =============================================================================
+
+# Maximum messages to include in history to prevent context overflow
+# This is ~15 conversation turns (user + assistant pairs)
+MAX_HISTORY_MESSAGES = 30
+
+
+def build_history_for_claude(
+    messages: list[dict],
+    use_structured_format: bool = True
+) -> list[dict]:
+    """
+    Build conversation history in Anthropic message format.
+
+    Claude Code uses structured tool_use/tool_result blocks for better coherence.
+    This function reconstructs that format from our stored tool_history metadata.
+
+    Args:
+        messages: Raw session messages from database
+        use_structured_format: If True, use tool_use/tool_result blocks.
+                              If False, use simplified text-based format.
+
+    Returns:
+        List of messages in Anthropic API format
+    """
+    # Limit history to prevent context overflow
+    # Take the most recent messages, but ensure we start with a user message
+    if len(messages) > MAX_HISTORY_MESSAGES:
+        messages = messages[-MAX_HISTORY_MESSAGES:]
+        # Ensure history starts with user message (Anthropic requirement)
+        while messages and messages[0].get("role") == "assistant":
+            messages = messages[1:]
+
+    history = []
+
+    for m in messages:
+        role = m["role"]
+        content = m.get("content") or ""
+        metadata = m.get("metadata") or {}
+        tool_history = metadata.get("tool_history", [])
+
+        if role == "assistant" and tool_history and use_structured_format:
+            # Build structured content with tool_use blocks
+            # This matches Claude Code's format for better model understanding
+            assistant_content = []
+
+            for item in tool_history:
+                if item.get("type") == "tool_call":
+                    # Add tool_use block
+                    # Note: We use a synthetic ID since we don't store the original
+                    tool_id = f"tool_{item['name']}_{len(assistant_content)}"
+                    assistant_content.append({
+                        "type": "tool_use",
+                        "id": tool_id,
+                        "name": item["name"],
+                        "input": _parse_input_summary(item.get("input_summary", "{}"))
+                    })
+                elif item.get("type") == "text" and item.get("content"):
+                    # Add text block
+                    assistant_content.append({
+                        "type": "text",
+                        "text": item["content"]
+                    })
+
+            # If we have tool_use blocks, we need to add tool_result as next user message
+            tool_uses = [c for c in assistant_content if c.get("type") == "tool_use"]
+
+            if tool_uses:
+                # Add assistant message with tool_use blocks
+                history.append({
+                    "role": "assistant",
+                    "content": assistant_content if assistant_content else [{"type": "text", "text": content}]
+                })
+
+                # Build tool_result blocks for the next "user" turn
+                tool_results = []
+                for i, item in enumerate(tool_history):
+                    if item.get("type") == "tool_call":
+                        tool_id = f"tool_{item['name']}_{i}"
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": tool_id,
+                            "content": item.get("result_summary", "Success")
+                        })
+
+                if tool_results:
+                    history.append({
+                        "role": "user",
+                        "content": tool_results
+                    })
+            else:
+                # No tool uses, just text
+                history.append({"role": role, "content": content})
+
+        elif role == "assistant" and tool_history:
+            # Fallback: simplified text format with [Called X] prefix
+            tool_summaries = []
+            text_content = ""
+
+            for item in tool_history:
+                if item.get("type") == "tool_call":
+                    tool_summaries.append(f"[Called {item['name']}]")
+                elif item.get("type") == "text":
+                    text_content = item.get("content", "")
+
+            if tool_summaries:
+                content = " ".join(tool_summaries) + "\n" + text_content
+            elif text_content:
+                content = text_content
+
+            history.append({"role": role, "content": content})
+        else:
+            # Regular message (user or assistant without tools)
+            history.append({"role": role, "content": content})
+
+    return history
+
+
+def _parse_input_summary(input_summary: str) -> dict:
+    """Parse input_summary back to dict, handling truncation gracefully."""
+    try:
+        # Handle case where it's already a dict representation
+        if input_summary.startswith("{") and input_summary.endswith("}"):
+            import ast
+            return ast.literal_eval(input_summary)
+        return {}
+    except (ValueError, SyntaxError):
+        # If parsing fails, return empty dict
+        return {}
+
+
+# =============================================================================
 # Memory Loading (ADR-005)
 # =============================================================================
 
@@ -438,36 +571,12 @@ async def global_chat(
     )
     session_id = session["id"]
 
-    # Load existing messages from session
+    # Load existing messages from session and build history
+    # Uses structured format with tool_use/tool_result blocks for better coherence
+    # Limited to MAX_HISTORY_MESSAGES to prevent context overflow
     existing_messages = await get_session_messages(auth.client, session_id)
-    # Build history with tool context from metadata for coherent multi-turn conversations
-    history = []
-    for m in existing_messages:
-        role = m["role"]
-        content = m.get("content") or ""
-        metadata = m.get("metadata") or {}
-
-        if role == "assistant" and metadata.get("tool_history"):
-            # Reconstruct a richer context for the assistant's previous turn
-            # This helps Claude understand what it did, not just what it said
-            tool_history = metadata["tool_history"]
-            tool_summaries = []
-            text_content = ""
-
-            for item in tool_history:
-                if item.get("type") == "tool_call":
-                    tool_summaries.append(f"[Called {item['name']}]")
-                elif item.get("type") == "text":
-                    text_content = item.get("content", "")
-
-            # Combine tool context with text response
-            if tool_summaries:
-                context_prefix = " ".join(tool_summaries) + "\n"
-                content = context_prefix + text_content
-            elif text_content:
-                content = text_content
-
-        history.append({"role": role, "content": content})
+    history = build_history_for_claude(existing_messages, use_structured_format=True)
+    logger.info(f"[TP] Loaded {len(existing_messages)} messages, built {len(history)} history entries")
 
     # ADR-024: Parse selected project context
     selected_project_id = UUID(request.project_id) if request.project_id else None
@@ -663,34 +772,11 @@ async def project_chat(
     )
     session_id = session["id"]
 
-    # Load existing messages from session
+    # Load existing messages from session and build history
+    # Uses structured format with tool_use/tool_result blocks for better coherence
+    # Limited to MAX_HISTORY_MESSAGES to prevent context overflow
     existing_messages = await get_session_messages(auth.client, session_id)
-    # Build history with tool context from metadata for coherent multi-turn conversations
-    history = []
-    for m in existing_messages:
-        role = m["role"]
-        content = m.get("content") or ""
-        metadata = m.get("metadata") or {}
-
-        if role == "assistant" and metadata.get("tool_history"):
-            # Reconstruct a richer context for the assistant's previous turn
-            tool_history = metadata["tool_history"]
-            tool_summaries = []
-            text_content = ""
-
-            for item in tool_history:
-                if item.get("type") == "tool_call":
-                    tool_summaries.append(f"[Called {item['name']}]")
-                elif item.get("type") == "text":
-                    text_content = item.get("content", "")
-
-            if tool_summaries:
-                context_prefix = " ".join(tool_summaries) + "\n"
-                content = context_prefix + text_content
-            elif text_content:
-                content = text_content
-
-        history.append({"role": role, "content": content})
+    history = build_history_for_claude(existing_messages, use_structured_format=True)
 
     # Load memories (user + project)
     context = await load_memories(
