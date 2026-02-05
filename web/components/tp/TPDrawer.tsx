@@ -135,65 +135,8 @@ export function TPDrawer() {
     return 'Thinking Partner';
   };
 
-  // Mobile FAB (shown when collapsed on mobile)
-  const MobileFAB = () => (
-    <button
-      onClick={() => setExpanded(true)}
-      className={cn(
-        'fixed bottom-6 right-6 z-50',
-        'w-14 h-14 rounded-full',
-        'bg-primary text-primary-foreground',
-        'shadow-lg shadow-primary/25',
-        'flex items-center justify-center',
-        'transition-all duration-200',
-        'hover:scale-105 active:scale-95',
-        'md:hidden',
-        expanded ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
-      )}
-      aria-label="Open TP chat"
-    >
-      {isLoading ? (
-        <Loader2 className="w-6 h-6 animate-spin" />
-      ) : todos.length > 0 ? (
-        <span className="relative">
-          <MessageCircle className="w-6 h-6" />
-          <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-[10px] flex items-center justify-center">
-            {todos.filter((t) => t.status !== 'completed').length}
-          </span>
-        </span>
-      ) : (
-        <MessageCircle className="w-6 h-6" />
-      )}
-    </button>
-  );
-
-  // Desktop collapsed tab (shown when collapsed on desktop)
-  const DesktopTab = () => (
-    <button
-      onClick={() => setExpanded(true)}
-      className={cn(
-        'hidden md:flex',
-        'fixed right-0 top-1/2 -translate-y-1/2 z-40',
-        'flex-col items-center gap-2 px-2 py-4',
-        'bg-background border border-r-0 border-border rounded-l-lg shadow-md',
-        'hover:bg-muted transition-colors',
-        expanded ? 'translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'
-      )}
-      aria-label="Open TP drawer"
-    >
-      <ChevronLeft className="w-4 h-4" />
-      {isLoading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
-      {todos.length > 0 && !isLoading && (
-        <span className="w-5 h-5 bg-amber-500 rounded-full text-[10px] text-white flex items-center justify-center">
-          {todos.filter((t) => t.status !== 'completed').length}
-        </span>
-      )}
-      <span className="text-xs [writing-mode:vertical-lr] rotate-180">TP</span>
-    </button>
-  );
-
-  // Main drawer content
-  const DrawerContent = () => (
+  // Drawer content JSX (inlined to prevent re-mount on state changes)
+  const drawerContent = (
     <div className="flex flex-col h-full bg-background">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
@@ -375,11 +318,58 @@ export function TPDrawer() {
 
   return (
     <>
-      {/* Mobile FAB */}
-      <MobileFAB />
+      {/* Mobile FAB (shown when collapsed on mobile) */}
+      <button
+        onClick={() => setExpanded(true)}
+        className={cn(
+          'fixed bottom-6 right-6 z-50',
+          'w-14 h-14 rounded-full',
+          'bg-primary text-primary-foreground',
+          'shadow-lg shadow-primary/25',
+          'flex items-center justify-center',
+          'transition-all duration-200',
+          'hover:scale-105 active:scale-95',
+          'md:hidden',
+          expanded ? 'scale-0 opacity-0 pointer-events-none' : 'scale-100 opacity-100'
+        )}
+        aria-label="Open TP chat"
+      >
+        {isLoading ? (
+          <Loader2 className="w-6 h-6 animate-spin" />
+        ) : todos.length > 0 ? (
+          <span className="relative">
+            <MessageCircle className="w-6 h-6" />
+            <span className="absolute -top-1 -right-1 w-4 h-4 bg-amber-500 rounded-full text-[10px] flex items-center justify-center">
+              {todos.filter((t) => t.status !== 'completed').length}
+            </span>
+          </span>
+        ) : (
+          <MessageCircle className="w-6 h-6" />
+        )}
+      </button>
 
-      {/* Desktop collapsed tab */}
-      <DesktopTab />
+      {/* Desktop collapsed tab (shown when collapsed on desktop) */}
+      <button
+        onClick={() => setExpanded(true)}
+        className={cn(
+          'hidden md:flex',
+          'fixed right-0 top-1/2 -translate-y-1/2 z-40',
+          'flex-col items-center gap-2 px-2 py-4',
+          'bg-background border border-r-0 border-border rounded-l-lg shadow-md',
+          'hover:bg-muted transition-colors',
+          expanded ? 'translate-x-full opacity-0 pointer-events-none' : 'translate-x-0 opacity-100'
+        )}
+        aria-label="Open TP drawer"
+      >
+        <ChevronLeft className="w-4 h-4" />
+        {isLoading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+        {todos.length > 0 && !isLoading && (
+          <span className="w-5 h-5 bg-amber-500 rounded-full text-[10px] text-white flex items-center justify-center">
+            {todos.filter((t) => t.status !== 'completed').length}
+          </span>
+        )}
+        <span className="text-xs [writing-mode:vertical-lr] rotate-180">TP</span>
+      </button>
 
       {/* Mobile: Full-screen overlay */}
       <div
@@ -389,7 +379,7 @@ export function TPDrawer() {
           expanded ? 'translate-x-0' : 'translate-x-full'
         )}
       >
-        <DrawerContent />
+        {drawerContent}
       </div>
 
       {/* Desktop: Right panel */}
@@ -401,7 +391,7 @@ export function TPDrawer() {
           expanded ? 'w-[360px]' : 'w-0 overflow-hidden'
         )}
       >
-        {expanded && <DrawerContent />}
+        {expanded && drawerContent}
       </div>
     </>
   );
