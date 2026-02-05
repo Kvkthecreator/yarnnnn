@@ -3,6 +3,7 @@
 /**
  * ADR-023: Supervisor Desk Architecture
  * ADR-024: Context Classification Layer
+ * ADR-025: Skills (Slash Commands)
  * TPBar - Status hub and input for Thinking Partner
  *
  * Design: Claude Code-style bottom bar with:
@@ -11,9 +12,10 @@
  * - Status area for thinking/streaming/clarify states
  * - Input field with send button
  * - History toggle for recent messages
+ * - Skill picker autocomplete when typing "/" (ADR-025)
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import {
   Send,
   Loader2,
@@ -38,6 +40,7 @@ import { useProjects } from '@/hooks/useProjects';
 import { cn } from '@/lib/utils';
 import { getTPStateIndicators } from '@/lib/tp-chips';
 import { getEntityName } from '@/lib/entity-cache';
+import { SkillPicker } from './SkillPicker';
 
 // Human-readable tool names - conversational tone
 const TOOL_LABELS: Record<string, string> = {
@@ -91,8 +94,38 @@ export function TPBar() {
   const [input, setInput] = useState('');
   const [mobileExpanded, setMobileExpanded] = useState(false);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const statusRef = useRef<HTMLDivElement>(null);
+
+  // ADR-025: Detect slash commands for skill picker
+  const skillQuery = useMemo(() => {
+    if (!input.startsWith('/')) return null;
+    // Extract the query after "/" (e.g., "/board" -> "board")
+    return input.slice(1).split(' ')[0];
+  }, [input]);
+
+  // Show skill picker when typing "/" at the start
+  useEffect(() => {
+    if (skillQuery !== null && !input.includes(' ')) {
+      setSkillPickerOpen(true);
+    } else {
+      setSkillPickerOpen(false);
+    }
+  }, [skillQuery, input]);
+
+  // Handle skill selection from picker
+  const handleSkillSelect = (command: string) => {
+    // Replace input with the selected command + space
+    setInput(command + ' ');
+    setSkillPickerOpen(false);
+    inputRef.current?.focus();
+  };
+
+  // Close skill picker
+  const handleSkillPickerClose = () => {
+    setSkillPickerOpen(false);
+  };
 
   // Get state indicators from current surface
   const indicators = getTPStateIndicators(surface);
@@ -290,7 +323,15 @@ export function TPBar() {
             )}
 
             {/* Input group - input + indicators as unified component */}
-            <div className="border border-border rounded-2xl bg-background shadow-sm overflow-hidden">
+            <div className="relative border border-border rounded-2xl bg-background shadow-sm overflow-hidden">
+              {/* ADR-025: Skill picker dropdown */}
+              <SkillPicker
+                query={skillQuery ?? ''}
+                onSelect={handleSkillSelect}
+                onClose={handleSkillPickerClose}
+                isOpen={skillPickerOpen}
+              />
+
               <form onSubmit={handleSubmit}>
                 <div className="relative flex items-center">
                   {/* Input field */}
@@ -301,7 +342,7 @@ export function TPBar() {
                     onChange={(e) => setInput(e.target.value)}
                     disabled={isLoading}
                     placeholder={
-                      status.type === 'clarify' ? 'Type your answer...' : 'Ask anything...'
+                      status.type === 'clarify' ? 'Type your answer...' : 'Ask anything or type / for skills...'
                     }
                     className={cn(
                       'w-full px-4 py-3 pr-12',

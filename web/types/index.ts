@@ -617,3 +617,22 @@ export interface DeliverableRunResponse {
   status?: string;
   message?: string;
 }
+
+// =============================================================================
+// ADR-025: Skills (Slash Commands)
+// =============================================================================
+
+export type SkillTier = "core" | "beta";
+
+export interface Skill {
+  name: string;
+  description: string;
+  command: string;
+  tier: SkillTier;
+  trigger_patterns: string[];
+}
+
+export interface SkillListResponse {
+  skills: Skill[];
+  total: number;
+}

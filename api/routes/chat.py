@@ -794,3 +794,37 @@ async def get_context_stats(
         "user_memories": user_result.count or 0,
         "total_memories": (project_mem_result.count or 0) + (user_result.count or 0),
     }
+
+
+# =============================================================================
+# Skills (ADR-025 Claude Code Agentic Alignment)
+# =============================================================================
+
+@router.get("/skills")
+async def list_skills():
+    """
+    List available skills (slash commands) for TP.
+
+    ADR-025: Skills are packaged workflows that expand to system prompts.
+    This endpoint returns the list for UI autocomplete/picker.
+
+    No auth required - skills are public metadata.
+    """
+    from services.skills import list_available_skills, SKILLS
+
+    skills = list_available_skills()
+
+    # Add tier information for UI filtering
+    enriched_skills = []
+    for skill in skills:
+        skill_def = SKILLS.get(skill["name"], {})
+        enriched_skills.append({
+            **skill,
+            "tier": skill_def.get("tier", "core"),  # "core" or "beta"
+            "trigger_patterns": skill_def.get("trigger_patterns", []),
+        })
+
+    return {
+        "skills": enriched_skills,
+        "total": len(enriched_skills),
+    }

@@ -511,6 +511,22 @@ export const api = {
         { method: "DELETE" }
       ),
   },
+
+  // ADR-025: Skills (slash commands)
+  skills: {
+    // List available skills for autocomplete/picker
+    list: () =>
+      request<{
+        skills: Array<{
+          name: string;
+          description: string;
+          command: string;
+          tier: "core" | "beta";
+          trigger_patterns: string[];
+        }>;
+        total: number;
+      }>("/api/skills"),
+  },
 };
 
 export default api;

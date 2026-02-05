@@ -313,8 +313,8 @@ export function IdleSurface() {
   return (
     <div className="h-full flex">
       {/* Main content */}
-      <div className={`flex-1 overflow-auto ${showWorkPanel ? 'border-r border-border' : ''}`}>
-      <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+      <div className={`flex-1 overflow-auto ${showWorkPanel ? 'md:border-r md:border-border' : ''}`}>
+      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-6">
         {/* Minimal Context Banner */}
         {showMinimalContextBanner && (
           <MinimalContextBanner
@@ -513,9 +513,17 @@ export function IdleSurface() {
       </div>
 
       {/* ADR-025: Work panel for multi-step TP workflows */}
+      {/* Desktop: Side panel */}
       {showWorkPanel && (
-        <div className="w-[360px] shrink-0">
+        <div className="hidden md:block w-[360px] shrink-0">
           <TPWorkPanel onCollapse={() => setWorkPanelExpanded(false)} />
+        </div>
+      )}
+
+      {/* Mobile: Bottom sheet overlay */}
+      {showWorkPanel && (
+        <div className="md:hidden">
+          <TPWorkPanel onCollapse={() => setWorkPanelExpanded(false)} mobile />
         </div>
       )}
     </div>
