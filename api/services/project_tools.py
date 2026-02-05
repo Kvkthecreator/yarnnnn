@@ -422,6 +422,62 @@ After getting a suggestion, you can:
 
 
 # =============================================================================
+# Todo Tracking Tool (ADR-025 Claude Code Alignment)
+# =============================================================================
+
+TODO_WRITE_TOOL = {
+    "name": "todo_write",
+    "description": """Track and update task progress for multi-step work.
+
+ADR-025: Claude Code Agentic Alignment - Use this for visibility and accountability.
+
+Use this when:
+- Setting up a new deliverable (multiple steps involved)
+- Executing a complex user request
+- Any work requiring 3+ steps
+
+Task states:
+- pending: Not yet started
+- in_progress: Currently working on (only ONE at a time)
+- completed: Finished successfully
+
+Always:
+- Create todos at the start of multi-step work
+- Update status as you progress
+- Mark complete immediately when done (don't batch)
+- Include both content (imperative: "Gather details") and activeForm (present continuous: "Gathering details")
+""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "todos": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "content": {
+                            "type": "string",
+                            "description": "Task description in imperative form (e.g., 'Gather details')"
+                        },
+                        "status": {
+                            "type": "string",
+                            "enum": ["pending", "in_progress", "completed"]
+                        },
+                        "activeForm": {
+                            "type": "string",
+                            "description": "Task description in present continuous (e.g., 'Gathering details')"
+                        }
+                    },
+                    "required": ["content", "status"]
+                }
+            }
+        },
+        "required": ["todos"]
+    }
+}
+
+
+# =============================================================================
 # Communication Tools (ADR-023 Unified Tool Model)
 # =============================================================================
 
@@ -654,6 +710,8 @@ THINKING_PARTNER_TOOLS = [
     # Communication (conversation as explicit tool choice)
     RESPOND_TOOL,
     CLARIFY_TOOL,
+    # Progress tracking (ADR-025 Claude Code Alignment)
+    TODO_WRITE_TOOL,
     # Navigation (open surfaces to show data)
     LIST_PROJECTS_TOOL,
     LIST_MEMORIES_TOOL,
@@ -724,6 +782,38 @@ async def handle_clarify(auth, input: dict) -> dict:
             "data": {
                 "question": question,
                 "options": options
+            }
+        }
+    }
+
+
+# -----------------------------------------------------------------------------
+# Todo Tracking Handler (ADR-025 Claude Code Alignment)
+# -----------------------------------------------------------------------------
+
+async def handle_todo_write(auth, input: dict) -> dict:
+    """
+    Handle todo tracking for multi-step work.
+
+    ADR-025: Todos are ephemeral (session-scoped), not persisted to database.
+    The frontend displays them via ui_action and clears on session end.
+
+    This tool provides visibility into TP's work process, enabling:
+    - User to see progress through multi-step workflows
+    - Audit trail of what TP planned vs executed
+    - Trust building through transparency
+    """
+    todos = input.get("todos", [])
+
+    # Return todos in ui_action for frontend to display
+    return {
+        "success": True,
+        "todos": todos,
+        "message": f"Tracking {len(todos)} tasks",
+        "ui_action": {
+            "type": "UPDATE_TODOS",
+            "data": {
+                "todos": todos
             }
         }
     }
@@ -2562,6 +2652,8 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     # Communication tools (ADR-023 Unified Tool Model)
     "respond": handle_respond,
     "clarify": handle_clarify,
+    # Todo tracking (ADR-025 Claude Code Alignment)
+    "todo_write": handle_todo_write,
     # Project tools (ADR-007)
     "list_projects": handle_list_projects,
     "create_project": handle_create_project,
