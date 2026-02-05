@@ -80,7 +80,7 @@ const SURFACE_ICONS: Record<string, React.ComponentType<{ className?: string }>>
 };
 
 export function TPBar() {
-  const { surface, selectedProject, setSelectedProject } = useDesk();
+  const { surface, selectedProject, setSelectedProject, setSurface } = useDesk();
   const {
     sendMessage,
     isLoading,
@@ -146,8 +146,25 @@ export function TPBar() {
   };
 
   // Send message with project context (ADR-024)
+  // ADR-025 Addendum: Skill commands trigger conversation surface
   const handleSend = async (content: string) => {
     setInput('');
+
+    // ADR-025 Addendum: Detect skill invocation and transition to conversation
+    const isSkillCommand = content.trim().startsWith('/');
+    if (isSkillCommand) {
+      // Extract skill name from command (e.g., "/board-update details" -> "board-update")
+      const skillName = content.trim().slice(1).split(' ')[0];
+      // Navigate to conversation surface with skill context
+      setSurface({
+        type: 'conversation',
+        context: {
+          skillName,
+          projectId: selectedProject?.id,
+        },
+      });
+    }
+
     await sendMessage(content, {
       surface,
       projectId: selectedProject?.id,

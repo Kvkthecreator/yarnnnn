@@ -24,6 +24,15 @@ export type DeskSurface =
   // Projects domain
   | { type: 'project-detail'; projectId: string }
   | { type: 'project-list' }
+  // Conversation (ADR-025 Addendum: deliberation surface)
+  | {
+      type: 'conversation';
+      context?: {
+        deliverableId?: string;
+        projectId?: string;
+        skillName?: string;
+      };
+    }
   // Idle state
   | { type: 'idle' };
 
@@ -206,6 +215,17 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'idle':
       return { type: 'idle' };
 
+    // Conversation (ADR-025 Addendum)
+    case 'conversation':
+      return {
+        type: 'conversation',
+        context: {
+          deliverableId: data.deliverableId as string | undefined,
+          projectId: data.projectId as string | undefined,
+          skillName: data.skillName as string | undefined,
+        },
+      };
+
     default:
       return null;
   }
@@ -251,6 +271,11 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
       break;
     case 'project-detail':
       params.set('pid', surface.projectId);
+      break;
+    case 'conversation':
+      if (surface.context?.deliverableId) params.set('did', surface.context.deliverableId);
+      if (surface.context?.projectId) params.set('pid', surface.context.projectId);
+      if (surface.context?.skillName) params.set('skill', surface.context.skillName);
       break;
   }
 
@@ -309,6 +334,19 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
     }
     case 'project-list':
       return { type: 'project-list' };
+    case 'conversation': {
+      const context: { deliverableId?: string; projectId?: string; skillName?: string } = {};
+      const did = params.get('did');
+      const pid = params.get('pid');
+      const skill = params.get('skill');
+      if (did) context.deliverableId = did;
+      if (pid) context.projectId = pid;
+      if (skill) context.skillName = skill;
+      return {
+        type: 'conversation',
+        context: Object.keys(context).length > 0 ? context : undefined,
+      };
+    }
   }
 
   return { type: 'idle' };
