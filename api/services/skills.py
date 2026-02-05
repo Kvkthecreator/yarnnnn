@@ -6,9 +6,61 @@ Each skill expands to a system prompt addition that guides TP through a structur
 
 This mirrors Claude Code's skill system where /commit, /review-pr, etc. are packaged
 workflows that expand to detailed instructions + expected tool sequences.
+
+Tier 1 Integration (Plan Mode, Assumption Checking, Todo Revision):
+- All skills now follow plan mode discipline
+- Assumption checks are required before creating entities
+- Plans can be revised when assumptions fail
 """
 
 from typing import Optional, Dict, Any
+
+
+# =============================================================================
+# Shared Skill Patterns (ADR-025 Tier 1)
+# =============================================================================
+
+SKILL_PLAN_MODE_HEADER = """
+### Plan Mode Active (ADR-025)
+
+This skill follows plan mode discipline:
+1. **Create todos** upfront for the full workflow
+2. **Verify assumptions** before major actions (check project exists, no duplicates)
+3. **Revise plan** if assumptions fail (add steps, clarify with user)
+4. **Confirm before creating** - never create without user approval
+
+### Assumption Checks Required
+
+Before creating the deliverable, verify:
+- **Project context**: `list_projects()` - does expected project exist?
+- **No duplicates**: `list_deliverables()` - is there already a similar deliverable?
+
+If checks fail:
+- Revise todos to add clarification/creation steps
+- Inform user: "I don't see [X]. Should I create it, or use [alternative]?"
+- Use `clarify()` to get direction
+"""
+
+SKILL_TODO_TEMPLATE = """
+### Todo Tracking
+
+Start with these todos (adjust based on what user already provided):
+```
+todo_write([
+  {{content: "Parse request & identify gaps", status: "completed", activeForm: "Parsing request"}},
+  {{content: "Check project context", status: "in_progress", activeForm: "Checking project context"}},
+  {{content: "Gather missing details", status: "pending", activeForm: "Gathering details"}},
+  {{content: "Confirm setup with user", status: "pending", activeForm: "Confirming setup"}},
+  {{content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"}},
+  {{content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}}
+])
+```
+
+**Rules:**
+- Update todos as you progress
+- If assumption check fails, revise the todo list (add steps)
+- Mark "Check project context" complete even if it reveals issues - the check was done
+"""
 
 
 # =============================================================================
@@ -21,67 +73,49 @@ SKILLS: Dict[str, Dict[str, Any]] = {
         "description": "Create a recurring board update deliverable",
         "trigger_patterns": ["board update", "investor update", "board report", "investor report"],
         "deliverable_type": "board_update",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Board Update Creation
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring board update deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
-- Recipient: ___
+Extract from user message:
+- Recipient: ___ (board, specific investor name)
 - Company/project: ___
-- Frequency: ___
+- Frequency: ___ (default: monthly)
 
-**If ANY of these are missing or unclear, you MUST use clarify() to ask.**
+Then immediately run assumption check:
+- `list_projects()` to verify project context exists
 
-### Step 2: Ask Clarifying Questions
+**Step 2: Handle Gaps & Assumption Results**
 
-Use clarify() with helpful options. Example:
+If project doesn't exist:
+→ Revise todos, offer to create project or use Personal context
+
+If details missing:
+→ Use `clarify()` to ask for recipient, company name
+
+**Step 3: Confirm Before Creating**
+
+After gathering info, confirm with `respond()`:
 ```
-clarify(
-  question="A few quick questions to set this up right:\\n1. Who receives this update? (e.g., 'Marcus Webb', 'Board of Directors')\\n2. What company/project is this for?",
-  options=["I'll provide details", "Use my existing project context"]
-)
-```
-
-**STOP HERE and wait for user response.** Do not proceed to Step 3 until user answers.
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("Got it! I'll set up a monthly board update for [recipient] using your [project] context. Ready to create it?")
+"I'll set up a Monthly Board Update for [recipient] using your [project] context.
+Drafts ready on the 1st of each month. Ready to create?"
 ```
 
-**STOP HERE and wait for user to confirm.** Only proceed if they say "yes", "sounds good", "do it", etc.
+**STOP and wait for confirmation.**
 
-### Step 4: Create & Offer First Draft
+**Step 4: Create & Offer Draft**
 
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After user confirms:
+1. `list_deliverables()` - verify no duplicate
+2. `create_deliverable(...)`
+3. `respond()` - confirm creation, offer `run_deliverable()`
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -90,67 +124,48 @@ todo_write([
         "description": "Create a recurring status report deliverable",
         "trigger_patterns": ["status report", "weekly report", "progress report", "status update"],
         "deliverable_type": "status_report",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Status Report Creation
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring status report deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
-- Recipient: ___
-- Frequency: ___
+Extract from user message:
+- Recipient: ___ (manager, team, specific person)
+- Frequency: ___ (default: weekly)
 - Focus areas: ___
 
-**If recipient is missing or vague, you MUST use clarify() to ask.**
+Then run assumption check:
+- `list_projects()` to verify project context if mentioned
 
-### Step 2: Ask Clarifying Questions
+**Step 2: Handle Gaps & Assumption Results**
 
-Use clarify() with helpful options. Example:
+If recipient missing or vague:
+→ Use `clarify()`: "Who should receive this report?"
+
+If project mentioned but doesn't exist:
+→ Revise todos, offer to create or use Personal
+
+**Step 3: Confirm Before Creating**
+
+After gathering info, confirm with `respond()`:
 ```
-clarify(
-  question="Who should receive this status report?",
-  options=["My manager", "My team", "A specific person (I'll provide the name)"]
-)
-```
-
-**STOP HERE and wait for user response.** Do not proceed to Step 3 until user answers.
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up a weekly status report for [recipient], ready every Monday at 9am. Sound good?")
+"I'll set up a Weekly Status Report for [recipient], ready every Monday at 9am. Sound good?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**STOP and wait for confirmation.**
 
-### Step 4: Create & Offer First Draft
+**Step 4: Create & Offer Draft**
 
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After user confirms:
+1. `list_deliverables()` - verify no duplicate
+2. `create_deliverable(...)`
+3. `respond()` - confirm creation, offer `run_deliverable()`
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -159,67 +174,48 @@ todo_write([
         "description": "Create a recurring research brief deliverable",
         "trigger_patterns": ["research brief", "competitive intel", "market research", "competitor analysis", "competitor brief"],
         "deliverable_type": "research_brief",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Research Brief Creation
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring research brief deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
+Extract from user message:
+- Research focus: ___ (competitors, market, technology)
+- Specific companies: ___
+- Frequency: ___ (default: weekly)
 
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
+Then run assumption check:
+- `list_projects()` to verify project context if research is project-specific
 
-Extract what the user provided:
-- Research focus: ___
-- Specific companies/competitors: ___
-- Frequency: ___
+**Step 2: Handle Gaps & Assumption Results**
 
-**If focus is vague (e.g., just "competitors"), you MUST use clarify() to ask which ones.**
+If focus is vague (just "competitors"):
+→ Use `clarify()`: "Which competitors should I track?"
 
-### Step 2: Ask Clarifying Questions
+If project context needed but doesn't exist:
+→ Revise todos, offer to create or proceed without
 
-Use clarify() with helpful options. Example:
+**Step 3: Confirm Before Creating**
+
+After gathering info, confirm with `respond()`:
 ```
-clarify(
-  question="What should this research brief focus on?",
-  options=["Specific competitors (I'll name them)", "General market trends", "Technology developments", "All of the above"]
-)
-```
-
-**STOP HERE and wait for user response.**
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up a weekly research brief tracking [focus]. Ready to create it?")
+"I'll set up a Weekly Research Brief tracking [focus/competitors]. Ready to create?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**STOP and wait for confirmation.**
 
-### Step 4: Create & Offer First Draft
+**Step 4: Create & Offer Draft**
 
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After user confirms:
+1. `list_deliverables()` - verify no duplicate
+2. `create_deliverable(...)`
+3. `respond()` - confirm creation, offer `run_deliverable()`
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -228,67 +224,48 @@ todo_write([
         "description": "Create a recurring stakeholder update deliverable",
         "trigger_patterns": ["stakeholder update", "client update", "client report", "stakeholder report"],
         "deliverable_type": "stakeholder_update",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Stakeholder Update Creation
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring stakeholder update deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
+Extract from user message:
 - Stakeholder name: ___
-- Relationship: ___
+- Relationship: ___ (client, executive, partner)
 - Frequency: ___
 
-**If stakeholder name is missing, you MUST use clarify() to ask.**
+Then run assumption check:
+- `list_projects()` to verify project context if stakeholder is project-specific
 
-### Step 2: Ask Clarifying Questions
+**Step 2: Handle Gaps & Assumption Results**
 
-Use clarify() with helpful options. Example:
+If stakeholder name missing:
+→ Use `clarify()`: "Who is this update for?"
+
+If project context needed but doesn't exist:
+→ Revise todos, offer to create or use Personal
+
+**Step 3: Confirm Before Creating**
+
+After gathering info, confirm with `respond()`:
 ```
-clarify(
-  question="Who is this update for?",
-  options=["A client", "An executive/leadership", "A partner", "Someone else (I'll specify)"]
-)
-```
-
-**STOP HERE and wait for user response.**
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up a [frequency] update for [stakeholder]. Ready to create it?")
+"I'll set up a [frequency] update for [stakeholder]. Ready to create?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**STOP and wait for confirmation.**
 
-### Step 4: Create & Offer First Draft
+**Step 4: Create & Offer Draft**
 
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After user confirms:
+1. `list_deliverables()` - verify no duplicate
+2. `create_deliverable(...)`
+3. `respond()` - confirm creation, offer `run_deliverable()`
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -297,67 +274,48 @@ todo_write([
         "description": "Create a recurring meeting summary deliverable",
         "trigger_patterns": ["meeting summary", "meeting notes", "meeting recap", "standup notes"],
         "deliverable_type": "meeting_summary",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Meeting Summary Creation
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring meeting summary deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
+Extract from user message:
 - Meeting name/type: ___
 - Frequency: ___
 - Recipients: ___
 
-**If meeting name or frequency is missing, you MUST use clarify() to ask.**
+Then run assumption check:
+- `list_projects()` if meeting is project-specific
 
-### Step 2: Ask Clarifying Questions
+**Step 2: Handle Gaps & Assumption Results**
 
-Use clarify() with helpful options. Example:
+If meeting name/type missing:
+→ Use `clarify()`: "What meeting is this for?"
+
+If project context needed but doesn't exist:
+→ Revise todos, offer alternatives
+
+**Step 3: Confirm Before Creating**
+
+After gathering info, confirm with `respond()`:
 ```
-clarify(
-  question="What meeting is this for?",
-  options=["Team standup", "1:1 meeting", "Project sync", "Other (I'll specify)"]
-)
-```
-
-**STOP HERE and wait for user response.**
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up a meeting summary for your [meeting name], generated [frequency]. Sound good?")
+"I'll set up a meeting summary for your [meeting name], generated [frequency]. Sound good?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**STOP and wait for confirmation.**
 
-### Step 4: Create & Offer First Draft
+**Step 4: Create & Offer Draft**
 
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After user confirms:
+1. `list_deliverables()` - verify no duplicate
+2. `create_deliverable(...)`
+3. `respond()` - confirm creation, offer `run_deliverable()`
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -371,68 +329,37 @@ todo_write([
         "trigger_patterns": ["newsletter", "newsletter section", "weekly digest", "founder letter", "product update"],
         "deliverable_type": "newsletter_section",
         "tier": "beta",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Newsletter Section Creation (Beta)
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring newsletter section deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
+Extract from user message:
 - Newsletter name: ___
 - Section type: ___ (intro, main story, roundup, outro)
 - Audience: ___
 - Frequency: ___
 
-**If newsletter name or section type is missing, you MUST use clarify() to ask.**
+**Step 2: Handle Gaps**
 
-### Step 2: Ask Clarifying Questions
+If newsletter name or section type missing:
+→ Use `clarify()`: "What type of newsletter section is this?"
 
-Use clarify() with helpful options. Example:
+**Step 3: Confirm Before Creating**
+
 ```
-clarify(
-  question="What type of newsletter section is this?",
-  options=["Opening/intro section", "Main story or feature", "News roundup/digest", "Closing/outro with CTA"]
-)
-```
-
-**STOP HERE and wait for user response.**
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up a [frequency] [section type] for your [newsletter name]. Sound good?")
+"I'll set up a [frequency] [section type] for your [newsletter name]. Sound good?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**Step 4: Create & Offer Draft**
 
-### Step 4: Create & Offer First Draft
-
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After confirmation: `create_deliverable()` → `respond()` with offer
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -442,68 +369,37 @@ todo_write([
         "trigger_patterns": ["changelog", "release notes", "version update", "product release", "what's new"],
         "deliverable_type": "changelog",
         "tier": "beta",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Changelog Creation (Beta)
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring changelog/release notes deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
+Extract from user message:
 - Product name: ___
 - Audience: ___ (developers, end users, mixed)
 - Frequency: ___
 - Format: ___ (technical, user-friendly, marketing)
 
-**If product name or audience is missing, you MUST use clarify() to ask.**
+**Step 2: Handle Gaps**
 
-### Step 2: Ask Clarifying Questions
+If product name or audience missing:
+→ Use `clarify()`: "Who is the primary audience for these release notes?"
 
-Use clarify() with helpful options. Example:
+**Step 3: Confirm Before Creating**
+
 ```
-clarify(
-  question="Who is the primary audience for these release notes?",
-  options=["Developers/technical users", "End users/customers", "Mixed audience"]
-)
-```
-
-**STOP HERE and wait for user response.**
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up [frequency] release notes for [product], written for [audience]. Ready to create?")
+"I'll set up [frequency] release notes for [product], written for [audience]. Ready to create?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**Step 4: Create & Offer Draft**
 
-### Step 4: Create & Offer First Draft
-
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After confirmation: `create_deliverable()` → `respond()` with offer
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -513,68 +409,37 @@ todo_write([
         "trigger_patterns": ["1:1 prep", "one on one prep", "1-1 prep", "one-on-one", "meeting prep for"],
         "deliverable_type": "one_on_one_prep",
         "tier": "beta",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: One-on-One Prep Creation (Beta)
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring 1:1 meeting prep deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
+Extract from user message:
 - Report/person name: ___
 - Relationship: ___ (direct report, skip level, mentee)
 - Frequency: ___
 - Focus areas: ___
 
-**If the person's name or relationship is missing, you MUST use clarify() to ask.**
+**Step 2: Handle Gaps**
 
-### Step 2: Ask Clarifying Questions
+If person's name or relationship missing:
+→ Use `clarify()`: "What's your relationship with this person?"
 
-Use clarify() with helpful options. Example:
+**Step 3: Confirm Before Creating**
+
 ```
-clarify(
-  question="What's your relationship with this person?",
-  options=["They're my direct report", "Skip-level (report's report)", "I'm mentoring them", "Other"]
-)
-```
-
-**STOP HERE and wait for user response.**
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up [frequency] 1:1 prep for your meetings with [name]. Ready to create?")
+"I'll set up [frequency] 1:1 prep for your meetings with [name]. Ready to create?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**Step 4: Create & Offer Draft**
 
-### Step 4: Create & Offer First Draft
-
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After confirmation: `create_deliverable()` → `respond()` with offer
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -584,68 +449,37 @@ todo_write([
         "trigger_patterns": ["client proposal", "project proposal", "sow", "scope of work", "proposal for"],
         "deliverable_type": "client_proposal",
         "tier": "beta",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Client Proposal Creation (Beta)
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring client proposal deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
+Extract from user message:
 - Client name: ___
 - Service/project type: ___
 - Proposal type: ___ (new engagement, expansion, renewal)
 - Include pricing: ___
 
-**If client name or service type is missing, you MUST use clarify() to ask.**
+**Step 2: Handle Gaps**
 
-### Step 2: Ask Clarifying Questions
+If client name or service type missing:
+→ Use `clarify()`: "What type of proposal is this?"
 
-Use clarify() with helpful options. Example:
+**Step 3: Confirm Before Creating**
+
 ```
-clarify(
-  question="What type of proposal is this?",
-  options=["New client engagement", "Expanding existing work", "Contract renewal", "One-off project"]
-)
-```
-
-**STOP HERE and wait for user response.**
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up a proposal template for [client] covering [service type]. Ready to create?")
+"I'll set up a proposal template for [client] covering [service type]. Ready to create?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**Step 4: Create & Offer Draft**
 
-### Step 4: Create & Offer First Draft
-
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After confirmation: `create_deliverable()` → `respond()` with offer
+{SKILL_TODO_TEMPLATE}
 """,
     },
 
@@ -655,67 +489,36 @@ todo_write([
         "trigger_patterns": ["performance review", "self assessment", "self-assessment", "quarterly review", "annual review"],
         "deliverable_type": "performance_self_assessment",
         "tier": "beta",
-        "system_prompt_addition": """
+        "system_prompt_addition": f"""
 ---
 
 ## Active Skill: Performance Self-Assessment Creation (Beta)
+{SKILL_PLAN_MODE_HEADER}
 
-You are helping the user create a recurring performance self-assessment deliverable.
+### Skill-Specific Flow
 
-### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+**Step 1: Parse & Check Context**
 
-**This is a CONVERSATION, not a single action.** You MUST:
-1. Ask clarifying questions FIRST
-2. Wait for user's response
-3. Confirm your understanding
-4. Only create after user says "yes" or similar
-
-### Step 1: Parse & Identify Gaps (DO THIS NOW)
-
-Extract what the user provided:
+Extract from user message:
 - Review period: ___ (quarterly, semi-annual, annual)
 - Role level: ___
 - Frequency: ___
 
-**If review period is missing, you MUST use clarify() to ask.**
+**Step 2: Handle Gaps**
 
-### Step 2: Ask Clarifying Questions
+If review period missing:
+→ Use `clarify()`: "What review period is this for?"
 
-Use clarify() with helpful options. Example:
+**Step 3: Confirm Before Creating**
+
 ```
-clarify(
-  question="What review period is this for?",
-  options=["Quarterly review", "Semi-annual review", "Annual review"]
-)
-```
-
-**STOP HERE and wait for user response.**
-
-### Step 3: Confirm Before Creating
-
-After user provides info, confirm with respond():
-```
-respond("I'll set up a [period] self-assessment template. Ready to create?")
+"I'll set up a [period] self-assessment template. Ready to create?"
 ```
 
-**STOP HERE and wait for user to confirm.**
+**Step 4: Create & Offer Draft**
 
-### Step 4: Create & Offer First Draft
-
-Only NOW call create_deliverable(), then offer run_deliverable().
-
-### Todo Tracking
-
-Track progress with todo_write:
-```
-todo_write([
-  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
-  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
-  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
-  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
-])
-```
+After confirmation: `create_deliverable()` → `respond()` with offer
+{SKILL_TODO_TEMPLATE}
 """,
     },
 }
