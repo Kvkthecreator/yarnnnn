@@ -28,42 +28,60 @@ SKILLS: Dict[str, Dict[str, Any]] = {
 
 You are helping the user create a recurring board update deliverable.
 
-**Use todo_write to track your progress through this workflow:**
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
 
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Recipient: ___
+- Company/project: ___
+- Frequency: ___
+
+**If ANY of these are missing or unclear, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="A few quick questions to set this up right:\\n1. Who receives this update? (e.g., 'Marcus Webb', 'Board of Directors')\\n2. What company/project is this for?",
+  options=["I'll provide details", "Use my existing project context"]
+)
+```
+
+**STOP HERE and wait for user response.** Do not proceed to Step 3 until user answers.
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("Got it! I'll set up a monthly board update for [recipient] using your [project] context. Ready to create it?")
+```
+
+**STOP HERE and wait for user to confirm.** Only proceed if they say "yes", "sounds good", "do it", etc.
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
 ```
 todo_write([
-  {content: "Parse intent", status: "completed", activeForm: "Parsing intent"},
-  {content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"},
-  {content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"},
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
   {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
   {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
 ])
 ```
-
-Update todos as you progress. Only ONE task should be `in_progress` at a time.
-
-**Required information to gather:**
-- Recipient name (e.g., "Marcus Webb", "the board", "investors")
-- Company/project name (check existing projects first with list_projects)
-- Frequency (default: monthly on 1st at 9am)
-- Company stage (seed, Series A, etc.) — helpful for setting tone
-
-**Workflow:**
-1. Parse user's initial request - extract any details they've already provided
-2. Use clarify() or respond() to gather missing required info
-3. Confirm the full setup with respond() before creating
-4. Create with create_deliverable(deliverable_type="board_update", ...)
-5. Offer to generate first draft with run_deliverable
-
-**Board updates typically include:**
-- Executive Summary
-- Key Metrics & KPIs
-- Progress & Milestones
-- Challenges & Risks
-- Asks & Support Needed
-- Outlook & Next Period
-
-**Don't guess - use clarify() for missing required info.**
 """,
     },
 
@@ -79,31 +97,60 @@ Update todos as you progress. Only ONE task should be `in_progress` at a time.
 
 You are helping the user create a recurring status report deliverable.
 
-**Use todo_write to track your progress through this workflow:**
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
 
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Recipient: ___
+- Frequency: ___
+- Focus areas: ___
+
+**If recipient is missing or vague, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="Who should receive this status report?",
+  options=["My manager", "My team", "A specific person (I'll provide the name)"]
+)
+```
+
+**STOP HERE and wait for user response.** Do not proceed to Step 3 until user answers.
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up a weekly status report for [recipient], ready every Monday at 9am. Sound good?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
 ```
 todo_write([
-  {content: "Parse intent", status: "completed", activeForm: "Parsing intent"},
-  {content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"},
-  {content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"},
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
   {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
   {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
 ])
 ```
-
-**Required information to gather:**
-- Recipient name (e.g., "Sarah", "my manager", "the team")
-- Frequency (default: weekly on Monday at 9am)
-- Focus areas (optional: what should be covered)
-
-**Workflow:**
-1. Parse user's initial request - extract any details they've already provided
-2. Use clarify() or respond() to gather missing required info
-3. Confirm the full setup with respond() before creating
-4. Create with create_deliverable(deliverable_type="status_report", ...)
-5. Offer to generate first draft
-
-**Don't guess - use clarify() for missing required info.**
 """,
     },
 
@@ -119,31 +166,60 @@ todo_write([
 
 You are helping the user create a recurring research brief deliverable.
 
-**Use todo_write to track your progress through this workflow:**
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
 
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Research focus: ___
+- Specific companies/competitors: ___
+- Frequency: ___
+
+**If focus is vague (e.g., just "competitors"), you MUST use clarify() to ask which ones.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="What should this research brief focus on?",
+  options=["Specific competitors (I'll name them)", "General market trends", "Technology developments", "All of the above"]
+)
+```
+
+**STOP HERE and wait for user response.**
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up a weekly research brief tracking [focus]. Ready to create it?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
 ```
 todo_write([
-  {content: "Parse intent", status: "completed", activeForm: "Parsing intent"},
-  {content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"},
-  {content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"},
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
   {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
   {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
 ])
 ```
-
-**Required information to gather:**
-- Research focus (competitors, market trends, technology, specific companies)
-- Frequency (default: weekly)
-- Data sources or areas to monitor (optional)
-
-**Workflow:**
-1. Parse user's initial request - extract any details they've already provided
-2. Use clarify() or respond() to gather missing required info
-3. Confirm the full setup with respond() before creating
-4. Create with create_deliverable(deliverable_type="research_brief", ...)
-5. Offer to generate first draft
-
-**Don't guess - use clarify() for missing required info.**
 """,
     },
 
@@ -159,32 +235,60 @@ todo_write([
 
 You are helping the user create a recurring stakeholder update deliverable.
 
-**Use todo_write to track your progress through this workflow:**
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
 
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Stakeholder name: ___
+- Relationship: ___
+- Frequency: ___
+
+**If stakeholder name is missing, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="Who is this update for?",
+  options=["A client", "An executive/leadership", "A partner", "Someone else (I'll specify)"]
+)
+```
+
+**STOP HERE and wait for user response.**
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up a [frequency] update for [stakeholder]. Ready to create it?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
 ```
 todo_write([
-  {content: "Parse intent", status: "completed", activeForm: "Parsing intent"},
-  {content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"},
-  {content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"},
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
   {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
   {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
 ])
 ```
-
-**Required information to gather:**
-- Recipient/stakeholder name
-- Relationship (client, partner, executive, etc.)
-- Frequency (default: weekly)
-- What they care about most (progress, metrics, blockers, etc.)
-
-**Workflow:**
-1. Parse user's initial request - extract any details they've already provided
-2. Use clarify() or respond() to gather missing required info
-3. Confirm the full setup with respond() before creating
-4. Create with create_deliverable(deliverable_type="stakeholder_update", ...)
-5. Offer to generate first draft
-
-**Don't guess - use clarify() for missing required info.**
 """,
     },
 
@@ -200,32 +304,60 @@ todo_write([
 
 You are helping the user create a recurring meeting summary deliverable.
 
-**Use todo_write to track your progress through this workflow:**
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
 
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Meeting name/type: ___
+- Frequency: ___
+- Recipients: ___
+
+**If meeting name or frequency is missing, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="What meeting is this for?",
+  options=["Team standup", "1:1 meeting", "Project sync", "Other (I'll specify)"]
+)
+```
+
+**STOP HERE and wait for user response.**
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up a meeting summary for your [meeting name], generated [frequency]. Sound good?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
 ```
 todo_write([
-  {content: "Parse intent", status: "completed", activeForm: "Parsing intent"},
-  {content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"},
-  {content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"},
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
   {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
   {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
 ])
 ```
-
-**Required information to gather:**
-- Meeting name/type (e.g., "Weekly team standup", "1:1 with Sarah")
-- Frequency (when does the meeting occur?)
-- Who receives the summary
-- Key sections to include (action items, decisions, discussion points)
-
-**Workflow:**
-1. Parse user's initial request - extract any details they've already provided
-2. Use clarify() or respond() to gather missing required info
-3. Confirm the full setup with respond() before creating
-4. Create with create_deliverable(deliverable_type="meeting_summary", ...)
-5. Offer to generate first draft
-
-**Don't guess - use clarify() for missing required info.**
 """,
     },
 }
