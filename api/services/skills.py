@@ -360,6 +360,364 @@ todo_write([
 ```
 """,
     },
+
+    # =========================================================================
+    # Beta Tier Skills (ADR-019)
+    # =========================================================================
+
+    "newsletter-section": {
+        "name": "newsletter-section",
+        "description": "Create a recurring newsletter section deliverable",
+        "trigger_patterns": ["newsletter", "newsletter section", "weekly digest", "founder letter", "product update"],
+        "deliverable_type": "newsletter_section",
+        "tier": "beta",
+        "system_prompt_addition": """
+---
+
+## Active Skill: Newsletter Section Creation (Beta)
+
+You are helping the user create a recurring newsletter section deliverable.
+
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Newsletter name: ___
+- Section type: ___ (intro, main story, roundup, outro)
+- Audience: ___
+- Frequency: ___
+
+**If newsletter name or section type is missing, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="What type of newsletter section is this?",
+  options=["Opening/intro section", "Main story or feature", "News roundup/digest", "Closing/outro with CTA"]
+)
+```
+
+**STOP HERE and wait for user response.**
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up a [frequency] [section type] for your [newsletter name]. Sound good?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
+```
+todo_write([
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
+  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
+  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
+])
+```
+""",
+    },
+
+    "changelog": {
+        "name": "changelog",
+        "description": "Create a recurring changelog/release notes deliverable",
+        "trigger_patterns": ["changelog", "release notes", "version update", "product release", "what's new"],
+        "deliverable_type": "changelog",
+        "tier": "beta",
+        "system_prompt_addition": """
+---
+
+## Active Skill: Changelog Creation (Beta)
+
+You are helping the user create a recurring changelog/release notes deliverable.
+
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Product name: ___
+- Audience: ___ (developers, end users, mixed)
+- Frequency: ___
+- Format: ___ (technical, user-friendly, marketing)
+
+**If product name or audience is missing, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="Who is the primary audience for these release notes?",
+  options=["Developers/technical users", "End users/customers", "Mixed audience"]
+)
+```
+
+**STOP HERE and wait for user response.**
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up [frequency] release notes for [product], written for [audience]. Ready to create?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
+```
+todo_write([
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
+  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
+  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
+])
+```
+""",
+    },
+
+    "one-on-one-prep": {
+        "name": "one-on-one-prep",
+        "description": "Create a recurring 1:1 meeting prep deliverable",
+        "trigger_patterns": ["1:1 prep", "one on one prep", "1-1 prep", "one-on-one", "meeting prep for"],
+        "deliverable_type": "one_on_one_prep",
+        "tier": "beta",
+        "system_prompt_addition": """
+---
+
+## Active Skill: One-on-One Prep Creation (Beta)
+
+You are helping the user create a recurring 1:1 meeting prep deliverable.
+
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Report/person name: ___
+- Relationship: ___ (direct report, skip level, mentee)
+- Frequency: ___
+- Focus areas: ___
+
+**If the person's name or relationship is missing, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="What's your relationship with this person?",
+  options=["They're my direct report", "Skip-level (report's report)", "I'm mentoring them", "Other"]
+)
+```
+
+**STOP HERE and wait for user response.**
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up [frequency] 1:1 prep for your meetings with [name]. Ready to create?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
+```
+todo_write([
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
+  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
+  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
+])
+```
+""",
+    },
+
+    "client-proposal": {
+        "name": "client-proposal",
+        "description": "Create a recurring client proposal deliverable",
+        "trigger_patterns": ["client proposal", "project proposal", "sow", "scope of work", "proposal for"],
+        "deliverable_type": "client_proposal",
+        "tier": "beta",
+        "system_prompt_addition": """
+---
+
+## Active Skill: Client Proposal Creation (Beta)
+
+You are helping the user create a recurring client proposal deliverable.
+
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Client name: ___
+- Service/project type: ___
+- Proposal type: ___ (new engagement, expansion, renewal)
+- Include pricing: ___
+
+**If client name or service type is missing, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="What type of proposal is this?",
+  options=["New client engagement", "Expanding existing work", "Contract renewal", "One-off project"]
+)
+```
+
+**STOP HERE and wait for user response.**
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up a proposal template for [client] covering [service type]. Ready to create?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
+```
+todo_write([
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
+  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
+  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
+])
+```
+""",
+    },
+
+    "performance-review": {
+        "name": "performance-review",
+        "description": "Create a recurring performance self-assessment deliverable",
+        "trigger_patterns": ["performance review", "self assessment", "self-assessment", "quarterly review", "annual review"],
+        "deliverable_type": "performance_self_assessment",
+        "tier": "beta",
+        "system_prompt_addition": """
+---
+
+## Active Skill: Performance Self-Assessment Creation (Beta)
+
+You are helping the user create a recurring performance self-assessment deliverable.
+
+### CRITICAL: Do NOT call create_deliverable() until the user explicitly confirms!
+
+**This is a CONVERSATION, not a single action.** You MUST:
+1. Ask clarifying questions FIRST
+2. Wait for user's response
+3. Confirm your understanding
+4. Only create after user says "yes" or similar
+
+### Step 1: Parse & Identify Gaps (DO THIS NOW)
+
+Extract what the user provided:
+- Review period: ___ (quarterly, semi-annual, annual)
+- Role level: ___
+- Frequency: ___
+
+**If review period is missing, you MUST use clarify() to ask.**
+
+### Step 2: Ask Clarifying Questions
+
+Use clarify() with helpful options. Example:
+```
+clarify(
+  question="What review period is this for?",
+  options=["Quarterly review", "Semi-annual review", "Annual review"]
+)
+```
+
+**STOP HERE and wait for user response.**
+
+### Step 3: Confirm Before Creating
+
+After user provides info, confirm with respond():
+```
+respond("I'll set up a [period] self-assessment template. Ready to create?")
+```
+
+**STOP HERE and wait for user to confirm.**
+
+### Step 4: Create & Offer First Draft
+
+Only NOW call create_deliverable(), then offer run_deliverable().
+
+### Todo Tracking
+
+Track progress with todo_write:
+```
+todo_write([
+  {content: "Parse user request", status: "in_progress", activeForm: "Parsing user request"},
+  {content: "Ask clarifying questions", status: "pending", activeForm: "Asking clarifying questions"},
+  {content: "Get user confirmation", status: "pending", activeForm: "Getting user confirmation"},
+  {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
+  {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
+])
+```
+""",
+    },
 }
 
 
