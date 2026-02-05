@@ -136,8 +136,9 @@ export function TPDrawer() {
   };
 
   // Drawer content JSX (inlined to prevent re-mount on state changes)
+  // Uses h-full with overflow handling for proper iOS keyboard behavior
   const drawerContent = (
-    <div className="flex flex-col h-full bg-background">
+    <div className="flex flex-col h-full bg-background overflow-hidden">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
         <div className="flex items-center gap-2">
@@ -281,8 +282,8 @@ export function TPDrawer() {
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input */}
-      <div className="p-3 border-t border-border shrink-0">
+      {/* Input - pb-safe adds padding for iOS home indicator */}
+      <div className="p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border shrink-0">
         <div className="relative">
           <SkillPicker
             query={skillQuery ?? ''}
@@ -372,9 +373,11 @@ export function TPDrawer() {
       </button>
 
       {/* Mobile: Full-screen overlay */}
+      {/* Uses dvh (dynamic viewport height) for iOS Safari keyboard handling */}
       <div
         className={cn(
-          'md:hidden fixed inset-0 z-50 bg-background',
+          'md:hidden fixed inset-x-0 top-0 z-50 bg-background',
+          'h-[100dvh]',  // Dynamic viewport height - adjusts when iOS keyboard appears
           'transition-transform duration-300 ease-out',
           expanded ? 'translate-x-0' : 'translate-x-full'
         )}
