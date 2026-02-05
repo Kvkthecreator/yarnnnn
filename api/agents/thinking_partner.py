@@ -2,6 +2,7 @@
 Thinking Partner Agent - Conversational assistant with unified memory (ADR-005)
 
 ADR-007: Tool use for project authority
+ADR-025: Claude Code agentic alignment with skills and todo tracking
 """
 
 import json
@@ -18,6 +19,7 @@ from services.anthropic import (
     StreamEvent,
 )
 from services.project_tools import THINKING_PARTNER_TOOLS, execute_tool
+from services.skills import detect_skill, get_skill_prompt_addition
 
 
 @dataclass
@@ -141,6 +143,38 @@ Users may say different things meaning the same concept:
 - "project", "workspace", "area" → A `project`
 
 When in doubt, use `clarify()` to ask. Don't guess.
+
+---
+
+## Task Progress Tracking (ADR-025)
+
+For multi-step work (deliverable setup, complex requests), use `todo_write` to show your progress:
+
+**Pattern:**
+```
+User: "Set up a monthly board update"
+→ todo_write([
+    {content: "Parse intent", status: "completed", activeForm: "Parsing intent"},
+    {content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"},
+    {content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"},
+    {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
+    {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
+  ])
+```
+
+**When to use:**
+- ✅ Creating a deliverable (4-6 steps)
+- ✅ Complex user request with multiple actions
+- ✅ Any work requiring 3+ steps
+- ❌ Simple navigation ("show my memories")
+- ❌ Single-turn conversation
+- ❌ Quick actions (pause deliverable, create memory)
+
+**Rules:**
+- Only ONE task can be `in_progress` at a time
+- Mark complete IMMEDIATELY when done (don't batch)
+- Update todos as you progress through the workflow
+- If you discover something unexpected, update the todo list
 
 ---
 
@@ -374,7 +408,8 @@ recurring deliverable through conversation.
         with_tools: bool = False,
         is_onboarding: bool = False,
         surface_content: Optional[str] = None,
-        selected_project_name: Optional[str] = None
+        selected_project_name: Optional[str] = None,
+        skill_prompt: Optional[str] = None
     ) -> str:
         """Build system prompt with memory context.
 
@@ -385,6 +420,7 @@ recurring deliverable through conversation.
             is_onboarding: Whether user has no deliverables (enables onboarding mode)
             surface_content: ADR-023 - Content of what user is currently viewing
             selected_project_name: ADR-024 - Name of user's selected project context
+            skill_prompt: ADR-025 - Skill-specific prompt addition to inject
         """
         base_prompt = self.SYSTEM_PROMPT_WITH_TOOLS if with_tools else self.SYSTEM_PROMPT
 
@@ -412,7 +448,14 @@ recurring deliverable through conversation.
         # Tools prompt has {onboarding_context} placeholder, non-tools doesn't
         if with_tools:
             onboarding_context = self.ONBOARDING_CONTEXT if is_onboarding else ""
-            return base_prompt.format(context=context_text, onboarding_context=onboarding_context)
+            prompt = base_prompt.format(context=context_text, onboarding_context=onboarding_context)
+
+            # ADR-025: Inject skill prompt if a skill is active
+            # Skill prompt goes before the context to give it priority
+            if skill_prompt:
+                prompt = prompt + "\n" + skill_prompt
+
+            return prompt
         else:
             return base_prompt.format(context=context_text)
 
@@ -500,12 +543,17 @@ recurring deliverable through conversation.
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_project_name = params.get("selected_project_name")  # ADR-024: Selected context
 
+        # ADR-025: Detect skill from user message
+        active_skill = detect_skill(task)
+        skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
+
         system = self._build_system_prompt(
             context, include_context,
             with_tools=True,
             is_onboarding=is_onboarding,
             surface_content=surface_content,
-            selected_project_name=selected_project_name
+            selected_project_name=selected_project_name,
+            skill_prompt=skill_prompt
         )
 
         # Build messages list - filter out empty assistant messages which cause 400 errors
@@ -657,12 +705,17 @@ recurring deliverable through conversation.
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_project_name = params.get("selected_project_name")  # ADR-024: Selected context
 
+        # ADR-025: Detect skill from user message
+        active_skill = detect_skill(task)
+        skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
+
         system = self._build_system_prompt(
             context, include_context,
             with_tools=True,
             is_onboarding=is_onboarding,
             surface_content=surface_content,
-            selected_project_name=selected_project_name
+            selected_project_name=selected_project_name,
+            skill_prompt=skill_prompt
         )
 
         # Build messages list - filter out empty assistant messages which cause 400 errors
