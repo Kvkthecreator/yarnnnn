@@ -807,6 +807,57 @@ recurring deliverable through conversation.
         ):
             yield chunk
 
+    def _detect_workflow_interrupt(self, task: str, history: list) -> bool:
+        """
+        Detect if the current message is an interrupt to an ongoing workflow.
+
+        Returns True if:
+        - Current message doesn't trigger a skill AND
+        - History contains skill-related content (todo_write, deliverable workflows)
+        """
+        # If current message triggers a skill, it's not an interrupt - it's a new workflow
+        if detect_skill(task):
+            return False
+
+        # Check if history contains workflow indicators
+        # Look for todo_write tool calls or skill-related assistant messages in recent history
+        task_lower = task.lower().strip()
+
+        # Simple navigation/query requests are likely interrupts if workflow is active
+        interrupt_patterns = [
+            "show me", "list", "what", "how many", "open", "get",
+            "memory", "memories", "context", "project", "projects",
+            "deliverable", "deliverables", "work"
+        ]
+        is_simple_request = any(p in task_lower for p in interrupt_patterns)
+
+        if not is_simple_request:
+            return False
+
+        # Check recent history for workflow indicators
+        # Look at last 4 assistant messages for todo_write mentions
+        recent_assistant_msgs = [
+            m for m in history[-8:] if m.get("role") == "assistant"
+        ][-4:]
+
+        for msg in recent_assistant_msgs:
+            content = msg.get("content", "")
+            if isinstance(content, str):
+                # Check for workflow indicators in text
+                if any(indicator in content.lower() for indicator in [
+                    "todo_write", "board update", "status report", "deliverable",
+                    "step 1:", "step 2:", "checking", "gathering", "confirming"
+                ]):
+                    return True
+            elif isinstance(content, list):
+                # Check for tool_use blocks with todo_write
+                for block in content:
+                    if isinstance(block, dict):
+                        if block.get("type") == "tool_use" and block.get("name") == "todo_write":
+                            return True
+
+        return False
+
     async def execute_stream_with_tools(
         self,
         task: str,
@@ -845,6 +896,18 @@ recurring deliverable through conversation.
         # ADR-025: Detect skill from user message
         active_skill = detect_skill(task)
         skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
+
+        # ADR-025: Detect workflow interrupt - if user sends a simple request while
+        # a workflow is in progress, inject interrupt guidance
+        is_interrupt = self._detect_workflow_interrupt(task, history)
+        if is_interrupt:
+            # Prepend interrupt instruction to the task
+            task = f"""[WORKFLOW INTERRUPT]
+The user has sent a new request that interrupts the previous workflow.
+ABANDON the previous workflow's todos immediately. Do NOT continue the board update, status report, or any other multi-step workflow.
+Process this request independently as if it were the first message.
+
+User's request: {task}"""
 
         system = self._build_system_prompt(
             context, include_context,
