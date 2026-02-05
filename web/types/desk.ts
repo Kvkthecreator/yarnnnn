@@ -59,9 +59,23 @@ export interface TPToolResult {
 }
 
 export interface TPUIAction {
-  type: 'OPEN_SURFACE' | 'RESPOND' | 'CLARIFY' | 'SHOW_SETUP_CONFIRM';
+  type: 'OPEN_SURFACE' | 'RESPOND' | 'CLARIFY' | 'SHOW_SETUP_CONFIRM' | 'UPDATE_TODOS';
   surface?: string;
   data: Record<string, unknown>;
+}
+
+// =============================================================================
+// Todo Tracking (ADR-025 Claude Code Alignment)
+// =============================================================================
+
+/** A single todo item in TP's work progress */
+export interface Todo {
+  /** Task description in imperative form (e.g., "Gather details") */
+  content: string;
+  /** Current status of the task */
+  status: 'pending' | 'in_progress' | 'completed';
+  /** Task description in present continuous (e.g., "Gathering details") */
+  activeForm?: string;
 }
 
 // =============================================================================
@@ -106,6 +120,12 @@ export interface TPState {
   messages: TPMessage[];
   isLoading: boolean;
   error: string | null;
+  /** ADR-025: Current todo list for multi-step work */
+  todos: Todo[];
+  /** ADR-025: Active skill name (e.g., "board-update") */
+  activeSkill: string | null;
+  /** ADR-025: Whether work panel is expanded */
+  workPanelExpanded: boolean;
 }
 
 export type TPAction =
@@ -113,7 +133,12 @@ export type TPAction =
   | { type: 'SET_MESSAGES'; messages: TPMessage[] }
   | { type: 'CLEAR_MESSAGES' }
   | { type: 'SET_LOADING'; isLoading: boolean }
-  | { type: 'SET_ERROR'; error: string | null };
+  | { type: 'SET_ERROR'; error: string | null }
+  // ADR-025: Todo tracking actions
+  | { type: 'SET_TODOS'; todos: Todo[] }
+  | { type: 'SET_ACTIVE_SKILL'; skill: string | null }
+  | { type: 'SET_WORK_PANEL_EXPANDED'; expanded: boolean }
+  | { type: 'CLEAR_WORK_STATE' };
 
 // =============================================================================
 // Utility functions

@@ -2,12 +2,13 @@
 
 /**
  * ADR-023: Supervisor Desk Architecture
+ * ADR-025: Claude Code Agentic Alignment - Todo tracking
  * TP (Thinking Partner) context - manages conversation state
  */
 
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { TPState, TPAction, TPMessage, TPToolResult, mapToolActionToSurface, DeskSurface } from '@/types/desk';
+import { TPState, TPAction, TPMessage, TPToolResult, mapToolActionToSurface, DeskSurface, Todo } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 
 // API base URL - must match the Python backend
@@ -21,6 +22,10 @@ const initialState: TPState = {
   messages: [],
   isLoading: false,
   error: null,
+  // ADR-025: Todo tracking state
+  todos: [],
+  activeSkill: null,
+  workPanelExpanded: false,
 };
 
 // =============================================================================
@@ -47,6 +52,19 @@ function tpReducer(state: TPState, action: TPAction): TPState {
 
     case 'SET_ERROR':
       return { ...state, error: action.error, isLoading: false };
+
+    // ADR-025: Todo tracking actions
+    case 'SET_TODOS':
+      return { ...state, todos: action.todos };
+
+    case 'SET_ACTIVE_SKILL':
+      return { ...state, activeSkill: action.skill };
+
+    case 'SET_WORK_PANEL_EXPANDED':
+      return { ...state, workPanelExpanded: action.expanded };
+
+    case 'CLEAR_WORK_STATE':
+      return { ...state, todos: [], activeSkill: null, workPanelExpanded: false };
 
     default:
       return state;
@@ -80,6 +98,12 @@ interface TPContextValue {
   pendingClarification: ClarificationRequest | null;
   status: TPStatus;  // Real-time status for UI
   setupConfirmModal: { open: boolean; data: SetupConfirmData | null };  // Setup confirmation modal state
+
+  // ADR-025: Todo tracking state
+  todos: Todo[];
+  activeSkill: string | null;
+  workPanelExpanded: boolean;
+  setWorkPanelExpanded: (expanded: boolean) => void;
 
   // Actions
   sendMessage: (
@@ -282,6 +306,15 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                       data: setupData,
                     });
                     setStatus({ type: 'complete', message: 'Deliverable created' });
+                  } else if (action.type === 'UPDATE_TODOS') {
+                    // ADR-025: Todo tracking for multi-step work
+                    const todos = (action.data?.todos as Todo[]) || [];
+                    console.log('[TP] UPDATE_TODOS:', todos.length, 'items');
+                    dispatch({ type: 'SET_TODOS', todos });
+                    // Auto-expand work panel when todos appear
+                    if (todos.length > 0) {
+                      dispatch({ type: 'SET_WORK_PANEL_EXPANDED', expanded: true });
+                    }
                   }
                 } else {
                   console.log('[TP] No uiAction in tool result');
@@ -402,6 +435,13 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   }, []);
 
   // ---------------------------------------------------------------------------
+  // ADR-025: Work panel expansion control
+  // ---------------------------------------------------------------------------
+  const setWorkPanelExpanded = useCallback((expanded: boolean) => {
+    dispatch({ type: 'SET_WORK_PANEL_EXPANDED', expanded });
+  }, []);
+
+  // ---------------------------------------------------------------------------
   // Context value
   // ---------------------------------------------------------------------------
   const value: TPContextValue = {
@@ -412,6 +452,12 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     pendingClarification,
     status,
     setupConfirmModal,
+    // ADR-025: Todo tracking state
+    todos: state.todos,
+    activeSkill: state.activeSkill,
+    workPanelExpanded: state.workPanelExpanded,
+    setWorkPanelExpanded,
+    // Actions
     sendMessage,
     clearMessages,
     clearClarification,
