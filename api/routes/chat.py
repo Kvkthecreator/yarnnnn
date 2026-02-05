@@ -440,7 +440,34 @@ async def global_chat(
 
     # Load existing messages from session
     existing_messages = await get_session_messages(auth.client, session_id)
-    history = [{"role": m["role"], "content": m.get("content") or ""} for m in existing_messages]
+    # Build history with tool context from metadata for coherent multi-turn conversations
+    history = []
+    for m in existing_messages:
+        role = m["role"]
+        content = m.get("content") or ""
+        metadata = m.get("metadata") or {}
+
+        if role == "assistant" and metadata.get("tool_history"):
+            # Reconstruct a richer context for the assistant's previous turn
+            # This helps Claude understand what it did, not just what it said
+            tool_history = metadata["tool_history"]
+            tool_summaries = []
+            text_content = ""
+
+            for item in tool_history:
+                if item.get("type") == "tool_call":
+                    tool_summaries.append(f"[Called {item['name']}]")
+                elif item.get("type") == "text":
+                    text_content = item.get("content", "")
+
+            # Combine tool context with text response
+            if tool_summaries:
+                context_prefix = " ".join(tool_summaries) + "\n"
+                content = context_prefix + text_content
+            elif text_content:
+                content = text_content
+
+        history.append({"role": role, "content": content})
 
     # ADR-024: Parse selected project context
     selected_project_id = UUID(request.project_id) if request.project_id else None
@@ -496,6 +523,10 @@ async def global_chat(
     async def response_stream():
         full_response = ""
         tools_used = []
+        # Track tool calls and results for proper history storage
+        # This allows Claude to maintain coherence across turns
+        tool_call_history = []  # List of {"tool_use": {...}, "tool_result": {...}}
+        current_tool_use = None
 
         try:
             # Append user message to session
@@ -520,6 +551,7 @@ async def global_chat(
                     yield f"data: {json.dumps({'content': event.content})}\n\n"
                 elif event.type == "tool_use":
                     tools_used.append(event.content["name"])
+                    current_tool_use = event.content
                     msg = f"[TP-STREAM] Tool use: {event.content['name']}"
                     print(msg, flush=True)
                     logger.info(msg)
@@ -530,6 +562,13 @@ async def global_chat(
                     msg = f"[TP-STREAM] Tool result for {event.content.get('name')}: ui_action={ui_action}, success={result.get('success')}"
                     print(msg, flush=True)
                     logger.info(msg)
+                    # Store tool call pair for history
+                    if current_tool_use:
+                        tool_call_history.append({
+                            "tool_use": current_tool_use,
+                            "tool_result": event.content
+                        })
+                        current_tool_use = None
                     yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
                 elif event.type == "done":
                     msg = f"[TP-STREAM] Stream done, tools_used={tools_used}"
@@ -537,13 +576,40 @@ async def global_chat(
                     logger.info(msg)
                     pass  # Will send done event after saving
 
-            # Append assistant response to session
+            # Build a comprehensive content record for the assistant message
+            # This includes tool calls so Claude can maintain coherence across turns
+            assistant_content_for_history = []
+
+            # Add tool use/result pairs
+            for tool_pair in tool_call_history:
+                tu = tool_pair["tool_use"]
+                tr = tool_pair["tool_result"]
+                # Simplified representation for history storage
+                assistant_content_for_history.append({
+                    "type": "tool_call",
+                    "name": tu["name"],
+                    "input_summary": str(tu.get("input", {}))[:200],
+                    "result_summary": str(tr.get("result", {}))[:500]
+                })
+
+            # Add the text response (from respond() tool)
+            if full_response:
+                assistant_content_for_history.append({
+                    "type": "text",
+                    "content": full_response
+                })
+
+            # Append assistant response to session with tool history in metadata
             await append_message(
                 auth.client,
                 session_id,
                 "assistant",
                 full_response,
-                {"model": agent.model, "tools_used": tools_used}
+                {
+                    "model": agent.model,
+                    "tools_used": tools_used,
+                    "tool_history": assistant_content_for_history
+                }
             )
 
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
@@ -599,7 +665,32 @@ async def project_chat(
 
     # Load existing messages from session
     existing_messages = await get_session_messages(auth.client, session_id)
-    history = [{"role": m["role"], "content": m.get("content") or ""} for m in existing_messages]
+    # Build history with tool context from metadata for coherent multi-turn conversations
+    history = []
+    for m in existing_messages:
+        role = m["role"]
+        content = m.get("content") or ""
+        metadata = m.get("metadata") or {}
+
+        if role == "assistant" and metadata.get("tool_history"):
+            # Reconstruct a richer context for the assistant's previous turn
+            tool_history = metadata["tool_history"]
+            tool_summaries = []
+            text_content = ""
+
+            for item in tool_history:
+                if item.get("type") == "tool_call":
+                    tool_summaries.append(f"[Called {item['name']}]")
+                elif item.get("type") == "text":
+                    text_content = item.get("content", "")
+
+            if tool_summaries:
+                context_prefix = " ".join(tool_summaries) + "\n"
+                content = context_prefix + text_content
+            elif text_content:
+                content = text_content
+
+        history.append({"role": role, "content": content})
 
     # Load memories (user + project)
     context = await load_memories(
@@ -614,6 +705,8 @@ async def project_chat(
     async def response_stream():
         full_response = ""
         tools_used = []
+        tool_call_history = []
+        current_tool_use = None
 
         try:
             # Append user message to session
@@ -633,11 +726,35 @@ async def project_chat(
                     yield f"data: {json.dumps({'content': event.content})}\n\n"
                 elif event.type == "tool_use":
                     tools_used.append(event.content["name"])
+                    current_tool_use = event.content
                     yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
                 elif event.type == "tool_result":
+                    if current_tool_use:
+                        tool_call_history.append({
+                            "tool_use": current_tool_use,
+                            "tool_result": event.content
+                        })
+                        current_tool_use = None
                     yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
                 elif event.type == "done":
                     pass  # Will send done event after saving
+
+            # Build tool history for session metadata
+            assistant_content_for_history = []
+            for tool_pair in tool_call_history:
+                tu = tool_pair["tool_use"]
+                tr = tool_pair["tool_result"]
+                assistant_content_for_history.append({
+                    "type": "tool_call",
+                    "name": tu["name"],
+                    "input_summary": str(tu.get("input", {}))[:200],
+                    "result_summary": str(tr.get("result", {}))[:500]
+                })
+            if full_response:
+                assistant_content_for_history.append({
+                    "type": "text",
+                    "content": full_response
+                })
 
             # Append assistant response to session
             await append_message(
@@ -645,7 +762,11 @@ async def project_chat(
                 session_id,
                 "assistant",
                 full_response,
-                {"model": agent.model, "tools_used": tools_used}
+                {
+                    "model": agent.model,
+                    "tools_used": tools_used,
+                    "tool_history": assistant_content_for_history
+                }
             )
 
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"

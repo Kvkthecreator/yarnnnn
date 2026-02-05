@@ -288,8 +288,11 @@ export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPP
               // API sends: {content}, {tool_use}, {tool_result}, {done}, {error}
               if (event.content) {
                 assistantContent += event.content;
-                // Update streaming status for respond content
-                setStatus({ type: 'streaming', content: assistantContent });
+                // Only update streaming status periodically to reduce re-renders
+                // This improves performance by batching UI updates
+                if (assistantContent.length % 50 < event.content.length || event.content.includes('\n')) {
+                  setStatus({ type: 'streaming', content: assistantContent });
+                }
               } else if (event.tool_use) {
                 // Tool is being called - show in status
                 console.log('[TP] tool_use:', event.tool_use.name);
@@ -397,6 +400,11 @@ export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPP
               // Ignore final incomplete chunk
             }
           }
+        }
+
+        // Final streaming status update with complete content
+        if (assistantContent) {
+          setStatus({ type: 'streaming', content: assistantContent });
         }
 
         // Execute pending surface navigation with optional handoff message
