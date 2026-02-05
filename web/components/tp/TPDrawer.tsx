@@ -51,7 +51,7 @@ export function TPDrawer() {
   const { surface, selectedProject, setSelectedProject } = useDesk();
   const { projects } = useProjects();
 
-  const [expanded, setExpanded] = useState(false);
+  const [expanded, setExpanded] = useState(true);
   const [input, setInput] = useState('');
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -76,7 +76,7 @@ export function TPDrawer() {
     if (todos.length > 0 && !expanded) {
       setExpanded(true);
     }
-  }, [todos.length]);
+  }, [todos.length, expanded]);
 
   // Detect skill picker trigger
   const skillQuery = input.startsWith('/') ? input.slice(1).split(' ')[0] : null;
