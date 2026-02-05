@@ -154,11 +154,11 @@ For multi-step work (deliverable setup, complex requests), use `todo_write` to s
 ```
 User: "Set up a monthly board update"
 → todo_write([
-    {content: "Parse intent", status: "completed", activeForm: "Parsing intent"},
-    {content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"},
-    {content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"},
-    {content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"},
-    {content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}
+    {{content: "Parse intent", status: "completed", activeForm: "Parsing intent"}},
+    {{content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"}},
+    {{content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"}},
+    {{content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"}},
+    {{content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}}
   ])
 ```
 
