@@ -198,6 +198,10 @@ export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPP
       }
       abortControllerRef.current = new AbortController();
 
+      // Clear previous workflow state - todos will be recreated if TP starts a new workflow
+      // This prevents stale todos from lingering when user switches topics
+      dispatch({ type: 'CLEAR_WORK_STATE' });
+
       // Add user message
       const userMessage: TPMessage = {
         id: crypto.randomUUID(),
