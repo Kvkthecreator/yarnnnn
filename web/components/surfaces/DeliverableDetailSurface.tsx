@@ -36,6 +36,8 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
+import { useTP } from '@/contexts/TPContext';
+import { TPWorkPanel } from '@/components/tp/TPWorkPanel';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cacheEntity } from '@/lib/entity-cache';
 import { cn } from '@/lib/utils';
@@ -62,6 +64,7 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
 
 export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSurfaceProps) {
   const { setSurface, refreshAttention } = useDesk();
+  const { todos, workPanelExpanded, setWorkPanelExpanded } = useTP();
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
@@ -227,8 +230,13 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
       ? Math.round((1 - deliverable.quality_score) * 100)
       : null;
 
+  // ADR-025: Show work panel when TP has todos
+  const showWorkPanel = workPanelExpanded || todos.length > 0;
+
   return (
-    <div className="h-full flex flex-col">
+    <div className="h-full flex">
+      {/* Main content */}
+      <div className={`flex-1 flex flex-col ${showWorkPanel ? 'border-r border-border' : ''}`}>
       {/* Header */}
       <div className="shrink-0 border-b border-border px-4 py-3">
         <div className="flex items-start justify-between">
@@ -625,6 +633,14 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
         onClose={() => setSettingsOpen(false)}
         onSaved={handleSettingsSaved}
       />
+      </div>
+
+      {/* ADR-025: Work panel for multi-step TP workflows */}
+      {showWorkPanel && (
+        <div className="w-[360px] shrink-0">
+          <TPWorkPanel onCollapse={() => setWorkPanelExpanded(false)} />
+        </div>
+      )}
     </div>
   );
 }
