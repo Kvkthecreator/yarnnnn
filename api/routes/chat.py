@@ -440,7 +440,7 @@ async def global_chat(
 
     # Load existing messages from session
     existing_messages = await get_session_messages(auth.client, session_id)
-    history = [{"role": m["role"], "content": m["content"]} for m in existing_messages]
+    history = [{"role": m["role"], "content": m.get("content") or ""} for m in existing_messages]
 
     # ADR-024: Parse selected project context
     selected_project_id = UUID(request.project_id) if request.project_id else None
@@ -599,7 +599,7 @@ async def project_chat(
 
     # Load existing messages from session
     existing_messages = await get_session_messages(auth.client, session_id)
-    history = [{"role": m["role"], "content": m["content"]} for m in existing_messages]
+    history = [{"role": m["role"], "content": m.get("content") or ""} for m in existing_messages]
 
     # Load memories (user + project)
     context = await load_memories(
