@@ -257,21 +257,19 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
             </div>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1 shrink-0">
             <button
               onClick={handleTogglePause}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
+              className={cn(
+                "p-1.5 border border-border rounded-md hover:bg-muted",
+                deliverable.status === 'paused' && "text-amber-600 border-amber-300 bg-amber-50 hover:bg-amber-100"
+              )}
+              title={deliverable.status === 'paused' ? 'Resume' : 'Pause'}
             >
               {deliverable.status === 'paused' ? (
-                <>
-                  <Play className="w-3.5 h-3.5" />
-                  Resume
-                </>
+                <Play className="w-4 h-4" />
               ) : (
-                <>
-                  <Pause className="w-3.5 h-3.5" />
-                  Pause
-                </>
+                <Pause className="w-4 h-4" />
               )}
             </button>
             <button

@@ -1,14 +1,16 @@
 """
 Account Management Routes
 
-Danger zone operations for user account management:
-- Clear conversation history
-- Delete all deliverables
-- Full account reset
-- Deactivate account
+- Notification preferences (email settings)
+- Danger zone operations:
+  - Clear conversation history
+  - Delete all deliverables
+  - Full account reset
+  - Deactivate account
 """
 
 import logging
+from typing import Optional
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from datetime import datetime
@@ -40,6 +42,104 @@ class OperationResult(BaseModel):
     success: bool
     message: str
     deleted: dict
+
+
+class NotificationPreferences(BaseModel):
+    """User notification preferences for email."""
+    email_deliverable_ready: bool = True
+    email_deliverable_failed: bool = True
+    email_work_complete: bool = True
+    email_weekly_digest: bool = True
+
+
+class NotificationPreferencesUpdate(BaseModel):
+    """Partial update for notification preferences."""
+    email_deliverable_ready: Optional[bool] = None
+    email_deliverable_failed: Optional[bool] = None
+    email_work_complete: Optional[bool] = None
+    email_weekly_digest: Optional[bool] = None
+
+
+# =============================================================================
+# Notification Preferences
+# =============================================================================
+
+@router.get("/account/notification-preferences")
+async def get_notification_preferences(auth: UserClient) -> NotificationPreferences:
+    """
+    Get user's notification preferences.
+    Returns defaults (all true) if no preferences have been set.
+    """
+    user_id = auth.user_id
+
+    try:
+        result = auth.client.table("user_notification_preferences").select("*").eq("user_id", user_id).execute()
+
+        if result.data and len(result.data) > 0:
+            prefs = result.data[0]
+            return NotificationPreferences(
+                email_deliverable_ready=prefs.get("email_deliverable_ready", True),
+                email_deliverable_failed=prefs.get("email_deliverable_failed", True),
+                email_work_complete=prefs.get("email_work_complete", True),
+                email_weekly_digest=prefs.get("email_weekly_digest", True),
+            )
+
+        # Return defaults if no preferences set
+        return NotificationPreferences()
+
+    except Exception as e:
+        logger.error(f"[ACCOUNT] Failed to get notification preferences for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get notification preferences")
+
+
+@router.patch("/account/notification-preferences")
+async def update_notification_preferences(
+    auth: UserClient,
+    update: NotificationPreferencesUpdate
+) -> NotificationPreferences:
+    """
+    Update user's notification preferences.
+    Creates preferences row if it doesn't exist (upsert).
+    Only updates fields that are provided.
+    """
+    user_id = auth.user_id
+
+    try:
+        # Check if preferences exist
+        existing = auth.client.table("user_notification_preferences").select("id").eq("user_id", user_id).execute()
+
+        # Build update data (only non-None fields)
+        update_data = {k: v for k, v in update.model_dump().items() if v is not None}
+
+        if not update_data:
+            # No fields to update, return current preferences
+            return await get_notification_preferences(auth)
+
+        if existing.data and len(existing.data) > 0:
+            # Update existing row
+            result = auth.client.table("user_notification_preferences").update(
+                {**update_data, "updated_at": "now()"}
+            ).eq("user_id", user_id).execute()
+        else:
+            # Insert new row with defaults + updates
+            insert_data = {
+                "user_id": user_id,
+                "email_deliverable_ready": True,
+                "email_deliverable_failed": True,
+                "email_work_complete": True,
+                "email_weekly_digest": True,
+                **update_data
+            }
+            result = auth.client.table("user_notification_preferences").insert(insert_data).execute()
+
+        logger.info(f"[ACCOUNT] User {user_id} updated notification preferences: {update_data}")
+
+        # Return updated preferences
+        return await get_notification_preferences(auth)
+
+    except Exception as e:
+        logger.error(f"[ACCOUNT] Failed to update notification preferences for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update notification preferences")
 
 
 # =============================================================================

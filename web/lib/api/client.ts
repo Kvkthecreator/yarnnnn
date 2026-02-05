@@ -495,8 +495,34 @@ export const api = {
       ),
   },
 
-  // Account management (Danger Zone operations)
+  // Account management
   account: {
+    // Notification preferences
+    getNotificationPreferences: () =>
+      request<{
+        email_deliverable_ready: boolean;
+        email_deliverable_failed: boolean;
+        email_work_complete: boolean;
+        email_weekly_digest: boolean;
+      }>("/api/account/notification-preferences"),
+
+    updateNotificationPreferences: (data: {
+      email_deliverable_ready?: boolean;
+      email_deliverable_failed?: boolean;
+      email_work_complete?: boolean;
+      email_weekly_digest?: boolean;
+    }) =>
+      request<{
+        email_deliverable_ready: boolean;
+        email_deliverable_failed: boolean;
+        email_work_complete: boolean;
+        email_weekly_digest: boolean;
+      }>("/api/account/notification-preferences", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+
+    // Danger Zone operations
     // Get stats for danger zone (counts of what will be affected)
     getDangerZoneStats: () =>
       request<{

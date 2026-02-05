@@ -17,6 +17,8 @@ import {
   FileText,
   RefreshCw,
   LogOut,
+  Bell,
+  Mail,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import type { Project } from "@/types";
@@ -42,7 +44,14 @@ interface DangerZoneStats {
   workspaces: number;
 }
 
-type SettingsTab = "memory" | "billing" | "usage" | "account";
+interface NotificationPreferences {
+  email_deliverable_ready: boolean;
+  email_deliverable_failed: boolean;
+  email_work_complete: boolean;
+  email_weekly_digest: boolean;
+}
+
+type SettingsTab = "memory" | "billing" | "usage" | "notifications" | "account";
 type DangerAction = "memories" | "chat" | "deliverables" | "reset" | "deactivate" | null;
 
 export default function SettingsPage() {
@@ -52,6 +61,7 @@ export default function SettingsPage() {
   const initialTab: SettingsTab =
     tabParam === "billing" ? "billing" :
     tabParam === "usage" ? "usage" :
+    tabParam === "notifications" ? "notifications" :
     tabParam === "account" ? "account" :
     "memory";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
@@ -70,6 +80,11 @@ export default function SettingsPage() {
   const [purgeSuccess, setPurgeSuccess] = useState<string | null>(null);
   const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(subscriptionSuccess);
   const { projects: projectsLimit, isPro } = useSubscriptionGate();
+
+  // Notification preferences state
+  const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
+  const [isLoadingNotifications, setIsLoadingNotifications] = useState(false);
+  const [isSavingNotifications, setIsSavingNotifications] = useState(false);
 
   // Fetch memory stats on mount
   useEffect(() => {
@@ -116,6 +131,44 @@ export default function SettingsPage() {
       loadDangerZoneStats();
     }
   }, [activeTab]);
+
+  // Fetch notification preferences when notifications tab is active
+  useEffect(() => {
+    if (activeTab === "notifications" && !notificationPrefs) {
+      loadNotificationPreferences();
+    }
+  }, [activeTab, notificationPrefs]);
+
+  const loadNotificationPreferences = async () => {
+    setIsLoadingNotifications(true);
+    try {
+      const prefs = await api.account.getNotificationPreferences();
+      setNotificationPrefs(prefs);
+    } catch (err) {
+      console.error("Failed to fetch notification preferences:", err);
+    } finally {
+      setIsLoadingNotifications(false);
+    }
+  };
+
+  const handleNotificationToggle = async (key: keyof NotificationPreferences, value: boolean) => {
+    if (!notificationPrefs) return;
+
+    // Optimistic update
+    setNotificationPrefs({ ...notificationPrefs, [key]: value });
+    setIsSavingNotifications(true);
+
+    try {
+      const updated = await api.account.updateNotificationPreferences({ [key]: value });
+      setNotificationPrefs(updated);
+    } catch (err) {
+      console.error("Failed to update notification preference:", err);
+      // Revert on error
+      setNotificationPrefs({ ...notificationPrefs, [key]: !value });
+    } finally {
+      setIsSavingNotifications(false);
+    }
+  };
 
   const loadDangerZoneStats = async () => {
     setIsLoadingDangerStats(true);
@@ -349,6 +402,19 @@ export default function SettingsPage() {
           </span>
         </button>
         <button
+          onClick={() => setActiveTab("notifications")}
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
+            activeTab === "notifications"
+              ? "border-primary text-foreground"
+              : "border-transparent text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <span className="flex items-center gap-2">
+            <Bell className="w-4 h-4" />
+            Notifications
+          </span>
+        </button>
+        <button
           onClick={() => setActiveTab("account")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
             activeTab === "account"
@@ -438,6 +504,148 @@ export default function SettingsPage() {
               </p>
             </div>
           </div>
+        </section>
+      )}
+
+      {/* Notifications Tab */}
+      {activeTab === "notifications" && (
+        <section className="mb-8">
+          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+            <Bell className="w-5 h-5" />
+            Email Notifications
+          </h2>
+          <p className="text-sm text-muted-foreground mb-6">
+            Control which email notifications you receive from yarnnn.
+          </p>
+
+          {isLoadingNotifications ? (
+            <div className="flex items-center justify-center py-8">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : notificationPrefs ? (
+            <div className="space-y-4">
+              {/* Deliverable Ready */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Mail className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium">Deliverable Ready</div>
+                      <div className="text-sm text-muted-foreground">
+                        Get notified when a scheduled deliverable is ready for review
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleNotificationToggle("email_deliverable_ready", !notificationPrefs.email_deliverable_ready)}
+                    disabled={isSavingNotifications}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      notificationPrefs.email_deliverable_ready ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        notificationPrefs.email_deliverable_ready ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Deliverable Failed */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <AlertTriangle className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium">Deliverable Failed</div>
+                      <div className="text-sm text-muted-foreground">
+                        Get notified when a deliverable fails to generate
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleNotificationToggle("email_deliverable_failed", !notificationPrefs.email_deliverable_failed)}
+                    disabled={isSavingNotifications}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      notificationPrefs.email_deliverable_failed ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        notificationPrefs.email_deliverable_failed ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Work Complete */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Check className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium">Work Complete</div>
+                      <div className="text-sm text-muted-foreground">
+                        Get notified when a work ticket finishes execution
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleNotificationToggle("email_work_complete", !notificationPrefs.email_work_complete)}
+                    disabled={isSavingNotifications}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      notificationPrefs.email_work_complete ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        notificationPrefs.email_work_complete ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* Weekly Digest */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <FileText className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium">Weekly Digest</div>
+                      <div className="text-sm text-muted-foreground">
+                        Receive a weekly summary of your activity
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleNotificationToggle("email_weekly_digest", !notificationPrefs.email_weekly_digest)}
+                    disabled={isSavingNotifications}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      notificationPrefs.email_weekly_digest ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        notificationPrefs.email_weekly_digest ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {isSavingNotifications && (
+                <p className="text-sm text-muted-foreground flex items-center gap-2">
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  Saving...
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="text-muted-foreground">Failed to load notification preferences</div>
+          )}
         </section>
       )}
 

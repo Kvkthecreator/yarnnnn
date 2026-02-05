@@ -22,7 +22,10 @@ import {
   Clock,
   User,
   AlertTriangle,
+  Mail,
+  ExternalLink,
 } from 'lucide-react';
+import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type {
@@ -311,6 +314,9 @@ export function DeliverableSettingsModal({
               <User className="w-4 h-4" />
               Recipient
             </label>
+            <p className="text-xs text-muted-foreground mb-3">
+              This personalizes the content for your audience (not used for email delivery)
+            </p>
             <div className="space-y-3">
               <input
                 type="text"
@@ -333,6 +339,26 @@ export function DeliverableSettingsModal({
                 rows={2}
                 className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               />
+            </div>
+          </div>
+
+          {/* Email Notifications Info */}
+          <div className="p-3 bg-muted/50 rounded-md">
+            <div className="flex items-start gap-3">
+              <Mail className="w-4 h-4 text-muted-foreground mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm text-muted-foreground">
+                  Email notifications are sent to your account email when this deliverable is ready.
+                </p>
+                <Link
+                  href="/settings?tab=notifications"
+                  className="text-sm text-primary hover:underline inline-flex items-center gap-1 mt-1"
+                  onClick={onClose}
+                >
+                  Manage notifications
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
             </div>
           </div>
         </div>
