@@ -123,6 +123,41 @@ This matches how Claude Code maintains tool context across turns, improving cohe
 
 ## Configuration Changelog
 
+### 2025-02-05: Phase-Based Workflow (v2 - Claude Code Alignment)
+
+**Version**: v2 of Task Progress Tracking and Plan Mode
+
+**Problem**:
+1. TP would sometimes execute actions (create deliverable) without explicit user approval
+2. Workflow phases were implicit - no clear separation between planning and execution
+3. Skills had prompt-based guidance but no enforced workflow structure
+
+**Solution**: Introduced explicit phase markers for todos and a mandatory approval gate.
+
+**Phase Markers**:
+| Marker | Phase | Behavior |
+|--------|-------|----------|
+| `[PLAN]` | Planning | Gather info, check assumptions - proceed automatically |
+| `[GATE]` | Approval | **HARD STOP** - must get user confirmation via `clarify()` |
+| `[EXEC]` | Execution | Create/modify entities - only after gate approval |
+| `[VALIDATE]` | Validation | Verify results, offer next steps |
+
+**Approval Gate Pattern**:
+```python
+# When [GATE] todo becomes in_progress:
+→ respond("I'll create X with Y settings...")
+→ clarify("Ready to create?", ["Yes, create it", "Let me adjust..."])
+# STOP - wait for user response before proceeding to [EXEC]
+```
+
+**Key Rule**: Never skip the `[GATE]` phase. Every `[EXEC]` must be preceded by a `[GATE]` that received user confirmation.
+
+**Files Changed**:
+- `api/agents/thinking_partner.py`: Updated Task Progress Tracking and Plan Mode sections
+- `api/services/skills.py`: Updated `SKILL_PLAN_MODE_HEADER` and `SKILL_TODO_TEMPLATE`
+
+---
+
 ### 2025-02-05: Structured History & Context Limits (Claude Code Alignment)
 
 **Problem**:
@@ -185,6 +220,93 @@ This matches how Claude Code maintains tool context across turns, improving cohe
 
 ---
 
+## Workflow Phases (v2)
+
+TP uses a phased workflow pattern inspired by Claude Code's agentic approach.
+
+### Phase Flow
+
+```
+User Request
+     │
+     ▼
+┌─────────────────────────────────────┐
+│  [PLAN] Phase                       │
+│  - Parse request                    │
+│  - Check assumptions (list_*)       │
+│  - Gather missing details (clarify) │
+│  - Revise plan if needed            │
+└─────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────┐
+│  [GATE] Phase  ← HARD STOP          │
+│  - Summarize plan (respond)         │
+│  - Get confirmation (clarify)       │
+│  - WAIT for user response           │
+└─────────────────────────────────────┘
+     │ (user confirms)
+     ▼
+┌─────────────────────────────────────┐
+│  [EXEC] Phase                       │
+│  - Create/modify entities           │
+│  - Only runs after gate approval    │
+└─────────────────────────────────────┘
+     │
+     ▼
+┌─────────────────────────────────────┐
+│  [VALIDATE] Phase                   │
+│  - Verify creation succeeded        │
+│  - Offer next steps (run draft)     │
+└─────────────────────────────────────┘
+```
+
+### Example Todo Progression
+
+**Initial state** (after parsing request):
+```
+[PLAN] Parse request           ✓ completed
+[PLAN] Check project context   ● in_progress
+[PLAN] Gather missing details  ○ pending
+[GATE] Confirm with user       ○ pending
+[EXEC] Create deliverable      ○ pending
+[VALIDATE] Offer first draft   ○ pending
+```
+
+**At the gate** (after planning complete):
+```
+[PLAN] Parse request           ✓ completed
+[PLAN] Check project context   ✓ completed
+[PLAN] Gather missing details  ✓ completed
+[GATE] Confirm with user       ● in_progress  ← STOP HERE
+[EXEC] Create deliverable      ○ pending
+[VALIDATE] Offer first draft   ○ pending
+```
+
+**After user confirms**:
+```
+[PLAN] Parse request           ✓ completed
+[PLAN] Check project context   ✓ completed
+[PLAN] Gather missing details  ✓ completed
+[GATE] Confirm with user       ✓ completed
+[EXEC] Create deliverable      ● in_progress  ← Now can proceed
+[VALIDATE] Offer first draft   ○ pending
+```
+
+### When to Skip Phases
+
+Not all requests need the full workflow:
+
+| Request Type | Phases Used |
+|--------------|-------------|
+| Navigation ("show my memories") | None - direct tool call |
+| Quick action ("pause deliverable") | None - direct tool call |
+| Simple creation ("remember X") | `[EXEC]` only |
+| Deliverable creation | Full workflow with gate |
+| Complex multi-step request | Full workflow with gate |
+
+---
+
 ## Known Issues
 
 ### Context Indicator Behavior
@@ -213,6 +335,14 @@ When making TP changes, verify:
 - [ ] Mobile layout works (iOS Safari with keyboard)
 - [ ] Loading state clears after response
 - [ ] Todo progress displays correctly
+
+### Phase Workflow Testing (v2)
+
+- [ ] Todos show phase markers (`[PLAN]`, `[GATE]`, `[EXEC]`, `[VALIDATE]`)
+- [ ] TP stops at `[GATE]` phase and waits for confirmation
+- [ ] TP does NOT create entities without gate approval
+- [ ] After user confirms at gate, TP proceeds to `[EXEC]`
+- [ ] Plan revision adds steps before the gate, not after
 
 ---
 

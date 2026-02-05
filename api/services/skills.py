@@ -21,17 +21,28 @@ from typing import Optional, Dict, Any
 # =============================================================================
 
 SKILL_PLAN_MODE_HEADER = """
-### Plan Mode Active (ADR-025)
+### Plan Mode Active (ADR-025 v2 - Phase Workflow)
 
-This skill follows plan mode discipline:
-1. **Create todos** upfront for the full workflow
-2. **Verify assumptions** before major actions (check project exists, no duplicates)
-3. **Revise plan** if assumptions fail (add steps, clarify with user)
-4. **Confirm before creating** - never create without user approval
+This skill follows the phased workflow pattern:
 
-### Assumption Checks Required
+| Phase | Marker | Description |
+|-------|--------|-------------|
+| Planning | `[PLAN]` | Parse request, check assumptions, gather info |
+| Approval | `[GATE]` | **STOP** - summarize plan, get user confirmation |
+| Execution | `[EXEC]` | Create entities (only after gate approval) |
+| Validation | `[VALIDATE]` | Verify results, offer next steps |
 
-Before creating the deliverable, verify:
+### Critical: Approval Gate
+
+**The `[GATE]` step is a HARD STOP.** When you reach it:
+1. Mark `[GATE]` todo as `in_progress`
+2. Use `respond()` to summarize what you'll create
+3. Use `clarify("Ready to create?", ["Yes, create it", "Let me adjust..."])`
+4. **WAIT for user response** - do NOT proceed to `[EXEC]`
+
+### Assumption Checks (During `[PLAN]` Phase)
+
+Before the gate, verify:
 - **Project context**: `list_projects()` - does expected project exist?
 - **No duplicates**: `list_deliverables()` - is there already a similar deliverable?
 
@@ -39,27 +50,35 @@ If checks fail:
 - Revise todos to add clarification/creation steps
 - Inform user: "I don't see [X]. Should I create it, or use [alternative]?"
 - Use `clarify()` to get direction
+- Keep the `[GATE]` step - just add more `[PLAN]` steps before it
 """
 
 SKILL_TODO_TEMPLATE = """
-### Todo Tracking
+### Todo Tracking (v2 - with Phase Markers)
 
 Start with these todos (adjust based on what user already provided):
 ```
 todo_write([
-  {{content: "Parse request & identify gaps", status: "completed", activeForm: "Parsing request"}},
-  {{content: "Check project context", status: "in_progress", activeForm: "Checking project context"}},
-  {{content: "Gather missing details", status: "pending", activeForm: "Gathering details"}},
-  {{content: "Confirm setup with user", status: "pending", activeForm: "Confirming setup"}},
-  {{content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"}},
-  {{content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}}
+  {{content: "[PLAN] Parse request & identify gaps", status: "completed", activeForm: "Parsing request"}},
+  {{content: "[PLAN] Check project context", status: "in_progress", activeForm: "Checking context"}},
+  {{content: "[PLAN] Gather missing details", status: "pending", activeForm: "Gathering details"}},
+  {{content: "[GATE] Confirm setup with user", status: "pending", activeForm: "Awaiting confirmation"}},
+  {{content: "[EXEC] Create deliverable", status: "pending", activeForm: "Creating deliverable"}},
+  {{content: "[VALIDATE] Offer first draft", status: "pending", activeForm: "Offering first draft"}}
 ])
 ```
 
-**Rules:**
+**Phase Rules:**
+- `[PLAN]` - Gathering info, checking assumptions. Can proceed automatically.
+- `[GATE]` - **HARD STOP.** Use `clarify("Ready to proceed?", [...])` and WAIT for user.
+- `[EXEC]` - Only execute AFTER user confirms at gate.
+- `[VALIDATE]` - Verify results, offer next steps.
+
+**General Rules:**
 - Update todos as you progress
 - If assumption check fails, revise the todo list (add steps)
 - Mark "Check project context" complete even if it reveals issues - the check was done
+- **Never skip the `[GATE]` phase before `[EXEC]`**
 """
 
 

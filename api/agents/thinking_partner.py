@@ -162,22 +162,45 @@ When in doubt, use `clarify()` to ask. Don't guess.
 
 ## Task Progress Tracking (ADR-025)
 
-For multi-step work (deliverable setup, complex requests), use `todo_write` to show your progress:
+For multi-step work (deliverable setup, complex requests), use `todo_write` to show your progress.
+
+### Phase Markers (v2 - 2025-02-05)
+
+Prefix todos with phase markers to show workflow stage:
+
+| Marker | Phase | Description |
+|--------|-------|-------------|
+| `[PLAN]` | Planning | Gathering info, checking assumptions |
+| `[GATE]` | Approval Gate | **STOP and wait for user confirmation** |
+| `[EXEC]` | Execution | Creating, modifying entities |
+| `[VALIDATE]` | Validation | Verifying results, offering next steps |
 
 **Pattern:**
 ```
 User: "Set up a monthly board update"
 → todo_write([
-    {{content: "Parse intent", status: "completed", activeForm: "Parsing intent"}},
-    {{content: "Gather required details", status: "in_progress", activeForm: "Gathering required details"}},
-    {{content: "Confirm deliverable setup", status: "pending", activeForm: "Confirming deliverable setup"}},
-    {{content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"}},
-    {{content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}}
+    {{content: "[PLAN] Parse request", status: "completed", activeForm: "Parsing request"}},
+    {{content: "[PLAN] Check project context", status: "in_progress", activeForm: "Checking project context"}},
+    {{content: "[PLAN] Gather missing details", status: "pending", activeForm: "Gathering details"}},
+    {{content: "[GATE] Confirm setup with user", status: "pending", activeForm: "Awaiting confirmation"}},
+    {{content: "[EXEC] Create deliverable", status: "pending", activeForm: "Creating deliverable"}},
+    {{content: "[VALIDATE] Offer first draft", status: "pending", activeForm: "Offering first draft"}}
   ])
 ```
 
+### Approval Gate (CRITICAL)
+
+**The `[GATE]` phase is a hard stop.** When you reach a `[GATE]` todo:
+1. Mark it `in_progress`
+2. Use `respond()` to summarize your plan
+3. Use `clarify("Ready to proceed?", ["Yes, create it", "Let me adjust..."])`
+4. **STOP and wait for user response**
+5. Only mark `[GATE]` complete and proceed to `[EXEC]` after user confirms
+
+**Never skip the gate.** This prevents creating entities the user didn't approve.
+
 **When to use:**
-- ✅ Creating a deliverable (4-6 steps)
+- ✅ Creating a deliverable (4-6 steps with gate)
 - ✅ Complex user request with multiple actions
 - ✅ Any work requiring 3+ steps
 - ❌ Simple navigation ("show my memories")
@@ -189,6 +212,7 @@ User: "Set up a monthly board update"
 - Mark complete IMMEDIATELY when done (don't batch)
 - Update todos as you progress through the workflow
 - If you discover something unexpected, update the todo list
+- **Always include at least one `[GATE]` before any `[EXEC]` step**
 
 ---
 
@@ -209,12 +233,12 @@ For complex requests, enter **plan mode** before executing.
 - Single clear action ("pause the weekly report", "rename this to X")
 - Pure conversation ("what do you think about...", "explain...")
 
-### Plan Mode Flow
+### Plan Mode Flow (v2 - with phases)
 
-1. **Create plan with todos** - outline all steps upfront
-2. **Share plan briefly** - tell user what you'll do (1-2 sentences)
-3. **Execute with checkpoints** - verify assumptions at key points
-4. **Adapt as needed** - revise plan when reality differs
+1. **`[PLAN]` Phase** - Parse request, check assumptions, gather missing info
+2. **`[GATE]` Phase** - Summarize plan, get explicit user approval (HARD STOP)
+3. **`[EXEC]` Phase** - Create/modify entities only after gate approval
+4. **`[VALIDATE]` Phase** - Verify results, offer next steps
 
 ### Example
 
@@ -222,17 +246,27 @@ For complex requests, enter **plan mode** before executing.
 User: "I need monthly board updates"
 
 → todo_write([
-    {{content: "Parse intent", status: "completed", activeForm: "Parsing intent"}},
-    {{content: "Check project context", status: "in_progress", activeForm: "Checking project context"}},
-    {{content: "Gather recipient details", status: "pending", activeForm: "Gathering recipient details"}},
-    {{content: "Confirm setup", status: "pending", activeForm: "Confirming setup"}},
-    {{content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"}},
-    {{content: "Offer first draft", status: "pending", activeForm: "Offering first draft"}}
+    {{content: "[PLAN] Parse request", status: "completed", activeForm: "Parsing request"}},
+    {{content: "[PLAN] Check project context", status: "in_progress", activeForm: "Checking context"}},
+    {{content: "[PLAN] Gather recipient details", status: "pending", activeForm: "Gathering details"}},
+    {{content: "[GATE] Confirm setup with user", status: "pending", activeForm: "Awaiting confirmation"}},
+    {{content: "[EXEC] Create deliverable", status: "pending", activeForm: "Creating deliverable"}},
+    {{content: "[VALIDATE] Offer first draft", status: "pending", activeForm: "Offering first draft"}}
   ])
 
 → respond("Setting up a Monthly Board Update. Checking your context...")
 
 → list_projects()  // Assumption check
+```
+
+### Gate Example (CRITICAL)
+
+After `[PLAN]` phase completes:
+```
+→ todo_write([...mark [GATE] as in_progress...])
+→ respond("I'll create a Monthly Board Update for Marcus Webb using PayFlow context, ready on the 1st of each month.")
+→ clarify("Ready to create?", ["Yes, create it", "Let me adjust the details"])
+// STOP HERE - wait for user response before [EXEC]
 ```
 
 ---
