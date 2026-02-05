@@ -114,11 +114,13 @@ You MUST use a tool for every response. There is no "default" text output.
 
 **Be concise. Don't narrate what the UI already shows.**
 
-**Navigation → Brief or silent:**
-When showing data (memories, projects, deliverables), the surface speaks for itself.
-- "show me my memory" → `list_memories()` + optional brief `respond("Here's your context.")` — NO summary of what's shown
-- "what deliverables do I have" → `list_deliverables()` + optional `respond("3 active.")` — NOT a full description
-- "open that project" → `get_project(...)` — silent is fine, user can see it
+**Navigation → Always respond briefly:**
+When showing data (memories, projects, deliverables), ALWAYS follow with a brief `respond()`.
+- "show me my memory" → `list_memories()` + `respond("Here's your personal context.")`
+- "what deliverables do I have" → `list_deliverables()` + `respond("You have 3 active deliverables.")`
+- "open that project" → `get_project(...)` + `respond("Here's the project details.")`
+
+IMPORTANT: Never leave the user with no message. Always use `respond()` after navigation tools.
 
 **Actions → Brief confirmation:**
 - "create a project for X" → `create_project(...)`, then `respond("Created. Want to add context?")`
@@ -807,54 +809,25 @@ recurring deliverable through conversation.
         ):
             yield chunk
 
-    def _detect_workflow_interrupt(self, task: str, history: list) -> bool:
+    def _detect_clarification_response(self, task: str, history: list) -> bool:
         """
-        Detect if the current message is an interrupt to an ongoing workflow.
+        Detect if the current message is a response to a clarify() call.
 
-        Returns True if:
-        - Current message doesn't trigger a skill AND
-        - History contains skill-related content (todo_write, deliverable workflows)
+        Returns True if the previous assistant turn included a clarify tool use.
         """
-        # If current message triggers a skill, it's not an interrupt - it's a new workflow
-        if detect_skill(task):
+        if not history:
             return False
 
-        # Check if history contains workflow indicators
-        # Look for todo_write tool calls or skill-related assistant messages in recent history
-        task_lower = task.lower().strip()
-
-        # Simple navigation/query requests are likely interrupts if workflow is active
-        interrupt_patterns = [
-            "show me", "list", "what", "how many", "open", "get",
-            "memory", "memories", "context", "project", "projects",
-            "deliverable", "deliverables", "work"
-        ]
-        is_simple_request = any(p in task_lower for p in interrupt_patterns)
-
-        if not is_simple_request:
-            return False
-
-        # Check recent history for workflow indicators
-        # Look at last 4 assistant messages for todo_write mentions
-        recent_assistant_msgs = [
-            m for m in history[-8:] if m.get("role") == "assistant"
-        ][-4:]
-
-        for msg in recent_assistant_msgs:
-            content = msg.get("content", "")
-            if isinstance(content, str):
-                # Check for workflow indicators in text
-                if any(indicator in content.lower() for indicator in [
-                    "todo_write", "board update", "status report", "deliverable",
-                    "step 1:", "step 2:", "checking", "gathering", "confirming"
-                ]):
-                    return True
-            elif isinstance(content, list):
-                # Check for tool_use blocks with todo_write
-                for block in content:
-                    if isinstance(block, dict):
-                        if block.get("type") == "tool_use" and block.get("name") == "todo_write":
-                            return True
+        # Look at the last assistant message
+        for msg in reversed(history):
+            if msg.get("role") == "assistant":
+                content = msg.get("content", "")
+                if isinstance(content, list):
+                    for block in content:
+                        if isinstance(block, dict):
+                            if block.get("type") == "tool_use" and block.get("name") == "clarify":
+                                return True
+                break  # Only check the most recent assistant message
 
         return False
 
@@ -897,17 +870,20 @@ recurring deliverable through conversation.
         active_skill = detect_skill(task)
         skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
 
-        # ADR-025: Detect workflow interrupt - if user sends a simple request while
-        # a workflow is in progress, inject interrupt guidance
-        is_interrupt = self._detect_workflow_interrupt(task, history)
-        if is_interrupt:
-            # Prepend interrupt instruction to the task
-            task = f"""[WORKFLOW INTERRUPT]
-The user has sent a new request that interrupts the previous workflow.
-ABANDON the previous workflow's todos immediately. Do NOT continue the board update, status report, or any other multi-step workflow.
-Process this request independently as if it were the first message.
+        # Detect if this is a response to a clarify() call
+        # Clarification responses need special handling to ensure TP acts on the selected option
+        is_clarification_response = self._detect_clarification_response(task, history)
+        if is_clarification_response:
+            # Frame the message as a clarification response so TP understands to ACT on it
+            task = f"""[CLARIFICATION RESPONSE]
+The user selected this option in response to your clarify() question: "{task}"
 
-User's request: {task}"""
+This is their CHOICE. Execute the action implied by their selection:
+- If they chose to create something, use the appropriate create tool
+- If they chose to use a specific context, proceed with that context
+- If they chose a name/title, use that in the next step
+
+Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on their choice."""
 
         system = self._build_system_prompt(
             context, include_context,
