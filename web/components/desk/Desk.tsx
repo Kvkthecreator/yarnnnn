@@ -2,13 +2,18 @@
 
 /**
  * ADR-023: Supervisor Desk Architecture
- * Main desk container - routes to current surface
+ * ADR-025 Addendum: TP as Persistent Drawer (Model B)
+ *
+ * Main desk container - Surface + TPDrawer side by side
+ *
+ * Desktop: Surface (flex-1) + TPDrawer (360px right panel, collapsible)
+ * Mobile: Surface full screen + TPDrawer as full-screen overlay
  */
 
 import { Loader2 } from 'lucide-react';
 import { useDesk } from '@/contexts/DeskContext';
 import { SurfaceRouter } from './SurfaceRouter';
-import { TPBar } from '@/components/tp/TPBar';
+import { TPDrawer } from '@/components/tp/TPDrawer';
 
 export function Desk() {
   const { surface, isLoading, error } = useDesk();
@@ -38,18 +43,14 @@ export function Desk() {
   }
 
   return (
-    <div className="h-full relative">
-      {/* Main surface area - full height, content manages its own padding */}
-      <div className="h-full overflow-hidden pb-20 md:pb-24">
+    <div className="h-full flex">
+      {/* Main surface area - takes remaining space */}
+      <main className="flex-1 overflow-hidden">
         <SurfaceRouter surface={surface} />
-      </div>
+      </main>
 
-      {/* TP floating bar - overlays bottom of screen */}
-      <div className="absolute inset-x-0 bottom-0 pointer-events-none">
-        <div className="pointer-events-auto">
-          <TPBar />
-        </div>
-      </div>
+      {/* TP Drawer - right side panel (desktop) or full-screen overlay (mobile) */}
+      <TPDrawer />
     </div>
   );
 }

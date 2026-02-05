@@ -36,7 +36,6 @@ import {
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP } from '@/contexts/TPContext';
-import { TPWorkPanel } from '@/components/tp/TPWorkPanel';
 import { useOnboardingState } from '@/hooks/useOnboardingState';
 import { WelcomePrompt, MinimalContextBanner } from '@/components/WelcomePrompt';
 import { formatDistanceToNow } from 'date-fns';
@@ -78,7 +77,7 @@ interface DashboardData {
 
 export function IdleSurface() {
   const { setSurface, attention } = useDesk();
-  const { sendMessage, todos, workPanelExpanded, setWorkPanelExpanded } = useTP();
+  const { sendMessage } = useTP();
   const {
     state: onboardingState,
     isLoading: onboardingLoading,
@@ -307,13 +306,8 @@ export function IdleSurface() {
   const showMinimalContextBanner =
     !isDismissed && onboardingState === 'minimal_context';
 
-  // ADR-025: Show work panel when TP has todos
-  const showWorkPanel = workPanelExpanded || todos.length > 0;
-
   return (
-    <div className="h-full flex">
-      {/* Main content */}
-      <div className={`flex-1 overflow-auto ${showWorkPanel ? 'md:border-r md:border-border' : ''}`}>
+    <div className="h-full overflow-auto">
       <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-6">
         {/* Minimal Context Banner */}
         {showMinimalContextBanner && (
@@ -510,22 +504,6 @@ export function IdleSurface() {
           </button>
         </div>
       </div>
-      </div>
-
-      {/* ADR-025: Work panel for multi-step TP workflows */}
-      {/* Desktop: Side panel */}
-      {showWorkPanel && (
-        <div className="hidden md:block w-[360px] shrink-0">
-          <TPWorkPanel onCollapse={() => setWorkPanelExpanded(false)} />
-        </div>
-      )}
-
-      {/* Mobile: Bottom sheet overlay */}
-      {showWorkPanel && (
-        <div className="md:hidden">
-          <TPWorkPanel onCollapse={() => setWorkPanelExpanded(false)} mobile />
-        </div>
-      )}
     </div>
   );
 }
