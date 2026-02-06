@@ -5,6 +5,10 @@
 -- Tables:
 --   - integration_import_jobs: Track import operations (background jobs)
 --   - integration_sync_config: Configure continuous sync for resources
+--
+-- Note: Imported context is stored in the 'memories' table with:
+--   - source_type = 'import'
+--   - source_ref = JSONB with platform, resource_id, job_id, etc.
 
 -- =============================================================================
 -- Import Jobs Table
@@ -30,11 +34,12 @@ CREATE TABLE IF NOT EXISTS integration_import_jobs (
     instructions TEXT,
 
     -- Results (populated on completion)
-    result JSONB,  -- { blocks_created, memories_created, summary }
+    result JSONB,  -- { blocks_created, items_processed, items_filtered, summary }
     error_message TEXT,
 
     -- Timestamps
     created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
     started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ,
 
@@ -139,21 +144,18 @@ CREATE POLICY "Users can delete own sync config"
 
 
 -- =============================================================================
--- Extend context_sources with external source tracking
+-- Notes on Memory Storage
 -- =============================================================================
--- Add column to track where imported context came from
-
-ALTER TABLE context_sources
-    ADD COLUMN IF NOT EXISTS external_source JSONB DEFAULT NULL;
-
--- external_source format:
--- {
---   "provider": "slack" | "notion",
---   "resource_id": "C123..." | "page-uuid",
---   "resource_name": "#channel-name" | "Page Title",
---   "import_job_id": "uuid",
---   "imported_at": "ISO timestamp"
--- }
-
-COMMENT ON COLUMN context_sources.external_source IS
-    'Tracks origin of imported context. NULL for manually added context.';
+-- Imported context is stored in the existing 'memories' table, using:
+--   source_type = 'import'
+--   source_ref = {
+--     "platform": "slack" | "notion",
+--     "resource_id": "C123..." | "page-uuid",
+--     "resource_name": "#channel-name" | "Page Title",
+--     "job_id": "uuid",
+--     "block_type": "decision" | "action_item" | "context" | "person" | "technical",
+--     "metadata": {...agent-provided metadata...}
+--   }
+--
+-- This leverages the existing memories architecture (ADR-005) rather than
+-- creating a separate context_sources table.

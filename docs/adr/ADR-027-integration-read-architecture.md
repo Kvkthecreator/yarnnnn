@@ -98,9 +98,10 @@ Per ADR-026, **MCP is the primary integration stack** - for both reads and write
    - LLM interprets and structures
    - Output: context blocks, memories, style profiles
 
-3. **Context Store** (existing `context_sources`, `blocks`)
-   - Stores agent-processed output
-   - Tagged with source metadata for provenance
+3. **Context Store** (existing `memories` table per ADR-005)
+   - Stores agent-processed output with `source_type = 'import'`
+   - Provenance tracked via `source_ref` JSONB column
+   - Inherits unified memory architecture (embeddings, project scoping)
 
 ### Why MCP for Reads (Not Direct APIs)?
 
@@ -250,24 +251,60 @@ Response: { "pages": [{ "id", "title", "last_edited" }] }
 
 ## Data Model
 
+### Import Jobs Table
+
 ```sql
--- Import job tracking
 CREATE TABLE integration_import_jobs (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id),
     project_id UUID REFERENCES projects(id),
-    provider TEXT NOT NULL,
+    provider TEXT NOT NULL,  -- 'slack' | 'notion'
     resource_id TEXT NOT NULL,  -- channel_id, page_id
     resource_name TEXT,
     status TEXT NOT NULL DEFAULT 'pending',  -- pending, processing, completed, failed
     instructions TEXT,  -- Optional user guidance for agent
-    result JSONB,  -- { blocks_created, memories_created, summary }
+    result JSONB,  -- { blocks_created, items_processed, items_filtered, summary }
     error_message TEXT,
     created_at TIMESTAMPTZ DEFAULT now(),
+    updated_at TIMESTAMPTZ DEFAULT now(),
+    started_at TIMESTAMPTZ,
     completed_at TIMESTAMPTZ
 );
+```
 
--- Sync configuration for continuous imports
+### Memory Storage (Imported Context)
+
+Imported context is stored in the **existing `memories` table** (ADR-005), not a separate table:
+
+```sql
+-- Imported context stored as memories
+INSERT INTO memories (user_id, project_id, content, source_type, source_ref, importance, tags)
+VALUES (
+    'user-uuid',
+    'project-uuid',  -- NULL for user-scoped
+    'Team decided to use PostgreSQL for the new API.',
+    'import',  -- source_type indicates imported content
+    '{
+        "platform": "slack",
+        "resource_id": "C0123CHANNEL",
+        "resource_name": "#engineering",
+        "job_id": "job-uuid",
+        "block_type": "decision",
+        "metadata": {"confidence": "high", "participants": ["@alice", "@bob"]}
+    }',
+    0.9,  -- High importance for decisions
+    ARRAY['decision']
+);
+```
+
+This leverages the unified memory architecture:
+- **Scope**: `project_id = NULL` → user-scoped (portable), `project_id = uuid` → project-scoped
+- **Retrieval**: Embedding-based similarity search works out of the box
+- **Provenance**: `source_ref` JSONB tracks origin platform, resource, and job
+
+### Sync Configuration (Future)
+
+```sql
 CREATE TABLE integration_sync_config (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID NOT NULL REFERENCES auth.users(id),
@@ -299,10 +336,10 @@ CREATE TABLE integration_sync_config (
 
 ### Phase 2: Background Job Processing
 
-- [ ] Create `api/workers/import_job_processor.py` - processes pending jobs
-- [ ] Integrate MCP data fetching with ContextImportAgent
-- [ ] Store extracted context blocks to `context_sources`
-- [ ] Update job status and progress in real-time
+- [x] Create `api/jobs/import_jobs.py` - processes pending import jobs
+- [x] Integrate into `unified_scheduler.py` (runs every 5 minutes)
+- [x] Store extracted context to `memories` table (source_type='import')
+- [x] Job status tracked via `integration_import_jobs` table
 
 ### Phase 3: Onboarding UI
 

@@ -30,6 +30,7 @@ from .email import (
     send_deliverable_failed_email,
 )
 from .digest import generate_digest_content
+from .import_jobs import get_pending_import_jobs, process_import_job
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -669,13 +670,29 @@ async def run_unified_scheduler():
                 logger.error(f"[DIGEST] Unexpected error for {ws.get('workspace_name')}: {e}")
 
     # -------------------------------------------------------------------------
+    # Process Integration Import Jobs (ADR-027)
+    # -------------------------------------------------------------------------
+    import_jobs = await get_pending_import_jobs(supabase)
+    import_count = len(import_jobs)
+    logger.info(f"[IMPORT] Found {import_count} pending import job(s)")
+
+    import_success = 0
+    for job in import_jobs:
+        try:
+            if await process_import_job(supabase, job):
+                import_success += 1
+        except Exception as e:
+            logger.error(f"[IMPORT] Unexpected error for job {job.get('id')}: {e}")
+
+    # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
     logger.info(
         f"Completed: "
         f"deliverables={deliverable_success}/{len(deliverables)}, "
         f"work={work_success}/{len(work_items)}, "
-        f"digests={digest_success}/{digest_count}"
+        f"digests={digest_success}/{digest_count}, "
+        f"imports={import_success}/{import_count}"
     )
 
 
