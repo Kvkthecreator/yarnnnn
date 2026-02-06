@@ -24,6 +24,10 @@ import {
   AlertTriangle,
   Mail,
   ExternalLink,
+  Send,
+  Slack,
+  FileCode,
+  Download,
 } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api/client';
@@ -35,6 +39,8 @@ import type {
   ScheduleConfig,
   RecipientContext,
   ScheduleFrequency,
+  Destination,
+  GovernanceLevel,
 } from '@/types';
 
 interface DeliverableSettingsModalProps {
@@ -75,6 +81,19 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   board_update: 'Board Update',
 };
 
+// ADR-028: Governance options
+const GOVERNANCE_OPTIONS: { value: GovernanceLevel; label: string; description: string }[] = [
+  { value: 'manual', label: 'Manual', description: 'You click export after approving' },
+  { value: 'semi_auto', label: 'Semi-auto', description: 'Auto-delivers after you approve' },
+  { value: 'full_auto', label: 'Full-auto', description: 'Delivers immediately (skip review)' },
+];
+
+const PLATFORM_ICONS: Record<string, React.ReactNode> = {
+  slack: <Slack className="w-4 h-4" />,
+  notion: <FileCode className="w-4 h-4" />,
+  download: <Download className="w-4 h-4" />,
+};
+
 export function DeliverableSettingsModal({
   deliverable,
   open,
@@ -93,6 +112,13 @@ export function DeliverableSettingsModal({
   const [recipient, setRecipient] = useState<RecipientContext>(
     deliverable.recipient_context || {}
   );
+  // ADR-028: Destination and governance state
+  const [destination, setDestination] = useState<Destination | undefined>(
+    deliverable.destination
+  );
+  const [governance, setGovernance] = useState<GovernanceLevel>(
+    deliverable.governance || 'manual'
+  );
 
   // New source input
   const [newSourceType, setNewSourceType] = useState<'url' | 'description'>('url');
@@ -104,6 +130,8 @@ export function DeliverableSettingsModal({
     setSchedule(deliverable.schedule || { frequency: 'weekly', day: 'monday', time: '09:00' });
     setSources(deliverable.sources || []);
     setRecipient(deliverable.recipient_context || {});
+    setDestination(deliverable.destination);
+    setGovernance(deliverable.governance || 'manual');
     setError(null);
   }, [deliverable]);
 
@@ -117,6 +145,8 @@ export function DeliverableSettingsModal({
         schedule,
         sources,
         recipient_context: recipient,
+        destination,
+        governance,
       };
 
       await api.deliverables.update(deliverable.id, update);
@@ -340,6 +370,82 @@ export function DeliverableSettingsModal({
                 className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               />
             </div>
+          </div>
+
+          {/* ADR-028: Delivery Destination */}
+          <div>
+            <label className="block text-sm font-medium mb-1.5 flex items-center gap-1.5">
+              <Send className="w-4 h-4" />
+              Delivery
+            </label>
+            <p className="text-xs text-muted-foreground mb-3">
+              Where should approved versions be delivered?
+            </p>
+
+            {/* Current destination display */}
+            {destination ? (
+              <div className="p-3 bg-muted/50 rounded-md mb-3">
+                <div className="flex items-center gap-2">
+                  {PLATFORM_ICONS[destination.platform] || <Send className="w-4 h-4" />}
+                  <span className="text-sm font-medium capitalize">{destination.platform}</span>
+                  {destination.target && (
+                    <span className="text-sm text-muted-foreground">→ {destination.target}</span>
+                  )}
+                  <button
+                    onClick={() => setDestination(undefined)}
+                    className="ml-auto p-1 hover:bg-muted rounded text-muted-foreground hover:text-red-600"
+                    title="Remove destination"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="p-3 border border-dashed border-border rounded-md text-center text-sm text-muted-foreground mb-3">
+                No destination configured — manual export only
+              </div>
+            )}
+
+            {/* Governance selector */}
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-muted-foreground">
+                Delivery mode
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {GOVERNANCE_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setGovernance(opt.value)}
+                    className={cn(
+                      "p-2 rounded-md border text-left transition-colors",
+                      governance === opt.value
+                        ? "border-primary bg-primary/5"
+                        : "border-border hover:border-muted-foreground/50"
+                    )}
+                  >
+                    <div className="text-xs font-medium">{opt.label}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{opt.description}</div>
+                  </button>
+                ))}
+              </div>
+              {!destination && governance !== 'manual' && (
+                <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
+                  <AlertTriangle className="w-3 h-3" />
+                  Configure a destination to enable auto-delivery
+                </p>
+              )}
+            </div>
+
+            {/* Link to integrations */}
+            <Link
+              href="/settings?tab=integrations"
+              className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-3"
+              onClick={onClose}
+            >
+              Manage integrations (Slack, Notion)
+              <ExternalLink className="w-3 h-3" />
+            </Link>
           </div>
 
           {/* Email Notifications Info */}

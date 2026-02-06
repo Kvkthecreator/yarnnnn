@@ -518,6 +518,18 @@ export interface DataSource {
 // Quality trend for feedback loop tracking (ADR-018)
 export type QualityTrend = "improving" | "stable" | "declining";
 
+// ADR-028: Destination-first deliverables
+export type DestinationPlatform = "slack" | "notion" | "email" | "download";
+export type GovernanceLevel = "manual" | "semi_auto" | "full_auto";
+export type DeliveryStatus = "pending" | "delivering" | "delivered" | "failed";
+
+export interface Destination {
+  platform: DestinationPlatform;
+  target?: string;  // Channel ID, page ID, email, or null for download
+  format?: string;  // message, thread, page, markdown, html
+  options?: Record<string, unknown>;
+}
+
 export interface Deliverable {
   id: string;
   title: string;
@@ -535,6 +547,9 @@ export interface Deliverable {
   next_run_at?: string;
   version_count?: number;
   latest_version_status?: VersionStatus;
+  // ADR-028: Destination-first deliverables
+  destination?: Destination;
+  governance: GovernanceLevel;
   // Quality metrics (ADR-018: feedback loop)
   quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
@@ -552,6 +567,9 @@ export interface DeliverableCreate {
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;
   sources?: DataSource[];
+  // ADR-028: Destination-first deliverables
+  destination?: Destination;
+  governance?: GovernanceLevel;
   // Legacy fields
   description?: string;
   template_structure?: TemplateStructure;
@@ -565,6 +583,9 @@ export interface DeliverableUpdate {
   schedule?: ScheduleConfig;
   sources?: DataSource[];
   status?: DeliverableStatus;
+  // ADR-028: Destination-first deliverables
+  destination?: Destination;
+  governance?: GovernanceLevel;
   // Legacy fields
   description?: string;
   template_structure?: TemplateStructure;
@@ -587,6 +608,11 @@ export interface DeliverableVersion {
   created_at: string;
   staged_at?: string;
   approved_at?: string;
+  // ADR-028: Delivery tracking
+  delivery_status?: DeliveryStatus;
+  delivery_external_id?: string;
+  delivery_external_url?: string;
+  delivered_at?: string;
 }
 
 // ADR-018: Feedback summary for learned preferences

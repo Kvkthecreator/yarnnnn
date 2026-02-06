@@ -1305,9 +1305,18 @@ async def execute_synthesize_step(
 
     logger.info(f"[SYNTHESIZE] Using type-specific prompt for type={deliverable_type}")
 
-    # ADR-027 Phase 5: Extract style_context from type_config if specified
-    # This tells the content agent which style profile to use (e.g., "slack", "notion")
+    # ADR-028: Infer style_context from destination platform if set
+    # Priority: 1) explicit type_config.style_context, 2) destination.platform, 3) none
     style_context = type_config.get("style_context")
+
+    if not style_context:
+        # Try to infer from destination
+        destination = deliverable.get("destination")
+        if destination and destination.get("platform"):
+            platform = destination["platform"]
+            # Map platform to style context
+            style_context = platform  # slack, notion, etc. match style profile names
+            logger.info(f"[SYNTHESIZE] Inferred style_context={style_context} from destination.platform")
 
     # Build parameters for content agent
     agent_params = {

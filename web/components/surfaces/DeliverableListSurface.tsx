@@ -6,7 +6,7 @@
  */
 
 import { useState, useEffect } from 'react';
-import { Loader2, Play, Pause, Calendar, Clock, FileText, Plus } from 'lucide-react';
+import { Loader2, Play, Pause, Calendar, Clock, FileText, Plus, Send, Slack } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP } from '@/contexts/TPContext';
@@ -84,6 +84,21 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
     }
   };
 
+  // ADR-028: Format destination for display
+  const formatDestination = (d: Deliverable) => {
+    if (!d.destination) return null;
+    const platform = d.destination.platform;
+    const target = d.destination.target;
+    const isAuto = d.governance === 'semi_auto' || d.governance === 'full_auto';
+
+    return {
+      platform,
+      target,
+      isAuto,
+      icon: platform === 'slack' ? <Slack className="w-3 h-3" /> : <Send className="w-3 h-3" />,
+    };
+  };
+
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-6 py-6">
@@ -136,38 +151,52 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
           </div>
         ) : (
           <div className="space-y-2">
-            {deliverables.map((d) => (
-              <button
-                key={d.id}
-                onClick={() => setSurface({ type: 'deliverable-detail', deliverableId: d.id })}
-                className="w-full p-4 border border-border rounded-lg text-left hover:bg-muted cursor-pointer"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    {getStatusIcon(d.status)}
-                    <div>
-                      <span className="text-sm font-medium">{d.title}</span>
-                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <span>{d.deliverable_type.replace(/_/g, ' ')}</span>
-                        <span>•</span>
-                        <span>{formatSchedule(d.schedule)}</span>
+            {deliverables.map((d) => {
+              const dest = formatDestination(d);
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => setSurface({ type: 'deliverable-detail', deliverableId: d.id })}
+                  className="w-full p-4 border border-border rounded-lg text-left hover:bg-muted cursor-pointer"
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      {getStatusIcon(d.status)}
+                      <div>
+                        <span className="text-sm font-medium">{d.title}</span>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <span>{d.deliverable_type.replace(/_/g, ' ')}</span>
+                          <span>•</span>
+                          <span>{formatSchedule(d.schedule)}</span>
+                          {/* ADR-028: Show destination if configured */}
+                          {dest && (
+                            <>
+                              <span>•</span>
+                              <span className="inline-flex items-center gap-1">
+                                {dest.icon}
+                                <span className="capitalize">{dest.platform}</span>
+                                {dest.isAuto && <span className="text-green-600">(auto)</span>}
+                              </span>
+                            </>
+                          )}
+                        </div>
                       </div>
                     </div>
+                    <div className="text-right">
+                      {d.next_run_at && (
+                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                          <Clock className="w-3 h-3" />
+                          <span>Next: {formatDistanceToNow(new Date(d.next_run_at), { addSuffix: true })}</span>
+                        </div>
+                      )}
+                      <span className="text-xs text-muted-foreground">
+                        Created {formatDistanceToNow(new Date(d.created_at), { addSuffix: true })}
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-right">
-                    {d.next_run_at && (
-                      <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                        <Clock className="w-3 h-3" />
-                        <span>Next: {formatDistanceToNow(new Date(d.next_run_at), { addSuffix: true })}</span>
-                      </div>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      Created {formatDistanceToNow(new Date(d.created_at), { addSuffix: true })}
-                    </span>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         )}
       </div>

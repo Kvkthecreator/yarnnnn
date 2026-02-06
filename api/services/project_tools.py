@@ -638,11 +638,13 @@ CREATE_DELIVERABLE_TOOL = {
 - If user said "monthly" → frequency MUST be "monthly"
 - If user said "board update" → type should be "stakeholder_update" or "board_update"
 - If user said it's for "Marcus" → recipient_name MUST be "Marcus"
+- If user said "send to Slack" → destination_platform MUST be "slack"
 
 **Before calling this tool, you MUST have:**
 1. Parsed the user's request to extract: title, frequency, type, recipient
-2. Confirmed your understanding with the user
-3. Received confirmation ("yes", "sounds good", etc.)
+2. Asked where they want it delivered (Slack, Notion, or manual review)
+3. Confirmed your understanding with the user
+4. Received confirmation ("yes", "sounds good", etc.)
 
 **Never create with defaults that contradict what the user said!**
 
@@ -653,9 +655,20 @@ CREATE_DELIVERABLE_TOOL = {
 - meeting_summary: Recap of recurring meetings
 - custom: Anything else
 
+**DESTINATION (ADR-028):**
+Ask "Where should this be delivered?" and offer:
+- Slack channel (if connected)
+- Notion page (if connected)
+- Manual review only (default)
+
+**GOVERNANCE:**
+- manual: User clicks export after approving each version
+- semi_auto: Auto-delivers after user approves (recommended for routine updates)
+- full_auto: Delivers immediately without review (use sparingly)
+
 Returns the created deliverable. Always follow with respond() to:
 1. Confirm creation with the actual parameters used
-2. State what context will be used for generation
+2. State where it will be delivered (or that it's manual)
 3. Offer to generate first draft""",
     "input_schema": {
         "type": "object",
@@ -697,6 +710,20 @@ Returns the created deliverable. Always follow with respond() to:
             "project_id": {
                 "type": "string",
                 "description": "Optional: Link to an existing project for context"
+            },
+            "destination_platform": {
+                "type": "string",
+                "enum": ["slack", "notion", "download"],
+                "description": "ADR-028: Where to deliver. If not specified, defaults to manual review (no auto-delivery)."
+            },
+            "destination_target": {
+                "type": "string",
+                "description": "ADR-028: Target for delivery - Slack channel ID/name (e.g., '#team-updates', 'C123ABC') or Notion page ID. Required if destination_platform is set."
+            },
+            "governance": {
+                "type": "string",
+                "enum": ["manual", "semi_auto", "full_auto"],
+                "description": "ADR-028: Delivery automation level. 'semi_auto' recommended for routine updates (auto-delivers after approval). Default: 'manual'"
             }
         },
         "required": ["title", "deliverable_type"]
@@ -2021,6 +2048,19 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     if recipient_relationship:
         recipient_context["role"] = recipient_relationship
 
+    # ADR-028: Build destination config
+    destination_platform = input.get("destination_platform")
+    destination_target = input.get("destination_target")
+    governance = input.get("governance", "manual")
+
+    destination = None
+    if destination_platform:
+        destination = {
+            "platform": destination_platform,
+            "target": destination_target,
+            "format": "message" if destination_platform == "slack" else "page" if destination_platform == "notion" else "markdown",
+        }
+
     # Build deliverable data
     deliverable_data = {
         "title": title,
@@ -2030,8 +2070,12 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
         "schedule": schedule,
         "type_config": type_config,
         "next_run_at": next_run.isoformat() if hasattr(next_run, 'isoformat') else str(next_run),
+        # ADR-028: Destination-first
+        "governance": governance,
     }
 
+    if destination:
+        deliverable_data["destination"] = destination
     if recipient_context:
         deliverable_data["recipient_context"] = recipient_context
     if project_id:
@@ -2078,6 +2122,29 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
         # If context fetch fails, continue with zeros - modal will still work
         pass
 
+    # ADR-028: Format destination for display
+    destination_desc = None
+    if destination:
+        platform = destination.get("platform", "")
+        target = destination.get("target", "")
+        if platform == "slack":
+            destination_desc = f"Slack → {target}"
+        elif platform == "notion":
+            destination_desc = f"Notion page"
+        elif platform == "download":
+            destination_desc = "Download"
+
+    governance_desc = {
+        "manual": "Manual export after approval",
+        "semi_auto": "Auto-delivers after you approve",
+        "full_auto": "Auto-delivers immediately"
+    }.get(governance, "Manual")
+
+    message_parts = [f"Created '{title}' - {schedule_desc}."]
+    if destination_desc:
+        message_parts.append(f"Delivers to {destination_desc} ({governance_desc.lower()}).")
+    message_parts.append("First draft will be ready for review at your next scheduled time.")
+
     return {
         "success": True,
         "deliverable": {
@@ -2087,14 +2154,19 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
             "schedule": schedule_desc,
             "next_run": deliverable.get("next_run_at"),
             "recipient": recipient_name,
+            # ADR-028: Destination info
+            "destination": destination_desc,
+            "governance": governance,
         },
-        "message": f"Created '{title}' - {schedule_desc}. First draft will be ready for review at your next scheduled time.",
+        "message": " ".join(message_parts),
         "ui_action": {
             "type": "SHOW_SETUP_CONFIRM",
             "data": {
                 "deliverableId": deliverable["id"],
                 "title": title,
                 "schedule": schedule_desc,
+                "destination": destination_desc,
+                "governance": governance_desc,
                 "context": {
                     "user_memory_count": user_memory_count,
                     "deliverable_memory_count": deliverable_memory_count,
