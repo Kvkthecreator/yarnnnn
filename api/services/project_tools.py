@@ -654,11 +654,16 @@ CREATE_DELIVERABLE_TOOL = {
 - research_brief: Competitive intel, market research, trends
 - meeting_summary: Recap of recurring meetings
 - custom: Anything else
+- inbox_summary: Daily/weekly email inbox digest (ADR-029)
+- reply_draft: Context-aware email reply draft (ADR-029)
+- follow_up_tracker: Track emails needing response (ADR-029)
+- thread_summary: Summarize email conversation threads (ADR-029)
 
-**DESTINATION (ADR-028):**
+**DESTINATION (ADR-028, ADR-029):**
 Ask "Where should this be delivered?" and offer:
 - Slack channel (if connected)
 - Notion page (if connected)
+- Gmail email (if connected) - send directly or create draft
 - Manual review only (default)
 
 **GOVERNANCE:**
@@ -679,8 +684,8 @@ Returns the created deliverable. Always follow with respond() to:
             },
             "deliverable_type": {
                 "type": "string",
-                "enum": ["status_report", "stakeholder_update", "research_brief", "meeting_summary", "custom"],
-                "description": "Type of deliverable - determines generation strategy"
+                "enum": ["status_report", "stakeholder_update", "research_brief", "meeting_summary", "custom", "inbox_summary", "reply_draft", "follow_up_tracker", "thread_summary"],
+                "description": "Type of deliverable - determines generation strategy. ADR-029 email types: inbox_summary, reply_draft, follow_up_tracker, thread_summary"
             },
             "frequency": {
                 "type": "string",
@@ -713,12 +718,17 @@ Returns the created deliverable. Always follow with respond() to:
             },
             "destination_platform": {
                 "type": "string",
-                "enum": ["slack", "notion", "download"],
-                "description": "ADR-028: Where to deliver. If not specified, defaults to manual review (no auto-delivery)."
+                "enum": ["slack", "notion", "gmail", "download"],
+                "description": "ADR-028/029: Where to deliver. If not specified, defaults to manual review (no auto-delivery)."
             },
             "destination_target": {
                 "type": "string",
-                "description": "ADR-028: Target for delivery - Slack channel ID/name (e.g., '#team-updates', 'C123ABC') or Notion page ID. Required if destination_platform is set."
+                "description": "ADR-028/029: Target for delivery - Slack channel ID/name (e.g., '#team-updates'), Notion page ID, or email address (for gmail). Required if destination_platform is set."
+            },
+            "destination_format": {
+                "type": "string",
+                "enum": ["message", "thread", "page", "send", "draft"],
+                "description": "ADR-029: Format for delivery. Slack: 'message' or 'thread'. Notion: 'page'. Gmail: 'send' (immediate) or 'draft' (for review). Defaults based on platform."
             },
             "governance": {
                 "type": "string",
@@ -2048,17 +2058,29 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     if recipient_relationship:
         recipient_context["role"] = recipient_relationship
 
-    # ADR-028: Build destination config
+    # ADR-028/029: Build destination config
     destination_platform = input.get("destination_platform")
     destination_target = input.get("destination_target")
+    destination_format = input.get("destination_format")
     governance = input.get("governance", "manual")
 
     destination = None
     if destination_platform:
+        # Infer format if not specified
+        if not destination_format:
+            if destination_platform == "slack":
+                destination_format = "message"
+            elif destination_platform == "notion":
+                destination_format = "page"
+            elif destination_platform == "gmail":
+                destination_format = "draft"  # Default to draft for safety
+            else:
+                destination_format = "markdown"
+
         destination = {
             "platform": destination_platform,
             "target": destination_target,
-            "format": "message" if destination_platform == "slack" else "page" if destination_platform == "notion" else "markdown",
+            "format": destination_format,
         }
 
     # Build deliverable data

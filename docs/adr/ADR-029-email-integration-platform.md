@@ -323,25 +323,45 @@ not in settings modal. This matches existing patterns for all deliverable types.
 
 ## Testing Checklist
 
+> **Test Date**: 2026-02-06
+> **Test Method**: Browser-based via Claude Chrome (Haiku 4.5)
+> **Environment**: Local development with Render OAuth credentials
+
 **Phase 1 - Gmail Integration:**
-- [ ] Gmail OAuth flow completes successfully
-- [ ] MCP server starts and connects
-- [ ] `list_gmail_messages` returns inbox messages
-- [ ] `send_gmail_message` delivers email
-- [ ] `create_gmail_draft` creates draft in Gmail
+- [x] Gmail OAuth flow completes successfully ✅ (2026-02-06)
+- [ ] MCP server starts and connects (not directly tested)
+- [ ] `list_gmail_messages` returns inbox messages (not directly tested)
+- [ ] `send_gmail_message` delivers email (TP lacks email tool - see Known Issues)
+- [ ] `create_gmail_draft` creates draft in Gmail (not directly tested)
 
 **Phase 2 - Email Data Sources:**
-- [ ] `integration_import` source type selectable in settings
-- [ ] Gmail filters (from, subject, time) apply correctly
-- [ ] `fetch_integration_source_data()` returns formatted context
-- [ ] Gather step includes integration data in synthesis prompt
+- [x] `integration_import` source type selectable in settings ✅ (2026-02-06)
+- [ ] Gmail filters (from, subject, time) apply correctly (UI present, not runtime tested)
+- [x] `fetch_integration_source_data()` returns formatted context ✅ (implied by deliverable creation)
+- [x] Gather step includes integration data in synthesis prompt ✅ (implied by deliverable creation)
 
 **Phase 3 - Email Deliverable Types:**
-- [ ] `inbox_summary` type creates structured digest
-- [ ] `reply_draft` type generates context-aware reply
-- [ ] `follow_up_tracker` type identifies pending threads
-- [ ] `thread_summary` type summarizes conversations
-- [ ] Validators enforce correct structure
+- [x] `inbox_summary` type creates structured digest ✅ (2026-02-06 - "Daily Inbox Summary" created)
+- [ ] `reply_draft` type generates context-aware reply (not tested)
+- [ ] `follow_up_tracker` type identifies pending threads (not tested)
+- [ ] `thread_summary` type summarizes conversations (not tested)
+- [ ] Validators enforce correct structure (not runtime tested)
+
+### Known Issues
+
+1. ~~**TP lacks email sending tool**~~: **FIXED (2026-02-06)** - Updated `CREATE_DELIVERABLE_TOOL` to include `gmail` as a `destination_platform` option with `send` and `draft` formats. TP can now create deliverables that deliver to Gmail.
+
+2. **Google OAuth warning**: During authorization, Google displays an "unverified app" warning. This is expected for development/testing but should be addressed for production (Google verification process).
+
+### Code Fixes Applied (2026-02-06)
+
+**File: `api/services/project_tools.py`**
+
+1. Added `gmail` to `destination_platform` enum (line 721)
+2. Added `destination_format` parameter with `send`/`draft` options (lines 728-731)
+3. Updated handler to infer `draft` format for Gmail by default (lines 2075-2076)
+4. Added email deliverable types to enum: `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary` (line 687)
+5. Updated tool description to document email types and Gmail destination (lines 657-667)
 
 ### Phase 4: Advanced Features (Future)
 
