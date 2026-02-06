@@ -40,6 +40,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { cacheEntity } from '@/lib/entity-cache';
 import { cn } from '@/lib/utils';
 import { DeliverableSettingsModal } from '@/components/modals/DeliverableSettingsModal';
+import { ExportActionBar } from '@/components/desk/ExportActionBar';
 import type { Deliverable, DeliverableVersion, FeedbackSummary } from '@/types';
 
 interface DeliverableDetailSurfaceProps {
@@ -439,6 +440,16 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
                     </button>
                   )}
                 </div>
+
+                {/* Export option for approved versions */}
+                {latestWithContent.status === 'approved' && (
+                  <div className="px-4 pb-4">
+                    <ExportActionBar
+                      deliverableVersionId={latestWithContent.id}
+                      deliverableTitle={deliverable.title}
+                    />
+                  </div>
+                )}
               </div>
             );
           })()}

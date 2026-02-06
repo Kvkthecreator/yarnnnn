@@ -9,18 +9,27 @@ Endpoints:
 - GET /integrations/:provider - Get specific integration details
 - DELETE /integrations/:provider - Disconnect an integration
 - POST /integrations/:provider/export - Export content to provider
-- GET /integrations/:provider/destinations - List available destinations (channels, pages)
+- GET /integrations/:provider/destinations - List available destinations
+- GET /integrations/:provider/authorize - Initiate OAuth flow
+- GET /integrations/:provider/callback - OAuth callback (redirect from provider)
 """
 
 import logging
 from typing import Optional, Any
 from datetime import datetime
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
-from services.supabase import UserClient
+from services.supabase import UserClient, get_service_client
 from integrations.core.tokens import get_token_manager
 from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+from integrations.core.oauth import (
+    get_authorization_url,
+    exchange_code_for_token,
+    get_frontend_redirect_url,
+    OAUTH_CONFIGS,
+)
 from integrations.core.types import (
     IntegrationProvider,
     IntegrationStatus,
@@ -393,3 +402,120 @@ async def get_export_history(
     except Exception as e:
         logger.error(f"[INTEGRATIONS] Failed to get history for {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to get export history")
+
+
+# =============================================================================
+# OAuth Flow - Initiate
+# =============================================================================
+
+@router.get("/integrations/{provider}/authorize")
+async def initiate_oauth(
+    provider: str,
+    auth: UserClient
+) -> dict:
+    """
+    Initiate OAuth flow for a provider.
+
+    Returns the authorization URL to redirect the user to.
+    The frontend should open this URL in a popup or redirect.
+    """
+    user_id = auth.user_id
+
+    # Check if provider is supported
+    if provider not in OAUTH_CONFIGS:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+
+    config = OAUTH_CONFIGS[provider]
+    if not config.is_configured:
+        raise HTTPException(
+            status_code=503,
+            detail=f"{provider} OAuth not configured. Missing credentials."
+        )
+
+    try:
+        auth_url = get_authorization_url(provider, user_id)
+        logger.info(f"[INTEGRATIONS] User {user_id} initiating {provider} OAuth")
+        return {"authorization_url": auth_url}
+
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] OAuth initiation failed for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# OAuth Flow - Callback
+# =============================================================================
+
+@router.get("/integrations/{provider}/callback")
+async def oauth_callback(
+    provider: str,
+    code: str = Query(..., description="Authorization code from provider"),
+    state: str = Query(..., description="State parameter for CSRF protection"),
+    error: Optional[str] = Query(None, description="Error from provider"),
+    error_description: Optional[str] = Query(None),
+) -> RedirectResponse:
+    """
+    OAuth callback endpoint.
+
+    This is called by the provider (Slack, Notion) after user authorizes.
+    Exchanges the code for tokens, stores them, and redirects to frontend.
+    """
+    # Handle OAuth errors from provider
+    if error:
+        logger.warning(f"[INTEGRATIONS] OAuth error from {provider}: {error} - {error_description}")
+        return RedirectResponse(
+            url=get_frontend_redirect_url(False, provider, error_description or error)
+        )
+
+    try:
+        # Exchange code for tokens
+        token_data = await exchange_code_for_token(provider, code, state)
+
+        # Store in database using service role (no auth context in callback)
+        service_client = get_service_client()
+
+        # Upsert integration (update if exists, insert if not)
+        existing = service_client.table("user_integrations").select("id").eq(
+            "user_id", token_data["user_id"]
+        ).eq("provider", provider).execute()
+
+        if existing.data:
+            # Update existing
+            service_client.table("user_integrations").update({
+                "access_token_encrypted": token_data["access_token_encrypted"],
+                "refresh_token_encrypted": token_data.get("refresh_token_encrypted"),
+                "metadata": token_data["metadata"],
+                "status": token_data["status"],
+                "last_error": None,
+                "updated_at": datetime.utcnow().isoformat(),
+            }).eq("id", existing.data[0]["id"]).execute()
+
+            logger.info(f"[INTEGRATIONS] Updated {provider} for user {token_data['user_id']}")
+        else:
+            # Insert new
+            service_client.table("user_integrations").insert({
+                "user_id": token_data["user_id"],
+                "provider": provider,
+                "access_token_encrypted": token_data["access_token_encrypted"],
+                "refresh_token_encrypted": token_data.get("refresh_token_encrypted"),
+                "metadata": token_data["metadata"],
+                "status": token_data["status"],
+            }).execute()
+
+            logger.info(f"[INTEGRATIONS] Connected {provider} for user {token_data['user_id']}")
+
+        # Redirect to frontend with success
+        return RedirectResponse(
+            url=get_frontend_redirect_url(True, provider)
+        )
+
+    except ValueError as e:
+        logger.warning(f"[INTEGRATIONS] OAuth validation error: {e}")
+        return RedirectResponse(
+            url=get_frontend_redirect_url(False, provider, str(e))
+        )
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] OAuth callback error for {provider}: {e}")
+        return RedirectResponse(
+            url=get_frontend_redirect_url(False, provider, "Failed to connect. Please try again.")
+        )

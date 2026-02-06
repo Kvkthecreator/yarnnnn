@@ -21,6 +21,7 @@ import {
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { cacheEntity } from '@/lib/entity-cache';
+import { ExportActionBar } from '@/components/desk/ExportActionBar';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
 interface DeliverableReviewSurfaceProps {
@@ -192,7 +193,7 @@ export function DeliverableReviewSurface({
   if (approvalResult) {
     return (
       <div className="h-full flex items-center justify-center">
-        <div className="text-center">
+        <div className="text-center max-w-sm">
           <div className={`inline-flex items-center justify-center w-12 h-12 rounded-full mb-4 ${
             approvalResult === 'approved' ? 'bg-green-100 dark:bg-green-900/30' : 'bg-red-100 dark:bg-red-900/30'
           }`}>
@@ -210,6 +211,17 @@ export function DeliverableReviewSurface({
               ? `${deliverable.title} v${version.version_number} is ready`
               : `${deliverable.title} v${version.version_number} was discarded`}
           </p>
+
+          {/* Export option for approved versions */}
+          {approvalResult === 'approved' && version && (
+            <div className="mt-4">
+              <ExportActionBar
+                deliverableVersionId={version.id}
+                deliverableTitle={deliverable.title}
+              />
+            </div>
+          )}
+
           {attention.length > 1 && (
             <p className="text-xs text-muted-foreground mt-2">
               Moving to next item...

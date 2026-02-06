@@ -579,6 +579,76 @@ export const api = {
         total: number;
       }>("/api/skills"),
   },
+
+  // ADR-026: Integrations (Slack, Notion, etc.)
+  integrations: {
+    // List user's connected integrations
+    list: () =>
+      request<{
+        integrations: Array<{
+          id: string;
+          provider: string;
+          status: string;
+          workspace_name: string | null;
+          last_used_at: string | null;
+          created_at: string;
+        }>;
+      }>("/api/integrations"),
+
+    // Get specific integration
+    get: (provider: string) =>
+      request<{
+        id: string;
+        provider: string;
+        status: string;
+        workspace_name: string | null;
+        last_used_at: string | null;
+        created_at: string;
+      }>(`/api/integrations/${provider}`),
+
+    // Disconnect an integration
+    disconnect: (provider: string) =>
+      request<{ success: boolean; message: string }>(
+        `/api/integrations/${provider}`,
+        { method: "DELETE" }
+      ),
+
+    // Get authorization URL to initiate OAuth
+    getAuthorizationUrl: (provider: string) =>
+      request<{ authorization_url: string }>(
+        `/api/integrations/${provider}/authorize`
+      ),
+
+    // Export to provider
+    export: (
+      provider: string,
+      data: { deliverable_version_id: string; destination: Record<string, unknown> }
+    ) =>
+      request<{
+        status: string;
+        external_id: string | null;
+        external_url: string | null;
+        error_message: string | null;
+      }>(`/api/integrations/${provider}/export`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    // Get export history
+    getHistory: (deliverableId?: string) =>
+      request<{
+        exports: Array<{
+          id: string;
+          provider: string;
+          status: string;
+          external_url: string | null;
+          created_at: string;
+        }>;
+        total: number;
+      }>(
+        `/api/integrations/history${deliverableId ? `?deliverable_id=${deliverableId}` : ""}`
+      ),
+  },
 };
 
 export default api;
