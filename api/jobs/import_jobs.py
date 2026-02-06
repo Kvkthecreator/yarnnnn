@@ -395,6 +395,163 @@ async def process_notion_import(
     }
 
 
+async def process_gmail_import(
+    supabase_client,
+    job: dict,
+    integration: dict,
+    mcp_manager,
+    agent,
+    token_manager,
+) -> dict:
+    """
+    Process a Gmail import job (ADR-029).
+
+    Supports importing:
+    - inbox: Recent messages from inbox
+    - thread:<id>: Specific email thread
+    - query:<query>: Messages matching Gmail search query
+    """
+    import os
+    from agents.integration.style_learning import StyleLearningAgent
+
+    user_id = job["user_id"]
+    metadata = integration.get("metadata", {}) or {}
+
+    resource_id = job["resource_id"]  # "inbox", "thread:abc123", or "query:from:sarah"
+    resource_name = job.get("resource_name", resource_id)
+    instructions = job.get("instructions")
+
+    # Check if style learning is requested
+    config = job.get("config") or {}
+    learn_style = config.get("learn_style", False)
+
+    # Get OAuth credentials
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        raise ValueError("Google OAuth not configured")
+
+    # Decrypt refresh token
+    refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
+    if not refresh_token:
+        raise ValueError("Gmail integration missing refresh token")
+
+    # Parse resource type
+    if resource_id.startswith("thread:"):
+        thread_id = resource_id.split(":", 1)[1]
+        logger.info(f"[IMPORT] Fetching Gmail thread: {thread_id}")
+
+        thread_data = await mcp_manager.get_gmail_thread(
+            user_id=user_id,
+            thread_id=thread_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token,
+        )
+        messages = thread_data.get("messages", [])
+
+    else:
+        # Default: list messages (inbox or query)
+        query = None
+        if resource_id.startswith("query:"):
+            query = resource_id.split(":", 1)[1]
+        elif resource_id != "inbox":
+            query = resource_id  # Treat as query
+
+        logger.info(f"[IMPORT] Fetching Gmail messages: {query or 'inbox'}")
+
+        messages = await mcp_manager.list_gmail_messages(
+            user_id=user_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token,
+            query=query,
+            max_results=50,
+        )
+
+    if not messages:
+        return {
+            "blocks_created": 0,
+            "items_processed": 0,
+            "items_filtered": 0,
+            "summary": "No messages found",
+            "style_learned": False,
+        }
+
+    # Fetch full message content for each message
+    full_messages = []
+    for msg in messages[:20]:  # Limit to 20 for performance
+        msg_id = msg.get("id")
+        if msg_id:
+            try:
+                full_msg = await mcp_manager.get_gmail_message(
+                    user_id=user_id,
+                    message_id=msg_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    refresh_token=refresh_token,
+                )
+                full_messages.append(full_msg)
+            except Exception as e:
+                logger.warning(f"[IMPORT] Failed to fetch message {msg_id}: {e}")
+
+    # Run agent to extract context
+    logger.info(f"[IMPORT] Processing {len(full_messages)} Gmail messages with agent")
+    import_result = await agent.import_gmail_messages(
+        messages=full_messages,
+        source_name=resource_name,
+        instructions=instructions,
+    )
+
+    # Store as memories
+    project_id = job.get("project_id")
+    blocks_created = await store_memory_blocks(
+        supabase_client,
+        user_id=user_id,
+        project_id=project_id,
+        blocks=import_result.blocks,
+        source_ref={
+            "platform": "gmail",
+            "resource_id": resource_id,
+            "resource_name": resource_name,
+            "job_id": job["id"],
+        },
+    )
+
+    # Optionally learn style from email content
+    style_learned = False
+    style_confidence = None
+
+    if learn_style and len(full_messages) >= 5:
+        try:
+            logger.info(f"[STYLE] Learning email style from {len(full_messages)} messages")
+            style_agent = StyleLearningAgent()
+            profile = await style_agent.analyze_email_messages(
+                messages=full_messages,
+                user_email=metadata.get("email"),
+            )
+
+            style_learned = await store_style_memory(
+                supabase_client,
+                user_id=user_id,
+                profile=profile,
+                job_id=job["id"],
+            )
+            style_confidence = profile.confidence
+        except Exception as e:
+            logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
+
+    return {
+        "blocks_created": blocks_created,
+        "items_processed": import_result.items_processed,
+        "items_filtered": import_result.items_filtered,
+        "summary": import_result.summary,
+        "style_learned": style_learned,
+        "style_confidence": style_confidence,
+    }
+
+
 async def process_import_job(supabase_client, job: dict) -> bool:
     """
     Process a single import job.
@@ -437,6 +594,11 @@ async def process_import_job(supabase_client, job: dict) -> bool:
             )
         elif provider == "notion":
             result = await process_notion_import(
+                supabase_client, job, integration, mcp_manager, agent, token_manager
+            )
+        elif provider == "gmail":
+            # ADR-029: Gmail import support
+            result = await process_gmail_import(
                 supabase_client, job, integration, mcp_manager, agent, token_manager
             )
         else:

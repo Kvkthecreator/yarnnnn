@@ -77,6 +77,21 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         scopes=[],  # Notion doesn't use scopes in the same way
         redirect_path="/api/integrations/notion/callback",
     ),
+    # ADR-029: Gmail integration
+    "gmail": OAuthConfig(
+        provider="gmail",
+        client_id_env="GOOGLE_CLIENT_ID",
+        client_secret_env="GOOGLE_CLIENT_SECRET",
+        authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
+        token_url="https://oauth2.googleapis.com/token",
+        scopes=[
+            "https://www.googleapis.com/auth/gmail.readonly",
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify",
+        ],
+        redirect_path="/api/integrations/gmail/callback",
+    ),
 }
 
 
@@ -160,6 +175,17 @@ def get_authorization_url(provider: str, user_id: str) -> str:
             "redirect_uri": config.redirect_uri,
             "response_type": "code",
             "owner": "user",
+            "state": state,
+        }
+    elif provider == "gmail":
+        # ADR-029: Gmail OAuth with offline access for refresh token
+        params = {
+            "client_id": config.client_id,
+            "redirect_uri": config.redirect_uri,
+            "response_type": "code",
+            "scope": " ".join(config.scopes),
+            "access_type": "offline",  # Required for refresh token
+            "prompt": "consent",  # Force consent to get refresh token
             "state": state,
         }
     else:
@@ -265,6 +291,51 @@ async def exchange_code_for_token(
                     "workspace_name": data.get("workspace_name"),
                     "bot_id": data.get("bot_id"),
                     "owner": data.get("owner"),
+                },
+                "status": IntegrationStatus.ACTIVE.value,
+            }
+
+        elif provider == "gmail":
+            # ADR-029: Gmail OAuth token exchange
+            response = await client.post(
+                config.token_url,
+                data={
+                    "client_id": config.client_id,
+                    "client_secret": config.client_secret,
+                    "code": code,
+                    "redirect_uri": config.redirect_uri,
+                    "grant_type": "authorization_code",
+                },
+            )
+            data = response.json()
+
+            if "error" in data:
+                raise ValueError(f"Gmail OAuth error: {data.get('error_description', data.get('error'))}")
+
+            token_manager = get_token_manager()
+
+            # Get user info from Google
+            user_info_response = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {data['access_token']}"}
+            )
+            user_info = user_info_response.json()
+
+            # Calculate token expiry
+            expires_in = data.get("expires_in", 3600)
+            expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+
+            return {
+                "user_id": user_id,
+                "provider": provider,
+                "access_token_encrypted": token_manager.encrypt(data["access_token"]),
+                "refresh_token_encrypted": token_manager.encrypt(data["refresh_token"]) if data.get("refresh_token") else None,
+                "metadata": {
+                    "email": user_info.get("email"),
+                    "name": user_info.get("name"),
+                    "picture": user_info.get("picture"),
+                    "scope": data.get("scope"),
+                    "expires_at": expires_at.isoformat(),
                 },
                 "status": IntegrationStatus.ACTIVE.value,
             }

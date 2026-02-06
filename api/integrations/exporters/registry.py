@@ -126,9 +126,11 @@ def _initialize_default_exporters(registry: ExporterRegistry) -> None:
     from .slack import SlackExporter
     from .notion import NotionExporter
     from .download import DownloadExporter
+    from .gmail import GmailExporter  # ADR-029
 
     registry.register(SlackExporter())
     registry.register(NotionExporter())
     registry.register(DownloadExporter())
+    registry.register(GmailExporter())  # ADR-029
 
     logger.info(f"[EXPORTERS] Initialized registry with: {registry.list_platforms()}")

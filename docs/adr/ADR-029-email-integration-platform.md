@@ -1,7 +1,8 @@
 # ADR-029: Email as Full Integration Platform
 
-> **Status**: Draft (Needs Scoping)
+> **Status**: Accepted (Phase 1 Implemented)
 > **Created**: 2026-02-06
+> **Updated**: 2026-02-06 (Gmail Phase 1 implementation complete)
 > **Related**: ADR-026 (Integration Architecture), ADR-027 (Integration Reads), ADR-028 (Destination-First)
 
 ---
@@ -55,47 +56,116 @@ Beyond simple export, email-specific deliverables:
 
 ---
 
-## Proposed Scope
+## Implementation
 
-### Phase 1: Email Connection (MCP)
+### Decision: Gmail-First with MCP
 
-```
-Email MCP Server
-├── email_list_messages     # List recent/filtered messages
-├── email_get_message       # Get full message + thread
-├── email_get_thread        # Get conversation thread
-├── email_send              # Send new email
-├── email_reply             # Reply to thread
-├── email_forward           # Forward with context
-├── email_label             # Apply labels/folders
-└── email_search            # Search inbox
-```
+**Provider**: Gmail only (via OAuth 2.0)
+**MCP Server**: `@shinzolabs/gmail-mcp`
+**Authentication**: OAuth tokens passed via environment variables (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN)
 
-Supported providers (via OAuth or IMAP):
-- Gmail (OAuth)
-- Outlook/Microsoft 365 (OAuth)
-- Generic IMAP (credentials)
+This aligns with existing Slack/Notion patterns using MCP servers via stdio transport.
 
-### Phase 2: Email Data Sources
+### Phase 1: Gmail Integration (COMPLETE) ✅
 
-Extend ADR-027 to support email sources:
+#### OAuth Configuration
 
 ```python
-DataSource = {
-    "type": "integration_import",
-    "provider": "email",
-    "source": "inbox",           # or "sent", "thread:abc123"
-    "filters": {
-        "from": "sarah@company.com",
-        "subject_contains": "weekly update",
-        "after": "7d"
-    }
+# api/integrations/core/oauth.py
+"gmail": OAuthConfig(
+    provider="gmail",
+    client_id_env="GOOGLE_CLIENT_ID",
+    client_secret_env="GOOGLE_CLIENT_SECRET",
+    authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
+    token_url="https://oauth2.googleapis.com/token",
+    scopes=[
+        "https://www.googleapis.com/auth/gmail.readonly",
+        "https://www.googleapis.com/auth/gmail.send",
+        "https://www.googleapis.com/auth/gmail.compose",
+        "https://www.googleapis.com/auth/gmail.modify",
+    ],
+    redirect_path="/api/integrations/gmail/callback",
+)
+```
+
+#### MCP Server Configuration
+
+```python
+# api/integrations/core/client.py
+SERVER_COMMANDS = {
+    "gmail": ["npx", "-y", "@shinzolabs/gmail-mcp"],
+}
+SERVER_ENV_KEYS = {
+    "gmail": ["CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"],
 }
 ```
 
-### Phase 3: Email-Specific Deliverables
+#### Gmail Exporter
 
-New deliverable types that make sense for email:
+```python
+# api/integrations/exporters/gmail.py
+class GmailExporter(DestinationExporter):
+    platform = "gmail"
+    supported_formats = ["send", "draft", "reply"]
+
+    # Uses MCP for all operations
+    # Supports: send directly, create draft, reply to thread
+```
+
+#### MCPClientManager Gmail Operations
+
+- `list_gmail_messages(query, max_results)` - List/search messages
+- `get_gmail_message(message_id)` - Get full message content
+- `get_gmail_thread(thread_id)` - Get conversation thread
+- `send_gmail_message(to, subject, body, cc, thread_id)` - Send email
+- `create_gmail_draft(to, subject, body, cc, thread_id)` - Create draft
+
+#### Gmail Import Jobs
+
+```python
+# api/jobs/import_jobs.py
+async def process_gmail_import(job, integration, mcp_manager, agent, token_manager):
+    # Supports:
+    # - "inbox" - Recent inbox messages
+    # - "thread:<id>" - Specific thread
+    # - "query:<query>" - Gmail search query
+
+    # Fetches messages, runs ContextImportAgent, stores as memories
+    # Optional style learning from email writing patterns
+```
+
+#### Key Files
+
+| File | Purpose |
+|------|---------|
+| `api/integrations/core/oauth.py` | Gmail OAuth config |
+| `api/integrations/core/client.py` | MCP server config + Gmail operations |
+| `api/integrations/exporters/gmail.py` | GmailExporter implementation |
+| `api/integrations/exporters/registry.py` | Gmail exporter registration |
+| `api/routes/integrations.py` | Gmail import route + destination normalization |
+| `api/jobs/import_jobs.py` | Gmail import job processor |
+| `web/types/index.ts` | Gmail types for frontend |
+
+### Phase 2: Email Data Sources (Planned)
+
+Extend data source types to include Gmail:
+
+```typescript
+DataSource = {
+  type: "integration_import",
+  provider: "gmail",
+  source: "inbox" | "thread:<id>" | "query:<query>",
+  filters: {
+    from?: string,
+    subject_contains?: string,
+    after?: string  // "7d", "2024-01-01"
+  }
+}
+```
+
+### Phase 3: Email-Specific Deliverables (Planned)
+
+New deliverable types:
 
 | Type | Schedule | Output |
 |------|----------|--------|
@@ -104,24 +174,11 @@ New deliverable types that make sense for email:
 | `follow_up_tracker` | Daily | List of threads needing response |
 | `thread_summary` | On-demand | Summarize long conversation |
 
-### Phase 4: Email as Destination
+### Phase 4: Advanced Features (Future)
 
-Full destination-first support for email:
-
-```python
-Deliverable = {
-    "destination": {
-        "platform": "email",
-        "target": "sarah@company.com",   # Recipient
-        "format": "send",                # or "reply", "forward"
-        "options": {
-            "thread_id": "abc123",       # For reply/forward
-            "cc": ["team@company.com"],
-            "subject": "Weekly Update"   # For new emails
-        }
-    }
-}
-```
+- Email style learning per-relationship
+- Auto-organization with labels
+- Engagement tracking (opens, replies)
 
 ---
 
@@ -129,92 +186,69 @@ Deliverable = {
 
 ### 1. Privacy & Security
 
-Email is highly personal. Requirements:
-- End-to-end encryption for stored content
-- Clear user consent for inbox access
-- Minimal data retention (don't store full inbox)
-- Audit logging for all email actions
+Email is highly personal. Current approach:
+- Refresh tokens encrypted at rest
+- No email content stored (fetched on-demand via MCP)
+- All actions logged in export_log
+- OAuth scopes are minimal (no delete permission)
 
-### 2. Rate Limits & Quotas
+### 2. Rate Limits
 
-Email providers have strict limits:
-- Gmail: 500 emails/day (consumer), 2000/day (Workspace)
-- Outlook: Varies by plan
-- Need queuing, throttling, retry logic
+Gmail API limits:
+- Consumer: 500 emails/day
+- Workspace: 2000/day
+
+Current approach: No rate limiting in Phase 1. Will add queuing in Phase 2 if needed.
 
 ### 3. Deliverability
 
-Sent emails must land in inbox, not spam:
-- SPF/DKIM/DMARC compliance
-- Sender reputation management
-- Opt for user's own SMTP when possible
+Emails sent via user's own Gmail account:
+- No deliverability issues (not sending as YARNNN)
+- User's reputation, not platform's
+- Drafts option for review before send
 
 ### 4. Style Context
 
-Email requires relationship-aware style:
-- Formal for external contacts
-- Casual for close colleagues
-- Context from historical thread tone
-- User's personal writing style
-
-This connects to deliverable-scoped context (deferred in ADR-028).
+Gmail exporter returns `style_context = "email"` for pipeline style inference.
+Future: Learn user's email style per-relationship via StyleLearningAgent.
 
 ---
 
-## Relationship to Existing Architecture
+## Destination Schema
 
-### ADR-026: Integration Architecture
-
-Email becomes a first-class integration provider:
-- `IntegrationProvider.EMAIL`
-- OAuth or IMAP credentials stored in `user_integrations`
-- MCP server for email operations
-
-### ADR-027: Integration Reads
-
-Email sources work identically to Slack/Notion:
-- Data sources can reference email threads
-- Import jobs extract content during gather phase
-- Same import_content structure
-
-### ADR-028: Destination-First
-
-Email is a valid destination platform:
-- `destination.platform = "email"`
-- Governance applies (semi_auto = send on approval)
-- Style inferred from recipient relationship
+```python
+Destination = {
+    "platform": "gmail",
+    "target": "recipient@example.com",
+    "format": "send" | "draft" | "reply",
+    "options": {
+        "cc": "other@example.com",
+        "subject": "Custom subject",
+        "thread_id": "abc123"  # For replies
+    }
+}
+```
 
 ---
 
-## Use Cases to Validate
+## Questions Resolved
 
-Before implementation, validate these use cases:
-
-1. **Weekly inbox summary** - "Every Monday, summarize my inbox from the past week"
-2. **Meeting follow-up** - "After each meeting, draft follow-up emails to attendees"
-3. **Reply drafts** - "Draft a reply to emails from my manager"
-4. **Thread context** - "Use this email thread as context for my status report"
-5. **Auto-organization** - "Label incoming emails by project"
+1. **Provider priority**: Gmail only for now. Outlook later if needed.
+2. **MCP vs. direct API**: MCP (`@shinzolabs/gmail-mcp`) for consistency.
+3. **Storage model**: No storage. Fetch on-demand via MCP.
+4. **Style learning**: Deferred to Phase 3. Uses "email" style context for now.
+5. **Reply vs. send**: Both supported. Format determines behavior.
 
 ---
 
-## Questions to Resolve
+## Success Metrics
 
-1. **Provider priority**: Start with Gmail only, or multi-provider from start?
-2. **MCP vs. direct API**: Use MCP email server, or direct Gmail/Outlook APIs?
-3. **Storage model**: How much email content to cache locally?
-4. **Style learning**: How to learn user's email style per-relationship?
-5. **Reply vs. send**: Should deliverables auto-reply, or always new threads?
-
----
-
-## Next Steps
-
-1. [ ] Validate use cases with user feedback
-2. [ ] Research Gmail/Outlook MCP server options
-3. [ ] Define MVP scope (likely: Gmail + inbox summary + send)
-4. [ ] Design privacy/consent flow
-5. [ ] Implement as full integration (not just exporter)
+| Metric | Target |
+|--------|--------|
+| Gmail OAuth completion rate | >90% |
+| Email export success rate | >99% |
+| Import job success rate | >95% |
+| Time to send (via MCP) | <3 seconds |
 
 ---
 
@@ -224,3 +258,4 @@ Before implementation, validate these use cases:
 - [ADR-027: Integration Read Architecture](./ADR-027-integration-read-architecture.md)
 - [ADR-028: Destination-First Deliverables](./ADR-028-destination-first-deliverables.md)
 - [Analysis: Deliverable-Scoped Context](../analysis/deliverable-scoped-context.md)
+- [@shinzolabs/gmail-mcp](https://github.com/shinzo-labs/gmail-mcp) - MCP server used

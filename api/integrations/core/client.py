@@ -35,12 +35,16 @@ except ImportError:
 SERVER_COMMANDS: dict[str, list[str]] = {
     "slack": ["npx", "-y", "@modelcontextprotocol/server-slack"],
     "notion": ["npx", "-y", "@notionhq/notion-mcp-server", "--transport", "stdio"],
+    # ADR-029: Gmail MCP server (shinzo-labs)
+    "gmail": ["npx", "-y", "@shinzolabs/gmail-mcp"],
 }
 
 # Environment variable mappings per provider
 SERVER_ENV_KEYS: dict[str, list[str]] = {
     "slack": ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"],
     "notion": ["AUTH_TOKEN"],
+    # ADR-029: Gmail requires OAuth credentials + refresh token
+    "gmail": ["CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"],
 }
 
 
@@ -415,6 +419,241 @@ class MCPClientManager:
         except Exception as e:
             logger.error(f"[MCP] Failed to get Notion page: {e}")
             raise
+
+    # =========================================================================
+    # Gmail Read Operations (via MCP) - ADR-029
+    # =========================================================================
+
+    async def list_gmail_messages(
+        self,
+        user_id: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str,
+        query: Optional[str] = None,
+        max_results: int = 20
+    ) -> list[dict[str, Any]]:
+        """
+        List Gmail messages via MCP.
+
+        Args:
+            user_id: User identifier
+            client_id: Google OAuth client ID
+            client_secret: Google OAuth client secret
+            refresh_token: User's refresh token
+            query: Gmail search query (e.g., "is:unread", "from:sarah@company.com")
+            max_results: Maximum messages to return
+
+        Returns list of message objects with id, threadId, snippet, etc.
+        """
+        try:
+            arguments = {"maxResults": max_results}
+            if query:
+                arguments["query"] = query
+
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="gmail",
+                tool_name="gmail_list_messages",
+                arguments=arguments,
+                env={
+                    "CLIENT_ID": client_id,
+                    "CLIENT_SECRET": client_secret,
+                    "REFRESH_TOKEN": refresh_token
+                }
+            )
+            if isinstance(result, dict) and "messages" in result:
+                return result["messages"]
+            elif isinstance(result, list):
+                return result
+            else:
+                logger.warning(f"[MCP] Unexpected Gmail list result format: {type(result)}")
+                return []
+        except Exception as e:
+            logger.error(f"[MCP] Failed to list Gmail messages: {e}")
+            raise
+
+    async def get_gmail_message(
+        self,
+        user_id: str,
+        message_id: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str
+    ) -> dict[str, Any]:
+        """
+        Get a specific Gmail message via MCP.
+
+        Returns full message object with headers, body, attachments info.
+        """
+        try:
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="gmail",
+                tool_name="gmail_get_message",
+                arguments={"messageId": message_id},
+                env={
+                    "CLIENT_ID": client_id,
+                    "CLIENT_SECRET": client_secret,
+                    "REFRESH_TOKEN": refresh_token
+                }
+            )
+            return result if isinstance(result, dict) else {"content": str(result)}
+        except Exception as e:
+            logger.error(f"[MCP] Failed to get Gmail message: {e}")
+            raise
+
+    async def get_gmail_thread(
+        self,
+        user_id: str,
+        thread_id: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str
+    ) -> dict[str, Any]:
+        """
+        Get a Gmail thread (conversation) via MCP.
+
+        Returns thread object with all messages in the conversation.
+        """
+        try:
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="gmail",
+                tool_name="gmail_get_thread",
+                arguments={"threadId": thread_id},
+                env={
+                    "CLIENT_ID": client_id,
+                    "CLIENT_SECRET": client_secret,
+                    "REFRESH_TOKEN": refresh_token
+                }
+            )
+            return result if isinstance(result, dict) else {"content": str(result)}
+        except Exception as e:
+            logger.error(f"[MCP] Failed to get Gmail thread: {e}")
+            raise
+
+    async def send_gmail_message(
+        self,
+        user_id: str,
+        to: str,
+        subject: str,
+        body: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str,
+        cc: Optional[str] = None,
+        thread_id: Optional[str] = None
+    ) -> ExportResult:
+        """
+        Send a Gmail message via MCP.
+
+        Args:
+            user_id: User identifier
+            to: Recipient email address
+            subject: Email subject
+            body: Email body (plain text or HTML)
+            client_id: Google OAuth client ID
+            client_secret: Google OAuth client secret
+            refresh_token: User's refresh token
+            cc: Optional CC recipients
+            thread_id: Optional thread ID for replies
+
+        Returns:
+            ExportResult with message ID and status
+        """
+        try:
+            arguments = {
+                "to": to,
+                "subject": subject,
+                "body": body
+            }
+            if cc:
+                arguments["cc"] = cc
+            if thread_id:
+                arguments["threadId"] = thread_id
+
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="gmail",
+                tool_name="gmail_send_message",
+                arguments=arguments,
+                env={
+                    "CLIENT_ID": client_id,
+                    "CLIENT_SECRET": client_secret,
+                    "REFRESH_TOKEN": refresh_token
+                }
+            )
+
+            message_id = result.get("id") if isinstance(result, dict) else None
+
+            return ExportResult(
+                status=ExportStatus.SUCCESS,
+                external_id=message_id,
+                metadata={"result": result}
+            )
+
+        except Exception as e:
+            logger.error(f"[MCP] Gmail send failed: {e}")
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=str(e)
+            )
+
+    async def create_gmail_draft(
+        self,
+        user_id: str,
+        to: str,
+        subject: str,
+        body: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str,
+        cc: Optional[str] = None,
+        thread_id: Optional[str] = None
+    ) -> ExportResult:
+        """
+        Create a Gmail draft via MCP.
+
+        Useful for deliverables that need user review before sending.
+        """
+        try:
+            arguments = {
+                "to": to,
+                "subject": subject,
+                "body": body
+            }
+            if cc:
+                arguments["cc"] = cc
+            if thread_id:
+                arguments["threadId"] = thread_id
+
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="gmail",
+                tool_name="gmail_create_draft",
+                arguments=arguments,
+                env={
+                    "CLIENT_ID": client_id,
+                    "CLIENT_SECRET": client_secret,
+                    "REFRESH_TOKEN": refresh_token
+                }
+            )
+
+            draft_id = result.get("id") if isinstance(result, dict) else None
+
+            return ExportResult(
+                status=ExportStatus.SUCCESS,
+                external_id=draft_id,
+                metadata={"result": result, "is_draft": True}
+            )
+
+        except Exception as e:
+            logger.error(f"[MCP] Gmail draft creation failed: {e}")
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=str(e)
+            )
 
     # =========================================================================
     # Tool Discovery

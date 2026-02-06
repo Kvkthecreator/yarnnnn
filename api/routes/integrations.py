@@ -392,11 +392,20 @@ async def export_to_provider(
             integration_id = integration.data["id"]
             token_manager = get_token_manager()
 
+            # Decrypt tokens
+            access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+            refresh_token = token_manager.decrypt(integration.data["refresh_token_encrypted"]) if integration.data.get("refresh_token_encrypted") else None
+
+            # Build metadata, adding refresh_token for Gmail (ADR-029)
+            metadata = integration.data.get("metadata", {}) or {}
+            if provider == "gmail" and refresh_token:
+                metadata["refresh_token"] = refresh_token
+
             context = ExporterContext(
                 user_id=user_id,
-                access_token=token_manager.decrypt(integration.data["access_token_encrypted"]),
-                refresh_token=token_manager.decrypt(integration.data["refresh_token_encrypted"]) if integration.data.get("refresh_token_encrypted") else None,
-                metadata=integration.data.get("metadata", {}) or {}
+                access_token=access_token,
+                refresh_token=refresh_token,
+                metadata=metadata
             )
         else:
             # Non-auth exporters (download)
@@ -514,6 +523,18 @@ def _normalize_destination(provider: str, destination: dict[str, Any]) -> dict[s
             "target": None,
             "format": destination.get("format", "markdown"),
             "options": {}
+        }
+    elif provider == "gmail":
+        # ADR-029: Gmail destination normalization
+        return {
+            "platform": "gmail",
+            "target": destination.get("to") or destination.get("recipient") or destination.get("target"),
+            "format": destination.get("format", "send"),  # send, draft, reply
+            "options": {
+                "cc": destination.get("cc"),
+                "subject": destination.get("subject"),
+                "thread_id": destination.get("thread_id"),
+            }
         }
 
     # Unknown provider, pass through
@@ -768,6 +789,108 @@ async def start_slack_import(
         raise
     except Exception as e:
         logger.error(f"[INTEGRATIONS] Failed to start Slack import for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start import: {str(e)}")
+
+
+# =============================================================================
+# Import Jobs - Gmail (ADR-029)
+# =============================================================================
+
+@router.post("/integrations/gmail/import")
+async def start_gmail_import(
+    request: StartImportRequest,
+    auth: UserClient
+) -> ImportJobResponse:
+    """
+    Start a context import from Gmail.
+
+    ADR-029: Gmail as full integration platform.
+
+    Resource ID formats:
+    - "inbox" - Recent inbox messages
+    - "thread:<thread_id>" - Specific email thread
+    - "query:<gmail_query>" - Messages matching search (e.g., "from:sarah@company.com")
+
+    Creates a background job that:
+    1. Fetches messages via MCP
+    2. Runs ContextImportAgent to extract structured context
+    3. Optionally learns email style (if config.learn_style=true)
+    4. Stores results as memories
+    """
+    user_id = auth.user_id
+
+    try:
+        # Get user's Gmail integration
+        integration = auth.client.table("user_integrations").select(
+            "id, refresh_token_encrypted, status"
+        ).eq("user_id", user_id).eq("provider", "gmail").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Gmail integration found. Please connect first."
+            )
+
+        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Gmail integration is {integration.data['status']}. Please reconnect."
+            )
+
+        # Parse resource name for display
+        resource_id = request.resource_id
+        if resource_id == "inbox":
+            resource_name = request.resource_name or "Inbox"
+        elif resource_id.startswith("thread:"):
+            resource_name = request.resource_name or f"Email Thread"
+        elif resource_id.startswith("query:"):
+            query = resource_id.split(":", 1)[1]
+            resource_name = request.resource_name or f"Search: {query[:30]}..."
+        else:
+            resource_name = request.resource_name or resource_id
+
+        # Build config dict
+        config_dict = {}
+        if request.config:
+            config_dict["learn_style"] = request.config.learn_style
+
+        # Create import job
+        job_data = {
+            "user_id": user_id,
+            "provider": "gmail",
+            "resource_id": resource_id,
+            "resource_name": resource_name,
+            "project_id": request.project_id,
+            "instructions": request.instructions,
+            "config": config_dict if config_dict else None,
+            "status": "pending",
+            "progress": 0,
+        }
+
+        result = auth.client.table("integration_import_jobs").insert(job_data).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to create import job")
+
+        job = result.data[0]
+
+        style_note = " (with style learning)" if config_dict.get("learn_style") else ""
+        logger.info(f"[INTEGRATIONS] User {user_id} started Gmail import job {job['id']}{style_note}")
+
+        return ImportJobResponse(
+            id=job["id"],
+            provider="gmail",
+            resource_id=job["resource_id"],
+            resource_name=job.get("resource_name"),
+            status=job["status"],
+            progress=job.get("progress", 0),
+            created_at=job["created_at"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to start Gmail import for {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to start import: {str(e)}")
 
 

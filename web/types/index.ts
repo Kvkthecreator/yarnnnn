@@ -519,15 +519,26 @@ export interface DataSource {
 export type QualityTrend = "improving" | "stable" | "declining";
 
 // ADR-028: Destination-first deliverables
-export type DestinationPlatform = "slack" | "notion" | "email" | "download";
+// ADR-029: Gmail as full integration platform
+export type DestinationPlatform = "slack" | "notion" | "gmail" | "email" | "download";
 export type GovernanceLevel = "manual" | "semi_auto" | "full_auto";
 export type DeliveryStatus = "pending" | "delivering" | "delivered" | "failed";
 
+// Gmail-specific format: send, draft, reply
+export type GmailDeliveryFormat = "send" | "draft" | "reply";
+
 export interface Destination {
   platform: DestinationPlatform;
-  target?: string;  // Channel ID, page ID, email, or null for download
-  format?: string;  // message, thread, page, markdown, html
+  target?: string;  // Channel ID, page ID, recipient email, or null for download
+  format?: string;  // message, thread, page, send, draft, reply, markdown, html
   options?: Record<string, unknown>;
+}
+
+// ADR-029: Gmail-specific destination options
+export interface GmailDestinationOptions {
+  cc?: string;
+  subject?: string;
+  thread_id?: string;  // For replies
 }
 
 export interface Deliverable {
