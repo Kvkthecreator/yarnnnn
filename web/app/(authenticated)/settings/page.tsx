@@ -30,6 +30,7 @@ import { UsageIndicator } from "@/components/subscription/UpgradePrompt";
 import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
 import { SUBSCRIPTION_LIMITS } from "@/lib/subscription/limits";
 import { createClient } from "@/lib/supabase/client";
+import { IntegrationImportModal } from "@/components/IntegrationImportModal";
 
 interface MemoryStats {
   userMemories: number;
@@ -104,6 +105,9 @@ export default function SettingsPage() {
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
+
+  // Import modal state (ADR-027)
+  const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | null>(null);
 
   // Check for OAuth callback status
   const providerParam = searchParams.get("provider");
@@ -824,6 +828,12 @@ export default function SettingsPage() {
                               Connected
                             </span>
                             <button
+                              onClick={() => setImportModalProvider("slack")}
+                              className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
+                            >
+                              Import Context
+                            </button>
+                            <button
                               onClick={() => handleDisconnectIntegration("slack")}
                               disabled={disconnectingProvider === "slack"}
                               className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
@@ -887,6 +897,12 @@ export default function SettingsPage() {
                               Connected
                             </span>
                             <button
+                              onClick={() => setImportModalProvider("notion")}
+                              className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
+                            >
+                              Import Context
+                            </button>
+                            <button
                               onClick={() => handleDisconnectIntegration("notion")}
                               disabled={disconnectingProvider === "notion"}
                               className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
@@ -923,9 +939,9 @@ export default function SettingsPage() {
               {/* Info note */}
               <div className="mt-6 p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
                 <p>
-                  <strong>How it works:</strong> After connecting, you&apos;ll be able to export any deliverable
-                  directly to your connected services. Click the export button on any deliverable to choose
-                  where to send it.
+                  <strong>How it works:</strong> After connecting, you can export deliverables or import context
+                  from your connected services. Use &quot;Import Context&quot; to bring in decisions, action items,
+                  and project details from Slack channels or Notion pages.
                 </p>
               </div>
             </div>
@@ -1305,6 +1321,19 @@ export default function SettingsPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Integration Import Modal (ADR-027) */}
+      {importModalProvider && (
+        <IntegrationImportModal
+          isOpen={true}
+          onClose={() => setImportModalProvider(null)}
+          onSuccess={() => {
+            // Refresh stats to show new memories
+            setImportModalProvider(null);
+          }}
+          provider={importModalProvider}
+        />
       )}
     </div>
   );

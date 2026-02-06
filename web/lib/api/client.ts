@@ -648,6 +648,98 @@ export const api = {
       }>(
         `/api/integrations/history${deliverableId ? `?deliverable_id=${deliverableId}` : ""}`
       ),
+
+    // ADR-027: Context Import
+    // List available resources (channels/pages)
+    listSlackChannels: () =>
+      request<{
+        channels: Array<{
+          id: string;
+          name: string;
+          is_private: boolean;
+          num_members: number;
+          topic: string | null;
+          purpose: string | null;
+        }>;
+      }>("/api/integrations/slack/channels"),
+
+    listNotionPages: (query?: string) =>
+      request<{
+        pages: Array<{
+          id: string;
+          title: string;
+          parent_type: string;
+          last_edited: string | null;
+          url: string | null;
+        }>;
+      }>(`/api/integrations/notion/pages${query ? `?query=${encodeURIComponent(query)}` : ""}`),
+
+    // Start import job
+    startImport: (
+      provider: "slack" | "notion",
+      data: {
+        resource_id: string;
+        resource_name?: string;
+        project_id?: string;
+        instructions?: string;
+      }
+    ) =>
+      request<{
+        id: string;
+        provider: string;
+        resource_id: string;
+        resource_name: string | null;
+        status: string;
+        progress: number;
+        created_at: string;
+      }>(`/api/integrations/${provider}/import`, {
+        method: "POST",
+        body: JSON.stringify(data),
+      }),
+
+    // Get import job status
+    getImportJob: (jobId: string) =>
+      request<{
+        id: string;
+        provider: string;
+        resource_id: string;
+        resource_name: string | null;
+        status: string;
+        progress: number;
+        result: {
+          blocks_created: number;
+          items_processed: number;
+          items_filtered: number;
+          summary: string;
+        } | null;
+        error_message: string | null;
+        created_at: string;
+        started_at: string | null;
+        completed_at: string | null;
+      }>(`/api/integrations/import/${jobId}`),
+
+    // List import jobs
+    listImportJobs: (params?: { status?: string; provider?: string; limit?: number }) =>
+      request<{
+        jobs: Array<{
+          id: string;
+          provider: string;
+          resource_id: string;
+          resource_name: string | null;
+          status: string;
+          progress: number;
+          result: Record<string, unknown> | null;
+          error_message: string | null;
+          created_at: string;
+          completed_at: string | null;
+        }>;
+      }>(
+        `/api/integrations/import${params ? `?${new URLSearchParams(
+          Object.entries(params)
+            .filter(([, v]) => v !== undefined)
+            .map(([k, v]) => [k, String(v)])
+        ).toString()}` : ""}`
+      ),
   },
 };
 
