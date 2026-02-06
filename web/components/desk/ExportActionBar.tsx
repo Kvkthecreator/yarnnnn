@@ -107,8 +107,8 @@ export function ExportActionBar({
       });
 
       if (result.status === 'success') {
-        setExportSuccess({ provider, url: result.external_url });
-        onExportComplete?.(provider, result.external_url);
+        setExportSuccess({ provider, url: result.external_url ?? undefined });
+        onExportComplete?.(provider, result.external_url ?? undefined);
       } else {
         setExportError(result.error_message || 'Export failed');
       }
