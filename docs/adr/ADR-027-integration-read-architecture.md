@@ -1,6 +1,6 @@
 # ADR-027: Integration Read Architecture
 
-> **Status**: Draft
+> **Status**: Implemented (Phases 1-3, 5)
 > **Created**: 2026-02-06
 > **Related**: ADR-026 (Integration Architecture), ADR-015 (Unified Context Model)
 
@@ -218,22 +218,36 @@ All paths use the same agent. The agent is the consistent intelligence layer.
 ```
 POST /api/integrations/slack/import
 Body: {
-    "channel_id": "C123...",
-    "project_id": "uuid",
-    "days_back": 30,
-    "instructions": "Focus on product decisions"  // Optional user guidance
+    "resource_id": "C123...",       // Channel ID
+    "resource_name": "#engineering", // Display name
+    "project_id": "uuid",           // Optional project scope
+    "instructions": "Focus on product decisions",  // Optional user guidance
+    "config": {                     // Optional config (Phase 5)
+        "learn_style": true,        // Extract communication style
+        "style_user_id": "U123..."  // Slack user ID to analyze (optional)
+    }
 }
 Response: {
-    "job_id": "uuid",
-    "status": "processing"
+    "id": "uuid",
+    "provider": "slack",
+    "resource_id": "C123...",
+    "status": "pending",
+    "progress": 0,
+    "created_at": "2026-02-06T..."
 }
 
 GET /api/integrations/import/{job_id}
 Response: {
+    "id": "uuid",
     "status": "completed",
-    "blocks_created": 12,
-    "memories_created": 3,
-    "summary": "Imported 12 context blocks covering product roadmap decisions..."
+    "result": {
+        "blocks_created": 12,
+        "items_processed": 47,
+        "items_filtered": 35,
+        "summary": "Imported 12 context blocks covering product roadmap decisions...",
+        "style_learned": true,          // Phase 5
+        "style_confidence": "high"      // Phase 5
+    }
 }
 ```
 
@@ -343,23 +357,114 @@ CREATE TABLE integration_sync_config (
 
 ### Phase 3: Onboarding UI
 
-- [ ] "Import context from..." in project creation
-- [ ] Channel/page picker modal
-- [ ] Import progress indicator
-- [ ] Import summary display
+- [x] "Import context" button on connected integrations in Settings
+- [x] `IntegrationImportModal` component with channel/page picker
+- [x] Import progress indicator with polling
+- [x] Import summary display with blocks created, items processed, noise filtered
+- [x] Style learning toggle option during import
 
-### Phase 4: Continuous Sync
+### Phase 4: Continuous Sync (Future)
 
 - [ ] Sync configuration UI
 - [ ] Scheduled sync job (cron)
 - [ ] Incremental import (delta processing)
 - [ ] Sync status indicators
 
-### Phase 5: Style Learning (Future)
+### Phase 5: Style Learning
 
-- [ ] StyleLearningAgent for communication patterns
-- [ ] User writing profile stored as memory
-- [ ] Applied to deliverable generation
+- [x] `StyleLearningAgent` for multi-context communication patterns
+- [x] User writing profiles stored as user-scoped memories (`project_id = NULL`)
+- [x] Platform-aware style profiles (Slack: casual/realtime, Notion: formal/documentation)
+- [x] Style integration into deliverable pipeline via `style_context` parameter
+- [x] UI toggle for style learning during import
+
+---
+
+## Phase 5: Style Learning Details
+
+### Key Insight: Context-Dependent Style
+
+The same user writes differently across platforms:
+
+| Platform | Context | Typical Style |
+|----------|---------|---------------|
+| Slack | realtime_chat | Casual, brief, emoji-friendly |
+| Notion | documentation | Structured, thorough, formal |
+| Email | formal_comms | Professional, warm opening/closing |
+
+**Decision**: Store separate style memories per platform, tagged appropriately.
+
+### StyleProfile Data Model
+
+```python
+@dataclass
+class StyleProfile:
+    platform: str       # slack, notion, email
+    context: str        # realtime_chat, documentation, formal_comms
+    tone: str           # formal, casual, professional, friendly
+    verbosity: str      # concise, moderate, detailed
+    structure: str      # bullets, paragraphs, mixed, headers
+    vocabulary_notes: str
+    sentence_style: str
+    common_phrases: list[str]
+    emoji_usage: str    # never, minimal, moderate, frequent
+    formatting_preferences: str
+    full_profile: str   # Complete description for prompts
+    sample_size: int
+    confidence: str     # high, medium, low
+```
+
+### Style Memory Storage
+
+```sql
+-- Style memories are user-scoped (portable across projects)
+INSERT INTO memories (user_id, project_id, content, source_type, source_ref, importance, tags)
+VALUES (
+    'user-uuid',
+    NULL,  -- User-scoped, not project-scoped
+    '## Communication Style Profile (Slack)
+
+    **Context**: Realtime Chat
+    **Confidence**: high (based on 47 samples)
+
+    ### Core Attributes
+    - **Tone**: casual
+    - **Verbosity**: concise
+    - **Structure**: mixed
+    - **Emoji Usage**: moderate
+
+    ### Detailed Profile
+    [Full profile description...]',
+    'import',
+    '{"analysis_type": "style", "platform": "slack", "context": "realtime_chat", ...}',
+    0.8,  -- High importance for style
+    ARRAY['style', 'slack', 'realtime_chat']
+);
+```
+
+### Style Application in Deliverables
+
+1. **Deliverable Configuration**:
+   ```json
+   {
+     "deliverable_type": "status_report",
+     "type_config": {
+       "style_context": "slack",  // Use slack style for this deliverable
+       ...
+     }
+   }
+   ```
+
+2. **Pipeline Integration**:
+   - `execute_synthesize_step` extracts `style_context` from `type_config`
+   - Passes to content agent as parameter
+   - Agent's `build_context_prompt` selects matching style memory
+   - Style profile included in system prompt for generation
+
+3. **Style Selection Logic**:
+   - If `style_context` provided, find matching style memory by tag
+   - If multiple styles exist, use the most relevant match
+   - If no match, include all available style profiles for agent to choose
 
 ---
 

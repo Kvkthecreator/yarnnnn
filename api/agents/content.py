@@ -75,6 +75,8 @@ class ContentAgent(BaseAgent):
             parameters:
                 - format: "linkedin", "twitter", "blog", "email", "general"
                 - tone: "professional", "casual", "authoritative", "friendly"
+                - style_context: Platform context for style selection (e.g., "slack", "notion")
+                                 ADR-027 Phase 5: Used to select appropriate style profile
 
         Returns:
             AgentResult with single work_output (the content)
@@ -82,14 +84,16 @@ class ContentAgent(BaseAgent):
         params = parameters or {}
         content_format = params.get("format", "general")
         tone = params.get("tone", "professional")
+        style_context = params.get("style_context")  # ADR-027 Phase 5
 
         logger.info(
             f"[CONTENT] Starting: task='{task[:50]}...', "
             f"format={content_format}, tone={tone}"
+            + (f", style_context={style_context}" if style_context else "")
         )
 
-        # Build system prompt with context
-        system_prompt = self._build_system_prompt(context)
+        # Build system prompt with context (includes style if available)
+        system_prompt = self._build_system_prompt(context, style_context)
 
         # Build content prompt
         content_prompt = self._build_content_prompt(task, content_format, tone)

@@ -45,6 +45,8 @@ interface ImportJob {
     items_processed: number;
     items_filtered: number;
     summary: string;
+    style_learned?: boolean;
+    style_confidence?: string;
   } | null;
   error_message: string | null;
 }
@@ -84,6 +86,7 @@ export function IntegrationImportModal({
   // Selection state
   const [selectedResource, setSelectedResource] = useState<string | null>(null);
   const [instructions, setInstructions] = useState("");
+  const [learnStyle, setLearnStyle] = useState(false);  // ADR-027 Phase 5
 
   // Import state
   const [isImporting, setIsImporting] = useState(false);
@@ -161,6 +164,7 @@ export function IntegrationImportModal({
         resource_name: resourceName,
         project_id: projectId,
         instructions: instructions.trim() || undefined,
+        config: learnStyle ? { learn_style: true } : undefined,
       });
 
       setImportJob(job as unknown as ImportJob);
@@ -177,6 +181,7 @@ export function IntegrationImportModal({
     // Reset state
     setSelectedResource(null);
     setInstructions("");
+    setLearnStyle(false);
     setImportJob(null);
     setImportError(null);
     setChannels([]);
@@ -330,6 +335,28 @@ export function IntegrationImportModal({
                 </div>
               )}
 
+              {/* Style Learning Toggle - ADR-027 Phase 5 */}
+              {resources.length > 0 && (
+                <div className="mt-4 p-3 border border-border rounded-lg bg-muted/30">
+                  <label className="flex items-start gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={learnStyle}
+                      onChange={(e) => setLearnStyle(e.target.checked)}
+                      className="mt-1 h-4 w-4 rounded border-border"
+                    />
+                    <div>
+                      <span className="text-sm font-medium">Learn my writing style</span>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {provider === "slack"
+                          ? "Analyze your messages to capture your casual communication style"
+                          : "Analyze this content to capture your documentation style"}
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
+
               {/* Error */}
               {importError && (
                 <div className="mt-3 p-2 bg-destructive/10 text-destructive text-sm rounded">
@@ -463,6 +490,24 @@ function ImportJobStatus({ job, provider }: { job: ImportJob; provider: Provider
           {job.result.summary && (
             <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
               {job.result.summary}
+            </div>
+          )}
+
+          {/* Style Learning Result - ADR-027 Phase 5 */}
+          {job.result.style_learned && (
+            <div className="p-3 bg-primary/10 border border-primary/20 rounded-lg">
+              <div className="flex items-center gap-2 text-sm">
+                <Check className="w-4 h-4 text-primary" />
+                <span className="font-medium text-primary">Writing style captured</span>
+                {job.result.style_confidence && (
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    {job.result.style_confidence} confidence
+                  </span>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                Your {providerName.toLowerCase()} communication style will be applied to future deliverables.
+              </p>
             </div>
           )}
         </div>

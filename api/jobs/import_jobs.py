@@ -9,8 +9,9 @@ Flow:
 2. Fetch user's integration credentials
 3. Fetch data via MCP (Slack channels, Notion pages)
 4. Run ContextImportAgent to extract structured blocks
-5. Store results in memories table with source_type='import'
-6. Update job status
+5. Optionally run StyleLearningAgent to extract communication style (Phase 5)
+6. Store results in memories table with source_type='import'
+7. Update job status
 
 See ADR-027: Integration Read Architecture
 """
@@ -23,6 +24,52 @@ from typing import Optional
 from uuid import UUID
 
 logger = logging.getLogger(__name__)
+
+
+async def store_style_memory(
+    supabase_client,
+    user_id: str,
+    profile,  # StyleProfile from style_learning.py
+    job_id: str,
+) -> bool:
+    """
+    Store a style profile as a user-scoped memory.
+
+    Style memories are always user-scoped (project_id = NULL) because
+    communication style follows the user across all projects.
+
+    Returns True if stored successfully.
+    """
+    from agents.integration.style_learning import (
+        style_profile_to_memory_content,
+        style_profile_to_source_ref,
+    )
+
+    try:
+        memory_data = {
+            "user_id": user_id,
+            "project_id": None,  # User-scoped (portable)
+            "content": style_profile_to_memory_content(profile),
+            "source_type": "import",
+            "source_ref": {
+                **style_profile_to_source_ref(profile),
+                "job_id": job_id,
+            },
+            "importance": 0.8,  # High importance for style
+            "tags": ["style", profile.platform, profile.context],
+        }
+
+        supabase_client.table("memories").insert(memory_data).execute()
+
+        logger.info(
+            f"[STYLE] Stored {profile.platform} style profile for user "
+            f"(confidence: {profile.confidence})"
+        )
+        return True
+
+    except Exception as e:
+        logger.error(f"[STYLE] Failed to store style memory: {e}")
+        return False
 
 
 async def get_pending_import_jobs(supabase_client) -> list[dict]:
@@ -147,12 +194,19 @@ async def process_slack_import(
     token_manager,
 ) -> dict:
     """Process a Slack channel import job."""
+    from agents.integration.style_learning import StyleLearningAgent
+
     user_id = job["user_id"]
     metadata = integration.get("metadata", {}) or {}
 
     resource_id = job["resource_id"]
     resource_name = job.get("resource_name", resource_id)
     instructions = job.get("instructions")
+
+    # Check if style learning is requested (from job config)
+    config = job.get("config") or {}
+    learn_style = config.get("learn_style", False)
+    style_user_id = config.get("style_user_id")  # Slack user ID to analyze
 
     # Decrypt access token
     access_token = token_manager.decrypt(integration["access_token_encrypted"])
@@ -177,6 +231,7 @@ async def process_slack_import(
             "items_processed": 0,
             "items_filtered": 0,
             "summary": "No messages found in channel",
+            "style_learned": False,
         }
 
     # 2. Run agent to extract context
@@ -202,11 +257,44 @@ async def process_slack_import(
         },
     )
 
+    # 4. Optionally learn style from user's messages (Phase 5)
+    style_learned = False
+    style_confidence = None
+
+    if learn_style:
+        try:
+            # Filter to user's messages if style_user_id provided
+            user_messages = messages
+            if style_user_id:
+                user_messages = [m for m in messages if m.get("user") == style_user_id]
+
+            if len(user_messages) >= 5:
+                logger.info(f"[STYLE] Learning style from {len(user_messages)} messages")
+                style_agent = StyleLearningAgent()
+                profile = await style_agent.analyze_slack_messages(
+                    messages=user_messages,
+                    user_name=metadata.get("user_name"),
+                )
+
+                style_learned = await store_style_memory(
+                    supabase_client,
+                    user_id=user_id,
+                    profile=profile,
+                    job_id=job["id"],
+                )
+                style_confidence = profile.confidence
+            else:
+                logger.info(f"[STYLE] Skipping - only {len(user_messages)} user messages (need 5+)")
+        except Exception as e:
+            logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
+
     return {
         "blocks_created": blocks_created,
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
         "summary": import_result.summary,
+        "style_learned": style_learned,
+        "style_confidence": style_confidence,
     }
 
 
@@ -219,10 +307,16 @@ async def process_notion_import(
     token_manager,
 ) -> dict:
     """Process a Notion page import job."""
+    from agents.integration.style_learning import StyleLearningAgent
+
     user_id = job["user_id"]
 
     resource_id = job["resource_id"]
     instructions = job.get("instructions")
+
+    # Check if style learning is requested (from job config)
+    config = job.get("config") or {}
+    learn_style = config.get("learn_style", False)
 
     # Decrypt access token
     access_token = token_manager.decrypt(integration["access_token_encrypted"])
@@ -241,6 +335,7 @@ async def process_notion_import(
             "items_processed": 0,
             "items_filtered": 0,
             "summary": "Page not found or empty",
+            "style_learned": False,
         }
 
     resource_name = page_content.get("title", "Untitled")
@@ -267,11 +362,36 @@ async def process_notion_import(
         },
     )
 
+    # 4. Optionally learn style from page content (Phase 5)
+    style_learned = False
+    style_confidence = None
+
+    if learn_style and page_content.get("content"):
+        try:
+            logger.info(f"[STYLE] Learning documentation style from Notion page")
+            style_agent = StyleLearningAgent()
+            profile = await style_agent.analyze_notion_content(
+                pages=[page_content],
+                user_name=None,
+            )
+
+            style_learned = await store_style_memory(
+                supabase_client,
+                user_id=user_id,
+                profile=profile,
+                job_id=job["id"],
+            )
+            style_confidence = profile.confidence
+        except Exception as e:
+            logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
+
     return {
         "blocks_created": blocks_created,
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
         "summary": import_result.summary,
+        "style_learned": style_learned,
+        "style_confidence": style_confidence,
     }
 
 

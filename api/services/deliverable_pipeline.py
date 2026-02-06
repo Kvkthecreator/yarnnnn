@@ -1305,15 +1305,25 @@ async def execute_synthesize_step(
 
     logger.info(f"[SYNTHESIZE] Using type-specific prompt for type={deliverable_type}")
 
+    # ADR-027 Phase 5: Extract style_context from type_config if specified
+    # This tells the content agent which style profile to use (e.g., "slack", "notion")
+    style_context = type_config.get("style_context")
+
+    # Build parameters for content agent
+    agent_params = {
+        "deliverable_id": deliverable["id"],
+        "step": "synthesize",
+    }
+    if style_context:
+        agent_params["style_context"] = style_context
+        logger.info(f"[SYNTHESIZE] Using style_context={style_context}")
+
     # Create work ticket with dependency
     ticket_data = {
         "task": synthesize_prompt,
         "agent_type": "content",
         "project_id": project_id,
-        "parameters": json.dumps({
-            "deliverable_id": deliverable["id"],
-            "step": "synthesize",
-        }),
+        "parameters": json.dumps(agent_params),
         "status": "pending",
         "deliverable_id": deliverable["id"],
         "deliverable_version_id": version_id,

@@ -217,18 +217,34 @@ class BaseAgent(ABC):
         """
         pass
 
-    def build_context_prompt(self, context: ContextBundle) -> str:
-        """Build context section for system prompt."""
+    def build_context_prompt(self, context: ContextBundle, style_context: str = None) -> str:
+        """
+        Build context section for system prompt.
+
+        Args:
+            context: Context bundle with memories
+            style_context: Optional style context (e.g., "slack" or "notion")
+                          Used to select the appropriate style profile
+        """
         if not context.has_context:
             return "No context available."
 
         lines = ["## Available Context\n"]
 
-        # Format user memories
+        # Separate style memories from regular user memories
         user_memories = context.user_memories
-        if user_memories:
+        style_memories = [m for m in user_memories if "style" in m.tags]
+        regular_user_memories = [m for m in user_memories if "style" not in m.tags]
+
+        # Format style profile if available (ADR-027 Phase 5)
+        if style_memories:
+            lines.append(self._format_style_memories(style_memories, style_context))
+            lines.append("")
+
+        # Format regular user memories
+        if regular_user_memories:
             lines.append("### About the User")
-            for mem in user_memories:
+            for mem in regular_user_memories:
                 tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
                 lines.append(f"- {mem.content}{tags_str}")
             lines.append("")
@@ -245,9 +261,59 @@ class BaseAgent(ABC):
 
         return "\n".join(lines)
 
-    def _build_system_prompt(self, context: ContextBundle) -> str:
-        """Build full system prompt with context."""
-        context_text = self.build_context_prompt(context)
+    def _format_style_memories(self, style_memories: list[Memory], style_context: str = None) -> str:
+        """
+        Format style memories for the system prompt.
+
+        Style memories are user-scoped and platform-specific. If a style_context
+        is provided (e.g., "slack", "notion"), we prioritize matching profiles.
+
+        Args:
+            style_memories: List of memories tagged with "style"
+            style_context: Optional context to match (e.g., "slack", "documentation")
+
+        Returns:
+            Formatted style section for the system prompt
+        """
+        if not style_memories:
+            return ""
+
+        lines = ["### User's Communication Style"]
+        lines.append("*Apply this style when generating content.*\n")
+
+        # If style_context provided, prioritize matching profiles
+        if style_context:
+            matching = [m for m in style_memories if style_context.lower() in [t.lower() for t in m.tags]]
+            if matching:
+                # Use the most relevant style profile
+                for mem in matching[:1]:  # Just use the first matching one
+                    lines.append(mem.content)
+                return "\n".join(lines)
+
+        # No context match - show available styles
+        if len(style_memories) == 1:
+            lines.append(style_memories[0].content)
+        else:
+            # Multiple style profiles - indicate which are available
+            lines.append("*Multiple style profiles available:*\n")
+            for mem in style_memories[:3]:  # Limit to 3 to avoid overwhelming context
+                platform_tags = [t for t in mem.tags if t != "style"]
+                if platform_tags:
+                    lines.append(f"**{platform_tags[0].title()} Style:**")
+                lines.append(mem.content)
+                lines.append("")
+
+        return "\n".join(lines)
+
+    def _build_system_prompt(self, context: ContextBundle, style_context: str = None) -> str:
+        """
+        Build full system prompt with context.
+
+        Args:
+            context: Context bundle with memories
+            style_context: Optional style context for selecting appropriate style profile
+        """
+        context_text = self.build_context_prompt(context, style_context)
         return self.SYSTEM_PROMPT.format(context=context_text)
 
     def _parse_work_output(self, tool_calls: list[dict]) -> Optional[WorkOutput]:

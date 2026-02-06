@@ -157,12 +157,43 @@ class NotionPagesListResponse(BaseModel):
 # Import Job Models
 # =============================================================================
 
+class ImportConfigRequest(BaseModel):
+    """Configuration options for import jobs."""
+    learn_style: bool = False  # Extract communication style from content
+    style_user_id: Optional[str] = None  # For Slack: filter to specific user's messages
+
+
 class StartImportRequest(BaseModel):
     """Request to start a context import job."""
     resource_id: str  # channel_id or page_id
     resource_name: Optional[str] = None  # #channel-name or Page Title
     project_id: Optional[str] = None  # Optional project to associate
     instructions: Optional[str] = None  # User guidance for the agent
+    config: Optional[ImportConfigRequest] = None  # Style learning and other options
+
+
+class ImportJobResultResponse(BaseModel):
+    """Result details for a completed import job."""
+    blocks_created: int = 0
+    items_processed: int = 0
+    items_filtered: int = 0
+    summary: Optional[str] = None
+    style_learned: bool = False
+    style_confidence: Optional[str] = None  # high, medium, low
+
+
+def _parse_import_result(result_dict: Optional[dict]) -> Optional[ImportJobResultResponse]:
+    """Parse raw result dict from DB into typed response."""
+    if not result_dict:
+        return None
+    return ImportJobResultResponse(
+        blocks_created=result_dict.get("blocks_created", 0),
+        items_processed=result_dict.get("items_processed", 0),
+        items_filtered=result_dict.get("items_filtered", 0),
+        summary=result_dict.get("summary"),
+        style_learned=result_dict.get("style_learned", False),
+        style_confidence=result_dict.get("style_confidence"),
+    )
 
 
 class ImportJobResponse(BaseModel):
@@ -173,7 +204,7 @@ class ImportJobResponse(BaseModel):
     resource_name: Optional[str] = None
     status: str  # pending, processing, completed, failed
     progress: int = 0
-    result: Optional[dict] = None
+    result: Optional[ImportJobResultResponse] = None
     error_message: Optional[str] = None
     created_at: datetime
     started_at: Optional[datetime] = None
@@ -628,6 +659,13 @@ async def start_slack_import(
         # (Background job processor will resolve the actual channel name via MCP)
         resource_name = request.resource_name or f"#{request.resource_id}"
 
+        # Build config dict from request
+        config_dict = {}
+        if request.config:
+            config_dict["learn_style"] = request.config.learn_style
+            if request.config.style_user_id:
+                config_dict["style_user_id"] = request.config.style_user_id
+
         # Create import job
         job_data = {
             "user_id": user_id,
@@ -636,6 +674,7 @@ async def start_slack_import(
             "resource_name": resource_name,
             "project_id": request.project_id,
             "instructions": request.instructions,
+            "config": config_dict if config_dict else None,
             "status": "pending",
             "progress": 0,
         }
@@ -647,7 +686,8 @@ async def start_slack_import(
 
         job = result.data[0]
 
-        logger.info(f"[INTEGRATIONS] User {user_id} started Slack import job {job['id']}")
+        style_note = " (with style learning)" if config_dict.get("learn_style") else ""
+        logger.info(f"[INTEGRATIONS] User {user_id} started Slack import job {job['id']}{style_note}")
 
         # TODO: Trigger background job processor
         # For now, we return the pending job and processing happens via cron/worker
@@ -708,6 +748,12 @@ async def start_notion_import(
         # (Background job processor will resolve the actual page title via MCP)
         resource_name = request.resource_name or request.resource_id
 
+        # Build config dict from request
+        config_dict = {}
+        if request.config:
+            config_dict["learn_style"] = request.config.learn_style
+            # style_user_id not applicable for Notion (no per-user filtering)
+
         # Create import job
         job_data = {
             "user_id": user_id,
@@ -716,6 +762,7 @@ async def start_notion_import(
             "resource_name": resource_name,
             "project_id": request.project_id,
             "instructions": request.instructions,
+            "config": config_dict if config_dict else None,
             "status": "pending",
             "progress": 0,
         }
@@ -727,7 +774,8 @@ async def start_notion_import(
 
         job = result.data[0]
 
-        logger.info(f"[INTEGRATIONS] User {user_id} started Notion import job {job['id']}")
+        style_note = " (with style learning)" if config_dict.get("learn_style") else ""
+        logger.info(f"[INTEGRATIONS] User {user_id} started Notion import job {job['id']}{style_note}")
 
         return ImportJobResponse(
             id=job["id"],
@@ -777,7 +825,7 @@ async def get_import_job(
             resource_name=job.get("resource_name"),
             status=job["status"],
             progress=job.get("progress", 0),
-            result=job.get("result"),
+            result=_parse_import_result(job.get("result")),
             error_message=job.get("error_message"),
             created_at=job["created_at"],
             started_at=job.get("started_at"),
@@ -823,7 +871,7 @@ async def list_import_jobs(
                 resource_name=job.get("resource_name"),
                 status=job["status"],
                 progress=job.get("progress", 0),
-                result=job.get("result"),
+                result=_parse_import_result(job.get("result")),
                 error_message=job.get("error_message"),
                 created_at=job["created_at"],
                 started_at=job.get("started_at"),

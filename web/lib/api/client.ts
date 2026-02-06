@@ -682,6 +682,10 @@ export const api = {
         resource_name?: string;
         project_id?: string;
         instructions?: string;
+        config?: {
+          learn_style?: boolean;
+          style_user_id?: string;
+        };
       }
     ) =>
       request<{
@@ -711,6 +715,8 @@ export const api = {
           items_processed: number;
           items_filtered: number;
           summary: string;
+          style_learned?: boolean;
+          style_confidence?: string;
         } | null;
         error_message: string | null;
         created_at: string;
