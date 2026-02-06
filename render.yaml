@@ -23,12 +23,27 @@ services:
         sync: false
       - key: RESEND_FROM_EMAIL
         value: "YARNNN <noreply@yarnnn.com>"
+      # Integration OAuth - Slack
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      # Integration OAuth - Notion
+      - key: NOTION_CLIENT_ID
+        sync: false
+      - key: NOTION_CLIENT_SECRET
+        sync: false
+      # Integration OAuth - Google/Gmail (ADR-029)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
     healthCheckPath: /health
 
 # Cron Jobs
 crons:
   # Unified Scheduler (ADR-017 + ADR-018)
-  # Processes: recurring work tickets, recurring deliverables, weekly digests
+  # Processes: recurring work tickets, recurring deliverables, weekly digests, import jobs
   # Runs every 5 minutes to catch due items
   - name: unified-scheduler
     schedule: "*/5 * * * *"
@@ -45,3 +60,16 @@ crons:
         sync: false
       - key: RESEND_FROM_EMAIL
         value: "YARNNN <noreply@yarnnn.com>"
+      # Integration OAuth - for import jobs (ADR-029)
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: NOTION_CLIENT_ID
+        sync: false
+      - key: NOTION_CLIENT_SECRET
+        sync: false

@@ -27,7 +27,18 @@
 - **Server commands**:
   - Slack: `npx @modelcontextprotocol/server-slack`
   - Notion: `npx @notionhq/notion-mcp-server --transport stdio`
+  - Gmail: `npx @shinzolabs/gmail-mcp` (ADR-029)
 - **Render**: Node.js/npx confirmed available
+
+### Required Environment Variables
+
+| Provider | Variables |
+|----------|-----------|
+| Slack | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` |
+| Notion | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` |
+| Gmail | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+
+> **Note**: These must be set on both `yarnnn-api` and `unified-scheduler` services in Render.
 
 ---
 
