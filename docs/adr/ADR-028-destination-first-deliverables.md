@@ -1,8 +1,8 @@
 # ADR-028: Destination-First Deliverables & Governance Model
 
-> **Status**: Accepted (Phase 1 Complete)
+> **Status**: Accepted (Phases 1-3 Complete)
 > **Created**: 2026-02-06
-> **Updated**: 2026-02-06 (Phase 1 implementation complete)
+> **Updated**: 2026-02-06 (Phases 1-3 implementation complete)
 > **Related**: ADR-026 (Integration Architecture), ADR-027 (Integration Reads), ADR-018 (Deliverable Pipeline)
 
 ---
@@ -396,18 +396,27 @@ As deliverables accumulate history, learnings should persist per-deliverable:
 - `api/routes/deliverables.py` - Updated with destination/governance fields
 - `api/routes/integrations.py` - Refactored export endpoint
 
-### Phase 2: Wizard & UI
+### Phase 2: Wizard & UI ✅ COMPLETE
 
-- [ ] Add destination step to deliverable wizard
-- [ ] Add governance selector (with smart defaults)
-- [ ] Show destination on deliverable cards
-- [ ] Update approval flow for semi-auto behavior
+- [x] Add destination params to CREATE_DELIVERABLE_TOOL (TP asks during creation)
+- [x] Add governance selector to DeliverableSettingsModal
+- [x] Show destination badge on deliverable list cards
+- [x] Semi-auto behavior triggers on version approval (Phase 1)
 
-### Phase 3: Style Inference
+**Key Files:**
+- `api/services/project_tools.py` - CREATE_DELIVERABLE_TOOL with destination_platform, destination_target, governance
+- `web/types/index.ts` - Destination, GovernanceLevel, DeliveryStatus types
+- `web/components/modals/DeliverableSettingsModal.tsx` - Destination & governance UI
+- `web/components/surfaces/DeliverableListSurface.tsx` - Destination badge display
 
-- [ ] Update pipeline to infer style_context from destination.platform
-- [ ] Fall back logic for explicit style_context
-- [ ] Test style consistency across platforms
+### Phase 3: Style Inference ✅ COMPLETE
+
+- [x] Update pipeline to infer style_context from destination.platform
+- [x] Priority: explicit type_config > destination.platform > none
+- [x] Platform names match style profile names (slack, notion, etc.)
+
+**Key Files:**
+- `api/services/deliverable_pipeline.py` - Style inference in synthesize step
 
 ### Phase 4: Full-Auto & Monitoring
 
