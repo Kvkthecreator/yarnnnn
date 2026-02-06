@@ -216,53 +216,150 @@ class FormatConverter:
 
 ### MCP Client Architecture
 
-```python
-# api/services/mcp_client.py
+#### Technical Implementation (Validated Feb 2026)
 
-from mcp import Client, ServerConfig
+Based on research into the MCP ecosystem:
+
+**SDK**: Official `mcp` Python package (v1.x stable, PyPI)
+```bash
+pip install "mcp[cli]"
+```
+
+**Transport**: Stdio (subprocess) - the standard pattern used by Claude Desktop
+- MCP servers run as **subprocesses** communicating via stdin/stdout
+- No separate service deployment needed
+- Official servers (`@modelcontextprotocol/server-slack`, `@notionhq/notion-mcp-server`) are Node.js packages
+- Both can be spawned from Python using `npx`
+
+**Token Passing**: Environment variables to subprocess
+- Slack: `SLACK_BOT_TOKEN`, `SLACK_TEAM_ID`
+- Notion: `AUTH_TOKEN` (internal integration token)
+
+**Render Compatibility**: ✅ Verified
+- Node.js available on Render (confirmed via existing `yarnnn-mcp-server` service)
+- `npx` can be called from Python services
+
+#### Architecture Diagram
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                     YARNNN API (FastAPI)                     │
+├─────────────────────────────────────────────────────────────┤
+│  MCPClientManager                                            │
+│  - Spawns MCP servers as subprocesses (stdio transport)     │
+│  - Passes decrypted tokens via env vars                      │
+│  - Manages client sessions per user+provider                 │
+└─────────────────────────────────────────────────────────────┘
+         │                              │
+         │ subprocess (npx)             │ subprocess (npx)
+         ▼                              ▼
+┌─────────────────┐          ┌─────────────────┐
+│ server-slack    │          │ notion-mcp-server│
+│ (Node.js)       │          │ (Node.js)        │
+│                 │          │                  │
+│ env:            │          │ env:             │
+│ SLACK_BOT_TOKEN │          │ AUTH_TOKEN       │
+│ SLACK_TEAM_ID   │          │                  │
+└─────────────────┘          └─────────────────┘
+         │                              │
+         ▼                              ▼
+    Slack API                      Notion API
+```
+
+#### Implementation
+
+```python
+# api/integrations/core/client.py
+
+from contextlib import AsyncExitStack
+from mcp import ClientSession, StdioServerParameters
+from mcp.client.stdio import stdio_client
 
 class MCPClientManager:
-    """Manages MCP server connections for users."""
+    """Manages MCP server connections via stdio subprocess transport."""
 
     def __init__(self):
-        self.clients: dict[str, Client] = {}
+        self._sessions: dict[str, ClientSession] = {}
+        self._exit_stacks: dict[str, AsyncExitStack] = {}
 
-    async def get_client(self, user_id: str, provider: str) -> Client:
-        """Get or create MCP client for user+provider."""
+    async def get_session(
+        self,
+        user_id: str,
+        provider: str,
+        env: dict[str, str]
+    ) -> ClientSession:
+        """Get or create MCP client session for user+provider."""
         key = f"{user_id}:{provider}"
-        if key not in self.clients:
-            config = await self._load_config(user_id, provider)
-            self.clients[key] = await Client.connect(config)
-        return self.clients[key]
+
+        if key not in self._sessions:
+            # Determine command based on provider
+            server_commands = {
+                "slack": ["npx", "@modelcontextprotocol/server-slack"],
+                "notion": ["npx", "@notionhq/notion-mcp-server", "--transport", "stdio"],
+            }
+
+            cmd = server_commands.get(provider)
+            if not cmd:
+                raise ValueError(f"Unknown provider: {provider}")
+
+            server_params = StdioServerParameters(
+                command=cmd[0],
+                args=cmd[1:],
+                env=env  # Tokens passed here
+            )
+
+            exit_stack = AsyncExitStack()
+            self._exit_stacks[key] = exit_stack
+
+            stdio_transport = await exit_stack.enter_async_context(
+                stdio_client(server_params)
+            )
+            session = await exit_stack.enter_async_context(
+                ClientSession(stdio_transport[0], stdio_transport[1])
+            )
+            await session.initialize()
+
+            self._sessions[key] = session
+
+        return self._sessions[key]
 
     async def export_to_slack(
         self,
         user_id: str,
         channel: str,
-        content: str
+        content: str,
+        bot_token: str,
+        team_id: str
     ) -> dict:
         """Export content to Slack via MCP."""
-        client = await self.get_client(user_id, "slack")
-        result = await client.call_tool(
-            "post_message",
+        session = await self.get_session(
+            user_id,
+            "slack",
+            env={
+                "SLACK_BOT_TOKEN": bot_token,
+                "SLACK_TEAM_ID": team_id
+            }
+        )
+        result = await session.call_tool(
+            "slack_post_message",
             {"channel": channel, "text": content}
         )
         return result
 
-    async def export_to_notion(
-        self,
-        user_id: str,
-        page_id: str,
-        content: str,
-        title: str
-    ) -> dict:
-        """Export content to Notion via MCP."""
-        client = await self.get_client(user_id, "notion")
-        result = await client.call_tool(
-            "create_page",
-            {"parent_id": page_id, "title": title, "content": content}
-        )
-        return result
+    async def close_session(self, user_id: str, provider: str):
+        """Close a specific session."""
+        key = f"{user_id}:{provider}"
+        if key in self._exit_stacks:
+            await self._exit_stacks[key].aclose()
+            del self._exit_stacks[key]
+            del self._sessions[key]
+
+    async def close_all(self):
+        """Close all sessions (for cleanup)."""
+        for key in list(self._exit_stacks.keys()):
+            await self._exit_stacks[key].aclose()
+        self._sessions.clear()
+        self._exit_stacks.clear()
 ```
 
 ### YARNNN as MCP Server (Bidirectional)
@@ -519,6 +616,17 @@ Only support local downloads (PDF, Markdown, DOCX).
 ---
 
 ## Changelog
+
+### 2026-02-06: Technical Validation & Implementation Start
+
+- Validated MCP SDK availability (`mcp` package v1.x on PyPI)
+- Confirmed subprocess/stdio transport as standard pattern
+- Verified Node.js/npx availability on Render
+- Created database migration `023_integrations.sql`:
+  - `user_integrations` - OAuth token storage
+  - `deliverable_export_preferences` - Per-deliverable export config
+  - `export_log` - Audit trail
+- Updated MCPClientManager implementation with real SDK patterns
 
 ### 2026-02-06: Initial Draft
 

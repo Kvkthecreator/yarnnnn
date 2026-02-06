@@ -19,6 +19,10 @@ python-docx>=1.1.0
 pydantic>=2.5.0
 httpx>=0.26.0
 
+# MCP (Model Context Protocol) - Integration layer
+mcp>=1.0.0
+cryptography>=42.0.0  # For Fernet token encryption
+
 # Scheduling
 croniter>=2.0.0
 pytz>=2024.1
