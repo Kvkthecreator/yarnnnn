@@ -1690,13 +1690,48 @@ async def execute_deliverable_pipeline(
             "last_run_at": datetime.utcnow().isoformat(),
         }).eq("id", deliverable_id).execute()
 
-        logger.info(f"[PIPELINE] Complete: version={version_id}, status=staged")
+        # ADR-028/029: Handle full_auto governance - auto-approve and deliver
+        governance = deliverable.get("governance", "manual")
+        destination = deliverable.get("destination")
+        final_status = "staged"
+        delivery_result = None
+
+        if governance == "full_auto" and destination:
+            logger.info(f"[PIPELINE] Full-auto: auto-approving and delivering version={version_id}")
+
+            # Auto-approve the version
+            client.table("deliverable_versions").update({
+                "status": "approved",
+                "final_content": draft_content,  # Use draft as final
+                "approved_at": datetime.utcnow().isoformat(),
+            }).eq("id", version_id).execute()
+            final_status = "approved"
+
+            # Trigger delivery
+            try:
+                from services.delivery import get_delivery_service
+                delivery_service = get_delivery_service(client)
+                delivery_result = await delivery_service.deliver_version(
+                    version_id=version_id,
+                    user_id=user_id
+                )
+                logger.info(
+                    f"[PIPELINE] Full-auto delivery complete: {delivery_result.status.value}"
+                )
+                if delivery_result.status.value == "success":
+                    final_status = "delivered"
+            except Exception as e:
+                logger.error(f"[PIPELINE] Full-auto delivery failed: {e}")
+                # Don't fail the pipeline, content is still approved
+
+        logger.info(f"[PIPELINE] Complete: version={version_id}, status={final_status}")
 
         return {
             "success": True,
             "version_id": version_id,
-            "status": "staged",
-            "message": "Deliverable ready for review",
+            "status": final_status,
+            "message": "Deliverable ready for review" if final_status == "staged" else "Deliverable delivered",
+            "delivery": delivery_result.model_dump() if delivery_result else None,
         }
 
     except Exception as e:
