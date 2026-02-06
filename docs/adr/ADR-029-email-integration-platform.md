@@ -1,8 +1,8 @@
 # ADR-029: Email as Full Integration Platform
 
-> **Status**: Accepted (Phase 1 Implemented)
+> **Status**: Accepted (Phases 1-3 Implemented)
 > **Created**: 2026-02-06
-> **Updated**: 2026-02-06 (Gmail Phase 1 implementation complete)
+> **Updated**: 2026-02-06 (Gmail Phases 1-3 implementation complete)
 > **Related**: ADR-026 (Integration Architecture), ADR-027 (Integration Reads), ADR-028 (Destination-First)
 
 ---
@@ -146,33 +146,131 @@ async def process_gmail_import(job, integration, mcp_manager, agent, token_manag
 | `api/jobs/import_jobs.py` | Gmail import job processor |
 | `web/types/index.ts` | Gmail types for frontend |
 
-### Phase 2: Email Data Sources (Planned)
+### Phase 2: Email Data Sources (COMPLETE) ✅
 
-Extend data source types to include Gmail:
+#### DataSource Type Extension
 
 ```typescript
-DataSource = {
-  type: "integration_import",
-  provider: "gmail",
-  source: "inbox" | "thread:<id>" | "query:<query>",
-  filters: {
-    from?: string,
-    subject_contains?: string,
-    after?: string  // "7d", "2024-01-01"
-  }
+// web/types/index.ts
+export type DataSourceType = "url" | "document" | "description" | "integration_import";
+
+export type IntegrationProvider = "slack" | "notion" | "gmail";
+
+export interface IntegrationImportFilters {
+  from?: string;           // Email sender filter
+  subject_contains?: string; // Subject line filter
+  after?: string;          // Time filter: "7d", "30d", or ISO date
+  channel_id?: string;     // Slack channel filter
+  page_id?: string;        // Notion page filter
+}
+
+export interface DataSource {
+  type: DataSourceType;
+  value: string;
+  label?: string;
+  provider?: IntegrationProvider;  // Required when type = "integration_import"
+  source?: string;                 // "inbox", "thread:<id>", "query:<query>"
+  filters?: IntegrationImportFilters;
 }
 ```
 
-### Phase 3: Email-Specific Deliverables (Planned)
+#### Pipeline Integration
 
-New deliverable types:
+The gather step now fetches live data from integrations:
 
-| Type | Schedule | Output |
-|------|----------|--------|
-| `inbox_summary` | Daily/Weekly | Digest of inbox activity |
-| `reply_draft` | On-demand | Draft reply to specific thread |
-| `follow_up_tracker` | Daily | List of threads needing response |
-| `thread_summary` | On-demand | Summarize long conversation |
+```python
+# api/services/deliverable_pipeline.py
+async def fetch_integration_source_data(client, user_id, source):
+    """Fetch data from Gmail/Slack/Notion via MCP during gather step."""
+    # Supports all three integration providers
+    # Applies filters (from, subject_contains, after, etc.)
+    # Returns formatted context for the synthesis prompt
+```
+
+#### Key Changes
+
+| File | Change |
+|------|--------|
+| `web/types/index.ts` | Added `integration_import` DataSourceType, IntegrationImportFilters |
+| `api/services/deliverable_pipeline.py` | Added `fetch_integration_source_data()`, updated `execute_gather_step()` |
+
+### Phase 3: Email-Specific Deliverables (COMPLETE) ✅
+
+#### New Deliverable Types
+
+```typescript
+// web/types/index.ts
+export type DeliverableType =
+  // ... existing types ...
+  // ADR-029 Phase 3: Email-specific types
+  | "inbox_summary"
+  | "reply_draft"
+  | "follow_up_tracker"
+  | "thread_summary";
+```
+
+| Type | Use Case | Key Config |
+|------|----------|------------|
+| `inbox_summary` | Daily/weekly digest of inbox activity | `summary_period`, `inbox_scope`, `prioritization` |
+| `reply_draft` | Generate context-aware reply to thread | `thread_id`, `tone`, `include_original_quotes` |
+| `follow_up_tracker` | Track threads needing response | `tracking_period`, `prioritize_by` |
+| `thread_summary` | Summarize long email conversations | `thread_id`, `detail_level` |
+
+#### Type Configurations
+
+```typescript
+// web/types/index.ts
+export interface InboxSummaryConfig {
+  summary_period: "daily" | "weekly";
+  inbox_scope: "all" | "unread" | "flagged";
+  sections: InboxSummarySections;
+  prioritization: "by_sender" | "by_urgency" | "chronological";
+  include_thread_context: boolean;
+}
+
+export interface ReplyDraftConfig {
+  thread_id: string;
+  tone: "formal" | "professional" | "friendly" | "brief";
+  sections: ReplyDraftSections;
+  include_original_quotes: boolean;
+  suggested_actions?: string[];
+}
+
+export interface FollowUpTrackerConfig {
+  tracking_period: "7d" | "14d" | "30d";
+  sections: FollowUpTrackerSections;
+  include_thread_links: boolean;
+  prioritize_by: "age" | "sender_importance" | "subject";
+}
+
+export interface ThreadSummaryConfig {
+  thread_id: string;
+  sections: ThreadSummarySections;
+  detail_level: "brief" | "detailed";
+  highlight_action_items: boolean;
+}
+```
+
+#### Pipeline Support
+
+Type-specific prompts and validators added to `deliverable_pipeline.py`:
+
+- `TYPE_PROMPTS["inbox_summary"]` - Structured inbox digest generation
+- `TYPE_PROMPTS["reply_draft"]` - Context-aware reply drafting
+- `TYPE_PROMPTS["follow_up_tracker"]` - Follow-up tracking and prioritization
+- `TYPE_PROMPTS["thread_summary"]` - Conversation summarization
+
+- `validate_inbox_summary()` - Checks for scannable structure, sections
+- `validate_reply_draft()` - Checks greeting, closing, acknowledgment
+- `validate_follow_up_tracker()` - Checks for specific items and structure
+- `validate_thread_summary()` - Checks detail level and sections
+
+#### Key Files
+
+| File | Change |
+|------|--------|
+| `web/types/index.ts` | Added 4 email deliverable types + configs |
+| `api/services/deliverable_pipeline.py` | Added prompts, section templates, validators |
 
 ### Phase 4: Advanced Features (Future)
 

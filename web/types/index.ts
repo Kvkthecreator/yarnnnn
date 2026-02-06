@@ -268,9 +268,23 @@ export interface PortalResponse {
 export type DeliverableStatus = "active" | "paused" | "archived";
 export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected";
 export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
-export type DataSourceType = "url" | "document" | "description";
+// ADR-029 Phase 2: Added integration_import for Gmail/Slack/Notion data sources
+export type DataSourceType = "url" | "document" | "description" | "integration_import";
+
+// Integration import source provider
+export type IntegrationProvider = "slack" | "notion" | "gmail";
+
+// Integration import filter configuration
+export interface IntegrationImportFilters {
+  from?: string;           // Email sender filter
+  subject_contains?: string; // Subject line filter
+  after?: string;          // Time filter: "7d", "30d", or ISO date
+  channel_id?: string;     // Slack channel filter
+  page_id?: string;        // Notion page filter
+}
 
 // ADR-019: Deliverable Types
+// ADR-029 Phase 3: Added email-specific deliverable types
 export type DeliverableType =
   // Tier 1 - Stable
   | "status_report"
@@ -284,7 +298,12 @@ export type DeliverableType =
   | "newsletter_section"
   | "changelog"
   | "one_on_one_prep"
-  | "board_update";
+  | "board_update"
+  // ADR-029 Phase 3: Email-specific types
+  | "inbox_summary"
+  | "reply_draft"
+  | "follow_up_tracker"
+  | "thread_summary";
 
 export type DeliverableTier = "stable" | "beta" | "experimental";
 
@@ -470,6 +489,70 @@ export interface BoardUpdateConfig {
   include_comparisons: boolean;
 }
 
+// =============================================================================
+// ADR-029 Phase 3: Email-Specific Deliverable Types
+// =============================================================================
+
+export interface InboxSummarySections {
+  overview: boolean;
+  urgent: boolean;
+  action_required: boolean;
+  fyi_items: boolean;
+  threads_to_close: boolean;
+}
+
+export interface InboxSummaryConfig {
+  summary_period: "daily" | "weekly";
+  inbox_scope: "all" | "unread" | "flagged";
+  sections: InboxSummarySections;
+  prioritization: "by_sender" | "by_urgency" | "chronological";
+  include_thread_context: boolean;
+}
+
+export interface ReplyDraftSections {
+  acknowledgment: boolean;
+  response_body: boolean;
+  next_steps: boolean;
+  closing: boolean;
+}
+
+export interface ReplyDraftConfig {
+  thread_id: string;
+  tone: "formal" | "professional" | "friendly" | "brief";
+  sections: ReplyDraftSections;
+  include_original_quotes: boolean;
+  suggested_actions?: string[];  // User hints for what to include
+}
+
+export interface FollowUpTrackerSections {
+  overdue: boolean;
+  due_soon: boolean;
+  waiting_on_others: boolean;
+  commitments_made: boolean;
+}
+
+export interface FollowUpTrackerConfig {
+  tracking_period: "7d" | "14d" | "30d";
+  sections: FollowUpTrackerSections;
+  include_thread_links: boolean;
+  prioritize_by: "age" | "sender_importance" | "subject";
+}
+
+export interface ThreadSummarySections {
+  participants: boolean;
+  timeline: boolean;
+  key_points: boolean;
+  decisions: boolean;
+  open_questions: boolean;
+}
+
+export interface ThreadSummaryConfig {
+  thread_id: string;
+  sections: ThreadSummarySections;
+  detail_level: "brief" | "detailed";
+  highlight_action_items: boolean;
+}
+
 // Union type for type_config - use Record for flexibility with partial configs
 export type TypeConfig =
   // Tier 1 - Stable
@@ -485,6 +568,11 @@ export type TypeConfig =
   | ChangelogConfig
   | OneOnOnePrepConfig
   | BoardUpdateConfig
+  // ADR-029 Phase 3: Email-specific
+  | InboxSummaryConfig
+  | ReplyDraftConfig
+  | FollowUpTrackerConfig
+  | ThreadSummaryConfig
   | Record<string, unknown>;
 
 export interface RecipientContext {
@@ -513,6 +601,10 @@ export interface DataSource {
   type: DataSourceType;
   value: string;
   label?: string;
+  // ADR-029 Phase 2: Integration import configuration
+  provider?: IntegrationProvider;  // Required when type = "integration_import"
+  source?: string;                 // "inbox", "thread:<id>", "query:<query>", channel ID, page ID
+  filters?: IntegrationImportFilters;
 }
 
 // Quality trend for feedback loop tracking (ADR-018)

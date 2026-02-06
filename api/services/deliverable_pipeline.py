@@ -25,6 +25,256 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# ADR-029 Phase 2: Integration Data Source Fetching
+# =============================================================================
+
+async def fetch_integration_source_data(
+    client,
+    user_id: str,
+    source: dict,
+) -> Optional[str]:
+    """
+    Fetch data from an integration source for the gather step.
+
+    ADR-029 Phase 2: When a deliverable has integration_import sources,
+    we fetch the actual data from the integration (Gmail, Slack, Notion)
+    and include it in the context.
+
+    Args:
+        client: Supabase client
+        user_id: User ID
+        source: Source dict with provider, source, filters
+
+    Returns:
+        Formatted context string, or None if fetch failed
+    """
+    import os
+    from integrations.core.client import MCPClientManager
+    from integrations.core.token_manager import TokenManager
+
+    provider = source.get("provider")
+    source_query = source.get("source", "inbox")
+    filters = source.get("filters", {})
+
+    if not provider:
+        logger.warning("[GATHER] Integration source missing provider")
+        return None
+
+    # Get user's integration
+    integration_result = (
+        client.table("user_integrations")
+        .select("id, access_token_encrypted, refresh_token_encrypted, metadata, status")
+        .eq("user_id", user_id)
+        .eq("provider", provider)
+        .eq("status", "active")
+        .single()
+        .execute()
+    )
+
+    if not integration_result.data:
+        logger.warning(f"[GATHER] No active {provider} integration for user")
+        return None
+
+    integration = integration_result.data
+    token_manager = TokenManager()
+    mcp_manager = MCPClientManager()
+
+    try:
+        if provider == "gmail":
+            return await _fetch_gmail_data(
+                mcp_manager, token_manager, integration, user_id, source_query, filters
+            )
+        elif provider == "slack":
+            return await _fetch_slack_data(
+                mcp_manager, token_manager, integration, user_id, source_query, filters
+            )
+        elif provider == "notion":
+            return await _fetch_notion_data(
+                mcp_manager, token_manager, integration, user_id, source_query, filters
+            )
+        else:
+            logger.warning(f"[GATHER] Unsupported integration provider: {provider}")
+            return None
+
+    except Exception as e:
+        logger.error(f"[GATHER] Failed to fetch {provider} data: {e}")
+        return None
+
+
+async def _fetch_gmail_data(
+    mcp_manager,
+    token_manager,
+    integration: dict,
+    user_id: str,
+    source_query: str,
+    filters: dict,
+) -> Optional[str]:
+    """Fetch Gmail messages and format as context."""
+    import os
+
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        return None
+
+    refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
+    if not refresh_token:
+        return None
+
+    # Build query from source and filters
+    query_parts = []
+
+    if source_query.startswith("query:"):
+        query_parts.append(source_query.split(":", 1)[1])
+    elif source_query != "inbox":
+        query_parts.append(source_query)
+
+    if filters.get("from"):
+        query_parts.append(f"from:{filters['from']}")
+    if filters.get("subject_contains"):
+        query_parts.append(f"subject:{filters['subject_contains']}")
+    if filters.get("after"):
+        # Convert "7d" to date
+        after_val = filters["after"]
+        if after_val.endswith("d"):
+            from datetime import datetime, timedelta
+            days = int(after_val[:-1])
+            date_str = (datetime.now() - timedelta(days=days)).strftime("%Y/%m/%d")
+            query_parts.append(f"after:{date_str}")
+        else:
+            query_parts.append(f"after:{after_val}")
+
+    query = " ".join(query_parts) if query_parts else None
+
+    # Fetch messages
+    messages = await mcp_manager.list_gmail_messages(
+        user_id=user_id,
+        client_id=client_id,
+        client_secret=client_secret,
+        refresh_token=refresh_token,
+        query=query,
+        max_results=30,
+    )
+
+    if not messages:
+        return "[Gmail] No messages found matching criteria"
+
+    # Fetch full content for top messages
+    lines = [f"[Gmail Integration Data - {len(messages)} messages]\n"]
+
+    for msg in messages[:15]:
+        msg_id = msg.get("id")
+        if msg_id:
+            try:
+                full_msg = await mcp_manager.get_gmail_message(
+                    user_id=user_id,
+                    message_id=msg_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    refresh_token=refresh_token,
+                )
+
+                headers = full_msg.get("headers", {})
+                subject = headers.get("Subject", headers.get("subject", "(no subject)"))
+                from_addr = headers.get("From", headers.get("from", "unknown"))
+                date = headers.get("Date", headers.get("date", ""))
+                body = full_msg.get("body", full_msg.get("snippet", ""))
+
+                if len(body) > 500:
+                    body = body[:500] + "..."
+
+                lines.append(f"---\nFrom: {from_addr}\nDate: {date}\nSubject: {subject}\n{body}\n")
+
+            except Exception as e:
+                logger.warning(f"[GATHER] Failed to fetch Gmail message {msg_id}: {e}")
+
+    return "\n".join(lines)
+
+
+async def _fetch_slack_data(
+    mcp_manager,
+    token_manager,
+    integration: dict,
+    user_id: str,
+    source_query: str,
+    filters: dict,
+) -> Optional[str]:
+    """Fetch Slack messages and format as context."""
+    access_token = token_manager.decrypt(integration["access_token_encrypted"])
+    metadata = integration.get("metadata", {}) or {}
+    team_id = metadata.get("team_id")
+
+    if not access_token or not team_id:
+        return None
+
+    channel_id = filters.get("channel_id") or source_query
+
+    if not channel_id:
+        return "[Slack] No channel specified"
+
+    messages = await mcp_manager.get_slack_channel_history(
+        user_id=user_id,
+        channel_id=channel_id,
+        bot_token=access_token,
+        team_id=team_id,
+        limit=50,
+    )
+
+    if not messages:
+        return "[Slack] No messages found in channel"
+
+    lines = [f"[Slack Integration Data - #{channel_id} - {len(messages)} messages]\n"]
+
+    for msg in messages[:30]:
+        text = msg.get("text", "")
+        user = msg.get("user", "unknown")
+        ts = msg.get("ts", "")
+
+        if text:
+            lines.append(f"[{user}] {text}")
+
+    return "\n".join(lines)
+
+
+async def _fetch_notion_data(
+    mcp_manager,
+    token_manager,
+    integration: dict,
+    user_id: str,
+    source_query: str,
+    filters: dict,
+) -> Optional[str]:
+    """Fetch Notion page content and format as context."""
+    access_token = token_manager.decrypt(integration["access_token_encrypted"])
+
+    if not access_token:
+        return None
+
+    page_id = filters.get("page_id") or source_query
+
+    if not page_id:
+        return "[Notion] No page specified"
+
+    page_content = await mcp_manager.get_notion_page_content(
+        user_id=user_id,
+        page_id=page_id,
+        auth_token=access_token,
+    )
+
+    if not page_content:
+        return "[Notion] Page not found or empty"
+
+    title = page_content.get("title", "Untitled")
+    content = page_content.get("content", "")
+
+    if len(content) > 3000:
+        content = content[:3000] + "... [truncated]"
+
+    return f"[Notion Integration Data - {title}]\n\n{content}"
+
+
+# =============================================================================
 # ADR-019: Type-Specific Prompt Templates
 # =============================================================================
 
@@ -303,6 +553,114 @@ INSTRUCTIONS:
 - 500-1000 words total
 
 Write the board update now:""",
+
+    # ==========================================================================
+    # ADR-029 Phase 3: Email-Specific Deliverable Prompts
+    # ==========================================================================
+
+    "inbox_summary": """You are writing a {summary_period} inbox summary for the user.
+
+INBOX SCOPE: {inbox_scope}
+PRIORITIZATION: {prioritization}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Start with a quick overview of inbox activity (message count, key senders)
+- Highlight urgent items that need immediate attention
+- Clearly separate action-required emails from FYI items
+- For threads to close, suggest which can be archived or responded to quickly
+- Keep summaries scannable - use bullet points, not long paragraphs
+- If thread context is included, summarize key decision points
+
+Write the inbox summary now:""",
+
+    "reply_draft": """You are drafting a reply to an email thread.
+
+TONE: {tone}
+THREAD ID: {thread_id}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+{quote_instruction}
+
+{suggested_actions}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Match the tone of the original sender where appropriate
+- Be {tone} but genuine - don't sound robotic
+- Acknowledge their points before responding
+- If suggesting next steps, be specific about actions/dates
+- Keep the reply focused - don't introduce unrelated topics
+- If quoting, only quote the most relevant parts
+
+Write the reply draft now:""",
+
+    "follow_up_tracker": """You are creating a follow-up tracker for the user's email.
+
+TRACKING PERIOD: {tracking_period}
+PRIORITIZATION: {prioritize_by}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Identify threads that need a response from the user
+- Highlight overdue items prominently at the top
+- For "waiting on others" - note who we're waiting on and since when
+- List commitments the user made that may need follow-through
+- Include thread links if available for quick access
+- Suggest priority order for tackling the backlog
+
+Write the follow-up tracker now:""",
+
+    "thread_summary": """You are summarizing an email thread.
+
+THREAD ID: {thread_id}
+DETAIL LEVEL: {detail_level}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- List all participants and their roles in the conversation
+- Create a timeline of key exchanges
+- Clearly state any decisions that were made
+- Highlight unresolved questions or open items
+- If action items exist, list them with owners if mentioned
+- Keep summary {detail_level} - {"concise and scannable" if detail_level == "brief" else "thorough with context"}
+
+Write the thread summary now:""",
 }
 
 
@@ -384,6 +742,33 @@ SECTION_TEMPLATES = {
         "financials": "Financials - Cash, runway, burn",
         "asks": "Asks - What you need from the board",
         "outlook": "Outlook - Focus for next period",
+    },
+    # ADR-029 Phase 3: Email-Specific Section Templates
+    "inbox_summary": {
+        "overview": "Overview - Quick stats on inbox activity",
+        "urgent": "Urgent - Items requiring immediate attention",
+        "action_required": "Action Required - Emails needing your response",
+        "fyi_items": "FYI - Informational items, no action needed",
+        "threads_to_close": "Threads to Close - Conversations ready to wrap up",
+    },
+    "reply_draft": {
+        "acknowledgment": "Acknowledgment - Brief response to their points",
+        "response_body": "Response - Main content of your reply",
+        "next_steps": "Next Steps - Proposed actions or timeline",
+        "closing": "Closing - Sign-off appropriate to relationship",
+    },
+    "follow_up_tracker": {
+        "overdue": "Overdue - Threads past expected response time",
+        "due_soon": "Due Soon - Items to address this week",
+        "waiting_on_others": "Waiting On - Pending responses from others",
+        "commitments_made": "Commitments - Things you said you'd do",
+    },
+    "thread_summary": {
+        "participants": "Participants - Who's in this conversation",
+        "timeline": "Timeline - Key exchanges in chronological order",
+        "key_points": "Key Points - Main topics and positions",
+        "decisions": "Decisions - What was agreed or decided",
+        "open_questions": "Open Questions - Unresolved items",
     },
 }
 
@@ -555,6 +940,43 @@ def build_type_prompt(
             "tone": tone,
             "tone_guidance": tone_guidance.get(tone, "balanced perspective"),
             "comparisons_instruction": "Include comparisons vs. last period and vs. plan where data is available" if config.get("include_comparisons", True) else "",
+        })
+
+    # =========================================================================
+    # ADR-029 Phase 3: Email-Specific Types
+    # =========================================================================
+
+    elif deliverable_type == "inbox_summary":
+        fields.update({
+            "summary_period": config.get("summary_period", "daily"),
+            "inbox_scope": config.get("inbox_scope", "unread"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "prioritization": config.get("prioritization", "by_urgency").replace("_", " "),
+        })
+
+    elif deliverable_type == "reply_draft":
+        suggested_actions = config.get("suggested_actions", [])
+        fields.update({
+            "thread_id": config.get("thread_id", ""),
+            "tone": config.get("tone", "professional"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "quote_instruction": "Include relevant quotes from the original message" if config.get("include_original_quotes", True) else "Do not quote the original message",
+            "suggested_actions": f"USER HINTS:\n{chr(10).join('- ' + a for a in suggested_actions)}" if suggested_actions else "",
+        })
+
+    elif deliverable_type == "follow_up_tracker":
+        fields.update({
+            "tracking_period": config.get("tracking_period", "7d"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "prioritize_by": config.get("prioritize_by", "age").replace("_", " "),
+        })
+
+    elif deliverable_type == "thread_summary":
+        detail_level = config.get("detail_level", "brief")
+        fields.update({
+            "thread_id": config.get("thread_id", ""),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "detail_level": detail_level,
         })
 
     else:  # custom and any unknown types
@@ -979,6 +1401,143 @@ def validate_board_update(content: str, config: dict) -> dict:
     return {"valid": len(issues) == 0, "issues": issues, "score": score}
 
 
+# =============================================================================
+# ADR-029 Phase 3: Email-Specific Validation Functions
+# =============================================================================
+
+def validate_inbox_summary(content: str, config: dict) -> dict:
+    """Validate an inbox summary output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "overview": ["overview", "summary", "inbox", "messages", "emails"],
+        "urgent": ["urgent", "immediate", "asap", "priority", "critical"],
+        "action_required": ["action", "required", "respond", "reply", "need to"],
+        "fyi_items": ["fyi", "informational", "no action", "awareness"],
+        "threads_to_close": ["close", "archive", "wrap up", "complete", "done"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check for structure (should have bullet points or sections)
+    has_structure = "- " in content or "• " in content or "##" in content
+    if not has_structure:
+        issues.append("Summary should be scannable - use bullet points or sections")
+
+    word_count = len(content.split())
+    if word_count < 100:
+        issues.append(f"Too brief: {word_count} words (expected 100+)")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_reply_draft(content: str, config: dict) -> dict:
+    """Validate a reply draft output."""
+    issues = []
+    content_lower = content.lower()
+
+    # Reply drafts should have a greeting and closing
+    has_greeting = any(g in content_lower[:100] for g in ["hi", "hello", "dear", "hey", "good morning", "good afternoon"])
+    has_closing = any(c in content_lower[-200:] for c in ["best", "thanks", "regards", "cheers", "sincerely", "thank you"])
+
+    if not has_greeting:
+        issues.append("Reply should start with an appropriate greeting")
+    if not has_closing:
+        issues.append("Reply should have a closing/sign-off")
+
+    # Check for acknowledgment if enabled
+    sections = config.get("sections", {})
+    if sections.get("acknowledgment", True):
+        ack_keywords = ["thank you for", "thanks for", "regarding", "re:", "about your", "in response"]
+        if not any(kw in content_lower for kw in ack_keywords):
+            issues.append("Consider acknowledging the original message")
+
+    word_count = len(content.split())
+    if word_count < 30:
+        issues.append(f"Reply too brief: {word_count} words")
+    if word_count > 500:
+        issues.append(f"Reply may be too long: {word_count} words (consider being more concise)")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_follow_up_tracker(content: str, config: dict) -> dict:
+    """Validate a follow-up tracker output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "overdue": ["overdue", "past due", "late", "pending", "no response"],
+        "due_soon": ["due soon", "this week", "upcoming", "coming up"],
+        "waiting_on_others": ["waiting", "pending from", "awaiting", "no reply from"],
+        "commitments_made": ["committed", "promised", "said", "agreed to", "will"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Should have specific items (look for names, dates, or bullet points)
+    has_items = "- " in content or "• " in content or re.search(r'\d{1,2}[/-]\d{1,2}', content)
+    if not has_items:
+        issues.append("Tracker should list specific follow-up items")
+
+    word_count = len(content.split())
+    if word_count < 50:
+        issues.append(f"Too brief: {word_count} words (expected 50+)")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_thread_summary(content: str, config: dict) -> dict:
+    """Validate a thread summary output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "participants": ["participants", "involved", "from", "between", "with"],
+        "timeline": ["timeline", "on", "at", "started", "then", "followed by"],
+        "key_points": ["key points", "main", "discussed", "topics", "covered"],
+        "decisions": ["decided", "decision", "agreed", "concluded", "resolved"],
+        "open_questions": ["open", "questions", "unclear", "tbd", "pending", "unresolved"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    detail_level = config.get("detail_level", "brief")
+    word_count = len(content.split())
+    expected = {"brief": (100, 400), "detailed": (300, 1000)}
+    min_words, max_words = expected.get(detail_level, (100, 400))
+
+    if word_count < min_words * 0.7:
+        issues.append(f"Too brief for {detail_level} summary: {word_count} words")
+    if word_count > max_words * 1.5:
+        issues.append(f"Too long for {detail_level} summary: {word_count} words")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
 def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
     """
     Validate generated content based on deliverable type.
@@ -1004,6 +1563,11 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
         "changelog": validate_changelog,
         "one_on_one_prep": validate_one_on_one_prep,
         "board_update": validate_board_update,
+        # ADR-029 Phase 3: Email-specific
+        "inbox_summary": validate_inbox_summary,
+        "reply_draft": validate_reply_draft,
+        "follow_up_tracker": validate_follow_up_tracker,
+        "thread_summary": validate_thread_summary,
     }
 
     validator = validators.get(deliverable_type, validate_custom)
@@ -1159,12 +1723,17 @@ async def execute_gather_step(
 
     Uses research agent to pull latest information from configured sources.
     Output is saved as a memory with source_type='agent_output'.
+
+    ADR-029 Phase 2: For integration_import sources, we fetch actual data
+    from the integration (Gmail, Slack, Notion) via MCP.
     """
     sources = deliverable.get("sources", [])
     title = deliverable.get("title", "Deliverable")
 
     # Build gather prompt
     source_descriptions = []
+    integration_data_sections = []
+
     for source in sources:
         source_type = source.get("type", "description")
         value = source.get("value", "")
@@ -1174,10 +1743,29 @@ async def execute_gather_step(
             source_descriptions.append(f"- Web source: {value}")
         elif source_type == "document":
             source_descriptions.append(f"- Document: {label or value}")
+        elif source_type == "integration_import":
+            # ADR-029 Phase 2: Fetch actual data from integration
+            provider = source.get("provider", "unknown")
+            source_query = source.get("source", "")
+            source_descriptions.append(f"- Integration ({provider}): {source_query or 'default'}")
+
+            logger.info(f"[GATHER] Fetching {provider} integration data")
+            integration_data = await fetch_integration_source_data(
+                client=client,
+                user_id=user_id,
+                source=source,
+            )
+            if integration_data:
+                integration_data_sections.append(integration_data)
         else:
             source_descriptions.append(f"- Context: {value}")
 
     sources_text = "\n".join(source_descriptions) if source_descriptions else "No specific sources configured"
+
+    # Include fetched integration data in the prompt
+    integration_context = ""
+    if integration_data_sections:
+        integration_context = "\n\n## Integration Data (Fetched)\n\n" + "\n\n".join(integration_data_sections)
 
     gather_prompt = f"""Gather the latest context and information for producing: {title}
 
@@ -1185,6 +1773,7 @@ Description: {deliverable.get('description', 'No description provided')}
 
 Configured sources:
 {sources_text}
+{integration_context}
 
 Your task:
 1. Review and synthesize any available information from the sources
