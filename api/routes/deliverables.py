@@ -451,6 +451,9 @@ class DeliverableCreate(BaseModel):
     recipient_context: Optional[RecipientContext] = None
     schedule: ScheduleConfig
     sources: list[DataSource] = Field(default_factory=list)
+    # ADR-028: Destination-first deliverables
+    destination: Optional[dict] = None  # { platform, target, format, options }
+    governance: Optional[Literal["manual", "semi_auto", "full_auto"]] = "manual"
     # Legacy fields (deprecated, use type_config)
     description: Optional[str] = None
     template_structure: Optional[TemplateStructure] = None
@@ -465,6 +468,9 @@ class DeliverableUpdate(BaseModel):
     schedule: Optional[ScheduleConfig] = None
     sources: Optional[list[DataSource]] = None
     status: Optional[Literal["active", "paused", "archived"]] = None
+    # ADR-028: Destination-first deliverables
+    destination: Optional[dict] = None
+    governance: Optional[Literal["manual", "semi_auto", "full_auto"]] = None
     # Legacy fields (deprecated)
     description: Optional[str] = None
     template_structure: Optional[TemplateStructure] = None
@@ -488,6 +494,9 @@ class DeliverableResponse(BaseModel):
     next_run_at: Optional[str] = None
     version_count: int = 0
     latest_version_status: Optional[str] = None
+    # ADR-028: Destination-first deliverables
+    destination: Optional[dict] = None  # { platform, target, format, options }
+    governance: str = "manual"  # manual, semi_auto, full_auto
     # Quality metrics (ADR-018: feedback loop)
     quality_score: Optional[float] = None  # Latest edit_distance_score (0=no edits, 1=full rewrite)
     quality_trend: Optional[str] = None  # "improving", "stable", "declining"
@@ -511,6 +520,11 @@ class VersionResponse(BaseModel):
     created_at: str
     staged_at: Optional[str] = None
     approved_at: Optional[str] = None
+    # ADR-028: Delivery tracking
+    delivery_status: Optional[str] = None  # pending, delivering, delivered, failed
+    delivery_external_id: Optional[str] = None
+    delivery_external_url: Optional[str] = None
+    delivered_at: Optional[str] = None
 
 
 class VersionUpdate(BaseModel):
@@ -599,6 +613,9 @@ async def create_deliverable(
         "sources": [s.model_dump() for s in request.sources],
         "status": "active",
         "next_run_at": next_run_at,
+        # ADR-028: Destination-first deliverables
+        "destination": request.destination,
+        "governance": request.governance or "manual",
     }
 
     result = (
@@ -626,6 +643,9 @@ async def create_deliverable(
         created_at=deliverable["created_at"],
         updated_at=deliverable["updated_at"],
         next_run_at=deliverable.get("next_run_at"),
+        # ADR-028: Destination-first deliverables
+        destination=deliverable.get("destination"),
+        governance=deliverable.get("governance", "manual"),
         # Legacy fields
         description=deliverable.get("description"),
         template_structure=deliverable.get("template_structure"),
@@ -737,6 +757,9 @@ async def list_deliverables(
             next_run_at=d.get("next_run_at"),
             version_count=version_count,
             latest_version_status=latest_version["status"] if latest_version else None,
+            # ADR-028: Destination-first deliverables
+            destination=d.get("destination"),
+            governance=d.get("governance", "manual"),
             quality_score=quality_score,
             quality_trend=quality_trend,
             avg_edit_distance=avg_edit_distance,
@@ -806,6 +829,9 @@ async def get_deliverable(
             last_run_at=deliverable.get("last_run_at"),
             next_run_at=deliverable.get("next_run_at"),
             version_count=len(versions),
+            # ADR-028: Destination-first deliverables
+            destination=deliverable.get("destination"),
+            governance=deliverable.get("governance", "manual"),
             # Legacy
             description=deliverable.get("description"),
             template_structure=deliverable.get("template_structure"),
@@ -824,6 +850,11 @@ async def get_deliverable(
                 created_at=v["created_at"],
                 staged_at=v.get("staged_at"),
                 approved_at=v.get("approved_at"),
+                # ADR-028: Delivery fields
+                delivery_status=v.get("delivery_status"),
+                delivery_external_id=v.get("delivery_external_id"),
+                delivery_external_url=v.get("delivery_external_url"),
+                delivered_at=v.get("delivered_at"),
             )
             for v in versions
         ],
@@ -876,6 +907,11 @@ async def update_deliverable(
         update_data["sources"] = [s.model_dump() for s in request.sources]
     if request.status is not None:
         update_data["status"] = request.status
+    # ADR-028: Destination-first deliverables
+    if request.destination is not None:
+        update_data["destination"] = request.destination
+    if request.governance is not None:
+        update_data["governance"] = request.governance
     # Legacy fields
     if request.description is not None:
         update_data["description"] = request.description
@@ -908,6 +944,9 @@ async def update_deliverable(
         updated_at=d["updated_at"],
         last_run_at=d.get("last_run_at"),
         next_run_at=d.get("next_run_at"),
+        # ADR-028: Destination-first deliverables
+        destination=d.get("destination"),
+        governance=d.get("governance", "manual"),
         # Legacy
         description=d.get("description"),
         template_structure=d.get("template_structure"),
@@ -1108,6 +1147,11 @@ async def get_version(
         created_at=v["created_at"],
         staged_at=v.get("staged_at"),
         approved_at=v.get("approved_at"),
+        # ADR-028: Delivery fields
+        delivery_status=v.get("delivery_status"),
+        delivery_external_id=v.get("delivery_external_id"),
+        delivery_external_url=v.get("delivery_external_url"),
+        delivered_at=v.get("delivered_at"),
     )
 
 
@@ -1122,13 +1166,17 @@ async def update_version(
     Update a version (approve, reject, or save edits).
 
     When final_content differs from draft_content, computes edit diff and score.
+
+    ADR-028: If governance=semi_auto and status changes to approved,
+    automatically triggers delivery to the configured destination.
     """
     from services.feedback_engine import compute_edit_metrics
+    from services.delivery import get_delivery_service
 
-    # Verify ownership through deliverable
+    # Verify ownership through deliverable and get destination/governance
     check = (
         auth.client.table("deliverables")
-        .select("id")
+        .select("id, destination, governance")
         .eq("id", str(deliverable_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -1194,6 +1242,24 @@ async def update_version(
 
     logger.info(f"[DELIVERABLE] Version updated: {version_id} -> {v['status']}")
 
+    # ADR-028: Auto-deliver if governance=semi_auto and status=approved
+    delivery_result = None
+    if request.status == "approved" and check.data.get("governance") == "semi_auto":
+        if check.data.get("destination"):
+            try:
+                delivery_service = get_delivery_service(auth.client)
+                delivery_result = await delivery_service.deliver_version(
+                    version_id=str(version_id),
+                    user_id=auth.user_id
+                )
+                logger.info(
+                    f"[DELIVERABLE] Auto-delivery triggered for {version_id}: "
+                    f"{delivery_result.status.value}"
+                )
+            except Exception as e:
+                # Log but don't fail the approval
+                logger.error(f"[DELIVERABLE] Auto-delivery failed for {version_id}: {e}")
+
     return VersionResponse(
         id=v["id"],
         deliverable_id=v["deliverable_id"],
@@ -1206,6 +1272,11 @@ async def update_version(
         created_at=v["created_at"],
         staged_at=v.get("staged_at"),
         approved_at=v.get("approved_at"),
+        # ADR-028: Delivery fields
+        delivery_status=v.get("delivery_status"),
+        delivery_external_id=v.get("delivery_external_id"),
+        delivery_external_url=v.get("delivery_external_url"),
+        delivered_at=v.get("delivered_at"),
     )
 
 

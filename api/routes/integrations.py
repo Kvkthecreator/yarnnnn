@@ -341,39 +341,74 @@ async def export_to_provider(
     """
     Export a deliverable version to a provider.
 
-    The destination format depends on the provider:
-    - Slack: { "channel_id": "C123..." }
-    - Notion: { "page_id": "..." }
-    """
-    user_id = auth.user_id
+    ADR-028: Uses the unified DestinationExporter infrastructure.
 
-    if not MCP_AVAILABLE:
+    The destination format depends on the provider:
+    - Slack: { "channel_id": "C123..." } or { "target": "C123..." }
+    - Notion: { "page_id": "..." } or { "target": "..." }
+    - Download: {} (no destination needed)
+    """
+    from integrations.exporters import get_exporter_registry, ExporterContext
+
+    user_id = auth.user_id
+    registry = get_exporter_registry()
+
+    # Get exporter for this platform
+    exporter = registry.get(provider)
+    if not exporter:
         raise HTTPException(
-            status_code=503,
-            detail="Integration service unavailable (MCP not installed)"
+            status_code=400,
+            detail=f"Unsupported provider: {provider}. Available: {registry.list_platforms()}"
         )
 
     try:
-        # 1. Get user's integration (with encrypted tokens)
-        integration = auth.client.table("user_integrations").select(
-            "id, access_token_encrypted, refresh_token_encrypted, metadata, status"
-        ).eq("user_id", user_id).eq("provider", provider).single().execute()
+        # 1. Get auth context if needed
+        context = None
+        integration_id = None
 
-        if not integration.data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No {provider} integration found. Please connect first."
+        if exporter.requires_auth:
+            if not MCP_AVAILABLE:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Integration service unavailable (MCP not installed)"
+                )
+
+            integration = auth.client.table("user_integrations").select(
+                "id, access_token_encrypted, refresh_token_encrypted, metadata, status"
+            ).eq("user_id", user_id).eq("provider", provider).single().execute()
+
+            if not integration.data:
+                raise HTTPException(
+                    status_code=404,
+                    detail=f"No {provider} integration found. Please connect first."
+                )
+
+            if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"{provider} integration is {integration.data['status']}. Please reconnect."
+                )
+
+            integration_id = integration.data["id"]
+            token_manager = get_token_manager()
+
+            context = ExporterContext(
+                user_id=user_id,
+                access_token=token_manager.decrypt(integration.data["access_token_encrypted"]),
+                refresh_token=token_manager.decrypt(integration.data["refresh_token_encrypted"]) if integration.data.get("refresh_token_encrypted") else None,
+                metadata=integration.data.get("metadata", {}) or {}
             )
-
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
-            raise HTTPException(
-                status_code=400,
-                detail=f"{provider} integration is {integration.data['status']}. Please reconnect."
+        else:
+            # Non-auth exporters (download)
+            context = ExporterContext(
+                user_id=user_id,
+                access_token="",
+                metadata={}
             )
 
         # 2. Get deliverable version content
         version = auth.client.table("deliverable_versions").select(
-            "id, content, deliverable_id"
+            "id, final_content, draft_content, deliverable_id"
         ).eq("id", request.deliverable_version_id).single().execute()
 
         if not version.data:
@@ -384,56 +419,38 @@ async def export_to_provider(
             "title"
         ).eq("id", version.data["deliverable_id"]).single().execute()
 
-        content = version.data["content"]
+        content = version.data.get("final_content") or version.data.get("draft_content", "")
         title = deliverable.data["title"] if deliverable.data else "YARNNN Export"
 
-        # 3. Decrypt tokens
-        token_manager = get_token_manager()
-        access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
-        metadata = integration.data.get("metadata", {}) or {}
+        # 3. Normalize destination format for exporters
+        # Support both legacy format (channel_id, page_id) and new format (target)
+        destination = _normalize_destination(provider, request.destination)
 
-        # 4. Export via MCP
-        mcp = get_mcp_manager()
-
-        if provider == "slack":
-            channel_id = request.destination.get("channel_id")
-            if not channel_id:
-                raise HTTPException(status_code=400, detail="channel_id required for Slack")
-
-            team_id = metadata.get("team_id")
-            if not team_id:
-                raise HTTPException(status_code=400, detail="Slack integration missing team_id")
-
-            result = await mcp.export_to_slack(
-                user_id=user_id,
-                channel=channel_id,
-                content=content,
-                bot_token=access_token,
-                team_id=team_id
+        # Validate destination
+        if not exporter.validate_destination(destination):
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid destination for {provider}"
             )
 
-        elif provider == "notion":
-            page_id = request.destination.get("page_id")
-            if not page_id:
-                raise HTTPException(status_code=400, detail="page_id required for Notion")
-
-            result = await mcp.export_to_notion(
-                user_id=user_id,
-                parent_id=page_id,
-                title=title,
-                content=content,
-                auth_token=access_token
-            )
-
-        else:
-            raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
+        # 4. Deliver via exporter
+        result = await exporter.deliver(
+            destination=destination,
+            content=content,
+            title=title,
+            metadata={
+                "deliverable_version_id": request.deliverable_version_id,
+                "deliverable_id": version.data["deliverable_id"]
+            },
+            context=context
+        )
 
         # 5. Log the export
         log_entry = {
             "deliverable_version_id": request.deliverable_version_id,
             "user_id": user_id,
             "provider": provider,
-            "destination": request.destination,
+            "destination": destination,
             "status": result.status.value,
             "error_message": result.error_message,
             "external_id": result.external_id,
@@ -442,10 +459,11 @@ async def export_to_provider(
         }
         auth.client.table("export_log").insert(log_entry).execute()
 
-        # 6. Update last_used_at
-        auth.client.table("user_integrations").update({
-            "last_used_at": datetime.utcnow().isoformat()
-        }).eq("id", integration.data["id"]).execute()
+        # 6. Update last_used_at for auth integrations
+        if integration_id:
+            auth.client.table("user_integrations").update({
+                "last_used_at": datetime.utcnow().isoformat()
+            }).eq("id", integration_id).execute()
 
         logger.info(f"[INTEGRATIONS] User {user_id} exported to {provider}: {result.status.value}")
 
@@ -461,6 +479,50 @@ async def export_to_provider(
     except Exception as e:
         logger.error(f"[INTEGRATIONS] Export to {provider} failed for {user_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Export failed: {str(e)}")
+
+
+def _normalize_destination(provider: str, destination: dict[str, Any]) -> dict[str, Any]:
+    """
+    Normalize legacy destination format to new ADR-028 format.
+
+    Supports both:
+    - Legacy: { "channel_id": "C123" } or { "page_id": "..." }
+    - New: { "platform": "slack", "target": "C123", "format": "message" }
+    """
+    # If already in new format, return as-is
+    if "platform" in destination and "target" in destination:
+        return destination
+
+    # Convert legacy format
+    if provider == "slack":
+        return {
+            "platform": "slack",
+            "target": destination.get("channel_id") or destination.get("target"),
+            "format": destination.get("format", "message"),
+            "options": destination.get("options", {})
+        }
+    elif provider == "notion":
+        return {
+            "platform": "notion",
+            "target": destination.get("page_id") or destination.get("target"),
+            "format": destination.get("format", "page"),
+            "options": destination.get("options", {})
+        }
+    elif provider == "download":
+        return {
+            "platform": "download",
+            "target": None,
+            "format": destination.get("format", "markdown"),
+            "options": {}
+        }
+
+    # Unknown provider, pass through
+    return {
+        "platform": provider,
+        "target": destination.get("target"),
+        "format": destination.get("format", "default"),
+        "options": destination.get("options", {})
+    }
 
 
 # =============================================================================

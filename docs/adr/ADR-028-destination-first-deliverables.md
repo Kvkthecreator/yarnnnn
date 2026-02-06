@@ -1,7 +1,8 @@
 # ADR-028: Destination-First Deliverables & Governance Model
 
-> **Status**: Proposed (Exploration)
+> **Status**: Accepted (Phase 1 Complete)
 > **Created**: 2026-02-06
+> **Updated**: 2026-02-06 (Phase 1 implementation complete)
 > **Related**: ADR-026 (Integration Architecture), ADR-027 (Integration Reads), ADR-018 (Deliverable Pipeline)
 
 ---
@@ -361,16 +362,39 @@ For one-off deliverables, is destination required?
 - No—download/copy remains valid
 - Destination is optional, not required
 
+### 5. Deliverable-Scoped Context (Future)
+
+As deliverables accumulate history, learnings should persist per-deliverable:
+- What edits the user consistently makes
+- Research findings that remain relevant
+- Recipient preferences inferred from approvals
+
+**Status**: Deferred. See [Analysis: Deliverable-Scoped Context](../analysis/deliverable-scoped-context.md) for exploration. Will revisit after destination-first architecture is stable.
+
 ---
 
 ## Implementation Phases
 
-### Phase 1: Schema & Backend (Foundation)
+### Phase 1: Schema & Backend (Foundation) ✅ COMPLETE
 
-- [ ] Add `destination` and `governance` columns to deliverables
-- [ ] Add destination to create/update endpoints
-- [ ] Update export logic to read from deliverable.destination
-- [ ] Implement governance-based delivery triggering
+- [x] Add `destination` and `governance` columns to deliverables
+- [x] Add delivery tracking columns to deliverable_versions
+- [x] Add destination to create/update endpoints
+- [x] Create DestinationExporter interface (`api/integrations/exporters/base.py`)
+- [x] Create ExporterRegistry (`api/integrations/exporters/registry.py`)
+- [x] Implement SlackExporter (`api/integrations/exporters/slack.py`)
+- [x] Implement NotionExporter (`api/integrations/exporters/notion.py`)
+- [x] Implement DownloadExporter (`api/integrations/exporters/download.py`)
+- [x] Create DeliveryService (`api/services/delivery.py`)
+- [x] Update export endpoint to use new exporter infrastructure
+- [x] Implement governance-based delivery triggering (semi_auto on approval)
+
+**Key Files:**
+- `supabase/migrations/025_destination_first.sql` - Schema changes
+- `api/integrations/exporters/` - Exporter infrastructure
+- `api/services/delivery.py` - Governance-aware delivery
+- `api/routes/deliverables.py` - Updated with destination/governance fields
+- `api/routes/integrations.py` - Refactored export endpoint
 
 ### Phase 2: Wizard & UI
 
