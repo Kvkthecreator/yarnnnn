@@ -36,6 +36,8 @@ import type {
   Deliverable,
   DeliverableUpdate,
   DataSource,
+  DataSourceType,
+  IntegrationProvider,
   ScheduleConfig,
   RecipientContext,
   ScheduleFrequency,
@@ -79,6 +81,11 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   changelog: 'Changelog',
   one_on_one_prep: '1:1 Prep',
   board_update: 'Board Update',
+  // ADR-029 Phase 3: Email-specific types
+  inbox_summary: 'Inbox Summary',
+  reply_draft: 'Reply Draft',
+  follow_up_tracker: 'Follow-up Tracker',
+  thread_summary: 'Thread Summary',
 };
 
 // ADR-028: Governance options
@@ -121,9 +128,16 @@ export function DeliverableSettingsModal({
     deliverable.governance || 'manual'
   );
 
-  // New source input
-  const [newSourceType, setNewSourceType] = useState<'url' | 'description'>('url');
+  // New source input - ADR-029 Phase 2: Extended for integration_import
+  const [newSourceType, setNewSourceType] = useState<DataSourceType>('url');
   const [newSourceValue, setNewSourceValue] = useState('');
+  const [newSourceProvider, setNewSourceProvider] = useState<IntegrationProvider>('gmail');
+  const [newSourceQuery, setNewSourceQuery] = useState('inbox');
+  const [newSourceFilters, setNewSourceFilters] = useState<{
+    from?: string;
+    subject_contains?: string;
+    after?: string;
+  }>({});
 
   // Reset form when deliverable changes
   useEffect(() => {
@@ -167,6 +181,22 @@ export function DeliverableSettingsModal({
   };
 
   const addSource = () => {
+    // ADR-029 Phase 2: Handle integration_import sources
+    if (newSourceType === 'integration_import') {
+      const newSource: DataSource = {
+        type: 'integration_import',
+        value: `${newSourceProvider}:${newSourceQuery}`,
+        label: `${newSourceProvider.charAt(0).toUpperCase() + newSourceProvider.slice(1)} - ${newSourceQuery}`,
+        provider: newSourceProvider,
+        source: newSourceQuery,
+        filters: Object.keys(newSourceFilters).length > 0 ? newSourceFilters : undefined,
+      };
+      setSources([...sources, newSource]);
+      setNewSourceQuery('inbox');
+      setNewSourceFilters({});
+      return;
+    }
+
     if (!newSourceValue.trim()) return;
 
     const newSource: DataSource = {
@@ -283,7 +313,7 @@ export function DeliverableSettingsModal({
           <div>
             <label className="block text-sm font-medium mb-1.5">Data Sources</label>
             <p className="text-xs text-muted-foreground mb-3">
-              URLs, documents, or descriptions that inform this deliverable
+              URLs, documents, descriptions, or integration data that inform this deliverable
             </p>
 
             {/* Existing sources */}
@@ -296,10 +326,25 @@ export function DeliverableSettingsModal({
                   >
                     {source.type === 'url' ? (
                       <LinkIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+                    ) : source.type === 'integration_import' ? (
+                      source.provider === 'gmail' ? (
+                        <Mail className="w-4 h-4 text-red-500 shrink-0" />
+                      ) : source.provider === 'slack' ? (
+                        <Slack className="w-4 h-4 text-purple-500 shrink-0" />
+                      ) : (
+                        <FileCode className="w-4 h-4 text-gray-500 shrink-0" />
+                      )
                     ) : (
                       <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                     )}
-                    <span className="flex-1 truncate">{source.value}</span>
+                    <span className="flex-1 truncate">
+                      {source.label || source.value}
+                      {source.type === 'integration_import' && source.filters && Object.keys(source.filters).length > 0 && (
+                        <span className="text-xs text-muted-foreground ml-1">
+                          (filtered)
+                        </span>
+                      )}
+                    </span>
                     <button
                       onClick={() => removeSource(index)}
                       className="p-1 hover:bg-muted rounded text-muted-foreground hover:text-red-600"
@@ -311,31 +356,158 @@ export function DeliverableSettingsModal({
               </div>
             )}
 
-            {/* Add new source */}
-            <div className="flex gap-2">
-              <select
-                value={newSourceType}
-                onChange={(e) => setNewSourceType(e.target.value as 'url' | 'description')}
-                className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                <option value="url">URL</option>
-                <option value="description">Description</option>
-              </select>
-              <input
-                type={newSourceType === 'url' ? 'url' : 'text'}
-                value={newSourceValue}
-                onChange={(e) => setNewSourceValue(e.target.value)}
-                placeholder={newSourceType === 'url' ? 'https://...' : 'Describe the source...'}
-                className="flex-1 px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-                onKeyDown={(e) => e.key === 'Enter' && addSource()}
-              />
-              <button
-                onClick={addSource}
-                disabled={!newSourceValue.trim()}
-                className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-md disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
+            {/* Add new source - Type selector */}
+            <div className="space-y-3">
+              <div className="flex gap-2">
+                <select
+                  value={newSourceType}
+                  onChange={(e) => setNewSourceType(e.target.value as DataSourceType)}
+                  className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                >
+                  <option value="url">URL</option>
+                  <option value="description">Description</option>
+                  <option value="integration_import">Integration</option>
+                </select>
+
+                {/* URL/Description input */}
+                {newSourceType !== 'integration_import' && (
+                  <>
+                    <input
+                      type={newSourceType === 'url' ? 'url' : 'text'}
+                      value={newSourceValue}
+                      onChange={(e) => setNewSourceValue(e.target.value)}
+                      placeholder={newSourceType === 'url' ? 'https://...' : 'Describe the source...'}
+                      className="flex-1 px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      onKeyDown={(e) => e.key === 'Enter' && addSource()}
+                    />
+                    <button
+                      onClick={addSource}
+                      disabled={!newSourceValue.trim()}
+                      className="px-3 py-2 bg-muted hover:bg-muted/80 rounded-md disabled:opacity-50"
+                    >
+                      <Plus className="w-4 h-4" />
+                    </button>
+                  </>
+                )}
+
+                {/* Integration import selector */}
+                {newSourceType === 'integration_import' && (
+                  <select
+                    value={newSourceProvider}
+                    onChange={(e) => {
+                      setNewSourceProvider(e.target.value as IntegrationProvider);
+                      setNewSourceQuery(e.target.value === 'gmail' ? 'inbox' : '');
+                    }}
+                    className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    <option value="gmail">Gmail</option>
+                    <option value="slack">Slack</option>
+                    <option value="notion">Notion</option>
+                  </select>
+                )}
+              </div>
+
+              {/* Integration import configuration */}
+              {newSourceType === 'integration_import' && (
+                <div className="p-3 border border-border rounded-md space-y-3 bg-muted/30">
+                  {/* Gmail-specific options */}
+                  {newSourceProvider === 'gmail' && (
+                    <>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Source</label>
+                        <select
+                          value={newSourceQuery}
+                          onChange={(e) => setNewSourceQuery(e.target.value)}
+                          className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="inbox">Inbox (recent messages)</option>
+                          <option value="query:is:unread">Unread messages</option>
+                          <option value="query:is:starred">Starred messages</option>
+                          <option value="query:in:sent">Sent messages</option>
+                        </select>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-medium mb-1">From (optional)</label>
+                          <input
+                            type="text"
+                            value={newSourceFilters.from || ''}
+                            onChange={(e) => setNewSourceFilters({ ...newSourceFilters, from: e.target.value || undefined })}
+                            placeholder="sender@example.com"
+                            className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1">Subject contains</label>
+                          <input
+                            type="text"
+                            value={newSourceFilters.subject_contains || ''}
+                            onChange={(e) => setNewSourceFilters({ ...newSourceFilters, subject_contains: e.target.value || undefined })}
+                            placeholder="keyword"
+                            className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="block text-xs font-medium mb-1">Time range</label>
+                        <select
+                          value={newSourceFilters.after || ''}
+                          onChange={(e) => setNewSourceFilters({ ...newSourceFilters, after: e.target.value || undefined })}
+                          className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                        >
+                          <option value="">All time</option>
+                          <option value="1d">Last 24 hours</option>
+                          <option value="7d">Last 7 days</option>
+                          <option value="14d">Last 14 days</option>
+                          <option value="30d">Last 30 days</option>
+                        </select>
+                      </div>
+                    </>
+                  )}
+
+                  {/* Slack-specific options */}
+                  {newSourceProvider === 'slack' && (
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Channel ID</label>
+                      <input
+                        type="text"
+                        value={newSourceQuery}
+                        onChange={(e) => setNewSourceQuery(e.target.value)}
+                        placeholder="C01234567"
+                        className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Enter the Slack channel ID to pull messages from
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Notion-specific options */}
+                  {newSourceProvider === 'notion' && (
+                    <div>
+                      <label className="block text-xs font-medium mb-1">Page ID</label>
+                      <input
+                        type="text"
+                        value={newSourceQuery}
+                        onChange={(e) => setNewSourceQuery(e.target.value)}
+                        placeholder="abc123..."
+                        className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
+                      />
+                      <p className="text-[10px] text-muted-foreground mt-1">
+                        Enter the Notion page ID to pull content from
+                      </p>
+                    </div>
+                  )}
+
+                  <button
+                    onClick={addSource}
+                    disabled={!newSourceQuery.trim()}
+                    className="w-full px-3 py-2 bg-primary text-primary-foreground hover:bg-primary/90 rounded-md text-sm disabled:opacity-50"
+                  >
+                    Add Integration Source
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 

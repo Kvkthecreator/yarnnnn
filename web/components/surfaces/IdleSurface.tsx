@@ -66,6 +66,11 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   changelog: 'Changelog',
   one_on_one_prep: '1:1 Prep',
   board_update: 'Board Update',
+  // ADR-029 Phase 3: Email-specific types
+  inbox_summary: 'Inbox Summary',
+  reply_draft: 'Reply Draft',
+  follow_up_tracker: 'Follow-up Tracker',
+  thread_summary: 'Thread Summary',
 };
 
 interface DashboardData {

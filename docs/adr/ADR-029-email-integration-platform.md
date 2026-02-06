@@ -1,8 +1,8 @@
 # ADR-029: Email as Full Integration Platform
 
-> **Status**: Accepted (Phases 1-3 Implemented)
+> **Status**: Accepted (Phases 1-3 Complete, Ready for Testing)
 > **Created**: 2026-02-06
-> **Updated**: 2026-02-06 (Gmail Phases 1-3 implementation complete)
+> **Updated**: 2026-02-06 (Full Phases 1-3 implementation complete - backend + frontend)
 > **Related**: ADR-026 (Integration Architecture), ADR-027 (Integration Reads), ADR-028 (Destination-First)
 
 ---
@@ -187,12 +187,37 @@ async def fetch_integration_source_data(client, user_id, source):
     # Returns formatted context for the synthesis prompt
 ```
 
+#### Frontend UI (Phase 2c)
+
+The DeliverableSettingsModal provides full integration source configuration:
+
+```typescript
+// web/components/modals/DeliverableSettingsModal.tsx
+
+// State for integration source configuration
+const [newSourceType, setNewSourceType] = useState<DataSourceType>('url');
+const [newSourceProvider, setNewSourceProvider] = useState<IntegrationProvider>('gmail');
+const [newSourceQuery, setNewSourceQuery] = useState('inbox');
+const [newSourceFilters, setNewSourceFilters] = useState<{
+  from?: string;
+  subject_contains?: string;
+  after?: string;
+}>({});
+```
+
+Gmail-specific options:
+- Source selector: inbox, unread, starred, sent
+- From filter: sender email
+- Subject contains: keyword filter
+- Time range: 24h, 7d, 14d, 30d
+
 #### Key Changes
 
 | File | Change |
 |------|--------|
 | `web/types/index.ts` | Added `integration_import` DataSourceType, IntegrationImportFilters |
 | `api/services/deliverable_pipeline.py` | Added `fetch_integration_source_data()`, updated `execute_gather_step()` |
+| `web/components/modals/DeliverableSettingsModal.tsx` | Full integration source UI with Gmail filters |
 
 ### Phase 3: Email-Specific Deliverables (COMPLETE) ✅
 
@@ -265,12 +290,58 @@ Type-specific prompts and validators added to `deliverable_pipeline.py`:
 - `validate_follow_up_tracker()` - Checks for specific items and structure
 - `validate_thread_summary()` - Checks detail level and sections
 
+#### Frontend UI (Phase 3c)
+
+Email type labels added to both surfaces:
+
+```typescript
+// web/components/modals/DeliverableSettingsModal.tsx
+// web/components/surfaces/IdleSurface.tsx
+const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
+  // ... existing types ...
+  // ADR-029 Phase 3: Email-specific types
+  inbox_summary: 'Inbox Summary',
+  reply_draft: 'Reply Draft',
+  follow_up_tracker: 'Follow-up Tracker',
+  thread_summary: 'Thread Summary',
+};
+```
+
+Type configs are set during deliverable creation via TP conversation (project_tools.py create_deliverable),
+not in settings modal. This matches existing patterns for all deliverable types.
+
 #### Key Files
 
 | File | Change |
 |------|--------|
 | `web/types/index.ts` | Added 4 email deliverable types + configs |
 | `api/services/deliverable_pipeline.py` | Added prompts, section templates, validators |
+| `web/components/modals/DeliverableSettingsModal.tsx` | Added email type labels |
+| `web/components/surfaces/IdleSurface.tsx` | Added email type labels |
+
+---
+
+## Testing Checklist
+
+**Phase 1 - Gmail Integration:**
+- [ ] Gmail OAuth flow completes successfully
+- [ ] MCP server starts and connects
+- [ ] `list_gmail_messages` returns inbox messages
+- [ ] `send_gmail_message` delivers email
+- [ ] `create_gmail_draft` creates draft in Gmail
+
+**Phase 2 - Email Data Sources:**
+- [ ] `integration_import` source type selectable in settings
+- [ ] Gmail filters (from, subject, time) apply correctly
+- [ ] `fetch_integration_source_data()` returns formatted context
+- [ ] Gather step includes integration data in synthesis prompt
+
+**Phase 3 - Email Deliverable Types:**
+- [ ] `inbox_summary` type creates structured digest
+- [ ] `reply_draft` type generates context-aware reply
+- [ ] `follow_up_tracker` type identifies pending threads
+- [ ] `thread_summary` type summarizes conversations
+- [ ] Validators enforce correct structure
 
 ### Phase 4: Advanced Features (Future)
 
