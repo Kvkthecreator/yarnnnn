@@ -363,12 +363,42 @@ CREATE TABLE integration_sync_config (
 - [x] Import summary display with blocks created, items processed, noise filtered
 - [x] Style learning toggle option during import
 
-### Phase 4: Continuous Sync (Future)
+### Phase 4: Continuous Sync (Deferred)
+
+**Status**: Intentionally deferred. See rationale below.
 
 - [ ] Sync configuration UI
 - [ ] Scheduled sync job (cron)
 - [ ] Incremental import (delta processing)
 - [ ] Sync status indicators
+
+#### Why Deferred
+
+Phase 4 was deprioritized in favor of more fundamental architectural exploration. The manual import flow (Phases 1-3) covers the core use case. Continuous sync is convenience/polish.
+
+**Key Insight**: While designing Phase 4, we recognized that "continuous sync" touches on a deeper question about how YARNNN models deliverables and their relationship to external platforms. This led to the exploration documented in:
+
+- [Analysis: Deliverable-Scoped Context](../analysis/deliverable-scoped-context.md) - Missing memory layer
+- [ADR-028: Destination-First Deliverables](./ADR-028-destination-first-deliverables.md) - Conceptual reframe
+
+#### The Larger Question
+
+Continuous sync assumes the current model: "keep context fresh so deliverables are better." But a more profound insight emerged:
+
+> **The deliverable isn't the content. It's the commitment to deliver something to a destination.**
+
+If destination becomes first-class in the deliverable model:
+- Style context auto-infers from destination (Slack → casual style)
+- Sync becomes bidirectional awareness (not just context freshness)
+- The supervision point shifts from "review content" to "supervise delivery commitment"
+
+Phase 4 will be revisited after ADR-028 exploration concludes. The current import flow remains sufficient for MVP.
+
+#### When to Reconsider
+
+- If users frequently re-import the same channels (indicates need for automation)
+- If stale context visibly degrades deliverable quality
+- After ADR-028 design decisions are made (destination-first may change sync requirements)
 
 ### Phase 5: Style Learning
 
