@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 
-type Provider = "slack" | "notion";
+type Provider = "slack" | "notion" | "gmail";
 
 interface SlackChannel {
   id: string;
@@ -88,6 +88,10 @@ export function IntegrationImportModal({
   const [instructions, setInstructions] = useState("");
   const [learnStyle, setLearnStyle] = useState(false);  // ADR-027 Phase 5
 
+  // Gmail-specific state (ADR-029)
+  const [gmailImportType, setGmailImportType] = useState<"inbox" | "query">("inbox");
+  const [gmailQuery, setGmailQuery] = useState("");
+
   // Import state
   const [isImporting, setIsImporting] = useState(false);
   const [importJob, setImportJob] = useState<ImportJob | null>(null);
@@ -95,6 +99,12 @@ export function IntegrationImportModal({
 
   // Load resources when modal opens
   const loadResources = useCallback(async () => {
+    // Gmail doesn't need to load resources - uses predefined options
+    if (provider === "gmail") {
+      setIsLoadingResources(false);
+      return;
+    }
+
     setIsLoadingResources(true);
     setResourceError(null);
 
@@ -143,24 +153,40 @@ export function IntegrationImportModal({
   }, [importJob]);
 
   const handleImport = async () => {
-    if (!selectedResource) return;
+    // Gmail uses different resource ID format
+    const isGmailProvider = provider === "gmail";
+    if (!isGmailProvider && !selectedResource) return;
+    if (isGmailProvider && gmailImportType === "query" && !gmailQuery.trim()) return;
 
     setIsImporting(true);
     setImportError(null);
 
     try {
-      // Get resource name for display
+      // Get resource ID and name based on provider
+      let resourceId: string;
       let resourceName: string | undefined;
-      if (provider === "slack") {
+
+      if (isGmailProvider) {
+        // Gmail: "inbox" or "query:<search_query>"
+        if (gmailImportType === "inbox") {
+          resourceId = "inbox";
+          resourceName = "Inbox";
+        } else {
+          resourceId = `query:${gmailQuery.trim()}`;
+          resourceName = `Search: ${gmailQuery.trim().slice(0, 30)}${gmailQuery.length > 30 ? "..." : ""}`;
+        }
+      } else if (provider === "slack") {
+        resourceId = selectedResource!;
         const channel = channels.find((c) => c.id === selectedResource);
         resourceName = channel ? `#${channel.name}` : undefined;
       } else {
+        resourceId = selectedResource!;
         const page = pages.find((p) => p.id === selectedResource);
         resourceName = page?.title;
       }
 
       const job = await api.integrations.startImport(provider, {
-        resource_id: selectedResource,
+        resource_id: resourceId,
         resource_name: resourceName,
         project_id: projectId,
         instructions: instructions.trim() || undefined,
@@ -186,6 +212,9 @@ export function IntegrationImportModal({
     setImportError(null);
     setChannels([]);
     setPages([]);
+    // Reset Gmail state
+    setGmailImportType("inbox");
+    setGmailQuery("");
 
     onClose();
 
@@ -197,9 +226,10 @@ export function IntegrationImportModal({
 
   if (!isOpen) return null;
 
-  const resources = provider === "slack" ? channels : pages;
-  const providerName = provider === "slack" ? "Slack" : "Notion";
-  const resourceLabel = provider === "slack" ? "channel" : "page";
+  const resources = provider === "slack" ? channels : provider === "notion" ? pages : [];
+  const providerName = provider === "slack" ? "Slack" : provider === "notion" ? "Notion" : "Gmail";
+  const resourceLabel = provider === "slack" ? "channel" : provider === "notion" ? "page" : "source";
+  const isGmail = provider === "gmail";
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -235,40 +265,97 @@ export function IntegrationImportModal({
           ) : (
             <>
               <p className="text-sm text-muted-foreground mb-4">
-                Select a {resourceLabel} to import context from. I&apos;ll extract key decisions,
-                action items, and project context automatically.
+                {isGmail
+                  ? "Import context from your inbox or search for specific emails. I'll extract key decisions, action items, and project context automatically."
+                  : `Select a ${resourceLabel} to import context from. I'll extract key decisions, action items, and project context automatically.`}
               </p>
 
-              {/* Resource list */}
-              {isLoadingResources ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-                </div>
-              ) : resourceError ? (
-                <div className="p-4 bg-destructive/10 text-destructive rounded-lg flex items-center gap-2">
-                  <AlertTriangle className="w-5 h-5 shrink-0" />
-                  <div>
-                    <p className="font-medium">Failed to load {resourceLabel}s</p>
-                    <p className="text-sm">{resourceError}</p>
+              {/* Gmail-specific UI (ADR-029) */}
+              {isGmail ? (
+                <div className="space-y-4">
+                  {/* Import type selector */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setGmailImportType("inbox")}
+                      className={`flex-1 p-3 rounded-lg border transition-colors ${
+                        gmailImportType === "inbox"
+                          ? "bg-primary/10 border-primary"
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      <div className="font-medium text-sm">Recent Inbox</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Import your latest inbox messages
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setGmailImportType("query")}
+                      className={`flex-1 p-3 rounded-lg border transition-colors ${
+                        gmailImportType === "query"
+                          ? "bg-primary/10 border-primary"
+                          : "border-border hover:bg-muted"
+                      }`}
+                    >
+                      <div className="font-medium text-sm">Search</div>
+                      <div className="text-xs text-muted-foreground mt-1">
+                        Find specific emails by query
+                      </div>
+                    </button>
                   </div>
-                  <button
-                    onClick={loadResources}
-                    className="ml-auto p-2 hover:bg-destructive/20 rounded"
-                  >
-                    <RefreshCw className="w-4 h-4" />
-                  </button>
-                </div>
-              ) : resources.length === 0 ? (
-                <div className="p-4 bg-muted/50 rounded-lg text-center text-muted-foreground">
-                  <p>No {resourceLabel}s found.</p>
-                  <p className="text-sm mt-1">
-                    Make sure the {providerName} integration has access to the {resourceLabel}s you want to import.
-                  </p>
+
+                  {/* Query input (shown when search selected) */}
+                  {gmailImportType === "query" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-2">
+                        Gmail Search Query
+                      </label>
+                      <input
+                        type="text"
+                        value={gmailQuery}
+                        onChange={(e) => setGmailQuery(e.target.value)}
+                        placeholder="e.g., from:sarah@company.com or subject:project update"
+                        className="w-full p-3 text-sm border border-border rounded-md bg-background focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      />
+                      <p className="text-xs text-muted-foreground mt-2">
+                        Uses Gmail search syntax. Examples: &quot;from:name@email.com&quot;, &quot;subject:weekly&quot;, &quot;after:2024/01/01&quot;
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
-                <div className="space-y-2 max-h-64 overflow-y-auto border border-border rounded-lg p-2">
-                  {provider === "slack"
-                    ? channels.map((channel) => (
+                /* Resource list for Slack/Notion */
+                <>
+                  {isLoadingResources ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                    </div>
+                  ) : resourceError ? (
+                    <div className="p-4 bg-destructive/10 text-destructive rounded-lg flex items-center gap-2">
+                      <AlertTriangle className="w-5 h-5 shrink-0" />
+                      <div>
+                        <p className="font-medium">Failed to load {resourceLabel}s</p>
+                        <p className="text-sm">{resourceError}</p>
+                      </div>
+                      <button
+                        onClick={loadResources}
+                        className="ml-auto p-2 hover:bg-destructive/20 rounded"
+                      >
+                        <RefreshCw className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : resources.length === 0 ? (
+                    <div className="p-4 bg-muted/50 rounded-lg text-center text-muted-foreground">
+                      <p>No {resourceLabel}s found.</p>
+                      <p className="text-sm mt-1">
+                        Make sure the {providerName} integration has access to the {resourceLabel}s you want to import.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto border border-border rounded-lg p-2">
+                      {provider === "slack"
+                        ? channels.map((channel) => (
                         <button
                           key={channel.id}
                           onClick={() => setSelectedResource(channel.id)}
@@ -317,11 +404,13 @@ export function IntegrationImportModal({
                           )}
                         </button>
                       ))}
-                </div>
+                    </div>
+                  )}
+                </>
               )}
 
-              {/* Instructions (optional) */}
-              {resources.length > 0 && (
+              {/* Instructions (optional) - shown for all providers */}
+              {(isGmail || resources.length > 0) && (
                 <div className="mt-4">
                   <label className="block text-sm font-medium mb-2">
                     Instructions (optional)
@@ -335,8 +424,8 @@ export function IntegrationImportModal({
                 </div>
               )}
 
-              {/* Style Learning Toggle - ADR-027 Phase 5 */}
-              {resources.length > 0 && (
+              {/* Style Learning Toggle - ADR-027 Phase 5, ADR-029 */}
+              {(isGmail || resources.length > 0) && (
                 <div className="mt-4 p-3 border border-border rounded-lg bg-muted/30">
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input
@@ -348,7 +437,9 @@ export function IntegrationImportModal({
                     <div>
                       <span className="text-sm font-medium">Learn my writing style</span>
                       <p className="text-xs text-muted-foreground mt-0.5">
-                        {provider === "slack"
+                        {provider === "gmail"
+                          ? "Analyze your email writing to capture your professional communication style"
+                          : provider === "slack"
                           ? "Analyze your messages to capture your casual communication style"
                           : "Analyze this content to capture your documentation style"}
                       </p>
@@ -405,7 +496,10 @@ export function IntegrationImportModal({
               </button>
               <button
                 onClick={handleImport}
-                disabled={!selectedResource || isImporting}
+                disabled={
+                  isImporting ||
+                  (isGmail ? (gmailImportType === "query" && !gmailQuery.trim()) : !selectedResource)
+                }
                 className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
               >
                 {isImporting ? (
@@ -432,7 +526,7 @@ export function IntegrationImportModal({
  * Component to show import job status and result.
  */
 function ImportJobStatus({ job, provider }: { job: ImportJob; provider: Provider }) {
-  const providerName = provider === "slack" ? "Slack" : "Notion";
+  const providerName = provider === "slack" ? "Slack" : provider === "notion" ? "Notion" : "Gmail";
 
   if (job.status === "pending" || job.status === "processing") {
     return (

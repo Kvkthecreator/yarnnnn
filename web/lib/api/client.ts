@@ -676,7 +676,7 @@ export const api = {
 
     // Start import job
     startImport: (
-      provider: "slack" | "notion",
+      provider: "slack" | "notion" | "gmail",
       data: {
         resource_id: string;
         resource_name?: string;

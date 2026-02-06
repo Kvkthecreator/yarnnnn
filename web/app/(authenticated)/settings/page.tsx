@@ -106,8 +106,8 @@ export default function SettingsPage() {
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
 
-  // Import modal state (ADR-027)
-  const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | null>(null);
+  // Import modal state (ADR-027, ADR-029)
+  const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | null>(null);
 
   // Check for OAuth callback status
   const providerParam = searchParams.get("provider");
@@ -936,12 +936,79 @@ export default function SettingsPage() {
                 );
               })()}
 
+              {/* Gmail Integration (ADR-029) */}
+              {(() => {
+                const gmailIntegration = integrations.find(i => i.provider === "gmail");
+                return (
+                  <div className="p-4 border border-border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-red-500 rounded-lg flex items-center justify-center">
+                          <Mail className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <div className="font-medium">Gmail</div>
+                          <div className="text-sm text-muted-foreground">
+                            {gmailIntegration
+                              ? `Connected as ${gmailIntegration.workspace_name || "your account"}`
+                              : "Send deliverables via email, import inbox context"
+                            }
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {gmailIntegration ? (
+                          <>
+                            <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                              <Check className="w-4 h-4" />
+                              Connected
+                            </span>
+                            <button
+                              onClick={() => setImportModalProvider("gmail")}
+                              className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
+                            >
+                              Import Context
+                            </button>
+                            <button
+                              onClick={() => handleDisconnectIntegration("gmail")}
+                              disabled={disconnectingProvider === "gmail"}
+                              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
+                            >
+                              {disconnectingProvider === "gmail" ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Disconnect"
+                              )}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleConnectIntegration("gmail")}
+                            disabled={connectingProvider === "gmail"}
+                            className="px-4 py-2 bg-red-500 text-white rounded-md text-sm font-medium hover:bg-red-600 flex items-center gap-2"
+                          >
+                            {connectingProvider === "gmail" ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <ExternalLink className="w-4 h-4" />
+                                Connect
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Info note */}
               <div className="mt-6 p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
                 <p>
                   <strong>How it works:</strong> After connecting, you can export deliverables or import context
                   from your connected services. Use &quot;Import Context&quot; to bring in decisions, action items,
-                  and project details from Slack channels or Notion pages.
+                  and project details from Slack channels, Notion pages, or Gmail conversations.
                 </p>
               </div>
             </div>

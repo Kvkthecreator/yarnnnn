@@ -244,6 +244,67 @@ Analyze this user's documentation style in Notion. Note that Notion encourages s
             confidence=result.get("confidence", "medium"),
         )
 
+    async def analyze_email_messages(
+        self,
+        messages: list[dict],
+        user_email: Optional[str] = None,
+    ) -> StyleProfile:
+        """
+        Analyze Gmail messages to extract email communication style.
+
+        ADR-029: Gmail as full integration platform.
+
+        Args:
+            messages: Raw messages from Gmail MCP
+            user_email: User's email address to identify their sent messages
+
+        Returns:
+            StyleProfile with extracted email patterns
+        """
+        # Filter to messages where user is the sender (if we can identify)
+        if user_email:
+            sent_messages = []
+            for msg in messages:
+                headers = msg.get("headers", {})
+                from_addr = headers.get("From", headers.get("from", ""))
+                if user_email.lower() in from_addr.lower():
+                    sent_messages.append(msg)
+            messages = sent_messages if sent_messages else messages
+
+        if len(messages) < 5:
+            raise ValueError("Need at least 5 email messages to analyze style")
+
+        # Format messages for analysis
+        formatted = self._format_email_messages(messages)
+
+        user_prompt = f"""## Context
+Platform: Email (Gmail)
+User: {user_email or "Unknown"}
+Sample size: {len(messages)} messages
+
+## Writing Samples
+{formatted}
+
+Analyze this user's email communication style. Note that email requires professional tone with proper greetings and closings - identify what's distinctive about THIS user's email voice, including their signature phrases, greeting style, and how they structure email content."""
+
+        result = await self._execute(user_prompt)
+
+        return StyleProfile(
+            platform="email",
+            context="formal_comms",
+            tone=result.get("tone", "professional"),
+            verbosity=result.get("verbosity", "moderate"),
+            structure=result.get("structure", "paragraphs"),
+            vocabulary_notes=result.get("vocabulary_notes", ""),
+            sentence_style=result.get("sentence_style", ""),
+            common_phrases=result.get("common_phrases", []),
+            emoji_usage=result.get("emoji_usage", "never"),
+            formatting_preferences=result.get("formatting_preferences", ""),
+            full_profile=result.get("full_profile", ""),
+            sample_size=len(messages),
+            confidence=result.get("confidence", "medium"),
+        )
+
     async def _execute(self, user_prompt: str) -> dict:
         """Execute the agent and parse results."""
         try:
@@ -308,6 +369,26 @@ Analyze this user's documentation style in Notion. Note that Notion encourages s
                 content = content[:2000] + "... [truncated]"
 
             lines.append(f"### {title}\n{content}\n")
+
+        return "\n".join(lines)
+
+    def _format_email_messages(self, messages: list[dict]) -> str:
+        """Format Gmail messages for the prompt."""
+        lines = []
+
+        for msg in messages[:30]:  # Limit to 30 emails for context window
+            headers = msg.get("headers", {})
+            subject = headers.get("Subject", headers.get("subject", "(no subject)"))
+            body = msg.get("body", msg.get("snippet", ""))
+
+            if not body or len(body) < 20:  # Skip very short emails
+                continue
+
+            # Truncate very long emails
+            if len(body) > 1500:
+                body = body[:1500] + "... [truncated]"
+
+            lines.append(f"---\n**Subject**: {subject}\n\n{body}\n")
 
         return "\n".join(lines)
 

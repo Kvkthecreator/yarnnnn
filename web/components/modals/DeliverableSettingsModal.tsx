@@ -91,6 +91,7 @@ const GOVERNANCE_OPTIONS: { value: GovernanceLevel; label: string; description: 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   slack: <Slack className="w-4 h-4" />,
   notion: <FileCode className="w-4 h-4" />,
+  gmail: <Mail className="w-4 h-4" />,  // ADR-029
   download: <Download className="w-4 h-4" />,
 };
 
@@ -443,7 +444,7 @@ export function DeliverableSettingsModal({
               className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-3"
               onClick={onClose}
             >
-              Manage integrations (Slack, Notion)
+              Manage integrations (Slack, Notion, Gmail)
               <ExternalLink className="w-3 h-3" />
             </Link>
           </div>
