@@ -281,6 +281,145 @@ class MCPClientManager:
                 error_message=str(e)
             )
 
+    # =========================================================================
+    # Slack Read Operations (via MCP)
+    # =========================================================================
+
+    async def list_slack_channels(
+        self,
+        user_id: str,
+        bot_token: str,
+        team_id: str
+    ) -> list[dict[str, Any]]:
+        """
+        List Slack channels via MCP.
+
+        Returns list of channel objects with id, name, is_private, etc.
+        """
+        try:
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="slack",
+                tool_name="slack_list_channels",
+                arguments={},
+                env={
+                    "SLACK_BOT_TOKEN": bot_token,
+                    "SLACK_TEAM_ID": team_id
+                }
+            )
+            # Parse MCP result - structure depends on server implementation
+            if isinstance(result, dict) and "channels" in result:
+                return result["channels"]
+            elif isinstance(result, list):
+                return result
+            else:
+                logger.warning(f"[MCP] Unexpected channels result format: {type(result)}")
+                return []
+        except Exception as e:
+            logger.error(f"[MCP] Failed to list Slack channels: {e}")
+            raise
+
+    async def get_slack_channel_history(
+        self,
+        user_id: str,
+        channel_id: str,
+        bot_token: str,
+        team_id: str,
+        limit: int = 100
+    ) -> list[dict[str, Any]]:
+        """
+        Get Slack channel message history via MCP.
+
+        Returns list of message objects.
+        """
+        try:
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="slack",
+                tool_name="slack_get_channel_history",
+                arguments={"channel": channel_id, "limit": limit},
+                env={
+                    "SLACK_BOT_TOKEN": bot_token,
+                    "SLACK_TEAM_ID": team_id
+                }
+            )
+            if isinstance(result, dict) and "messages" in result:
+                return result["messages"]
+            elif isinstance(result, list):
+                return result
+            else:
+                logger.warning(f"[MCP] Unexpected history result format: {type(result)}")
+                return []
+        except Exception as e:
+            logger.error(f"[MCP] Failed to get Slack history: {e}")
+            raise
+
+    # =========================================================================
+    # Notion Read Operations (via MCP)
+    # =========================================================================
+
+    async def search_notion_pages(
+        self,
+        user_id: str,
+        auth_token: str,
+        query: Optional[str] = None
+    ) -> list[dict[str, Any]]:
+        """
+        Search/list Notion pages via MCP.
+
+        Returns list of page objects with id, title, url, etc.
+        """
+        try:
+            arguments = {}
+            if query:
+                arguments["query"] = query
+
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="notion",
+                tool_name="notion_search",
+                arguments=arguments,
+                env={"AUTH_TOKEN": auth_token}
+            )
+            if isinstance(result, dict) and "results" in result:
+                return result["results"]
+            elif isinstance(result, list):
+                return result
+            else:
+                logger.warning(f"[MCP] Unexpected search result format: {type(result)}")
+                return []
+        except Exception as e:
+            logger.error(f"[MCP] Failed to search Notion pages: {e}")
+            raise
+
+    async def get_notion_page_content(
+        self,
+        user_id: str,
+        page_id: str,
+        auth_token: str
+    ) -> dict[str, Any]:
+        """
+        Get Notion page content via MCP.
+
+        Returns page object with content blocks.
+        """
+        try:
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="notion",
+                tool_name="notion_get_page",
+                arguments={"page_id": page_id},
+                env={"AUTH_TOKEN": auth_token}
+            )
+            return result if isinstance(result, dict) else {"content": str(result)}
+        except Exception as e:
+            logger.error(f"[MCP] Failed to get Notion page: {e}")
+            raise
+
+    # =========================================================================
+    # Tool Discovery
+    # =========================================================================
+
     async def list_tools(
         self,
         user_id: str,

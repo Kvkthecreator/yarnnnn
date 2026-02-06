@@ -617,6 +617,14 @@ Only support local downloads (PDF, Markdown, DOCX).
 
 ## Changelog
 
+### 2026-02-06: Bidirectional Integration (Read + Write via MCP)
+
+- Created [ADR-027: Integration Read Architecture](./ADR-027-integration-read-architecture.md)
+- Extended MCP usage to reads (not just exports) - **MCP for all external communication**
+- Defined agent-mediated import flow: MCP fetches → Agent interprets → Context stored
+- Added MCP read methods: `list_slack_channels`, `get_slack_channel_history`, `search_notion_pages`, `get_notion_page_content`
+- Defined three integration modes: Context Import, Continuous Sync, Active Work
+
 ### 2026-02-06: Technical Validation & Implementation Start
 
 - Validated MCP SDK availability (`mcp` package v1.x on PyPI)

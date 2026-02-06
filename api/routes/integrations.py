@@ -35,8 +35,45 @@ from integrations.core.types import (
     IntegrationStatus,
     ExportStatus,
 )
+from agents.integration import ContextImportAgent
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Notion Helper Functions
+# =============================================================================
+
+def _extract_notion_title(page: dict) -> str:
+    """Extract title from Notion page object."""
+    # Notion API returns title in properties.title or properties.Name
+    props = page.get("properties", {})
+
+    # Try common title property names
+    for key in ["title", "Title", "Name", "name"]:
+        if key in props:
+            title_prop = props[key]
+            if isinstance(title_prop, dict):
+                # Handle rich text array format
+                title_array = title_prop.get("title") or title_prop.get("rich_text", [])
+                if isinstance(title_array, list) and title_array:
+                    return title_array[0].get("plain_text", "Untitled")
+            elif isinstance(title_prop, str):
+                return title_prop
+
+    return "Untitled"
+
+
+def _extract_notion_parent_type(page: dict) -> str:
+    """Extract parent type from Notion page object."""
+    parent = page.get("parent", {})
+    if "workspace" in parent:
+        return "workspace"
+    elif "page_id" in parent:
+        return "page"
+    elif "database_id" in parent:
+        return "database"
+    return "unknown"
 
 router = APIRouter()
 
@@ -85,6 +122,67 @@ class DestinationResponse(BaseModel):
 class DestinationsListResponse(BaseModel):
     """List of available destinations."""
     destinations: list[DestinationResponse]
+
+
+class SlackChannelResponse(BaseModel):
+    """Slack channel info for resource discovery."""
+    id: str
+    name: str
+    is_private: bool
+    num_members: int
+    topic: Optional[str] = None
+    purpose: Optional[str] = None
+
+
+class SlackChannelsListResponse(BaseModel):
+    """List of Slack channels."""
+    channels: list[SlackChannelResponse]
+
+
+class NotionPageResponse(BaseModel):
+    """Notion page info for resource discovery."""
+    id: str
+    title: str
+    parent_type: str  # 'workspace', 'page', 'database'
+    last_edited: Optional[str] = None
+    url: Optional[str] = None
+
+
+class NotionPagesListResponse(BaseModel):
+    """List of Notion pages."""
+    pages: list[NotionPageResponse]
+
+
+# =============================================================================
+# Import Job Models
+# =============================================================================
+
+class StartImportRequest(BaseModel):
+    """Request to start a context import job."""
+    resource_id: str  # channel_id or page_id
+    resource_name: Optional[str] = None  # #channel-name or Page Title
+    project_id: Optional[str] = None  # Optional project to associate
+    instructions: Optional[str] = None  # User guidance for the agent
+
+
+class ImportJobResponse(BaseModel):
+    """Status of an import job."""
+    id: str
+    provider: str
+    resource_id: str
+    resource_name: Optional[str] = None
+    status: str  # pending, processing, completed, failed
+    progress: int = 0
+    result: Optional[dict] = None
+    error_message: Optional[str] = None
+    created_at: datetime
+    started_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
+
+class ImportJobsListResponse(BaseModel):
+    """List of import jobs."""
+    jobs: list[ImportJobResponse]
 
 
 # =============================================================================
@@ -335,7 +433,414 @@ async def export_to_provider(
 
 
 # =============================================================================
-# List Destinations (Channels, Pages, etc.)
+# Resource Discovery - Slack Channels
+# =============================================================================
+
+@router.get("/integrations/slack/channels")
+async def list_slack_channels(
+    auth: UserClient
+) -> SlackChannelsListResponse:
+    """
+    List Slack channels the bot can access.
+
+    Used for:
+    - Export destination picker
+    - Context import source selection
+    """
+    user_id = auth.user_id
+
+    try:
+        # Get user's Slack integration
+        integration = auth.client.table("user_integrations").select(
+            "id, access_token_encrypted, status"
+        ).eq("user_id", user_id).eq("provider", "slack").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Slack integration found. Please connect first."
+            )
+
+        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Slack integration is {integration.data['status']}. Please reconnect."
+            )
+
+        # Get integration metadata for team_id
+        integration_full = auth.client.table("user_integrations").select(
+            "metadata"
+        ).eq("user_id", user_id).eq("provider", "slack").single().execute()
+
+        metadata = integration_full.data.get("metadata", {}) or {}
+        team_id = metadata.get("team_id")
+        if not team_id:
+            raise HTTPException(status_code=400, detail="Slack integration missing team_id")
+
+        # Decrypt access token
+        token_manager = get_token_manager()
+        access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+
+        # Fetch channels via MCP
+        mcp = get_mcp_manager()
+        raw_channels = await mcp.list_slack_channels(
+            user_id=user_id,
+            bot_token=access_token,
+            team_id=team_id
+        )
+
+        # Transform to response format
+        channels = [
+            SlackChannelResponse(
+                id=ch.get("id", ""),
+                name=ch.get("name", ""),
+                is_private=ch.get("is_private", False),
+                num_members=ch.get("num_members", 0),
+                topic=ch.get("topic", {}).get("value") if isinstance(ch.get("topic"), dict) else None,
+                purpose=ch.get("purpose", {}).get("value") if isinstance(ch.get("purpose"), dict) else None,
+            )
+            for ch in raw_channels
+        ]
+
+        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(channels)} Slack channels via MCP")
+
+        return SlackChannelsListResponse(channels=channels)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to list Slack channels for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list channels: {str(e)}")
+
+
+# =============================================================================
+# Resource Discovery - Notion Pages
+# =============================================================================
+
+@router.get("/integrations/notion/pages")
+async def list_notion_pages(
+    auth: UserClient,
+    query: Optional[str] = Query(None, description="Search query to filter pages")
+) -> NotionPagesListResponse:
+    """
+    List Notion pages the integration can access.
+
+    Used for:
+    - Export destination picker
+    - Context import source selection
+    """
+    user_id = auth.user_id
+
+    try:
+        # Get user's Notion integration
+        integration = auth.client.table("user_integrations").select(
+            "id, access_token_encrypted, status"
+        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Notion integration found. Please connect first."
+            )
+
+        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Notion integration is {integration.data['status']}. Please reconnect."
+            )
+
+        # Decrypt access token
+        token_manager = get_token_manager()
+        access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+
+        # Fetch pages via MCP
+        mcp = get_mcp_manager()
+        raw_pages = await mcp.search_notion_pages(
+            user_id=user_id,
+            auth_token=access_token,
+            query=query
+        )
+
+        # Transform to response format (MCP result structure may vary)
+        pages = [
+            NotionPageResponse(
+                id=page.get("id", ""),
+                title=_extract_notion_title(page),
+                parent_type=_extract_notion_parent_type(page),
+                last_edited=page.get("last_edited_time"),
+                url=page.get("url"),
+            )
+            for page in raw_pages
+            if page.get("object") == "page"  # Filter to pages only
+        ]
+
+        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(pages)} Notion pages via MCP")
+
+        return NotionPagesListResponse(pages=pages)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to list Notion pages for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list pages: {str(e)}")
+
+
+# =============================================================================
+# Import Jobs - Start Import
+# =============================================================================
+
+@router.post("/integrations/slack/import")
+async def start_slack_import(
+    request: StartImportRequest,
+    auth: UserClient
+) -> ImportJobResponse:
+    """
+    Start a context import from a Slack channel.
+
+    Creates a background job that:
+    1. Fetches messages from the channel
+    2. Runs ContextImportAgent to extract structured context
+    3. Stores results as context_sources
+
+    The job runs async; poll GET /integrations/import/{job_id} for status.
+    """
+    user_id = auth.user_id
+
+    try:
+        # Get user's Slack integration
+        integration = auth.client.table("user_integrations").select(
+            "id, access_token_encrypted, status"
+        ).eq("user_id", user_id).eq("provider", "slack").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Slack integration found. Please connect first."
+            )
+
+        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Slack integration is {integration.data['status']}. Please reconnect."
+            )
+
+        # Use resource_name if provided, otherwise use resource_id as fallback
+        # (Background job processor will resolve the actual channel name via MCP)
+        resource_name = request.resource_name or f"#{request.resource_id}"
+
+        # Create import job
+        job_data = {
+            "user_id": user_id,
+            "provider": "slack",
+            "resource_id": request.resource_id,
+            "resource_name": resource_name,
+            "project_id": request.project_id,
+            "instructions": request.instructions,
+            "status": "pending",
+            "progress": 0,
+        }
+
+        result = auth.client.table("integration_import_jobs").insert(job_data).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to create import job")
+
+        job = result.data[0]
+
+        logger.info(f"[INTEGRATIONS] User {user_id} started Slack import job {job['id']}")
+
+        # TODO: Trigger background job processor
+        # For now, we return the pending job and processing happens via cron/worker
+
+        return ImportJobResponse(
+            id=job["id"],
+            provider="slack",
+            resource_id=job["resource_id"],
+            resource_name=job.get("resource_name"),
+            status=job["status"],
+            progress=job.get("progress", 0),
+            created_at=job["created_at"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to start Slack import for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start import: {str(e)}")
+
+
+@router.post("/integrations/notion/import")
+async def start_notion_import(
+    request: StartImportRequest,
+    auth: UserClient
+) -> ImportJobResponse:
+    """
+    Start a context import from a Notion page.
+
+    Creates a background job that:
+    1. Fetches page content (including child pages)
+    2. Runs ContextImportAgent to extract structured context
+    3. Stores results as context_sources
+
+    The job runs async; poll GET /integrations/import/{job_id} for status.
+    """
+    user_id = auth.user_id
+
+    try:
+        # Get user's Notion integration
+        integration = auth.client.table("user_integrations").select(
+            "id, access_token_encrypted, status"
+        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Notion integration found. Please connect first."
+            )
+
+        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Notion integration is {integration.data['status']}. Please reconnect."
+            )
+
+        # Use resource_name if provided, otherwise use resource_id as fallback
+        # (Background job processor will resolve the actual page title via MCP)
+        resource_name = request.resource_name or request.resource_id
+
+        # Create import job
+        job_data = {
+            "user_id": user_id,
+            "provider": "notion",
+            "resource_id": request.resource_id,
+            "resource_name": resource_name,
+            "project_id": request.project_id,
+            "instructions": request.instructions,
+            "status": "pending",
+            "progress": 0,
+        }
+
+        result = auth.client.table("integration_import_jobs").insert(job_data).execute()
+
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Failed to create import job")
+
+        job = result.data[0]
+
+        logger.info(f"[INTEGRATIONS] User {user_id} started Notion import job {job['id']}")
+
+        return ImportJobResponse(
+            id=job["id"],
+            provider="notion",
+            resource_id=job["resource_id"],
+            resource_name=job.get("resource_name"),
+            status=job["status"],
+            progress=job.get("progress", 0),
+            created_at=job["created_at"],
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to start Notion import for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to start import: {str(e)}")
+
+
+# =============================================================================
+# Import Jobs - Status and List
+# =============================================================================
+
+@router.get("/integrations/import/{job_id}")
+async def get_import_job(
+    job_id: str,
+    auth: UserClient
+) -> ImportJobResponse:
+    """
+    Get status of an import job.
+    """
+    user_id = auth.user_id
+
+    try:
+        result = auth.client.table("integration_import_jobs").select(
+            "*"
+        ).eq("id", job_id).eq("user_id", user_id).single().execute()
+
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Import job not found")
+
+        job = result.data
+
+        return ImportJobResponse(
+            id=job["id"],
+            provider=job["provider"],
+            resource_id=job["resource_id"],
+            resource_name=job.get("resource_name"),
+            status=job["status"],
+            progress=job.get("progress", 0),
+            result=job.get("result"),
+            error_message=job.get("error_message"),
+            created_at=job["created_at"],
+            started_at=job.get("started_at"),
+            completed_at=job.get("completed_at"),
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to get import job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get import job")
+
+
+@router.get("/integrations/import")
+async def list_import_jobs(
+    auth: UserClient,
+    status: Optional[str] = Query(None, description="Filter by status"),
+    provider: Optional[str] = Query(None, description="Filter by provider"),
+    limit: int = Query(20, le=100)
+) -> ImportJobsListResponse:
+    """
+    List user's import jobs.
+    """
+    user_id = auth.user_id
+
+    try:
+        query = auth.client.table("integration_import_jobs").select(
+            "*"
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+
+        if status:
+            query = query.eq("status", status)
+        if provider:
+            query = query.eq("provider", provider)
+
+        result = query.execute()
+
+        jobs = [
+            ImportJobResponse(
+                id=job["id"],
+                provider=job["provider"],
+                resource_id=job["resource_id"],
+                resource_name=job.get("resource_name"),
+                status=job["status"],
+                progress=job.get("progress", 0),
+                result=job.get("result"),
+                error_message=job.get("error_message"),
+                created_at=job["created_at"],
+                started_at=job.get("started_at"),
+                completed_at=job.get("completed_at"),
+            )
+            for job in (result.data or [])
+        ]
+
+        return ImportJobsListResponse(jobs=jobs)
+
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to list import jobs for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list import jobs")
+
+
+# =============================================================================
+# List Destinations (Legacy/Generic)
 # =============================================================================
 
 @router.get("/integrations/{provider}/destinations")
@@ -346,18 +851,41 @@ async def list_destinations(
     """
     List available export destinations for a provider.
 
-    - Slack: Returns channels the bot can post to
-    - Notion: Returns pages/databases the integration has access to
+    DEPRECATED: Use provider-specific endpoints instead:
+    - GET /integrations/slack/channels
+    - GET /integrations/notion/pages
     """
     user_id = auth.user_id
 
-    # TODO: Implement destination listing via MCP
-    # This requires calling list_channels or similar tools
-
-    raise HTTPException(
-        status_code=501,
-        detail="Destination listing not yet implemented"
-    )
+    # Redirect to provider-specific endpoints
+    if provider == "slack":
+        result = await list_slack_channels(auth)
+        return DestinationsListResponse(
+            destinations=[
+                DestinationResponse(
+                    id=ch.id,
+                    name=f"#{ch.name}",
+                    type="channel",
+                    metadata={"is_private": ch.is_private, "num_members": ch.num_members}
+                )
+                for ch in result.channels
+            ]
+        )
+    elif provider == "notion":
+        result = await list_notion_pages(auth)
+        return DestinationsListResponse(
+            destinations=[
+                DestinationResponse(
+                    id=p.id,
+                    name=p.title,
+                    type="page",
+                    metadata={"parent_type": p.parent_type, "url": p.url}
+                )
+                for p in result.pages
+            ]
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
 
 
 # =============================================================================
