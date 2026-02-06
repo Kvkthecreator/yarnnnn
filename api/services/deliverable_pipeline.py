@@ -1786,10 +1786,12 @@ Your task:
 Output a comprehensive context summary that will be used to produce the deliverable."""
 
     # Create work ticket
+    # Note: user_id is required for RLS when project_id is NULL (ambient work)
     ticket_data = {
         "task": gather_prompt,
         "agent_type": "research",
         "project_id": project_id,
+        "user_id": user_id,  # Required for ambient work RLS policy
         "parameters": json.dumps({
             "deliverable_id": deliverable["id"],
             "step": "gather",
@@ -1919,10 +1921,12 @@ async def execute_synthesize_step(
         logger.info(f"[SYNTHESIZE] Using style_context={style_context}")
 
     # Create work ticket with dependency
+    # Note: user_id is required for RLS when project_id is NULL (ambient work)
     ticket_data = {
         "task": synthesize_prompt,
         "agent_type": "content",
         "project_id": project_id,
+        "user_id": user_id,  # Required for ambient work RLS policy
         "parameters": json.dumps(agent_params),
         "status": "pending",
         "deliverable_id": deliverable["id"],
