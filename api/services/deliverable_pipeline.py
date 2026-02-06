@@ -658,7 +658,7 @@ INSTRUCTIONS:
 - Clearly state any decisions that were made
 - Highlight unresolved questions or open items
 - If action items exist, list them with owners if mentioned
-- Keep summary {detail_level} - {"concise and scannable" if detail_level == "brief" else "thorough with context"}
+- Keep summary {detail_level} - {detail_guidance}
 
 Write the thread summary now:""",
 }
@@ -973,10 +973,12 @@ def build_type_prompt(
 
     elif deliverable_type == "thread_summary":
         detail_level = config.get("detail_level", "brief")
+        detail_guidance = "concise and scannable" if detail_level == "brief" else "thorough with context"
         fields.update({
             "thread_id": config.get("thread_id", ""),
             "sections_list": build_sections_list(deliverable_type, config),
             "detail_level": detail_level,
+            "detail_guidance": detail_guidance,
         })
 
     else:  # custom and any unknown types
