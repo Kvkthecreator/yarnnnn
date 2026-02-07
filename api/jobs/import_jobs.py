@@ -264,6 +264,10 @@ async def process_slack_import(
     learn_style = config.get("learn_style", False)
     style_user_id = config.get("style_user_id")  # Slack user ID to analyze
 
+    # ADR-030: Get scope parameters
+    scope = job.get("scope") or {}
+    max_items = scope.get("max_items", 200)
+
     # Decrypt access token
     access_token = token_manager.decrypt(integration["access_token_encrypted"])
     team_id = metadata.get("team_id")
@@ -272,13 +276,13 @@ async def process_slack_import(
         raise ValueError("Slack integration missing team_id")
 
     # 1. Fetch messages via MCP
-    logger.info(f"[IMPORT] Fetching Slack channel: {resource_name}")
+    logger.info(f"[IMPORT] Fetching Slack channel: {resource_name} (max: {max_items})")
     messages = await mcp_manager.get_slack_channel_history(
         user_id=user_id,
         channel_id=resource_id,
         bot_token=access_token,
         team_id=team_id,
-        limit=100,
+        limit=max_items,
     )
 
     if not messages:
@@ -344,6 +348,19 @@ async def process_slack_import(
         except Exception as e:
             logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
 
+    # ADR-030: Update coverage state
+    await update_coverage_state(
+        supabase_client,
+        user_id=user_id,
+        provider="slack",
+        resource_id=resource_id,
+        resource_name=resource_name,
+        coverage_state="partial",  # Slack is always partial (time-based)
+        scope=scope,
+        items_extracted=len(messages),
+        blocks_created=blocks_created,
+    )
+
     return {
         "blocks_created": blocks_created,
         "items_processed": import_result.items_processed,
@@ -373,6 +390,11 @@ async def process_notion_import(
     # Check if style learning is requested (from job config)
     config = job.get("config") or {}
     learn_style = config.get("learn_style", False)
+
+    # ADR-030: Get scope parameters
+    scope = job.get("scope") or {}
+    max_depth = scope.get("max_depth", 2)
+    max_pages = scope.get("max_pages", 10)
 
     # Decrypt access token
     access_token = token_manager.decrypt(integration["access_token_encrypted"])
@@ -440,6 +462,19 @@ async def process_notion_import(
             style_confidence = profile.confidence
         except Exception as e:
             logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
+
+    # ADR-030: Update coverage state
+    await update_coverage_state(
+        supabase_client,
+        user_id=user_id,
+        provider="notion",
+        resource_id=resource_id,
+        resource_name=resource_name,
+        coverage_state="covered",  # Single page = covered
+        scope=scope,
+        items_extracted=1,  # Single page
+        blocks_created=blocks_created,
+    )
 
     return {
         "blocks_created": blocks_created,

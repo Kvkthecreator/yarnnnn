@@ -760,6 +760,17 @@ async def start_slack_import(
             if request.config.style_user_id:
                 config_dict["style_user_id"] = request.config.style_user_id
 
+        # ADR-030: Build scope dict with defaults
+        scope_dict = {
+            "recency_days": 7,
+            "max_items": 200,
+            "include_threads": True
+        }
+        if request.scope:
+            scope_dict["recency_days"] = request.scope.recency_days
+            scope_dict["max_items"] = request.scope.max_items
+            scope_dict["include_threads"] = request.scope.include_threads
+
         # Create import job
         job_data = {
             "user_id": user_id,
@@ -769,6 +780,7 @@ async def start_slack_import(
             "project_id": request.project_id,
             "instructions": request.instructions,
             "config": config_dict if config_dict else None,
+            "scope": scope_dict,  # ADR-030
             "status": "pending",
             "progress": 0,
         }
@@ -962,6 +974,15 @@ async def start_notion_import(
             config_dict["learn_style"] = request.config.learn_style
             # style_user_id not applicable for Notion (no per-user filtering)
 
+        # ADR-030: Build scope dict with defaults (Notion-specific params)
+        scope_dict = {
+            "max_depth": 2,  # How deep to traverse child pages
+            "max_pages": 10  # Maximum pages to extract
+        }
+        if request.scope:
+            # Notion reuses max_items as max_pages
+            scope_dict["max_pages"] = request.scope.max_items
+
         # Create import job
         job_data = {
             "user_id": user_id,
@@ -971,6 +992,7 @@ async def start_notion_import(
             "project_id": request.project_id,
             "instructions": request.instructions,
             "config": config_dict if config_dict else None,
+            "scope": scope_dict,  # ADR-030
             "status": "pending",
             "progress": 0,
         }
