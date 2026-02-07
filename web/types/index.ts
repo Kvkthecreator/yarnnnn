@@ -597,6 +597,19 @@ export interface ScheduleConfig {
   cron?: string;
 }
 
+// ADR-030: Scope configuration for integration sources
+export type ScopeMode = "delta" | "fixed_window";
+
+export interface IntegrationSourceScope {
+  mode: ScopeMode;
+  fallback_days?: number;  // If no last_run_at, go back this many days
+  recency_days?: number;   // For fixed_window mode
+  max_items?: number;      // Safety limit
+  include_threads?: boolean;  // Slack
+  include_sent?: boolean;     // Gmail
+  max_depth?: number;         // Notion
+}
+
 export interface DataSource {
   type: DataSourceType;
   value: string;
@@ -605,6 +618,8 @@ export interface DataSource {
   provider?: IntegrationProvider;  // Required when type = "integration_import"
   source?: string;                 // "inbox", "thread:<id>", "query:<query>", channel ID, page ID
   filters?: IntegrationImportFilters;
+  // ADR-030: Scope configuration for delta extraction
+  scope?: IntegrationSourceScope;
 }
 
 // Quality trend for feedback loop tracking (ADR-018)

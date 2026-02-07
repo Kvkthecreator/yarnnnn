@@ -772,12 +772,24 @@ RECOMMENDATION: Option B with fallback to A
 - [x] Progress polling via existing `GET /integrations/import/{job_id}` endpoint
 - [x] Frontend progress indicator with phase labels and progress bar
 
-### Phase 5: Deliverable Source Configuration
+### Phase 5: Deliverable Source Configuration ✅
 
-- [ ] Delta extraction mode for recurring deliverables
-- [ ] Source scope configuration UI
-- [ ] Freshness indicators on deliverable sources
-- [ ] Failure handling for recurring deliverables
+- [x] Delta extraction mode for recurring deliverables
+  - `SourceFetchResult` class with time range tracking
+  - `last_run_at` based delta extraction in `fetch_integration_source_data`
+  - `IntegrationSourceScope` schema with `mode: 'delta' | 'fixed_window'`
+- [x] Source scope configuration UI (`DeliverableSettingsModal`)
+  - Extraction mode selector (delta vs fixed window)
+  - Fallback days / window size configuration
+  - Max items limit
+- [x] Freshness indicators on deliverable sources
+  - `deliverable_source_runs` table for tracking fetches
+  - `GET /deliverables/{id}/sources/freshness` API endpoint
+  - `source_fetch_summary` on versions
+- [x] Failure handling for recurring deliverables
+  - Source run status tracking (pending/fetching/completed/failed/skipped)
+  - Error message capture in source runs
+  - Partial success handling (some sources fail, others succeed)
 
 ### Phase 6: Optimization
 

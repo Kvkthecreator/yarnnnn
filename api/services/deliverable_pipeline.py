@@ -25,14 +25,39 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
-# ADR-029 Phase 2: Integration Data Source Fetching
+# ADR-029 Phase 2 + ADR-030 Phase 5: Integration Data Source Fetching
 # =============================================================================
+
+class SourceFetchResult:
+    """ADR-030: Result of fetching an integration source."""
+    def __init__(
+        self,
+        content: Optional[str] = None,
+        items_fetched: int = 0,
+        items_filtered: int = 0,
+        time_range_start: Optional[datetime] = None,
+        time_range_end: Optional[datetime] = None,
+        delta_mode_used: bool = False,
+        error: Optional[str] = None,
+    ):
+        self.content = content
+        self.items_fetched = items_fetched
+        self.items_filtered = items_filtered
+        self.time_range_start = time_range_start
+        self.time_range_end = time_range_end
+        self.delta_mode_used = delta_mode_used
+        self.error = error
+
 
 async def fetch_integration_source_data(
     client,
     user_id: str,
     source: dict,
-) -> Optional[str]:
+    last_run_at: Optional[datetime] = None,
+    deliverable_id: Optional[str] = None,
+    source_index: Optional[int] = None,
+    version_id: Optional[str] = None,
+) -> SourceFetchResult:
     """
     Fetch data from an integration source for the gather step.
 
@@ -40,25 +65,86 @@ async def fetch_integration_source_data(
     we fetch the actual data from the integration (Gmail, Slack, Notion)
     and include it in the context.
 
+    ADR-030 Phase 5: Supports delta extraction mode, tracking fetch results.
+
     Args:
         client: Supabase client
         user_id: User ID
-        source: Source dict with provider, source, filters
+        source: Source dict with provider, source, filters, scope
+        last_run_at: Deliverable's last_run_at for delta extraction
+        deliverable_id: For tracking source runs
+        source_index: Index of this source in the sources array
+        version_id: Version ID for tracking
 
     Returns:
-        Formatted context string, or None if fetch failed
+        SourceFetchResult with content and metadata
     """
     import os
+    from datetime import timedelta
     from integrations.core.client import MCPClientManager
     from integrations.core.token_manager import TokenManager
 
     provider = source.get("provider")
     source_query = source.get("source", "inbox")
     filters = source.get("filters", {})
+    scope = source.get("scope", {})
 
     if not provider:
         logger.warning("[GATHER] Integration source missing provider")
-        return None
+        return SourceFetchResult(error="Missing provider")
+
+    # ADR-030: Determine time range based on scope mode
+    scope_mode = scope.get("mode", "delta")
+    fallback_days = scope.get("fallback_days", 7)
+    recency_days = scope.get("recency_days")
+    max_items = scope.get("max_items", 200)
+
+    now = datetime.utcnow()
+    time_range_start = None
+    time_range_end = now
+    delta_mode_used = False
+
+    if scope_mode == "delta" and last_run_at:
+        # Delta mode: fetch since last run
+        time_range_start = last_run_at
+        delta_mode_used = True
+        logger.info(f"[GATHER] Delta mode: fetching since {last_run_at}")
+    elif scope_mode == "fixed_window" and recency_days:
+        # Fixed window mode: always fetch last N days
+        time_range_start = now - timedelta(days=recency_days)
+        logger.info(f"[GATHER] Fixed window: last {recency_days} days")
+    else:
+        # Fallback: use fallback_days
+        time_range_start = now - timedelta(days=fallback_days)
+        logger.info(f"[GATHER] Fallback: last {fallback_days} days")
+
+    # Merge time range into filters
+    enhanced_filters = filters.copy()
+    if time_range_start:
+        # Convert to "Nd" format for filter parsing
+        days_ago = (now - time_range_start).days
+        enhanced_filters["after"] = f"{days_ago}d"
+
+    # Track the source run if we have tracking context
+    source_run_id = None
+    if deliverable_id and source_index is not None:
+        try:
+            run_result = client.table("deliverable_source_runs").insert({
+                "deliverable_id": deliverable_id,
+                "version_id": version_id,
+                "source_index": source_index,
+                "source_type": "integration_import",
+                "provider": provider,
+                "resource_id": source_query,
+                "scope_used": scope,
+                "time_range_start": time_range_start.isoformat() if time_range_start else None,
+                "time_range_end": time_range_end.isoformat(),
+                "status": "fetching",
+            }).execute()
+            if run_result.data:
+                source_run_id = run_result.data[0]["id"]
+        except Exception as e:
+            logger.warning(f"[GATHER] Failed to create source run tracking: {e}")
 
     # Get user's integration
     integration_result = (
@@ -73,7 +159,10 @@ async def fetch_integration_source_data(
 
     if not integration_result.data:
         logger.warning(f"[GATHER] No active {provider} integration for user")
-        return None
+        error_msg = f"No active {provider} integration"
+        if source_run_id:
+            _update_source_run(client, source_run_id, "failed", error_message=error_msg)
+        return SourceFetchResult(error=error_msg)
 
     integration = integration_result.data
     token_manager = TokenManager()
@@ -81,24 +170,72 @@ async def fetch_integration_source_data(
 
     try:
         if provider == "gmail":
-            return await _fetch_gmail_data(
-                mcp_manager, token_manager, integration, user_id, source_query, filters
+            result = await _fetch_gmail_data(
+                mcp_manager, token_manager, integration, user_id,
+                source_query, enhanced_filters, max_items
             )
         elif provider == "slack":
-            return await _fetch_slack_data(
-                mcp_manager, token_manager, integration, user_id, source_query, filters
+            result = await _fetch_slack_data(
+                mcp_manager, token_manager, integration, user_id,
+                source_query, enhanced_filters, max_items
             )
         elif provider == "notion":
-            return await _fetch_notion_data(
-                mcp_manager, token_manager, integration, user_id, source_query, filters
+            result = await _fetch_notion_data(
+                mcp_manager, token_manager, integration, user_id,
+                source_query, enhanced_filters, max_items
             )
         else:
             logger.warning(f"[GATHER] Unsupported integration provider: {provider}")
-            return None
+            error_msg = f"Unsupported provider: {provider}"
+            if source_run_id:
+                _update_source_run(client, source_run_id, "failed", error_message=error_msg)
+            return SourceFetchResult(error=error_msg)
+
+        # Update source run with success
+        if source_run_id:
+            _update_source_run(
+                client, source_run_id, "completed",
+                items_fetched=result.items_fetched,
+                items_filtered=result.items_filtered,
+            )
+
+        # Enrich result with time range info
+        result.time_range_start = time_range_start
+        result.time_range_end = time_range_end
+        result.delta_mode_used = delta_mode_used
+        return result
 
     except Exception as e:
         logger.error(f"[GATHER] Failed to fetch {provider} data: {e}")
-        return None
+        error_msg = str(e)
+        if source_run_id:
+            _update_source_run(client, source_run_id, "failed", error_message=error_msg)
+        return SourceFetchResult(error=error_msg)
+
+
+def _update_source_run(
+    client,
+    source_run_id: str,
+    status: str,
+    items_fetched: int = 0,
+    items_filtered: int = 0,
+    error_message: Optional[str] = None,
+):
+    """Update a source run record with results."""
+    try:
+        update_data = {
+            "status": status,
+            "items_fetched": items_fetched,
+            "items_filtered": items_filtered,
+            "completed_at": datetime.utcnow().isoformat(),
+        }
+        if error_message:
+            update_data["error_message"] = error_message
+        client.table("deliverable_source_runs").update(update_data).eq(
+            "id", source_run_id
+        ).execute()
+    except Exception as e:
+        logger.warning(f"[GATHER] Failed to update source run: {e}")
 
 
 async def _fetch_gmail_data(
@@ -108,7 +245,8 @@ async def _fetch_gmail_data(
     user_id: str,
     source_query: str,
     filters: dict,
-) -> Optional[str]:
+    max_items: int = 30,
+) -> SourceFetchResult:
     """Fetch Gmail messages and format as context."""
     import os
 
@@ -116,11 +254,11 @@ async def _fetch_gmail_data(
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
 
     if not client_id or not client_secret:
-        return None
+        return SourceFetchResult(error="Missing Google OAuth credentials")
 
     refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
     if not refresh_token:
-        return None
+        return SourceFetchResult(error="Missing Gmail refresh token")
 
     # Build query from source and filters
     query_parts = []
@@ -138,7 +276,7 @@ async def _fetch_gmail_data(
         # Convert "7d" to date
         after_val = filters["after"]
         if after_val.endswith("d"):
-            from datetime import datetime, timedelta
+            from datetime import timedelta
             days = int(after_val[:-1])
             date_str = (datetime.now() - timedelta(days=days)).strftime("%Y/%m/%d")
             query_parts.append(f"after:{date_str}")
@@ -148,22 +286,28 @@ async def _fetch_gmail_data(
     query = " ".join(query_parts) if query_parts else None
 
     # Fetch messages
+    fetch_limit = min(max_items, 50)  # Cap at 50 for performance
     messages = await mcp_manager.list_gmail_messages(
         user_id=user_id,
         client_id=client_id,
         client_secret=client_secret,
         refresh_token=refresh_token,
         query=query,
-        max_results=30,
+        max_results=fetch_limit,
     )
 
     if not messages:
-        return "[Gmail] No messages found matching criteria"
+        return SourceFetchResult(
+            content="[Gmail] No messages found matching criteria",
+            items_fetched=0,
+        )
 
     # Fetch full content for top messages
+    items_to_fetch = min(len(messages), 15)  # Cap full fetch at 15
     lines = [f"[Gmail Integration Data - {len(messages)} messages]\n"]
+    items_fetched = 0
 
-    for msg in messages[:15]:
+    for msg in messages[:items_to_fetch]:
         msg_id = msg.get("id")
         if msg_id:
             try:
@@ -185,11 +329,16 @@ async def _fetch_gmail_data(
                     body = body[:500] + "..."
 
                 lines.append(f"---\nFrom: {from_addr}\nDate: {date}\nSubject: {subject}\n{body}\n")
+                items_fetched += 1
 
             except Exception as e:
                 logger.warning(f"[GATHER] Failed to fetch Gmail message {msg_id}: {e}")
 
-    return "\n".join(lines)
+    return SourceFetchResult(
+        content="\n".join(lines),
+        items_fetched=items_fetched,
+        items_filtered=len(messages) - items_fetched,
+    )
 
 
 async def _fetch_slack_data(
@@ -199,42 +348,52 @@ async def _fetch_slack_data(
     user_id: str,
     source_query: str,
     filters: dict,
-) -> Optional[str]:
+    max_items: int = 50,
+) -> SourceFetchResult:
     """Fetch Slack messages and format as context."""
     access_token = token_manager.decrypt(integration["access_token_encrypted"])
     metadata = integration.get("metadata", {}) or {}
     team_id = metadata.get("team_id")
 
     if not access_token or not team_id:
-        return None
+        return SourceFetchResult(error="Missing Slack credentials")
 
     channel_id = filters.get("channel_id") or source_query
 
     if not channel_id:
-        return "[Slack] No channel specified"
+        return SourceFetchResult(error="No Slack channel specified")
 
+    fetch_limit = min(max_items, 100)  # Cap at 100
     messages = await mcp_manager.get_slack_channel_history(
         user_id=user_id,
         channel_id=channel_id,
         bot_token=access_token,
         team_id=team_id,
-        limit=50,
+        limit=fetch_limit,
     )
 
     if not messages:
-        return "[Slack] No messages found in channel"
+        return SourceFetchResult(
+            content="[Slack] No messages found in channel",
+            items_fetched=0,
+        )
 
     lines = [f"[Slack Integration Data - #{channel_id} - {len(messages)} messages]\n"]
+    items_fetched = 0
 
-    for msg in messages[:30]:
+    for msg in messages[:50]:  # Cap output at 50 messages
         text = msg.get("text", "")
         user = msg.get("user", "unknown")
-        ts = msg.get("ts", "")
 
         if text:
             lines.append(f"[{user}] {text}")
+            items_fetched += 1
 
-    return "\n".join(lines)
+    return SourceFetchResult(
+        content="\n".join(lines),
+        items_fetched=items_fetched,
+        items_filtered=len(messages) - items_fetched,
+    )
 
 
 async def _fetch_notion_data(
@@ -244,17 +403,18 @@ async def _fetch_notion_data(
     user_id: str,
     source_query: str,
     filters: dict,
-) -> Optional[str]:
+    max_items: int = 10,
+) -> SourceFetchResult:
     """Fetch Notion page content and format as context."""
     access_token = token_manager.decrypt(integration["access_token_encrypted"])
 
     if not access_token:
-        return None
+        return SourceFetchResult(error="Missing Notion access token")
 
     page_id = filters.get("page_id") or source_query
 
     if not page_id:
-        return "[Notion] No page specified"
+        return SourceFetchResult(error="No Notion page specified")
 
     page_content = await mcp_manager.get_notion_page_content(
         user_id=user_id,
@@ -263,7 +423,10 @@ async def _fetch_notion_data(
     )
 
     if not page_content:
-        return "[Notion] Page not found or empty"
+        return SourceFetchResult(
+            content="[Notion] Page not found or empty",
+            items_fetched=0,
+        )
 
     title = page_content.get("title", "Untitled")
     content = page_content.get("content", "")
@@ -271,7 +434,11 @@ async def _fetch_notion_data(
     if len(content) > 3000:
         content = content[:3000] + "... [truncated]"
 
-    return f"[Notion Integration Data - {title}]\n\n{content}"
+    return SourceFetchResult(
+        content=f"[Notion Integration Data - {title}]\n\n{content}",
+        items_fetched=1,
+        items_filtered=0,
+    )
 
 
 # =============================================================================
@@ -1763,15 +1930,32 @@ async def execute_gather_step(
 
     ADR-029 Phase 2: For integration_import sources, we fetch actual data
     from the integration (Gmail, Slack, Notion) via MCP.
+
+    ADR-030 Phase 5: Supports delta extraction mode using last_run_at.
     """
+    from dateutil import parser as dateparser
+
     sources = deliverable.get("sources", [])
     title = deliverable.get("title", "Deliverable")
+    deliverable_id = deliverable.get("id")
+
+    # ADR-030: Get last_run_at for delta extraction
+    last_run_at = None
+    last_run_str = deliverable.get("last_run_at")
+    if last_run_str:
+        try:
+            last_run_at = dateparser.parse(last_run_str)
+            if last_run_at.tzinfo:
+                last_run_at = last_run_at.replace(tzinfo=None)  # Use naive UTC
+        except Exception as e:
+            logger.warning(f"[GATHER] Could not parse last_run_at: {e}")
 
     # Build gather prompt
     source_descriptions = []
     integration_data_sections = []
+    source_fetch_results = []
 
-    for source in sources:
+    for idx, source in enumerate(sources):
         source_type = source.get("type", "description")
         value = source.get("value", "")
         label = source.get("label", "")
@@ -1781,21 +1965,60 @@ async def execute_gather_step(
         elif source_type == "document":
             source_descriptions.append(f"- Document: {label or value}")
         elif source_type == "integration_import":
-            # ADR-029 Phase 2: Fetch actual data from integration
+            # ADR-029 Phase 2 + ADR-030 Phase 5: Fetch with delta extraction
             provider = source.get("provider", "unknown")
             source_query = source.get("source", "")
             source_descriptions.append(f"- Integration ({provider}): {source_query or 'default'}")
 
-            logger.info(f"[GATHER] Fetching {provider} integration data")
-            integration_data = await fetch_integration_source_data(
+            logger.info(f"[GATHER] Fetching {provider} integration data (delta={last_run_at is not None})")
+            fetch_result = await fetch_integration_source_data(
                 client=client,
                 user_id=user_id,
                 source=source,
+                last_run_at=last_run_at,
+                deliverable_id=deliverable_id,
+                source_index=idx,
+                version_id=version_id,
             )
-            if integration_data:
-                integration_data_sections.append(integration_data)
+            source_fetch_results.append(fetch_result)
+
+            if fetch_result.content:
+                integration_data_sections.append(fetch_result.content)
+            elif fetch_result.error:
+                logger.warning(f"[GATHER] Source fetch error: {fetch_result.error}")
         else:
             source_descriptions.append(f"- Context: {value}")
+
+    # ADR-030: Compute source fetch summary
+    sources_total = len([s for s in sources if s.get("type") == "integration_import"])
+    sources_succeeded = len([r for r in source_fetch_results if r.content and not r.error])
+    sources_failed = len([r for r in source_fetch_results if r.error])
+    delta_mode_used = any(r.delta_mode_used for r in source_fetch_results)
+
+    # Store source fetch summary on the version
+    if source_fetch_results:
+        try:
+            time_range_start = min(
+                (r.time_range_start for r in source_fetch_results if r.time_range_start),
+                default=None
+            )
+            time_range_end = max(
+                (r.time_range_end for r in source_fetch_results if r.time_range_end),
+                default=None
+            )
+            summary = {
+                "sources_total": sources_total,
+                "sources_succeeded": sources_succeeded,
+                "sources_failed": sources_failed,
+                "delta_mode_used": delta_mode_used,
+                "time_range_start": time_range_start.isoformat() if time_range_start else None,
+                "time_range_end": time_range_end.isoformat() if time_range_end else None,
+            }
+            client.table("deliverable_versions").update({
+                "source_fetch_summary": summary,
+            }).eq("id", version_id).execute()
+        except Exception as e:
+            logger.warning(f"[GATHER] Failed to update source fetch summary: {e}")
 
     sources_text = "\n".join(source_descriptions) if source_descriptions else "No specific sources configured"
 

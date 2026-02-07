@@ -435,11 +435,31 @@ class ScheduleConfig(BaseModel):
     cron: Optional[str] = None  # For custom frequency
 
 
+class IntegrationSourceScope(BaseModel):
+    """ADR-030: Scope configuration for integration sources."""
+    mode: Literal["delta", "fixed_window"] = "delta"
+    # Delta mode: fetch since last_run_at (or fallback_days if first run)
+    fallback_days: int = 7  # If no last_run_at, go back this many days
+    # Fixed window mode: always fetch last N days
+    recency_days: Optional[int] = None
+    # Safety limits
+    max_items: int = 200
+    # Provider-specific options
+    include_threads: bool = True  # Slack
+    include_sent: bool = True  # Gmail
+    max_depth: int = 2  # Notion
+
+
 class DataSource(BaseModel):
     """A source of information for the deliverable."""
-    type: Literal["url", "document", "description"]
+    type: Literal["url", "document", "description", "integration_import"]
     value: str  # URL, document_id, or description text
     label: Optional[str] = None
+    # ADR-030: Integration source fields
+    provider: Optional[Literal["gmail", "slack", "notion"]] = None
+    source: Optional[str] = None  # inbox, query:..., channel_id, page_id
+    filters: Optional[dict] = None  # Provider-specific filters
+    scope: Optional[IntegrationSourceScope] = None
 
 
 class DeliverableCreate(BaseModel):
@@ -501,9 +521,21 @@ class DeliverableResponse(BaseModel):
     quality_score: Optional[float] = None  # Latest edit_distance_score (0=no edits, 1=full rewrite)
     quality_trend: Optional[str] = None  # "improving", "stable", "declining"
     avg_edit_distance: Optional[float] = None  # Average over last 5 versions
+    # ADR-030: Source freshness
+    source_freshness: Optional[list[dict]] = None  # [{source_index, provider, last_fetched_at, is_stale}]
     # Legacy fields (for backwards compatibility)
     description: Optional[str] = None
     template_structure: Optional[dict] = None
+
+
+class SourceFetchSummary(BaseModel):
+    """ADR-030: Summary of source fetches for a version."""
+    sources_total: int = 0
+    sources_succeeded: int = 0
+    sources_failed: int = 0
+    delta_mode_used: bool = False
+    time_range_start: Optional[str] = None
+    time_range_end: Optional[str] = None
 
 
 class VersionResponse(BaseModel):
@@ -525,6 +557,8 @@ class VersionResponse(BaseModel):
     delivery_external_id: Optional[str] = None
     delivery_external_url: Optional[str] = None
     delivered_at: Optional[str] = None
+    # ADR-030: Source fetch summary
+    source_fetch_summary: Optional[SourceFetchSummary] = None
 
 
 class VersionUpdate(BaseModel):
@@ -532,6 +566,20 @@ class VersionUpdate(BaseModel):
     status: Optional[Literal["reviewing", "approved", "rejected"]] = None
     final_content: Optional[str] = None
     feedback_notes: Optional[str] = None
+
+
+def _parse_source_fetch_summary(summary_dict: Optional[dict]) -> Optional[SourceFetchSummary]:
+    """Parse raw source_fetch_summary dict from DB into typed response."""
+    if not summary_dict:
+        return None
+    return SourceFetchSummary(
+        sources_total=summary_dict.get("sources_total", 0),
+        sources_succeeded=summary_dict.get("sources_succeeded", 0),
+        sources_failed=summary_dict.get("sources_failed", 0),
+        delta_mode_used=summary_dict.get("delta_mode_used", False),
+        time_range_start=summary_dict.get("time_range_start"),
+        time_range_end=summary_dict.get("time_range_end"),
+    )
 
 
 # =============================================================================
@@ -1045,6 +1093,115 @@ async def trigger_run(
 
 
 # =============================================================================
+# ADR-030: Source Freshness Routes
+# =============================================================================
+
+class SourceFreshnessItem(BaseModel):
+    """ADR-030: Freshness info for a single source."""
+    source_index: int
+    source_type: str
+    provider: Optional[str] = None
+    last_fetched_at: Optional[str] = None
+    last_status: Optional[str] = None
+    items_fetched: int = 0
+    is_stale: bool = True
+
+
+@router.get("/{deliverable_id}/sources/freshness")
+async def get_source_freshness(
+    deliverable_id: UUID,
+    auth: UserClient,
+) -> list[SourceFreshnessItem]:
+    """
+    ADR-030: Get freshness info for all sources of a deliverable.
+
+    Returns when each source was last fetched, how many items were retrieved,
+    and whether the source is considered stale (>7 days since last fetch).
+    """
+    # Verify ownership
+    check = (
+        auth.client.table("deliverables")
+        .select("id, sources")
+        .eq("id", str(deliverable_id))
+        .eq("user_id", auth.user_id)
+        .single()
+        .execute()
+    )
+
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Deliverable not found")
+
+    deliverable = check.data
+    sources = deliverable.get("sources", [])
+
+    # Get latest source run for each source
+    runs_result = (
+        auth.client.table("deliverable_source_runs")
+        .select("source_index, source_type, provider, completed_at, status, items_fetched")
+        .eq("deliverable_id", str(deliverable_id))
+        .order("completed_at", desc=True)
+        .execute()
+    )
+
+    runs = runs_result.data or []
+
+    # Group by source_index, taking the most recent
+    latest_by_index: dict[int, dict] = {}
+    for run in runs:
+        idx = run["source_index"]
+        if idx not in latest_by_index:
+            latest_by_index[idx] = run
+
+    # Build response for all sources
+    result = []
+    from datetime import datetime, timedelta, timezone
+
+    stale_threshold = datetime.now(timezone.utc) - timedelta(days=7)
+
+    for idx, source in enumerate(sources):
+        source_type = source.get("type", "description")
+
+        # Only integration sources have freshness tracking
+        if source_type != "integration_import":
+            continue
+
+        latest = latest_by_index.get(idx)
+        if latest:
+            completed_at = latest.get("completed_at")
+            is_stale = True
+            if completed_at:
+                try:
+                    from dateutil import parser as dateparser
+                    completed_dt = dateparser.parse(completed_at)
+                    is_stale = completed_dt < stale_threshold
+                except Exception:
+                    pass
+
+            result.append(SourceFreshnessItem(
+                source_index=idx,
+                source_type=source_type,
+                provider=source.get("provider"),
+                last_fetched_at=completed_at,
+                last_status=latest.get("status"),
+                items_fetched=latest.get("items_fetched", 0),
+                is_stale=is_stale,
+            ))
+        else:
+            # No run yet - definitely stale
+            result.append(SourceFreshnessItem(
+                source_index=idx,
+                source_type=source_type,
+                provider=source.get("provider"),
+                last_fetched_at=None,
+                last_status=None,
+                items_fetched=0,
+                is_stale=True,
+            ))
+
+    return result
+
+
+# =============================================================================
 # Version Management Routes
 # =============================================================================
 
@@ -1094,6 +1251,8 @@ async def list_versions(
             created_at=v["created_at"],
             staged_at=v.get("staged_at"),
             approved_at=v.get("approved_at"),
+            # ADR-030: Source fetch summary
+            source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
         )
         for v in versions
     ]
@@ -1152,6 +1311,8 @@ async def get_version(
         delivery_external_id=v.get("delivery_external_id"),
         delivery_external_url=v.get("delivery_external_url"),
         delivered_at=v.get("delivered_at"),
+        # ADR-030: Source fetch summary
+        source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
     )
 
 

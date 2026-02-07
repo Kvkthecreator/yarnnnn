@@ -43,6 +43,8 @@ import type {
   ScheduleFrequency,
   Destination,
   GovernanceLevel,
+  IntegrationSourceScope,
+  ScopeMode,
 } from '@/types';
 
 interface DeliverableSettingsModalProps {
@@ -138,6 +140,12 @@ export function DeliverableSettingsModal({
     subject_contains?: string;
     after?: string;
   }>({});
+  // ADR-030: Scope configuration for integration sources
+  const [newSourceScope, setNewSourceScope] = useState<IntegrationSourceScope>({
+    mode: 'delta',
+    fallback_days: 7,
+    max_items: 200,
+  });
 
   // Reset form when deliverable changes
   useEffect(() => {
@@ -181,7 +189,7 @@ export function DeliverableSettingsModal({
   };
 
   const addSource = () => {
-    // ADR-029 Phase 2: Handle integration_import sources
+    // ADR-029 Phase 2 + ADR-030: Handle integration_import sources with scope
     if (newSourceType === 'integration_import') {
       const newSource: DataSource = {
         type: 'integration_import',
@@ -190,10 +198,12 @@ export function DeliverableSettingsModal({
         provider: newSourceProvider,
         source: newSourceQuery,
         filters: Object.keys(newSourceFilters).length > 0 ? newSourceFilters : undefined,
+        scope: newSourceScope,
       };
       setSources([...sources, newSource]);
       setNewSourceQuery('inbox');
       setNewSourceFilters({});
+      setNewSourceScope({ mode: 'delta', fallback_days: 7, max_items: 200 });
       return;
     }
 
@@ -339,9 +349,10 @@ export function DeliverableSettingsModal({
                     )}
                     <span className="flex-1 truncate">
                       {source.label || source.value}
-                      {source.type === 'integration_import' && source.filters && Object.keys(source.filters).length > 0 && (
+                      {source.type === 'integration_import' && (
                         <span className="text-xs text-muted-foreground ml-1">
-                          (filtered)
+                          {source.scope?.mode === 'delta' ? '(delta)' : source.scope?.mode === 'fixed_window' ? `(${source.scope.recency_days || 7}d)` : ''}
+                          {source.filters && Object.keys(source.filters).length > 0 ? ' filtered' : ''}
                         </span>
                       )}
                     </span>
@@ -498,6 +509,107 @@ export function DeliverableSettingsModal({
                       </p>
                     </div>
                   )}
+
+                  {/* ADR-030: Scope configuration for delta extraction */}
+                  <div className="pt-3 border-t border-border">
+                    <label className="block text-xs font-medium mb-2">
+                      Extraction Mode
+                    </label>
+                    <div className="grid grid-cols-2 gap-2 mb-3">
+                      <button
+                        type="button"
+                        onClick={() => setNewSourceScope({ ...newSourceScope, mode: 'delta' })}
+                        className={cn(
+                          "p-2 rounded-md border text-left transition-colors",
+                          newSourceScope.mode === 'delta'
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-muted-foreground/50"
+                        )}
+                      >
+                        <div className="text-xs font-medium">Delta</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Since last run
+                        </div>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setNewSourceScope({ ...newSourceScope, mode: 'fixed_window' })}
+                        className={cn(
+                          "p-2 rounded-md border text-left transition-colors",
+                          newSourceScope.mode === 'fixed_window'
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-muted-foreground/50"
+                        )}
+                      >
+                        <div className="text-xs font-medium">Fixed Window</div>
+                        <div className="text-[10px] text-muted-foreground">
+                          Always last N days
+                        </div>
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      {newSourceScope.mode === 'delta' ? (
+                        <div>
+                          <label className="block text-[10px] font-medium text-muted-foreground mb-1">
+                            Fallback (first run)
+                          </label>
+                          <select
+                            value={newSourceScope.fallback_days || 7}
+                            onChange={(e) => setNewSourceScope({
+                              ...newSourceScope,
+                              fallback_days: parseInt(e.target.value)
+                            })}
+                            className="w-full px-2 py-1.5 border border-border rounded-md text-xs"
+                          >
+                            <option value={1}>1 day</option>
+                            <option value={3}>3 days</option>
+                            <option value={7}>7 days</option>
+                            <option value={14}>14 days</option>
+                            <option value={30}>30 days</option>
+                          </select>
+                        </div>
+                      ) : (
+                        <div>
+                          <label className="block text-[10px] font-medium text-muted-foreground mb-1">
+                            Window size
+                          </label>
+                          <select
+                            value={newSourceScope.recency_days || 7}
+                            onChange={(e) => setNewSourceScope({
+                              ...newSourceScope,
+                              recency_days: parseInt(e.target.value)
+                            })}
+                            className="w-full px-2 py-1.5 border border-border rounded-md text-xs"
+                          >
+                            <option value={1}>1 day</option>
+                            <option value={3}>3 days</option>
+                            <option value={7}>7 days</option>
+                            <option value={14}>14 days</option>
+                            <option value={30}>30 days</option>
+                          </select>
+                        </div>
+                      )}
+                      <div>
+                        <label className="block text-[10px] font-medium text-muted-foreground mb-1">
+                          Max items
+                        </label>
+                        <select
+                          value={newSourceScope.max_items || 200}
+                          onChange={(e) => setNewSourceScope({
+                            ...newSourceScope,
+                            max_items: parseInt(e.target.value)
+                          })}
+                          className="w-full px-2 py-1.5 border border-border rounded-md text-xs"
+                        >
+                          <option value={50}>50</option>
+                          <option value={100}>100</option>
+                          <option value={200}>200</option>
+                          <option value={500}>500</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
 
                   <button
                     onClick={addSource}
