@@ -791,12 +791,24 @@ RECOMMENDATION: Option B with fallback to A
   - Error message capture in source runs
   - Partial success handling (some sources fail, others succeed)
 
-### Phase 6: Optimization
+### Phase 6: Optimization ✅
 
-- [ ] Haiku for extraction (cost reduction)
-- [ ] Parallel fetching where safe
-- [ ] Incremental/delta extraction
-- [ ] Caching layer for repeated imports
+- [x] Haiku for extraction (cost reduction)
+  - `extract_with_haiku()` function uses `claude-3-5-haiku-20241022` for content filtering
+  - ~10x cheaper than Sonnet for extraction tasks
+  - Auto-applied when content > 2000 chars (configurable via `use_haiku_extraction`)
+  - Extracts "key decisions, action items, and important updates" by default
+- [x] Parallel fetching where safe
+  - `asyncio.gather()` for fetching multiple integration sources concurrently
+  - Different providers (Gmail, Slack, Notion) fetched in parallel
+  - Same provider sources also parallelized (different API endpoints)
+  - Exception handling preserves partial results
+- [x] Incremental/delta extraction (done in Phase 5)
+- [x] Caching layer for repeated imports
+  - In-memory TTL cache (15 min default) for source fetch results
+  - Cache key: hash of (user_id, provider, source_query, time_range_start)
+  - Cached results still tracked in `deliverable_source_runs` (marked as cached)
+  - Max 100 cached entries with LRU eviction
 
 ---
 

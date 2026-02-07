@@ -16,12 +16,115 @@ Type-specific prompts and validation ensure quality for each deliverable type.
 import logging
 import json
 import re
-from datetime import datetime
+import asyncio
+import hashlib
+from datetime import datetime, timedelta
 from typing import Optional, Literal
+from functools import lru_cache
 
 from services.work_execution import execute_work_ticket
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ADR-030 Phase 6: Optimization - Caching and Model Selection
+# =============================================================================
+
+# In-memory cache for source fetches (TTL-based)
+# Key: hash of (user_id, provider, source_query, time_range_start)
+# Value: (SourceFetchResult, cached_at)
+_source_fetch_cache: dict[str, tuple[any, datetime]] = {}
+_CACHE_TTL_MINUTES = 15  # Cache integration fetches for 15 minutes
+
+# Haiku model for cost-effective extraction
+HAIKU_MODEL = "claude-3-5-haiku-20241022"
+SONNET_MODEL = "claude-sonnet-4-20250514"
+
+
+def _cache_key(user_id: str, provider: str, source_query: str, time_range_start: Optional[datetime]) -> str:
+    """Generate a cache key for source fetch results."""
+    time_str = time_range_start.isoformat() if time_range_start else "none"
+    key_data = f"{user_id}:{provider}:{source_query}:{time_str}"
+    return hashlib.md5(key_data.encode()).hexdigest()
+
+
+def _get_cached_result(cache_key: str) -> Optional[any]:
+    """Get cached result if not expired."""
+    if cache_key not in _source_fetch_cache:
+        return None
+    result, cached_at = _source_fetch_cache[cache_key]
+    if datetime.utcnow() - cached_at > timedelta(minutes=_CACHE_TTL_MINUTES):
+        del _source_fetch_cache[cache_key]
+        return None
+    return result
+
+
+def _set_cached_result(cache_key: str, result: any) -> None:
+    """Cache a result with current timestamp."""
+    _source_fetch_cache[cache_key] = (result, datetime.utcnow())
+    # Cleanup old entries periodically (keep max 100 entries)
+    if len(_source_fetch_cache) > 100:
+        oldest_key = min(_source_fetch_cache, key=lambda k: _source_fetch_cache[k][1])
+        del _source_fetch_cache[oldest_key]
+
+
+async def extract_with_haiku(
+    raw_content: str,
+    extraction_goal: str,
+    max_output_chars: int = 3000,
+) -> str:
+    """
+    ADR-030 Phase 6: Use Haiku for cost-effective content extraction.
+
+    Haiku is ~10x cheaper than Sonnet and faster for extraction tasks.
+    Use this for:
+    - Filtering noise from integration data
+    - Summarizing large batches of messages
+    - Extracting key information before synthesis
+
+    Args:
+        raw_content: Raw content from integration
+        extraction_goal: What to extract (e.g., "decisions and action items")
+        max_output_chars: Maximum output length
+
+    Returns:
+        Extracted/filtered content
+    """
+    from services.anthropic import chat_completion
+
+    if not raw_content or len(raw_content) < 100:
+        return raw_content
+
+    # Truncate if too large for Haiku context
+    if len(raw_content) > 50000:
+        raw_content = raw_content[:50000] + "\n\n[Content truncated for processing]"
+
+    system = f"""You are a context extraction assistant. Your job is to filter and extract relevant information.
+
+EXTRACTION GOAL: {extraction_goal}
+
+RULES:
+- Extract only information relevant to the goal
+- Remove noise, small talk, and off-topic content
+- Preserve key details: names, dates, decisions, action items
+- Keep the output concise (max {max_output_chars} characters)
+- Use bullet points or brief summaries
+- If nothing relevant is found, say "No relevant content found."
+
+Output the extracted content directly, no preamble."""
+
+    try:
+        result = await chat_completion(
+            messages=[{"role": "user", "content": raw_content}],
+            system=system,
+            model=HAIKU_MODEL,
+            max_tokens=max_output_chars // 3,  # Rough chars to tokens
+        )
+        return result.strip()
+    except Exception as e:
+        logger.warning(f"[HAIKU] Extraction failed, using raw content: {e}")
+        return raw_content[:max_output_chars]
 
 
 # =============================================================================
@@ -125,6 +228,43 @@ async def fetch_integration_source_data(
         days_ago = (now - time_range_start).days
         enhanced_filters["after"] = f"{days_ago}d"
 
+    # ADR-030 Phase 6: Check cache for recent fetches
+    use_haiku = scope.get("use_haiku_extraction", True)  # Default to Haiku for cost savings
+    cache_key = _cache_key(user_id, provider, source_query, time_range_start)
+    cached = _get_cached_result(cache_key)
+    if cached:
+        logger.info(f"[GATHER] Using cached result for {provider}:{source_query}")
+        # Still track the source run even for cached results
+        if deliverable_id and source_index is not None:
+            try:
+                client.table("deliverable_source_runs").insert({
+                    "deliverable_id": deliverable_id,
+                    "version_id": version_id,
+                    "source_index": source_index,
+                    "source_type": "integration_import",
+                    "provider": provider,
+                    "resource_id": source_query,
+                    "scope_used": {**scope, "cached": True},
+                    "time_range_start": time_range_start.isoformat() if time_range_start else None,
+                    "time_range_end": time_range_end.isoformat(),
+                    "status": "completed",
+                    "items_fetched": cached.items_fetched,
+                    "content_summary": "[cached result]",
+                    "completed_at": datetime.utcnow().isoformat(),
+                }).execute()
+            except Exception as e:
+                logger.warning(f"[GATHER] Failed to track cached source run: {e}")
+        # Clone the cached result with updated time info
+        result = SourceFetchResult(
+            content=cached.content,
+            items_fetched=cached.items_fetched,
+            items_filtered=cached.items_filtered,
+            time_range_start=time_range_start,
+            time_range_end=time_range_end,
+            delta_mode_used=delta_mode_used,
+        )
+        return result
+
     # Track the source run if we have tracking context
     source_run_id = None
     if deliverable_id and source_index is not None:
@@ -190,6 +330,24 @@ async def fetch_integration_source_data(
             if source_run_id:
                 _update_source_run(client, source_run_id, "failed", error_message=error_msg)
             return SourceFetchResult(error=error_msg)
+
+        # ADR-030 Phase 6: Apply Haiku extraction if enabled and content is large
+        if use_haiku and result.content and len(result.content) > 2000:
+            extraction_goal = scope.get("extraction_goal", "key decisions, action items, and important updates")
+            logger.info(f"[GATHER] Applying Haiku extraction for {provider} ({len(result.content)} chars)")
+            extracted = await extract_with_haiku(
+                raw_content=result.content,
+                extraction_goal=extraction_goal,
+                max_output_chars=3000,
+            )
+            # Track how much was filtered
+            original_len = len(result.content)
+            result.content = extracted
+            result.items_filtered = result.items_filtered + (original_len - len(extracted)) // 100  # Rough estimate
+
+        # ADR-030 Phase 6: Cache the result
+        _set_cached_result(cache_key, result)
+        logger.info(f"[GATHER] Cached result for {provider}:{source_query}")
 
         # Update source run with success
         if source_run_id:
@@ -1955,6 +2113,8 @@ async def execute_gather_step(
     integration_data_sections = []
     source_fetch_results = []
 
+    # ADR-030 Phase 6: Collect integration sources for parallel fetching
+    integration_sources = []
     for idx, source in enumerate(sources):
         source_type = source.get("type", "description")
         value = source.get("value", "")
@@ -1965,13 +2125,24 @@ async def execute_gather_step(
         elif source_type == "document":
             source_descriptions.append(f"- Document: {label or value}")
         elif source_type == "integration_import":
-            # ADR-029 Phase 2 + ADR-030 Phase 5: Fetch with delta extraction
             provider = source.get("provider", "unknown")
             source_query = source.get("source", "")
             source_descriptions.append(f"- Integration ({provider}): {source_query or 'default'}")
+            integration_sources.append((idx, source))
+        else:
+            source_descriptions.append(f"- Context: {value}")
 
-            logger.info(f"[GATHER] Fetching {provider} integration data (delta={last_run_at is not None})")
-            fetch_result = await fetch_integration_source_data(
+    # ADR-030 Phase 6: Parallel fetching for integration sources
+    # Different providers can be fetched in parallel safely
+    # Same provider sources are also safe as they use different API endpoints
+    if integration_sources:
+        logger.info(f"[GATHER] Fetching {len(integration_sources)} integration sources in parallel")
+
+        async def fetch_with_index(idx: int, source: dict) -> tuple[int, SourceFetchResult]:
+            """Wrapper to track source index with result."""
+            provider = source.get("provider", "unknown")
+            logger.info(f"[GATHER] Parallel fetch: {provider} (delta={last_run_at is not None})")
+            result = await fetch_integration_source_data(
                 client=client,
                 user_id=user_id,
                 source=source,
@@ -1980,14 +2151,24 @@ async def execute_gather_step(
                 source_index=idx,
                 version_id=version_id,
             )
-            source_fetch_results.append(fetch_result)
+            return (idx, result)
 
-            if fetch_result.content:
-                integration_data_sections.append(fetch_result.content)
-            elif fetch_result.error:
-                logger.warning(f"[GATHER] Source fetch error: {fetch_result.error}")
-        else:
-            source_descriptions.append(f"- Context: {value}")
+        # Fetch all integration sources in parallel
+        fetch_tasks = [fetch_with_index(idx, source) for idx, source in integration_sources]
+        indexed_results = await asyncio.gather(*fetch_tasks, return_exceptions=True)
+
+        # Process results in order
+        for item in indexed_results:
+            if isinstance(item, Exception):
+                logger.error(f"[GATHER] Parallel fetch exception: {item}")
+                source_fetch_results.append(SourceFetchResult(error=str(item)))
+            else:
+                idx, fetch_result = item
+                source_fetch_results.append(fetch_result)
+                if fetch_result.content:
+                    integration_data_sections.append(fetch_result.content)
+                elif fetch_result.error:
+                    logger.warning(f"[GATHER] Source fetch error: {fetch_result.error}")
 
     # ADR-030: Compute source fetch summary
     sources_total = len([s for s in sources if s.get("type") == "integration_import"])
