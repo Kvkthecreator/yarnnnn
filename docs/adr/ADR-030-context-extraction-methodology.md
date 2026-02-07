@@ -765,12 +765,12 @@ RECOMMENDATION: Option B with fallback to A
 - [x] Freshness/staleness indicators (last extracted date, coverage state)
 - [x] Scope configuration UI (`ScopeConfiguration` component)
 
-### Phase 4: Progress Tracking
+### Phase 4: Progress Tracking ✅
 
 - [x] Add progress_details field to import_jobs table (migration 027)
-- [ ] Implement progress callbacks in fetch logic
-- [ ] Create progress polling endpoint
-- [ ] Frontend progress indicator component
+- [x] Implement progress callbacks in fetch logic (`update_job_progress`)
+- [x] Progress polling via existing `GET /integrations/import/{job_id}` endpoint
+- [x] Frontend progress indicator with phase labels and progress bar
 
 ### Phase 5: Deliverable Source Configuration
 
