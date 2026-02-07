@@ -522,41 +522,86 @@ export const api = {
         body: JSON.stringify(data),
       }),
 
-    // Danger Zone operations
+    // Data & Privacy operations
     // Get stats for danger zone (counts of what will be affected)
     getDangerZoneStats: () =>
       request<{
+        // Tier 1: Individual data types
         chat_sessions: number;
         memories: number;
+        documents: number;
+        work_tickets: number;
+        // Content subtotals
         deliverables: number;
         deliverable_versions: number;
-        documents: number;
+        work_outputs: number;
+        // Integrations
+        user_integrations: number;
+        integration_import_jobs: number;
+        export_logs: number;
+        // Hierarchy
         projects: number;
         workspaces: number;
       }>("/api/account/danger-zone/stats"),
 
-    // Clear all chat history
+    // Tier 1: Selective Purge (individual data types)
     clearChatHistory: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
         "/api/account/chat-history",
         { method: "DELETE" }
       ),
 
-    // Delete all deliverables
+    clearMemories: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/memories",
+        { method: "DELETE" }
+      ),
+
+    clearDocuments: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/documents",
+        { method: "DELETE" }
+      ),
+
+    clearWork: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/work",
+        { method: "DELETE" }
+      ),
+
+    // Tier 2: Category Reset (grouped deletions)
+    clearContent: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/content",
+        { method: "DELETE" }
+      ),
+
+    clearContext: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/context",
+        { method: "DELETE" }
+      ),
+
+    clearIntegrations: () =>
+      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
+        "/api/account/integrations",
+        { method: "DELETE" }
+      ),
+
+    // Legacy endpoint (backward compatibility)
     deleteAllDeliverables: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
         "/api/account/deliverables",
         { method: "DELETE" }
       ),
 
-    // Full account reset (keeps account, deletes all data)
+    // Tier 3: Full Actions (high impact)
     resetAccount: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
         "/api/account/reset",
         { method: "DELETE" }
       ),
 
-    // Deactivate account (permanent deletion)
     deactivateAccount: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
         "/api/account/deactivate",

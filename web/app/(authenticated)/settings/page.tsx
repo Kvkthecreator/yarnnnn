@@ -22,6 +22,10 @@ import {
   Link2,
   ExternalLink,
   X,
+  Shield,
+  Package,
+  Database,
+  Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import type { Project } from "@/types";
@@ -39,11 +43,20 @@ interface MemoryStats {
 }
 
 interface DangerZoneStats {
+  // Tier 1: Individual data types
   chat_sessions: number;
   memories: number;
+  documents: number;
+  work_tickets: number;
+  // Content subtotals
   deliverables: number;
   deliverable_versions: number;
-  documents: number;
+  work_outputs: number;
+  // Integrations
+  user_integrations: number;
+  integration_import_jobs: number;
+  export_logs: number;
+  // Hierarchy
   projects: number;
   workspaces: number;
 }
@@ -65,7 +78,20 @@ interface Integration {
 }
 
 type SettingsTab = "memory" | "billing" | "usage" | "notifications" | "integrations" | "account";
-type DangerAction = "memories" | "chat" | "deliverables" | "reset" | "deactivate" | null;
+type DangerAction =
+  // Tier 1: Selective purge
+  | "chat"
+  | "memories"
+  | "documents"
+  | "work"
+  // Tier 2: Category reset
+  | "content"
+  | "context"
+  | "integrations"
+  // Tier 3: Full actions
+  | "reset"
+  | "deactivate"
+  | null;
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -347,14 +373,37 @@ export default function SettingsPage() {
     try {
       let result;
       switch (dangerAction) {
+        // Tier 1: Selective purge
         case "chat":
           result = await api.account.clearChatHistory();
           setPurgeSuccess(result.message);
           break;
-        case "deliverables":
-          result = await api.account.deleteAllDeliverables();
+        case "memories":
+          result = await api.account.clearMemories();
           setPurgeSuccess(result.message);
           break;
+        case "documents":
+          result = await api.account.clearDocuments();
+          setPurgeSuccess(result.message);
+          break;
+        case "work":
+          result = await api.account.clearWork();
+          setPurgeSuccess(result.message);
+          break;
+        // Tier 2: Category reset
+        case "content":
+          result = await api.account.clearContent();
+          setPurgeSuccess(result.message);
+          break;
+        case "context":
+          result = await api.account.clearContext();
+          setPurgeSuccess(result.message);
+          break;
+        case "integrations":
+          result = await api.account.clearIntegrations();
+          setPurgeSuccess(result.message);
+          break;
+        // Tier 3: Full actions
         case "reset":
           result = await api.account.resetAccount();
           setPurgeSuccess(result.message);
@@ -1107,41 +1156,16 @@ export default function SettingsPage() {
             )}
           </section>
 
-          {/* Memory Danger Zone */}
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2 text-destructive">
-              <AlertTriangle className="w-5 h-5" />
-              Danger Zone
-            </h2>
-
-            <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="font-medium">Delete All Memories</div>
-                  <div className="text-sm text-muted-foreground">
-                    Permanently delete all user and project memories. This cannot be undone.
-                  </div>
-                </div>
-                <button
-                  onClick={initiateAllMemoryPurge}
-                  disabled={!stats || stats.totalMemories === 0}
-                  className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  Delete All
-                </button>
-              </div>
-            </div>
-          </section>
         </>
       )}
 
-      {/* Account Tab */}
+      {/* Account Tab - Data & Privacy */}
       {activeTab === "account" && (
         <section className="mb-8">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-semibold flex items-center gap-2">
-              <User className="w-5 h-5" />
-              Account Data
+              <Shield className="w-5 h-5" />
+              Data & Privacy
             </h2>
             <button
               onClick={loadDangerZoneStats}
@@ -1152,6 +1176,9 @@ export default function SettingsPage() {
               <RefreshCw className={`w-4 h-4 ${isLoadingDangerStats ? "animate-spin" : ""}`} />
             </button>
           </div>
+          <p className="text-sm text-muted-foreground mb-6">
+            Manage your data and privacy settings. All deletions are permanent.
+          </p>
 
           {isLoadingDangerStats ? (
             <div className="flex items-center justify-center py-8">
@@ -1159,12 +1186,12 @@ export default function SettingsPage() {
             </div>
           ) : dangerStats ? (
             <>
-              {/* Data Summary */}
+              {/* Data Summary Grid */}
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
                 <div className="p-4 border border-border rounded-lg text-center">
                   <MessageSquare className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                   <div className="text-2xl font-bold">{dangerStats.chat_sessions}</div>
-                  <div className="text-xs text-muted-foreground">Chat Sessions</div>
+                  <div className="text-xs text-muted-foreground">Chats</div>
                 </div>
                 <div className="p-4 border border-border rounded-lg text-center">
                   <Brain className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
@@ -1173,108 +1200,243 @@ export default function SettingsPage() {
                 </div>
                 <div className="p-4 border border-border rounded-lg text-center">
                   <FileText className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
+                  <div className="text-2xl font-bold">{dangerStats.documents}</div>
+                  <div className="text-xs text-muted-foreground">Docs</div>
+                </div>
+                <div className="p-4 border border-border rounded-lg text-center">
+                  <Package className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
                   <div className="text-2xl font-bold">{dangerStats.deliverables}</div>
                   <div className="text-xs text-muted-foreground">Deliverables</div>
                 </div>
-                <div className="p-4 border border-border rounded-lg text-center">
-                  <FolderOpen className="w-5 h-5 mx-auto mb-2 text-muted-foreground" />
-                  <div className="text-2xl font-bold">{dangerStats.projects}</div>
-                  <div className="text-xs text-muted-foreground">Projects</div>
+              </div>
+
+              {/* Tier 1: Selective Purge */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-muted-foreground mb-3 uppercase tracking-wide">
+                  Selective Purge
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Remove individual data types while keeping everything else.
+                </p>
+                <div className="space-y-3">
+                  {/* Clear Conversations */}
+                  <div className="p-4 border border-border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <MessageSquare className="w-4 h-4" />
+                          Clear Conversations
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Delete all {dangerStats.chat_sessions} chat sessions
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("chat")}
+                        disabled={dangerStats.chat_sessions === 0}
+                        className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clear Memories */}
+                  <div className="p-4 border border-border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <Brain className="w-4 h-4" />
+                          Clear Memories
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Delete all {dangerStats.memories} memories
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("memories")}
+                        disabled={dangerStats.memories === 0}
+                        className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clear Documents */}
+                  <div className="p-4 border border-border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <FileText className="w-4 h-4" />
+                          Clear Documents
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Delete all {dangerStats.documents} documents
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("documents")}
+                        disabled={dangerStats.documents === 0}
+                        className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clear Work History */}
+                  <div className="p-4 border border-border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <Briefcase className="w-4 h-4" />
+                          Clear Work History
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Delete all {dangerStats.work_tickets} work tickets
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("work")}
+                        disabled={dangerStats.work_tickets === 0}
+                        className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Clear
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              {/* Danger Zone */}
-              <h3 className="text-lg font-semibold mb-4 flex items-center gap-2 text-destructive">
-                <AlertTriangle className="w-5 h-5" />
-                Danger Zone
-              </h3>
-
-              <div className="space-y-4">
-                {/* Tier 1: Clear Data */}
-                <div className="p-4 border border-border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        <MessageSquare className="w-4 h-4" />
-                        Clear Conversation History
+              {/* Tier 2: Category Reset */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-destructive/80 mb-3 uppercase tracking-wide flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Category Reset
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Reset entire categories of data at once.
+                </p>
+                <div className="space-y-3">
+                  {/* Clear All Content */}
+                  <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <Package className="w-4 h-4" />
+                          Clear All Content
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Delete {dangerStats.deliverables} deliverables + {dangerStats.work_tickets} work items
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        Delete all {dangerStats.chat_sessions} chat sessions. Start fresh with your Thinking Partner.
-                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("content")}
+                        disabled={dangerStats.deliverables === 0 && dangerStats.work_tickets === 0}
+                        className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Clear All
+                      </button>
                     </div>
-                    <button
-                      onClick={() => initiateDangerAction("chat")}
-                      disabled={dangerStats.chat_sessions === 0}
-                      className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Clear History
-                    </button>
+                  </div>
+
+                  {/* Clear All Context */}
+                  <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <Database className="w-4 h-4" />
+                          Clear All Context
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Delete {dangerStats.memories} memories + {dangerStats.documents} docs + {dangerStats.chat_sessions} chats
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("context")}
+                        disabled={dangerStats.memories === 0 && dangerStats.documents === 0 && dangerStats.chat_sessions === 0}
+                        className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Clear All
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clear Integrations */}
+                  <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <Link2 className="w-4 h-4" />
+                          Clear Integrations
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Disconnect {dangerStats.user_integrations} integrations, clear import/export history
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("integrations")}
+                        disabled={dangerStats.user_integrations === 0}
+                        className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        Disconnect
+                      </button>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Tier 2: Delete Deliverables */}
-                <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        <FileText className="w-4 h-4" />
-                        Delete All Deliverables
+              {/* Tier 3: Full Actions */}
+              <div className="mb-6">
+                <h3 className="text-sm font-medium text-destructive mb-3 uppercase tracking-wide flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Full Actions
+                </h3>
+                <p className="text-sm text-muted-foreground mb-4">
+                  Irreversible actions that affect your entire account.
+                </p>
+                <div className="space-y-3">
+                  {/* Full Data Reset */}
+                  <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <RefreshCw className="w-4 h-4" />
+                          Full Data Reset
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Delete everything but keep your account active
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        Remove all {dangerStats.deliverables} deliverables and {dangerStats.deliverable_versions} versions. Returns you to onboarding.
-                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("reset")}
+                        className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90"
+                      >
+                        Reset Account
+                      </button>
                     </div>
-                    <button
-                      onClick={() => initiateDangerAction("deliverables")}
-                      disabled={dangerStats.deliverables === 0}
-                      className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Delete All
-                    </button>
                   </div>
-                </div>
 
-                {/* Tier 2: Full Reset */}
-                <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        <RefreshCw className="w-4 h-4" />
-                        Full Account Reset
+                  {/* Deactivate Account */}
+                  <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <div className="font-medium flex items-center gap-2">
+                          <LogOut className="w-4 h-4" />
+                          Delete Account
+                        </div>
+                        <div className="text-sm text-muted-foreground">
+                          Permanently delete account and all data
+                        </div>
                       </div>
-                      <div className="text-sm text-muted-foreground">
-                        Delete everything: deliverables, chat history, memories, documents, projects.
-                        Your account and subscription remain active.
-                      </div>
+                      <button
+                        onClick={() => initiateDangerAction("deactivate")}
+                        className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90"
+                      >
+                        Deactivate
+                      </button>
                     </div>
-                    <button
-                      onClick={() => initiateDangerAction("reset")}
-                      className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90"
-                    >
-                      Reset Account
-                    </button>
-                  </div>
-                </div>
-
-                {/* Tier 3: Deactivate */}
-                <div className="p-4 border border-destructive rounded-lg bg-destructive/10">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium flex items-center gap-2">
-                        <LogOut className="w-4 h-4" />
-                        Deactivate Account
-                      </div>
-                      <div className="text-sm text-muted-foreground">
-                        Permanently delete your account and all data. This cannot be undone.
-                        You will be logged out immediately.
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => initiateDangerAction("deactivate")}
-                      className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md text-sm font-medium hover:bg-destructive/90"
-                    >
-                      Deactivate
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1300,65 +1462,135 @@ export default function SettingsPage() {
             <div className="flex items-center gap-3 mb-4">
               <AlertTriangle className="w-6 h-6 text-destructive" />
               <h3 className="text-lg font-semibold">
-                {dangerAction === "deactivate" ? "Deactivate Account?" : "Confirm Deletion"}
+                {dangerAction === "deactivate" ? "Delete Account Permanently?" :
+                 dangerAction === "reset" ? "Full Account Reset?" :
+                 "Confirm Deletion"}
               </h3>
             </div>
 
-            <p className="text-muted-foreground mb-6">
+            <div className="text-muted-foreground mb-6">
+              {/* Tier 1: Individual purges from Memory tab */}
               {dangerAction === "memories" && purgeTarget === "user" && (
-                <>
+                <p>
                   Are you sure you want to delete all <strong>{stats?.userMemories}</strong> user
                   memories? This will remove everything yarnnn has learned about you.
-                </>
+                </p>
               )}
               {dangerAction === "memories" && purgeTarget === "project" && selectedProjectId && (
-                <>
+                <p>
                   Are you sure you want to delete all{" "}
                   <strong>{stats?.projectMemories.get(selectedProjectId)?.count}</strong> memories
                   from <strong>{stats?.projectMemories.get(selectedProjectId)?.name}</strong>?
-                </>
+                </p>
               )}
               {dangerAction === "memories" && purgeTarget === "all" && (
-                <>
+                <p>
                   Are you sure you want to delete <strong>ALL {stats?.totalMemories}</strong>{" "}
                   memories? This will completely reset yarnnn&apos;s knowledge about you.
-                </>
+                </p>
+              )}
+
+              {/* Tier 1: Individual purges from Account tab */}
+              {dangerAction === "memories" && !purgeTarget && (
+                <p>
+                  Are you sure you want to delete all <strong>{dangerStats?.memories}</strong> memories?
+                  yarnnn will need to relearn your preferences.
+                </p>
               )}
               {dangerAction === "chat" && (
-                <>
+                <p>
                   Are you sure you want to delete all <strong>{dangerStats?.chat_sessions}</strong> chat
                   sessions? Your conversation history will be permanently erased.
-                </>
+                </p>
               )}
-              {dangerAction === "deliverables" && (
+              {dangerAction === "documents" && (
+                <p>
+                  Are you sure you want to delete all <strong>{dangerStats?.documents}</strong> documents?
+                  All uploaded documents and their extracted content will be removed.
+                </p>
+              )}
+              {dangerAction === "work" && (
+                <p>
+                  Are you sure you want to delete all <strong>{dangerStats?.work_tickets}</strong> work tickets?
+                  All scheduled work and execution history will be removed.
+                </p>
+              )}
+
+              {/* Tier 2: Category resets */}
+              {dangerAction === "content" && (
                 <>
-                  Are you sure you want to delete all <strong>{dangerStats?.deliverables}</strong>{" "}
-                  deliverables and <strong>{dangerStats?.deliverable_versions}</strong> versions?
-                  You will return to the onboarding flow.
+                  <p className="mb-2">
+                    Are you sure you want to <strong>clear all content</strong>? This will delete:
+                  </p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    <li>{dangerStats?.deliverables} deliverables and {dangerStats?.deliverable_versions} versions</li>
+                    <li>{dangerStats?.work_tickets} work tickets</li>
+                  </ul>
+                  <p className="mt-2 text-sm">You will return to the onboarding flow.</p>
                 </>
               )}
+              {dangerAction === "context" && (
+                <>
+                  <p className="mb-2">
+                    Are you sure you want to <strong>clear all context</strong>? This will delete:
+                  </p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    <li>{dangerStats?.memories} memories</li>
+                    <li>{dangerStats?.documents} documents</li>
+                    <li>{dangerStats?.chat_sessions} chat sessions</li>
+                  </ul>
+                  <p className="mt-2 text-sm">yarnnn will lose all knowledge about you and your projects.</p>
+                </>
+              )}
+              {dangerAction === "integrations" && (
+                <>
+                  <p className="mb-2">
+                    Are you sure you want to <strong>clear all integrations</strong>? This will:
+                  </p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    <li>Disconnect {dangerStats?.user_integrations} connected services</li>
+                    <li>Delete OAuth tokens (you&apos;ll need to reconnect)</li>
+                    <li>Clear {dangerStats?.integration_import_jobs} import jobs</li>
+                    <li>Clear {dangerStats?.export_logs} export logs</li>
+                  </ul>
+                </>
+              )}
+
+              {/* Tier 3: Full actions */}
               {dangerAction === "reset" && (
                 <>
-                  Are you sure you want to <strong>reset your entire account</strong>? This will delete:
-                  <ul className="list-disc list-inside mt-2 text-sm">
+                  <p className="mb-2">
+                    Are you sure you want to <strong>reset your entire account</strong>? This will delete:
+                  </p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.deliverables} deliverables</li>
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
                     <li>{dangerStats?.memories} memories</li>
                     <li>{dangerStats?.documents} documents</li>
+                    <li>{dangerStats?.work_tickets} work tickets</li>
+                    <li>{dangerStats?.user_integrations} integrations</li>
                     <li>{dangerStats?.projects} projects</li>
                   </ul>
-                  <span className="block mt-2">Your account will remain active but empty.</span>
+                  <p className="mt-2 text-sm">Your account will remain active with a fresh workspace.</p>
                 </>
               )}
               {dangerAction === "deactivate" && (
                 <>
-                  <strong>This action is permanent and cannot be undone.</strong>
-                  <br /><br />
-                  All your data will be permanently deleted and you will be logged out immediately.
-                  To use yarnnn again, you would need to create a new account.
+                  <p className="font-medium text-destructive mb-2">
+                    This action is PERMANENT and cannot be undone.
+                  </p>
+                  <p className="mb-2">All your data will be permanently deleted:</p>
+                  <ul className="list-disc list-inside text-sm space-y-1">
+                    <li>All deliverables, memories, documents, and chat history</li>
+                    <li>All projects and workspaces</li>
+                    <li>Your account will be removed from the system</li>
+                  </ul>
+                  <p className="mt-2 text-sm">
+                    You will be logged out immediately. To use yarnnn again, you would need to create a new account.
+                  </p>
                 </>
               )}
-            </p>
+            </div>
 
             <div className="flex gap-3 justify-end">
               <button
@@ -1374,7 +1606,7 @@ export default function SettingsPage() {
                 Cancel
               </button>
               <button
-                onClick={dangerAction === "memories" ? handleMemoryPurge : handleDangerAction}
+                onClick={dangerAction === "memories" && purgeTarget ? handleMemoryPurge : handleDangerAction}
                 disabled={isPurging}
                 className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md flex items-center gap-2"
               >
@@ -1383,6 +1615,8 @@ export default function SettingsPage() {
                   ? "Processing..."
                   : dangerAction === "deactivate"
                   ? "Deactivate Account"
+                  : dangerAction === "reset"
+                  ? "Reset Account"
                   : "Delete"}
               </button>
             </div>
