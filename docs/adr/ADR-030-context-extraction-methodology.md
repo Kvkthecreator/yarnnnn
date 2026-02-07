@@ -1,7 +1,8 @@
 # ADR-030: Context Extraction Methodology
 
-> **Status**: Draft
+> **Status**: Accepted
 > **Created**: 2026-02-06
+> **Updated**: 2026-02-07
 > **Related**: ADR-027 (Integration Read Architecture), ADR-029 (Email Integration)
 
 ---
@@ -739,19 +740,22 @@ RECOMMENDATION: Option B with fallback to A
 
 ## Implementation Phases
 
-### Phase 1: Scope Parameters & Validation
+### Phase 1: Scope Parameters & Validation ✅
 
-- [ ] Add scope parameters to import job schema
-- [ ] Implement per-platform scope validation
-- [ ] Update import endpoints with scope options
-- [ ] Add time/volume estimation logic
+- [x] Add scope parameters to import job schema (migration 027)
+- [x] Implement per-platform scope validation
+- [x] Update import endpoints with scope options (`ImportScopeRequest`)
+- [x] Gmail import uses recency_days + max_items for query building
 
-### Phase 2: Platform Landscape Discovery
+### Phase 2: Platform Landscape Discovery ✅
 
-- [ ] Implement landscape fetch for each platform (metadata only)
-- [ ] Store landscape snapshot in user_integrations metadata
-- [ ] Create coverage state model (uncovered/partial/covered/stale/excluded)
-- [ ] Landscape refresh on OAuth reconnect
+- [x] Implement landscape fetch for Gmail (`list_gmail_labels` via MCP)
+- [x] Store landscape snapshot in `user_integrations.landscape`
+- [x] Create `integration_coverage` table (uncovered/partial/covered/stale/excluded)
+- [x] API: `GET /integrations/{provider}/landscape`
+- [x] API: `PATCH /integrations/{provider}/coverage/{resource_id}`
+- [x] Extend to Slack (uses existing `list_slack_channels`)
+- [x] Extend to Notion (uses existing `search_notion_pages`)
 
 ### Phase 3: Coverage Visibility UI
 
@@ -762,7 +766,7 @@ RECOMMENDATION: Option B with fallback to A
 
 ### Phase 4: Progress Tracking
 
-- [ ] Add progress fields to import_jobs table
+- [x] Add progress_details field to import_jobs table (migration 027)
 - [ ] Implement progress callbacks in fetch logic
 - [ ] Create progress polling endpoint
 - [ ] Frontend progress indicator component
