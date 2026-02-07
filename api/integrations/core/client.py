@@ -424,6 +424,43 @@ class MCPClientManager:
     # Gmail Read Operations (via MCP) - ADR-029
     # =========================================================================
 
+    async def list_gmail_labels(
+        self,
+        user_id: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str
+    ) -> list[dict[str, Any]]:
+        """
+        List Gmail labels (folders) via MCP.
+
+        ADR-030: Used for landscape discovery.
+
+        Returns list of label objects with id, name, type, etc.
+        """
+        try:
+            result = await self.call_tool(
+                user_id=user_id,
+                provider="gmail",
+                tool_name="list_labels",
+                arguments={},
+                env={
+                    "CLIENT_ID": client_id,
+                    "CLIENT_SECRET": client_secret,
+                    "REFRESH_TOKEN": refresh_token
+                }
+            )
+            if isinstance(result, dict) and "labels" in result:
+                return result["labels"]
+            elif isinstance(result, list):
+                return result
+            else:
+                logger.warning(f"[MCP] Unexpected Gmail labels result format: {type(result)}")
+                return []
+        except Exception as e:
+            logger.error(f"[MCP] Failed to list Gmail labels: {e}")
+            raise
+
     async def list_gmail_messages(
         self,
         user_id: str,

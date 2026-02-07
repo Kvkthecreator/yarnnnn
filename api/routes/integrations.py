@@ -163,6 +163,16 @@ class ImportConfigRequest(BaseModel):
     style_user_id: Optional[str] = None  # For Slack: filter to specific user's messages
 
 
+class ImportScopeRequest(BaseModel):
+    """
+    ADR-030: Scope parameters for context extraction.
+    """
+    recency_days: int = 7  # How far back to go
+    max_items: int = 100  # Maximum items to fetch
+    include_sent: bool = True  # Gmail: include sent messages
+    include_threads: bool = True  # Slack: expand thread replies
+
+
 class StartImportRequest(BaseModel):
     """Request to start a context import job."""
     resource_id: str  # channel_id or page_id
@@ -170,6 +180,7 @@ class StartImportRequest(BaseModel):
     project_id: Optional[str] = None  # Optional project to associate
     instructions: Optional[str] = None  # User guidance for the agent
     config: Optional[ImportConfigRequest] = None  # Style learning and other options
+    scope: Optional[ImportScopeRequest] = None  # ADR-030: Extraction scope
 
 
 class ImportJobResultResponse(BaseModel):
@@ -854,6 +865,17 @@ async def start_gmail_import(
         if request.config:
             config_dict["learn_style"] = request.config.learn_style
 
+        # ADR-030: Build scope dict with defaults
+        scope_dict = {
+            "recency_days": 7,
+            "max_items": 100,
+            "include_sent": True
+        }
+        if request.scope:
+            scope_dict["recency_days"] = request.scope.recency_days
+            scope_dict["max_items"] = request.scope.max_items
+            scope_dict["include_sent"] = request.scope.include_sent
+
         # Create import job
         job_data = {
             "user_id": user_id,
@@ -863,6 +885,7 @@ async def start_gmail_import(
             "project_id": request.project_id,
             "instructions": request.instructions,
             "config": config_dict if config_dict else None,
+            "scope": scope_dict,  # ADR-030
             "status": "pending",
             "progress": 0,
         }
@@ -1280,3 +1303,258 @@ async def oauth_callback(
         return RedirectResponse(
             url=get_frontend_redirect_url(False, provider, "Failed to connect. Please try again.")
         )
+
+
+# =============================================================================
+# ADR-030: Landscape Discovery & Coverage
+# =============================================================================
+
+class LandscapeResourceResponse(BaseModel):
+    """A resource in the platform landscape."""
+    id: str
+    name: str
+    resource_type: str  # 'label', 'channel', 'page', 'database'
+    coverage_state: str = "uncovered"  # uncovered, partial, covered, stale, excluded
+    last_extracted_at: Optional[datetime] = None
+    items_extracted: int = 0
+    metadata: dict[str, Any] = {}
+
+
+class LandscapeResponse(BaseModel):
+    """Platform landscape with coverage summary."""
+    provider: str
+    discovered_at: Optional[datetime] = None
+    resources: list[LandscapeResourceResponse]
+    coverage_summary: dict[str, Any] = {}
+
+
+class CoverageUpdateRequest(BaseModel):
+    """Request to update coverage state for a resource."""
+    coverage_state: str  # 'excluded' to mark as not relevant, 'uncovered' to reset
+
+
+@router.get("/integrations/{provider}/landscape")
+async def get_landscape(
+    provider: str,
+    refresh: bool = Query(False, description="Force refresh from provider"),
+    auth: UserClient = None
+) -> LandscapeResponse:
+    """
+    Get the platform landscape with coverage information.
+
+    ADR-030: Shows all available resources (labels, channels, pages) and their
+    extraction coverage state. Helps users understand what YARNNN knows vs. doesn't know.
+
+    If landscape hasn't been discovered or refresh=True, fetches from provider.
+    """
+    if provider not in ["gmail", "slack", "notion"]:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+
+    user_id = auth.user_id
+
+    # Get integration
+    integration = auth.client.table("user_integrations").select(
+        "id, access_token_encrypted, refresh_token_encrypted, metadata, landscape, landscape_discovered_at"
+    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+
+    if not integration.data:
+        raise HTTPException(status_code=404, detail=f"No {provider} integration found")
+
+    # Check if we need to discover
+    needs_discovery = refresh or not integration.data.get("landscape")
+
+    if needs_discovery:
+        # Discover landscape from provider
+        landscape_data = await _discover_landscape(provider, user_id, integration.data)
+
+        # Store landscape snapshot
+        auth.client.table("user_integrations").update({
+            "landscape": landscape_data,
+            "landscape_discovered_at": datetime.utcnow().isoformat()
+        }).eq("id", integration.data["id"]).execute()
+
+        discovered_at = datetime.utcnow()
+    else:
+        landscape_data = integration.data.get("landscape", {})
+        discovered_at = integration.data.get("landscape_discovered_at")
+
+    # Get coverage records for this provider
+    coverage_result = auth.client.table("integration_coverage").select(
+        "*"
+    ).eq("user_id", user_id).eq("provider", provider).execute()
+
+    coverage_by_id = {c["resource_id"]: c for c in (coverage_result.data or [])}
+
+    # Build resource list with coverage
+    resources = []
+    for resource in landscape_data.get("resources", []):
+        resource_id = resource.get("id")
+        coverage = coverage_by_id.get(resource_id, {})
+
+        resources.append(LandscapeResourceResponse(
+            id=resource_id,
+            name=resource.get("name", "Unknown"),
+            resource_type=resource.get("type", "unknown"),
+            coverage_state=coverage.get("coverage_state", "uncovered"),
+            last_extracted_at=coverage.get("last_extracted_at"),
+            items_extracted=coverage.get("items_extracted", 0),
+            metadata=resource.get("metadata", {})
+        ))
+
+    # Get coverage summary
+    summary_result = auth.client.rpc("get_coverage_summary", {
+        "p_user_id": user_id,
+        "p_provider": provider
+    }).execute()
+
+    coverage_summary = summary_result.data[0] if summary_result.data else {}
+
+    return LandscapeResponse(
+        provider=provider,
+        discovered_at=discovered_at,
+        resources=resources,
+        coverage_summary=coverage_summary
+    )
+
+
+async def _discover_landscape(provider: str, user_id: str, integration: dict) -> dict:
+    """
+    Discover resources from a provider.
+
+    Returns landscape data structure:
+    {
+        "resources": [
+            {"id": "...", "name": "...", "type": "label|channel|page", "metadata": {...}}
+        ]
+    }
+    """
+    token_manager = get_token_manager()
+    mcp_manager = get_mcp_manager()
+
+    if provider == "gmail":
+        # Get Gmail credentials
+        client_id = OAUTH_CONFIGS["gmail"]["client_id"]
+        client_secret = OAUTH_CONFIGS["gmail"]["client_secret"]
+        refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
+
+        # List labels
+        labels = await mcp_manager.list_gmail_labels(
+            user_id=user_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token
+        )
+
+        resources = []
+        for label in labels:
+            resources.append({
+                "id": label.get("id"),
+                "name": label.get("name"),
+                "type": "label",
+                "metadata": {
+                    "type": label.get("type"),  # system, user
+                    "messageListVisibility": label.get("messageListVisibility"),
+                    "labelListVisibility": label.get("labelListVisibility")
+                }
+            })
+
+        return {"resources": resources}
+
+    elif provider == "slack":
+        # Get Slack credentials
+        bot_token = token_manager.decrypt(integration["access_token_encrypted"])
+        team_id = integration.get("metadata", {}).get("team_id", "")
+
+        # List channels
+        channels = await mcp_manager.list_slack_channels(
+            user_id=user_id,
+            bot_token=bot_token,
+            team_id=team_id
+        )
+
+        resources = []
+        for channel in channels:
+            resources.append({
+                "id": channel.get("id"),
+                "name": f"#{channel.get('name', '')}",
+                "type": "channel",
+                "metadata": {
+                    "is_private": channel.get("is_private", False),
+                    "num_members": channel.get("num_members", 0),
+                    "topic": channel.get("topic", {}).get("value"),
+                    "purpose": channel.get("purpose", {}).get("value")
+                }
+            })
+
+        return {"resources": resources}
+
+    elif provider == "notion":
+        # Get Notion credentials
+        auth_token = token_manager.decrypt(integration["access_token_encrypted"])
+
+        # Search for pages
+        pages = await mcp_manager.search_notion_pages(
+            user_id=user_id,
+            auth_token=auth_token
+        )
+
+        resources = []
+        for page in pages:
+            resources.append({
+                "id": page.get("id"),
+                "name": _extract_notion_title(page),
+                "type": "page" if page.get("object") == "page" else "database",
+                "metadata": {
+                    "parent_type": _extract_notion_parent_type(page),
+                    "last_edited": page.get("last_edited_time"),
+                    "url": page.get("url")
+                }
+            })
+
+        return {"resources": resources}
+
+    return {"resources": []}
+
+
+@router.patch("/integrations/{provider}/coverage/{resource_id}")
+async def update_coverage(
+    provider: str,
+    resource_id: str,
+    request: CoverageUpdateRequest,
+    auth: UserClient = None
+) -> dict[str, Any]:
+    """
+    Update coverage state for a resource.
+
+    ADR-030: Allows users to mark resources as excluded (not relevant)
+    or reset them to uncovered.
+    """
+    if request.coverage_state not in ["excluded", "uncovered"]:
+        raise HTTPException(
+            status_code=400,
+            detail="coverage_state must be 'excluded' or 'uncovered'"
+        )
+
+    user_id = auth.user_id
+
+    # Check if coverage record exists
+    existing = auth.client.table("integration_coverage").select("id").eq(
+        "user_id", user_id
+    ).eq("provider", provider).eq("resource_id", resource_id).execute()
+
+    if existing.data:
+        # Update
+        auth.client.table("integration_coverage").update({
+            "coverage_state": request.coverage_state,
+            "updated_at": datetime.utcnow().isoformat()
+        }).eq("id", existing.data[0]["id"]).execute()
+    else:
+        # Insert
+        auth.client.table("integration_coverage").insert({
+            "user_id": user_id,
+            "provider": provider,
+            "resource_id": resource_id,
+            "coverage_state": request.coverage_state
+        }).execute()
+
+    return {"success": True, "resource_id": resource_id, "coverage_state": request.coverage_state}
