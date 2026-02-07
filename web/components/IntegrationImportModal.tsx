@@ -651,11 +651,12 @@ export function IntegrationImportModal({
                               <FileText className="w-4 h-4 text-muted-foreground" />
                             )}
                             <span className="font-medium">{resource.name}</span>
-                            {provider === "slack" && resource.metadata?.num_members && (
-                              <span className="text-xs text-muted-foreground ml-auto">
-                                {resource.metadata.num_members as number} members
-                              </span>
-                            )}
+                            {provider === "slack" &&
+                              typeof resource.metadata?.num_members === "number" && (
+                                <span className="text-xs text-muted-foreground ml-auto">
+                                  {resource.metadata.num_members} members
+                                </span>
+                              )}
                           </div>
                           {/* ADR-030: Coverage indicator */}
                           <div className="mt-1">
