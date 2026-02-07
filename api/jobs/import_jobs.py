@@ -132,6 +132,62 @@ async def update_job_status(
     ).execute()
 
 
+async def update_coverage_state(
+    supabase_client,
+    user_id: str,
+    provider: str,
+    resource_id: str,
+    resource_name: str,
+    coverage_state: str,
+    scope: dict,
+    items_extracted: int,
+    blocks_created: int,
+) -> None:
+    """
+    ADR-030: Update coverage state for a resource after extraction.
+
+    Upserts integration_coverage record with extraction results.
+    """
+    try:
+        # Check if exists
+        existing = (
+            supabase_client.table("integration_coverage")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("provider", provider)
+            .eq("resource_id", resource_id)
+            .execute()
+        )
+
+        coverage_data = {
+            "coverage_state": coverage_state,
+            "scope": scope,
+            "last_extracted_at": datetime.now(timezone.utc).isoformat(),
+            "items_extracted": items_extracted,
+            "blocks_created": blocks_created,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+        if existing.data:
+            supabase_client.table("integration_coverage").update(coverage_data).eq(
+                "id", existing.data[0]["id"]
+            ).execute()
+        else:
+            coverage_data.update({
+                "user_id": user_id,
+                "provider": provider,
+                "resource_id": resource_id,
+                "resource_name": resource_name,
+                "resource_type": "label" if provider == "gmail" else "channel" if provider == "slack" else "page",
+            })
+            supabase_client.table("integration_coverage").insert(coverage_data).execute()
+
+        logger.info(f"[COVERAGE] Updated {provider}/{resource_id} -> {coverage_state}")
+
+    except Exception as e:
+        logger.warning(f"[COVERAGE] Failed to update coverage state: {e}")
+
+
 async def store_memory_blocks(
     supabase_client,
     user_id: str,
@@ -425,6 +481,11 @@ async def process_gmail_import(
     config = job.get("config") or {}
     learn_style = config.get("learn_style", False)
 
+    # ADR-030: Get scope parameters
+    scope = job.get("scope") or {}
+    recency_days = scope.get("recency_days", 7)
+    max_items = scope.get("max_items", 100)
+
     # Get OAuth credentials
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
@@ -453,13 +514,24 @@ async def process_gmail_import(
 
     else:
         # Default: list messages (inbox or query)
-        query = None
+        # ADR-030: Build query with recency filter
+        base_query = None
         if resource_id.startswith("query:"):
-            query = resource_id.split(":", 1)[1]
+            base_query = resource_id.split(":", 1)[1]
         elif resource_id != "inbox":
-            query = resource_id  # Treat as query
+            base_query = resource_id  # Treat as query
 
-        logger.info(f"[IMPORT] Fetching Gmail messages: {query or 'inbox'}")
+        # Add recency filter to query
+        from datetime import timedelta
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=recency_days)
+        date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
+
+        if base_query:
+            query = f"{base_query} {date_filter}"
+        else:
+            query = date_filter
+
+        logger.info(f"[IMPORT] Fetching Gmail messages: {query} (max: {max_items})")
 
         messages = await mcp_manager.list_gmail_messages(
             user_id=user_id,
@@ -467,7 +539,7 @@ async def process_gmail_import(
             client_secret=client_secret,
             refresh_token=refresh_token,
             query=query,
-            max_results=50,
+            max_results=max_items,
         )
 
     if not messages:
@@ -480,8 +552,10 @@ async def process_gmail_import(
         }
 
     # Fetch full message content for each message
+    # ADR-030: Respect max_items from scope (capped at 50 for performance)
+    fetch_limit = min(max_items, 50)
     full_messages = []
-    for msg in messages[:20]:  # Limit to 20 for performance
+    for msg in messages[:fetch_limit]:
         msg_id = msg.get("id")
         if msg_id:
             try:
@@ -541,6 +615,19 @@ async def process_gmail_import(
             style_confidence = profile.confidence
         except Exception as e:
             logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
+
+    # ADR-030: Update coverage state
+    await update_coverage_state(
+        supabase_client,
+        user_id=user_id,
+        provider="gmail",
+        resource_id=resource_id,
+        resource_name=resource_name,
+        coverage_state="partial" if recency_days < 90 else "covered",
+        scope=scope,
+        items_extracted=len(full_messages),
+        blocks_created=blocks_created,
+    )
 
     return {
         "blocks_created": blocks_created,
