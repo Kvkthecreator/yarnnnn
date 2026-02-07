@@ -757,12 +757,13 @@ RECOMMENDATION: Option B with fallback to A
 - [x] Extend to Slack (uses existing `list_slack_channels`)
 - [x] Extend to Notion (uses existing `search_notion_pages`)
 
-### Phase 3: Coverage Visibility UI
+### Phase 3: Coverage Visibility UI ✅
 
-- [ ] Integration coverage view component
-- [ ] Per-resource coverage state indicators
-- [ ] "Import" action on uncovered resources
-- [ ] Freshness/staleness indicators
+- [x] Integration coverage view component (`CoverageSummaryBar`)
+- [x] Per-resource coverage state indicators (`CoverageIndicator`)
+- [x] "Import" action on uncovered resources (modal shows all resources)
+- [x] Freshness/staleness indicators (last extracted date, coverage state)
+- [x] Scope configuration UI (`ScopeConfiguration` component)
 
 ### Phase 4: Progress Tracking
 
