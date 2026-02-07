@@ -11,26 +11,38 @@ import {
   AlertTriangle,
   RefreshCw,
   Lock,
+  Circle,
+  CheckCircle2,
+  Clock,
+  EyeOff,
+  ChevronDown,
+  ChevronUp,
+  Settings2,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 
 type Provider = "slack" | "notion" | "gmail";
+type CoverageState = "uncovered" | "partial" | "covered" | "stale" | "excluded";
 
-interface SlackChannel {
+// ADR-030: Landscape resource with coverage state
+interface LandscapeResource {
   id: string;
   name: string;
-  is_private: boolean;
-  num_members: number;
-  topic: string | null;
-  purpose: string | null;
+  resource_type: string;
+  coverage_state: CoverageState;
+  last_extracted_at: string | null;
+  items_extracted: number;
+  metadata: Record<string, unknown>;
 }
 
-interface NotionPage {
-  id: string;
-  title: string;
-  parent_type: string;
-  last_edited: string | null;
-  url: string | null;
+interface CoverageSummary {
+  total_resources: number;
+  covered_count: number;
+  partial_count: number;
+  stale_count: number;
+  uncovered_count: number;
+  excluded_count: number;
+  coverage_percentage: number;
 }
 
 interface ImportJob {
@@ -51,6 +63,12 @@ interface ImportJob {
   error_message: string | null;
 }
 
+// ADR-030: Scope configuration
+interface ImportScope {
+  recency_days: number;
+  max_items: number;
+}
+
 interface IntegrationImportModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -60,13 +78,225 @@ interface IntegrationImportModalProps {
 }
 
 /**
+ * Coverage state indicator component.
+ * ADR-030: Shows visual indicator for resource coverage state.
+ */
+function CoverageIndicator({ state, lastExtracted, itemsExtracted }: {
+  state: CoverageState;
+  lastExtracted: string | null;
+  itemsExtracted: number;
+}) {
+  const config: Record<CoverageState, { icon: React.ReactNode; color: string; label: string }> = {
+    uncovered: {
+      icon: <Circle className="w-3 h-3" />,
+      color: "text-muted-foreground",
+      label: "Not imported",
+    },
+    partial: {
+      icon: <Clock className="w-3 h-3" />,
+      color: "text-amber-500",
+      label: `${itemsExtracted} items`,
+    },
+    covered: {
+      icon: <CheckCircle2 className="w-3 h-3" />,
+      color: "text-green-500",
+      label: `${itemsExtracted} items`,
+    },
+    stale: {
+      icon: <Clock className="w-3 h-3" />,
+      color: "text-orange-500",
+      label: "Needs refresh",
+    },
+    excluded: {
+      icon: <EyeOff className="w-3 h-3" />,
+      color: "text-muted-foreground",
+      label: "Excluded",
+    },
+  };
+
+  const { icon, color, label } = config[state];
+
+  return (
+    <div className={`flex items-center gap-1 text-xs ${color}`}>
+      {icon}
+      <span>{label}</span>
+      {lastExtracted && state !== "uncovered" && state !== "excluded" && (
+        <span className="text-muted-foreground">
+          · {new Date(lastExtracted).toLocaleDateString()}
+        </span>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Coverage summary bar component.
+ * ADR-030: Shows overall coverage percentage.
+ */
+function CoverageSummaryBar({ summary }: { summary: CoverageSummary }) {
+  const percentage = summary.coverage_percentage || 0;
+
+  return (
+    <div className="mb-4 p-3 bg-muted/30 rounded-lg border border-border">
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-sm font-medium">Coverage</span>
+        <span className="text-sm text-muted-foreground">
+          {Math.round(percentage)}% ({summary.covered_count + summary.partial_count} of {summary.total_resources - summary.excluded_count})
+        </span>
+      </div>
+      <div className="h-2 bg-muted rounded-full overflow-hidden">
+        <div
+          className="h-full bg-primary transition-all duration-300"
+          style={{ width: `${percentage}%` }}
+        />
+      </div>
+      <div className="flex gap-4 mt-2 text-xs text-muted-foreground">
+        {summary.covered_count > 0 && (
+          <span className="flex items-center gap-1">
+            <CheckCircle2 className="w-3 h-3 text-green-500" />
+            {summary.covered_count} covered
+          </span>
+        )}
+        {summary.partial_count > 0 && (
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3 text-amber-500" />
+            {summary.partial_count} partial
+          </span>
+        )}
+        {summary.stale_count > 0 && (
+          <span className="flex items-center gap-1">
+            <Clock className="w-3 h-3 text-orange-500" />
+            {summary.stale_count} stale
+          </span>
+        )}
+        {summary.uncovered_count > 0 && (
+          <span className="flex items-center gap-1">
+            <Circle className="w-3 h-3" />
+            {summary.uncovered_count} new
+          </span>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Scope configuration component.
+ * ADR-030: Allows user to configure extraction scope.
+ */
+function ScopeConfiguration({ scope, onChange, provider }: {
+  scope: ImportScope;
+  onChange: (scope: ImportScope) => void;
+  provider: Provider;
+}) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const recencyOptions = [
+    { value: 7, label: "Last 7 days" },
+    { value: 14, label: "Last 14 days" },
+    { value: 30, label: "Last 30 days" },
+    { value: 90, label: "Last 90 days" },
+  ];
+
+  const maxItemsOptions = provider === "notion"
+    ? [
+        { value: 5, label: "5 pages" },
+        { value: 10, label: "10 pages" },
+        { value: 25, label: "25 pages" },
+        { value: 50, label: "50 pages" },
+      ]
+    : [
+        { value: 50, label: "50 items" },
+        { value: 100, label: "100 items" },
+        { value: 200, label: "200 items" },
+        { value: 500, label: "500 items" },
+      ];
+
+  return (
+    <div className="mt-4 border border-border rounded-lg overflow-hidden">
+      <button
+        type="button"
+        onClick={() => setIsExpanded(!isExpanded)}
+        className="w-full flex items-center justify-between p-3 hover:bg-muted/50 transition-colors"
+      >
+        <div className="flex items-center gap-2 text-sm">
+          <Settings2 className="w-4 h-4 text-muted-foreground" />
+          <span>Import Settings</span>
+          <span className="text-muted-foreground">
+            · {recencyOptions.find(o => o.value === scope.recency_days)?.label}, up to {scope.max_items} {provider === "notion" ? "pages" : "items"}
+          </span>
+        </div>
+        {isExpanded ? (
+          <ChevronUp className="w-4 h-4 text-muted-foreground" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-muted-foreground" />
+        )}
+      </button>
+
+      {isExpanded && (
+        <div className="p-3 border-t border-border bg-muted/30 space-y-4">
+          {/* Recency - only for time-based providers */}
+          {provider !== "notion" && (
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-2">
+                Time Range
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {recencyOptions.map((option) => (
+                  <button
+                    key={option.value}
+                    type="button"
+                    onClick={() => onChange({ ...scope, recency_days: option.value })}
+                    className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                      scope.recency_days === option.value
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-background border border-border hover:bg-muted"
+                    }`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Max items */}
+          <div>
+            <label className="block text-xs font-medium text-muted-foreground mb-2">
+              Maximum {provider === "notion" ? "Pages" : "Items"}
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {maxItemsOptions.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => onChange({ ...scope, max_items: option.value })}
+                  className={`px-3 py-1.5 text-xs rounded-md transition-colors ${
+                    scope.max_items === option.value
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-background border border-border hover:bg-muted"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * Modal for importing context from connected integrations.
  *
  * ADR-027: Integration Read Architecture - Phase 3 Onboarding UI
+ * ADR-030: Context Extraction Methodology - Coverage visibility
  *
  * Flow:
- * 1. Load available resources (channels/pages) from connected integration
- * 2. User selects resource and optionally provides instructions
+ * 1. Load platform landscape with coverage state
+ * 2. User selects resource and configures scope
  * 3. Start import job (async processing)
  * 4. Poll for completion, show result
  */
@@ -77,9 +307,12 @@ export function IntegrationImportModal({
   provider,
   projectId,
 }: IntegrationImportModalProps) {
-  // Resource selection state
-  const [channels, setChannels] = useState<SlackChannel[]>([]);
-  const [pages, setPages] = useState<NotionPage[]>([]);
+  // ADR-030: Landscape with coverage
+  const [landscape, setLandscape] = useState<{
+    resources: LandscapeResource[];
+    coverage_summary: CoverageSummary;
+    discovered_at: string | null;
+  } | null>(null);
   const [isLoadingResources, setIsLoadingResources] = useState(false);
   const [resourceError, setResourceError] = useState<string | null>(null);
 
@@ -87,6 +320,12 @@ export function IntegrationImportModal({
   const [selectedResource, setSelectedResource] = useState<string | null>(null);
   const [instructions, setInstructions] = useState("");
   const [learnStyle, setLearnStyle] = useState(false);  // ADR-027 Phase 5
+
+  // ADR-030: Scope configuration
+  const [scope, setScope] = useState<ImportScope>({
+    recency_days: 7,
+    max_items: provider === "notion" ? 10 : 100,
+  });
 
   // Gmail-specific state (ADR-029)
   const [gmailImportType, setGmailImportType] = useState<"inbox" | "query">("inbox");
@@ -97,8 +336,8 @@ export function IntegrationImportModal({
   const [importJob, setImportJob] = useState<ImportJob | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
 
-  // Load resources when modal opens
-  const loadResources = useCallback(async () => {
+  // Load landscape when modal opens
+  const loadResources = useCallback(async (refresh = false) => {
     // Gmail doesn't need to load resources - uses predefined options
     if (provider === "gmail") {
       setIsLoadingResources(false);
@@ -109,13 +348,13 @@ export function IntegrationImportModal({
     setResourceError(null);
 
     try {
-      if (provider === "slack") {
-        const response = await api.integrations.listSlackChannels();
-        setChannels(response.channels);
-      } else {
-        const response = await api.integrations.listNotionPages();
-        setPages(response.pages);
-      }
+      // ADR-030: Use landscape endpoint for coverage data
+      const response = await api.integrations.getLandscape(provider, refresh);
+      setLandscape({
+        resources: response.resources,
+        coverage_summary: response.coverage_summary,
+        discovered_at: response.discovered_at,
+      });
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to load resources";
       setResourceError(message);
@@ -177,20 +416,25 @@ export function IntegrationImportModal({
         }
       } else if (provider === "slack") {
         resourceId = selectedResource!;
-        const channel = channels.find((c) => c.id === selectedResource);
-        resourceName = channel ? `#${channel.name}` : undefined;
+        const resource = landscape?.resources.find((r) => r.id === selectedResource);
+        resourceName = resource?.name;
       } else {
         resourceId = selectedResource!;
-        const page = pages.find((p) => p.id === selectedResource);
-        resourceName = page?.title;
+        const resource = landscape?.resources.find((r) => r.id === selectedResource);
+        resourceName = resource?.name;
       }
 
+      // ADR-030: Include scope parameters
       const job = await api.integrations.startImport(provider, {
         resource_id: resourceId,
         resource_name: resourceName,
         project_id: projectId,
         instructions: instructions.trim() || undefined,
         config: learnStyle ? { learn_style: true } : undefined,
+        scope: {
+          recency_days: scope.recency_days,
+          max_items: scope.max_items,
+        },
       });
 
       setImportJob(job as unknown as ImportJob);
@@ -210,8 +454,11 @@ export function IntegrationImportModal({
     setLearnStyle(false);
     setImportJob(null);
     setImportError(null);
-    setChannels([]);
-    setPages([]);
+    setLandscape(null);
+    setScope({
+      recency_days: 7,
+      max_items: provider === "notion" ? 10 : 100,
+    });
     // Reset Gmail state
     setGmailImportType("inbox");
     setGmailQuery("");
@@ -226,7 +473,9 @@ export function IntegrationImportModal({
 
   if (!isOpen) return null;
 
-  const resources = provider === "slack" ? channels : provider === "notion" ? pages : [];
+  const resources = landscape?.resources || [];
+  // Filter out excluded resources for selection
+  const selectableResources = resources.filter(r => r.coverage_state !== "excluded");
   const providerName = provider === "slack" ? "Slack" : provider === "notion" ? "Notion" : "Gmail";
   const resourceLabel = provider === "slack" ? "channel" : provider === "notion" ? "page" : "source";
   const isGmail = provider === "gmail";
@@ -247,14 +496,26 @@ export function IntegrationImportModal({
             <Download className="w-5 h-5 text-primary" />
             <h2 className="font-semibold">Import from {providerName}</h2>
           </div>
-          <button
-            onClick={handleClose}
-            disabled={isImporting && importJob?.status === "processing"}
-            className="p-1 rounded hover:bg-muted disabled:opacity-50"
-            aria-label="Close"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          <div className="flex items-center gap-2">
+            {!isGmail && landscape && (
+              <button
+                onClick={() => loadResources(true)}
+                disabled={isLoadingResources}
+                className="p-1.5 rounded hover:bg-muted disabled:opacity-50"
+                title="Refresh resources"
+              >
+                <RefreshCw className={`w-4 h-4 ${isLoadingResources ? "animate-spin" : ""}`} />
+              </button>
+            )}
+            <button
+              onClick={handleClose}
+              disabled={isImporting && importJob?.status === "processing"}
+              className="p-1 rounded hover:bg-muted disabled:opacity-50"
+              aria-label="Close"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
         </div>
 
         {/* Content */}
@@ -269,6 +530,11 @@ export function IntegrationImportModal({
                   ? "Import context from your inbox or search for specific emails. I'll extract key decisions, action items, and project context automatically."
                   : `Select a ${resourceLabel} to import context from. I'll extract key decisions, action items, and project context automatically.`}
               </p>
+
+              {/* ADR-030: Coverage summary for non-Gmail providers */}
+              {!isGmail && landscape?.coverage_summary && (
+                <CoverageSummaryBar summary={landscape.coverage_summary} />
+              )}
 
               {/* Gmail-specific UI (ADR-029) */}
               {isGmail ? (
@@ -325,7 +591,7 @@ export function IntegrationImportModal({
                   )}
                 </div>
               ) : (
-                /* Resource list for Slack/Notion */
+                /* Resource list for Slack/Notion with coverage indicators */
                 <>
                   {isLoadingResources ? (
                     <div className="flex items-center justify-center py-8">
@@ -339,13 +605,13 @@ export function IntegrationImportModal({
                         <p className="text-sm">{resourceError}</p>
                       </div>
                       <button
-                        onClick={loadResources}
+                        onClick={() => loadResources()}
                         className="ml-auto p-2 hover:bg-destructive/20 rounded"
                       >
                         <RefreshCw className="w-4 h-4" />
                       </button>
                     </div>
-                  ) : resources.length === 0 ? (
+                  ) : selectableResources.length === 0 ? (
                     <div className="p-4 bg-muted/50 rounded-lg text-center text-muted-foreground">
                       <p>No {resourceLabel}s found.</p>
                       <p className="text-sm mt-1">
@@ -354,54 +620,41 @@ export function IntegrationImportModal({
                     </div>
                   ) : (
                     <div className="space-y-2 max-h-64 overflow-y-auto border border-border rounded-lg p-2">
-                      {provider === "slack"
-                        ? channels.map((channel) => (
+                      {selectableResources.map((resource) => (
                         <button
-                          key={channel.id}
-                          onClick={() => setSelectedResource(channel.id)}
+                          key={resource.id}
+                          onClick={() => setSelectedResource(resource.id)}
                           className={`w-full p-3 text-left rounded-lg transition-colors ${
-                            selectedResource === channel.id
+                            selectedResource === resource.id
                               ? "bg-primary/10 border border-primary"
                               : "hover:bg-muted border border-transparent"
                           }`}
                         >
                           <div className="flex items-center gap-2">
-                            {channel.is_private ? (
-                              <Lock className="w-4 h-4 text-muted-foreground" />
+                            {provider === "slack" ? (
+                              resource.metadata?.is_private ? (
+                                <Lock className="w-4 h-4 text-muted-foreground" />
+                              ) : (
+                                <Hash className="w-4 h-4 text-muted-foreground" />
+                              )
                             ) : (
-                              <Hash className="w-4 h-4 text-muted-foreground" />
+                              <FileText className="w-4 h-4 text-muted-foreground" />
                             )}
-                            <span className="font-medium">{channel.name}</span>
-                            <span className="text-xs text-muted-foreground ml-auto">
-                              {channel.num_members} members
-                            </span>
+                            <span className="font-medium">{resource.name}</span>
+                            {provider === "slack" && resource.metadata?.num_members && (
+                              <span className="text-xs text-muted-foreground ml-auto">
+                                {resource.metadata.num_members as number} members
+                              </span>
+                            )}
                           </div>
-                          {channel.purpose && (
-                            <p className="text-xs text-muted-foreground mt-1 truncate">
-                              {channel.purpose}
-                            </p>
-                          )}
-                        </button>
-                      ))
-                    : pages.map((page) => (
-                        <button
-                          key={page.id}
-                          onClick={() => setSelectedResource(page.id)}
-                          className={`w-full p-3 text-left rounded-lg transition-colors ${
-                            selectedResource === page.id
-                              ? "bg-primary/10 border border-primary"
-                              : "hover:bg-muted border border-transparent"
-                          }`}
-                        >
-                          <div className="flex items-center gap-2">
-                            <FileText className="w-4 h-4 text-muted-foreground" />
-                            <span className="font-medium">{page.title || "Untitled"}</span>
+                          {/* ADR-030: Coverage indicator */}
+                          <div className="mt-1">
+                            <CoverageIndicator
+                              state={resource.coverage_state}
+                              lastExtracted={resource.last_extracted_at}
+                              itemsExtracted={resource.items_extracted}
+                            />
                           </div>
-                          {page.last_edited && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Last edited: {new Date(page.last_edited).toLocaleDateString()}
-                            </p>
-                          )}
                         </button>
                       ))}
                     </div>
@@ -409,8 +662,17 @@ export function IntegrationImportModal({
                 </>
               )}
 
+              {/* ADR-030: Scope configuration */}
+              {(isGmail || selectableResources.length > 0) && (
+                <ScopeConfiguration
+                  scope={scope}
+                  onChange={setScope}
+                  provider={provider}
+                />
+              )}
+
               {/* Instructions (optional) - shown for all providers */}
-              {(isGmail || resources.length > 0) && (
+              {(isGmail || selectableResources.length > 0) && (
                 <div className="mt-4">
                   <label className="block text-sm font-medium mb-2">
                     Instructions (optional)
@@ -425,7 +687,7 @@ export function IntegrationImportModal({
               )}
 
               {/* Style Learning Toggle - ADR-027 Phase 5, ADR-029 */}
-              {(isGmail || resources.length > 0) && (
+              {(isGmail || selectableResources.length > 0) && (
                 <div className="mt-4 p-3 border border-border rounded-lg bg-muted/30">
                   <label className="flex items-start gap-3 cursor-pointer">
                     <input

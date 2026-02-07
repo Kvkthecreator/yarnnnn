@@ -686,6 +686,13 @@ export const api = {
           learn_style?: boolean;
           style_user_id?: string;
         };
+        // ADR-030: Scope parameters
+        scope?: {
+          recency_days?: number;
+          max_items?: number;
+          include_sent?: boolean;
+          include_threads?: boolean;
+        };
       }
     ) =>
       request<{
@@ -745,6 +752,46 @@ export const api = {
             .filter(([, v]) => v !== undefined)
             .map(([k, v]) => [k, String(v)])
         ).toString()}` : ""}`
+      ),
+
+    // ADR-030: Landscape and Coverage
+    // Get platform landscape with coverage state
+    getLandscape: (provider: "slack" | "notion" | "gmail", refresh?: boolean) =>
+      request<{
+        provider: string;
+        discovered_at: string | null;
+        resources: Array<{
+          id: string;
+          name: string;
+          resource_type: string;
+          coverage_state: "uncovered" | "partial" | "covered" | "stale" | "excluded";
+          last_extracted_at: string | null;
+          items_extracted: number;
+          metadata: Record<string, unknown>;
+        }>;
+        coverage_summary: {
+          total_resources: number;
+          covered_count: number;
+          partial_count: number;
+          stale_count: number;
+          uncovered_count: number;
+          excluded_count: number;
+          coverage_percentage: number;
+        };
+      }>(`/api/integrations/${provider}/landscape${refresh ? "?refresh=true" : ""}`),
+
+    // Update coverage state (mark as excluded or reset)
+    updateCoverage: (
+      provider: "slack" | "notion" | "gmail",
+      resourceId: string,
+      coverageState: "excluded" | "uncovered"
+    ) =>
+      request<{ success: boolean; resource_id: string; coverage_state: string }>(
+        `/api/integrations/${provider}/coverage/${encodeURIComponent(resourceId)}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ coverage_state: coverageState }),
+        }
       ),
   },
 };
