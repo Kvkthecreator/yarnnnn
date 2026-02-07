@@ -35,6 +35,7 @@ import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
 import { SUBSCRIPTION_LIMITS } from "@/lib/subscription/limits";
 import { createClient } from "@/lib/supabase/client";
 import { IntegrationImportModal } from "@/components/IntegrationImportModal";
+import { useTP } from "@/contexts/TPContext";
 
 interface MemoryStats {
   userMemories: number;
@@ -96,6 +97,7 @@ type DangerAction =
 export default function SettingsPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { clearMessages } = useTP();
   const tabParam = searchParams.get("tab");
   const initialTab: SettingsTab =
     tabParam === "billing" ? "billing" :
@@ -377,6 +379,8 @@ export default function SettingsPage() {
         case "chat":
           result = await api.account.clearChatHistory();
           setPurgeSuccess(result.message);
+          // Clear TP chat state so stale messages don't persist
+          clearMessages();
           break;
         case "memories":
           result = await api.account.clearMemories();
@@ -398,6 +402,8 @@ export default function SettingsPage() {
         case "context":
           result = await api.account.clearContext();
           setPurgeSuccess(result.message);
+          // Clear TP chat state (context includes chat sessions)
+          clearMessages();
           break;
         case "integrations":
           result = await api.account.clearIntegrations();
@@ -407,6 +413,8 @@ export default function SettingsPage() {
         case "reset":
           result = await api.account.resetAccount();
           setPurgeSuccess(result.message);
+          // Clear TP chat state before redirect
+          clearMessages();
           // Redirect to dashboard after reset
           setTimeout(() => router.push("/dashboard"), 2000);
           break;
