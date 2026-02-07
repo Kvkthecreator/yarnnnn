@@ -83,6 +83,32 @@ class MCPClientManager:
             self._locks[key] = asyncio.Lock()
         return self._locks[key]
 
+    def _parse_mcp_result(self, result: Any) -> Any:
+        """
+        Parse MCP CallToolResult into usable data.
+
+        MCP SDK returns CallToolResult objects with a content attribute.
+        The content is typically a list of TextContent items with JSON strings.
+        """
+        import json
+
+        # Already a dict or list - return as-is
+        if isinstance(result, (dict, list)):
+            return result
+
+        # MCP CallToolResult - extract content
+        if hasattr(result, "content"):
+            for content_item in result.content:
+                if hasattr(content_item, "text"):
+                    try:
+                        return json.loads(content_item.text)
+                    except (json.JSONDecodeError, TypeError):
+                        # Return raw text if not JSON
+                        return content_item.text
+
+        # Fallback - return as-is
+        return result
+
     async def get_session(
         self,
         user_id: str,
@@ -311,13 +337,14 @@ class MCPClientManager:
                     "SLACK_TEAM_ID": team_id
                 }
             )
-            # Parse MCP result - structure depends on server implementation
-            if isinstance(result, dict) and "channels" in result:
-                return result["channels"]
-            elif isinstance(result, list):
-                return result
+            # Parse MCP result - CallToolResult has content attribute
+            parsed = self._parse_mcp_result(result)
+            if isinstance(parsed, dict) and "channels" in parsed:
+                return parsed["channels"]
+            elif isinstance(parsed, list):
+                return parsed
             else:
-                logger.warning(f"[MCP] Unexpected channels result format: {type(result)}")
+                logger.warning(f"[MCP] Unexpected channels result format: {type(parsed)}, raw: {parsed}")
                 return []
         except Exception as e:
             logger.error(f"[MCP] Failed to list Slack channels: {e}")
@@ -347,12 +374,13 @@ class MCPClientManager:
                     "SLACK_TEAM_ID": team_id
                 }
             )
-            if isinstance(result, dict) and "messages" in result:
-                return result["messages"]
-            elif isinstance(result, list):
-                return result
+            parsed = self._parse_mcp_result(result)
+            if isinstance(parsed, dict) and "messages" in parsed:
+                return parsed["messages"]
+            elif isinstance(parsed, list):
+                return parsed
             else:
-                logger.warning(f"[MCP] Unexpected history result format: {type(result)}")
+                logger.warning(f"[MCP] Unexpected history result format: {type(parsed)}")
                 return []
         except Exception as e:
             logger.error(f"[MCP] Failed to get Slack history: {e}")
@@ -385,12 +413,13 @@ class MCPClientManager:
                 arguments=arguments,
                 env={"AUTH_TOKEN": auth_token}
             )
-            if isinstance(result, dict) and "results" in result:
-                return result["results"]
-            elif isinstance(result, list):
-                return result
+            parsed = self._parse_mcp_result(result)
+            if isinstance(parsed, dict) and "results" in parsed:
+                return parsed["results"]
+            elif isinstance(parsed, list):
+                return parsed
             else:
-                logger.warning(f"[MCP] Unexpected search result format: {type(result)}")
+                logger.warning(f"[MCP] Unexpected search result format: {type(parsed)}")
                 return []
         except Exception as e:
             logger.error(f"[MCP] Failed to search Notion pages: {e}")
@@ -415,7 +444,8 @@ class MCPClientManager:
                 arguments={"page_id": page_id},
                 env={"AUTH_TOKEN": auth_token}
             )
-            return result if isinstance(result, dict) else {"content": str(result)}
+            parsed = self._parse_mcp_result(result)
+            return parsed if isinstance(parsed, dict) else {"content": str(parsed)}
         except Exception as e:
             logger.error(f"[MCP] Failed to get Notion page: {e}")
             raise
@@ -450,12 +480,13 @@ class MCPClientManager:
                     "REFRESH_TOKEN": refresh_token
                 }
             )
-            if isinstance(result, dict) and "labels" in result:
-                return result["labels"]
-            elif isinstance(result, list):
-                return result
+            parsed = self._parse_mcp_result(result)
+            if isinstance(parsed, dict) and "labels" in parsed:
+                return parsed["labels"]
+            elif isinstance(parsed, list):
+                return parsed
             else:
-                logger.warning(f"[MCP] Unexpected Gmail labels result format: {type(result)}")
+                logger.warning(f"[MCP] Unexpected Gmail labels result format: {type(parsed)}")
                 return []
         except Exception as e:
             logger.error(f"[MCP] Failed to list Gmail labels: {e}")
@@ -499,12 +530,13 @@ class MCPClientManager:
                     "REFRESH_TOKEN": refresh_token
                 }
             )
-            if isinstance(result, dict) and "messages" in result:
-                return result["messages"]
-            elif isinstance(result, list):
-                return result
+            parsed = self._parse_mcp_result(result)
+            if isinstance(parsed, dict) and "messages" in parsed:
+                return parsed["messages"]
+            elif isinstance(parsed, list):
+                return parsed
             else:
-                logger.warning(f"[MCP] Unexpected Gmail list result format: {type(result)}")
+                logger.warning(f"[MCP] Unexpected Gmail list result format: {type(parsed)}")
                 return []
         except Exception as e:
             logger.error(f"[MCP] Failed to list Gmail messages: {e}")
@@ -535,7 +567,8 @@ class MCPClientManager:
                     "REFRESH_TOKEN": refresh_token
                 }
             )
-            return result if isinstance(result, dict) else {"content": str(result)}
+            parsed = self._parse_mcp_result(result)
+            return parsed if isinstance(parsed, dict) else {"content": str(parsed)}
         except Exception as e:
             logger.error(f"[MCP] Failed to get Gmail message: {e}")
             raise
@@ -565,7 +598,8 @@ class MCPClientManager:
                     "REFRESH_TOKEN": refresh_token
                 }
             )
-            return result if isinstance(result, dict) else {"content": str(result)}
+            parsed = self._parse_mcp_result(result)
+            return parsed if isinstance(parsed, dict) else {"content": str(parsed)}
         except Exception as e:
             logger.error(f"[MCP] Failed to get Gmail thread: {e}")
             raise
