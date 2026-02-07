@@ -65,7 +65,15 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         client_secret_env="SLACK_CLIENT_SECRET",
         authorize_url="https://slack.com/oauth/v2/authorize",
         token_url="https://slack.com/api/oauth.v2.access",
-        scopes=["chat:write", "channels:read", "users:read"],
+        # ADR-027/030: Full scopes for reading and listing channels
+        scopes=[
+            "chat:write",           # Post messages
+            "channels:read",        # List public channels
+            "channels:history",     # Read public channel messages
+            "groups:read",          # List private channels
+            "groups:history",       # Read private channel messages
+            "users:read",           # Get user info
+        ],
         redirect_path="/api/integrations/slack/callback",
     ),
     "notion": OAuthConfig(
