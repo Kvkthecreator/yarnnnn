@@ -45,6 +45,15 @@ interface CoverageSummary {
   coverage_percentage: number;
 }
 
+// ADR-030: Progress details for real-time tracking
+interface ProgressDetails {
+  phase: "fetching" | "processing" | "storing";
+  items_total: number;
+  items_completed: number;
+  current_resource: string | null;
+  updated_at: string;
+}
+
 interface ImportJob {
   id: string;
   provider: string;
@@ -52,6 +61,7 @@ interface ImportJob {
   resource_name: string | null;
   status: string;
   progress: number;
+  progress_details: ProgressDetails | null;
   result: {
     blocks_created: number;
     items_processed: number;
@@ -791,15 +801,45 @@ function ImportJobStatus({ job, provider }: { job: ImportJob; provider: Provider
   const providerName = provider === "slack" ? "Slack" : provider === "notion" ? "Notion" : "Gmail";
 
   if (job.status === "pending" || job.status === "processing") {
+    const details = job.progress_details;
+    const phaseLabels: Record<string, string> = {
+      fetching: "Fetching data",
+      processing: "Extracting context",
+      storing: "Saving memories",
+    };
+
     return (
-      <div className="py-8 text-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-        <p className="font-medium">Importing from {job.resource_name || providerName}...</p>
-        <p className="text-sm text-muted-foreground mt-2">
-          {job.status === "pending"
-            ? "Waiting to start..."
-            : "Extracting context and filtering noise..."}
-        </p>
+      <div className="py-6">
+        {/* Progress bar */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium">
+              {job.status === "pending" ? "Starting..." : (details ? phaseLabels[details.phase] : "Processing...")}
+            </span>
+            <span className="text-sm text-muted-foreground">{job.progress}%</span>
+          </div>
+          <div className="h-2 bg-muted rounded-full overflow-hidden">
+            <div
+              className="h-full bg-primary transition-all duration-500"
+              style={{ width: `${job.progress}%` }}
+            />
+          </div>
+        </div>
+
+        {/* Progress details */}
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" />
+          {job.status === "pending" ? (
+            <span>Waiting to start...</span>
+          ) : details ? (
+            <span>
+              {details.items_completed} of {details.items_total} items
+              {details.current_resource && ` · ${details.current_resource}`}
+            </span>
+          ) : (
+            <span>Importing from {job.resource_name || providerName}...</span>
+          )}
+        </div>
       </div>
     );
   }

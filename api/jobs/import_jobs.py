@@ -132,6 +132,40 @@ async def update_job_status(
     ).execute()
 
 
+async def update_job_progress(
+    supabase_client,
+    job_id: str,
+    progress: int,
+    phase: str,
+    items_total: int = 0,
+    items_completed: int = 0,
+    current_resource: Optional[str] = None,
+) -> None:
+    """
+    ADR-030: Update job progress details for real-time tracking.
+
+    Args:
+        progress: 0-100 percentage
+        phase: 'fetching' | 'processing' | 'storing'
+        items_total: Total items to process
+        items_completed: Items completed so far
+        current_resource: Name of current resource being processed
+    """
+    progress_details = {
+        "phase": phase,
+        "items_total": items_total,
+        "items_completed": items_completed,
+        "current_resource": current_resource,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    supabase_client.table("integration_import_jobs").update({
+        "progress": min(max(progress, 0), 100),
+        "progress_details": progress_details,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", job_id).execute()
+
+
 async def update_coverage_state(
     supabase_client,
     user_id: str,
@@ -275,6 +309,17 @@ async def process_slack_import(
     if not team_id:
         raise ValueError("Slack integration missing team_id")
 
+    # ADR-030: Update progress - fetching phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=10,
+        phase="fetching",
+        items_total=max_items,
+        items_completed=0,
+        current_resource=resource_name,
+    )
+
     # 1. Fetch messages via MCP
     logger.info(f"[IMPORT] Fetching Slack channel: {resource_name} (max: {max_items})")
     messages = await mcp_manager.get_slack_channel_history(
@@ -294,12 +339,34 @@ async def process_slack_import(
             "style_learned": False,
         }
 
+    # ADR-030: Update progress - processing phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=50,
+        phase="processing",
+        items_total=len(messages),
+        items_completed=0,
+        current_resource=resource_name,
+    )
+
     # 2. Run agent to extract context
     logger.info(f"[IMPORT] Processing {len(messages)} messages with agent")
     import_result = await agent.import_slack_channel(
         messages=messages,
         channel_name=resource_name,
         instructions=instructions,
+    )
+
+    # ADR-030: Update progress - storing phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=80,
+        phase="storing",
+        items_total=len(import_result.blocks) if import_result.blocks else 0,
+        items_completed=0,
+        current_resource=resource_name,
     )
 
     # 3. Store as memories
@@ -315,6 +382,17 @@ async def process_slack_import(
             "resource_name": resource_name,
             "job_id": job["id"],
         },
+    )
+
+    # ADR-030: Update progress - nearly complete
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=95,
+        phase="storing",
+        items_total=blocks_created,
+        items_completed=blocks_created,
+        current_resource=resource_name,
     )
 
     # 4. Optionally learn style from user's messages (Phase 5)
@@ -399,6 +477,17 @@ async def process_notion_import(
     # Decrypt access token
     access_token = token_manager.decrypt(integration["access_token_encrypted"])
 
+    # ADR-030: Update progress - fetching phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=10,
+        phase="fetching",
+        items_total=1,
+        items_completed=0,
+        current_resource=resource_id,
+    )
+
     # 1. Fetch page via MCP
     logger.info(f"[IMPORT] Fetching Notion page: {resource_id}")
     page_content = await mcp_manager.get_notion_page_content(
@@ -418,11 +507,33 @@ async def process_notion_import(
 
     resource_name = page_content.get("title", "Untitled")
 
+    # ADR-030: Update progress - processing phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=50,
+        phase="processing",
+        items_total=1,
+        items_completed=0,
+        current_resource=resource_name,
+    )
+
     # 2. Run agent to extract context
     logger.info(f"[IMPORT] Processing page with agent: {resource_name}")
     import_result = await agent.import_notion_page(
         page_content=page_content,
         instructions=instructions,
+    )
+
+    # ADR-030: Update progress - storing phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=80,
+        phase="storing",
+        items_total=len(import_result.blocks) if import_result.blocks else 0,
+        items_completed=0,
+        current_resource=resource_name,
     )
 
     # 3. Store as memories
@@ -438,6 +549,17 @@ async def process_notion_import(
             "resource_name": resource_name,
             "job_id": job["id"],
         },
+    )
+
+    # ADR-030: Update progress - nearly complete
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=95,
+        phase="storing",
+        items_total=blocks_created,
+        items_completed=blocks_created,
+        current_resource=resource_name,
     )
 
     # 4. Optionally learn style from page content (Phase 5)
@@ -589,8 +711,22 @@ async def process_gmail_import(
     # Fetch full message content for each message
     # ADR-030: Respect max_items from scope (capped at 50 for performance)
     fetch_limit = min(max_items, 50)
+    messages_to_fetch = messages[:fetch_limit]
+    total_messages = len(messages_to_fetch)
+
+    # ADR-030: Update progress - fetching phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=10,
+        phase="fetching",
+        items_total=total_messages,
+        items_completed=0,
+        current_resource=resource_name,
+    )
+
     full_messages = []
-    for msg in messages[:fetch_limit]:
+    for idx, msg in enumerate(messages_to_fetch):
         msg_id = msg.get("id")
         if msg_id:
             try:
@@ -602,8 +738,32 @@ async def process_gmail_import(
                     refresh_token=refresh_token,
                 )
                 full_messages.append(full_msg)
+
+                # Update progress every 5 messages or at the end
+                if (idx + 1) % 5 == 0 or idx == total_messages - 1:
+                    fetch_progress = 10 + int((idx + 1) / total_messages * 40)  # 10-50%
+                    await update_job_progress(
+                        supabase_client,
+                        job["id"],
+                        progress=fetch_progress,
+                        phase="fetching",
+                        items_total=total_messages,
+                        items_completed=idx + 1,
+                        current_resource=resource_name,
+                    )
             except Exception as e:
                 logger.warning(f"[IMPORT] Failed to fetch message {msg_id}: {e}")
+
+    # ADR-030: Update progress - processing phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=55,
+        phase="processing",
+        items_total=len(full_messages),
+        items_completed=0,
+        current_resource=resource_name,
+    )
 
     # Run agent to extract context
     logger.info(f"[IMPORT] Processing {len(full_messages)} Gmail messages with agent")
@@ -611,6 +771,17 @@ async def process_gmail_import(
         messages=full_messages,
         source_name=resource_name,
         instructions=instructions,
+    )
+
+    # ADR-030: Update progress - storing phase
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=80,
+        phase="storing",
+        items_total=len(import_result.blocks) if import_result.blocks else 0,
+        items_completed=0,
+        current_resource=resource_name,
     )
 
     # Store as memories
@@ -626,6 +797,17 @@ async def process_gmail_import(
             "resource_name": resource_name,
             "job_id": job["id"],
         },
+    )
+
+    # ADR-030: Update progress - nearly complete
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=95,
+        phase="storing",
+        items_total=blocks_created,
+        items_completed=blocks_created,
+        current_resource=resource_name,
     )
 
     # Optionally learn style from email content

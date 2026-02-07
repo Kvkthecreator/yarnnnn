@@ -717,6 +717,14 @@ export const api = {
         resource_name: string | null;
         status: string;
         progress: number;
+        // ADR-030: Progress details for real-time tracking
+        progress_details: {
+          phase: "fetching" | "processing" | "storing";
+          items_total: number;
+          items_completed: number;
+          current_resource: string | null;
+          updated_at: string;
+        } | null;
         result: {
           blocks_created: number;
           items_processed: number;

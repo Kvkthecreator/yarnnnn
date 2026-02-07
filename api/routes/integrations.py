@@ -193,6 +193,15 @@ class ImportJobResultResponse(BaseModel):
     style_confidence: Optional[str] = None  # high, medium, low
 
 
+class ImportJobProgressDetails(BaseModel):
+    """ADR-030: Progress details for real-time tracking."""
+    phase: str  # fetching, processing, storing
+    items_total: int = 0
+    items_completed: int = 0
+    current_resource: Optional[str] = None
+    updated_at: Optional[str] = None
+
+
 def _parse_import_result(result_dict: Optional[dict]) -> Optional[ImportJobResultResponse]:
     """Parse raw result dict from DB into typed response."""
     if not result_dict:
@@ -207,6 +216,19 @@ def _parse_import_result(result_dict: Optional[dict]) -> Optional[ImportJobResul
     )
 
 
+def _parse_progress_details(progress_dict: Optional[dict]) -> Optional[ImportJobProgressDetails]:
+    """Parse raw progress_details dict from DB into typed response."""
+    if not progress_dict:
+        return None
+    return ImportJobProgressDetails(
+        phase=progress_dict.get("phase", "processing"),
+        items_total=progress_dict.get("items_total", 0),
+        items_completed=progress_dict.get("items_completed", 0),
+        current_resource=progress_dict.get("current_resource"),
+        updated_at=progress_dict.get("updated_at"),
+    )
+
+
 class ImportJobResponse(BaseModel):
     """Status of an import job."""
     id: str
@@ -215,6 +237,7 @@ class ImportJobResponse(BaseModel):
     resource_name: Optional[str] = None
     status: str  # pending, processing, completed, failed
     progress: int = 0
+    progress_details: Optional[ImportJobProgressDetails] = None  # ADR-030
     result: Optional[ImportJobResultResponse] = None
     error_message: Optional[str] = None
     created_at: datetime
@@ -1055,6 +1078,7 @@ async def get_import_job(
             resource_name=job.get("resource_name"),
             status=job["status"],
             progress=job.get("progress", 0),
+            progress_details=_parse_progress_details(job.get("progress_details")),  # ADR-030
             result=_parse_import_result(job.get("result")),
             error_message=job.get("error_message"),
             created_at=job["created_at"],
@@ -1101,6 +1125,7 @@ async def list_import_jobs(
                 resource_name=job.get("resource_name"),
                 status=job["status"],
                 progress=job.get("progress", 0),
+                progress_details=_parse_progress_details(job.get("progress_details")),  # ADR-030
                 result=_parse_import_result(job.get("result")),
                 error_message=job.get("error_message"),
                 created_at=job["created_at"],
