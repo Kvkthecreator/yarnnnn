@@ -32,19 +32,16 @@ except ImportError:
 
 
 # Server command configurations
+# NOTE: Gmail uses direct API calls instead of MCP (see Gmail section below)
 SERVER_COMMANDS: dict[str, list[str]] = {
     "slack": ["npx", "-y", "@modelcontextprotocol/server-slack"],
     "notion": ["npx", "-y", "@notionhq/notion-mcp-server", "--transport", "stdio"],
-    # ADR-029: Gmail MCP server (shinzo-labs)
-    "gmail": ["npx", "-y", "@shinzolabs/gmail-mcp"],
 }
 
 # Environment variable mappings per provider
 SERVER_ENV_KEYS: dict[str, list[str]] = {
     "slack": ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"],
     "notion": ["NOTION_TOKEN"],  # Official Notion MCP server uses NOTION_TOKEN
-    # ADR-029: Gmail requires OAuth credentials + refresh token
-    "gmail": ["CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"],
 }
 
 
@@ -566,8 +563,41 @@ class MCPClientManager:
             raise
 
     # =========================================================================
-    # Gmail Read Operations (via MCP) - ADR-029
+    # Gmail Read Operations (Direct API) - ADR-029
     # =========================================================================
+    # NOTE: Gmail uses direct API calls instead of MCP because the
+    # @shinzolabs/gmail-mcp server requires local credential files that
+    # don't work in a hosted environment like Render.
+
+    async def _get_gmail_access_token(
+        self,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str
+    ) -> str:
+        """
+        Get a valid Gmail access token by refreshing the token.
+
+        Uses the refresh token to obtain a fresh access token from Google.
+        """
+        import httpx
+
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token",
+                }
+            )
+            data = response.json()
+
+            if "error" in data:
+                raise RuntimeError(f"Gmail token refresh failed: {data.get('error_description', data.get('error'))}")
+
+            return data["access_token"]
 
     async def list_gmail_labels(
         self,
@@ -577,34 +607,33 @@ class MCPClientManager:
         refresh_token: str
     ) -> list[dict[str, Any]]:
         """
-        List Gmail labels (folders) via MCP.
+        List Gmail labels (folders) via direct API.
 
         ADR-030: Used for landscape discovery.
 
         Returns list of label objects with id, name, type, etc.
         """
+        import httpx
+
         try:
-            result = await self.call_tool(
-                user_id=user_id,
-                provider="gmail",
-                tool_name="list_labels",
-                arguments={},
-                env={
-                    "CLIENT_ID": client_id,
-                    "CLIENT_SECRET": client_secret,
-                    "REFRESH_TOKEN": refresh_token
-                }
+            access_token = await self._get_gmail_access_token(
+                client_id, client_secret, refresh_token
             )
-            parsed = self._parse_mcp_result(result)
-            if isinstance(parsed, dict) and "labels" in parsed:
-                return parsed["labels"]
-            elif isinstance(parsed, list):
-                return parsed
-            else:
-                logger.warning(f"[MCP] Unexpected Gmail labels result format: {type(parsed)}")
-                return []
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+                    headers={"Authorization": f"Bearer {access_token}"}
+                )
+                data = response.json()
+
+                if "error" in data:
+                    raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+
+                return data.get("labels", [])
+
         except Exception as e:
-            logger.error(f"[MCP] Failed to list Gmail labels: {e}")
+            logger.error(f"[GMAIL] Failed to list labels: {e}")
             raise
 
     async def list_gmail_messages(
@@ -617,7 +646,7 @@ class MCPClientManager:
         max_results: int = 20
     ) -> list[dict[str, Any]]:
         """
-        List Gmail messages via MCP.
+        List Gmail messages via direct API.
 
         Args:
             user_id: User identifier
@@ -629,32 +658,32 @@ class MCPClientManager:
 
         Returns list of message objects with id, threadId, snippet, etc.
         """
-        try:
-            arguments = {"maxResults": max_results}
-            if query:
-                arguments["query"] = query
+        import httpx
 
-            result = await self.call_tool(
-                user_id=user_id,
-                provider="gmail",
-                tool_name="list_messages",  # @shinzolabs/gmail-mcp tool name
-                arguments=arguments,
-                env={
-                    "CLIENT_ID": client_id,
-                    "CLIENT_SECRET": client_secret,
-                    "REFRESH_TOKEN": refresh_token
-                }
+        try:
+            access_token = await self._get_gmail_access_token(
+                client_id, client_secret, refresh_token
             )
-            parsed = self._parse_mcp_result(result)
-            if isinstance(parsed, dict) and "messages" in parsed:
-                return parsed["messages"]
-            elif isinstance(parsed, list):
-                return parsed
-            else:
-                logger.warning(f"[MCP] Unexpected Gmail list result format: {type(parsed)}")
-                return []
+
+            params = {"maxResults": max_results}
+            if query:
+                params["q"] = query
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params=params
+                )
+                data = response.json()
+
+                if "error" in data:
+                    raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+
+                return data.get("messages", [])
+
         except Exception as e:
-            logger.error(f"[MCP] Failed to list Gmail messages: {e}")
+            logger.error(f"[GMAIL] Failed to list messages: {e}")
             raise
 
     async def get_gmail_message(
@@ -666,26 +695,32 @@ class MCPClientManager:
         refresh_token: str
     ) -> dict[str, Any]:
         """
-        Get a specific Gmail message via MCP.
+        Get a specific Gmail message via direct API.
 
         Returns full message object with headers, body, attachments info.
         """
+        import httpx
+
         try:
-            result = await self.call_tool(
-                user_id=user_id,
-                provider="gmail",
-                tool_name="get_message",  # @shinzolabs/gmail-mcp tool name
-                arguments={"messageId": message_id},
-                env={
-                    "CLIENT_ID": client_id,
-                    "CLIENT_SECRET": client_secret,
-                    "REFRESH_TOKEN": refresh_token
-                }
+            access_token = await self._get_gmail_access_token(
+                client_id, client_secret, refresh_token
             )
-            parsed = self._parse_mcp_result(result)
-            return parsed if isinstance(parsed, dict) else {"content": str(parsed)}
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{message_id}",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params={"format": "full"}
+                )
+                data = response.json()
+
+                if "error" in data:
+                    raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+
+                return data
+
         except Exception as e:
-            logger.error(f"[MCP] Failed to get Gmail message: {e}")
+            logger.error(f"[GMAIL] Failed to get message: {e}")
             raise
 
     async def get_gmail_thread(
@@ -697,26 +732,32 @@ class MCPClientManager:
         refresh_token: str
     ) -> dict[str, Any]:
         """
-        Get a Gmail thread (conversation) via MCP.
+        Get a Gmail thread (conversation) via direct API.
 
         Returns thread object with all messages in the conversation.
         """
+        import httpx
+
         try:
-            result = await self.call_tool(
-                user_id=user_id,
-                provider="gmail",
-                tool_name="get_thread",  # @shinzolabs/gmail-mcp tool name
-                arguments={"threadId": thread_id},
-                env={
-                    "CLIENT_ID": client_id,
-                    "CLIENT_SECRET": client_secret,
-                    "REFRESH_TOKEN": refresh_token
-                }
+            access_token = await self._get_gmail_access_token(
+                client_id, client_secret, refresh_token
             )
-            parsed = self._parse_mcp_result(result)
-            return parsed if isinstance(parsed, dict) else {"content": str(parsed)}
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"https://gmail.googleapis.com/gmail/v1/users/me/threads/{thread_id}",
+                    headers={"Authorization": f"Bearer {access_token}"},
+                    params={"format": "full"}
+                )
+                data = response.json()
+
+                if "error" in data:
+                    raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+
+                return data
+
         except Exception as e:
-            logger.error(f"[MCP] Failed to get Gmail thread: {e}")
+            logger.error(f"[GMAIL] Failed to get thread: {e}")
             raise
 
     async def send_gmail_message(
@@ -732,7 +773,7 @@ class MCPClientManager:
         thread_id: Optional[str] = None
     ) -> ExportResult:
         """
-        Send a Gmail message via MCP.
+        Send a Gmail message via direct API.
 
         Args:
             user_id: User identifier
@@ -748,39 +789,51 @@ class MCPClientManager:
         Returns:
             ExportResult with message ID and status
         """
+        import httpx
+        import base64
+        from email.mime.text import MIMEText
+
         try:
-            arguments = {
-                "to": to,
-                "subject": subject,
-                "body": body
-            }
+            access_token = await self._get_gmail_access_token(
+                client_id, client_secret, refresh_token
+            )
+
+            # Build email message
+            message = MIMEText(body)
+            message["to"] = to
+            message["subject"] = subject
             if cc:
-                arguments["cc"] = cc
+                message["cc"] = cc
+
+            # Encode as base64url
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+            request_body = {"raw": raw}
             if thread_id:
-                arguments["threadId"] = thread_id
+                request_body["threadId"] = thread_id
 
-            result = await self.call_tool(
-                user_id=user_id,
-                provider="gmail",
-                tool_name="send_message",  # @shinzolabs/gmail-mcp tool name
-                arguments=arguments,
-                env={
-                    "CLIENT_ID": client_id,
-                    "CLIENT_SECRET": client_secret,
-                    "REFRESH_TOKEN": refresh_token
-                }
-            )
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json"
+                    },
+                    json=request_body
+                )
+                data = response.json()
 
-            message_id = result.get("id") if isinstance(result, dict) else None
+                if "error" in data:
+                    raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
 
-            return ExportResult(
-                status=ExportStatus.SUCCESS,
-                external_id=message_id,
-                metadata={"result": result}
-            )
+                return ExportResult(
+                    status=ExportStatus.SUCCESS,
+                    external_id=data.get("id"),
+                    metadata={"result": data}
+                )
 
         except Exception as e:
-            logger.error(f"[MCP] Gmail send failed: {e}")
+            logger.error(f"[GMAIL] Send failed: {e}")
             return ExportResult(
                 status=ExportStatus.FAILED,
                 error_message=str(e)
@@ -799,43 +852,55 @@ class MCPClientManager:
         thread_id: Optional[str] = None
     ) -> ExportResult:
         """
-        Create a Gmail draft via MCP.
+        Create a Gmail draft via direct API.
 
         Useful for deliverables that need user review before sending.
         """
+        import httpx
+        import base64
+        from email.mime.text import MIMEText
+
         try:
-            arguments = {
-                "to": to,
-                "subject": subject,
-                "body": body
-            }
+            access_token = await self._get_gmail_access_token(
+                client_id, client_secret, refresh_token
+            )
+
+            # Build email message
+            message = MIMEText(body)
+            message["to"] = to
+            message["subject"] = subject
             if cc:
-                arguments["cc"] = cc
+                message["cc"] = cc
+
+            # Encode as base64url
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode()
+
+            request_body = {"message": {"raw": raw}}
             if thread_id:
-                arguments["threadId"] = thread_id
+                request_body["message"]["threadId"] = thread_id
 
-            result = await self.call_tool(
-                user_id=user_id,
-                provider="gmail",
-                tool_name="create_draft",  # @shinzolabs/gmail-mcp tool name
-                arguments=arguments,
-                env={
-                    "CLIENT_ID": client_id,
-                    "CLIENT_SECRET": client_secret,
-                    "REFRESH_TOKEN": refresh_token
-                }
-            )
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Content-Type": "application/json"
+                    },
+                    json=request_body
+                )
+                data = response.json()
 
-            draft_id = result.get("id") if isinstance(result, dict) else None
+                if "error" in data:
+                    raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
 
-            return ExportResult(
-                status=ExportStatus.SUCCESS,
-                external_id=draft_id,
-                metadata={"result": result, "is_draft": True}
-            )
+                return ExportResult(
+                    status=ExportStatus.SUCCESS,
+                    external_id=data.get("id"),
+                    metadata={"result": data, "is_draft": True}
+                )
 
         except Exception as e:
-            logger.error(f"[MCP] Gmail draft creation failed: {e}")
+            logger.error(f"[GMAIL] Draft creation failed: {e}")
             return ExportResult(
                 status=ExportStatus.FAILED,
                 error_message=str(e)
