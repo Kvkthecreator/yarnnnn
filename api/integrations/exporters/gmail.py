@@ -1,13 +1,19 @@
 """
-Gmail Exporter - ADR-029
+Gmail Exporter - ADR-029, ADR-031
 
 Delivers content to Gmail via MCP (send or draft).
+
+ADR-031 adds support for platform variants with HTML formatting:
+- email_summary: Inbox digest with sections
+- email_draft_reply: Reply drafts
+- email_weekly_digest: Weekly overview
+- email_triage: Email categorization
 
 Destination Schema:
     {
         "platform": "gmail",
         "target": "recipient@example.com",
-        "format": "send" | "draft" | "reply",
+        "format": "send" | "draft" | "reply" | "html",
         "options": {
             "cc": "other@example.com",
             "subject": "Custom subject",
@@ -42,7 +48,7 @@ class GmailExporter(DestinationExporter):
         return "gmail"
 
     def get_supported_formats(self) -> list[str]:
-        return ["send", "draft", "reply"]
+        return ["send", "draft", "reply", "html"]
 
     def validate_destination(self, destination: dict[str, Any]) -> bool:
         """Validate Gmail destination config."""
@@ -116,18 +122,44 @@ class GmailExporter(DestinationExporter):
         try:
             mcp = get_mcp_manager()
 
+            # ADR-031 Phase 5: Check if we should use HTML formatting
+            platform_variant = metadata.get("platform_variant")
+            use_html = fmt == "html" or platform_variant in (
+                "email_summary", "email_draft_reply", "email_follow_up",
+                "email_weekly_digest", "email_triage"
+            )
+
+            # Convert content to HTML if needed
+            email_body = content
+            if use_html:
+                from services.platform_output import generate_gmail_html
+
+                email_body = generate_gmail_html(
+                    content=content,
+                    variant=platform_variant or "default",
+                    metadata={
+                        "title": subject,
+                        "recipient": target,
+                        "date": options.get("date", ""),
+                        "email_count": options.get("email_count", ""),
+                    }
+                )
+
+                logger.info(f"[GMAIL_EXPORT] Using HTML format for variant={platform_variant}")
+
             if fmt == "draft":
                 # Create draft for user review
                 result = await mcp.create_gmail_draft(
                     user_id=context.user_id,
                     to=target,
                     subject=subject,
-                    body=content,
+                    body=email_body,
                     client_id=client_id,
                     client_secret=client_secret,
                     refresh_token=refresh_token,
                     cc=cc,
-                    thread_id=thread_id
+                    thread_id=thread_id,
+                    is_html=use_html,  # ADR-031: Indicate HTML content
                 )
 
                 if result.status == ExportStatus.SUCCESS:
@@ -141,17 +173,18 @@ class GmailExporter(DestinationExporter):
                 return result
 
             else:
-                # Send directly (both "send" and "reply" formats)
+                # Send directly (both "send", "reply", and "html" formats)
                 result = await mcp.send_gmail_message(
                     user_id=context.user_id,
                     to=target,
                     subject=subject,
-                    body=content,
+                    body=email_body,
                     client_id=client_id,
                     client_secret=client_secret,
                     refresh_token=refresh_token,
                     cc=cc,
-                    thread_id=thread_id if fmt == "reply" else None
+                    thread_id=thread_id if fmt == "reply" else None,
+                    is_html=use_html,  # ADR-031: Indicate HTML content
                 )
 
                 if result.status == ExportStatus.SUCCESS:

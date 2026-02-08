@@ -1213,6 +1213,139 @@ INSTRUCTIONS:
 
 Generate the summary now:""",
 
+    # ADR-031 Phase 5: Gmail Archetypes
+    "email_draft_reply": """You are drafting a reply to an email thread.
+
+ORIGINAL EMAIL CONTEXT:
+{email_context}
+
+SENDER: {sender_name}
+SUBJECT: {subject}
+
+GATHERED CONTEXT (user's notes, related info):
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Write a professional, clear response
+- Address all points raised in the original email
+- Be concise but thorough
+- Match the formality level of the original sender
+- Include a clear action or next step if appropriate
+- Use appropriate greeting and sign-off
+
+Draft the reply now (start with greeting, end with sign-off):""",
+
+    "email_follow_up": """You are drafting a follow-up email.
+
+CONTEXT FOR FOLLOW-UP:
+{follow_up_context}
+
+RECIPIENT: {recipient_name}
+ORIGINAL SUBJECT: {subject}
+DAYS SINCE LAST CONTACT: {days_since}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Write a polite, professional follow-up
+- Reference the previous communication briefly
+- Restate the key ask or topic clearly
+- Provide any new information if relevant
+- End with a specific call to action
+- Keep it concise - respect their time
+
+Draft the follow-up email now:""",
+
+    "email_weekly_digest": """You are creating a weekly email digest for the user.
+
+ACCOUNT: {account_email}
+TIME PERIOD: {time_period}
+
+Create a summary of the user's email activity and outstanding items.
+
+SECTIONS TO GENERATE:
+
+## 📊 This Week's Overview
+Quick stats: emails received, sent, threads active.
+
+## 🔴 Overdue Responses
+Emails that have been waiting for your response for too long.
+
+## ⏰ Time-Sensitive
+Emails with upcoming deadlines or meetings.
+
+## 💬 Active Threads
+Important ongoing conversations.
+
+## 📌 Flagged for Review
+Emails the user starred or flagged but hasn't addressed.
+
+## ✅ Completed This Week
+Threads that were resolved or closed this week.
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Be specific about senders, subjects, and dates
+- Highlight anything overdue prominently
+- Note patterns (e.g., "3 emails from Sarah unread")
+- Provide actionable suggestions
+- Keep the tone helpful, not overwhelming
+
+Generate the digest now:""",
+
+    "email_triage": """You are helping triage incoming emails.
+
+INBOX: {inbox_name}
+NEW EMAILS COUNT: {email_count}
+
+Categorize and prioritize these emails to help the user manage their inbox efficiently.
+
+CATEGORIES TO ASSIGN:
+
+### 🔴 Respond Today
+Must respond within 24 hours.
+
+### 🟡 Respond This Week
+Should respond but not urgent.
+
+### 🟢 FYI Only
+No response needed, just awareness.
+
+### 📁 Archive
+Can be archived without action.
+
+### 🗑️ Skip/Delete
+Newsletters, promotions, or irrelevant.
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+INSTRUCTIONS:
+- For each email, state: [CATEGORY] From: Subject - Brief reason
+- Consider sender importance (boss vs newsletter)
+- Look for deadlines, questions, or requests
+- Group similar emails (e.g., "5 newsletter emails → Archive")
+- Be decisive - avoid "maybe" categories
+
+Triage the emails now:""",
+
     "notion_page": """You are creating content for a Notion page.
 
 PAGE TITLE: {page_title}
@@ -1284,6 +1417,41 @@ def _build_variant_prompt(
                 inbox_name = source.get("resource_name") or source.get("source", "Inbox")
                 break
         fields["inbox_name"] = inbox_name
+
+    elif platform_variant == "email_draft_reply":
+        # Extract email context from type_config or sources
+        type_config = deliverable.get("type_config", {})
+        fields["email_context"] = type_config.get("email_context", gathered_context[:2000])
+        fields["sender_name"] = type_config.get("sender_name", "Sender")
+        fields["subject"] = type_config.get("subject", title)
+
+    elif platform_variant == "email_follow_up":
+        type_config = deliverable.get("type_config", {})
+        fields["follow_up_context"] = type_config.get("follow_up_context", gathered_context[:1000])
+        fields["recipient_name"] = type_config.get("recipient_name", destination.get("target", "Recipient"))
+        fields["subject"] = type_config.get("subject", title)
+        fields["days_since"] = type_config.get("days_since", "7")
+
+    elif platform_variant == "email_weekly_digest":
+        # Extract account email from sources
+        account_email = "your inbox"
+        for source in sources:
+            if source.get("provider") == "gmail":
+                account_email = source.get("resource_name") or source.get("source", "your inbox")
+                break
+        fields["account_email"] = account_email
+
+    elif platform_variant == "email_triage":
+        inbox_name = "Inbox"
+        email_count = 0
+        for source in sources:
+            if source.get("provider") == "gmail":
+                inbox_name = source.get("resource_name") or source.get("source", "Inbox")
+                break
+        # Count emails from context (rough estimate)
+        email_count = gathered_context.count("Subject:") or gathered_context.count("From:")
+        fields["inbox_name"] = inbox_name
+        fields["email_count"] = str(email_count) if email_count > 0 else "multiple"
 
     elif platform_variant == "notion_page":
         fields["page_title"] = title
