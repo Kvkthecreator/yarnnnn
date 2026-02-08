@@ -379,6 +379,16 @@ class MCPClientManager:
                 return parsed["messages"]
             elif isinstance(parsed, list):
                 return parsed
+            elif isinstance(parsed, dict):
+                # Log what keys we got to debug
+                logger.warning(f"[MCP] History dict missing 'messages' key. Keys: {list(parsed.keys())}")
+                # Check for error response
+                if "error" in parsed:
+                    logger.error(f"[MCP] Slack API error: {parsed.get('error')}")
+                # Try alternate key names
+                if "history" in parsed:
+                    return parsed["history"]
+                return []
             else:
                 logger.warning(f"[MCP] Unexpected history result format: {type(parsed)}")
                 return []
