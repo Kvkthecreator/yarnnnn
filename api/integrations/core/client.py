@@ -171,6 +171,14 @@ class MCPClientManager:
                 )
                 await session.initialize()
 
+                # Debug: list available tools
+                try:
+                    tools_result = await session.list_tools()
+                    tool_names = [t.name for t in tools_result.tools] if tools_result.tools else []
+                    logger.info(f"[MCP] Available tools for {provider}: {tool_names}")
+                except Exception as e:
+                    logger.warning(f"[MCP] Could not list tools for {provider}: {e}")
+
                 self._sessions[key] = session
                 logger.info(f"[MCP] Session created for {key}")
 
