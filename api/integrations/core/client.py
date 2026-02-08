@@ -770,7 +770,8 @@ class MCPClientManager:
         client_secret: str,
         refresh_token: str,
         cc: Optional[str] = None,
-        thread_id: Optional[str] = None
+        thread_id: Optional[str] = None,
+        is_html: bool = False
     ) -> ExportResult:
         """
         Send a Gmail message via direct API.
@@ -785,6 +786,7 @@ class MCPClientManager:
             refresh_token: User's refresh token
             cc: Optional CC recipients
             thread_id: Optional thread ID for replies
+            is_html: Whether body is HTML content
 
         Returns:
             ExportResult with message ID and status
@@ -798,8 +800,9 @@ class MCPClientManager:
                 client_id, client_secret, refresh_token
             )
 
-            # Build email message
-            message = MIMEText(body)
+            # Build email message with appropriate MIME type
+            subtype = "html" if is_html else "plain"
+            message = MIMEText(body, subtype)
             message["to"] = to
             message["subject"] = subject
             if cc:
@@ -849,12 +852,16 @@ class MCPClientManager:
         client_secret: str,
         refresh_token: str,
         cc: Optional[str] = None,
-        thread_id: Optional[str] = None
+        thread_id: Optional[str] = None,
+        is_html: bool = False
     ) -> ExportResult:
         """
         Create a Gmail draft via direct API.
 
         Useful for deliverables that need user review before sending.
+
+        Args:
+            is_html: Whether body is HTML content
         """
         import httpx
         import base64
@@ -865,8 +872,9 @@ class MCPClientManager:
                 client_id, client_secret, refresh_token
             )
 
-            # Build email message
-            message = MIMEText(body)
+            # Build email message with appropriate MIME type
+            subtype = "html" if is_html else "plain"
+            message = MIMEText(body, subtype)
             message["to"] = to
             message["subject"] = subject
             if cc:
