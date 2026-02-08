@@ -99,7 +99,7 @@ class NotionExporter(DestinationExporter):
                         "title": title,
                         "content": content
                     },
-                    env={"AUTH_TOKEN": context.access_token}
+                    env={"NOTION_TOKEN": context.access_token}
                 )
             elif fmt == "database_item":
                 # Create a database item (future enhancement)
@@ -117,7 +117,7 @@ class NotionExporter(DestinationExporter):
                         "content": content,
                         "properties": properties
                     },
-                    env={"AUTH_TOKEN": context.access_token}
+                    env={"NOTION_TOKEN": context.access_token}
                 )
             else:
                 return ExportResult(
@@ -185,7 +185,7 @@ class NotionExporter(DestinationExporter):
                 provider="notion",
                 tool_name="notion_get_page",
                 arguments={"page_id": target},
-                env={"AUTH_TOKEN": context.access_token}
+                env={"NOTION_TOKEN": context.access_token}
             )
 
             # If we get here without error, we have access

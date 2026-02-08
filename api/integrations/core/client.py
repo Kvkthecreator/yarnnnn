@@ -42,7 +42,7 @@ SERVER_COMMANDS: dict[str, list[str]] = {
 # Environment variable mappings per provider
 SERVER_ENV_KEYS: dict[str, list[str]] = {
     "slack": ["SLACK_BOT_TOKEN", "SLACK_TEAM_ID"],
-    "notion": ["AUTH_TOKEN"],
+    "notion": ["NOTION_TOKEN"],  # Official Notion MCP server uses NOTION_TOKEN
     # ADR-029: Gmail requires OAuth credentials + refresh token
     "gmail": ["CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"],
 }
@@ -290,7 +290,7 @@ class MCPClientManager:
                     "title": title,
                     "content": content
                 },
-                env={"AUTH_TOKEN": auth_token}
+                env={"NOTION_TOKEN": auth_token}
             )
 
             # Parse result
@@ -503,7 +503,7 @@ class MCPClientManager:
                 provider="notion",
                 tool_name="notion_search",
                 arguments=arguments,
-                env={"AUTH_TOKEN": auth_token}
+                env={"NOTION_TOKEN": auth_token}
             )
             parsed = self._parse_mcp_result(result)
             if isinstance(parsed, dict) and "results" in parsed:
@@ -534,7 +534,7 @@ class MCPClientManager:
                 provider="notion",
                 tool_name="notion_get_page",
                 arguments={"page_id": page_id},
-                env={"AUTH_TOKEN": auth_token}
+                env={"NOTION_TOKEN": auth_token}
             )
             parsed = self._parse_mcp_result(result)
             return parsed if isinstance(parsed, dict) else {"content": str(parsed)}
