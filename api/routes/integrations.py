@@ -1408,7 +1408,10 @@ async def get_landscape(
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
     # Check if we need to discover
-    needs_discovery = refresh or not integration.data.get("landscape")
+    # ADR-030: Also trigger discovery if landscape is empty or has no resources
+    landscape = integration.data.get("landscape")
+    is_empty_landscape = not landscape or not landscape.get("resources")
+    needs_discovery = refresh or is_empty_landscape
 
     if needs_discovery:
         # Discover landscape from provider
