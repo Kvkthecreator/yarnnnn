@@ -284,7 +284,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="notion_create_page",
+                tool_name="notion-create-pages",  # Official tool uses hyphenated names
                 arguments={
                     "parent_id": parent_id,
                     "title": title,
@@ -501,7 +501,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="notion_search",
+                tool_name="notion-search",  # Official tool uses hyphenated names
                 arguments=arguments,
                 env={"NOTION_TOKEN": auth_token}
             )
@@ -532,7 +532,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="notion_get_page",
+                tool_name="notion-fetch",  # Official tool uses hyphenated names
                 arguments={"page_id": page_id},
                 env={"NOTION_TOKEN": auth_token}
             )

@@ -90,10 +90,11 @@ class NotionExporter(DestinationExporter):
 
             if fmt == "page":
                 # Create a new page under the parent
+                # Official Notion MCP uses hyphenated tool names
                 result = await mcp.call_tool(
                     user_id=context.user_id,
                     provider="notion",
-                    tool_name="notion_create_page",
+                    tool_name="notion-create-pages",
                     arguments={
                         "parent_id": target,
                         "title": title,
@@ -110,7 +111,7 @@ class NotionExporter(DestinationExporter):
                 result = await mcp.call_tool(
                     user_id=context.user_id,
                     provider="notion",
-                    tool_name="notion_create_database_item",
+                    tool_name="notion-create-pages",  # Use same tool, database support via parent_id
                     arguments={
                         "database_id": database_id,
                         "title": title,
@@ -180,10 +181,11 @@ class NotionExporter(DestinationExporter):
             mcp = get_mcp_manager()
 
             # Try to get page info to verify access
+            # Official Notion MCP uses hyphenated tool names
             result = await mcp.call_tool(
                 user_id=context.user_id,
                 provider="notion",
-                tool_name="notion_get_page",
+                tool_name="notion-fetch",
                 arguments={"page_id": target},
                 env={"NOTION_TOKEN": context.access_token}
             )
