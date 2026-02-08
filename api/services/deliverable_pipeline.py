@@ -1126,6 +1126,176 @@ def build_sections_list(deliverable_type: str, config: dict) -> str:
     return "\n".join(enabled)
 
 
+# =============================================================================
+# ADR-031: Platform Variant Prompts
+# =============================================================================
+
+VARIANT_PROMPTS = {
+    "slack_digest": """You are creating a Slack channel digest.
+
+CHANNEL: {channel_name}
+TIME PERIOD: {time_period}
+
+The digest should highlight what's important, not just summarize everything.
+Focus on platform-semantic signals in the context.
+
+SECTIONS TO GENERATE:
+
+## 🔥 Hot Threads
+Threads with high engagement (many replies, reactions). What were people talking about?
+
+## ❓ Unanswered Questions
+Questions that haven't been answered yet. Flag these for attention.
+
+## ⏳ Stalled Discussions
+Threads that started but went quiet - may need follow-up.
+
+## ✅ Action Items
+Concrete tasks or follow-ups mentioned in conversations.
+
+## 📋 Decisions Made
+Decisions that were reached in discussions.
+
+## 💬 Key Discussions
+Other notable conversations worth knowing about.
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Be concise but specific - use names and details from context
+- If a section has nothing notable, skip it entirely
+- Format for Slack: use *bold* for emphasis, bullet points for lists
+- Include message timestamps or rough times when referencing discussions
+- Prioritize actionable information over general chatter
+- If you detect urgency markers or blockers, highlight them prominently
+
+Generate the digest now:""",
+
+    "email_summary": """You are creating an email inbox summary.
+
+INBOX: {inbox_name}
+TIME PERIOD: {time_period}
+
+Summarize the key emails and threads that need attention.
+
+SECTIONS TO GENERATE:
+
+## 🚨 Urgent / Needs Response
+Emails requiring immediate attention or response.
+
+## 📥 Action Required
+Emails with action items or requests for you.
+
+## 📧 FYI / Updates
+Informational emails that are good to know about.
+
+## 🔄 Threads to Follow Up
+Email threads that may need your follow-up.
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Prioritize by urgency and importance
+- Include sender names and subjects
+- Summarize the core request or information
+- Skip purely administrative or automated emails
+- Note deadlines if mentioned
+
+Generate the summary now:""",
+
+    "notion_page": """You are creating content for a Notion page.
+
+PAGE TITLE: {page_title}
+PURPOSE: {purpose}
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Use clear headers (##) to structure content
+- Include callout blocks for important notes (> **Note:** ...)
+- Use checkboxes for action items (- [ ] Task here)
+- Tables where appropriate for comparisons or data
+- Keep formatting clean and scannable
+
+Generate the page content now:""",
+}
+
+
+def _build_variant_prompt(
+    platform_variant: str,
+    deliverable: dict,
+    gathered_context: str,
+    recipient_text: str,
+    past_versions: str,
+) -> Optional[str]:
+    """
+    Build a platform-variant-specific prompt.
+
+    Returns None if variant not supported (falls back to base type).
+    """
+    template = VARIANT_PROMPTS.get(platform_variant)
+    if not template:
+        return None
+
+    # Extract metadata for template
+    title = deliverable.get("title", "Deliverable")
+    sources = deliverable.get("sources", [])
+    destination = deliverable.get("destination", {})
+
+    # Common fields
+    fields = {
+        "gathered_context": gathered_context,
+        "recipient_context": recipient_text,
+        "past_versions": past_versions,
+        "time_period": "Last 7 days",  # Could make this configurable
+    }
+
+    if platform_variant == "slack_digest":
+        # Extract channel name from sources or destination
+        channel_name = "Channel"
+        for source in sources:
+            if source.get("provider") == "slack":
+                channel_name = source.get("resource_name") or source.get("source", "Channel")
+                break
+        if not channel_name or channel_name == "Channel":
+            channel_name = destination.get("target", title)
+
+        fields["channel_name"] = channel_name
+
+    elif platform_variant == "email_summary":
+        inbox_name = "Inbox"
+        for source in sources:
+            if source.get("provider") == "gmail":
+                inbox_name = source.get("resource_name") or source.get("source", "Inbox")
+                break
+        fields["inbox_name"] = inbox_name
+
+    elif platform_variant == "notion_page":
+        fields["page_title"] = title
+        fields["purpose"] = deliverable.get("description", "Documentation")
+
+    try:
+        return template.format(**fields)
+    except KeyError as e:
+        logger.warning(f"[VARIANT] Missing field in template: {e}")
+        return None
+
+
 def build_type_prompt(
     deliverable_type: str,
     config: dict,
@@ -1135,6 +1305,19 @@ def build_type_prompt(
     past_versions: str,
 ) -> str:
     """Build the type-specific synthesis prompt."""
+
+    # ADR-031: Check for platform_variant first
+    platform_variant = deliverable.get("platform_variant")
+    if platform_variant:
+        variant_prompt = _build_variant_prompt(
+            platform_variant=platform_variant,
+            deliverable=deliverable,
+            gathered_context=gathered_context,
+            recipient_text=recipient_text,
+            past_versions=past_versions,
+        )
+        if variant_prompt:
+            return variant_prompt
 
     template = TYPE_PROMPTS.get(deliverable_type, TYPE_PROMPTS["custom"])
 

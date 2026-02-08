@@ -1,19 +1,22 @@
 """
-Slack Exporter - ADR-028
+Slack Exporter - ADR-028, ADR-031
 
 Delivers content to Slack channels via MCP.
+
+ADR-031 adds support for Block Kit output when platform_variant is set.
 
 Destination Schema:
     {
         "platform": "slack",
         "target": "#team-updates" or "C123ABC456",
-        "format": "message" | "thread",
+        "format": "message" | "thread" | "blocks",
         "options": {
             "thread_ts": "1234.5678"  # For replies
         }
     }
 """
 
+import json
 import logging
 from typing import Any, Optional
 
@@ -38,7 +41,7 @@ class SlackExporter(DestinationExporter):
         return "slack"
 
     def get_supported_formats(self) -> list[str]:
-        return ["message", "thread"]
+        return ["message", "thread", "blocks"]
 
     def validate_destination(self, destination: dict[str, Any]) -> bool:
         """Validate Slack destination config."""
@@ -96,11 +99,35 @@ class SlackExporter(DestinationExporter):
         try:
             mcp = get_mcp_manager()
 
+            # ADR-031: Check if we should use Block Kit
+            platform_variant = metadata.get("platform_variant")
+            use_blocks = fmt == "blocks" or platform_variant in ("slack_digest", "slack_update")
+
             # Build message arguments
             arguments = {
                 "channel": target,
-                "text": content,
             }
+
+            if use_blocks:
+                # Convert content to Slack blocks
+                from services.platform_output import generate_slack_blocks
+
+                blocks = generate_slack_blocks(
+                    content=content,
+                    variant=platform_variant or "default",
+                    metadata={
+                        "title": title,
+                        "channel_name": target,
+                    }
+                )
+
+                arguments["blocks"] = json.dumps(blocks)
+                # Also include plain text fallback for notifications
+                arguments["text"] = f"{title} - View in Slack for full formatting"
+
+                logger.info(f"[SLACK_EXPORT] Using Block Kit ({len(blocks)} blocks) for variant={platform_variant}")
+            else:
+                arguments["text"] = content
 
             # Add thread_ts for threaded replies
             if fmt == "thread" and options.get("thread_ts"):
