@@ -292,7 +292,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="notion-create-pages",  # Official tool uses hyphenated names
+                tool_name="API-post-page",  # Actual MCP tool name from @notionhq/notion-mcp-server
                 arguments={
                     "parent_id": parent_id,
                     "title": title,
@@ -509,7 +509,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="notion-search",  # Official tool uses hyphenated names
+                tool_name="API-post-search",  # Actual MCP tool name from @notionhq/notion-mcp-server
                 arguments=arguments,
                 env={"NOTION_TOKEN": auth_token}
             )
@@ -540,7 +540,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="notion-fetch",  # Official tool uses hyphenated names
+                tool_name="API-retrieve-a-page",  # Actual MCP tool name from @notionhq/notion-mcp-server
                 arguments={"page_id": page_id},
                 env={"NOTION_TOKEN": auth_token}
             )
