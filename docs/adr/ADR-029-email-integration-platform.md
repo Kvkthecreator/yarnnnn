@@ -58,13 +58,22 @@ Beyond simple export, email-specific deliverables:
 
 ## Implementation
 
-### Decision: Gmail-First with MCP
+### Decision: Gmail-First with Direct API
 
 **Provider**: Gmail only (via OAuth 2.0)
-**MCP Server**: `@shinzolabs/gmail-mcp`
-**Authentication**: OAuth tokens passed via environment variables (CLIENT_ID, CLIENT_SECRET, REFRESH_TOKEN)
+**API Method**: Direct Google Gmail REST API (NOT MCP)
+**Authentication**: OAuth tokens (refresh token stored encrypted, access token fetched on-demand)
 
-This aligns with existing Slack/Notion patterns using MCP servers via stdio transport.
+> ⚠️ **IMPORTANT: Gmail is an Exception to MCP Architecture**
+>
+> Unlike Slack and Notion which use MCP servers via stdio transport, Gmail uses **direct REST API calls**.
+> This is because:
+>
+> 1. **No first-party Gmail MCP** - Anthropic/Claude AI provides first-party MCP tools for Slack and Notion, but NOT Gmail
+> 2. **Third-party MCP limitations** - The `@shinzolabs/gmail-mcp` server requires local credential files (`~/.gmail-mcp/credentials.json`) that don't work in hosted environments like Render
+> 3. **MCP stdio subprocess overhead** - For Gmail, direct API calls are faster and more reliable than spawning Node.js subprocesses
+>
+> The direct API approach is functionally equivalent - we use the same OAuth tokens and call the same underlying Gmail API endpoints that any MCP server would use internally.
 
 ### Phase 1: Gmail Integration (COMPLETE) ✅
 
@@ -88,17 +97,27 @@ This aligns with existing Slack/Notion patterns using MCP servers via stdio tran
 )
 ```
 
-#### MCP Server Configuration
+#### Direct API Configuration (NOT MCP)
 
 ```python
 # api/integrations/core/client.py
-SERVER_COMMANDS = {
-    "gmail": ["npx", "-y", "@shinzolabs/gmail-mcp"],
-}
-SERVER_ENV_KEYS = {
-    "gmail": ["CLIENT_ID", "CLIENT_SECRET", "REFRESH_TOKEN"],
-}
+# NOTE: Gmail is NOT in SERVER_COMMANDS - it uses direct API calls
+
+# Gmail operations are implemented as direct httpx calls:
+async def _get_gmail_access_token(client_id, client_secret, refresh_token) -> str:
+    """Refresh OAuth token via Google's token endpoint."""
+    # POST https://oauth2.googleapis.com/token
+
+async def list_gmail_messages(user_id, client_id, client_secret, refresh_token, query, max_results):
+    """Direct call to Gmail API."""
+    # GET https://gmail.googleapis.com/gmail/v1/users/me/messages
+
+async def get_gmail_message(user_id, message_id, client_id, client_secret, refresh_token):
+    """Direct call to Gmail API."""
+    # GET https://gmail.googleapis.com/gmail/v1/users/me/messages/{id}
 ```
+
+> **Why not MCP?** See "Decision: Gmail-First with Direct API" section above.
 
 #### Gmail Exporter
 
@@ -108,17 +127,22 @@ class GmailExporter(DestinationExporter):
     platform = "gmail"
     supported_formats = ["send", "draft", "reply"]
 
-    # Uses MCP for all operations
+    # Uses DIRECT API calls (not MCP)
     # Supports: send directly, create draft, reply to thread
 ```
 
-#### MCPClientManager Gmail Operations
+#### MCPClientManager Gmail Operations (Direct API)
 
+These methods are on MCPClientManager for consistency, but use direct httpx calls (not MCP):
+
+- `list_gmail_labels(...)` - List labels/folders
 - `list_gmail_messages(query, max_results)` - List/search messages
 - `get_gmail_message(message_id)` - Get full message content
 - `get_gmail_thread(thread_id)` - Get conversation thread
 - `send_gmail_message(to, subject, body, cc, thread_id)` - Send email
 - `create_gmail_draft(to, subject, body, cc, thread_id)` - Create draft
+
+All operations internally call `_get_gmail_access_token()` to refresh the OAuth token before making API calls.
 
 #### Gmail Import Jobs
 
@@ -423,8 +447,8 @@ Destination = {
 ## Questions Resolved
 
 1. **Provider priority**: Gmail only for now. Outlook later if needed.
-2. **MCP vs. direct API**: MCP (`@shinzolabs/gmail-mcp`) for consistency.
-3. **Storage model**: No storage. Fetch on-demand via MCP.
+2. **MCP vs. direct API**: **Direct API** - Third-party Gmail MCP servers require local credential files incompatible with hosted environments. See implementation decision above.
+3. **Storage model**: No storage. Fetch on-demand via direct Gmail API.
 4. **Style learning**: Deferred to Phase 3. Uses "email" style context for now.
 5. **Reply vs. send**: Both supported. Format determines behavior.
 
@@ -447,4 +471,41 @@ Destination = {
 - [ADR-027: Integration Read Architecture](./ADR-027-integration-read-architecture.md)
 - [ADR-028: Destination-First Deliverables](./ADR-028-destination-first-deliverables.md)
 - [Analysis: Deliverable-Scoped Context](../analysis/deliverable-scoped-context.md)
-- [@shinzolabs/gmail-mcp](https://github.com/shinzo-labs/gmail-mcp) - MCP server used
+- [Gmail REST API](https://developers.google.com/gmail/api/reference/rest) - Direct API used for Gmail operations
+- [@shinzolabs/gmail-mcp](https://github.com/shinzo-labs/gmail-mcp) - Evaluated but not used (requires local credential files)
+
+---
+
+## Appendix: Why Gmail ≠ MCP (Technical Details)
+
+### Integration Architecture Comparison
+
+| Integration | Method | Server | Reason |
+|-------------|--------|--------|--------|
+| **Slack** | MCP | `@modelcontextprotocol/server-slack` | First-party Anthropic support, works with env vars |
+| **Notion** | MCP | `@notionhq/notion-mcp-server` | First-party Notion support, works with env vars |
+| **Gmail** | **Direct API** | N/A | No viable MCP server for hosted environments |
+
+### Why Third-Party Gmail MCP Servers Don't Work
+
+1. **`@shinzolabs/gmail-mcp`**: Requires `~/.gmail-mcp/credentials.json` file on disk. In a hosted environment (Render, Vercel, etc.), this file doesn't exist and can't be created dynamically.
+
+2. **First-party gap**: Claude AI / Anthropic provides first-party MCP tools for Slack (`mcp__claude_ai_Slack__*`) and Notion (`mcp__claude_ai_Notion__*`), but **no Gmail MCP tools exist**. This is a gap in the MCP ecosystem.
+
+3. **stdio subprocess overhead**: MCP servers run as Node.js subprocesses via `npx`. For Gmail, this adds latency and complexity vs. direct httpx calls.
+
+### Direct API Benefits
+
+- **Faster**: No subprocess spawn overhead
+- **Simpler**: No npm package downloads, no MCP protocol overhead
+- **More reliable**: Direct error messages from Gmail API
+- **Same security**: Uses same OAuth tokens as MCP would
+
+### Future Considerations
+
+If a first-party Gmail MCP server becomes available (from Google or Anthropic), migration would be straightforward:
+1. Add `"gmail"` back to `SERVER_COMMANDS` in `client.py`
+2. Remove the direct API methods
+3. Update the `process_gmail_import` job to use MCP calls
+
+Until then, direct API is the pragmatic choice for hosted deployments.
