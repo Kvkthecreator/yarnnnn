@@ -163,19 +163,34 @@ class MCPClientManager:
                 exit_stack = AsyncExitStack()
                 self._exit_stacks[key] = exit_stack
 
-                stdio_transport = await exit_stack.enter_async_context(
-                    stdio_client(server_params)
-                )
-                session = await exit_stack.enter_async_context(
-                    ClientSession(stdio_transport[0], stdio_transport[1])
-                )
-                await session.initialize()
+                # Add timeout for session creation (60 seconds)
+                # This prevents indefinite hangs if MCP server fails to start
+                try:
+                    stdio_transport = await asyncio.wait_for(
+                        exit_stack.enter_async_context(stdio_client(server_params)),
+                        timeout=60.0
+                    )
+                    session = await asyncio.wait_for(
+                        exit_stack.enter_async_context(
+                            ClientSession(stdio_transport[0], stdio_transport[1])
+                        ),
+                        timeout=30.0
+                    )
+                    await asyncio.wait_for(session.initialize(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    logger.error(f"[MCP] Timeout creating session for {key}")
+                    raise RuntimeError(f"MCP session creation timed out for {provider}")
 
                 # Debug: list available tools
                 try:
-                    tools_result = await session.list_tools()
+                    tools_result = await asyncio.wait_for(
+                        session.list_tools(),
+                        timeout=10.0
+                    )
                     tool_names = [t.name for t in tools_result.tools] if tools_result.tools else []
                     logger.info(f"[MCP] Available tools for {provider}: {tool_names}")
+                except asyncio.TimeoutError:
+                    logger.warning(f"[MCP] Timeout listing tools for {provider}")
                 except Exception as e:
                     logger.warning(f"[MCP] Could not list tools for {provider}: {e}")
 
@@ -622,7 +637,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="gmail",
-                tool_name="gmail_list_messages",
+                tool_name="list_messages",  # @shinzolabs/gmail-mcp tool name
                 arguments=arguments,
                 env={
                     "CLIENT_ID": client_id,
@@ -659,7 +674,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="gmail",
-                tool_name="gmail_get_message",
+                tool_name="get_message",  # @shinzolabs/gmail-mcp tool name
                 arguments={"messageId": message_id},
                 env={
                     "CLIENT_ID": client_id,
@@ -690,7 +705,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="gmail",
-                tool_name="gmail_get_thread",
+                tool_name="get_thread",  # @shinzolabs/gmail-mcp tool name
                 arguments={"threadId": thread_id},
                 env={
                     "CLIENT_ID": client_id,
@@ -747,7 +762,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="gmail",
-                tool_name="gmail_send_message",
+                tool_name="send_message",  # @shinzolabs/gmail-mcp tool name
                 arguments=arguments,
                 env={
                     "CLIENT_ID": client_id,
@@ -802,7 +817,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="gmail",
-                tool_name="gmail_create_draft",
+                tool_name="create_draft",  # @shinzolabs/gmail-mcp tool name
                 arguments=arguments,
                 env={
                     "CLIENT_ID": client_id,
