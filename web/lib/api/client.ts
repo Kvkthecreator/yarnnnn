@@ -39,6 +39,11 @@ import type {
   DeliverableVersion,
   VersionUpdate,
   DeliverableRunResponse,
+  // ADR-031 Phase 6: Project Resources
+  ProjectResource,
+  ProjectResourceCreate,
+  ResourceSuggestion,
+  ContextSummaryItem,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -137,6 +142,45 @@ export const api = {
       }),
     get: (projectId: string) =>
       request<ProjectWithCounts>(`/api/projects/${projectId}`),
+
+    // ADR-031 Phase 6: Project Resources
+    resources: {
+      // List resources linked to a project
+      list: (projectId: string, platform?: string) => {
+        const params = platform ? `?platform=${platform}` : "";
+        return request<ProjectResource[]>(
+          `/api/projects/${projectId}/resources${params}`
+        );
+      },
+
+      // Add a resource to a project
+      create: (projectId: string, data: ProjectResourceCreate) =>
+        request<ProjectResource>(`/api/projects/${projectId}/resources`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
+
+      // Remove a resource from a project
+      delete: (projectId: string, resourceId: string) =>
+        request<{ status: string; message: string }>(
+          `/api/projects/${projectId}/resources/${resourceId}`,
+          { method: "DELETE" }
+        ),
+
+      // Auto-suggest resources for a project
+      suggest: (projectId: string) =>
+        request<ResourceSuggestion[]>(
+          `/api/projects/${projectId}/resources/suggest`
+        ),
+
+      // Get cross-platform context summary
+      contextSummary: (projectId: string, days?: number) => {
+        const params = days ? `?days=${days}` : "";
+        return request<ContextSummaryItem[]>(
+          `/api/projects/${projectId}/context-summary${params}`
+        );
+      },
+    },
   },
 
   // User memories (user-scoped, portable)
