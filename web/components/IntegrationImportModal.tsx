@@ -498,8 +498,8 @@ export function IntegrationImportModal({
         onClick={handleClose}
       />
 
-      {/* Modal */}
-      <div className="relative z-10 w-full max-w-lg mx-4 bg-card border border-border rounded-lg shadow-lg max-h-[90vh] flex flex-col">
+      {/* Modal - enlarged for better content display (ADR-030) */}
+      <div className="relative z-10 w-full max-w-2xl mx-4 bg-card border border-border rounded-lg shadow-lg max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
@@ -629,7 +629,7 @@ export function IntegrationImportModal({
                       </p>
                     </div>
                   ) : (
-                    <div className="space-y-2 max-h-64 overflow-y-auto border border-border rounded-lg p-2">
+                    <div className="space-y-2 max-h-80 overflow-y-auto border border-border rounded-lg p-2">
                       {selectableResources.map((resource) => (
                         <button
                           key={resource.id}
