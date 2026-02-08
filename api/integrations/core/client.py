@@ -350,20 +350,78 @@ class MCPClientManager:
             logger.error(f"[MCP] Failed to list Slack channels: {e}")
             raise
 
+    async def join_slack_channel(
+        self,
+        user_id: str,
+        channel_id: str,
+        bot_token: str,
+        team_id: str
+    ) -> bool:
+        """
+        Join a Slack channel (for public channels).
+
+        This allows the bot to read messages from channels it hasn't been
+        explicitly invited to. Only works for public channels.
+
+        Uses Slack API directly since the MCP server doesn't have a join tool.
+
+        Returns True if successful or already in channel.
+        """
+        import httpx
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://slack.com/api/conversations.join",
+                    headers={
+                        "Authorization": f"Bearer {bot_token}",
+                        "Content-Type": "application/json"
+                    },
+                    json={"channel": channel_id}
+                )
+                result = response.json()
+
+                if result.get("ok"):
+                    logger.info(f"[SLACK] Bot joined channel {channel_id}")
+                    return True
+
+                error = result.get("error", "")
+                # Already in channel is fine
+                if error in ("already_in_channel",):
+                    logger.info(f"[SLACK] Bot already in channel {channel_id}")
+                    return True
+                # Private channels can't be auto-joined
+                if error in ("method_not_supported_for_channel_type", "channel_not_found"):
+                    logger.warning(f"[SLACK] Cannot auto-join channel {channel_id}: {error} (may be private)")
+                    return False
+
+                logger.warning(f"[SLACK] Failed to join channel: {error}")
+                return False
+
+        except Exception as e:
+            logger.warning(f"[SLACK] Could not join channel {channel_id}: {e}")
+            return False
+
     async def get_slack_channel_history(
         self,
         user_id: str,
         channel_id: str,
         bot_token: str,
         team_id: str,
-        limit: int = 100
+        limit: int = 100,
+        auto_join: bool = True
     ) -> list[dict[str, Any]]:
         """
         Get Slack channel message history via MCP.
 
+        Args:
+            auto_join: If True, attempt to join public channels automatically
+                      when "not_in_channel" error is received
+
         Returns list of message objects.
         """
-        try:
+        async def _fetch_history() -> tuple[list[dict], str | None]:
+            """Fetch history, returning (messages, error_code)."""
             result = await self.call_tool(
                 user_id=user_id,
                 provider="slack",
@@ -375,23 +433,47 @@ class MCPClientManager:
                 }
             )
             parsed = self._parse_mcp_result(result)
-            if isinstance(parsed, dict) and "messages" in parsed:
-                return parsed["messages"]
-            elif isinstance(parsed, list):
-                return parsed
-            elif isinstance(parsed, dict):
-                # Log what keys we got to debug
-                logger.warning(f"[MCP] History dict missing 'messages' key. Keys: {list(parsed.keys())}")
-                # Check for error response
+
+            if isinstance(parsed, dict):
+                # Check for error response first
                 if "error" in parsed:
-                    logger.error(f"[MCP] Slack API error: {parsed.get('error')}")
-                # Try alternate key names
+                    return [], parsed["error"]
+                if "messages" in parsed:
+                    return parsed["messages"], None
                 if "history" in parsed:
-                    return parsed["history"]
-                return []
+                    return parsed["history"], None
+                logger.warning(f"[MCP] History dict missing 'messages' key. Keys: {list(parsed.keys())}")
+                return [], None
+            elif isinstance(parsed, list):
+                return parsed, None
             else:
                 logger.warning(f"[MCP] Unexpected history result format: {type(parsed)}")
-                return []
+                return [], None
+
+        try:
+            messages, error = await _fetch_history()
+
+            # Handle "not_in_channel" error with auto-join
+            if error == "not_in_channel" and auto_join:
+                logger.info(f"[MCP] Bot not in channel {channel_id}, attempting auto-join...")
+                joined = await self.join_slack_channel(
+                    user_id=user_id,
+                    channel_id=channel_id,
+                    bot_token=bot_token,
+                    team_id=team_id
+                )
+                if joined:
+                    logger.info(f"[MCP] Auto-join successful, retrying history fetch...")
+                    messages, error = await _fetch_history()
+                    if error:
+                        logger.error(f"[MCP] Slack API error after join: {error}")
+                else:
+                    logger.warning(f"[MCP] Could not auto-join channel {channel_id} (may be private)")
+            elif error:
+                logger.error(f"[MCP] Slack API error: {error}")
+
+            return messages
+
         except Exception as e:
             logger.error(f"[MCP] Failed to get Slack history: {e}")
             raise

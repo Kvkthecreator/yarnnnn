@@ -70,6 +70,7 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
             "chat:write",           # Post messages
             "channels:read",        # List public channels
             "channels:history",     # Read public channel messages
+            "channels:join",        # Auto-join public channels (for import)
             "groups:read",          # List private channels
             "groups:history",       # Read private channel messages
             "users:read",           # Get user info
