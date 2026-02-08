@@ -209,8 +209,13 @@ export default function SettingsPage() {
       setActiveTab("integrations");
       // Refresh integrations list
       loadIntegrations();
+      // Clear URL params after a short delay so the notification can be seen
+      const timer = setTimeout(() => {
+        router.replace("/settings?tab=integrations", { scroll: false });
+      }, 5000); // Clear after 5 seconds
+      return () => clearTimeout(timer);
     }
-  }, [providerParam, statusParam]);
+  }, [providerParam, statusParam, router]);
 
   const loadNotificationPreferences = async () => {
     setIsLoadingNotifications(true);
