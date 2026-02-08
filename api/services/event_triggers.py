@@ -118,6 +118,8 @@ class TriggerMatch:
 # In-memory cooldown tracking (for MVP)
 # Production should use Redis or database
 _cooldown_cache: dict[str, datetime] = {}
+_last_cleanup: Optional[datetime] = None
+_CLEANUP_INTERVAL_MINUTES = 15  # Run opportunistic cleanup at most every 15 minutes
 
 
 def _get_cooldown_key(
@@ -147,8 +149,17 @@ def check_cooldown(
     Returns:
         Tuple of (is_in_cooldown, reason)
     """
+    global _last_cleanup
+
     key = _get_cooldown_key(deliverable_id, cooldown.type, event)
     now = datetime.now(timezone.utc)
+
+    # Opportunistic cleanup: run if we haven't cleaned up recently
+    if _last_cleanup is None or (now - _last_cleanup) > timedelta(minutes=_CLEANUP_INTERVAL_MINUTES):
+        cleaned = cleanup_expired_cooldowns()
+        _last_cleanup = now
+        if cleaned > 0:
+            logger.debug(f"[COOLDOWN] Opportunistic cleanup: removed {cleaned} expired entries")
 
     last_trigger = _cooldown_cache.get(key)
     if last_trigger:

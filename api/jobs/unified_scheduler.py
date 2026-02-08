@@ -755,6 +755,19 @@ async def run_unified_scheduler():
             logger.warning(f"[EPHEMERAL] Cleanup failed (non-fatal): {e}")
 
     # -------------------------------------------------------------------------
+    # ADR-031 Phase 4: Cleanup Expired Event Trigger Cooldowns (hourly)
+    # -------------------------------------------------------------------------
+    cooldowns_cleaned = 0
+    if now.minute < 5:  # Only run cleanup in first 5 minutes of each hour
+        try:
+            from services.event_triggers import cleanup_expired_cooldowns
+            cooldowns_cleaned = cleanup_expired_cooldowns()
+            if cooldowns_cleaned > 0:
+                logger.info(f"[COOLDOWN] Cleaned up {cooldowns_cleaned} expired entries")
+        except Exception as e:
+            logger.warning(f"[COOLDOWN] Cleanup failed (non-fatal): {e}")
+
+    # -------------------------------------------------------------------------
     # Process Integration Import Jobs (ADR-027)
     # -------------------------------------------------------------------------
     # First, recover any stale processing jobs (safety net for crashed processes)
