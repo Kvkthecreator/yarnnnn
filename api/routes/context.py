@@ -51,6 +51,7 @@ class MemoryResponse(BaseModel):
     entities: dict
     importance: float
     source_type: str
+    source_ref: Optional[dict] = None  # Platform provenance for imports (ADR-029)
     project_id: Optional[UUID] = None
     is_active: bool
     created_at: datetime
