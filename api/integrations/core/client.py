@@ -368,7 +368,7 @@ class MCPClientManager:
                 user_id=user_id,
                 provider="slack",
                 tool_name="slack_get_channel_history",
-                arguments={"channel": channel_id, "limit": limit},
+                arguments={"channel_id": channel_id, "limit": limit},
                 env={
                     "SLACK_BOT_TOKEN": bot_token,
                     "SLACK_TEAM_ID": team_id
