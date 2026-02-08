@@ -467,6 +467,8 @@ class DeliverableCreate(BaseModel):
     title: str
     deliverable_type: DeliverableType = "custom"
     type_config: Optional[dict] = None  # Type-specific config, validated per type
+    # ADR-031: Platform-native variants
+    platform_variant: Optional[str] = None  # e.g., "slack_digest" for status_report
     project_id: Optional[str] = None  # Optional - will create project if not provided
     recipient_context: Optional[RecipientContext] = None
     schedule: ScheduleConfig
@@ -484,6 +486,8 @@ class DeliverableUpdate(BaseModel):
     title: Optional[str] = None
     deliverable_type: Optional[DeliverableType] = None
     type_config: Optional[dict] = None
+    # ADR-031: Platform-native variants
+    platform_variant: Optional[str] = None
     recipient_context: Optional[RecipientContext] = None
     schedule: Optional[ScheduleConfig] = None
     sources: Optional[list[DataSource]] = None
@@ -502,6 +506,8 @@ class DeliverableResponse(BaseModel):
     title: str
     deliverable_type: str = "custom"
     type_config: Optional[dict] = None
+    # ADR-031: Platform-native variants
+    platform_variant: Optional[str] = None  # e.g., "slack_digest" for status_report
     project_id: Optional[str] = None
     project_name: Optional[str] = None  # For UI display
     recipient_context: Optional[dict] = None
@@ -517,6 +523,8 @@ class DeliverableResponse(BaseModel):
     # ADR-028: Destination-first deliverables
     destination: Optional[dict] = None  # { platform, target, format, options }
     governance: str = "manual"  # manual, semi_auto, full_auto
+    # ADR-031: System-enforced governance ceiling
+    governance_ceiling: Optional[str] = None  # Max governance based on destination
     # Quality metrics (ADR-018: feedback loop)
     quality_score: Optional[float] = None  # Latest edit_distance_score (0=no edits, 1=full rewrite)
     quality_trend: Optional[str] = None  # "improving", "stable", "declining"
@@ -646,6 +654,9 @@ async def create_deliverable(
     # Validate type_config against the type
     validated_config = validate_type_config(request.deliverable_type, type_config)
 
+    # ADR-031: Compute governance ceiling from destination
+    governance_ceiling = compute_governance_ceiling(request.destination)
+
     # Create deliverable
     deliverable_data = {
         "user_id": auth.user_id,
@@ -654,6 +665,8 @@ async def create_deliverable(
         "deliverable_type": request.deliverable_type,
         "type_tier": TYPE_TIERS.get(request.deliverable_type, "stable"),
         "type_config": validated_config,
+        # ADR-031: Platform-native variants
+        "platform_variant": request.platform_variant,
         "description": request.description,  # Legacy, kept for backwards compat
         "recipient_context": request.recipient_context.model_dump() if request.recipient_context else {},
         "template_structure": request.template_structure.model_dump() if request.template_structure else {},
@@ -664,6 +677,8 @@ async def create_deliverable(
         # ADR-028: Destination-first deliverables
         "destination": request.destination,
         "governance": request.governance or "manual",
+        # ADR-031: Governance ceiling
+        "governance_ceiling": governance_ceiling,
     }
 
     result = (
@@ -683,6 +698,8 @@ async def create_deliverable(
         title=deliverable["title"],
         deliverable_type=deliverable.get("deliverable_type", "custom"),
         type_config=deliverable.get("type_config"),
+        # ADR-031: Platform-native variants
+        platform_variant=deliverable.get("platform_variant"),
         project_id=deliverable.get("project_id"),
         recipient_context=deliverable.get("recipient_context"),
         schedule=deliverable["schedule"],
@@ -694,6 +711,8 @@ async def create_deliverable(
         # ADR-028: Destination-first deliverables
         destination=deliverable.get("destination"),
         governance=deliverable.get("governance", "manual"),
+        # ADR-031: Governance ceiling
+        governance_ceiling=deliverable.get("governance_ceiling"),
         # Legacy fields
         description=deliverable.get("description"),
         template_structure=deliverable.get("template_structure"),
@@ -793,6 +812,8 @@ async def list_deliverables(
             title=d["title"],
             deliverable_type=d.get("deliverable_type", "custom"),
             type_config=d.get("type_config"),
+            # ADR-031: Platform-native variants
+            platform_variant=d.get("platform_variant"),
             project_id=d.get("project_id"),
             project_name=project_name,
             recipient_context=d.get("recipient_context"),
@@ -808,6 +829,8 @@ async def list_deliverables(
             # ADR-028: Destination-first deliverables
             destination=d.get("destination"),
             governance=d.get("governance", "manual"),
+            # ADR-031: Governance ceiling
+            governance_ceiling=d.get("governance_ceiling"),
             quality_score=quality_score,
             quality_trend=quality_trend,
             avg_edit_distance=avg_edit_distance,
@@ -866,6 +889,8 @@ async def get_deliverable(
             title=deliverable["title"],
             deliverable_type=deliverable.get("deliverable_type", "custom"),
             type_config=deliverable.get("type_config"),
+            # ADR-031: Platform-native variants
+            platform_variant=deliverable.get("platform_variant"),
             project_id=deliverable.get("project_id"),
             project_name=project_name,
             recipient_context=deliverable.get("recipient_context"),
@@ -880,6 +905,8 @@ async def get_deliverable(
             # ADR-028: Destination-first deliverables
             destination=deliverable.get("destination"),
             governance=deliverable.get("governance", "manual"),
+            # ADR-031: Governance ceiling
+            governance_ceiling=deliverable.get("governance_ceiling"),
             # Legacy
             description=deliverable.get("description"),
             template_structure=deliverable.get("template_structure"),
@@ -946,6 +973,9 @@ async def update_deliverable(
         # Validate against current or new type
         target_type = request.deliverable_type or check.data.get("deliverable_type", "custom")
         update_data["type_config"] = validate_type_config(target_type, request.type_config)
+    # ADR-031: Platform-native variants
+    if request.platform_variant is not None:
+        update_data["platform_variant"] = request.platform_variant
     if request.recipient_context is not None:
         update_data["recipient_context"] = request.recipient_context.model_dump()
     if request.schedule is not None:
@@ -958,6 +988,8 @@ async def update_deliverable(
     # ADR-028: Destination-first deliverables
     if request.destination is not None:
         update_data["destination"] = request.destination
+        # ADR-031: Recalculate governance ceiling when destination changes
+        update_data["governance_ceiling"] = compute_governance_ceiling(request.destination)
     if request.governance is not None:
         update_data["governance"] = request.governance
     # Legacy fields
@@ -983,6 +1015,8 @@ async def update_deliverable(
         title=d["title"],
         deliverable_type=d.get("deliverable_type", "custom"),
         type_config=d.get("type_config"),
+        # ADR-031: Platform-native variants
+        platform_variant=d.get("platform_variant"),
         project_id=d.get("project_id"),
         recipient_context=d.get("recipient_context"),
         schedule=d["schedule"],
@@ -995,6 +1029,8 @@ async def update_deliverable(
         # ADR-028: Destination-first deliverables
         destination=d.get("destination"),
         governance=d.get("governance", "manual"),
+        # ADR-031: Governance ceiling
+        governance_ceiling=d.get("governance_ceiling"),
         # Legacy
         description=d.get("description"),
         template_structure=d.get("template_structure"),
@@ -1444,6 +1480,39 @@ async def update_version(
 # =============================================================================
 # Helper Functions
 # =============================================================================
+
+def compute_governance_ceiling(destination: Optional[dict]) -> Optional[str]:
+    """
+    ADR-031: Compute governance ceiling based on destination.
+
+    | Destination | Ceiling |
+    |-------------|---------|
+    | Internal Slack | full_auto |
+    | External Slack | semi_auto |
+    | Email to external | manual |
+    | Notion (internal) | full_auto |
+    | Download | full_auto |
+    """
+    if not destination:
+        return None
+
+    platform = destination.get("platform")
+    target = destination.get("target", "")
+
+    if platform == "slack":
+        # TODO: Detect shared channels (external) vs internal
+        # For now, assume all Slack is internal
+        return "full_auto"
+    elif platform == "notion":
+        return "full_auto"
+    elif platform in ("email", "gmail"):
+        # Email to external always requires manual review
+        return "manual"
+    elif platform == "download":
+        return "full_auto"
+    else:
+        return "manual"
+
 
 def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dict:
     """

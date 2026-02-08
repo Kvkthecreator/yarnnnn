@@ -659,11 +659,16 @@ export interface GmailDestinationOptions {
   thread_id?: string;  // For replies
 }
 
+// ADR-031: Platform-native deliverable variants
+export type PlatformVariant = "slack_digest" | "email_summary" | "notion_page" | string;
+
 export interface Deliverable {
   id: string;
   title: string;
   deliverable_type: DeliverableType;
   type_config?: TypeConfig;
+  // ADR-031: Platform-native variants
+  platform_variant?: PlatformVariant;  // e.g., "slack_digest" for status_report
   project_id?: string;
   project_name?: string;  // For UI display
   recipient_context?: RecipientContext;
@@ -679,6 +684,8 @@ export interface Deliverable {
   // ADR-028: Destination-first deliverables
   destination?: Destination;
   governance: GovernanceLevel;
+  // ADR-031: System-enforced governance ceiling
+  governance_ceiling?: GovernanceLevel;  // Max governance based on destination
   // Quality metrics (ADR-018: feedback loop)
   quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
@@ -692,6 +699,8 @@ export interface DeliverableCreate {
   title: string;
   deliverable_type?: DeliverableType;
   type_config?: TypeConfig;
+  // ADR-031: Platform-native variants
+  platform_variant?: PlatformVariant;
   project_id?: string;
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;
@@ -708,6 +717,8 @@ export interface DeliverableUpdate {
   title?: string;
   deliverable_type?: DeliverableType;
   type_config?: TypeConfig;
+  // ADR-031: Platform-native variants
+  platform_variant?: PlatformVariant;
   recipient_context?: RecipientContext;
   schedule?: ScheduleConfig;
   sources?: DataSource[];
