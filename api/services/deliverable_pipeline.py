@@ -2089,6 +2089,7 @@ async def execute_deliverable_pipeline(
     user_id: str,
     deliverable_id: str,
     version_number: int,
+    trigger_context: Optional[dict] = None,
 ) -> dict:
     """
     Execute the full deliverable pipeline.
@@ -2101,11 +2102,19 @@ async def execute_deliverable_pipeline(
         user_id: User UUID
         deliverable_id: Deliverable UUID
         version_number: Version number to create
+        trigger_context: Optional context about what triggered this execution
+            ADR-031 Phase 4: For event triggers, includes:
+            - type: "event" or "schedule"
+            - platform: "slack" or "gmail"
+            - event_type: "app_mention", "message_im", etc.
+            - resource_id: Channel/thread that triggered
+            - event_ts: When the event occurred
 
     Returns:
         Pipeline result with version_id, status, and message
     """
-    logger.info(f"[PIPELINE] Starting: deliverable={deliverable_id}, version={version_number}")
+    trigger_type = trigger_context.get("type", "schedule") if trigger_context else "schedule"
+    logger.info(f"[PIPELINE] Starting: deliverable={deliverable_id}, version={version_number}, trigger={trigger_type}")
 
     # Get deliverable details
     deliverable_result = (

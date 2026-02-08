@@ -435,6 +435,32 @@ class ScheduleConfig(BaseModel):
     cron: Optional[str] = None  # For custom frequency
 
 
+# =============================================================================
+# ADR-031 Phase 4: Event Trigger Definitions
+# =============================================================================
+
+class CooldownConfig(BaseModel):
+    """Cooldown configuration to prevent rapid re-triggering."""
+    type: Literal["per_thread", "per_channel", "per_sender", "global"] = "global"
+    duration_minutes: int = 5
+    max_triggers_per_duration: int = 1
+
+
+class EventTriggerConfig(BaseModel):
+    """
+    Event trigger configuration for deliverables.
+
+    Used when trigger_type='event'.
+    """
+    platform: Literal["slack", "gmail", "notion"]
+    event_types: list[str] = Field(default_factory=list)  # ["app_mention", "message_im"]
+    resource_ids: list[str] = Field(default_factory=list)  # ["C123", "D456"]
+    cooldown: Optional[CooldownConfig] = None
+    # Optional filters
+    sender_filter: Optional[list[str]] = None  # Only trigger for specific senders
+    keyword_filter: Optional[list[str]] = None  # Only trigger if content contains keywords
+
+
 class IntegrationSourceScope(BaseModel):
     """ADR-030: Scope configuration for integration sources."""
     mode: Literal["delta", "fixed_window"] = "delta"
@@ -471,7 +497,10 @@ class DeliverableCreate(BaseModel):
     platform_variant: Optional[str] = None  # e.g., "slack_digest" for status_report
     project_id: Optional[str] = None  # Optional - will create project if not provided
     recipient_context: Optional[RecipientContext] = None
-    schedule: ScheduleConfig
+    # ADR-031 Phase 4: Trigger configuration
+    trigger_type: Literal["schedule", "event", "manual"] = "schedule"
+    schedule: Optional[ScheduleConfig] = None  # Required if trigger_type='schedule'
+    trigger_config: Optional[EventTriggerConfig] = None  # Required if trigger_type='event'
     sources: list[DataSource] = Field(default_factory=list)
     # ADR-028: Destination-first deliverables
     destination: Optional[dict] = None  # { platform, target, format, options }
@@ -489,7 +518,10 @@ class DeliverableUpdate(BaseModel):
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None
     recipient_context: Optional[RecipientContext] = None
+    # ADR-031 Phase 4: Trigger configuration
+    trigger_type: Optional[Literal["schedule", "event", "manual"]] = None
     schedule: Optional[ScheduleConfig] = None
+    trigger_config: Optional[EventTriggerConfig] = None
     sources: Optional[list[DataSource]] = None
     status: Optional[Literal["active", "paused", "archived"]] = None
     # ADR-028: Destination-first deliverables
@@ -511,13 +543,17 @@ class DeliverableResponse(BaseModel):
     project_id: Optional[str] = None
     project_name: Optional[str] = None  # For UI display
     recipient_context: Optional[dict] = None
-    schedule: dict
+    # ADR-031 Phase 4: Trigger configuration
+    trigger_type: str = "schedule"  # schedule, event, manual
+    schedule: Optional[dict] = None
+    trigger_config: Optional[dict] = None  # Event trigger config
     sources: list[dict] = Field(default_factory=list)
     status: str
     created_at: str
     updated_at: str
     last_run_at: Optional[str] = None
     next_run_at: Optional[str] = None
+    last_triggered_at: Optional[str] = None  # ADR-031: Last event trigger
     version_count: int = 0
     latest_version_status: Optional[str] = None
     # ADR-028: Destination-first deliverables
