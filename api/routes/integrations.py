@@ -17,7 +17,7 @@ Endpoints:
 import logging
 from typing import Optional, Any
 from datetime import datetime
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, BackgroundTasks
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
@@ -38,6 +38,61 @@ from integrations.core.types import (
 from agents.integration import ContextImportAgent
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Background Import Processing
+# =============================================================================
+
+async def _process_import_job_background(job_id: str, job_data: dict):
+    """
+    Process an import job in the background.
+
+    This runs as a FastAPI BackgroundTask, providing immediate feedback to users
+    while processing happens asynchronously. The cron job serves as a safety net
+    for any jobs that fail to start this way.
+
+    Args:
+        job_id: The import job ID
+        job_data: The job data dict (as inserted into DB)
+    """
+    from jobs.import_jobs import process_import_job
+
+    try:
+        # Get service client for background processing
+        service_client = get_service_client()
+
+        # Fetch the full job record
+        result = service_client.table("integration_import_jobs").select("*").eq(
+            "id", job_id
+        ).single().execute()
+
+        if not result.data:
+            logger.error(f"[IMPORT_BG] Job {job_id} not found")
+            return
+
+        job = result.data
+
+        # Process the job
+        logger.info(f"[IMPORT_BG] Starting background processing for job {job_id}")
+        success = await process_import_job(service_client, job)
+
+        if success:
+            logger.info(f"[IMPORT_BG] ✓ Completed job {job_id}")
+        else:
+            logger.warning(f"[IMPORT_BG] ✗ Job {job_id} failed (check job status for details)")
+
+    except Exception as e:
+        logger.error(f"[IMPORT_BG] Unexpected error processing job {job_id}: {e}")
+        # Try to mark job as failed
+        try:
+            service_client = get_service_client()
+            service_client.table("integration_import_jobs").update({
+                "status": "failed",
+                "error_message": f"Background processing error: {str(e)}"
+            }).eq("id", job_id).execute()
+        except Exception:
+            pass  # Best effort
 
 
 # =============================================================================
@@ -740,7 +795,8 @@ async def list_notion_pages(
 @router.post("/integrations/slack/import")
 async def start_slack_import(
     request: StartImportRequest,
-    auth: UserClient
+    auth: UserClient,
+    background_tasks: BackgroundTasks
 ) -> ImportJobResponse:
     """
     Start a context import from a Slack channel.
@@ -818,8 +874,8 @@ async def start_slack_import(
         style_note = " (with style learning)" if config_dict.get("learn_style") else ""
         logger.info(f"[INTEGRATIONS] User {user_id} started Slack import job {job['id']}{style_note}")
 
-        # TODO: Trigger background job processor
-        # For now, we return the pending job and processing happens via cron/worker
+        # Trigger background processing immediately
+        background_tasks.add_task(_process_import_job_background, job["id"], job_data)
 
         return ImportJobResponse(
             id=job["id"],
@@ -845,7 +901,8 @@ async def start_slack_import(
 @router.post("/integrations/gmail/import")
 async def start_gmail_import(
     request: StartImportRequest,
-    auth: UserClient
+    auth: UserClient,
+    background_tasks: BackgroundTasks
 ) -> ImportJobResponse:
     """
     Start a context import from Gmail.
@@ -935,6 +992,9 @@ async def start_gmail_import(
         style_note = " (with style learning)" if config_dict.get("learn_style") else ""
         logger.info(f"[INTEGRATIONS] User {user_id} started Gmail import job {job['id']}{style_note}")
 
+        # Trigger background processing immediately
+        background_tasks.add_task(_process_import_job_background, job["id"], job_data)
+
         return ImportJobResponse(
             id=job["id"],
             provider="gmail",
@@ -955,7 +1015,8 @@ async def start_gmail_import(
 @router.post("/integrations/notion/import")
 async def start_notion_import(
     request: StartImportRequest,
-    auth: UserClient
+    auth: UserClient,
+    background_tasks: BackgroundTasks
 ) -> ImportJobResponse:
     """
     Start a context import from a Notion page.
@@ -1029,6 +1090,9 @@ async def start_notion_import(
 
         style_note = " (with style learning)" if config_dict.get("learn_style") else ""
         logger.info(f"[INTEGRATIONS] User {user_id} started Notion import job {job['id']}{style_note}")
+
+        # Trigger background processing immediately
+        background_tasks.add_task(_process_import_job_background, job["id"], job_data)
 
         return ImportJobResponse(
             id=job["id"],

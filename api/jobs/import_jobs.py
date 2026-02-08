@@ -90,6 +90,55 @@ async def get_pending_import_jobs(supabase_client) -> list[dict]:
     return result.data or []
 
 
+async def recover_stale_processing_jobs(supabase_client, stale_minutes: int = 10) -> int:
+    """
+    Reset jobs stuck in 'processing' status back to 'pending'.
+
+    This is a safety net for jobs that started processing but failed
+    (e.g., due to server restart) without updating their status.
+
+    Args:
+        supabase_client: Supabase client
+        stale_minutes: Jobs processing longer than this are considered stale
+
+    Returns:
+        Number of jobs recovered
+    """
+    from datetime import timedelta
+
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=stale_minutes)
+
+    # Find stale processing jobs
+    result = (
+        supabase_client.table("integration_import_jobs")
+        .select("id, started_at")
+        .eq("status", "processing")
+        .lt("started_at", cutoff.isoformat())
+        .execute()
+    )
+
+    stale_jobs = result.data or []
+
+    if not stale_jobs:
+        return 0
+
+    # Reset them to pending
+    job_ids = [job["id"] for job in stale_jobs]
+
+    for job_id in job_ids:
+        supabase_client.table("integration_import_jobs").update({
+            "status": "pending",
+            "started_at": None,
+            "progress": 0,
+            "error_message": "Job was stuck in processing - retrying",
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", job_id).execute()
+
+        logger.info(f"[IMPORT] Recovered stale job {job_id}")
+
+    return len(job_ids)
+
+
 async def get_user_integration(supabase_client, user_id: str, provider: str) -> Optional[dict]:
     """Get user's integration credentials for a provider."""
     result = (

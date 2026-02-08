@@ -30,7 +30,7 @@ from .email import (
     send_deliverable_failed_email,
 )
 from .digest import generate_digest_content
-from .import_jobs import get_pending_import_jobs, process_import_job
+from .import_jobs import get_pending_import_jobs, process_import_job, recover_stale_processing_jobs
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -672,6 +672,11 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     # Process Integration Import Jobs (ADR-027)
     # -------------------------------------------------------------------------
+    # First, recover any stale processing jobs (safety net for crashed processes)
+    recovered_count = await recover_stale_processing_jobs(supabase, stale_minutes=10)
+    if recovered_count > 0:
+        logger.info(f"[IMPORT] Recovered {recovered_count} stale job(s)")
+
     import_jobs = await get_pending_import_jobs(supabase)
     import_count = len(import_jobs)
     logger.info(f"[IMPORT] Found {import_count} pending import job(s)")
