@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "About",
-  description: "yarnnn is a supervision layer between your work platforms and your recurring outputs. Connect, configure, approve.",
+  description: "yarnnn writes the recurring things you send—status reports, investor updates, client briefs—so you can just review and approve.",
 };
 
 export default function AboutPage() {
@@ -24,74 +24,75 @@ export default function AboutPage() {
           {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              A supervision layer
+              We built yarnnn because
               <br />
-              <span className="text-white/50">for recurring work.</span>
+              <span className="text-white/50">writing updates is a chore.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                Your work happens in Slack, Gmail, and Notion. Your deliverables go to
-                clients, investors, and teams. The space between is filled with manual labor—
-                reading, summarizing, reformatting. Every week.
+                You know the feeling. It&apos;s Monday morning and you need to send a status
+                report. All the information is there—in Slack, in your inbox, in your notes.
+                But you still have to pull it together, format it, and make it sound right.
               </p>
               <p>
-                What if you could connect your platforms once, configure what you need to produce,
-                and just... approve?
+                It&apos;s not hard. It&apos;s just... time. Time you could spend on actual work.
               </p>
               <p className="text-white font-medium">
-                That&apos;s what we built yarnnn to do.
+                So we made yarnnn to do that part for you.
               </p>
             </div>
           </section>
 
-          {/* The Insight */}
+          {/* The Idea */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">The insight</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-16">The idea</h2>
 
               <div className="space-y-12">
                 <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Your platforms hold the signal</h3>
+                    <h3 className="text-lg font-medium text-white">The context is already there</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      The Slack threads, email chains, and Notion docs you accumulate every week—
-                      that&apos;s the raw material for your deliverables. You just have to extract it.
-                      Again. And again.
+                      Your Slack channels have the updates. Your inbox has the client threads.
+                      Your Notion has the project notes. The raw material for your weekly report?
+                      It already exists.
                     </p>
                     <p className="text-white/30 text-sm">
-                      The context is already there. It just needs to be synthesized.
+                      You&apos;re just reassembling it into a different shape.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Gathering is worker-level labor</h3>
+                    <h3 className="text-lg font-medium text-white">It follows a pattern</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Reading through channels. Summarizing threads. Reformatting for different audiences.
-                      This is work that doesn&apos;t require your judgment—just your time.
+                      Status reports look roughly the same every week. Investor updates follow
+                      a format. Client briefs have a structure. The content changes, but the
+                      shape stays familiar.
                     </p>
                     <p className="text-white/30 text-sm">
-                      You should be supervising, not gathering.
+                      Patterns are learnable. That&apos;s what yarnnn does.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Approval is supervision</h3>
+                    <h3 className="text-lg font-medium text-white">Your time is for judgment calls</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      When you review a draft and approve it, you&apos;re exercising judgment.
-                      That&apos;s high-value work. The synthesis that preceded it? That should be automatic.
+                      Should you mention the delayed timeline? Is this the right level of detail?
+                      Does this sound like you? Those are the decisions that matter.
+                      The drafting is just setup.
                     </p>
                     <p className="text-white/30 text-sm">
-                      Connect once. Configure once. Approve repeatedly.
+                      yarnnn handles the setup. You make the calls.
                     </p>
                   </div>
                 </div>
@@ -99,140 +100,120 @@ export default function AboutPage() {
             </div>
           </section>
 
-          {/* What Makes yarnnn Different */}
+          {/* How It's Different */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">What makes yarnnn different</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-16">How it&apos;s different</h2>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
                 <div>
-                  <h3 className="text-lg font-medium mb-3">Platforms, not prompts</h3>
+                  <h3 className="text-lg font-medium mb-3">It connects to your tools</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    yarnnn connects to where your work happens. You don&apos;t describe what you want—
-                    you point to where the context lives. Slack channels. Gmail threads. Notion docs.
-                    yarnnn pulls fresh context every cycle.
+                    yarnnn links to Slack, Gmail, and Notion—wherever your work lives.
+                    When it&apos;s time to draft, it pulls fresh context automatically.
+                    No copy-pasting, no manual updates.
+                  </p>
+                  <p className="text-white/30 text-xs mt-3">
+                    Technical: OAuth connections with scoped access. Your credentials are never stored.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-medium mb-3">Synthesis, not templates</h3>
+                  <h3 className="text-lg font-medium mb-3">It learns from your edits</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Every draft is built from current context. Not a template filled in.
-                    Not a prompt re-run. The content changes because your platforms changed.
-                    The structure stays consistent because yarnnn learned what works.
+                    Every time you tweak a draft and approve it, yarnnn picks up on what
+                    you changed. Structure preferences. Tone. Which details matter.
+                    The tenth draft needs fewer edits than the first.
+                  </p>
+                  <p className="text-white/30 text-xs mt-3">
+                    Technical: Your edits become training signal—implicit feedback that shapes future drafts.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-medium mb-3">Approval, not editing</h3>
+                  <h3 className="text-lg font-medium mb-3">It runs on a schedule</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    The goal is light-touch review. Not heavy rewriting. Every approval teaches
-                    yarnnn what you want. Over time, the drafts get closer. Your edits get smaller.
-                    Approval becomes routine.
+                    Set it up once—every Monday, first of the month, whatever cadence you need.
+                    yarnnn drafts it when the time comes and pings you when it&apos;s ready.
+                    You just review and approve.
+                  </p>
+                  <p className="text-white/30 text-xs mt-3">
+                    Technical: Scheduled production with delta context extraction—only pulling what&apos;s new since last time.
                   </p>
                 </div>
 
                 <div>
-                  <h3 className="text-lg font-medium mb-3">Learning that compounds</h3>
+                  <h3 className="text-lg font-medium mb-3">It&apos;s always up to date</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    yarnnn learns what to extract. What structure works. What tone fits.
-                    Which sources matter. Every approval is a signal. The 10th draft is better
-                    than the 1st because yarnnn has learned from 9 approvals.
+                    Because yarnnn pulls from your tools every time, the context is fresh.
+                    Not stale. Not based on what you pasted last month.
+                    What happened this week is what goes in this week&apos;s draft.
+                  </p>
+                  <p className="text-white/30 text-xs mt-3">
+                    Technical: Real-time context fetch at execution, not cached from initial setup.
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* The Supervision Model */}
+          {/* Who It's For */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">The supervision model</h2>
-
-              <div className="border border-white/10 rounded-2xl p-8 mb-12">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div>
-                    <div className="text-white/30 text-xs uppercase tracking-wider mb-2">Traditional AI</div>
-                    <h3 className="text-lg font-medium mb-3">You operate, AI assists</h3>
-                    <p className="text-white/50 text-sm">
-                      You gather context. You write prompts. You edit outputs heavily.
-                      AI is a tool you wield. The work is still yours.
-                    </p>
-                  </div>
-                  <div>
-                    <div className="text-white/30 text-xs uppercase tracking-wider mb-2">yarnnn</div>
-                    <h3 className="text-lg font-medium mb-3">AI operates, you supervise</h3>
-                    <p className="text-white/50 text-sm">
-                      yarnnn gathers context. yarnnn synthesizes drafts. You review and approve.
-                      You&apos;re the supervisor. The work is delegated.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <p className="text-white/50 text-center max-w-xl mx-auto">
-                This isn&apos;t about AI getting smarter. It&apos;s about changing the relationship.
-                You decide what matters. You check that it&apos;s right. You give the go-ahead.
-                That&apos;s supervision.
-              </p>
-            </div>
-          </section>
-
-          {/* Who yarnnn Is For */}
-          <section className="border-t border-white/10 px-6 py-24 md:py-32">
-            <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-16">Who yarnnn is for</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-16">Who it&apos;s for</h2>
 
               <div className="space-y-6">
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">Professionals with recurring deliverables</h3>
+                  <h3 className="text-base font-medium mb-2">People who send recurring things</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Weekly status reports. Monthly investor updates. Client briefs.
-                    If you produce it regularly and your platforms hold the context,
-                    yarnnn can supervise it.
+                    Weekly status reports. Monthly investor updates. Client check-ins.
+                    If you owe someone something on a regular cadence, yarnnn can help.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">People who work across platforms</h3>
+                  <h3 className="text-base font-medium mb-2">People whose work is spread across tools</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Slack for team communication. Gmail for clients. Notion for documentation.
-                    The more scattered your work, the more valuable automatic synthesis becomes.
+                    Slack for team chat. Gmail for clients. Notion for docs.
+                    The more scattered the context, the more time yarnnn saves you.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">Anyone tired of manual gathering</h3>
+                  <h3 className="text-base font-medium mb-2">People who&apos;d rather review than write</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    If you spend hours every week reading through channels, summarizing threads,
-                    and reformatting content—that&apos;s time yarnnn can give back to you.
+                    Not everyone likes drafting. If you&apos;d rather skim, tweak, and approve
+                    than stare at a blank page, yarnnn is built for you.
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* What yarnnn Is Not */}
+          {/* What It's Not */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-8">What yarnnn is not</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-8">What it&apos;s not</h2>
+              <p className="text-white/50 mb-12 max-w-xl">
+                yarnnn does one thing well. Here&apos;s what it doesn&apos;t try to be.
+              </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="text-white/50 text-sm">
-                  <span className="text-white/30">Not a chat assistant.</span> You&apos;re not prompting.
-                  You&apos;re configuring scope and approving outputs.
+                  <span className="text-white/30">Not a chatbot.</span> You don&apos;t prompt it
+                  with questions. You set up deliverables and review drafts.
                 </div>
                 <div className="text-white/50 text-sm">
-                  <span className="text-white/30">Not a writing tool.</span> You&apos;re not drafting.
-                  You&apos;re reviewing drafts yarnnn produces.
+                  <span className="text-white/30">Not a writing app.</span> You&apos;re not typing
+                  in yarnnn. You&apos;re reviewing what it wrote.
                 </div>
                 <div className="text-white/50 text-sm">
-                  <span className="text-white/30">Not a template system.</span> It doesn&apos;t repeat.
-                  It synthesizes fresh context every cycle.
+                  <span className="text-white/30">Not a template tool.</span> It doesn&apos;t fill
+                  in blanks. It synthesizes fresh content from current context.
                 </div>
                 <div className="text-white/50 text-sm">
-                  <span className="text-white/30">Not a document editor.</span> The draft is the output.
-                  Not a workspace for you to write in.
+                  <span className="text-white/30">Not a generic AI.</span> It&apos;s specifically
+                  for recurring deliverables that pull from your existing tools.
                 </div>
               </div>
             </div>
@@ -242,10 +223,10 @@ export default function AboutPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Ready to stop gathering?
+                Ready to spend less time on updates?
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Connect your platforms. Configure your first deliverable. Start supervising.
+                Connect your tools. Set up your first deliverable. See what yarnnn drafts.
               </p>
               <Link
                 href="/auth/login"

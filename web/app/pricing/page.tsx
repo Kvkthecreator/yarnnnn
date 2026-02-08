@@ -8,7 +8,7 @@ import { Check, X } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Simple pricing for turning your work platforms into deliverables. Free tier available. Pro at $19/mo.",
+  description: "Simple pricing for yarnnn. Free to start. Pro when you need more. All the features that matter, no hidden costs.",
 };
 
 interface PricingFeature {
@@ -18,13 +18,13 @@ interface PricingFeature {
 }
 
 const features: PricingFeature[] = [
-  { name: "Active deliverables", free: "1", pro: "Unlimited" },
-  { name: "Connected integrations", free: "Unlimited", pro: "Unlimited" },
+  { name: "Deliverables", free: "1", pro: "Unlimited" },
+  { name: "Tool connections", free: "Unlimited", pro: "Unlimited" },
   { name: "Versions per deliverable", free: "Unlimited", pro: "Unlimited" },
-  { name: "Scheduled production", free: true, pro: true },
-  { name: "Fresh context every cycle", free: true, pro: true },
-  { name: "Learning from approvals", free: true, pro: true },
-  { name: "Chat refinement", free: "10/month", pro: "Unlimited" },
+  { name: "Scheduled drafts", free: true, pro: true },
+  { name: "Fresh context each time", free: true, pro: true },
+  { name: "Learning from your edits", free: true, pro: true },
+  { name: "Refinement chat", free: "10/month", pro: "Unlimited" },
   { name: "Priority support", free: false, pro: true },
 ];
 
@@ -57,6 +57,7 @@ export default function PricingPage() {
               </h1>
               <p className="text-white/50 text-lg max-w-md mx-auto">
                 Start free. Upgrade when you need more deliverables.
+                No surprises.
               </p>
             </div>
 
@@ -67,7 +68,7 @@ export default function PricingPage() {
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Free</h2>
                   <p className="text-white/50 text-sm mb-6">
-                    Try the full supervision experience
+                    Everything you need to try it out
                   </p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$0</span>
@@ -78,11 +79,11 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>1 active deliverable</span>
+                    <span>1 deliverable</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited integrations</span>
+                    <span>Connect all your tools</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -90,11 +91,11 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Scheduled production</span>
+                    <span>Scheduled drafts</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Fresh context every cycle</span>
+                    <span>yarnnn learns from your edits</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm text-white/50">
                     <X className="w-4 h-4 text-white/30 shrink-0" />
@@ -121,7 +122,7 @@ export default function PricingPage() {
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Pro</h2>
                   <p className="text-white/50 text-sm mb-6">
-                    For professionals with multiple recurring deliverables
+                    For people with multiple recurring things to send
                   </p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$19</span>
@@ -136,7 +137,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited integrations</span>
+                    <span>Connect all your tools</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -144,15 +145,15 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Scheduled production</span>
+                    <span>Scheduled drafts</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Fresh context every cycle</span>
+                    <span>yarnnn learns from your edits</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited chat refinement</span>
+                    <span>Unlimited refinement chat</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -220,32 +221,34 @@ export default function PricingPage() {
             {/* Value Prop */}
             <div className="text-center mt-16 mb-8">
               <p className="text-white/70 text-lg mb-2">
-                Stop gathering. Start supervising.
+                Less time writing updates. More time on the work that matters.
               </p>
               <p className="text-white/40 text-sm">
-                Same price as ChatGPT Plus. But yarnnn pulls from your platforms and learns from your approvals.
+                Same price as ChatGPT Plus—but yarnnn actually learns what you like
+                and writes your recurring stuff for you.
               </p>
             </div>
 
-            {/* Integrations Note */}
+            {/* Why Unlimited Tools */}
             <div className="border border-white/10 rounded-xl p-6 text-center mb-8">
-              <h4 className="text-white/70 font-medium mb-2">Why are integrations unlimited on all plans?</h4>
+              <h4 className="text-white/70 font-medium mb-2">Why are tool connections free for everyone?</h4>
               <p className="text-white/40 text-sm max-w-lg mx-auto">
-                The more platforms you connect, the better yarnnn works. We want everyone to experience
-                the full supervision workflow—fresh context from where your work actually happens.
+                The more tools you connect, the better yarnnn works. We don&apos;t want
+                pricing to get in the way of that. Connect Slack, Gmail, Notion—whatever
+                you use. It&apos;s all included.
               </p>
             </div>
 
             {/* FAQ / Contact */}
             <div className="text-center">
               <p className="text-white/40 text-sm mb-4">
-                Have questions about pricing or need a custom plan?
+                Questions about pricing? Need something custom?
               </p>
               <a
                 href="mailto:admin@yarnnn.com"
                 className="text-white hover:text-white/80 underline underline-offset-4 text-sm"
               >
-                Contact us
+                Get in touch
               </a>
             </div>
           </div>
