@@ -511,12 +511,12 @@ export function IntegrationImportModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-background/80 backdrop-blur-sm"
+        className="absolute inset-0 bg-black/50"
         onClick={handleClose}
       />
 
       {/* Modal - enlarged for better content display (ADR-030) */}
-      <div className="relative z-10 w-full max-w-2xl mx-4 bg-card border border-border rounded-lg shadow-lg max-h-[85vh] flex flex-col">
+      <div className="relative z-10 w-full max-w-2xl mx-4 bg-background border border-border rounded-lg shadow-lg max-h-[85vh] flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
