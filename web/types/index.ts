@@ -26,6 +26,16 @@ export interface ProjectWithCounts extends Project {
 // Source types for memories
 export type SourceType = "manual" | "chat" | "document" | "import" | "bulk";
 
+// Source reference for imported memories (platform provenance)
+export interface SourceRef {
+  platform?: "slack" | "notion" | "gmail";
+  resource_id?: string;
+  resource_name?: string;
+  job_id?: string;
+  block_type?: string;
+  metadata?: Record<string, unknown>;
+}
+
 // Memory (ADR-005: unified model)
 export interface Memory {
   id: string;
@@ -38,6 +48,7 @@ export interface Memory {
   };
   importance: number;
   source_type: SourceType;
+  source_ref?: SourceRef; // Platform provenance for imports
   project_id?: string; // null = user-scoped
   is_active: boolean;
   created_at: string;

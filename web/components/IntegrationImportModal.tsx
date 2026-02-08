@@ -18,8 +18,13 @@ import {
   ChevronDown,
   ChevronUp,
   Settings2,
+  Brain,
+  MessageSquare,
+  ArrowRight,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
+import { useRouter } from "next/navigation";
+import { useDesk } from "@/contexts/DeskContext";
 
 type Provider = "slack" | "notion" | "gmail";
 type CoverageState = "uncovered" | "partial" | "covered" | "stale" | "excluded";
@@ -85,6 +90,8 @@ interface IntegrationImportModalProps {
   onSuccess: () => void;
   provider: Provider;
   projectId?: string;
+  /** Optional: Called when user clicks "View Context" after import */
+  onNavigateToContext?: () => void;
 }
 
 /**
@@ -316,7 +323,17 @@ export function IntegrationImportModal({
   onSuccess,
   provider,
   projectId,
+  onNavigateToContext,
 }: IntegrationImportModalProps) {
+  const router = useRouter();
+  // Try to get desk context (may not be available if rendered outside DeskProvider)
+  let deskContext: ReturnType<typeof useDesk> | null = null;
+  try {
+    deskContext = useDesk();
+  } catch {
+    // Not in DeskProvider context - navigation will use router instead
+  }
+
   // ADR-030: Landscape with coverage
   const [landscape, setLandscape] = useState<{
     resources: LandscapeResource[];
@@ -532,7 +549,30 @@ export function IntegrationImportModal({
         <div className="p-4 overflow-y-auto flex-1">
           {/* Show import result if job exists */}
           {importJob ? (
-            <ImportJobStatus job={importJob} provider={provider} />
+            <ImportJobStatus
+              job={importJob}
+              provider={provider}
+              onViewContext={() => {
+                // Navigate to Context browser
+                if (onNavigateToContext) {
+                  onNavigateToContext();
+                } else if (deskContext?.setSurface) {
+                  deskContext.setSurface({ type: 'context-browser', scope: 'user' });
+                } else {
+                  router.push('/');
+                }
+                handleClose();
+              }}
+              onStartChat={() => {
+                // Navigate to chat/dashboard
+                if (deskContext?.setSurface) {
+                  deskContext.setSurface({ type: 'idle' });
+                } else {
+                  router.push('/');
+                }
+                handleClose();
+              }}
+            />
           ) : (
             <>
               <p className="text-sm text-muted-foreground mb-4">
@@ -797,8 +837,19 @@ export function IntegrationImportModal({
 
 /**
  * Component to show import job status and result.
+ * Enhanced with navigation CTAs for better post-import UX.
  */
-function ImportJobStatus({ job, provider }: { job: ImportJob; provider: Provider }) {
+function ImportJobStatus({
+  job,
+  provider,
+  onViewContext,
+  onStartChat,
+}: {
+  job: ImportJob;
+  provider: Provider;
+  onViewContext?: () => void;
+  onStartChat?: () => void;
+}) {
   const providerName = provider === "slack" ? "Slack" : provider === "notion" ? "Notion" : "Gmail";
 
   if (job.status === "pending" || job.status === "processing") {
@@ -859,20 +910,23 @@ function ImportJobStatus({ job, provider }: { job: ImportJob; provider: Provider
     );
   }
 
-  // Completed
+  // Completed - Enhanced with navigation CTAs
+  const hasContent = job.result && job.result.blocks_created > 0;
+
   return (
     <div className="py-4">
       <div className="flex items-center gap-2 text-green-600 dark:text-green-400 mb-4">
-        <Check className="w-6 h-6" />
+        <CheckCircle2 className="w-6 h-6" />
         <span className="font-medium">Import complete!</span>
       </div>
 
       {job.result && (
-        <div className="space-y-3">
+        <div className="space-y-4">
+          {/* Stats grid */}
           <div className="grid grid-cols-3 gap-3 text-center">
             <div className="p-3 bg-muted/50 rounded-lg">
-              <div className="text-2xl font-bold">{job.result.blocks_created}</div>
-              <div className="text-xs text-muted-foreground">Memories created</div>
+              <div className="text-2xl font-bold text-primary">{job.result.blocks_created}</div>
+              <div className="text-xs text-muted-foreground">Context extracted</div>
             </div>
             <div className="p-3 bg-muted/50 rounded-lg">
               <div className="text-2xl font-bold">{job.result.items_processed}</div>
@@ -884,6 +938,7 @@ function ImportJobStatus({ job, provider }: { job: ImportJob; provider: Provider
             </div>
           </div>
 
+          {/* Summary */}
           {job.result.summary && (
             <div className="p-3 bg-muted/30 rounded-lg text-sm text-muted-foreground">
               {job.result.summary}
@@ -905,6 +960,36 @@ function ImportJobStatus({ job, provider }: { job: ImportJob; provider: Provider
               <p className="text-xs text-muted-foreground mt-1">
                 Your {providerName.toLowerCase()} communication style will be applied to future deliverables.
               </p>
+            </div>
+          )}
+
+          {/* Navigation CTAs - only show if content was extracted */}
+          {hasContent && (onViewContext || onStartChat) && (
+            <div className="pt-2 space-y-2">
+              <p className="text-xs text-muted-foreground text-center">
+                Your new context is ready to use
+              </p>
+              <div className="flex gap-2">
+                {onViewContext && (
+                  <button
+                    onClick={onViewContext}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm border border-border rounded-lg hover:bg-muted transition-colors"
+                  >
+                    <Brain className="w-4 h-4" />
+                    View Context
+                  </button>
+                )}
+                {onStartChat && (
+                  <button
+                    onClick={onStartChat}
+                    className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                  >
+                    <MessageSquare className="w-4 h-4" />
+                    Try it in Chat
+                    <ArrowRight className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
             </div>
           )}
         </div>
