@@ -142,6 +142,9 @@ export default function SettingsPage() {
   const statusParam = searchParams.get("status");
   const errorParam = searchParams.get("error");
 
+  // State to control notification visibility (auto-dismiss)
+  const [showOAuthNotification, setShowOAuthNotification] = useState(true);
+
   // Fetch memory stats on mount
   useEffect(() => {
     async function fetchStats() {
@@ -209,10 +212,14 @@ export default function SettingsPage() {
       setActiveTab("integrations");
       // Refresh integrations list
       loadIntegrations();
-      // Clear URL params after a short delay so the notification can be seen
+      // Show notification initially
+      setShowOAuthNotification(true);
+      // Auto-dismiss notification after 5 seconds
       const timer = setTimeout(() => {
+        setShowOAuthNotification(false);
+        // Also clean up URL params
         router.replace("/settings?tab=integrations", { scroll: false });
-      }, 5000); // Clear after 5 seconds
+      }, 5000);
       return () => clearTimeout(timer);
     }
   }, [providerParam, statusParam, router]);
@@ -819,8 +826,8 @@ export default function SettingsPage() {
             Connect third-party services to export your deliverables directly to Slack channels or Notion pages.
           </p>
 
-          {/* OAuth Callback Status */}
-          {providerParam && statusParam && (
+          {/* OAuth Callback Status - auto-dismisses after 5 seconds */}
+          {providerParam && statusParam && showOAuthNotification && (
             <div className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
               statusParam === "success"
                 ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
@@ -829,7 +836,7 @@ export default function SettingsPage() {
               {statusParam === "success" ? (
                 <>
                   <Check className="w-5 h-5 text-green-600" />
-                  <div>
+                  <div className="flex-1">
                     <p className="font-medium text-green-800 dark:text-green-200">
                       {providerParam.charAt(0).toUpperCase() + providerParam.slice(1)} connected successfully!
                     </p>
@@ -837,11 +844,18 @@ export default function SettingsPage() {
                       You can now export deliverables to {providerParam}.
                     </p>
                   </div>
+                  <button
+                    onClick={() => setShowOAuthNotification(false)}
+                    className="p-1 hover:bg-green-200 dark:hover:bg-green-800 rounded"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-4 h-4 text-green-600" />
+                  </button>
                 </>
               ) : (
                 <>
                   <X className="w-5 h-5 text-red-600" />
-                  <div>
+                  <div className="flex-1">
                     <p className="font-medium text-red-800 dark:text-red-200">
                       Failed to connect {providerParam}
                     </p>
@@ -849,6 +863,13 @@ export default function SettingsPage() {
                       {errorParam || "Please try again."}
                     </p>
                   </div>
+                  <button
+                    onClick={() => setShowOAuthNotification(false)}
+                    className="p-1 hover:bg-red-200 dark:hover:bg-red-800 rounded"
+                    aria-label="Dismiss"
+                  >
+                    <X className="w-4 h-4 text-red-600" />
+                  </button>
                 </>
               )}
             </div>
