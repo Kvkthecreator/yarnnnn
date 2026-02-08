@@ -94,10 +94,12 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
         token_url="https://oauth2.googleapis.com/token",
         scopes=[
+            # Phase 1: Read-only for context extraction
             "https://www.googleapis.com/auth/gmail.readonly",
-            "https://www.googleapis.com/auth/gmail.send",
-            "https://www.googleapis.com/auth/gmail.compose",
-            "https://www.googleapis.com/auth/gmail.modify",
+            # Phase 2 (future): Add send/compose for deliverable export
+            # "https://www.googleapis.com/auth/gmail.send",
+            # "https://www.googleapis.com/auth/gmail.compose",
+            # "https://www.googleapis.com/auth/gmail.modify",
         ],
         redirect_path="/api/integrations/gmail/callback",
     ),
