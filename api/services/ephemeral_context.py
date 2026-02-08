@@ -455,6 +455,7 @@ async def get_context_summary_for_generation(
     Get ephemeral context formatted for LLM generation prompt.
 
     Returns a formatted string ready to include in generation context.
+    Includes provenance (source, timestamps) and freshness indicators.
     """
     items = await get_context_for_deliverable(
         db_client=db_client,
@@ -466,6 +467,8 @@ async def get_context_summary_for_generation(
     if not items:
         return ""
 
+    now = datetime.now(timezone.utc)
+
     # Group by source
     by_source = {}
     for item in items:
@@ -474,31 +477,68 @@ async def get_context_summary_for_generation(
             by_source[key] = []
         by_source[key].append(item)
 
-    # Format for prompt
+    # Format for prompt with clear provenance
     sections = []
     for source_key, source_items in by_source.items():
         source_type, source_name = source_key.split(":", 1)
 
-        section_lines = [f"## Recent context from {source_type.title()}: {source_name}"]
+        # Calculate freshness for this source
+        newest = max(
+            (i.source_timestamp or i.created_at for i in source_items),
+            default=now
+        )
+        oldest = min(
+            (i.source_timestamp or i.created_at for i in source_items),
+            default=now
+        )
+
+        # Format time range
+        age = now - newest
+        if age.days > 0:
+            freshness = f"{age.days}d ago"
+        elif age.seconds > 3600:
+            freshness = f"{age.seconds // 3600}h ago"
+        else:
+            freshness = "just now"
+
+        # Section header with provenance
+        header = f"## {source_type.title()}: {source_name}"
+        header += f"\n_({len(source_items)} items, most recent: {freshness})_"
+
+        section_lines = [header]
 
         for item in source_items[:20]:  # Cap per source
             # Format timestamp
             ts_str = ""
             if item.source_timestamp:
-                ts_str = f"[{item.source_timestamp.strftime('%Y-%m-%d %H:%M')}] "
+                ts_str = f"[{item.source_timestamp.strftime('%m/%d %H:%M')}] "
+
+            # Add user if available (for Slack)
+            user_str = ""
+            if item.metadata.get("user"):
+                user_str = f"<{item.metadata['user']}> "
 
             # Add metadata signals if present
             signals_str = ""
             if item.metadata.get("signals"):
                 signals = item.metadata["signals"]
+                signal_markers = []
                 if signals.get("has_unanswered_question"):
-                    signals_str = " ⚠️ UNANSWERED"
-                elif signals.get("is_stalled_thread"):
-                    signals_str = " ⏳ STALLED"
-                elif signals.get("thread_reply_count", 0) > 5:
-                    signals_str = f" 🔥 HOT ({signals['thread_reply_count']} replies)"
+                    signal_markers.append("❓ UNANSWERED")
+                if signals.get("is_stalled_thread"):
+                    signal_markers.append("⏳ STALLED")
+                if signals.get("is_urgent") or signals.get("mentions_blocker"):
+                    signal_markers.append("🚨 URGENT")
+                if signals.get("thread_reply_count", 0) > 5:
+                    signal_markers.append(f"🔥 HOT ({signals['thread_reply_count']} replies)")
+                if signals.get("is_decision"):
+                    signal_markers.append("📋 DECISION")
+                if signal_markers:
+                    signals_str = " [" + ", ".join(signal_markers) + "]"
 
-            section_lines.append(f"{ts_str}{item.content}{signals_str}")
+            # Build line
+            content = item.content[:500] if len(item.content) > 500 else item.content
+            section_lines.append(f"{ts_str}{user_str}{content}{signals_str}")
 
         sections.append("\n".join(section_lines))
 
@@ -552,6 +592,117 @@ async def cleanup_expired_context(db_client) -> int:
 
     logger.info(f"[EPHEMERAL] Cleaned up {deleted} expired entries")
     return deleted
+
+
+# =============================================================================
+# Freshness Check (ADR-031 Phase 3)
+# =============================================================================
+
+async def has_fresh_context_since(
+    db_client,
+    user_id: str,
+    deliverable_sources: list[dict],
+    since: datetime,
+) -> tuple[bool, int]:
+    """
+    Check if there's new ephemeral context since a given time.
+
+    Used by scheduler to skip deliverable generation if no new context.
+
+    Args:
+        db_client: Supabase client
+        user_id: User UUID
+        deliverable_sources: List of source configs from deliverable
+        since: Timestamp to check against (usually last_run_at)
+
+    Returns:
+        Tuple of (has_fresh_context, count_of_new_items)
+    """
+    if not deliverable_sources:
+        return False, 0
+
+    # Build list of (provider, resource_id) tuples
+    source_filters = []
+    for source in deliverable_sources:
+        provider = source.get("provider")
+        resource_id = source.get("resource_id")
+        if provider and resource_id:
+            source_filters.append((provider, resource_id))
+
+    if not source_filters:
+        return False, 0
+
+    # Query for items created after 'since'
+    # We check created_at (when we stored it) rather than source_timestamp
+    # because we want to catch imports that happened after last run
+    now = datetime.now(timezone.utc)
+    total_new = 0
+
+    for provider, resource_id in source_filters:
+        result = (
+            db_client.table("ephemeral_context")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .eq("platform", provider)
+            .eq("resource_id", resource_id)
+            .gt("created_at", since.isoformat())
+            .gt("expires_at", now.isoformat())  # Only non-expired
+            .execute()
+        )
+
+        count = result.count or 0
+        total_new += count
+
+    has_fresh = total_new > 0
+    logger.debug(f"[EPHEMERAL] Fresh context check: {total_new} new items since {since.isoformat()}")
+
+    return has_fresh, total_new
+
+
+async def get_latest_context_timestamp(
+    db_client,
+    user_id: str,
+    deliverable_sources: list[dict],
+) -> Optional[datetime]:
+    """
+    Get the timestamp of the most recent ephemeral context for given sources.
+
+    Useful for understanding data freshness before generation.
+
+    Returns:
+        Most recent created_at timestamp, or None if no context
+    """
+    if not deliverable_sources:
+        return None
+
+    latest = None
+    now = datetime.now(timezone.utc)
+
+    for source in deliverable_sources:
+        provider = source.get("provider")
+        resource_id = source.get("resource_id")
+
+        if not provider or not resource_id:
+            continue
+
+        result = (
+            db_client.table("ephemeral_context")
+            .select("created_at")
+            .eq("user_id", user_id)
+            .eq("platform", provider)
+            .eq("resource_id", resource_id)
+            .gt("expires_at", now.isoformat())
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        if result.data:
+            ts = _parse_datetime(result.data[0]["created_at"])
+            if ts and (latest is None or ts > latest):
+                latest = ts
+
+    return latest
 
 
 # =============================================================================

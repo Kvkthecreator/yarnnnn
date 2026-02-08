@@ -221,18 +221,76 @@ async def get_due_deliverables(supabase_client) -> list[dict]:
     Query deliverables due for generation.
 
     Returns active deliverables where next_run_at <= now.
+    Includes last_run_at for freshness check (ADR-031).
     """
     now = datetime.now(timezone.utc)
 
     result = (
         supabase_client.table("deliverables")
-        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, recipient_context")
+        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, recipient_context, last_run_at")
         .eq("status", "active")
         .lte("next_run_at", now.isoformat())
         .execute()
     )
 
     return result.data or []
+
+
+async def should_skip_deliverable(
+    supabase_client,
+    deliverable: dict,
+) -> tuple[bool, str]:
+    """
+    Check if a deliverable should be skipped due to no new context.
+
+    ADR-031 Phase 3: Skip generation if no fresh ephemeral context since last run.
+
+    Args:
+        supabase_client: Supabase client
+        deliverable: Deliverable dict with sources and last_run_at
+
+    Returns:
+        Tuple of (should_skip, reason)
+    """
+    from services.ephemeral_context import has_fresh_context_since
+
+    sources = deliverable.get("sources", [])
+    if not sources:
+        # No sources configured - can't skip based on freshness
+        return False, ""
+
+    # Get last_run_at - if never run, don't skip
+    last_run_at = deliverable.get("last_run_at")
+    if not last_run_at:
+        return False, ""
+
+    # Parse last_run_at
+    try:
+        if isinstance(last_run_at, str):
+            if last_run_at.endswith("Z"):
+                last_run_at = last_run_at[:-1] + "+00:00"
+            last_run_at = datetime.fromisoformat(last_run_at)
+    except (ValueError, TypeError):
+        return False, ""
+
+    # Check for fresh context
+    try:
+        has_fresh, count = await has_fresh_context_since(
+            db_client=supabase_client,
+            user_id=deliverable["user_id"],
+            deliverable_sources=sources,
+            since=last_run_at,
+        )
+
+        if not has_fresh:
+            return True, "No new context since last run"
+
+        return False, ""
+
+    except Exception as e:
+        # On error, don't skip - better to run than miss updates
+        logger.warning(f"[DELIVERABLE] Freshness check failed: {e}")
+        return False, ""
 
 
 async def process_deliverable(supabase_client, deliverable: dict) -> bool:
@@ -623,8 +681,22 @@ async def run_unified_scheduler():
     logger.info(f"[DELIVERABLE] Found {len(deliverables)} due for generation")
 
     deliverable_success = 0
+    deliverable_skipped = 0
     for deliverable in deliverables:
         try:
+            # ADR-031 Phase 3: Skip if no new context since last run
+            should_skip, skip_reason = await should_skip_deliverable(supabase, deliverable)
+            if should_skip:
+                logger.info(f"[DELIVERABLE] Skipping '{deliverable['title']}': {skip_reason}")
+                deliverable_skipped += 1
+                # Still update next_run_at to prevent re-checking every 5 minutes
+                schedule = deliverable.get("schedule", {})
+                next_run = calculate_next_run_from_schedule(schedule)
+                supabase.table("deliverables").update({
+                    "next_run_at": next_run.isoformat(),
+                }).eq("id", deliverable["id"]).execute()
+                continue
+
             if await process_deliverable(supabase, deliverable):
                 deliverable_success += 1
         except Exception as e:
@@ -705,9 +777,13 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
+    deliverable_summary = f"{deliverable_success}/{len(deliverables)}"
+    if deliverable_skipped > 0:
+        deliverable_summary += f" ({deliverable_skipped} skipped)"
+
     logger.info(
         f"Completed: "
-        f"deliverables={deliverable_success}/{len(deliverables)}, "
+        f"deliverables={deliverable_summary}, "
         f"work={work_success}/{len(work_items)}, "
         f"digests={digest_success}/{digest_count}, "
         f"imports={import_success}/{import_count}"
