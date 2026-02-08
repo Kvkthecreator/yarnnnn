@@ -670,6 +670,19 @@ async def run_unified_scheduler():
                 logger.error(f"[DIGEST] Unexpected error for {ws.get('workspace_name')}: {e}")
 
     # -------------------------------------------------------------------------
+    # ADR-031: Cleanup Expired Ephemeral Context (hourly)
+    # -------------------------------------------------------------------------
+    ephemeral_cleaned = 0
+    if now.minute < 5:  # Only run cleanup in first 5 minutes of each hour
+        try:
+            from services.ephemeral_context import cleanup_expired_context
+            ephemeral_cleaned = await cleanup_expired_context(supabase)
+            if ephemeral_cleaned > 0:
+                logger.info(f"[EPHEMERAL] Cleaned up {ephemeral_cleaned} expired entries")
+        except Exception as e:
+            logger.warning(f"[EPHEMERAL] Cleanup failed (non-fatal): {e}")
+
+    # -------------------------------------------------------------------------
     # Process Integration Import Jobs (ADR-027)
     # -------------------------------------------------------------------------
     # First, recover any stale processing jobs (safety net for crashed processes)

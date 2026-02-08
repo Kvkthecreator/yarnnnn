@@ -334,6 +334,8 @@ async def process_slack_import(
 ) -> dict:
     """Process a Slack channel import job."""
     from agents.integration.style_learning import StyleLearningAgent
+    from agents.integration.platform_semantics import extract_slack_channel_signals
+    from services.ephemeral_context import store_slack_context_batch
 
     user_id = job["user_id"]
     metadata = integration.get("metadata", {}) or {}
@@ -399,7 +401,17 @@ async def process_slack_import(
         current_resource=resource_name,
     )
 
-    # 2. Run agent to extract context
+    # 2. ADR-031: Extract platform-semantic signals
+    logger.info(f"[IMPORT] Extracting platform-semantic signals from {len(messages)} messages")
+    channel_signals = extract_slack_channel_signals(messages)
+
+    logger.info(
+        f"[IMPORT] Signals: {len(channel_signals['hot_threads'])} hot threads, "
+        f"{len(channel_signals['unanswered_questions'])} unanswered, "
+        f"{len(channel_signals['action_items'])} action items"
+    )
+
+    # 3. Run agent to extract context (decisions, action items, etc.)
     logger.info(f"[IMPORT] Processing {len(messages)} messages with agent")
     import_result = await agent.import_slack_channel(
         messages=messages,
@@ -411,14 +423,35 @@ async def process_slack_import(
     await update_job_progress(
         supabase_client,
         job["id"],
-        progress=80,
+        progress=75,
         phase="storing",
         items_total=len(import_result.blocks) if import_result.blocks else 0,
         items_completed=0,
         current_resource=resource_name,
     )
 
-    # 3. Store as memories
+    # 4. ADR-031: Store raw messages to ephemeral_context (with signals)
+    ephemeral_stored = await store_slack_context_batch(
+        db_client=supabase_client,
+        user_id=user_id,
+        channel_id=resource_id,
+        channel_name=resource_name,
+        messages=messages,
+    )
+    logger.info(f"[IMPORT] Stored {ephemeral_stored} messages to ephemeral_context")
+
+    # ADR-030: Update progress
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=85,
+        phase="storing",
+        items_total=len(import_result.blocks) if import_result.blocks else 0,
+        items_completed=0,
+        current_resource=resource_name,
+    )
+
+    # 5. Store extracted blocks as memories (for long-term context)
     project_id = job.get("project_id")
     blocks_created = await store_memory_blocks(
         supabase_client,
@@ -490,11 +523,20 @@ async def process_slack_import(
 
     return {
         "blocks_created": blocks_created,
+        "ephemeral_stored": ephemeral_stored,  # ADR-031
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
         "summary": import_result.summary,
         "style_learned": style_learned,
         "style_confidence": style_confidence,
+        # ADR-031: Include signal summaries
+        "signals": {
+            "hot_threads": len(channel_signals["hot_threads"]),
+            "unanswered_questions": len(channel_signals["unanswered_questions"]),
+            "stalled_threads": len(channel_signals["stalled_threads"]),
+            "action_items": len(channel_signals["action_items"]),
+            "decisions": len(channel_signals["decisions"]),
+        },
     }
 
 
@@ -508,6 +550,7 @@ async def process_notion_import(
 ) -> dict:
     """Process a Notion page import job."""
     from agents.integration.style_learning import StyleLearningAgent
+    from services.ephemeral_context import store_notion_context
 
     user_id = job["user_id"]
 
@@ -578,14 +621,39 @@ async def process_notion_import(
     await update_job_progress(
         supabase_client,
         job["id"],
-        progress=80,
+        progress=75,
         phase="storing",
         items_total=len(import_result.blocks) if import_result.blocks else 0,
         items_completed=0,
         current_resource=resource_name,
     )
 
-    # 3. Store as memories
+    # ADR-031: Store page content to ephemeral_context
+    ephemeral_id = await store_notion_context(
+        db_client=supabase_client,
+        user_id=user_id,
+        page_id=resource_id,
+        page_title=resource_name,
+        content=page_content.get("content", ""),
+        metadata={
+            "last_edited": page_content.get("last_edited"),
+            "child_pages": len(page_content.get("child_pages", [])),
+        },
+    )
+    logger.info(f"[IMPORT] Stored Notion page to ephemeral_context: {ephemeral_id}")
+
+    # ADR-030: Update progress
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=85,
+        phase="storing",
+        items_total=len(import_result.blocks) if import_result.blocks else 0,
+        items_completed=0,
+        current_resource=resource_name,
+    )
+
+    # 3. Store extracted blocks as memories (for long-term context)
     project_id = job.get("project_id")
     blocks_created = await store_memory_blocks(
         supabase_client,
@@ -649,6 +717,7 @@ async def process_notion_import(
 
     return {
         "blocks_created": blocks_created,
+        "ephemeral_stored": 1,  # ADR-031: Single page stored
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
         "summary": import_result.summary,
@@ -675,6 +744,7 @@ async def process_gmail_import(
     """
     import os
     from agents.integration.style_learning import StyleLearningAgent
+    from services.ephemeral_context import store_gmail_context_batch
 
     user_id = job["user_id"]
     metadata = integration.get("metadata", {}) or {}
@@ -826,14 +896,34 @@ async def process_gmail_import(
     await update_job_progress(
         supabase_client,
         job["id"],
-        progress=80,
+        progress=75,
         phase="storing",
         items_total=len(import_result.blocks) if import_result.blocks else 0,
         items_completed=0,
         current_resource=resource_name,
     )
 
-    # Store as memories
+    # ADR-031: Store raw messages to ephemeral_context
+    ephemeral_stored = await store_gmail_context_batch(
+        db_client=supabase_client,
+        user_id=user_id,
+        label=resource_name,
+        messages=full_messages,
+    )
+    logger.info(f"[IMPORT] Stored {ephemeral_stored} emails to ephemeral_context")
+
+    # ADR-030: Update progress
+    await update_job_progress(
+        supabase_client,
+        job["id"],
+        progress=85,
+        phase="storing",
+        items_total=len(import_result.blocks) if import_result.blocks else 0,
+        items_completed=0,
+        current_resource=resource_name,
+    )
+
+    # Store extracted blocks as memories (for long-term context)
     project_id = job.get("project_id")
     blocks_created = await store_memory_blocks(
         supabase_client,
@@ -897,6 +987,7 @@ async def process_gmail_import(
 
     return {
         "blocks_created": blocks_created,
+        "ephemeral_stored": ephemeral_stored,  # ADR-031
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
         "summary": import_result.summary,

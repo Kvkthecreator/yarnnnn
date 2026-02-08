@@ -2208,6 +2208,23 @@ async def execute_gather_step(
     if integration_data_sections:
         integration_context = "\n\n## Integration Data (Fetched)\n\n" + "\n\n".join(integration_data_sections)
 
+    # ADR-031: Fetch ephemeral context for this deliverable's sources
+    ephemeral_context_text = ""
+    try:
+        from services.ephemeral_context import get_context_summary_for_generation
+
+        ephemeral_summary = await get_context_summary_for_generation(
+            db_client=client,
+            user_id=user_id,
+            deliverable_sources=sources,
+            max_items=100,
+        )
+        if ephemeral_summary:
+            ephemeral_context_text = f"\n\n## Recent Platform Context (Ephemeral)\n\n{ephemeral_summary}"
+            logger.info(f"[GATHER] Included ephemeral context ({len(ephemeral_summary)} chars)")
+    except Exception as e:
+        logger.warning(f"[GATHER] Failed to fetch ephemeral context (non-fatal): {e}")
+
     gather_prompt = f"""Gather the latest context and information for producing: {title}
 
 Description: {deliverable.get('description', 'No description provided')}
@@ -2215,12 +2232,14 @@ Description: {deliverable.get('description', 'No description provided')}
 Configured sources:
 {sources_text}
 {integration_context}
+{ephemeral_context_text}
 
 Your task:
 1. Review and synthesize any available information from the sources
-2. Identify key updates, changes, or new data since the last delivery
-3. Note any gaps or missing information that might be needed
-4. Summarize the gathered context in a structured format
+2. Pay special attention to signals in the ephemeral context (hot threads, unanswered questions, stalled items)
+3. Identify key updates, changes, or new data since the last delivery
+4. Note any gaps or missing information that might be needed
+5. Summarize the gathered context in a structured format
 
 Output a comprehensive context summary that will be used to produce the deliverable."""
 
