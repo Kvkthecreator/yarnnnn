@@ -8,7 +8,7 @@ import { Check, X } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Simple pricing for recurring deliverables that improve. Free tier available. Pro at $19/mo.",
+  description: "Simple pricing for turning your work platforms into deliverables. Free tier available. Pro at $19/mo.",
 };
 
 interface PricingFeature {
@@ -19,12 +19,12 @@ interface PricingFeature {
 
 const features: PricingFeature[] = [
   { name: "Active deliverables", free: "1", pro: "Unlimited" },
+  { name: "Connected integrations", free: "Unlimited", pro: "Unlimited" },
   { name: "Versions per deliverable", free: "Unlimited", pro: "Unlimited" },
-  { name: "Source documents", free: "5", pro: "Unlimited" },
-  { name: "Quality trend analytics", free: true, pro: true },
   { name: "Scheduled production", free: true, pro: true },
-  { name: "Chat for refinement", free: "10/month", pro: "Unlimited" },
-  { name: "Email notifications", free: true, pro: true },
+  { name: "Fresh context every cycle", free: true, pro: true },
+  { name: "Learning from approvals", free: true, pro: true },
+  { name: "Chat refinement", free: "10/month", pro: "Unlimited" },
   { name: "Priority support", free: false, pro: true },
 ];
 
@@ -56,7 +56,7 @@ export default function PricingPage() {
                 Simple pricing
               </h1>
               <p className="text-white/50 text-lg max-w-md mx-auto">
-                Start free, upgrade when you need more deliverables.
+                Start free. Upgrade when you need more deliverables.
               </p>
             </div>
 
@@ -67,7 +67,7 @@ export default function PricingPage() {
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Free</h2>
                   <p className="text-white/50 text-sm mb-6">
-                    Perfect for trying it out
+                    Try the full supervision experience
                   </p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$0</span>
@@ -82,11 +82,11 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited versions</span>
+                    <span>Unlimited integrations</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>5 source documents</span>
+                    <span>Unlimited versions</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -94,7 +94,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Quality trend analytics</span>
+                    <span>Fresh context every cycle</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm text-white/50">
                     <X className="w-4 h-4 text-white/30 shrink-0" />
@@ -136,11 +136,11 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited versions</span>
+                    <span>Unlimited integrations</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited source documents</span>
+                    <span>Unlimited versions</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -148,7 +148,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Quality trend analytics</span>
+                    <span>Fresh context every cycle</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -220,10 +220,19 @@ export default function PricingPage() {
             {/* Value Prop */}
             <div className="text-center mt-16 mb-8">
               <p className="text-white/70 text-lg mb-2">
-                Your 10th delivery is better than your 1st.
+                Stop gathering. Start supervising.
               </p>
               <p className="text-white/40 text-sm">
-                Same price as ChatGPT Plus. But yarnnn learns from every edit.
+                Same price as ChatGPT Plus. But yarnnn pulls from your platforms and learns from your approvals.
+              </p>
+            </div>
+
+            {/* Integrations Note */}
+            <div className="border border-white/10 rounded-xl p-6 text-center mb-8">
+              <h4 className="text-white/70 font-medium mb-2">Why are integrations unlimited on all plans?</h4>
+              <p className="text-white/40 text-sm max-w-lg mx-auto">
+                The more platforms you connect, the better yarnnn works. We want everyone to experience
+                the full supervision workflow—fresh context from where your work actually happens.
               </p>
             </div>
 
