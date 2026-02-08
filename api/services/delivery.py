@@ -1,5 +1,5 @@
 """
-Delivery Service - ADR-028
+Delivery Service - ADR-028, ADR-031 Phase 6
 
 Governance-aware delivery orchestration for destination-first deliverables.
 
@@ -8,6 +8,7 @@ This service handles:
 2. Orchestrating the actual delivery via exporters
 3. Tracking delivery status on versions
 4. Retry logic for failed deliveries
+5. Multi-destination delivery for synthesizers (ADR-031 Phase 6)
 
 Governance Levels:
 - manual: User must explicitly trigger delivery (click Export button)
@@ -16,6 +17,7 @@ Governance Levels:
 """
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional, Any
 
@@ -24,6 +26,16 @@ from integrations.core.tokens import get_token_manager
 from integrations.exporters import get_exporter_registry, ExporterContext
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class MultiDestinationResult:
+    """Result of delivering to multiple destinations."""
+    total_destinations: int
+    succeeded: int
+    failed: int
+    results: list[dict]  # [{destination_index, platform, status, external_id, error}]
+    all_succeeded: bool
 
 
 class DeliveryService:
@@ -318,6 +330,204 @@ class DeliveryService:
             }).execute()
         except Exception as e:
             logger.warning(f"[DELIVERY] Failed to log export: {e}")
+
+    # =========================================================================
+    # ADR-031 Phase 6: Multi-Destination Delivery
+    # =========================================================================
+
+    async def deliver_to_multiple_destinations(
+        self,
+        version_id: str,
+        user_id: str,
+        destinations: list[dict[str, Any]],
+    ) -> MultiDestinationResult:
+        """
+        Deliver an approved version to multiple destinations.
+
+        Used by cross-platform synthesizers to output to multiple platforms
+        (e.g., Slack AND email) from a single generation.
+
+        Args:
+            version_id: The deliverable version ID
+            user_id: The user ID (for auth)
+            destinations: List of destination configs
+
+        Returns:
+            MultiDestinationResult with per-destination status
+        """
+        if not destinations:
+            return MultiDestinationResult(
+                total_destinations=0,
+                succeeded=0,
+                failed=0,
+                results=[],
+                all_succeeded=True,
+            )
+
+        # Get version content
+        version = self.client.table("deliverable_versions").select(
+            "id, deliverable_id, final_content, draft_content"
+        ).eq("id", version_id).single().execute()
+
+        if not version.data:
+            return MultiDestinationResult(
+                total_destinations=len(destinations),
+                succeeded=0,
+                failed=len(destinations),
+                results=[{"error": "Version not found"}],
+                all_succeeded=False,
+            )
+
+        # Get deliverable title
+        deliverable = self.client.table("deliverables").select(
+            "id, title, platform_variant"
+        ).eq("id", version.data["deliverable_id"]).single().execute()
+
+        content = version.data.get("final_content") or version.data.get("draft_content", "")
+        title = deliverable.data.get("title", "YARNNN Deliverable") if deliverable.data else "Deliverable"
+        platform_variant = deliverable.data.get("platform_variant") if deliverable.data else None
+
+        results = []
+        succeeded = 0
+        failed = 0
+
+        for idx, destination in enumerate(destinations):
+            platform = destination.get("platform")
+            if not platform:
+                results.append({
+                    "destination_index": idx,
+                    "platform": "unknown",
+                    "status": "failed",
+                    "error": "No platform specified",
+                })
+                failed += 1
+                continue
+
+            # Get exporter
+            exporter = self.registry.get(platform)
+            if not exporter:
+                results.append({
+                    "destination_index": idx,
+                    "platform": platform,
+                    "status": "failed",
+                    "error": f"No exporter for platform: {platform}",
+                })
+                failed += 1
+                continue
+
+            # Get auth context
+            context = await self._get_exporter_context(user_id, platform)
+            if exporter.requires_auth and not context:
+                results.append({
+                    "destination_index": idx,
+                    "platform": platform,
+                    "status": "failed",
+                    "error": f"No {platform} integration connected",
+                })
+                failed += 1
+                continue
+
+            try:
+                # Deliver to this destination
+                result = await exporter.deliver(
+                    destination=destination,
+                    content=content,
+                    title=title,
+                    metadata={
+                        "deliverable_id": version.data["deliverable_id"],
+                        "version_id": version_id,
+                        "destination_index": idx,
+                        "platform_variant": platform_variant,
+                    },
+                    context=context,
+                )
+
+                if result.status == ExportStatus.SUCCESS:
+                    results.append({
+                        "destination_index": idx,
+                        "platform": platform,
+                        "target": destination.get("target"),
+                        "status": "delivered",
+                        "external_id": result.external_id,
+                        "external_url": result.external_url,
+                    })
+                    succeeded += 1
+
+                    # Log to destination_delivery_log
+                    self._log_destination_delivery(
+                        version_id=version_id,
+                        deliverable_id=version.data["deliverable_id"],
+                        user_id=user_id,
+                        destination_index=idx,
+                        destination=destination,
+                        result=result,
+                    )
+                else:
+                    results.append({
+                        "destination_index": idx,
+                        "platform": platform,
+                        "target": destination.get("target"),
+                        "status": "failed",
+                        "error": result.error_message,
+                    })
+                    failed += 1
+
+            except Exception as e:
+                logger.error(f"[DELIVERY] Failed for destination {idx} ({platform}): {e}")
+                results.append({
+                    "destination_index": idx,
+                    "platform": platform,
+                    "status": "failed",
+                    "error": str(e),
+                })
+                failed += 1
+
+        # Update version delivery status based on overall result
+        if succeeded == len(destinations):
+            self._update_delivery_status(version_id, "delivered")
+        elif succeeded > 0:
+            self._update_delivery_status(version_id, "partial")
+        else:
+            self._update_delivery_status(version_id, "failed")
+
+        logger.info(
+            f"[DELIVERY] Multi-destination: {succeeded}/{len(destinations)} succeeded"
+        )
+
+        return MultiDestinationResult(
+            total_destinations=len(destinations),
+            succeeded=succeeded,
+            failed=failed,
+            results=results,
+            all_succeeded=(succeeded == len(destinations)),
+        )
+
+    def _log_destination_delivery(
+        self,
+        version_id: str,
+        deliverable_id: str,
+        user_id: str,
+        destination_index: int,
+        destination: dict[str, Any],
+        result: ExportResult,
+    ) -> None:
+        """Log a multi-destination delivery to the destination_delivery_log table."""
+        try:
+            self.client.table("destination_delivery_log").insert({
+                "version_id": version_id,
+                "deliverable_id": deliverable_id,
+                "user_id": user_id,
+                "destination_index": destination_index,
+                "destination": destination,
+                "platform": destination.get("platform", "unknown"),
+                "status": "delivered" if result.status == ExportStatus.SUCCESS else "failed",
+                "external_id": result.external_id,
+                "external_url": result.external_url,
+                "error_message": result.error_message,
+                "completed_at": datetime.utcnow().isoformat() if result.status == ExportStatus.SUCCESS else None,
+            }).execute()
+        except Exception as e:
+            logger.warning(f"[DELIVERY] Failed to log destination delivery: {e}")
 
 
 def get_delivery_service(client) -> DeliveryService:

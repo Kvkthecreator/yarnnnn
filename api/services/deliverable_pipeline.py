@@ -1366,6 +1366,177 @@ INSTRUCTIONS:
 - Keep formatting clean and scannable
 
 Generate the page content now:""",
+
+    # ==========================================================================
+    # ADR-031 Phase 6: Cross-Platform Synthesizer Prompts
+    # ==========================================================================
+
+    "weekly_status": """You are creating a weekly status report synthesized from multiple platforms.
+
+PROJECT: {project_name}
+TIME PERIOD: {time_period}
+PLATFORMS INCLUDED: {platforms_used}
+
+This is a CROSS-PLATFORM synthesis - you have context from multiple sources that need to be unified into a cohesive status update.
+
+{cross_platform_context}
+
+{recipient_context}
+
+{past_versions}
+
+SECTIONS TO GENERATE:
+
+## 📊 Executive Summary
+2-3 sentences capturing the week's overall status and key takeaways.
+
+## ✅ Accomplishments
+What was completed this week? Pull from all platforms - Slack discussions, email threads, Notion updates.
+
+## 🚧 In Progress
+What's actively being worked on? Note any blockers or dependencies.
+
+## 📋 Action Items
+Concrete next steps. Include owners if mentioned in context.
+
+## 🔮 Looking Ahead
+What's coming next week? Upcoming deadlines, milestones, or decisions.
+
+## 💬 Key Discussions
+Notable conversations or decisions from across platforms that stakeholders should know about.
+
+INSTRUCTIONS:
+- Synthesize information across platforms - don't just list by source
+- Identify connections between discussions on different platforms
+- Prioritize by importance, not by platform
+- Be concise but specific - use names, dates, and details from context
+- If the same topic appears on multiple platforms, consolidate into one mention
+- Highlight any cross-platform coordination or alignment issues
+
+Generate the weekly status now:""",
+
+    "project_brief": """You are creating a project brief synthesized from multiple platforms.
+
+PROJECT: {project_name}
+PLATFORMS INCLUDED: {platforms_used}
+
+This brief consolidates all available context about this project from connected platforms into a comprehensive overview.
+
+{cross_platform_context}
+
+{recipient_context}
+
+{past_versions}
+
+SECTIONS TO GENERATE:
+
+## 🎯 Project Overview
+What is this project? What are the goals?
+
+## 👥 Key People
+Who's involved? Pull names from Slack conversations, email threads, Notion pages.
+
+## 📅 Timeline & Milestones
+Key dates, deadlines, and milestones mentioned across platforms.
+
+## 📊 Current Status
+Where does the project stand right now? What phase/stage?
+
+## 🔑 Key Decisions Made
+Important decisions captured in any platform.
+
+## ❓ Open Questions
+Unresolved questions or pending decisions from discussions.
+
+## 📎 Resources & Links
+Any documents, pages, or resources referenced in context.
+
+INSTRUCTIONS:
+- This is a living brief - synthesize the current state, not a historical record
+- Connect dots between platforms (e.g., email decision that led to Slack discussion)
+- Highlight any conflicts or inconsistencies found across sources
+- Be comprehensive but organized - this is a reference document
+- Include specific details: names, dates, numbers from the context
+
+Generate the project brief now:""",
+
+    "cross_platform_digest": """You are creating a digest synthesizing activity across multiple platforms.
+
+USER: {user_name}
+TIME PERIOD: {time_period}
+PLATFORMS: {platforms_used}
+
+This digest gives the user a unified view of what's happening across all their connected platforms.
+
+{cross_platform_context}
+
+{recipient_context}
+
+{past_versions}
+
+SECTIONS TO GENERATE:
+
+## 🔥 Needs Attention
+Items requiring action from any platform - urgent emails, unanswered Slack mentions, stale Notion tasks.
+
+## 📧 Email Highlights
+Key emails from the period - summarize, don't list everything.
+
+## 💬 Slack Highlights
+Important Slack conversations, decisions, or requests.
+
+## 📝 Notion Updates
+Significant changes to Notion pages or databases.
+
+## 🔄 Cross-Platform Connections
+Where the same topic or thread spans multiple platforms.
+
+## ✅ Completed This Period
+What got resolved or closed across platforms.
+
+INSTRUCTIONS:
+- Prioritize by urgency and importance, not by platform
+- If something appears on multiple platforms, mention the connection
+- Be selective - highlight what matters, not everything
+- Use the user's name when something is directed at them
+- Include enough context to act on each item
+
+Generate the cross-platform digest now:""",
+
+    "activity_summary": """You are creating an activity summary across multiple platforms.
+
+TIME PERIOD: {time_period}
+PLATFORMS: {platforms_used}
+
+Create a high-level summary of activity for quick consumption.
+
+{cross_platform_context}
+
+{recipient_context}
+
+{past_versions}
+
+STRUCTURE:
+
+## 📈 At a Glance
+Quick stats: messages, emails, updates across platforms.
+
+## 🎯 Top Priorities
+The 3-5 most important items across all platforms.
+
+## 💡 Key Takeaways
+What the user most needs to know from this period.
+
+## 👀 Watch List
+Items to keep an eye on in the coming days.
+
+INSTRUCTIONS:
+- Be extremely concise - this is a quick summary
+- Prioritize ruthlessly - only the most important items
+- Cross-reference between platforms where relevant
+- Make it actionable - what should the user do next?
+
+Generate the activity summary now:""",
 }
 
 
@@ -1456,6 +1627,26 @@ def _build_variant_prompt(
     elif platform_variant == "notion_page":
         fields["page_title"] = title
         fields["purpose"] = deliverable.get("description", "Documentation")
+
+    # ADR-031 Phase 6: Cross-platform synthesizer variants
+    elif platform_variant in ("weekly_status", "project_brief", "cross_platform_digest", "activity_summary"):
+        # These variants use cross-platform context from the synthesizer service
+        type_config = deliverable.get("type_config", {})
+
+        # Project name from config or title
+        fields["project_name"] = type_config.get("project_name", title)
+        fields["user_name"] = type_config.get("user_name", "User")
+
+        # Platforms used - extracted from synthesizer context or sources
+        platforms = set()
+        for source in sources:
+            if provider := source.get("provider"):
+                platforms.add(provider)
+        fields["platforms_used"] = ", ".join(sorted(platforms)) if platforms else "Multiple platforms"
+
+        # For synthesizers, the gathered_context is already formatted with cross-platform structure
+        # Use a separate field name for clarity in the template
+        fields["cross_platform_context"] = gathered_context
 
     try:
         return template.format(**fields)

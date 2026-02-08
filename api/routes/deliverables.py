@@ -49,6 +49,11 @@ DeliverableType = Literal[
     "changelog",
     "one_on_one_prep",
     "board_update",
+    # ADR-031 Phase 6: Cross-Platform Synthesizers
+    "weekly_status",
+    "project_brief",
+    "cross_platform_digest",
+    "activity_summary",
 ]
 
 # Type tier mapping for UI display
@@ -62,6 +67,11 @@ TYPE_TIERS = {
     "performance_self_assessment": "beta",
     "newsletter_section": "beta",
     "changelog": "beta",
+    # ADR-031 Phase 6: Synthesizers are experimental
+    "weekly_status": "experimental",
+    "project_brief": "experimental",
+    "cross_platform_digest": "experimental",
+    "activity_summary": "experimental",
     "one_on_one_prep": "beta",
     "board_update": "beta",
 }
@@ -270,6 +280,60 @@ class BoardUpdateConfig(BaseModel):
     include_comparisons: bool = True  # vs last quarter, vs plan
 
 
+# =============================================================================
+# ADR-031 Phase 6: Cross-Platform Synthesizer Configs
+# =============================================================================
+
+class WeeklyStatusSections(BaseModel):
+    """Sections to include in weekly status."""
+    executive_summary: bool = True
+    accomplishments: bool = True
+    in_progress: bool = True
+    action_items: bool = True
+    looking_ahead: bool = True
+    key_discussions: bool = True
+
+
+class WeeklyStatusConfig(BaseModel):
+    """Configuration for weekly status synthesizer."""
+    project_name: str
+    project_id: Optional[str] = None  # Link to project for resource mapping
+    time_range_days: int = 7
+    include_platforms: list[Literal["slack", "gmail", "notion", "calendar"]] = Field(
+        default_factory=lambda: ["slack", "gmail", "notion"]
+    )
+    sections: WeeklyStatusSections = Field(default_factory=WeeklyStatusSections)
+    detail_level: Literal["brief", "standard", "detailed"] = "standard"
+
+
+class ProjectBriefConfig(BaseModel):
+    """Configuration for project brief synthesizer."""
+    project_name: str
+    project_id: Optional[str] = None
+    brief_type: Literal["overview", "status", "handoff"] = "overview"
+    include_timeline: bool = True
+    include_resources: bool = True
+
+
+class CrossPlatformDigestConfig(BaseModel):
+    """Configuration for cross-platform digest synthesizer."""
+    user_name: Optional[str] = None
+    time_range_days: int = 7
+    include_platforms: list[Literal["slack", "gmail", "notion", "calendar"]] = Field(
+        default_factory=lambda: ["slack", "gmail", "notion"]
+    )
+    priority_focus: Literal["urgent", "balanced", "comprehensive"] = "balanced"
+
+
+class ActivitySummaryConfig(BaseModel):
+    """Configuration for activity summary synthesizer."""
+    time_range_days: int = 7
+    max_items: int = 10  # Top items to surface
+    include_platforms: list[Literal["slack", "gmail", "notion", "calendar"]] = Field(
+        default_factory=lambda: ["slack", "gmail", "notion"]
+    )
+
+
 # Union type for type_config
 TypeConfig = Union[
     # Tier 1 - Stable
@@ -285,6 +349,11 @@ TypeConfig = Union[
     ChangelogConfig,
     OneOnOnePrepConfig,
     BoardUpdateConfig,
+    # ADR-031 Phase 6: Cross-Platform Synthesizers
+    WeeklyStatusConfig,
+    ProjectBriefConfig,
+    CrossPlatformDigestConfig,
+    ActivitySummaryConfig,
 ]
 
 
@@ -504,7 +573,11 @@ class DeliverableCreate(BaseModel):
     sources: list[DataSource] = Field(default_factory=list)
     # ADR-028: Destination-first deliverables
     destination: Optional[dict] = None  # { platform, target, format, options }
+    # ADR-031 Phase 6: Multi-destination support for synthesizers
+    destinations: Optional[list[dict]] = None  # Array of destination configs
     governance: Optional[Literal["manual", "semi_auto", "full_auto"]] = "manual"
+    # ADR-031 Phase 6: Synthesizer flag
+    is_synthesizer: bool = False  # If true, uses cross-platform context assembly
     # Legacy fields (deprecated, use type_config)
     description: Optional[str] = None
     template_structure: Optional[TemplateStructure] = None
@@ -526,7 +599,11 @@ class DeliverableUpdate(BaseModel):
     status: Optional[Literal["active", "paused", "archived"]] = None
     # ADR-028: Destination-first deliverables
     destination: Optional[dict] = None
+    # ADR-031 Phase 6: Multi-destination support
+    destinations: Optional[list[dict]] = None
     governance: Optional[Literal["manual", "semi_auto", "full_auto"]] = None
+    # ADR-031 Phase 6: Synthesizer flag
+    is_synthesizer: Optional[bool] = None
     # Legacy fields (deprecated)
     description: Optional[str] = None
     template_structure: Optional[TemplateStructure] = None
@@ -558,9 +635,14 @@ class DeliverableResponse(BaseModel):
     latest_version_status: Optional[str] = None
     # ADR-028: Destination-first deliverables
     destination: Optional[dict] = None  # { platform, target, format, options }
+    # ADR-031 Phase 6: Multi-destination support
+    destinations: list[dict] = Field(default_factory=list)  # Array of destination configs
     governance: str = "manual"  # manual, semi_auto, full_auto
     # ADR-031: System-enforced governance ceiling
     governance_ceiling: Optional[str] = None  # Max governance based on destination
+    # ADR-031 Phase 6: Synthesizer fields
+    is_synthesizer: bool = False  # Uses cross-platform context assembly
+    linked_resources: Optional[list[dict]] = None  # Project resources for synthesizers
     # Quality metrics (ADR-018: feedback loop)
     quality_score: Optional[float] = None  # Latest edit_distance_score (0=no edits, 1=full rewrite)
     quality_trend: Optional[str] = None  # "improving", "stable", "declining"
