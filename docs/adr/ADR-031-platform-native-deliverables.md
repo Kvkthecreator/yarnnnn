@@ -71,12 +71,20 @@ platform_variant: "slack_digest"
 
 ### 3. Ephemeral Context Storage (Dedicated Table)
 
-**Decision**: Use dedicated `ephemeral_context` table for time-bounded platform data.
+**Decision**: Use dedicated `ephemeral_context` table for time-bounded data.
 
+- **General-purpose temporal layer**: Defined by lifespan, not by source
 - Separate from `user_memories` table
 - TTL-based cleanup
-- Preserves platform provenance and temporal attribution
+- Preserves source provenance and temporal attribution
 - Prevents pollution of long-term memory
+
+**Source categories** (not limited to platforms):
+- Platform imports (Slack, Gmail, Notion)
+- Calendar/schedule events
+- Session context
+- Time-bounded user notes
+- Recent deliverable outputs
 
 ### 4. Implementation Sequence (Slack First, Vertical)
 
@@ -152,14 +160,18 @@ class EventTrigger(BaseModel):
 
 ### 3. Two-Tier Context Model
 
+The context model separates data by **lifespan**, not by source. Ephemeral context is a general-purpose temporal layer; platform imports are one source category within it.
+
 ```python
 class DeliverableContext(BaseModel):
     """Context assembled for deliverable generation"""
 
-    # Time-bounded, platform-specific
+    # Time-bounded, source-attributed (TTL-based cleanup)
+    # Sources: platform imports, calendar, session, time-bounded notes
     ephemeral: list[EphemeralContextItem]
 
-    # Long-term user knowledge
+    # Long-term user knowledge (no expiration)
+    # Sources: user memories, promoted ephemeral, document extractions
     persistent: list[UserMemory]
 
     # Deliverable-specific learnings
@@ -186,17 +198,19 @@ class PlatformOutput(BaseModel):
 ### Phase 1: Ephemeral Context & Platform Variants
 
 ```sql
--- Ephemeral context for temporal platform data
+-- Ephemeral context: general-purpose temporal data with TTL
+-- Note: "platform" column is really "source_type" - includes non-platform sources
+-- like "calendar", "session", "user_note" in addition to "slack", "gmail", "notion"
 CREATE TABLE ephemeral_context (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE,
-    platform TEXT NOT NULL,  -- slack, gmail, notion
-    resource_id TEXT NOT NULL,  -- channel_id, label, page_id
+    platform TEXT NOT NULL,  -- Source type: slack, gmail, notion, calendar, session, user_note
+    resource_id TEXT NOT NULL,  -- channel_id, label, page_id, event_id, session_id
     resource_name TEXT,
     content TEXT NOT NULL,
-    content_type TEXT,  -- message, thread_summary, page_update
-    platform_metadata JSONB,  -- thread_ts, reply_count, reactions, etc.
-    source_timestamp TIMESTAMPTZ,  -- When it happened on platform
+    content_type TEXT,  -- message, thread_summary, page_update, event, note
+    platform_metadata JSONB,  -- Source-specific metadata (thread_ts, reactions, etc.)
+    source_timestamp TIMESTAMPTZ,  -- When it happened at source
     created_at TIMESTAMPTZ DEFAULT now(),
     expires_at TIMESTAMPTZ NOT NULL,  -- TTL for cleanup
 

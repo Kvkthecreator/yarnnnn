@@ -86,7 +86,7 @@ This is where the current design is **flat**. Deliverables should be:
 
 ## Two-Tier Context for Generation
 
-To avoid muddling long-term memory with temporal platform data, deliverable generation uses two context tiers:
+To avoid muddling long-term memory with time-sensitive data, deliverable generation uses two context tiers. **Important**: These tiers are defined by *lifespan*, not by *source*. Platform data is one category within the ephemeral layer, not the definition of it.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -94,17 +94,28 @@ To avoid muddling long-term memory with temporal platform data, deliverable gene
 │                                                                 │
 │  ┌─────────────────────────────────────┐                       │
 │  │  Ephemeral Context (Temporal)       │                       │
-│  │  - Last N days from sources         │                       │
-│  │  - Platform provenance preserved    │                       │
-│  │  - Stored in ephemeral_context table│                       │
+│  │  - TTL-based expiration             │                       │
+│  │  - Source-attributed (provenance)   │                       │
 │  │  - Used for "what happened recently"│                       │
+│  │                                     │                       │
+│  │  Sources:                           │                       │
+│  │  • Platform imports (Slack, etc.)   │                       │
+│  │  • Calendar/schedule events         │                       │
+│  │  • Session context                  │                       │
+│  │  • Time-bounded user notes          │                       │
+│  │  • Recent deliverable outputs       │                       │
 │  └─────────────────────────────────────┘                       │
 │                        +                                        │
 │  ┌─────────────────────────────────────┐                       │
 │  │  Persistent Context (Memory)        │                       │
-│  │  - User memories (preferences, facts)│                      │
-│  │  - Deliverable-scoped learnings     │                       │
+│  │  - No expiration                    │                       │
 │  │  - Used for "what I always know"    │                       │
+│  │                                     │                       │
+│  │  Sources:                           │                       │
+│  │  • User memories (manual/chat)      │                       │
+│  │  • Promoted from ephemeral          │                       │
+│  │  • Document extractions             │                       │
+│  │  • Deliverable-scoped learnings     │                       │
 │  └─────────────────────────────────────┘                       │
 │                        ↓                                        │
 │  ┌─────────────────────────────────────┐                       │
@@ -114,10 +125,10 @@ To avoid muddling long-term memory with temporal platform data, deliverable gene
 ```
 
 **Key distinction**:
-- **Ephemeral context**: Stored separately, time-bounded, platform-attributed, cleaned up after TTL
-- **Persistent context**: The current memory system, plus per-deliverable accumulated learnings
+- **Ephemeral context**: Time-bounded, source-attributed, auto-cleaned after TTL. Platform imports are one source category among several.
+- **Persistent context**: The current memory system, plus per-deliverable accumulated learnings. Includes context "promoted" from ephemeral when deemed important.
 
-**Decision**: Use dedicated `ephemeral_context` table (Option 2), not fetch-fresh or mixed storage.
+**Decision**: Use dedicated `ephemeral_context` table (Option 2), not fetch-fresh or mixed storage. The schema is general-purpose—`platform` column represents source type, not exclusively integration platforms.
 
 ---
 
