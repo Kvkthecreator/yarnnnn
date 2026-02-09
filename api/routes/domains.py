@@ -116,7 +116,7 @@ async def list_domains(auth: UserClient):
                 source_count=row["source_count"],
                 deliverable_count=row["deliverable_count"],
                 memory_count=row["memory_count"],
-                created_at=row["created_at"].isoformat() if row.get("created_at") else ""
+                created_at=row["created_at"] if isinstance(row.get("created_at"), str) else (row["created_at"].isoformat() if row.get("created_at") else "")
             ))
 
         return {

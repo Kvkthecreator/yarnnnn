@@ -64,7 +64,7 @@ app.include_router(subscription.router, prefix="/api", tags=["subscription"])
 app.include_router(subscription.webhook_router, prefix="/api", tags=["subscription-webhooks"])
 
 # Work routes (ADR-009)
-app.include_router(work.router, prefix="/api", tags=["work"])
+app.include_router(work.router, prefix="/api/work", tags=["work"])
 
 # Deliverables routes (ADR-018)
 app.include_router(deliverables.router, prefix="/api/deliverables", tags=["deliverables"])
