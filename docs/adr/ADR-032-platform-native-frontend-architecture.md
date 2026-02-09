@@ -1,8 +1,8 @@
 # ADR-032: Platform-Native Frontend Architecture
 
-> **Status**: Accepted (Phase 2 Complete)
+> **Status**: Accepted (Phase 3 Complete)
 > **Created**: 2026-02-09
-> **Updated**: 2026-02-09 (Phase 2 UI restructure complete)
+> **Updated**: 2026-02-09 (Phase 3 Platform Resources UI complete)
 > **Related**: ADR-028 (Destination-First), ADR-031 (Platform-Native Deliverables), ADR-023 (Supervisor Desk)
 > **Builds On**: All 6 phases of ADR-031 now implemented in backend
 
@@ -715,14 +715,24 @@ New flow:
 - ✅ `DeliverableDetailSurface.tsx` - Shows destination in header, DraftStatusIndicator for approved versions
 - ✅ `types/index.ts` - Added `delivery_mode`, `delivery_error` to DeliverableVersion
 
-### Phase 3: Platform Resources UI (Future)
+### Phase 3: Platform Resources UI ✅
 
 **Goal**: Surface linked platform resources to enable cross-platform context auto-suggestion.
 
-**Components**:
-- `PlatformResourcesList` - Shows linked Slack channels, Gmail labels, Notion pages
-- `AddPlatformResourceModal` - Link new platform resources
-- `ContextSummaryCard` - Shows "142 messages, 23 emails in last 7 days"
+**Completed Components**:
+- ✅ `PlatformResourcesList` - Shows linked Slack channels, Gmail labels, Notion pages
+  - Grouped by platform with platform-specific icons
+  - Remove resource functionality
+  - Empty state with add button
+- ✅ `AddPlatformResourceModal` - Link new platform resources
+  - Platform selection step
+  - Auto-suggestions based on project name
+  - Resource type, ID, and name input
+- ✅ `ContextSummaryCard` - Shows cross-platform context stats
+  - Total items count with platform breakdown
+  - Latest item timestamps
+  - Compact badge variant for inline use
+- ✅ `ProjectDetailSurface` - Updated with Platform Resources section
 
 **Hooks** (already built):
 - `useProjectResources` - CRUD for platform resources

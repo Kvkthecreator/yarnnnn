@@ -2,14 +2,20 @@
 
 /**
  * ADR-023: Supervisor Desk Architecture
- * ProjectDetailSurface - View project details (legacy, lower priority)
+ * ADR-032 Phase 3: Platform Resources UI
+ *
+ * ProjectDetailSurface - View project details with linked platform resources
  */
 
 import { useState, useEffect } from 'react';
-import { Loader2, ArrowLeft, Settings, Folder } from 'lucide-react';
+import { Loader2, ArrowLeft, Settings, Folder, Link2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { format } from 'date-fns';
+import { useProjectResources, useContextSummary } from '@/hooks/useProjectResources';
+import { PlatformResourcesList } from '@/components/ui/PlatformResourcesList';
+import { ContextSummaryCard } from '@/components/ui/ContextSummaryCard';
+import { AddPlatformResourceModal } from '@/components/modals/AddPlatformResourceModal';
 import type { Project, ProjectWithCounts } from '@/types';
 
 interface ProjectDetailSurfaceProps {
@@ -20,6 +26,22 @@ export function ProjectDetailSurface({ projectId }: ProjectDetailSurfaceProps) {
   const { setSurface } = useDesk();
   const [loading, setLoading] = useState(true);
   const [project, setProject] = useState<ProjectWithCounts | null>(null);
+  const [addResourceOpen, setAddResourceOpen] = useState(false);
+
+  // ADR-032 Phase 3: Platform resources hooks
+  const {
+    resources,
+    isLoading: resourcesLoading,
+    reload: reloadResources,
+    removeResource,
+  } = useProjectResources({ projectId });
+
+  const {
+    summary,
+    stats,
+    isLoading: summaryLoading,
+    refresh: refreshSummary,
+  } = useContextSummary({ projectId });
 
   useEffect(() => {
     loadProject();
@@ -94,6 +116,32 @@ export function ProjectDetailSurface({ projectId }: ProjectDetailSurfaceProps) {
             </div>
           </div>
 
+          {/* ADR-032 Phase 3: Platform Resources Section */}
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium flex items-center gap-2">
+                <Link2 className="w-4 h-4" />
+                Platform Resources
+              </h3>
+            </div>
+
+            {/* Context Summary */}
+            <ContextSummaryCard
+              summary={summary}
+              stats={stats}
+              isLoading={summaryLoading}
+            />
+
+            {/* Resources List */}
+            <PlatformResourcesList
+              resources={resources}
+              isLoading={resourcesLoading}
+              onRemove={removeResource}
+              onAdd={() => setAddResourceOpen(true)}
+            />
+          </div>
+
+          {/* Original actions */}
           <div className="mt-6 space-y-3">
             <button
               onClick={() =>
@@ -117,6 +165,17 @@ export function ProjectDetailSurface({ projectId }: ProjectDetailSurfaceProps) {
           </div>
         </div>
       </div>
+
+      {/* Add Resource Modal */}
+      <AddPlatformResourceModal
+        projectId={projectId}
+        open={addResourceOpen}
+        onClose={() => setAddResourceOpen(false)}
+        onAdded={() => {
+          reloadResources();
+          refreshSummary();
+        }}
+      />
     </div>
   );
 }
