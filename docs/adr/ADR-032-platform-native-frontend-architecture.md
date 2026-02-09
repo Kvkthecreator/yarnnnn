@@ -715,24 +715,21 @@ New flow:
 - ✅ `DeliverableDetailSurface.tsx` - Shows destination in header, DraftStatusIndicator for approved versions
 - ✅ `types/index.ts` - Added `delivery_mode`, `delivery_error` to DeliverableVersion
 
-### Phase 3: Context Basket Resources UI (Future)
+### Phase 3: Platform Resources UI (Future)
 
-**Goal**: Surface linked platform resources for context baskets to enable cross-platform context auto-suggestion.
-
-**Note**: "Context baskets" are the organizational containers for related work (what the codebase calls "projects"). This phase adds UI for managing platform resources linked to each basket.
+**Goal**: Surface linked platform resources to enable cross-platform context auto-suggestion.
 
 **Components**:
-- Add Resources tab/section to context basket detail view
-- `BasketResourcesList` - Shows linked Slack channels, Gmail labels, Notion pages
-- `AddBasketResourceModal` - Link new resources to a context basket
+- `PlatformResourcesList` - Shows linked Slack channels, Gmail labels, Notion pages
+- `AddPlatformResourceModal` - Link new platform resources
 - `ContextSummaryCard` - Shows "142 messages, 23 emails in last 7 days"
 
 **Hooks** (already built):
-- `useProjectResources` - CRUD for basket resources
-- `useResourceSuggestions` - Auto-suggest resources based on basket activity
+- `useProjectResources` - CRUD for platform resources
+- `useResourceSuggestions` - Auto-suggest resources
 - `useContextSummary` - Context availability stats
 
-**Benefit**: When creating a deliverable for a context basket, sources can be auto-suggested from linked resources instead of manual entry.
+**Benefit**: When creating a deliverable, sources can be auto-suggested from linked platform resources instead of manual entry.
 
 ### Phase 4: TP Platform-First Flow (Future)
 
@@ -740,7 +737,7 @@ New flow:
 
 **TP Capabilities**:
 - "Set up a weekly update to #leadership" → destination-first flow
-- Auto-suggest sources from context basket resources
+- Auto-suggest sources from linked platform resources
 - "What should appear in your weekly update?" → outcome-focused prompts
 - "Your draft is ready in Gmail" → platform-aware confirmation
 
