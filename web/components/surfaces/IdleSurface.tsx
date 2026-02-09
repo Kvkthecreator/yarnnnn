@@ -10,13 +10,13 @@
  * 3. Attention Items - things needing input (secondary)
  * 4. Quick Actions - create, browse context
  *
- * Handles three onboarding states:
- * - cold_start: Full welcome experience (WelcomePrompt)
- * - minimal_context: Normal dashboard with context banner
+ * ADR-033: Platform-First Onboarding
+ * - no_platforms: Full platform onboarding prompt
+ * - platforms_syncing: Dashboard with sync progress banner
  * - active: Normal dashboard
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Clock,
   Loader2,
@@ -32,13 +32,16 @@ import {
   Minus,
   Plus,
   FolderOpen,
-  Settings,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP } from '@/contexts/TPContext';
-import { useOnboardingState } from '@/hooks/useOnboardingState';
-import { WelcomePrompt, MinimalContextBanner } from '@/components/WelcomePrompt';
+import { usePlatformOnboardingState } from '@/hooks/usePlatformOnboardingState';
+import {
+  PlatformOnboardingPrompt,
+  PlatformSyncingBanner,
+  NoPlatformsBanner,
+} from '@/components/PlatformOnboardingPrompt';
 import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
 import { PlatformDetailPanel } from '@/components/ui/PlatformDetailPanel';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
@@ -87,21 +90,20 @@ interface DashboardData {
 export function IdleSurface() {
   const { setSurface, attention } = useDesk();
   const { sendMessage } = useTP();
+
+  // ADR-033: Platform-first onboarding state
   const {
     state: onboardingState,
     isLoading: onboardingLoading,
-    memoryCount,
+    platformCount,
+    platforms,
+    hasSyncingPlatforms,
     dismiss: dismissBanner,
     isDismissed,
-    reload: reloadOnboardingState,
-  } = useOnboardingState();
+  } = usePlatformOnboardingState();
 
   const [loading, setLoading] = useState(true);
-  const [uploading, setUploading] = useState(false);
   const [data, setData] = useState<DashboardData | null>(null);
-  const [pasteModalOpen, setPasteModalOpen] = useState(false);
-  const [pasteContent, setPasteContent] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // ADR-033 Phase 2: Platform detail panel state
   const [selectedPlatform, setSelectedPlatform] = useState<PlatformSummary | null>(null);
@@ -134,62 +136,16 @@ export function IdleSurface() {
   };
 
   // =============================================================================
-  // WelcomePrompt Callbacks
+  // Platform-First Onboarding Callbacks (ADR-033)
   // =============================================================================
 
-  const handleUpload = () => {
-    fileInputRef.current?.click();
+  const handleConnectPlatforms = () => {
+    // Navigate to settings/integrations
+    window.location.href = '/settings';
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setUploading(true);
-    try {
-      await api.documents.upload(file);
-      // Reload both dashboard data and onboarding state to transition out of cold_start
-      await Promise.all([
-        loadDashboardData(),
-        reloadOnboardingState(),
-      ]);
-    } catch (err) {
-      console.error('Failed to upload document:', err);
-      alert('Failed to upload. Please try again.');
-    } finally {
-      setUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
-  const handlePaste = () => {
-    setPasteModalOpen(true);
-  };
-
-  const handlePasteSubmit = async () => {
-    if (!pasteContent.trim()) return;
-
-    // Send pasted content to TP as context
-    await sendMessage(`Here's some context about me and my work:\n\n${pasteContent}`);
-    setPasteModalOpen(false);
-    setPasteContent('');
-    // Reload to check if we've transitioned out of cold_start
-    await Promise.all([
-      loadDashboardData(),
-      reloadOnboardingState(),
-    ]);
-  };
-
-  const handleStart = () => {
-    // Focus the TP input - dismiss welcome and let user start typing
-    dismissBanner();
-  };
-
-  const handleSelectPrompt = (prompt: string) => {
-    // Send the starter prompt to TP
-    sendMessage(prompt);
+  const handleSkipOnboarding = () => {
+    // Dismiss the onboarding prompt and let user start chatting
     dismissBanner();
   };
 
@@ -206,81 +162,25 @@ export function IdleSurface() {
   }
 
   // =============================================================================
-  // Cold Start: Full Welcome Experience
+  // Platform-First Onboarding: Full Welcome Experience (ADR-033)
   // =============================================================================
 
-  // Show full welcome if:
-  // 1. Onboarding state is cold_start
+  // Show full platform onboarding if:
+  // 1. Onboarding state is no_platforms
   // 2. No deliverables exist (fallback check)
-  // 3. User hasn't dismissed the welcome
-  const showColdStart =
+  // 3. User hasn't dismissed the onboarding
+  const showPlatformOnboarding =
     !isDismissed &&
-    (onboardingState === 'cold_start' ||
+    (onboardingState === 'no_platforms' ||
       (!data?.deliverables || data.deliverables.length === 0));
 
-  if (showColdStart) {
+  if (showPlatformOnboarding) {
     return (
       <div className="h-full flex items-center justify-center overflow-auto">
-        {/* Hidden file input for upload */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          onChange={handleFileChange}
-          className="hidden"
-          accept=".pdf,.doc,.docx,.txt,.md"
+        <PlatformOnboardingPrompt
+          onConnectPlatforms={handleConnectPlatforms}
+          onSkip={handleSkipOnboarding}
         />
-
-        {uploading ? (
-          <div className="text-center">
-            <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
-            <p className="text-sm text-muted-foreground">Uploading and processing...</p>
-          </div>
-        ) : (
-          <WelcomePrompt
-            onUpload={handleUpload}
-            onPaste={handlePaste}
-            onStart={handleStart}
-            onSelectPrompt={handleSelectPrompt}
-          />
-        )}
-
-        {/* Paste Modal */}
-        {pasteModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            <div
-              className="absolute inset-0 bg-black/50"
-              onClick={() => setPasteModalOpen(false)}
-            />
-            <div className="relative bg-background rounded-2xl shadow-xl max-w-lg w-full mx-4 p-6">
-              <h3 className="text-lg font-semibold mb-2">Paste context</h3>
-              <p className="text-sm text-muted-foreground mb-4">
-                Share information about yourself, your work, or your preferences.
-              </p>
-              <textarea
-                value={pasteContent}
-                onChange={(e) => setPasteContent(e.target.value)}
-                placeholder="e.g., I'm a product manager at a fintech startup. I send weekly status reports to my team every Monday..."
-                className="w-full h-40 p-3 border border-border rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
-                autoFocus
-              />
-              <div className="flex justify-end gap-2 mt-4">
-                <button
-                  onClick={() => setPasteModalOpen(false)}
-                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handlePasteSubmit}
-                  disabled={!pasteContent.trim()}
-                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50"
-                >
-                  Share with TP
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
     );
   }
@@ -315,17 +215,31 @@ export function IdleSurface() {
           ? 'improving'
           : 'stable';
 
-  // Show minimal context banner if user has some context but not much
-  const showMinimalContextBanner =
-    !isDismissed && onboardingState === 'minimal_context';
+  // ADR-033: Show syncing banner if platforms are connected but still importing
+  const showSyncingBanner = !isDismissed && onboardingState === 'platforms_syncing';
+
+  // Show subtle "connect platforms" banner for users with deliverables but no platforms
+  const showNoPlatformsBanner =
+    !isDismissed &&
+    platformCount === 0 &&
+    data?.deliverables &&
+    data.deliverables.length > 0;
 
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-3xl mx-auto px-4 md:px-6 py-6 space-y-6">
-        {/* Minimal Context Banner */}
-        {showMinimalContextBanner && (
-          <MinimalContextBanner
-            memoryCount={memoryCount}
+        {/* ADR-033: Platform Syncing Banner */}
+        {showSyncingBanner && (
+          <PlatformSyncingBanner
+            syncingCount={hasSyncingPlatforms ? 1 : platformCount}
+            onViewProgress={() => window.location.href = '/settings'}
+          />
+        )}
+
+        {/* ADR-033: No Platforms Banner (for existing users) */}
+        {showNoPlatformsBanner && (
+          <NoPlatformsBanner
+            onConnect={handleConnectPlatforms}
             onDismiss={dismissBanner}
           />
         )}
