@@ -219,18 +219,11 @@ class NotionExporter(DestinationExporter):
                 error_message="draft format requires drafts_database_id in options"
             )
 
-        # Build content with destination context callout
-        draft_content = f"""📍 **Target:** {target_name}
-{f'[Open Target Location]({target_url})' if target_url else ''}
-
----
-
-{content}
-
----
-
-ℹ️ *This is a draft. Move this page to the target location or copy the content when ready.*
-"""
+        # ADR-032: Draft content should be clean - no attribution or instructions
+        # that users might forget to remove before sending.
+        # The database properties (Status, Target) provide the context.
+        # The content itself is ready to copy/move.
+        draft_content = content
 
         # Build properties for the database item
         properties = {
