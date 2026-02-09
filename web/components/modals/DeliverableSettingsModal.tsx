@@ -1,14 +1,16 @@
 'use client';
 
 /**
- * DeliverableSettingsModal - Full modal for editing deliverable configuration
+ * DeliverableSettingsModal - ADR-032 Phase 2: Platform-First
  *
- * Editable fields:
- * - Title
- * - Schedule (frequency, day, time)
- * - Data sources (add/remove URLs, descriptions)
- * - Recipient context
- * - Status (pause/archive)
+ * Restructured for destination-first flow:
+ * 1. Destination (where does this go?) - REQUIRED
+ * 2. Title & Type (what is it?)
+ * 3. Data Sources (what informs it?)
+ * 4. Schedule (when?)
+ *
+ * Governance is simplified: defaults to "manual" (draft mode).
+ * User ownership is preserved - they review before sending.
  */
 
 import { useState, useEffect } from 'react';
@@ -28,10 +30,12 @@ import {
   Slack,
   FileCode,
   Download,
+  CheckCircle2,
 } from 'lucide-react';
 import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { DestinationSelector } from '@/components/ui/DestinationSelector';
 import type {
   Deliverable,
   DeliverableUpdate,
@@ -90,18 +94,21 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   thread_summary: 'Thread Summary',
 };
 
-// ADR-028: Governance options
-const GOVERNANCE_OPTIONS: { value: GovernanceLevel; label: string; description: string }[] = [
-  { value: 'manual', label: 'Manual', description: 'You click export after approving' },
-  { value: 'semi_auto', label: 'Semi-auto', description: 'Auto-delivers after you approve' },
-  { value: 'full_auto', label: 'Full-auto', description: 'Delivers immediately (skip review)' },
-];
+// ADR-032: Governance simplified - default to draft mode (manual)
+// Full governance options hidden in Phase 2
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   slack: <Slack className="w-4 h-4" />,
   notion: <FileCode className="w-4 h-4" />,
-  gmail: <Mail className="w-4 h-4" />,  // ADR-029
+  gmail: <Mail className="w-4 h-4" />,
   download: <Download className="w-4 h-4" />,
+};
+
+const PLATFORM_COLORS: Record<string, string> = {
+  slack: 'text-purple-500',
+  notion: 'text-gray-700',
+  gmail: 'text-red-500',
+  download: 'text-blue-500',
 };
 
 export function DeliverableSettingsModal({
@@ -122,13 +129,12 @@ export function DeliverableSettingsModal({
   const [recipient, setRecipient] = useState<RecipientContext>(
     deliverable.recipient_context || {}
   );
-  // ADR-028: Destination and governance state
+  // ADR-032: Destination is step 1 and required
   const [destination, setDestination] = useState<Destination | undefined>(
     deliverable.destination
   );
-  const [governance, setGovernance] = useState<GovernanceLevel>(
-    deliverable.governance || 'manual'
-  );
+  // ADR-032: Governance defaults to manual (draft mode) - simplified
+  const [governance] = useState<GovernanceLevel>('manual');
 
   // New source input - ADR-029 Phase 2: Extended for integration_import
   const [newSourceType, setNewSourceType] = useState<DataSourceType>('url');
@@ -154,11 +160,17 @@ export function DeliverableSettingsModal({
     setSources(deliverable.sources || []);
     setRecipient(deliverable.recipient_context || {});
     setDestination(deliverable.destination);
-    setGovernance(deliverable.governance || 'manual');
+    // ADR-032: Governance is fixed to 'manual' (draft mode)
     setError(null);
   }, [deliverable]);
 
   const handleSave = async () => {
+    // ADR-032: Destination is required
+    if (!destination) {
+      setError('Please select a destination for this deliverable');
+      return;
+    }
+
     setSaving(true);
     setError(null);
 
@@ -260,7 +272,66 @@ export function DeliverableSettingsModal({
             </div>
           )}
 
-          {/* Title */}
+          {/* ============================================ */}
+          {/* STEP 1: DESTINATION (ADR-032 Platform-First) */}
+          {/* ============================================ */}
+          <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Send className="w-4 h-4 text-primary" />
+              <label className="text-sm font-medium">
+                Destination
+                <span className="text-red-500 ml-1">*</span>
+              </label>
+            </div>
+
+            {destination ? (
+              <div className="flex items-center gap-3 p-3 bg-background rounded-md border border-border">
+                <div className={cn("shrink-0", PLATFORM_COLORS[destination.platform] || 'text-muted-foreground')}>
+                  {PLATFORM_ICONS[destination.platform] || <Send className="w-4 h-4" />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium capitalize">
+                    {destination.platform}
+                    {destination.format && (
+                      <span className="text-muted-foreground ml-1">
+                        ({destination.format})
+                      </span>
+                    )}
+                  </div>
+                  {destination.target && (
+                    <div className="text-xs text-muted-foreground truncate">
+                      → {destination.target}
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => setDestination(undefined)}
+                  className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
+                  title="Change destination"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <DestinationSelector
+                value={destination}
+                onChange={setDestination}
+                onClose={onClose}
+              />
+            )}
+
+            {/* Draft mode indicator */}
+            {destination && (
+              <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+                <span>Draft mode: You'll review content before it's sent</span>
+              </div>
+            )}
+          </div>
+
+          {/* ============================================ */}
+          {/* STEP 2: TITLE */}
+          {/* ============================================ */}
           <div>
             <label className="block text-sm font-medium mb-1.5">Title</label>
             <input
@@ -272,7 +343,9 @@ export function DeliverableSettingsModal({
             />
           </div>
 
-          {/* Schedule */}
+          {/* ============================================ */}
+          {/* STEP 3: SCHEDULE */}
+          {/* ============================================ */}
           <div>
             <label className="block text-sm font-medium mb-1.5 flex items-center gap-1.5">
               <Clock className="w-4 h-4" />
@@ -319,11 +392,13 @@ export function DeliverableSettingsModal({
             </div>
           </div>
 
-          {/* Data Sources */}
+          {/* ============================================ */}
+          {/* STEP 4: DATA SOURCES */}
+          {/* ============================================ */}
           <div>
             <label className="block text-sm font-medium mb-1.5">Data Sources</label>
             <p className="text-xs text-muted-foreground mb-3">
-              URLs, documents, descriptions, or integration data that inform this deliverable
+              What context should inform this deliverable?
             </p>
 
             {/* Existing sources */}
@@ -623,16 +698,19 @@ export function DeliverableSettingsModal({
             </div>
           </div>
 
-          {/* Recipient */}
-          <div>
-            <label className="block text-sm font-medium mb-1.5 flex items-center gap-1.5">
+          {/* ============================================ */}
+          {/* STEP 5: RECIPIENT (Collapsed/Advanced) */}
+          {/* ============================================ */}
+          <details className="group">
+            <summary className="cursor-pointer text-sm font-medium flex items-center gap-1.5 py-2 list-none">
               <User className="w-4 h-4" />
-              Recipient
-            </label>
-            <p className="text-xs text-muted-foreground mb-3">
-              This personalizes the content for your audience (not used for email delivery)
-            </p>
-            <div className="space-y-3">
+              Recipient Context
+              <span className="text-xs text-muted-foreground ml-2">(optional)</span>
+            </summary>
+            <div className="pt-3 space-y-3">
+              <p className="text-xs text-muted-foreground">
+                This personalizes the content for your audience
+              </p>
               <input
                 type="text"
                 value={recipient.name || ''}
@@ -655,103 +733,7 @@ export function DeliverableSettingsModal({
                 className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
               />
             </div>
-          </div>
-
-          {/* ADR-028: Delivery Destination */}
-          <div>
-            <label className="block text-sm font-medium mb-1.5 flex items-center gap-1.5">
-              <Send className="w-4 h-4" />
-              Delivery
-            </label>
-            <p className="text-xs text-muted-foreground mb-3">
-              Where should approved versions be delivered?
-            </p>
-
-            {/* Current destination display */}
-            {destination ? (
-              <div className="p-3 bg-muted/50 rounded-md mb-3">
-                <div className="flex items-center gap-2">
-                  {PLATFORM_ICONS[destination.platform] || <Send className="w-4 h-4" />}
-                  <span className="text-sm font-medium capitalize">{destination.platform}</span>
-                  {destination.target && (
-                    <span className="text-sm text-muted-foreground">→ {destination.target}</span>
-                  )}
-                  <button
-                    onClick={() => setDestination(undefined)}
-                    className="ml-auto p-1 hover:bg-muted rounded text-muted-foreground hover:text-red-600"
-                    title="Remove destination"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="p-3 border border-dashed border-border rounded-md text-center text-sm text-muted-foreground mb-3">
-                No destination configured — manual export only
-              </div>
-            )}
-
-            {/* Governance selector */}
-            <div className="space-y-2">
-              <label className="block text-xs font-medium text-muted-foreground">
-                Delivery mode
-              </label>
-              <div className="grid grid-cols-3 gap-2">
-                {GOVERNANCE_OPTIONS.map((opt) => (
-                  <button
-                    key={opt.value}
-                    type="button"
-                    onClick={() => setGovernance(opt.value)}
-                    className={cn(
-                      "p-2 rounded-md border text-left transition-colors",
-                      governance === opt.value
-                        ? "border-primary bg-primary/5"
-                        : "border-border hover:border-muted-foreground/50"
-                    )}
-                  >
-                    <div className="text-xs font-medium">{opt.label}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{opt.description}</div>
-                  </button>
-                ))}
-              </div>
-              {!destination && governance !== 'manual' && (
-                <p className="text-xs text-amber-600 flex items-center gap-1 mt-1">
-                  <AlertTriangle className="w-3 h-3" />
-                  Configure a destination to enable auto-delivery
-                </p>
-              )}
-            </div>
-
-            {/* Link to integrations */}
-            <Link
-              href="/settings?tab=integrations"
-              className="text-xs text-primary hover:underline inline-flex items-center gap-1 mt-3"
-              onClick={onClose}
-            >
-              Manage integrations (Slack, Notion, Gmail)
-              <ExternalLink className="w-3 h-3" />
-            </Link>
-          </div>
-
-          {/* Email Notifications Info */}
-          <div className="p-3 bg-muted/50 rounded-md">
-            <div className="flex items-start gap-3">
-              <Mail className="w-4 h-4 text-muted-foreground mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm text-muted-foreground">
-                  Email notifications are sent to your account email when this deliverable is ready.
-                </p>
-                <Link
-                  href="/settings?tab=notifications"
-                  className="text-sm text-primary hover:underline inline-flex items-center gap-1 mt-1"
-                  onClick={onClose}
-                >
-                  Manage notifications
-                  <ExternalLink className="w-3 h-3" />
-                </Link>
-              </div>
-            </div>
-          </div>
+          </details>
         </div>
 
         {/* Footer */}
@@ -765,7 +747,7 @@ export function DeliverableSettingsModal({
           </button>
           <button
             onClick={handleSave}
-            disabled={saving || !title.trim()}
+            disabled={saving || !title.trim() || !destination}
             className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
           >
             {saving && <Loader2 className="w-4 h-4 animate-spin" />}
