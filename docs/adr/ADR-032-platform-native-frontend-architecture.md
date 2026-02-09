@@ -670,16 +670,44 @@ This complexity is deferred. Phase 1 = blanket platform-centric draft mode.
 
 **Goal**: Restructure deliverable creation to destination-first.
 
+**Current State** (analyzed from `DeliverableSettingsModal.tsx`):
+```
+Current flow:
+1. Title
+2. Schedule (frequency, day, time)
+3. Data Sources
+4. Recipient (name, role, notes)
+5. Delivery (destination + governance) ← last, optional
+```
+
+**Target Flow**:
+```
+New flow:
+1. Destination (where does this go?) ← first, required
+2. Type (what kind of output?)
+3. Sources (what informs it?) ← auto-suggest from project resources
+4. Schedule (when?)
+```
+
 **UI Changes**:
 - Restructure DeliverableSettingsModal: Destination → Type → Sources → Schedule
-- Make destination required
-- Remove governance complexity (default all to "draft" mode)
-- Show platform icon/badge prominently
+- Make destination required (remove "No destination configured" option)
+- Default governance to "manual" (platform-centric draft mode)
+- Hide governance selector in Phase 2 (simplify, all drafts)
+- Show platform icon/badge prominently at top
 
 **Components to Build**:
-- `DestinationSelector` - First step, shows connected platforms
-- `DraftStatusIndicator` - Shows where draft was pushed
-- Update `DeliverableVersionDetail` with draft location info
+- `DestinationSelector` - First step, shows connected platforms with targets
+  - Gmail: Show user's email, CC options
+  - Slack: Show channels user has access to
+  - Notion: Show pages/databases user has shared
+- `DraftStatusIndicator` - Shows where draft was pushed ("Draft in Gmail Drafts")
+- Update `DeliverableVersionDetail` with draft location info and deep link
+
+**Existing Components to Modify**:
+- `DeliverableSettingsModal.tsx` - Reorder sections, make destination required
+- `DeliverableReviewSurface.tsx` - Add draft status after approval
+- `DeliverableDetailSurface.tsx` - Show destination prominently
 
 ### Phase 3: Project Resources UI
 
