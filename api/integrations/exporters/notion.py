@@ -1,16 +1,21 @@
 """
-Notion Exporter - ADR-028
+Notion Exporter - ADR-028, ADR-032
 
 Delivers content to Notion pages via MCP.
+
+ADR-032 adds support for draft pages in a YARNNN Drafts database.
 
 Destination Schema:
     {
         "platform": "notion",
         "target": "page-id-uuid",
-        "format": "page" | "database_item",
+        "format": "page" | "database_item" | "draft",
         "options": {
             "database_id": "db-uuid",  # For database items
-            "properties": {}            # Database properties to set
+            "properties": {},           # Database properties to set
+            "target_name": "/ProductSpec",  # For drafts - human-readable target
+            "target_url": "https://...",    # For drafts - link to target location
+            "drafts_database_id": "...",    # For drafts - YARNNN Drafts DB
         }
     }
 """
@@ -31,7 +36,8 @@ class NotionExporter(DestinationExporter):
 
     Supports:
     - Creating pages under a parent page
-    - Creating database items (future)
+    - Creating database items
+    - ADR-032: Creating draft pages in YARNNN Drafts database
     """
 
     @property
@@ -39,7 +45,7 @@ class NotionExporter(DestinationExporter):
         return "notion"
 
     def get_supported_formats(self) -> list[str]:
-        return ["page", "database_item"]
+        return ["page", "database_item", "draft"]
 
     def validate_destination(self, destination: dict[str, Any]) -> bool:
         """Validate Notion destination config."""
@@ -57,6 +63,12 @@ class NotionExporter(DestinationExporter):
         if fmt == "database_item":
             options = destination.get("options", {})
             if not options.get("database_id"):
+                return False
+
+        # ADR-032: Drafts need drafts_database_id in options
+        if fmt == "draft":
+            options = destination.get("options", {})
+            if not options.get("drafts_database_id"):
                 return False
 
         return True
@@ -78,6 +90,7 @@ class NotionExporter(DestinationExporter):
 
         target = destination.get("target")
         fmt = destination.get("format", "page")
+        options = destination.get("options", {})
 
         if not target:
             return ExportResult(
@@ -87,6 +100,17 @@ class NotionExporter(DestinationExporter):
 
         try:
             mcp = get_mcp_manager()
+
+            # ADR-032: Handle draft format (platform-centric drafts)
+            if fmt == "draft":
+                return await self._create_draft_page(
+                    mcp=mcp,
+                    context=context,
+                    target=target,
+                    title=title,
+                    content=content,
+                    options=options
+                )
 
             if fmt == "page":
                 # Create a new page under the parent
@@ -103,8 +127,7 @@ class NotionExporter(DestinationExporter):
                     env={"NOTION_TOKEN": context.access_token}
                 )
             elif fmt == "database_item":
-                # Create a database item (future enhancement)
-                options = destination.get("options", {})
+                # Create a database item
                 database_id = options.get("database_id")
                 properties = options.get("properties", {})
 
@@ -164,6 +187,121 @@ class NotionExporter(DestinationExporter):
                 error_message=str(e)
             )
 
+    async def _create_draft_page(
+        self,
+        mcp: Any,
+        context: ExporterContext,
+        target: str,
+        title: str,
+        content: str,
+        options: dict[str, Any]
+    ) -> ExportResult:
+        """
+        Create a draft page in the YARNNN Drafts database.
+
+        ADR-032: Platform-centric drafts for Notion.
+
+        The draft page includes:
+        - Status property: "Draft"
+        - Target Location property: URL to destination page
+        - Target Name property: Human-readable destination
+        - Body: Content with destination context callout
+        """
+        import json
+
+        drafts_database_id = options.get("drafts_database_id")
+        target_name = options.get("target_name", target)
+        target_url = options.get("target_url", "")
+
+        if not drafts_database_id:
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message="draft format requires drafts_database_id in options"
+            )
+
+        # Build content with destination context callout
+        draft_content = f"""📍 **Target:** {target_name}
+{f'[Open Target Location]({target_url})' if target_url else ''}
+
+---
+
+{content}
+
+---
+
+ℹ️ *This is a draft. Move this page to the target location or copy the content when ready.*
+"""
+
+        # Build properties for the database item
+        properties = {
+            "Status": {
+                "select": {"name": "Draft"}
+            },
+            "Target Name": {
+                "rich_text": [{"text": {"content": target_name}}]
+            },
+        }
+
+        if target_url:
+            properties["Target Location"] = {
+                "url": target_url
+            }
+
+        try:
+            result = await mcp.call_tool(
+                user_id=context.user_id,
+                provider="notion",
+                tool_name="API-post-page",
+                arguments={
+                    "database_id": drafts_database_id,
+                    "title": title,
+                    "content": draft_content,
+                    "properties": properties
+                },
+                env={"NOTION_TOKEN": context.access_token}
+            )
+
+            # Extract page ID and URL from result
+            page_id = None
+            page_url = None
+
+            if isinstance(result, dict):
+                page_id = result.get("id")
+                page_url = result.get("url")
+            elif hasattr(result, "content"):
+                for content_item in result.content:
+                    if hasattr(content_item, "text"):
+                        try:
+                            parsed = json.loads(content_item.text)
+                            page_id = parsed.get("id")
+                            page_url = parsed.get("url")
+                        except (json.JSONDecodeError, TypeError):
+                            pass
+
+            logger.info(
+                f"[NOTION_EXPORT] Created draft in YARNNN Drafts for {target_name}, "
+                f"page_id={page_id}"
+            )
+
+            return ExportResult(
+                status=ExportStatus.SUCCESS,
+                external_id=page_id,
+                external_url=page_url,
+                metadata={
+                    "drafts_database_id": drafts_database_id,
+                    "target": target,
+                    "target_name": target_name,
+                    "format": "draft"
+                }
+            )
+
+        except Exception as e:
+            logger.error(f"[NOTION_EXPORT] Draft creation failed: {e}")
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=str(e)
+            )
+
     async def verify_destination_access(
         self,
         destination: dict[str, Any],
@@ -174,6 +312,16 @@ class NotionExporter(DestinationExporter):
             return (False, "MCP not available")
 
         target = destination.get("target")
+        fmt = destination.get("format", "page")
+
+        # For drafts, verify access to the drafts database instead
+        if fmt == "draft":
+            options = destination.get("options", {})
+            drafts_db_id = options.get("drafts_database_id")
+            if not drafts_db_id:
+                return (False, "Missing drafts_database_id for draft format")
+            target = drafts_db_id
+
         if not target:
             return (False, "Missing target page ID")
 

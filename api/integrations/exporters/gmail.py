@@ -134,6 +134,9 @@ class GmailExporter(DestinationExporter):
             if use_html:
                 from services.platform_output import generate_gmail_html
 
+                # ADR-032: Mark as draft for platform-centric footer
+                is_draft_mode = fmt == "draft"
+
                 email_body = generate_gmail_html(
                     content=content,
                     variant=platform_variant or "default",
@@ -142,10 +145,11 @@ class GmailExporter(DestinationExporter):
                         "recipient": target,
                         "date": options.get("date", ""),
                         "email_count": options.get("email_count", ""),
+                        "is_draft": is_draft_mode,  # ADR-032
                     }
                 )
 
-                logger.info(f"[GMAIL_EXPORT] Using HTML format for variant={platform_variant}")
+                logger.info(f"[GMAIL_EXPORT] Using HTML format for variant={platform_variant}, is_draft={is_draft_mode}")
 
             if fmt == "draft":
                 # Create draft for user review

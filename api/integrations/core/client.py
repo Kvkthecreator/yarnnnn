@@ -243,6 +243,9 @@ class MCPClientManager:
         """
         Export content to Slack via MCP.
 
+        DEPRECATED: Use SlackExporter from integrations.exporters instead.
+        This method is kept for backwards compatibility.
+
         Args:
             user_id: User identifier
             channel: Slack channel (ID or name with #)
@@ -289,6 +292,9 @@ class MCPClientManager:
     ) -> ExportResult:
         """
         Export content to Notion via MCP.
+
+        DEPRECATED: Use NotionExporter from integrations.exporters instead.
+        This method is kept for backwards compatibility.
 
         Args:
             user_id: User identifier
@@ -497,6 +503,249 @@ class MCPClientManager:
         except Exception as e:
             logger.error(f"[MCP] Failed to get Slack history: {e}")
             raise
+
+    # =========================================================================
+    # Slack DM Operations - ADR-032 Platform-Centric Drafts
+    # =========================================================================
+
+    async def lookup_slack_user_by_email(
+        self,
+        user_id: str,
+        email: str,
+        bot_token: str,
+        team_id: str
+    ) -> Optional[str]:
+        """
+        Look up a Slack user ID by their email address.
+
+        ADR-032: Required for sending draft DMs to users.
+
+        Args:
+            email: User's email address
+
+        Returns:
+            Slack user ID (e.g., "U123ABC456") or None if not found
+        """
+        import httpx
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    "https://slack.com/api/users.lookupByEmail",
+                    headers={
+                        "Authorization": f"Bearer {bot_token}",
+                    },
+                    params={"email": email}
+                )
+                result = response.json()
+
+                if result.get("ok"):
+                    user = result.get("user", {})
+                    slack_user_id = user.get("id")
+                    logger.info(f"[SLACK] Found user {slack_user_id} for email {email}")
+                    return slack_user_id
+
+                error = result.get("error", "")
+                if error == "users_not_found":
+                    logger.warning(f"[SLACK] No user found for email {email}")
+                    return None
+
+                logger.warning(f"[SLACK] User lookup failed: {error}")
+                return None
+
+        except Exception as e:
+            logger.error(f"[SLACK] User lookup error: {e}")
+            return None
+
+    async def open_slack_dm(
+        self,
+        user_id: str,
+        slack_user_id: str,
+        bot_token: str,
+        team_id: str
+    ) -> Optional[str]:
+        """
+        Open a DM channel with a Slack user.
+
+        ADR-032: Required for sending draft messages to users.
+
+        Args:
+            slack_user_id: Target user's Slack ID
+
+        Returns:
+            DM channel ID or None if failed
+        """
+        import httpx
+
+        try:
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://slack.com/api/conversations.open",
+                    headers={
+                        "Authorization": f"Bearer {bot_token}",
+                        "Content-Type": "application/json"
+                    },
+                    json={"users": slack_user_id}
+                )
+                result = response.json()
+
+                if result.get("ok"):
+                    channel = result.get("channel", {})
+                    dm_channel_id = channel.get("id")
+                    logger.info(f"[SLACK] Opened DM channel {dm_channel_id} with user {slack_user_id}")
+                    return dm_channel_id
+
+                error = result.get("error", "")
+                logger.warning(f"[SLACK] Failed to open DM: {error}")
+                return None
+
+        except Exception as e:
+            logger.error(f"[SLACK] DM open error: {e}")
+            return None
+
+    async def send_slack_dm_draft(
+        self,
+        user_id: str,
+        slack_user_id: str,
+        content: str,
+        destination_context: dict,
+        bot_token: str,
+        team_id: str
+    ) -> ExportResult:
+        """
+        Send a draft message as a DM to a Slack user.
+
+        ADR-032: Platform-centric drafts - meets users where they are.
+
+        The DM includes:
+        - Header with destination context (which channel this is for)
+        - The draft content in Block Kit format
+        - Footer with instructions
+
+        Args:
+            slack_user_id: Target user's Slack ID
+            content: The draft content (markdown)
+            destination_context: Dict with channel_name, channel_id, title
+
+        Returns:
+            ExportResult with DM message details
+        """
+        import json
+        import httpx
+
+        try:
+            # Open DM channel first
+            dm_channel_id = await self.open_slack_dm(
+                user_id=user_id,
+                slack_user_id=slack_user_id,
+                bot_token=bot_token,
+                team_id=team_id
+            )
+
+            if not dm_channel_id:
+                return ExportResult(
+                    status=ExportStatus.FAILED,
+                    error_message="Could not open DM channel with user"
+                )
+
+            # Build Block Kit message with destination context
+            from services.platform_output import generate_slack_blocks, _markdown_to_mrkdwn
+
+            channel_name = destination_context.get("channel_name", "channel")
+            channel_id = destination_context.get("channel_id", "")
+            title = destination_context.get("title", "Draft")
+
+            # Generate content blocks
+            content_blocks = generate_slack_blocks(
+                content=content,
+                variant="default",
+                metadata={"title": title}
+            )
+
+            # Build full message with header and footer
+            blocks = [
+                {
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": f"📝 Draft ready for {channel_name}", "emoji": True}
+                },
+                {"type": "divider"},
+            ]
+
+            # Add content blocks
+            blocks.extend(content_blocks)
+
+            # Add footer with instructions
+            channel_link = f"<#{channel_id}|{channel_name.lstrip('#')}>" if channel_id else channel_name
+            blocks.extend([
+                {"type": "divider"},
+                {
+                    "type": "context",
+                    "elements": [
+                        {"type": "mrkdwn", "text": f"ℹ️ This is a draft for {channel_link}. Copy the content above and paste it there when ready."}
+                    ]
+                },
+                {
+                    "type": "actions",
+                    "elements": [
+                        {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": f"🔗 Open {channel_name}", "emoji": True},
+                            "url": f"slack://channel?team={team_id}&id={channel_id}" if channel_id else None,
+                            "action_id": "open_channel"
+                        } if channel_id else {
+                            "type": "button",
+                            "text": {"type": "plain_text", "text": "Draft Ready", "emoji": True},
+                            "action_id": "draft_ready"
+                        }
+                    ]
+                }
+            ])
+
+            # Filter out None elements from actions
+            blocks[-1]["elements"] = [e for e in blocks[-1]["elements"] if e.get("url") is not None or e.get("action_id") == "draft_ready"]
+
+            # Send via Slack API
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://slack.com/api/chat.postMessage",
+                    headers={
+                        "Authorization": f"Bearer {bot_token}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "channel": dm_channel_id,
+                        "blocks": blocks,
+                        "text": f"Draft ready for {channel_name}"  # Fallback
+                    }
+                )
+                result = response.json()
+
+                if result.get("ok"):
+                    message_ts = result.get("ts")
+                    logger.info(f"[SLACK] Sent draft DM to {slack_user_id}, ts={message_ts}")
+                    return ExportResult(
+                        status=ExportStatus.SUCCESS,
+                        external_id=message_ts,
+                        metadata={
+                            "channel": dm_channel_id,
+                            "format": "dm_draft",
+                            "destination_channel": channel_name,
+                        }
+                    )
+
+                error = result.get("error", "")
+                logger.error(f"[SLACK] Failed to send DM: {error}")
+                return ExportResult(
+                    status=ExportStatus.FAILED,
+                    error_message=f"Slack API error: {error}"
+                )
+
+        except Exception as e:
+            logger.error(f"[SLACK] DM draft failed: {e}")
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=str(e)
+            )
 
     # =========================================================================
     # Notion Read Operations (via MCP)

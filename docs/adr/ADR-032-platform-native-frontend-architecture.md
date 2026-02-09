@@ -1,8 +1,8 @@
 # ADR-032: Platform-Native Frontend Architecture
 
-> **Status**: Draft (For Discussion)
+> **Status**: Accepted (Phase 1 Complete)
 > **Created**: 2026-02-09
-> **Updated**: 2026-02-09 (Platform-first direction confirmed)
+> **Updated**: 2026-02-09 (Phase 1 backend implementation complete)
 > **Related**: ADR-028 (Destination-First), ADR-031 (Platform-Native Deliverables), ADR-023 (Supervisor Desk)
 > **Builds On**: All 6 phases of ADR-031 now implemented in backend
 
@@ -247,202 +247,350 @@ If the team/org knows YARNNN is in use:
 
 ## Per-Platform Delivery Strategy
 
-### Phase 1: Blanket "Draft Mode" (Launch)
+### Key Insight: Platform-Centric Drafts
 
-**Core insight**: Early users have low trust. They *want* to review everything. Start with draft mode everywhere, let automation become an upgrade as trust builds.
+**Core principle**: Meet users where they are. Drafts should be **pushed to platforms**, not sit in YARNNN's UI waiting.
+
+This fundamentally changes the model:
+
+```
+Old Model:  YARNNN generates → User reviews in YARNNN → User copies to platform
+New Model:  YARNNN generates → Draft pushed to platform → User reviews/sends there
+```
+
+**Why this is better**:
+1. Users live in Gmail/Slack/Notion—not YARNNN
+2. Reduces friction (one less step, no context switching)
+3. Draft is already in the right place when user wants to send
+4. Natural notification: "You have a draft waiting"
+
+---
+
+### Phase 1: Platform-Centric Draft Mode (Launch)
 
 **The blanket approach**:
 
-| Platform | Phase 1 Mode | User Experience |
-|----------|--------------|-----------------|
-| **Gmail** | Draft → User sends | YARNNN prepares email, user clicks send in Gmail |
-| **Slack** | Draft → User posts | YARNNN prepares message, user copies to Slack |
-| **Notion** | Draft → User creates | YARNNN prepares content, user creates page in Notion |
+| Platform | Draft Mode | Where Draft Lives |
+|----------|------------|-------------------|
+| **Gmail** | Draft in Gmail Drafts folder | Gmail app/web |
+| **Slack** | DM from YARNNN Bot to user | Slack DMs |
+| **Notion** | Draft page in staging location | Notion workspace |
 
 **Why this works**:
-1. Matches low-trust reality of new users
-2. One consistent mental model: "YARNNN prepares, I send"
-3. No per-channel, per-audience decisions
-4. Trust builds naturally through quality
+1. Matches low-trust reality: user still reviews/sends
+2. Meets users where they already work
+3. No YARNNN UI required for review
+4. Natural "inbox" pattern for each platform
 
 ---
 
-### Gmail: The Cleanest Path
+### Gmail: Draft in Drafts Folder ✅
 
-Gmail has the simplest path because OAuth allows sending as the user.
+**API Capability**: Gmail API has native draft support via `drafts.create`.
+
+**Current Implementation** ([gmail.py:845-915](api/integrations/core/client.py#L845-L915)):
+- Creates MIME message with `To:`, `Subject:`, `CC:` headers
+- Supports HTML body via platform variants
+- Returns `draft_id` for reference
 
 **User Flow**:
 ```
-1. YARNNN generates email draft
-2. User reviews in YARNNN UI
-3. User clicks "Send" (or "Open in Gmail")
-4. Email sends FROM user's address
-5. Recipient sees: "From: kevin@company.com"
+1. YARNNN generates email content
+2. YARNNN calls Gmail API drafts.create()
+3. Draft appears in user's Gmail Drafts folder
+4. User opens Gmail, sees draft with:
+   - To: prefilled (recipient from deliverable)
+   - Subject: prefilled
+   - Body: full content ready
+5. User reviews, edits if needed, clicks Send
 ```
 
 **Technical Path**:
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ YARNNN      │────>│ Gmail API   │────>│ Recipient   │
-│ generates   │     │ (OAuth)     │     │ inbox       │
-│ draft       │     │ sends as    │     │             │
-│             │     │ user        │     │             │
+│ YARNNN      │────>│ Gmail API   │────>│ Gmail       │
+│ generates   │     │ drafts.     │     │ Drafts      │
+│ email       │     │ create()    │     │ folder      │
 └─────────────┘     └─────────────┘     └─────────────┘
                           │
-                    Attribution:
-                    kevin@company.com
+                    Draft contains:
+                    - To: recipient@company.com
+                    - Subject: Weekly Status Update
+                    - Body: Full HTML content
 ```
 
-**Implementation Options**:
+**Draft Metadata (Destination Context)**:
 
-| Option | Description | UX |
-|--------|-------------|-----|
-| **A: Send from YARNNN** | User clicks "Send" in YARNNN, API sends | Seamless, one interface |
-| **B: Open in Gmail** | YARNNN creates draft in Gmail, user opens and sends | User sees Gmail UI before send |
-| **C: Copy to Gmail** | User copies content, pastes into Gmail compose | Most manual, full control |
+The draft should be fully self-contained. User opens it and knows exactly what it's for:
 
-**Recommendation**: Option A (Send from YARNNN) with Option B as fallback.
-- Primary: "Send" button in YARNNN review UI
-- Secondary: "Open in Gmail" for users who want to edit further
+```
+To: sarah@company.com
+Subject: Weekly Status Update - Week of Feb 10
+CC: (optional)
+
+[Full email content here]
+
+---
+Prepared by YARNNN • Review and send when ready
+```
+
+**Notification Path**:
+- YARNNN can optionally send push notification: "Draft ready: Weekly Status Update"
+- Or rely on Gmail's natural "1 draft" indicator
+
+**Implementation Checklist**:
+- [x] `drafts.create()` API call works
+- [x] Subject line prefilled
+- [x] To: recipient prefilled
+- [x] HTML body support (ADR-031 Phase 5)
+- [x] Draft context footer ("Prepared by YARNNN • Review and send when ready")
+- [ ] Thread context for replies (`thread_id`)
+- [ ] YARNNN notification when draft created
 
 ---
 
-### Slack: Copy-to-Post Flow
+### Slack: DM from YARNNN Bot 🔄
 
-Slack requires bot token, so true "post as user" isn't possible. Draft mode = user copies and posts.
+**API Capability**: Slack API supports DMs via `conversations.open` + `chat.postMessage`.
 
-**User Flow**:
+**Current Limitation**: SlackExporter only posts to channels, not user DMs.
+
+**Proposed Flow**:
 ```
-1. YARNNN generates Slack-formatted message
-2. User reviews in YARNNN UI (shows Slack preview)
-3. User clicks "Copy for Slack"
-4. User opens Slack, pastes in destination channel
-5. Message appears from user, not bot
+1. YARNNN generates Slack message content
+2. YARNNN sends DM to user (via bot)
+3. User receives DM with:
+   - Clear destination context: "Draft for #team-updates"
+   - Full message preview in Block Kit format
+   - Copy button or forward instructions
+4. User reviews, copies content, posts to destination channel
 ```
 
 **Technical Path**:
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ YARNNN      │────>│ User's      │────>│ Slack       │
-│ generates   │     │ clipboard   │     │ channel     │
-│ Slack       │     │             │     │             │
-│ blocks      │     │             │     │             │
+│ YARNNN      │────>│ Slack API   │────>│ User's      │
+│ generates   │     │ DM to user  │     │ Slack DMs   │
+│ message     │     │             │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘
                           │
-                    User pastes
-                    manually
-                          │
-                    Attribution:
-                    Kevin Kim (user)
+                    DM contains:
+                    - Destination context
+                    - Full draft content
+                    - Copy/forward actions
 ```
 
-**Copy Format Considerations**:
+**DM Format (Destination Context)**:
 
-Slack uses mrkdwn (not markdown). When user copies:
-- Bold: `*text*` (not `**text**`)
-- Links: `<url|text>`
-- Mentions: `<@U123>` (but these won't resolve when pasted)
+The DM must clearly indicate what the draft is for:
 
-**Implementation**:
+```
+┌─────────────────────────────────────────────────────┐
+│ 📝 Draft ready for #team-updates                    │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│ Here's what happened this week:                     │
+│ • Completed feature X                               │
+│ • Started work on Y                                 │
+│ • Next week: Focus on Z                             │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│ ℹ️ This is a draft. Copy the content above and      │
+│    paste it in #team-updates when ready.            │
+│                                                     │
+│ [📋 Copy Message]  [🔗 Open #team-updates]          │
+└─────────────────────────────────────────────────────┘
+```
 
-| Component | Behavior |
-|-----------|----------|
-| **Preview** | Show Slack-styled preview in YARNNN |
-| **Copy button** | "Copy for Slack" - copies mrkdwn format |
-| **Formatting** | Convert markdown → mrkdwn on copy |
-| **Mentions** | Show as plain text (@name) since IDs won't resolve |
+**Block Kit Structure**:
+```python
+{
+    "blocks": [
+        {
+            "type": "header",
+            "text": {"type": "plain_text", "text": "📝 Draft ready for #team-updates"}
+        },
+        {"type": "divider"},
+        {
+            "type": "section",
+            "text": {"type": "mrkdwn", "text": "Here's what happened this week:\n• Completed feature X\n• Started work on Y"}
+        },
+        {"type": "divider"},
+        {
+            "type": "context",
+            "elements": [
+                {"type": "mrkdwn", "text": "ℹ️ This is a draft. Copy the content above and paste it in <#C123456|team-updates> when ready."}
+            ]
+        },
+        {
+            "type": "actions",
+            "elements": [
+                {"type": "button", "text": {"type": "plain_text", "text": "📋 Copy Message"}, "action_id": "copy_draft"},
+                {"type": "button", "text": {"type": "plain_text", "text": "🔗 Open #team-updates"}, "url": "slack://channel?team=T123&id=C456"}
+            ]
+        }
+    ]
+}
+```
 
-**UX Enhancement**:
-- Show destination channel name: "Ready for #team-updates"
-- One-click copy with success toast
-- Optional: "Open Slack" button (deep link to channel)
+**Implementation Checklist**:
+- [x] Add DM support to SlackExporter (`conversations.open`)
+- [x] Resolve user Slack ID from email (`users.lookupByEmail`)
+- [x] Format draft with destination context header (Block Kit)
+- [x] Add "Open Channel" deep link
+- [ ] Add "Copy Message" button (may need Slack app interactivity)
+- [ ] Add Slack user ID caching (schema ready)
+
+**Open Question**: Slack "Copy Message" interactivity:
+- Slack buttons can trigger webhooks but can't directly copy to clipboard
+- Options: (a) "Copy" shows modal with text to select, (b) Just format for easy manual copy
 
 ---
 
-### Notion: Copy-to-Create Flow
+### Notion: Draft Page in Staging Location 🔄
 
-Notion integration creates as "YARNNN Integration". Draft mode = user copies blocks.
+**API Capability**: Notion API creates pages immediately—no native "draft" state.
 
-**User Flow**:
+**Workaround Options**:
+
+| Option | How It Works | Pros | Cons |
+|--------|--------------|------|------|
+| **A: "YARNNN Drafts" database** | Create page in dedicated drafts database | Clear staging area, status property | User must move/copy to final location |
+| **B: Draft page in target parent** | Create page with "[DRAFT]" prefix | Already in right place | Visible to others before review |
+| **C: Private section in workspace** | Create in user's private area | Hidden until ready | User must move to final location |
+
+**Recommendation**: Option A (YARNNN Drafts database)
+
+**Proposed Flow**:
 ```
-1. YARNNN generates Notion-formatted content
-2. User reviews in YARNNN UI (shows Notion preview)
-3. User clicks "Copy for Notion"
-4. User opens Notion, creates new page, pastes
-5. Page shows user as creator/editor
+1. YARNNN generates Notion page content
+2. YARNNN creates page in "YARNNN Drafts" database (one per user)
+3. Page has properties:
+   - Status: "Draft"
+   - Target Location: "/Product Spec" (link to destination)
+   - Created: timestamp
+4. User opens Notion, sees draft page
+5. User reviews, then either:
+   - Moves page to target location, OR
+   - Copies blocks to existing target page
 ```
 
 **Technical Path**:
 ```
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│ YARNNN      │────>│ User's      │────>│ Notion      │
-│ generates   │     │ clipboard   │     │ page        │
-│ Notion      │     │             │     │             │
-│ blocks      │     │             │     │             │
+│ YARNNN      │────>│ Notion API  │────>│ YARNNN      │
+│ generates   │     │ create page │     │ Drafts DB   │
+│ content     │     │ in drafts   │     │             │
 └─────────────┘     └─────────────┘     └─────────────┘
                           │
-                    User pastes
-                    manually
-                          │
-                    Attribution:
-                    Kevin Kim (user)
+                    Page contains:
+                    - Status: Draft
+                    - Target: /Product Spec
+                    - Full content
 ```
 
-**Copy Format Considerations**:
+**Page Format (Destination Context)**:
 
-Notion accepts:
-- Markdown (converts on paste)
-- Rich text (preserves formatting)
-- Notion blocks (if using Notion API clipboard format)
+The draft page must clearly indicate where it's meant to go:
 
-**Implementation**:
+```
+┌─────────────────────────────────────────────────────┐
+│ 📄 Weekly Project Update                            │
+├─────────────────────────────────────────────────────┤
+│ 📍 Target: /Projects/ProductX/Updates               │
+│ 📅 Created: Feb 9, 2026                             │
+│ 📊 Status: 🟡 Draft                                 │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│ ## This Week                                        │
+│ - Completed feature X                               │
+│ - Started work on Y                                 │
+│                                                     │
+│ ## Next Week                                        │
+│ - Focus on Z integration                            │
+│                                                     │
+├─────────────────────────────────────────────────────┤
+│ ℹ️ This is a draft. Move this page to the target   │
+│    location or copy the content when ready.         │
+│                                                     │
+│ [🔗 Open Target Location]                           │
+└─────────────────────────────────────────────────────┘
+```
 
-| Component | Behavior |
-|-----------|----------|
-| **Preview** | Show Notion-styled preview in YARNNN |
-| **Copy button** | "Copy for Notion" - copies markdown (Notion converts) |
-| **Formatting** | Standard markdown works well |
-| **Structure** | Headers, bullets, toggles all paste correctly |
+**Database Schema**:
+```
+YARNNN Drafts (Database)
+├── Title (title)
+├── Status (select): Draft | Sent | Archived
+├── Target Location (url): Link to destination page
+├── Target Name (rich_text): "/Product Spec"
+├── Deliverable (relation): Link to YARNNN deliverable
+├── Created (created_time)
+└── Content (page body)
+```
 
-**UX Enhancement**:
-- Show target page/database name if known
-- "Copy as Markdown" (standard) vs "Copy as Rich Text" (experimental)
-- Optional: "Open Notion" button (deep link to workspace)
+**Implementation Checklist**:
+- [x] Add page creation to NotionExporter with "draft" format
+- [x] Include target location property (link + name)
+- [x] Add status property for tracking ("Draft")
+- [x] Include destination context callout in page body
+- [ ] Create "YARNNN Drafts" database on first Notion integration (user setup)
 
 ---
 
-### Phase 1 Summary: Draft Mode Everywhere
+### Phase 1 Summary: Platform-Centric Drafts
 
-| Platform | Copy Format | Attribution | User Action |
-|----------|-------------|-------------|-------------|
-| **Gmail** | Email (HTML) | User's email | Click "Send" or "Open in Gmail" |
-| **Slack** | mrkdwn | User posts manually | Copy → Paste in Slack |
-| **Notion** | Markdown | User creates manually | Copy → Paste in Notion |
+| Platform | Draft Location | Destination Context | User Action |
+|----------|---------------|---------------------|-------------|
+| **Gmail** | Drafts folder | To:/Subject: prefilled | Open Gmail, click Send |
+| **Slack** | DM from bot | "Draft for #channel-name" header | Copy content, paste in channel |
+| **Notion** | YARNNN Drafts DB | "Target: /Page" property + link | Move page or copy blocks |
 
-**Unified UX Pattern**:
+**Key Difference from Previous Approach**:
+
+| Aspect | Old (YARNNN UI) | New (Platform-Centric) |
+|--------|-----------------|------------------------|
+| Review happens in | YARNNN web app | Native platform |
+| Draft location | YARNNN database | Platform (Gmail/Slack/Notion) |
+| User context switch | YARNNN → Platform | Stay in platform |
+| Notification | Check YARNNN | Platform's native (email badge, Slack DM, Notion notification) |
+
+---
+
+### Draft Content Format Requirements
+
+All drafts must include clear destination context:
+
+**Gmail**:
 ```
-┌────────────────────────────────────────────────────────┐
-│ Review: Weekly Status Update                           │
-│                                                        │
-│ ┌────────────────────────────────────────────────────┐ │
-│ │ [Preview of content in platform style]             │ │
-│ │                                                    │ │
-│ │ Here's what happened this week...                  │ │
-│ │ • Completed feature X                              │ │
-│ │ • Started work on Y                                │ │
-│ └────────────────────────────────────────────────────┘ │
-│                                                        │
-│ Destination: #team-updates (Slack)                     │
-│                                                        │
-│ ┌──────────────────┐  ┌──────────────────┐            │
-│ │ Copy for Slack   │  │ Open Slack       │            │
-│ └──────────────────┘  └──────────────────┘            │
-│                                                        │
-│ Or for Gmail:                                          │
-│ ┌──────────────────┐  ┌──────────────────┐            │
-│ │ Send Email       │  │ Open in Gmail    │            │
-│ └──────────────────┘  └──────────────────┘            │
-└────────────────────────────────────────────────────────┘
+To: recipient@company.com  ← Prefilled
+Subject: Weekly Status Update - Week of Feb 10  ← Prefilled
+
+[Body content]
+
+---
+Prepared by YARNNN • Review and send when ready
+```
+
+**Slack DM**:
+```
+📝 Draft ready for #team-updates  ← Destination in header
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+[Draft content]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ℹ️ Copy and paste in #team-updates when ready
+```
+
+**Notion Page**:
+```
+📍 Target: /Projects/ProductX/Updates  ← Destination property
+📊 Status: 🟡 Draft
+
+[Page content]
+
+---
+ℹ️ Move this page to the target location when ready
+[🔗 Open Target Location]
 ```
 
 ---
@@ -451,31 +599,31 @@ Notion accepts:
 
 After users have experienced quality drafts, offer automation:
 
-**Trigger**: User has approved 5+ deliverables for same destination without edits.
+**Trigger**: User has sent 5+ drafts for same destination without edits.
 
-**Prompt**:
+**Prompt** (in-platform or via YARNNN):
 ```
-"Your weekly updates to #team-updates have been sent without changes
+"Your weekly updates to #team-updates have been sent unchanged
 the last 5 times. Want YARNNN to post directly next time?"
 
-[Keep reviewing]  [Enable auto-post]
+[Keep drafts]  [Enable auto-post]
 ```
 
 **Per-Platform Automation (Phase 2)**:
 
 | Platform | Auto Mode | Attribution |
 |----------|-----------|-------------|
-| **Gmail** | YARNNN sends via API | User's email (OAuth) |
-| **Slack** | YARNNN bot posts | "YARNNN Bot" (disclosed) |
-| **Notion** | YARNNN integration creates | "YARNNN Integration" |
+| **Gmail** | YARNNN sends directly | User's email (OAuth) |
+| **Slack** | YARNNN bot posts to channel | "YARNNN Bot" (disclosed) |
+| **Notion** | YARNNN creates page directly | "YARNNN Integration" |
 
 **Governance Mapping (Phase 2)**:
 
 | Setting | Gmail | Slack | Notion |
 |---------|-------|-------|--------|
-| **Manual** | Draft → User sends | Draft → User copies | Draft → User copies |
-| **Semi-auto** | Send after approve | Bot posts after approve | Integration creates after approve |
-| **Full-auto** | Send immediately | Bot posts immediately | Integration creates immediately |
+| **Manual** | Draft in Drafts folder | DM draft to user | Page in Drafts DB |
+| **Semi-auto** | Send after user confirms | Bot posts after user confirms | Create in target after user confirms |
+| **Full-auto** | Send immediately | Bot posts immediately | Create in target immediately |
 
 ---
 
@@ -492,37 +640,52 @@ For power users who want different governance per audience:
 | DM to manager | Manual (draft) |
 | External/client | Manual (draft) |
 
-This complexity is deferred. Phase 1 = blanket draft mode.
+This complexity is deferred. Phase 1 = blanket platform-centric draft mode.
 
 ---
 
 ## Implementation Phases
 
-### Phase 1: Platform-First Foundation + Draft Mode
+### Phase 1: Platform-Centric Draft Infrastructure
 
-**Goal**: Restructure UI to platform-first, implement draft-mode delivery.
+**Goal**: Push drafts to platforms, not YARNNN UI.
+
+**Backend Changes**:
+
+| Platform | Changes Needed |
+|----------|----------------|
+| **Gmail** | ✅ Already works (`drafts.create`) - Add destination context footer |
+| **Slack** | 🔄 Add DM support to SlackExporter, format with destination header |
+| **Notion** | 🔄 Create "YARNNN Drafts" database, add target location property |
+
+**Backend Tasks**:
+1. **Gmail**: Update draft body to include destination context footer
+2. **Slack**: Extend SlackExporter to send DMs (not just channel posts)
+3. **Slack**: Create Block Kit format with destination context header
+4. **Notion**: Implement "YARNNN Drafts" database creation on integration setup
+5. **Notion**: Update NotionExporter to create database items with target property
+6. **All**: Add `delivery_mode: "draft"` to version tracking
+
+**UI Changes** (minimal for Phase 1):
+- Show draft delivery status in version history: "Draft sent to Gmail" / "Draft DM sent"
+- Platform-specific notification copy
+
+### Phase 2: Platform-First UI Restructure
+
+**Goal**: Restructure deliverable creation to destination-first.
 
 **UI Changes**:
 - Restructure DeliverableSettingsModal: Destination → Type → Sources → Schedule
 - Make destination required
-- Remove governance complexity (default all to "manual"/draft mode)
-- Show platform-appropriate preview
-
-**Per-Platform Delivery**:
-
-| Platform | Implementation |
-|----------|----------------|
-| **Gmail** | "Send" button uses Gmail API (OAuth); "Open in Gmail" creates draft |
-| **Slack** | "Copy for Slack" copies mrkdwn to clipboard; "Open Slack" deep links |
-| **Notion** | "Copy for Notion" copies markdown; "Open Notion" deep links |
+- Remove governance complexity (default all to "draft" mode)
+- Show platform icon/badge prominently
 
 **Components to Build**:
-- `PlatformPreview` - Shows content in platform-native styling
-- `CopyForPlatformButton` - Platform-aware copy with format conversion
-- `SendEmailButton` - Gmail OAuth send integration
-- Update `DeliverableVersionDetail` with new action buttons
+- `DestinationSelector` - First step, shows connected platforms
+- `DraftStatusIndicator` - Shows where draft was pushed
+- Update `DeliverableVersionDetail` with draft location info
 
-### Phase 2: Project Resources UI
+### Phase 3: Project Resources UI
 
 **Goal**: Surface project resources to enable cross-platform context.
 
@@ -537,7 +700,7 @@ This complexity is deferred. Phase 1 = blanket draft mode.
 - `useResourceSuggestions` - Auto-suggest resources
 - `useContextSummary` - Context availability stats
 
-### Phase 3: TP Platform-First Flow
+### Phase 4: TP Platform-First Flow
 
 **Goal**: Teach TP to guide platform-first deliverable creation.
 
@@ -545,19 +708,20 @@ This complexity is deferred. Phase 1 = blanket draft mode.
 - "Set up a weekly update to #leadership" → destination-first flow
 - Auto-suggest sources from project resources
 - "What should appear in your weekly update?" → outcome-focused prompts
+- "Your draft is ready in Gmail" → platform-aware confirmation
 
-### Phase 4: Trust-Based Automation (Future)
+### Phase 5: Trust-Based Automation (Future)
 
 **Goal**: Offer auto-posting after trust is established.
 
-**Trigger**: 5+ approved deliverables without edits for same destination.
+**Trigger**: 5+ drafts sent unchanged for same destination.
 
 **Implementation**:
-- Track edit distance per deliverable/destination
+- Track "draft sent → user posted unchanged" pattern
 - Prompt user to enable semi-auto or full-auto
 - Per-platform automation (Gmail sends, Slack bot posts, Notion integration creates)
 
-### Phase 5: Tiered Audience Governance (Future)
+### Phase 6: Tiered Audience Governance (Future)
 
 **Goal**: Power users can configure different governance per audience type.
 
@@ -594,19 +758,38 @@ The synthesis is **invisible**. Users see the outcome.
 
 ---
 
-## Open Questions (Resolved)
+## Open Questions
+
+### Resolved
 
 1. ~~**User ownership psychology**~~: Resolved. Users want ownership. Default to draft mode.
 
-2. ~~**Slack user tokens**~~: Not needed for Phase 1. Bot posting is Phase 2+ (opt-in).
+2. ~~**Slack user tokens**~~: Not needed for Phase 1. Bot DM is the draft mechanism.
 
-3. ~~**Draft location strategy**~~: Resolved. Drafts live in YARNNN UI. User copies/sends from there.
+3. ~~**Draft location strategy**~~: Resolved. Drafts pushed to platforms (Gmail Drafts, Slack DM, Notion DB).
 
-4. **Migration**: How do we transition existing deliverables?
-   - Answer: Existing deliverables continue working. New UI is for new deliverables.
+4. ~~**Migration**~~: Existing deliverables continue working. Platform-centric drafts for new deliverables.
 
-5. **Gmail draft vs. send**: Should "Send" be primary or "Open in Gmail"?
-   - Recommendation: "Send" primary, "Open in Gmail" secondary for power users.
+### Open
+
+5. **Slack "Copy Message" interactivity**:
+   - Slack buttons trigger webhooks, can't directly copy to clipboard
+   - Options: (a) Button shows modal with selectable text, (b) Just format for easy manual copy
+   - **Recommendation**: Start with (b), iterate based on feedback
+
+6. **Notion Drafts database setup**:
+   - When to create? On first Notion integration, or first Notion-targeted deliverable?
+   - **Recommendation**: On first Notion-targeted deliverable (lazy creation)
+
+7. **Slack user ID resolution**:
+   - Need to DM user, but have email not Slack user ID
+   - Options: (a) Require user ID during OAuth, (b) Look up via `users.lookupByEmail`
+   - **Recommendation**: (b) with caching
+
+8. **Draft notification strategy**:
+   - Should YARNNN also notify user (push notification, email) when draft is ready?
+   - Or rely on platform's native notification (Gmail badge, Slack unread)?
+   - **Recommendation**: Start with platform-native only, add YARNNN notification if users miss drafts
 
 ---
 
@@ -614,16 +797,73 @@ The synthesis is **invisible**. Users see the outcome.
 
 **Platform-first is the correct direction.** Users think in platforms, not synthesis engines. The frontend should match this mental model.
 
-**Phase 1 approach**: Draft mode everywhere.
-- Gmail: YARNNN sends via OAuth (user attribution preserved)
-- Slack: User copies and posts (user attribution preserved)
-- Notion: User copies and creates (user attribution preserved)
+**Phase 1 approach**: Platform-centric drafts.
+- Gmail: Draft created in Gmail Drafts folder (To/Subject prefilled)
+- Slack: Draft DM sent to user from YARNNN Bot (with destination context)
+- Notion: Draft page created in YARNNN Drafts database (with target location)
 
 Key shifts:
 - Destination becomes step 1 (not optional, not last)
 - Synthesis becomes invisible (users see outcomes)
-- Ownership is preserved (draft mode by default)
+- Drafts meet users where they are (in-platform, not YARNNN UI)
+- Ownership is preserved (user reviews and sends)
 - Automation is an upgrade, not a default (trust builds over time)
+
+**Implementation priority**:
+1. Gmail: Already works, just add context footer
+2. Slack: Add DM support + destination header formatting
+3. Notion: Create drafts database + target property
+
+---
+
+## Appendix: Platform API Capabilities
+
+### Gmail API
+
+| Capability | Status | Implementation |
+|------------|--------|----------------|
+| Create draft with To/Subject | ✅ Works | [client.py:845-915](../api/integrations/core/client.py#L845-L915) |
+| HTML body support | ✅ Works | ADR-031 Phase 5 platform variants |
+| Thread replies (`thread_id`) | ✅ Works | Supported in destination options |
+| CC recipients | ✅ Works | In destination options |
+| OAuth token refresh | ✅ Works | Automatic refresh flow |
+
+### Slack API
+
+| Capability | Status | Implementation |
+|------------|--------|----------------|
+| Post to channel | ✅ Works | [slack.py](../api/integrations/exporters/slack.py) via MCP |
+| Block Kit formatting | ✅ Works | `generate_slack_blocks()` |
+| DM to user | ❌ Missing | Needs `conversations.open` + user ID lookup |
+| User ID lookup | ❌ Missing | Needs `users.lookupByEmail` |
+| Deep links to channels | ✅ Possible | `slack://channel?team=T&id=C` format |
+
+### Notion API
+
+| Capability | Status | Implementation |
+|------------|--------|----------------|
+| Create page | ✅ Works | [notion.py](../api/integrations/exporters/notion.py) via MCP |
+| Database items | ✅ Works | Supported in destination format |
+| Page properties | ✅ Works | Can set Status, URL properties |
+| Draft/staging state | ❌ N/A | No native API support (use database status) |
+| Markdown body | ✅ Works | Notion converts on creation |
+
+### Implementation Gap Summary
+
+| Platform | Gap | Effort | Status |
+|----------|-----|--------|--------|
+| Gmail | Add context footer to draft body | Low | ✅ Done |
+| Slack | Add DM support + user ID lookup | Medium | ✅ Done |
+| Slack | Format with destination header | Low | ✅ Done |
+| Slack | User ID caching | Low | Schema ready |
+| Notion | Add draft format with target property | Low | ✅ Done |
+| Notion | Create drafts database on setup | Medium | User setup |
+
+**Phase 1 Complete**: Backend infrastructure for platform-centric drafts is implemented.
+- Migration: `033_platform_centric_drafts.sql`
+- Gmail: Draft footer in `platform_output.py`
+- Slack: DM support in `client.py` and `slack.py`
+- Notion: Draft format in `notion.py`
 
 ---
 
@@ -633,3 +873,7 @@ Key shifts:
 - [ADR-031: Platform-Native Deliverables](./ADR-031-platform-native-deliverables.md)
 - [ADR-023: Supervisor Desk Architecture](./ADR-023-supervisor-desk-architecture.md)
 - [useProjectResources Hook](../../web/hooks/useProjectResources.ts)
+- [Gmail Exporter](../api/integrations/exporters/gmail.py)
+- [Slack Exporter](../api/integrations/exporters/slack.py)
+- [Notion Exporter](../api/integrations/exporters/notion.py)
+- [MCP Client](../api/integrations/core/client.py)

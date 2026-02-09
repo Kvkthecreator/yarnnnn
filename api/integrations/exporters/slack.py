@@ -1,17 +1,19 @@
 """
-Slack Exporter - ADR-028, ADR-031
+Slack Exporter - ADR-028, ADR-031, ADR-032
 
 Delivers content to Slack channels via MCP.
 
 ADR-031 adds support for Block Kit output when platform_variant is set.
+ADR-032 adds support for DM drafts (platform-centric draft delivery).
 
 Destination Schema:
     {
         "platform": "slack",
         "target": "#team-updates" or "C123ABC456",
-        "format": "message" | "thread" | "blocks",
+        "format": "message" | "thread" | "blocks" | "dm_draft",
         "options": {
-            "thread_ts": "1234.5678"  # For replies
+            "thread_ts": "1234.5678",  # For replies
+            "user_email": "user@example.com",  # For dm_draft format
         }
     }
 """
@@ -41,7 +43,7 @@ class SlackExporter(DestinationExporter):
         return "slack"
 
     def get_supported_formats(self) -> list[str]:
-        return ["message", "thread", "blocks"]
+        return ["message", "thread", "blocks", "dm_draft"]
 
     def validate_destination(self, destination: dict[str, Any]) -> bool:
         """Validate Slack destination config."""
@@ -59,6 +61,12 @@ class SlackExporter(DestinationExporter):
         if fmt == "thread":
             options = destination.get("options", {})
             if not options.get("thread_ts"):
+                return False
+
+        # ADR-032: dm_draft format requires user_email in options
+        if fmt == "dm_draft":
+            options = destination.get("options", {})
+            if not options.get("user_email"):
                 return False
 
         return True
@@ -98,6 +106,51 @@ class SlackExporter(DestinationExporter):
 
         try:
             mcp = get_mcp_manager()
+
+            # ADR-032: Handle DM draft format (platform-centric drafts)
+            if fmt == "dm_draft":
+                user_email = options.get("user_email")
+                if not user_email:
+                    return ExportResult(
+                        status=ExportStatus.FAILED,
+                        error_message="dm_draft format requires user_email in options"
+                    )
+
+                # Look up Slack user ID from email
+                slack_user_id = await mcp.lookup_slack_user_by_email(
+                    user_id=context.user_id,
+                    email=user_email,
+                    bot_token=context.access_token,
+                    team_id=team_id
+                )
+
+                if not slack_user_id:
+                    return ExportResult(
+                        status=ExportStatus.FAILED,
+                        error_message=f"Could not find Slack user for email: {user_email}"
+                    )
+
+                # Send DM draft with destination context
+                result = await mcp.send_slack_dm_draft(
+                    user_id=context.user_id,
+                    slack_user_id=slack_user_id,
+                    content=content,
+                    destination_context={
+                        "channel_name": target,
+                        "channel_id": options.get("channel_id", ""),
+                        "title": title,
+                    },
+                    bot_token=context.access_token,
+                    team_id=team_id
+                )
+
+                if result.status == ExportStatus.SUCCESS:
+                    logger.info(
+                        f"[SLACK_EXPORT] Sent DM draft to {user_email} for {target}, "
+                        f"ts={result.external_id}"
+                    )
+
+                return result
 
             # ADR-031: Check if we should use Block Kit
             platform_variant = metadata.get("platform_variant")
