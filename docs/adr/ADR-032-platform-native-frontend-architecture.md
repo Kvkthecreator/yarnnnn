@@ -715,51 +715,54 @@ New flow:
 - ✅ `DeliverableDetailSurface.tsx` - Shows destination in header, DraftStatusIndicator for approved versions
 - ✅ `types/index.ts` - Added `delivery_mode`, `delivery_error` to DeliverableVersion
 
-### Phase 3: Project Resources UI
+### Phase 3: Context Basket Resources UI (Future)
 
-**Goal**: Surface project resources to enable cross-platform context.
+**Goal**: Surface linked platform resources for context baskets to enable cross-platform context auto-suggestion.
+
+**Note**: "Context baskets" are the organizational containers for related work (what the codebase calls "projects"). This phase adds UI for managing platform resources linked to each basket.
 
 **Components**:
-- Add Resources tab/section to `ProjectDetailSurface`
-- `ProjectResourcesList` - Shows linked Slack channels, Gmail labels, Notion pages
-- `AddProjectResourceModal` - Link new resources to project
+- Add Resources tab/section to context basket detail view
+- `BasketResourcesList` - Shows linked Slack channels, Gmail labels, Notion pages
+- `AddBasketResourceModal` - Link new resources to a context basket
 - `ContextSummaryCard` - Shows "142 messages, 23 emails in last 7 days"
 
 **Hooks** (already built):
-- `useProjectResources` - CRUD for project resources
-- `useResourceSuggestions` - Auto-suggest resources
+- `useProjectResources` - CRUD for basket resources
+- `useResourceSuggestions` - Auto-suggest resources based on basket activity
 - `useContextSummary` - Context availability stats
 
-### Phase 4: TP Platform-First Flow
+**Benefit**: When creating a deliverable for a context basket, sources can be auto-suggested from linked resources instead of manual entry.
+
+### Phase 4: TP Platform-First Flow (Future)
 
 **Goal**: Teach TP to guide platform-first deliverable creation.
 
 **TP Capabilities**:
 - "Set up a weekly update to #leadership" → destination-first flow
-- Auto-suggest sources from project resources
+- Auto-suggest sources from context basket resources
 - "What should appear in your weekly update?" → outcome-focused prompts
 - "Your draft is ready in Gmail" → platform-aware confirmation
 
-### Phase 5: Trust-Based Automation (Future)
+---
 
-**Goal**: Offer auto-posting after trust is established.
+### Deferred: Automation Features (Post-Launch)
 
-**Trigger**: 5+ drafts sent unchanged for same destination.
+The following phases are **deferred until post-launch** when we have real user data. These are nice-to-have features that add complexity without proven demand. Core feature reliability and user trust are the priority.
 
-**Implementation**:
-- Track "draft sent → user posted unchanged" pattern
-- Prompt user to enable semi-auto or full-auto
-- Per-platform automation (Gmail sends, Slack bot posts, Notion integration creates)
+#### ~~Phase 5: Trust-Based Automation~~
 
-### Phase 6: Tiered Audience Governance (Future)
+*Deferred. Auto-posting based on "N unchanged drafts" is premature optimization. Will revisit after observing actual user behavior post-launch.*
 
-**Goal**: Power users can configure different governance per audience type.
+~~**Goal**: Offer auto-posting after trust is established.~~
 
-- DM to manager → Manual
-- Team channel → Semi-auto
-- External → Manual
+~~**Trigger**: 5+ drafts sent unchanged for same destination.~~
 
-*Deferred until user demand is demonstrated.*
+#### ~~Phase 6: Tiered Audience Governance~~
+
+*Deferred. Different governance per audience type adds complexity without proven need. Manual/draft mode is sufficient for launch.*
+
+~~**Goal**: Power users can configure different governance per audience type.~~
 
 ---
 
@@ -784,7 +787,6 @@ The synthesis is **invisible**. Users see the outcome.
 | Time to first deliverable | <3 minutes |
 | Draft-to-send completion rate | >90% (users actually send after copying) |
 | Platform coverage (Slack + Gmail + Notion) | >60% of users connect 2+ |
-| Upgrade to auto-post (Phase 4) | 30%+ of high-frequency deliverables |
 
 ---
 
