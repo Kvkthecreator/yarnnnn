@@ -106,8 +106,9 @@ export function usePlatformOnboardingState(): UsePlatformOnboardingStateReturn {
   const calculateState = (): PlatformOnboardingState | null => {
     if (isLoading) return null;
 
+    // Backend returns status: active, error, expired (not "connected")
     const connectedPlatforms = platforms.filter(
-      (p) => p.status === "connected"
+      (p) => p.status === "active" || p.status === "connected"
     );
 
     if (connectedPlatforms.length === 0) {
@@ -132,7 +133,7 @@ export function usePlatformOnboardingState(): UsePlatformOnboardingStateReturn {
     state: calculateState(),
     isLoading,
     error,
-    platformCount: platforms.filter((p) => p.status === "connected").length,
+    platformCount: platforms.filter((p) => p.status === "active" || p.status === "connected").length,
     platforms,
     hasSyncingPlatforms,
     totalDeliverables,
