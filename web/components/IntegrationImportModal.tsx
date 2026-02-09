@@ -89,7 +89,6 @@ interface IntegrationImportModalProps {
   onClose: () => void;
   onSuccess: () => void;
   provider: Provider;
-  projectId?: string;
   /** Optional: Called when user clicks "View Context" after import */
   onNavigateToContext?: () => void;
 }
@@ -322,7 +321,6 @@ export function IntegrationImportModal({
   onClose,
   onSuccess,
   provider,
-  projectId,
   onNavigateToContext,
 }: IntegrationImportModalProps) {
   const router = useRouter();
@@ -455,7 +453,6 @@ export function IntegrationImportModal({
       const job = await api.integrations.startImport(provider, {
         resource_id: resourceId,
         resource_name: resourceName,
-        project_id: projectId,
         instructions: instructions.trim() || undefined,
         config: learnStyle ? { learn_style: true } : undefined,
         scope: {

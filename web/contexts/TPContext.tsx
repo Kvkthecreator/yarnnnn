@@ -109,7 +109,7 @@ interface TPContextValue {
   // Actions
   sendMessage: (
     content: string,
-    context?: { surface?: DeskSurface; projectId?: string }
+    context?: { surface?: DeskSurface }
   ) => Promise<TPToolResult[] | null>;
   clearMessages: () => void;
   clearClarification: () => void;
@@ -180,7 +180,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const sendMessage = useCallback(
     async (
       content: string,
-      context?: { surface?: DeskSurface; projectId?: string }
+      context?: { surface?: DeskSurface }
     ): Promise<TPToolResult[] | null> => {
       // Cancel any ongoing request
       if (abortControllerRef.current) {
@@ -209,10 +209,6 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
           content: content,  // Must match ChatRequest.content in api/routes/chat.py
           include_context: true,
         };
-
-        if (context?.projectId) {
-          body.project_id = context.projectId;
-        }
 
         // Add surface context for TP to understand what user is looking at
         if (context?.surface) {

@@ -40,11 +40,9 @@ interface TPUIAction {
 }
 
 interface UseChatOptions {
-  projectId?: string; // Optional - omit for global (user-level) chat
   includeContext?: boolean;
   onToolUse?: (tool: ToolUseEvent) => void; // Called when TP uses a tool
   onToolResult?: (result: ToolResultEvent) => void; // Called with tool result
-  onProjectChange?: () => void; // Called when a project is created/modified
   onUIAction?: (action: TPUIAction) => void; // ADR-013: Called when TP triggers UI action
 }
 
@@ -62,25 +60,20 @@ interface UseChatReturn {
  * Hook for chat with Thinking Partner.
  *
  * ADR-006: Session management is handled server-side.
- * - Sessions are reused daily (one session per project per day)
+ * - Sessions are reused daily (one session per day)
  * - Messages are persisted to session_messages table
  * - History is loaded from server on mount
  *
  * ADR-007: Tool use with streaming.
- * - TP can use tools (list_projects, create_project, etc.)
+ * - TP can use tools (list_deliverables, create_deliverable, etc.)
  * - Tool events are streamed inline with text
- * - onProjectChange callback triggers sidebar refresh
  *
- * Two modes:
- * - Project chat: Pass projectId to use project + user context
- * - Global chat: Omit projectId to use user context only
+ * ADR-034: Project concept removed - all chat is user-scoped.
  */
 export function useChat({
-  projectId,
   includeContext = true,
   onToolUse,
   onToolResult,
-  onProjectChange,
   onUIAction,
 }: UseChatOptions = {}): UseChatReturn {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -89,22 +82,15 @@ export function useChat({
   const [error, setError] = useState<string | null>(null);
   const [toolsUsed, setToolsUsed] = useState<string[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
-  const historyLoadedForRef = useRef<string | null>(null); // Track which projectId history was loaded for
+  const historyLoadedRef = useRef(false);
 
-  // Load chat history on mount or when projectId changes
+  // Load chat history on mount
   useEffect(() => {
-    // Create a key to track what we've loaded history for
-    const currentKey = projectId ?? 'global';
-
-    // Skip if we already loaded history for this exact context
-    if (historyLoadedForRef.current === currentKey) return;
+    if (historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
 
     const loadHistory = async () => {
       setIsLoadingHistory(true);
-      // Clear existing messages when switching contexts
-      if (historyLoadedForRef.current !== null) {
-        setMessages([]);
-      }
 
       try {
         const supabase = createClient();
@@ -114,16 +100,14 @@ export function useChat({
 
         if (!session?.access_token) return;
 
-        // Use project or global history endpoint
-        const endpoint = projectId
-          ? `${API_BASE_URL}/api/projects/${projectId}/chat/history?limit=1`
-          : `${API_BASE_URL}/api/chat/history?limit=1`;
-
-        const response = await fetch(endpoint, {
-          headers: {
-            Authorization: `Bearer ${session.access_token}`,
-          },
-        });
+        const response = await fetch(
+          `${API_BASE_URL}/api/chat/history?limit=1`,
+          {
+            headers: {
+              Authorization: `Bearer ${session.access_token}`,
+            },
+          }
+        );
 
         if (response.ok) {
           const data = await response.json();
@@ -148,12 +132,11 @@ export function useChat({
         console.error("Failed to load chat history:", err);
       } finally {
         setIsLoadingHistory(false);
-        historyLoadedForRef.current = currentKey;
       }
     };
 
     loadHistory();
-  }, [projectId]);
+  }, []);
 
   const sendMessage = useCallback(
     async (content: string) => {
@@ -183,13 +166,8 @@ export function useChat({
           throw new Error("Not authenticated");
         }
 
-        // Use project endpoint or global endpoint based on projectId
-        const endpoint = projectId
-          ? `${API_BASE_URL}/api/projects/${projectId}/chat`
-          : `${API_BASE_URL}/api/chat`;
-
         // Note: No longer sending history - server manages session history
-        const response = await fetch(endpoint, {
+        const response = await fetch(`${API_BASE_URL}/api/chat`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -231,7 +209,6 @@ export function useChat({
         let assistantContent = "";
         const currentToolsUsed: string[] = [];
         const currentToolResults: ToolResultData[] = [];
-        let projectModified = false;
 
         // Add empty assistant message that we'll update
         setMessages((prev) => [...prev, { role: "assistant", content: "", toolResults: [] }]);
@@ -272,11 +249,6 @@ export function useChat({
                   currentToolsUsed.push(toolEvent.name);
                   setToolsUsed([...currentToolsUsed]);
                   onToolUse?.(toolEvent);
-
-                  // Track if project-modifying tools are used
-                  if (["create_project", "rename_project", "update_project"].includes(toolEvent.name)) {
-                    projectModified = true;
-                  }
                 }
 
                 // Handle tool result event (ADR-007)
@@ -316,10 +288,6 @@ export function useChat({
                   if (data.tools_used?.length > 0) {
                     setToolsUsed(data.tools_used);
                   }
-                  // Trigger sidebar refresh if project was modified
-                  if (projectModified) {
-                    onProjectChange?.();
-                  }
                   break;
                 }
               } catch (parseError) {
@@ -352,14 +320,12 @@ export function useChat({
         abortControllerRef.current = null;
       }
     },
-    [projectId, includeContext, onToolUse, onToolResult, onProjectChange, onUIAction]
+    [includeContext, onToolUse, onToolResult, onUIAction]
   );
 
   const clearMessages = useCallback(() => {
     setMessages([]);
     setError(null);
-    // Note: We don't reset historyLoadedForRef here - caller should
-    // reload history explicitly if needed by changing projectId
   }, []);
 
   return {

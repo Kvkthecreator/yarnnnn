@@ -116,7 +116,7 @@ export function WorkListSurface({ filter = 'all' }: WorkListSurfaceProps) {
                       <div>
                         <span className="text-sm font-medium">{w.task}</span>
                         <p className="text-xs text-muted-foreground">
-                          {w.agent_type} • {w.project_name}
+                          {w.agent_type}
                         </p>
                       </div>
                     </div>
