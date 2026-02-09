@@ -18,6 +18,7 @@ import {
   Hash,
   FileText,
   Tag,
+  Plus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
@@ -41,6 +42,8 @@ interface PlatformDetailPanelProps {
   onResourceClick?: (resourceId: string, resourceName: string) => void;
   onDeliverableClick?: (deliverableId: string) => void;
   onFullViewClick?: () => void;
+  /** ADR-032: Create deliverable targeting this platform */
+  onCreateDeliverableClick?: () => void;
 }
 
 interface LandscapeResource {
@@ -129,6 +132,7 @@ export function PlatformDetailPanel({
   onResourceClick,
   onDeliverableClick,
   onFullViewClick,
+  onCreateDeliverableClick,
 }: PlatformDetailPanelProps) {
   const [resources, setResources] = useState<LandscapeResource[]>([]);
   const [deliverables, setDeliverables] = useState<PlatformDeliverable[]>([]);
@@ -350,9 +354,20 @@ export function PlatformDetailPanel({
                 </div>
 
                 {deliverables.length === 0 ? (
-                  <p className="text-sm text-muted-foreground text-center py-4">
-                    No deliverables target {config.label} yet
-                  </p>
+                  <div className="text-center py-4">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      No deliverables target {config.label} yet
+                    </p>
+                    {onCreateDeliverableClick && (
+                      <button
+                        onClick={onCreateDeliverableClick}
+                        className="inline-flex items-center gap-2 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
+                      >
+                        <Plus className="w-4 h-4" />
+                        Create deliverable
+                      </button>
+                    )}
+                  </div>
                 ) : (
                   <div className="space-y-2">
                     {deliverables.slice(0, 5).map((deliverable) => (
@@ -389,6 +404,19 @@ export function PlatformDetailPanel({
                       <p className="text-xs text-muted-foreground text-center py-2">
                         +{deliverables.length - 5} more
                       </p>
+                    )}
+
+                    {/* ADR-032: Create deliverable action */}
+                    {onCreateDeliverableClick && (
+                      <button
+                        onClick={onCreateDeliverableClick}
+                        className="w-full p-3 border-2 border-dashed border-primary/30 rounded-lg hover:border-primary/50 hover:bg-primary/5 text-left transition-colors"
+                      >
+                        <div className="flex items-center gap-2 text-sm text-primary">
+                          <Plus className="w-4 h-4" />
+                          Create another deliverable
+                        </div>
+                      </button>
                     )}
                   </div>
                 )}
