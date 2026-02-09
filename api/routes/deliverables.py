@@ -61,11 +61,21 @@ DeliverableType = Literal[
     "changelog",
     "one_on_one_prep",
     "board_update",
+    # ADR-029 Phase 3: Email-specific
+    "inbox_summary",
+    "reply_draft",
+    "follow_up_tracker",
+    "thread_summary",
     # ADR-031 Phase 6: Cross-Platform Synthesizers
     "weekly_status",
     "project_brief",
     "cross_platform_digest",
     "activity_summary",
+    # ADR-035: Platform-First Wave 1 Types
+    "slack_channel_digest",
+    "slack_standup",
+    "gmail_inbox_brief",
+    "notion_page_summary",
 ]
 
 # Type tier mapping for UI display
@@ -79,6 +89,11 @@ TYPE_TIERS = {
     "performance_self_assessment": "beta",
     "newsletter_section": "beta",
     "changelog": "beta",
+    # ADR-029 Phase 3: Email-specific
+    "inbox_summary": "beta",
+    "reply_draft": "beta",
+    "follow_up_tracker": "beta",
+    "thread_summary": "beta",
     # ADR-031 Phase 6: Synthesizers are experimental
     "weekly_status": "experimental",
     "project_brief": "experimental",
@@ -86,6 +101,50 @@ TYPE_TIERS = {
     "activity_summary": "experimental",
     "one_on_one_prep": "beta",
     "board_update": "beta",
+    # ADR-035: Platform-First Wave 1 Types
+    "slack_channel_digest": "stable",
+    "slack_standup": "stable",
+    "gmail_inbox_brief": "stable",
+    "notion_page_summary": "stable",
+}
+
+# ADR-035: Wave classification for type taxonomy
+TYPE_WAVES = {
+    # Wave 1: Internal Single-Platform
+    "slack_channel_digest": 1,
+    "slack_standup": 1,
+    "gmail_inbox_brief": 1,
+    "notion_page_summary": 1,
+    # Wave 2: Cross-Platform Internal
+    "weekly_status": 2,
+    "cross_platform_digest": 2,
+    "activity_summary": 2,
+    # Wave 3: External-Facing
+    "stakeholder_update": 3,
+    "client_proposal": 3,
+}
+
+# ADR-035: Governance ceilings per type
+TYPE_GOVERNANCE_CEILINGS = {
+    # Wave 1: Internal single-platform can be full-auto
+    "slack_channel_digest": "full_auto",
+    "slack_standup": "full_auto",
+    "gmail_inbox_brief": "manual",  # Email requires review
+    "notion_page_summary": "full_auto",
+    # Wave 2: Cross-platform stays semi-auto
+    "weekly_status": "semi_auto",
+    "cross_platform_digest": "semi_auto",
+    # Wave 3: External requires manual approval
+    "stakeholder_update": "manual",
+    "client_proposal": "manual",
+}
+
+# ADR-035: Default extraction signals per type
+TYPE_EXTRACTION_SIGNALS = {
+    "slack_channel_digest": ["thread_depth", "reaction_count", "unanswered_questions", "decision_language"],
+    "slack_standup": ["completion_language", "progress_language", "blocker_language"],
+    "gmail_inbox_brief": ["unread_emails", "action_items", "priority_senders", "thread_stalls"],
+    "notion_page_summary": ["recent_edits", "status_changes", "completed_tasks", "unresolved_comments"],
 }
 
 
@@ -346,6 +405,78 @@ class ActivitySummaryConfig(BaseModel):
     )
 
 
+# =============================================================================
+# ADR-035: Platform-First Wave 1 Type Configs
+# =============================================================================
+
+class SlackChannelDigestSections(BaseModel):
+    """Sections to include in Slack channel digest."""
+    hot_threads: bool = True
+    key_decisions: bool = True
+    unanswered_questions: bool = True
+    mentions: bool = True
+
+
+class SlackChannelDigestConfig(BaseModel):
+    """Configuration for Slack channel digest (Wave 1)."""
+    focus: Literal["highlights", "decisions", "questions", "all"] = "highlights"
+    include_threads: bool = True
+    reaction_threshold: int = 2  # Min reactions to surface a message
+    reply_threshold: int = 3  # Min replies to mark as hot thread
+    sections: SlackChannelDigestSections = Field(default_factory=SlackChannelDigestSections)
+    max_items: int = 15  # Max items to include in digest
+
+
+class SlackStandupSections(BaseModel):
+    """Sections to include in Slack standup."""
+    done: bool = True
+    doing: bool = True
+    blockers: bool = True
+
+
+class SlackStandupConfig(BaseModel):
+    """Configuration for Slack standup generation (Wave 1)."""
+    source_mode: Literal["personal", "team"] = "personal"
+    format: Literal["bullet", "narrative"] = "bullet"
+    sections: SlackStandupSections = Field(default_factory=SlackStandupSections)
+    time_range_days: int = 1  # Look back 1 day for standup
+    include_thread_replies: bool = True
+
+
+class GmailInboxBriefSections(BaseModel):
+    """Sections to include in Gmail inbox brief."""
+    urgent: bool = True
+    action_required: bool = True
+    fyi: bool = True
+    follow_ups: bool = True
+
+
+class GmailInboxBriefConfig(BaseModel):
+    """Configuration for Gmail inbox brief (Wave 1)."""
+    focus: Literal["triage", "summary", "action_items"] = "triage"
+    priority_senders: list[str] = Field(default_factory=list)  # High-priority email addresses
+    sections: GmailInboxBriefSections = Field(default_factory=GmailInboxBriefSections)
+    include_sent: bool = True  # Include sent emails for context
+    max_items: int = 20
+
+
+class NotionPageSummarySections(BaseModel):
+    """Sections to include in Notion page summary."""
+    changes: bool = True
+    new_content: bool = True
+    completed_tasks: bool = True
+    open_comments: bool = True
+
+
+class NotionPageSummaryConfig(BaseModel):
+    """Configuration for Notion page summary (Wave 1)."""
+    summary_type: Literal["changelog", "overview", "activity"] = "changelog"
+    include_subpages: bool = True
+    max_depth: int = 2  # How deep to recurse into subpages
+    sections: NotionPageSummarySections = Field(default_factory=NotionPageSummarySections)
+    time_range_days: int = 7
+
+
 # Union type for type_config
 TypeConfig = Union[
     # Tier 1 - Stable
@@ -366,6 +497,11 @@ TypeConfig = Union[
     ProjectBriefConfig,
     CrossPlatformDigestConfig,
     ActivitySummaryConfig,
+    # ADR-035: Platform-First Wave 1 Types
+    SlackChannelDigestConfig,
+    SlackStandupConfig,
+    GmailInboxBriefConfig,
+    NotionPageSummaryConfig,
 ]
 
 
@@ -483,6 +619,11 @@ def get_default_config(deliverable_type: DeliverableType) -> dict:
         "board_update": BoardUpdateConfig(
             company_name=""
         ),
+        # ADR-035: Platform-First Wave 1 Types
+        "slack_channel_digest": SlackChannelDigestConfig(),
+        "slack_standup": SlackStandupConfig(),
+        "gmail_inbox_brief": GmailInboxBriefConfig(),
+        "notion_page_summary": NotionPageSummaryConfig(),
     }
     return defaults.get(deliverable_type, defaults["custom"]).model_dump()
 

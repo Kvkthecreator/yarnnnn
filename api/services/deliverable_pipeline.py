@@ -986,6 +986,134 @@ INSTRUCTIONS:
 - Keep summary {detail_level} - {detail_guidance}
 
 Write the thread summary now:""",
+
+    # ==========================================================================
+    # ADR-035: Platform-First Wave 1 Prompts
+    # ==========================================================================
+
+    "slack_channel_digest": """You are creating a Slack channel digest.
+
+FOCUS: {focus}
+SECTIONS TO INCLUDE:
+{sections_list}
+
+PLATFORM SIGNALS TO PRIORITIZE:
+- Threads with {reply_threshold}+ replies (hot discussions)
+- Messages with {reaction_threshold}+ reactions (notable content)
+- Questions that went unanswered (gaps worth surfacing)
+- Decision language ("we decided", "agreed", "let's go with")
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Format as Slack-native content using bullet points and clear headers
+- Bold key decisions and action items
+- Keep it scannable - no long paragraphs
+- For hot threads, include the thread starter + key takeaway
+- Link to original messages where relevant
+- Keep total length under 2000 characters for Slack readability
+- Prioritize signal over noise - skip casual chat
+
+Write the channel digest now:""",
+
+    "slack_standup": """You are drafting a standup from Slack activity.
+
+SOURCE MODE: {source_mode}
+FORMAT: {format}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+LOOK FOR THESE SIGNALS:
+- Completion language: "done", "shipped", "merged", "finished", "completed"
+- Progress language: "working on", "in progress", "reviewing", "starting"
+- Blocker language: "stuck on", "waiting for", "blocked by", "need help"
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Extract accomplishments from messages showing completion
+- Identify in-progress work from activity mentions
+- Surface blockers explicitly mentioned
+- Format: {format} (bullet points or short narrative)
+- Be concise - standups should be quick to read
+- Don't fabricate items - only use what's in the context
+- If {source_mode} is "team", group by person
+
+Write the standup now:""",
+
+    "gmail_inbox_brief": """You are creating a daily inbox brief to help triage email.
+
+FOCUS: {focus}
+SECTIONS TO INCLUDE:
+{sections_list}
+
+PRIORITIZE:
+- Unread emails from priority senders
+- Threads waiting for user response
+- Emails with action items or deadlines mentioned
+- Thread stalls (conversations that went quiet)
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Start with urgent/time-sensitive items
+- Group by category: urgent, action-required, FYI, can-archive
+- For each email, include: sender, subject, and one-line summary
+- Highlight any mentioned deadlines or dates
+- Suggest which emails can be batch-responded
+- Keep the brief scannable - use bullet points
+- Total length: 300-500 words
+
+Write the inbox brief now:""",
+
+    "notion_page_summary": """You are summarizing recent activity on a Notion page/database.
+
+SUMMARY TYPE: {summary_type}
+MAX DEPTH: {max_depth} subpage levels
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+LOOK FOR:
+- Recent edits and who made them
+- New content added (sections, pages, blocks)
+- Completed tasks (checkboxes, status changes)
+- Unresolved comments or questions
+- Structural changes (new subpages, reorganization)
+
+GATHERED CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Lead with the most significant changes
+- Note who made key changes when attribution available
+- For changelog type: be specific about what changed
+- For overview type: summarize current state
+- For activity type: focus on recent human activity
+- Mention unresolved comments that need attention
+- Keep it concise - 200-400 words
+
+Write the page summary now:""",
 }
 
 
@@ -1094,6 +1222,30 @@ SECTION_TEMPLATES = {
         "key_points": "Key Points - Main topics and positions",
         "decisions": "Decisions - What was agreed or decided",
         "open_questions": "Open Questions - Unresolved items",
+    },
+    # ADR-035: Platform-First Wave 1 Section Templates
+    "slack_channel_digest": {
+        "hot_threads": "Hot Threads - Discussions with high engagement",
+        "key_decisions": "Key Decisions - What was decided or agreed",
+        "unanswered_questions": "Unanswered Questions - Open items needing response",
+        "mentions": "Notable Mentions - Important callouts or highlights",
+    },
+    "slack_standup": {
+        "done": "Done - What was completed",
+        "doing": "In Progress - What's currently being worked on",
+        "blockers": "Blockers - What's blocking progress",
+    },
+    "gmail_inbox_brief": {
+        "urgent": "Urgent - Time-sensitive items",
+        "action_required": "Action Required - Emails needing your response",
+        "fyi": "FYI - Informational items, no action needed",
+        "follow_ups": "Follow-ups - Threads to revisit",
+    },
+    "notion_page_summary": {
+        "changes": "Recent Changes - What was modified",
+        "new_content": "New Content - What was added",
+        "completed_tasks": "Completed Tasks - Items marked done",
+        "open_comments": "Open Comments - Unresolved discussions",
     },
 }
 
@@ -2407,6 +2559,146 @@ def validate_thread_summary(content: str, config: dict) -> dict:
     return {"valid": len(issues) == 0, "issues": issues, "score": score}
 
 
+# =============================================================================
+# ADR-035: Platform-First Wave 1 Validators
+# =============================================================================
+
+def validate_slack_channel_digest(content: str, config: dict) -> dict:
+    """Validate a Slack channel digest output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "hot_threads": ["thread", "discussion", "conversation", "talked about", "replies"],
+        "key_decisions": ["decided", "decision", "agreed", "concluded", "going with"],
+        "unanswered_questions": ["question", "unanswered", "?", "unclear", "need to know"],
+        "mentions": ["mention", "highlight", "notable", "important", "attention"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Slack digests should be concise
+    char_count = len(content)
+    if char_count > 2500:
+        issues.append(f"Too long for Slack: {char_count} chars (max ~2000)")
+
+    # Should have bullet points for scannability
+    has_bullets = "- " in content or "• " in content or "* " in content
+    if not has_bullets:
+        issues.append("Digest should use bullet points for scannability")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_slack_standup(content: str, config: dict) -> dict:
+    """Validate a Slack standup output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "done": ["done", "completed", "finished", "shipped", "merged"],
+        "doing": ["doing", "working on", "in progress", "continuing", "starting"],
+        "blockers": ["blocker", "blocked", "stuck", "waiting", "need"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Standups should be brief
+    word_count = len(content.split())
+    if word_count > 250:
+        issues.append(f"Standup too verbose: {word_count} words (aim for <200)")
+    if word_count < 30:
+        issues.append(f"Standup too brief: {word_count} words")
+
+    # Check for bullet format
+    format_type = config.get("format", "bullet")
+    if format_type == "bullet" and not ("- " in content or "• " in content):
+        issues.append("Bullet format requested but no bullets found")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_gmail_inbox_brief(content: str, config: dict) -> dict:
+    """Validate a Gmail inbox brief output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "urgent": ["urgent", "immediate", "asap", "time-sensitive", "deadline"],
+        "action_required": ["action", "respond", "reply", "need to", "follow up"],
+        "fyi": ["fyi", "informational", "no action", "reference", "note"],
+        "follow_ups": ["follow up", "revisit", "check back", "pending"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Should have structure
+    has_bullets = "- " in content or "• " in content
+    if not has_bullets:
+        issues.append("Brief should use bullet points for scannability")
+
+    # Inbox briefs should be concise
+    word_count = len(content.split())
+    if word_count < 50:
+        issues.append(f"Brief too short: {word_count} words")
+    if word_count > 600:
+        issues.append(f"Brief too long: {word_count} words (aim for 300-500)")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_notion_page_summary(content: str, config: dict) -> dict:
+    """Validate a Notion page summary output."""
+    issues = []
+    content_lower = content.lower()
+
+    sections = config.get("sections", {})
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "changes": ["change", "modified", "updated", "edited", "revised"],
+        "new_content": ["new", "added", "created", "inserted"],
+        "completed_tasks": ["completed", "done", "finished", "checked", "resolved"],
+        "open_comments": ["comment", "open", "unresolved", "discussion", "thread"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check word count
+    word_count = len(content.split())
+    if word_count < 50:
+        issues.append(f"Summary too brief: {word_count} words")
+    if word_count > 500:
+        issues.append(f"Summary too long: {word_count} words (aim for 200-400)")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
 def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
     """
     Validate generated content based on deliverable type.
@@ -2437,6 +2729,11 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
         "reply_draft": validate_reply_draft,
         "follow_up_tracker": validate_follow_up_tracker,
         "thread_summary": validate_thread_summary,
+        # ADR-035: Platform-First Wave 1
+        "slack_channel_digest": validate_slack_channel_digest,
+        "slack_standup": validate_slack_standup,
+        "gmail_inbox_brief": validate_gmail_inbox_brief,
+        "notion_page_summary": validate_notion_page_summary,
     }
 
     validator = validators.get(deliverable_type, validate_custom)
