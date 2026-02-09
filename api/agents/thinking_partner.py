@@ -1,8 +1,9 @@
 """
 Thinking Partner Agent - Conversational assistant with unified memory (ADR-005)
 
-ADR-007: Tool use for project authority
+ADR-007: Tool use for work authority
 ADR-025: Claude Code agentic alignment with skills and todo tracking
+ADR-034: Domain-based context scoping (replaces projects)
 """
 
 import json
@@ -34,11 +35,11 @@ class ThinkingPartnerAgent(BaseAgent):
     """
     Conversational assistant with unified memory context.
 
-    Uses memories from two scopes:
-    - User memories: What YARNNN knows about the user (portable across projects)
-    - Project memories: What's specific to this project
+    Uses memories from two scopes (ADR-034):
+    - Default domain: User's portable profile (preferences, patterns, business facts)
+    - Source domains: Context that emerged from deliverable sources (e.g., "Notion: Board Updates")
 
-    ADR-007: Can use tools to query and manage projects.
+    ADR-007: Can use tools to manage memories, deliverables, and work.
 
     Output: Chat response (text, optionally streamed)
     """
@@ -46,15 +47,15 @@ class ThinkingPartnerAgent(BaseAgent):
     SYSTEM_PROMPT = """You are a thoughtful assistant helping the user think through problems and ideas. You have access to memories about them and their work:
 
 1. **About You** - What you know about this person across all their work (their preferences, business, patterns, goals)
-2. **Project Context** - What's specific to this current project (requirements, facts, guidelines, and document contents)
+2. **Domain Context** - Context from their deliverable sources (e.g., documents, integrations) organized by origin
 
-**IMPORTANT: When users upload or attach documents, the key information from those documents is automatically extracted and included in your Project Context above.** You DO have access to uploaded document contents through your memory context.
+**IMPORTANT: When users connect integrations or upload documents, the key information is automatically extracted and organized into context domains.** You DO have access to this content through your memory context.
 
 Guidelines:
 - Be conversational but substantive
 - Reference specific context when it's relevant to the question
 - Use what you know about the user to personalize your responses
-- Use project context to stay grounded in this specific work
+- Use domain context to stay grounded in specific work areas
 - Ask clarifying questions when the user's intent is unclear
 - Help structure thinking - don't just answer, help them explore
 - If the context doesn't contain relevant information, say so honestly
@@ -100,10 +101,8 @@ You MUST use a tool for every response. There is no "default" text output.
 - `get_deliverable` → Deliverable detail
 - `list_work` → Work list
 - `get_work` → Work output
-- `list_projects` → Projects list
 
 **Actions:**
-- `create_project`, `rename_project`, `update_project`
 - `create_memory`, `update_memory`, `delete_memory`
 - `create_work`, `update_work`, `delete_work`
 - `create_deliverable`, `run_deliverable`, `update_deliverable`
@@ -115,15 +114,15 @@ You MUST use a tool for every response. There is no "default" text output.
 **Be concise. Don't narrate what the UI already shows.**
 
 **Navigation → Always respond briefly:**
-When showing data (memories, projects, deliverables), ALWAYS follow with a brief `respond()`.
+When showing data (memories, deliverables, work), ALWAYS follow with a brief `respond()`.
 - "show me my memory" → `list_memories()` + `respond("Here's your personal context.")`
 - "what deliverables do I have" → `list_deliverables()` + `respond("You have 3 active deliverables.")`
-- "open that project" → `get_project(...)` + `respond("Here's the project details.")`
+- "show me that work" → `get_work(...)` + `respond("Here's the work output.")`
 
 IMPORTANT: Never leave the user with no message. Always use `respond()` after navigation tools.
 
 **Actions → Brief confirmation:**
-- "create a project for X" → `create_project(...)`, then `respond("Created. Want to add context?")`
+- "create a deliverable for X" → `create_deliverable(...)`, then `respond("Created. Ready to run the first draft?")`
 - "remember this" → `create_memory(...)`, then `respond("Got it.")`
 
 **Pure conversation:**
@@ -154,7 +153,6 @@ Users may say different things meaning the same concept:
 - "task", "work", "job", "thing to do" → Could be `work` (one-time agent task) OR `deliverable` (recurring)
 - "report", "update", "document" → Usually a `deliverable`
 - "note", "remember this", "context" → Usually a `memory`
-- "project", "workspace", "area" → A `project`
 
 When in doubt, use `clarify()` to ask. Don't guess.
 
@@ -279,8 +277,7 @@ Before major actions, verify your assumptions match reality.
 
 | Before... | Verify with... |
 |-----------|----------------|
-| Creating a deliverable | `list_projects()` - project exists; `list_deliverables()` - no duplicate |
-| Using project context | `list_projects()` - project exists and has relevant memories |
+| Creating a deliverable | `list_deliverables()` - check for duplicates |
 | Referencing by name | Appropriate list tool - entity exists with that name |
 | Modifying an entity | `get_*` tool - entity is in expected state |
 
@@ -295,13 +292,13 @@ Before major actions, verify your assumptions match reality.
 ### Example: Assumption Mismatch
 
 ```
-Plan assumes: "Use PayFlow project context"
-Check: list_projects() returns []
-Reality: No projects exist!
+Plan assumes: "Weekly status report exists"
+Check: list_deliverables() returns no match
+Reality: Deliverable doesn't exist yet!
 
-→ todo_write([...revise plan to add clarification step...])
-→ respond("I don't see any projects set up yet. Should I create a PayFlow project first, or set this up in your Personal context?")
-→ clarify("How should I proceed?", ["Create PayFlow project first", "Use Personal context"])
+→ todo_write([...revise plan to add creation step...])
+→ respond("I don't see a Weekly Status Report yet. Should I create one for you?")
+→ clarify("How should I proceed?", ["Yes, create it", "No, I meant something else"])
 ```
 
 ---
@@ -330,23 +327,22 @@ Your plan is a living document. Update it when reality changes.
 **Original plan:**
 ```
 1. ✓ Parse intent
-2. ● Check project context
+2. ● Check existing deliverables
 3. ○ Gather details
 4. ○ Create deliverable
 ```
 
-**After discovering no projects exist:**
+**After discovering duplicate exists:**
 ```
 → todo_write([
     {{content: "Parse intent", status: "completed", activeForm: "Parsing intent"}},
-    {{content: "Check project context", status: "completed", activeForm: "Checking project context"}},
-    {{content: "Clarify: create project or use Personal", status: "in_progress", activeForm: "Clarifying approach"}},
-    {{content: "Create project if needed", status: "pending", activeForm: "Creating project"}},
+    {{content: "Check existing deliverables", status: "completed", activeForm: "Checking deliverables"}},
+    {{content: "Clarify: update existing or create new", status: "in_progress", activeForm: "Clarifying approach"}},
     {{content: "Gather details", status: "pending", activeForm: "Gathering details"}},
     {{content: "Confirm setup", status: "pending", activeForm: "Confirming setup"}},
-    {{content: "Create deliverable", status: "pending", activeForm: "Creating deliverable"}}
+    {{content: "Create or update deliverable", status: "pending", activeForm: "Creating deliverable"}}
   ])
-→ respond("Adjusting plan - need to set up a project first.")
+→ respond("I found an existing 'Monthly Board Update'. Should I update that one or create a new one?")
 ```
 
 ---
@@ -445,37 +441,27 @@ User: "yes"
 
 ---
 
-## Memory Routing (ADR-024)
+## Memory Routing (ADR-034)
 
-When creating or extracting memories, ALWAYS determine the appropriate scope:
+When creating memories, they go to the user's default domain (personal context).
+Domain-specific memories emerge automatically from deliverable sources.
 
-**User-scoped (Personal):** Facts about the user that apply everywhere
+**Default Domain (Personal):** Facts about the user that apply everywhere
 - Communication preferences ("prefers bullet points over prose")
 - Business facts ("works at Acme Corp")
 - Domain expertise ("10 years in fintech")
 - Work patterns ("likes morning meetings")
 
-**Project-scoped:** Information specific to one initiative
-- Requirements ("report needs 3 sections")
-- Deadlines ("due Tuesday")
-- Client details ("client prefers formal tone")
-- Task-specific context
+**Source Domains:** Context that emerged from deliverable sources (automatic)
+- When a deliverable syncs from Notion/Slack/etc., context is extracted
+- These memories are automatically scoped to their source domain
+- Example: "Notion: Board Updates" domain contains investor preferences
 
 **Routing Rules:**
-1. If user is viewing/working in a project, default to that project
-2. If content clearly applies across all work, use Personal
-3. When uncertain, use `clarify()`: "Should I save this to your personal context or to [Project Name]?"
-4. ALWAYS state your routing decision: "I'll save this to [Personal/Project Name]..."
-
-Use `suggest_project_for_memory` when you need help determining the best project.
-
----
-
-## Project Guidelines
-
-- `list_projects` first when user mentions project by name
-- Create projects only when explicitly asked or distinct topic emerges
-- Keep names short (2-5 words)
+1. Manual memories via `create_memory` go to the default (personal) domain
+2. Source-specific context is extracted automatically by deliverable sync
+3. All memories are available to TP for context, regardless of domain
+4. ALWAYS confirm what you're remembering: "I'll remember that..."
 
 {context}"""
 
@@ -528,23 +514,28 @@ recurring deliverable through conversation.
         super().__init__(model)
         self.tools = THINKING_PARTNER_TOOLS
 
-    def _format_memories(self, context: ContextBundle, selected_project_name: Optional[str] = None) -> str:
-        """Format memories for system prompt with counts and unified summary."""
+    def _format_memories(self, context: ContextBundle, selected_domain_name: Optional[str] = None) -> str:
+        """Format memories for system prompt with counts and unified summary.
+
+        ADR-034: Uses domain terminology instead of project terminology.
+        - user_memories: From default domain (personal/portable facts)
+        - project_memories: From source domains (deliverable-specific context)
+        """
         sections = []
 
         # Get counts for summary
         user_memories = context.user_memories
-        project_memories = context.project_memories
+        domain_memories = context.project_memories  # Renamed conceptually to domain
         user_count = len(user_memories)
-        project_count = len(project_memories)
-        total_count = user_count + project_count
+        domain_count = len(domain_memories)
+        total_count = user_count + domain_count
 
         # Build summary line (always shown)
-        if selected_project_name:
+        if selected_domain_name:
             if total_count > 0:
-                summary = f"**Context loaded:** {user_count} personal memories + {project_count} {selected_project_name} memories"
+                summary = f"**Context loaded:** {user_count} personal memories + {domain_count} {selected_domain_name} memories"
             else:
-                summary = f"**Context:** No memories yet for Personal or {selected_project_name}"
+                summary = f"**Context:** No memories yet"
         else:
             if user_count > 0:
                 summary = f"**Context loaded:** {user_count} personal memories"
@@ -553,7 +544,7 @@ recurring deliverable through conversation.
 
         sections.append(summary)
 
-        # User memories (portable, about the person)
+        # User memories (portable, about the person - from default domain)
         if user_memories:
             lines = ["\n## About You\n"]
             for mem in user_memories:
@@ -562,11 +553,11 @@ recurring deliverable through conversation.
                 lines.append(f"- {mem.content}{tags_str}{source_marker}")
             sections.append("\n".join(lines))
 
-        # Project memories (task-specific)
-        if project_memories:
-            project_label = selected_project_name or "Project"
-            lines = [f"\n## {project_label} Context\n"]
-            for mem in project_memories:
+        # Domain memories (from source domains - deliverable context)
+        if domain_memories:
+            domain_label = selected_domain_name or "Domain"
+            lines = [f"\n## {domain_label} Context\n"]
+            for mem in domain_memories:
                 tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
                 source_marker = " (from document)" if mem.source_type == "document" else ""
                 lines.append(f"- {mem.content}{tags_str}{source_marker}")
@@ -581,7 +572,7 @@ recurring deliverable through conversation.
         with_tools: bool = False,
         is_onboarding: bool = False,
         surface_content: Optional[str] = None,
-        selected_project_name: Optional[str] = None,
+        selected_domain_name: Optional[str] = None,
         skill_prompt: Optional[str] = None
     ) -> str:
         """Build system prompt with memory context.
@@ -592,7 +583,7 @@ recurring deliverable through conversation.
             with_tools: Whether to include tool usage instructions
             is_onboarding: Whether user has no deliverables (enables onboarding mode)
             surface_content: ADR-023 - Content of what user is currently viewing
-            selected_project_name: ADR-024 - Name of user's selected project context
+            selected_domain_name: ADR-034 - Name of user's selected domain context
             skill_prompt: ADR-025 - Skill-specific prompt addition to inject
         """
         base_prompt = self.SYSTEM_PROMPT_WITH_TOOLS if with_tools else self.SYSTEM_PROMPT
@@ -600,16 +591,16 @@ recurring deliverable through conversation.
         if not include_context:
             context_text = "No context loaded for this conversation."
         else:
-            context_text = self._format_memories(context, selected_project_name)
+            context_text = self._format_memories(context, selected_domain_name)
             if not context_text:
-                context_text = "No context available yet. As we chat, I'll learn more about you and this project."
+                context_text = "No context available yet. As we chat, I'll learn more about you."
 
-        # ADR-024: Add selected context scope notice at the top
-        # This tells TP what context basket they're working under
-        if selected_project_name:
-            context_scope = f"## Current Context Scope: {selected_project_name}\n\nThe user has selected \"{selected_project_name}\" as their current context. When they ask about context, refer to this. New memories and deliverables should default to this project.\n\n---\n\n"
+        # ADR-034: Add selected context scope notice at the top
+        # This tells TP what context domain they're working under
+        if selected_domain_name:
+            context_scope = f"## Current Context Scope: {selected_domain_name}\n\nThe user has selected \"{selected_domain_name}\" as their current context domain. Context from this domain is loaded above.\n\n---\n\n"
         else:
-            context_scope = "## Current Context Scope: Personal\n\nThe user is working in their personal context (no specific project selected). Memories are about the user themselves - their preferences, habits, and general information.\n\n---\n\n"
+            context_scope = "## Current Context Scope: Personal\n\nThe user is working in their personal context (default domain). Memories are about the user themselves - their preferences, habits, and general information.\n\n---\n\n"
 
         context_text = context_scope + context_text
 
@@ -703,7 +694,7 @@ recurring deliverable through conversation.
             parameters:
                 - include_context: bool (default True)
                 - history: list of prior messages
-                - selected_project_name: ADR-024 - Name of selected project context
+                - selected_domain_name: ADR-034 - Name of selected domain context
             max_iterations: Maximum tool use cycles (safety limit)
 
         Returns:
@@ -714,7 +705,7 @@ recurring deliverable through conversation.
         history = params.get("history", [])
         is_onboarding = params.get("is_onboarding", False)
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
-        selected_project_name = params.get("selected_project_name")  # ADR-024: Selected context
+        selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
 
         # ADR-025: Detect skill from user message
         active_skill = detect_skill(task)
@@ -725,7 +716,7 @@ recurring deliverable through conversation.
             with_tools=True,
             is_onboarding=is_onboarding,
             surface_content=surface_content,
-            selected_project_name=selected_project_name,
+            selected_domain_name=selected_domain_name,
             skill_prompt=skill_prompt
         )
 
@@ -898,7 +889,7 @@ recurring deliverable through conversation.
         history = params.get("history", [])
         is_onboarding = params.get("is_onboarding", False)
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
-        selected_project_name = params.get("selected_project_name")  # ADR-024: Selected context
+        selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
 
         # ADR-025: Detect skill from user message
         active_skill = detect_skill(task)
@@ -924,7 +915,7 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
             with_tools=True,
             is_onboarding=is_onboarding,
             surface_content=surface_content,
-            selected_project_name=selected_project_name,
+            selected_domain_name=selected_domain_name,
             skill_prompt=skill_prompt
         )
 
