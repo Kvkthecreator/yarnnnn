@@ -397,12 +397,10 @@ def generate_gmail_html(
 
 def _generate_default_email_html(content: str, metadata: dict) -> str:
     """Generate standard email HTML with clean styling."""
-    title = metadata.get("title", "")
     body_html = _markdown_to_email_html(content)
 
-    # ADR-032: Draft content should be clean - no attribution that would be sent to recipients
-    # The user is the author; YARNNN just helps them write it.
-    draft_footer = ""
+    # ADR-032: Content is clean - no attribution that users might forget to remove.
+    # The user is the author; YARNNN helps them write.
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -446,17 +444,10 @@ def _generate_default_email_html(content: str, metadata: dict) -> str:
             font-family: 'Monaco', 'Menlo', monospace;
             font-size: 13px;
         }}
-        .footer {{
-            margin-top: 2em;
-            padding-top: 1em;
-            border-top: 1px solid #eee;
-            font-size: 12px;
-            color: #888;
-        }}
     </style>
 </head>
 <body>
-    {body_html}{draft_footer}
+    {body_html}
 </body>
 </html>"""
     return html
@@ -478,9 +469,7 @@ def _generate_digest_html(content: str, metadata: dict) -> str:
     title = metadata.get("title", "Weekly Email Digest")
     body_html = _markdown_to_email_html(content)
 
-    # ADR-032: No attribution in content that users will send
-    # The user is the author; YARNNN just helps them write it.
-    footer_text = ""
+    # ADR-032: Content is clean - no attribution that users might forget to remove.
 
     html = f"""<!DOCTYPE html>
 <html>

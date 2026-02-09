@@ -329,10 +329,9 @@ Subject: Weekly Status Update - Week of Feb 10
 CC: (optional)
 
 [Full email content here]
-
----
-Prepared by YARNNN • Review and send when ready
 ```
+
+**No attribution footer**: The user is the author. YARNNN helps them write, but they take credit for the work. No "Prepared by YARNNN" or similar footers that users might forget to remove before sending.
 
 **Notification Path**:
 - YARNNN can optionally send push notification: "Draft ready: Weekly Status Update"
@@ -343,7 +342,7 @@ Prepared by YARNNN • Review and send when ready
 - [x] Subject line prefilled
 - [x] To: recipient prefilled
 - [x] HTML body support (ADR-031 Phase 5)
-- [x] Draft context footer ("Prepared by YARNNN • Review and send when ready")
+- [x] Clean content (no attribution footer - user is the author)
 - [ ] Thread context for replies (`thread_id`)
 - [ ] YARNNN notification when draft created
 
@@ -559,39 +558,36 @@ YARNNN Drafts (Database)
 
 ### Draft Content Format Requirements
 
-All drafts must include clear destination context:
+All drafts must be **clean and ready to send** - no attribution that users might forget to remove.
+
+**Core Principle**: The user is the author. YARNNN helps them write, but they take credit for the work.
 
 **Gmail**:
 ```
 To: recipient@company.com  ← Prefilled
 Subject: Weekly Status Update - Week of Feb 10  ← Prefilled
 
-[Body content]
-
----
-Prepared by YARNNN • Review and send when ready
+[Body content - clean, ready to send]
 ```
 
-**Slack DM**:
+**Slack DM** (wrapper context for user, content is clean):
 ```
 📝 Draft ready for #team-updates  ← Destination in header
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-[Draft content]
+[Draft content - clean, ready to copy]
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ℹ️ Copy and paste in #team-updates when ready
 ```
+The header/footer are for the user's benefit (in the DM). The content section they copy is clean.
 
 **Notion Page**:
 ```
-📍 Target: /Projects/ProductX/Updates  ← Destination property
-📊 Status: 🟡 Draft
+📍 Target: /Projects/ProductX/Updates  ← Database property (not in page body)
+📊 Status: 🟡 Draft  ← Database property (not in page body)
 
-[Page content]
-
----
-ℹ️ Move this page to the target location when ready
-[🔗 Open Target Location]
+[Page content - clean, ready to move/copy]
 ```
+Target and status live in database properties, not in the page content itself.
 
 ---
 
