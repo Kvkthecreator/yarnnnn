@@ -119,10 +119,9 @@ function getCurrentSurfaceDomain(surface: DeskSurface): string {
     case 'idle':
     case 'deliverable-review':
     case 'deliverable-detail':
+    case 'deliverable-list':
     case 'work-output':
     case 'work-list':
-    case 'project-detail':
-    case 'project-list':
       return 'dashboard';
     case 'platform-list':
     case 'platform-detail':
@@ -165,7 +164,7 @@ function AuthenticatedLayoutInner({
 }) {
   const router = useRouter();
   const pathname = usePathname();
-  const { surface, setSurface, setSurfaceWithHandoff, selectedProject } = useDesk();
+  const { surface, setSurface, setSurfaceWithHandoff } = useDesk();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Determine navigation context
@@ -228,7 +227,7 @@ function AuthenticatedLayoutInner({
   const CurrentIcon = display.icon;
 
   return (
-    <TPProvider onSurfaceChange={handleSurfaceChange} selectedProjectId={selectedProject?.id}>
+    <TPProvider onSurfaceChange={handleSurfaceChange}>
       <div className="flex flex-col h-screen bg-background">
         {/* Top Bar - Single unified bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">

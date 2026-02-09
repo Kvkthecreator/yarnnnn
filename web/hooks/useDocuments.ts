@@ -5,7 +5,6 @@
  * ADR-008: Document Pipeline
  *
  * Manages document upload, listing, and deletion.
- * Supports both user-scoped (no project) and project-scoped documents.
  */
 
 import { useState, useEffect, useCallback } from "react";
@@ -18,7 +17,7 @@ export interface UploadProgress {
   message?: string;
 }
 
-export function useDocuments(projectId?: string) {
+export function useDocuments() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
@@ -30,7 +29,7 @@ export function useDocuments(projectId?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await api.documents.list(projectId);
+      const response = await api.documents.list();
       setDocuments(response.documents);
     } catch (err) {
       setError(err as Error);
@@ -38,7 +37,7 @@ export function useDocuments(projectId?: string) {
     } finally {
       setIsLoading(false);
     }
-  }, [projectId]);
+  }, []);
 
   const upload = useCallback(
     async (file: File): Promise<DocumentUploadResponse | null> => {
@@ -46,7 +45,7 @@ export function useDocuments(projectId?: string) {
       setError(null);
 
       try {
-        const result = await api.documents.upload(file, projectId);
+        const result = await api.documents.upload(file);
 
         setUploadProgress({
           filename: file.name,
@@ -72,7 +71,7 @@ export function useDocuments(projectId?: string) {
         return null;
       }
     },
-    [projectId, load]
+    [load]
   );
 
   const remove = useCallback(
@@ -114,10 +113,10 @@ export function useDocuments(projectId?: string) {
     isLoading,
     error,
     uploadProgress,
+    reload: load,
     upload,
     remove,
     download,
-    reload: load,
     clearProgress,
   };
 }

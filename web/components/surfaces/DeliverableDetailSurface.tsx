@@ -99,7 +99,7 @@ const PLATFORM_CONFIG: Record<string, {
 };
 
 export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSurfaceProps) {
-  const { setSurface, refreshAttention, setSelectedProject } = useDesk();
+  const { setSurface, refreshAttention } = useDesk();
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
@@ -122,15 +122,6 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
       // Cache the deliverable name for TPBar display
       if (detail.deliverable?.title) {
         cacheEntity(deliverableId, detail.deliverable.title, 'deliverable');
-      }
-
-      // Auto-sync project context to match deliverable's project
-      // This ensures TP uses the correct project context when viewing a deliverable
-      if (detail.deliverable?.project_id && detail.deliverable?.project_name) {
-        setSelectedProject({
-          id: detail.deliverable.project_id,
-          name: detail.deliverable.project_name,
-        });
       }
     } catch (err) {
       console.error('Failed to load deliverable:', err);

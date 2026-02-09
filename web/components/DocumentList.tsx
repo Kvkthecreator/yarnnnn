@@ -25,7 +25,6 @@ import { useDocuments, UploadProgress } from "@/hooks/useDocuments";
 import type { Document } from "@/types";
 
 interface DocumentListProps {
-  projectId?: string;
   compact?: boolean;
 }
 
@@ -175,7 +174,7 @@ function DocumentItem({
   );
 }
 
-export function DocumentList({ projectId, compact = false }: DocumentListProps) {
+export function DocumentList({ compact = false }: DocumentListProps) {
   const {
     documents,
     isLoading,
@@ -184,7 +183,7 @@ export function DocumentList({ projectId, compact = false }: DocumentListProps) 
     upload,
     remove,
     download,
-  } = useDocuments(projectId);
+  } = useDocuments();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isExpanded, setIsExpanded] = useState(true);

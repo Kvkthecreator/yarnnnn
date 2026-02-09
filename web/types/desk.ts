@@ -1,5 +1,7 @@
 /**
  * ADR-023: Supervisor Desk Architecture
+ * ADR-034: Context (emergent domains)
+ *
  * Type definitions for the desk surface system
  */
 
@@ -8,23 +10,20 @@
 // =============================================================================
 
 export type DeskSurface =
-  // Deliverables domain
+  // Deliverables
   | { type: 'deliverable-review'; deliverableId: string; versionId: string }
   | { type: 'deliverable-detail'; deliverableId: string }
   | { type: 'deliverable-list'; status?: 'active' | 'paused' | 'archived' }
-  // Work domain
+  // Work
   | { type: 'work-output'; workId: string; outputId?: string }
   | { type: 'work-list'; filter?: 'active' | 'completed' | 'all' }
-  // Context domain (ADR-034: domain-based scoping)
-  | { type: 'context-browser'; scope: 'user' | 'deliverable' | 'domain'; scopeId?: string }
+  // Context (ADR-034: user's accumulated knowledge, scoped by emergent domains)
+  | { type: 'context-browser'; scope: 'user' | 'deliverable'; scopeId?: string }
   | { type: 'context-editor'; memoryId: string }
-  // Documents domain
+  // Documents
   | { type: 'document-viewer'; documentId: string }
-  | { type: 'document-list'; projectId?: string }
-  // Projects domain
-  | { type: 'project-detail'; projectId: string }
-  | { type: 'project-list' }
-  // Platforms domain (ADR-033 Phase 4)
+  | { type: 'document-list' }
+  // Platforms (ADR-033)
   | { type: 'platform-list' }
   | { type: 'platform-detail'; platform: 'slack' | 'notion' | 'gmail' | 'google' }
   // Idle state
@@ -85,12 +84,6 @@ export interface Todo {
 // Desk State
 // =============================================================================
 
-/** Selected project context for TP routing (ADR-024) */
-export interface SelectedProject {
-  id: string;
-  name: string;
-}
-
 export interface DeskState {
   surface: DeskSurface;
   attention: AttentionItem[];
@@ -98,8 +91,6 @@ export interface DeskState {
   error: string | null;
   /** Message from TP shown briefly at top of surface after navigation */
   handoffMessage: string | null;
-  /** Currently selected project for context routing (ADR-024) */
-  selectedProject: SelectedProject | null;
 }
 
 export type DeskAction =
@@ -112,8 +103,7 @@ export type DeskAction =
   | { type: 'CLEAR_HANDOFF' }
   | { type: 'NEXT_ATTENTION' }
   | { type: 'SET_LOADING'; isLoading: boolean }
-  | { type: 'SET_ERROR'; error: string | null }
-  | { type: 'SET_SELECTED_PROJECT'; project: SelectedProject | null };
+  | { type: 'SET_ERROR'; error: string | null };
 
 // =============================================================================
 // TP State
@@ -180,12 +170,12 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'work-list':
       return { type: 'work-list' };
 
-    // Context (ADR-034: domain-based scoping)
+    // Context (ADR-034)
     case 'context':
     case 'memory':
       return {
         type: 'context-browser',
-        scope: (data.scope as 'user' | 'deliverable' | 'domain') || 'user',
+        scope: (data.scope as 'user' | 'deliverable') || 'user',
         scopeId: data.scopeId as string | undefined,
       };
     case 'memory-edit':
@@ -195,15 +185,9 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'document':
       return { type: 'document-viewer', documentId: data.documentId as string };
     case 'document-list':
-      return { type: 'document-list', projectId: data.projectId as string | undefined };
+      return { type: 'document-list' };
 
-    // Projects
-    case 'project':
-      return { type: 'project-detail', projectId: data.projectId as string };
-    case 'project-list':
-      return { type: 'project-list' };
-
-    // Platforms (ADR-033 Phase 4)
+    // Platforms (ADR-033)
     case 'platforms':
     case 'platform-list':
       return { type: 'platform-list' };
@@ -260,12 +244,6 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
     case 'document-viewer':
       params.set('docId', surface.documentId);
       break;
-    case 'document-list':
-      if (surface.projectId) params.set('pid', surface.projectId);
-      break;
-    case 'project-detail':
-      params.set('pid', surface.projectId);
-      break;
     case 'platform-detail':
       params.set('platform', surface.platform);
       break;
@@ -304,7 +282,7 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
     case 'context-browser':
       return {
         type: 'context-browser',
-        scope: (params.get('scope') as 'user' | 'deliverable' | 'domain') || 'user',
+        scope: (params.get('scope') as 'user' | 'deliverable') || 'user',
         scopeId: params.get('scopeId') || undefined,
       };
     case 'context-editor': {
@@ -318,14 +296,7 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
       break;
     }
     case 'document-list':
-      return { type: 'document-list', projectId: params.get('pid') || undefined };
-    case 'project-detail': {
-      const pid = params.get('pid');
-      if (pid) return { type: 'project-detail', projectId: pid };
-      break;
-    }
-    case 'project-list':
-      return { type: 'project-list' };
+      return { type: 'document-list' };
     case 'platform-list':
       return { type: 'platform-list' };
     case 'platform-detail': {

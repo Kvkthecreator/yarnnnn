@@ -5,15 +5,10 @@
 
 import { createClient } from "@/lib/supabase/client";
 import type {
-  Project,
-  ProjectCreate,
-  ProjectWithCounts,
   Memory,
   MemoryCreate,
   MemoryUpdate,
   BulkImportRequest,
-  BulkImportResponse,
-  ContextBundle,
   Document,
   DocumentDetail,
   DocumentUploadResponse,
@@ -39,11 +34,6 @@ import type {
   DeliverableVersion,
   VersionUpdate,
   DeliverableRunResponse,
-  // ADR-031 Phase 6: Project Resources
-  ProjectResource,
-  ProjectResourceCreate,
-  ResourceSuggestion,
-  ContextSummaryItem,
   // ADR-034: Context Domains
   ContextDomainSummary,
   ContextDomainDetail,
@@ -136,57 +126,6 @@ async function request<T>(
 }
 
 export const api = {
-  // Project endpoints
-  projects: {
-    list: () => request<Project[]>("/api/projects"),
-    create: (data: ProjectCreate) =>
-      request<Project>("/api/projects", {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    get: (projectId: string) =>
-      request<ProjectWithCounts>(`/api/projects/${projectId}`),
-
-    // ADR-031 Phase 6: Project Resources
-    resources: {
-      // List resources linked to a project
-      list: (projectId: string, platform?: string) => {
-        const params = platform ? `?platform=${platform}` : "";
-        return request<ProjectResource[]>(
-          `/api/projects/${projectId}/resources${params}`
-        );
-      },
-
-      // Add a resource to a project
-      create: (projectId: string, data: ProjectResourceCreate) =>
-        request<ProjectResource>(`/api/projects/${projectId}/resources`, {
-          method: "POST",
-          body: JSON.stringify(data),
-        }),
-
-      // Remove a resource from a project
-      delete: (projectId: string, resourceId: string) =>
-        request<{ status: string; message: string }>(
-          `/api/projects/${projectId}/resources/${resourceId}`,
-          { method: "DELETE" }
-        ),
-
-      // Auto-suggest resources for a project
-      suggest: (projectId: string) =>
-        request<ResourceSuggestion[]>(
-          `/api/projects/${projectId}/resources/suggest`
-        ),
-
-      // Get cross-platform context summary
-      contextSummary: (projectId: string, days?: number) => {
-        const params = days ? `?days=${days}` : "";
-        return request<ContextSummaryItem[]>(
-          `/api/projects/${projectId}/context-summary${params}`
-        );
-      },
-    },
-  },
-
   // User memories (user-scoped, portable)
   userMemories: {
     list: () => request<Memory[]>("/api/context/user/memories"),
@@ -202,30 +141,7 @@ export const api = {
       }),
   },
 
-  // DEPRECATED: Project memories (use domains.memories instead)
-  // Project-scoped memory routes are deprecated in favor of domain-based scoping (ADR-034)
-  projectMemories: {
-    /** @deprecated Use domains.memories.list(domainId) instead */
-    list: (projectId: string) =>
-      request<Memory[]>(`/api/context/projects/${projectId}/memories`),
-    /** @deprecated Use domains.memories.create(domainId, data) instead */
-    create: (projectId: string, data: MemoryCreate) =>
-      request<Memory>(`/api/context/projects/${projectId}/memories`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-    /** @deprecated Use domain-based import flow instead */
-    importBulk: (projectId: string, data: BulkImportRequest) =>
-      request<BulkImportResponse>(
-        `/api/context/projects/${projectId}/memories/import`,
-        {
-          method: "POST",
-          body: JSON.stringify(data),
-        }
-      ),
-  },
-
-  // Memory management (works for both user and project memories)
+  // Memory management
   memories: {
     update: (memoryId: string, data: MemoryUpdate) =>
       request<Memory>(`/api/context/memories/${memoryId}`, {
@@ -238,13 +154,6 @@ export const api = {
       }),
   },
 
-  // DEPRECATED: Context bundle (use domains.get instead)
-  context: {
-    /** @deprecated Use domains.get(domainId) instead */
-    getBundle: (projectId: string) =>
-      request<ContextBundle>(`/api/context/projects/${projectId}/context`),
-  },
-
   // Onboarding state
   onboarding: {
     getState: () =>
@@ -253,25 +162,19 @@ export const api = {
 
   // Document endpoints (ADR-008: Document Pipeline)
   documents: {
-    // List user's documents (optionally filtered by project)
-    list: (projectId?: string, status?: string) => {
-      const params = new URLSearchParams();
-      if (projectId) params.append("project_id", projectId);
-      if (status) params.append("status", status);
-      const query = params.toString();
-      return request<DocumentListResponse>(
-        `/api/documents${query ? `?${query}` : ""}`
-      );
+    // List user's documents
+    list: (status?: string) => {
+      const params = status ? `?status=${status}` : "";
+      return request<DocumentListResponse>(`/api/documents${params}`);
     },
 
-    // Upload document (optionally scoped to project)
-    upload: async (file: File, projectId?: string) => {
+    // Upload document
+    upload: async (file: File) => {
       const headers = await getAuthHeaders();
       delete (headers as Record<string, string>)["Content-Type"]; // Let browser set for FormData
 
       const formData = new FormData();
       formData.append("file", file);
-      if (projectId) formData.append("project_id", projectId);
 
       const response = await fetch(`${API_BASE_URL}/api/documents/upload`, {
         method: "POST",
@@ -304,28 +207,8 @@ export const api = {
       ),
   },
 
-  // Work endpoints (ADR-009: Work and Agent Orchestration)
+  // Work endpoints (ADR-017: Unified Work Model)
   work: {
-    // List tickets for a project
-    list: (projectId: string, status?: string) => {
-      const params = status ? `?status=${status}` : "";
-      return request<WorkTicket[]>(`/api/projects/${projectId}/work${params}`);
-    },
-
-    // Create and execute immediately (sync)
-    create: (projectId: string, data: WorkTicketCreate) =>
-      request<WorkExecutionResponse>(`/api/projects/${projectId}/work`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
-    // Create ticket for later execution (async)
-    createAsync: (projectId: string, data: WorkTicketCreate) =>
-      request<WorkTicket>(`/api/projects/${projectId}/work/async`, {
-        method: "POST",
-        body: JSON.stringify(data),
-      }),
-
     // Get ticket with outputs
     get: (ticketId: string) =>
       request<WorkTicketDetail>(`/api/work/${ticketId}`),
@@ -336,16 +219,13 @@ export const api = {
         method: "POST",
       }),
 
-    // ADR-017: Unified Work Model endpoints
     // List all work (one-time and recurring) for current user
     listAll: (options?: {
-      projectId?: string;
       activeOnly?: boolean;
       includeCompleted?: boolean;
       limit?: number;
     }) => {
       const params = new URLSearchParams();
-      if (options?.projectId) params.append("project_id", options.projectId);
       if (options?.activeOnly) params.append("active_only", "true");
       if (options?.includeCompleted === false) params.append("include_completed", "false");
       if (options?.limit) params.append("limit", options.limit.toString());
@@ -369,12 +249,7 @@ export const api = {
 
   // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
-    send: (projectId: string, message: string) =>
-      request<{ response: string }>(`/api/projects/${projectId}/chat`, {
-        method: "POST",
-        body: JSON.stringify({ message }),
-      }),
-    // Get global chat history (no project)
+    // Get global chat history
     globalHistory: (limit: number = 1) =>
       request<{
         sessions: Array<{
@@ -389,21 +264,6 @@ export const api = {
           }>;
         }>;
       }>(`/api/chat/history?limit=${limit}`),
-    // Get project chat history
-    history: (projectId: string, limit: number = 1) =>
-      request<{
-        sessions: Array<{
-          id: string;
-          created_at: string;
-          messages: Array<{
-            id: string;
-            role: string;
-            content: string;
-            sequence_number: number;
-            created_at: string;
-          }>;
-        }>;
-      }>(`/api/projects/${projectId}/chat/history?limit=${limit}`),
   },
 
   // Subscription endpoints (Lemon Squeezy)
@@ -593,7 +453,6 @@ export const api = {
         integration_import_jobs: number;
         export_logs: number;
         // Hierarchy
-        projects: number;
         workspaces: number;
       }>("/api/account/danger-zone/stats"),
 

@@ -28,7 +28,6 @@ import {
   Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
-import type { Project } from "@/types";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { UsageIndicator } from "@/components/subscription/UpgradePrompt";
 import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
@@ -38,8 +37,6 @@ import { IntegrationImportModal } from "@/components/IntegrationImportModal";
 import { useTP } from "@/contexts/TPContext";
 
 interface MemoryStats {
-  userMemories: number;
-  projectMemories: Map<string, { name: string; count: number }>;
   totalMemories: number;
 }
 
@@ -58,7 +55,6 @@ interface DangerZoneStats {
   integration_import_jobs: number;
   export_logs: number;
   // Hierarchy
-  projects: number;
   workspaces: number;
 }
 
@@ -111,17 +107,14 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
   const [stats, setStats] = useState<MemoryStats | null>(null);
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
-  const [projects, setProjects] = useState<Project[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
-  const [purgeTarget, setPurgeTarget] = useState<"user" | "project" | "all" | null>(null);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [showConfirm, setShowConfirm] = useState(false);
   const [dangerAction, setDangerAction] = useState<DangerAction>(null);
   const [purgeSuccess, setPurgeSuccess] = useState<string | null>(null);
   const [showSubscriptionSuccess, setShowSubscriptionSuccess] = useState(subscriptionSuccess);
-  const { projects: projectsLimit, isPro } = useSubscriptionGate();
+  const { isPro } = useSubscriptionGate();
 
   // Notification preferences state
   const [notificationPrefs, setNotificationPrefs] = useState<NotificationPreferences | null>(null);
@@ -149,30 +142,9 @@ export default function SettingsPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const userMemories = await api.userMemories.list();
-        const projectList = await api.projects.list();
-        setProjects(projectList);
-
-        const projectMemories = new Map<string, { name: string; count: number }>();
-        let totalProjectMemories = 0;
-
-        for (const project of projectList) {
-          try {
-            const memories = await api.projectMemories.list(project.id);
-            projectMemories.set(project.id, {
-              name: project.name,
-              count: memories.length,
-            });
-            totalProjectMemories += memories.length;
-          } catch {
-            projectMemories.set(project.id, { name: project.name, count: 0 });
-          }
-        }
-
+        const memories = await api.userMemories.list();
         setStats({
-          userMemories: userMemories.length,
-          projectMemories,
-          totalMemories: userMemories.length + totalProjectMemories,
+          totalMemories: memories.length,
         });
       } catch (err) {
         console.error("Failed to fetch stats:", err);
@@ -306,76 +278,8 @@ export default function SettingsPage() {
     }
   };
 
-  // Memory purge handler (existing)
-  const handleMemoryPurge = async () => {
-    if (!purgeTarget) return;
-
-    setIsPurging(true);
-    setPurgeSuccess(null);
-
-    try {
-      if (purgeTarget === "user") {
-        const memories = await api.userMemories.list();
-        for (const mem of memories) {
-          await api.memories.delete(mem.id);
-        }
-        setPurgeSuccess(`Deleted ${memories.length} user memories`);
-      } else if (purgeTarget === "project" && selectedProjectId) {
-        const memories = await api.projectMemories.list(selectedProjectId);
-        for (const mem of memories) {
-          await api.memories.delete(mem.id);
-        }
-        const projectName = stats?.projectMemories.get(selectedProjectId)?.name || "project";
-        setPurgeSuccess(`Deleted ${memories.length} memories from ${projectName}`);
-      } else if (purgeTarget === "all") {
-        const userMemories = await api.userMemories.list();
-        for (const mem of userMemories) {
-          await api.memories.delete(mem.id);
-        }
-        for (const project of projects) {
-          const projectMemories = await api.projectMemories.list(project.id);
-          for (const mem of projectMemories) {
-            await api.memories.delete(mem.id);
-          }
-        }
-        setPurgeSuccess(`Deleted all ${stats?.totalMemories || 0} memories`);
-      }
-
-      // Refresh memory stats
-      setIsLoading(true);
-      const userMemories = await api.userMemories.list();
-      const projectMemories = new Map<string, { name: string; count: number }>();
-      let totalProjectMemories = 0;
-
-      for (const project of projects) {
-        try {
-          const memories = await api.projectMemories.list(project.id);
-          projectMemories.set(project.id, {
-            name: project.name,
-            count: memories.length,
-          });
-          totalProjectMemories += memories.length;
-        } catch {
-          projectMemories.set(project.id, { name: project.name, count: 0 });
-        }
-      }
-
-      setStats({
-        userMemories: userMemories.length,
-        projectMemories,
-        totalMemories: userMemories.length + totalProjectMemories,
-      });
-    } catch (err) {
-      console.error("Purge failed:", err);
-      setPurgeSuccess("Failed to delete memories");
-    } finally {
-      setIsPurging(false);
-      setShowConfirm(false);
-      setPurgeTarget(null);
-      setSelectedProjectId(null);
-      setIsLoading(false);
-    }
-  };
+  // Memory purge is now handled through danger zone actions
+  // The old per-project purge is removed since projects no longer exist
 
   // Danger zone action handler
   const handleDangerAction = async () => {
@@ -449,25 +353,6 @@ export default function SettingsPage() {
       setShowConfirm(false);
       setDangerAction(null);
     }
-  };
-
-  const initiateUserPurge = () => {
-    setPurgeTarget("user");
-    setDangerAction("memories");
-    setShowConfirm(true);
-  };
-
-  const initiateProjectPurge = (projectId: string) => {
-    setPurgeTarget("project");
-    setSelectedProjectId(projectId);
-    setDangerAction("memories");
-    setShowConfirm(true);
-  };
-
-  const initiateAllMemoryPurge = () => {
-    setPurgeTarget("all");
-    setDangerAction("memories");
-    setShowConfirm(true);
   };
 
   const initiateDangerAction = (action: DangerAction) => {
@@ -616,57 +501,27 @@ export default function SettingsPage() {
           <div className="space-y-6">
             <div className="p-4 border border-border rounded-lg">
               <h3 className="font-medium mb-3 flex items-center gap-2">
-                <FolderOpen className="w-4 h-4" />
-                Projects
-              </h3>
-              <UsageIndicator
-                current={projectsLimit.current}
-                limit={projectsLimit.limit}
-                label="Projects created"
-                feature="projects"
-                showUpgrade={!isPro}
-              />
-            </div>
-
-            <div className="p-4 border border-border rounded-lg">
-              <h3 className="font-medium mb-3 flex items-center gap-2">
                 <Brain className="w-4 h-4" />
-                Memories
+                Context
               </h3>
               {isLoading ? (
                 <div className="flex items-center justify-center py-4">
                   <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {projects.map((project) => {
-                    const memCount = stats?.projectMemories.get(project.id)?.count || 0;
-                    const memLimit = isPro ? -1 : SUBSCRIPTION_LIMITS.free.memoriesPerProject;
-                    return (
-                      <UsageIndicator
-                        key={project.id}
-                        current={memCount}
-                        limit={memLimit}
-                        label={project.name}
-                        feature="memories"
-                        showUpgrade={!isPro}
-                      />
-                    );
-                  })}
-                  {projects.length === 0 && (
-                    <p className="text-sm text-muted-foreground">No projects yet</p>
-                  )}
-                </div>
+                <p className="text-sm text-muted-foreground">
+                  {stats?.totalMemories || 0} memories stored
+                </p>
               )}
             </div>
 
             <div className="p-4 border border-border rounded-lg">
               <h3 className="font-medium mb-3 flex items-center gap-2">
-                <FolderOpen className="w-4 h-4" />
+                <FileText className="w-4 h-4" />
                 Documents
               </h3>
               <p className="text-sm text-muted-foreground">
-                {isPro ? "Unlimited document uploads" : `${SUBSCRIPTION_LIMITS.free.documents} documents per project`}
+                {isPro ? "Unlimited document uploads" : "Document uploads included"}
               </p>
             </div>
           </div>
@@ -1105,7 +960,7 @@ export default function SettingsPage() {
           <section className="mb-8">
             <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
               <Brain className="w-5 h-5" />
-              Memory Overview
+              Context Overview
             </h2>
 
             {isLoading ? (
@@ -1120,73 +975,24 @@ export default function SettingsPage() {
                 </div>
 
                 <div className="p-4 border border-border rounded-lg">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <User className="w-5 h-5 text-primary" />
-                      <div>
-                        <div className="font-medium">About You (User Memories)</div>
-                        <div className="text-sm text-muted-foreground">
-                          Portable across all projects
-                        </div>
+                  <div className="flex items-center gap-3">
+                    <Brain className="w-5 h-5 text-primary" />
+                    <div>
+                      <div className="font-medium">Your Context</div>
+                      <div className="text-sm text-muted-foreground">
+                        Accumulated knowledge from your work
                       </div>
-                    </div>
-                    <div className="flex items-center gap-4">
-                      <span className="text-lg font-semibold">{stats.userMemories}</span>
-                      {stats.userMemories > 0 && (
-                        <button
-                          onClick={initiateUserPurge}
-                          className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-                          title="Delete all user memories"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      )}
                     </div>
                   </div>
                 </div>
 
-                {projects.length > 0 && (
-                  <div className="space-y-2">
-                    <div className="text-sm font-medium text-muted-foreground px-1">
-                      Project Memories
-                    </div>
-                    {projects.map((project) => {
-                      const projectStats = stats.projectMemories.get(project.id);
-                      return (
-                        <div key={project.id} className="p-4 border border-border rounded-lg">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <FolderOpen className="w-5 h-5 text-muted-foreground" />
-                              <div>
-                                <div className="font-medium">{project.name}</div>
-                                <div className="text-sm text-muted-foreground">
-                                  Project-specific context
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-4">
-                              <span className="text-lg font-semibold">
-                                {projectStats?.count || 0}
-                              </span>
-                              {(projectStats?.count || 0) > 0 && (
-                                <button
-                                  onClick={() => initiateProjectPurge(project.id)}
-                                  className="p-2 text-muted-foreground hover:text-destructive transition-colors"
-                                  title={`Delete all memories from ${project.name}`}
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
+                <p className="text-sm text-muted-foreground">
+                  Context is automatically organized based on your deliverables.
+                  Use the Account tab to manage your data.
+                </p>
               </div>
             ) : (
-              <div className="text-muted-foreground">Failed to load memory stats</div>
+              <div className="text-muted-foreground">Failed to load context stats</div>
             )}
           </section>
 
@@ -1503,29 +1309,8 @@ export default function SettingsPage() {
             </div>
 
             <div className="text-muted-foreground mb-6">
-              {/* Tier 1: Individual purges from Memory tab */}
-              {dangerAction === "memories" && purgeTarget === "user" && (
-                <p>
-                  Are you sure you want to delete all <strong>{stats?.userMemories}</strong> user
-                  memories? This will remove everything yarnnn has learned about you.
-                </p>
-              )}
-              {dangerAction === "memories" && purgeTarget === "project" && selectedProjectId && (
-                <p>
-                  Are you sure you want to delete all{" "}
-                  <strong>{stats?.projectMemories.get(selectedProjectId)?.count}</strong> memories
-                  from <strong>{stats?.projectMemories.get(selectedProjectId)?.name}</strong>?
-                </p>
-              )}
-              {dangerAction === "memories" && purgeTarget === "all" && (
-                <p>
-                  Are you sure you want to delete <strong>ALL {stats?.totalMemories}</strong>{" "}
-                  memories? This will completely reset yarnnn&apos;s knowledge about you.
-                </p>
-              )}
-
-              {/* Tier 1: Individual purges from Account tab */}
-              {dangerAction === "memories" && !purgeTarget && (
+              {/* Tier 1: Individual purges */}
+              {dangerAction === "memories" && (
                 <p>
                   Are you sure you want to delete all <strong>{dangerStats?.memories}</strong> memories?
                   yarnnn will need to relearn your preferences.
@@ -1603,7 +1388,6 @@ export default function SettingsPage() {
                     <li>{dangerStats?.documents} documents</li>
                     <li>{dangerStats?.work_tickets} work tickets</li>
                     <li>{dangerStats?.user_integrations} integrations</li>
-                    <li>{dangerStats?.projects} projects</li>
                   </ul>
                   <p className="mt-2 text-sm">Your account will remain active with a fresh workspace.</p>
                 </>
@@ -1616,7 +1400,7 @@ export default function SettingsPage() {
                   <p className="mb-2">All your data will be permanently deleted:</p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>All deliverables, memories, documents, and chat history</li>
-                    <li>All projects and workspaces</li>
+                    <li>All workspaces and integrations</li>
                     <li>Your account will be removed from the system</li>
                   </ul>
                   <p className="mt-2 text-sm">
@@ -1630,8 +1414,6 @@ export default function SettingsPage() {
               <button
                 onClick={() => {
                   setShowConfirm(false);
-                  setPurgeTarget(null);
-                  setSelectedProjectId(null);
                   setDangerAction(null);
                 }}
                 className="px-4 py-2 border border-border rounded-md"
@@ -1640,7 +1422,7 @@ export default function SettingsPage() {
                 Cancel
               </button>
               <button
-                onClick={dangerAction === "memories" && purgeTarget ? handleMemoryPurge : handleDangerAction}
+                onClick={handleDangerAction}
                 disabled={isPurging}
                 className="px-4 py-2 bg-destructive text-destructive-foreground rounded-md flex items-center gap-2"
               >

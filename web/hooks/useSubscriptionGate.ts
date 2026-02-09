@@ -2,7 +2,6 @@
 
 import { useMemo } from "react";
 import { useSubscription } from "./useSubscription";
-import { useProjects } from "./useProjects";
 import {
   SUBSCRIPTION_LIMITS,
   checkLimit,
@@ -15,10 +14,6 @@ export interface SubscriptionGate {
   tier: SubscriptionTier;
   isPro: boolean;
   isLoading: boolean;
-
-  // Limit checks
-  projects: LimitStatus;
-  canCreateProject: boolean;
 
   // Actions
   upgrade: (billingPeriod?: "monthly" | "yearly") => Promise<void>;
@@ -35,18 +30,9 @@ export interface SubscriptionGate {
  * Combines subscription status with current usage data.
  */
 export function useSubscriptionGate(): SubscriptionGate {
-  const { status, isPro, isLoading: subLoading, upgrade } = useSubscription();
-  const { projects, isLoading: projectsLoading } = useProjects();
+  const { isPro, isLoading, upgrade } = useSubscription();
 
   const tier: SubscriptionTier = isPro ? "pro" : "free";
-  const isLoading = subLoading || projectsLoading;
-
-  // Project limit check
-  const projectCount = projects?.length ?? 0;
-  const projectsLimit = useMemo(
-    () => checkLimit(tier, "projects", projectCount),
-    [tier, projectCount]
-  );
 
   // Generic limit checker
   const checkFeatureLimit = useMemo(
@@ -64,15 +50,13 @@ export function useSubscriptionGate(): SubscriptionGate {
     tier,
     isPro,
     isLoading,
-    projects: projectsLimit,
-    canCreateProject: !projectsLimit.isAtLimit,
     upgrade,
     checkFeatureLimit,
   };
 }
 
 /**
- * Hook for checking memory limits within a specific project.
+ * Hook for checking memory limits.
  */
 export function useMemoryGate(memoryCount: number) {
   const { tier, isPro, checkFeatureLimit } = useSubscriptionGate();

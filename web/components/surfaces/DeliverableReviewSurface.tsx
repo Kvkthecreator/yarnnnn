@@ -34,7 +34,7 @@ export function DeliverableReviewSurface({
   deliverableId,
   versionId,
 }: DeliverableReviewSurfaceProps) {
-  const { attention, nextAttention, removeAttention, clearSurface, setSurface, setSelectedProject } = useDesk();
+  const { attention, nextAttention, removeAttention, clearSurface, setSurface } = useDesk();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
@@ -58,15 +58,6 @@ export function DeliverableReviewSurface({
       // Cache the deliverable name for TPBar display
       if (detail.deliverable?.title) {
         cacheEntity(deliverableId, detail.deliverable.title, 'deliverable');
-      }
-
-      // Auto-sync project context to match deliverable's project
-      // This ensures TP uses the correct project context when reviewing a deliverable
-      if (detail.deliverable?.project_id && detail.deliverable?.project_name) {
-        setSelectedProject({
-          id: detail.deliverable.project_id,
-          name: detail.deliverable.project_name,
-        });
       }
 
       const targetVersion = detail.versions.find((v) => v.id === versionId);

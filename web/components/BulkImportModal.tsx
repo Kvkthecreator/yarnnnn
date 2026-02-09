@@ -8,22 +8,16 @@ interface BulkImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
-  /** Optional project ID for project-scoped import. Omit for user-level import. */
-  projectId?: string;
 }
 
 /**
  * Modal for bulk importing text as memories.
- *
- * Supports two modes:
- * - User-level: Omit projectId to import user-scoped memories
- * - Project-level: Pass projectId to import project-scoped memories
+ * Imports user-scoped context that yarnnn can use across all work.
  */
 export function BulkImportModal({
   isOpen,
   onClose,
   onSuccess,
-  projectId,
 }: BulkImportModalProps) {
   const [text, setText] = useState("");
   const [isImporting, setIsImporting] = useState(false);
@@ -40,16 +34,7 @@ export function BulkImportModal({
     setError(null);
 
     try {
-      let response: { memories_extracted: number };
-
-      if (projectId) {
-        // Project-scoped import
-        response = await api.projectMemories.importBulk(projectId, { text });
-      } else {
-        // User-level import
-        response = await api.userMemories.importBulk({ text });
-      }
-
+      const response = await api.userMemories.importBulk({ text });
       setResult(response);
 
       // Auto-close after brief success display

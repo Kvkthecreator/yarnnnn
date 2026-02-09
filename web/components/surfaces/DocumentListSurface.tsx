@@ -12,11 +12,7 @@ import { useDesk } from '@/contexts/DeskContext';
 import { formatDistanceToNow } from 'date-fns';
 import type { Document } from '@/types';
 
-interface DocumentListSurfaceProps {
-  projectId?: string;
-}
-
-export function DocumentListSurface({ projectId }: DocumentListSurfaceProps) {
+export function DocumentListSurface() {
   const { setSurface } = useDesk();
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -25,12 +21,12 @@ export function DocumentListSurface({ projectId }: DocumentListSurfaceProps) {
 
   useEffect(() => {
     loadDocuments();
-  }, [projectId]);
+  }, []);
 
   const loadDocuments = async () => {
     setLoading(true);
     try {
-      const response = await api.documents.list(projectId);
+      const response = await api.documents.list();
       setDocuments(response.documents);
     } catch (err) {
       console.error('Failed to load documents:', err);
@@ -45,7 +41,7 @@ export function DocumentListSurface({ projectId }: DocumentListSurfaceProps) {
 
     setUploading(true);
     try {
-      await api.documents.upload(file, projectId);
+      await api.documents.upload(file);
       await loadDocuments();
     } catch (err) {
       console.error('Failed to upload document:', err);

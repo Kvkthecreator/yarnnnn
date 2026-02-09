@@ -128,11 +128,9 @@ interface TPProviderProps {
   children: ReactNode;
   /** Called when TP navigates to a surface. Optional handoffMessage for context continuity. */
   onSurfaceChange?: (surface: DeskSurface, handoffMessage?: string) => void;
-  /** Currently selected project ID for context-scoped history */
-  selectedProjectId?: string | null;
 }
 
-export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPProviderProps) {
+export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const [state, dispatch] = useReducer(tpReducer, initialState);
   const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
   const [status, setStatus] = useState<TPStatus>({ type: 'idle' });
@@ -141,27 +139,19 @@ export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPP
     data: null,
   });
   const abortControllerRef = useRef<AbortController | null>(null);
-  // Track which context we've loaded history for
-  const loadedContextRef = useRef<string | null | undefined>(undefined);
+  // Track if we've loaded history
+  const historyLoadedRef = useRef(false);
 
   // ---------------------------------------------------------------------------
-  // Load chat history when context changes (project vs personal)
+  // Load chat history on mount
   // ---------------------------------------------------------------------------
   useEffect(() => {
-    // Check if context has changed
-    const currentContext = selectedProjectId ?? null;
-    if (loadedContextRef.current === currentContext) return;
-    loadedContextRef.current = currentContext;
+    if (historyLoadedRef.current) return;
+    historyLoadedRef.current = true;
 
     const loadHistory = async () => {
       try {
-        // Clear existing messages when switching context
-        dispatch({ type: 'SET_MESSAGES', messages: [] });
-
-        // Load history based on context
-        const result = selectedProjectId
-          ? await api.chat.history(selectedProjectId, 1)
-          : await api.chat.globalHistory(1);
+        const result = await api.chat.globalHistory(1);
 
         if (result.sessions && result.sessions.length > 0) {
           const session = result.sessions[0];
@@ -182,7 +172,7 @@ export function TPProvider({ children, onSurfaceChange, selectedProjectId }: TPP
     };
 
     loadHistory();
-  }, [selectedProjectId]);
+  }, []);
 
   // ---------------------------------------------------------------------------
   // Send message to TP

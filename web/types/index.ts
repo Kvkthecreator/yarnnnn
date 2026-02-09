@@ -3,26 +3,6 @@
  * ADR-005: Unified memory with embeddings
  */
 
-// Project
-export interface Project {
-  id: string;
-  name: string;
-  description?: string;
-  workspace_id: string;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface ProjectCreate {
-  name: string;
-  description?: string;
-}
-
-export interface ProjectWithCounts extends Project {
-  memory_count: number;
-  ticket_count: number;
-}
-
 // Source types for memories
 export type SourceType = "manual" | "chat" | "document" | "import" | "bulk";
 
@@ -116,14 +96,6 @@ export interface DocumentListResponse {
   total: number;
   limit: number;
   offset: number;
-}
-
-// Context Bundle (for viewing full context)
-export interface ContextBundle {
-  project_id: string;
-  user_memories: Memory[];
-  project_memories: Memory[];
-  documents: Document[];
 }
 
 // Work Ticket
@@ -807,52 +779,8 @@ export interface SkillListResponse {
 }
 
 // =============================================================================
-// ADR-031 Phase 6: Cross-Platform Synthesizers and Project Resources
+// ADR-031 Phase 6: Cross-Platform Synthesizers
 // =============================================================================
-
-// Platform resource linked to a project
-export type ResourcePlatform = "slack" | "gmail" | "notion" | "calendar";
-export type ResourceType = "channel" | "label" | "page" | "database" | "calendar";
-
-export interface ProjectResource {
-  id: string;
-  platform: ResourcePlatform;
-  resource_type: ResourceType;
-  resource_id: string;
-  resource_name?: string;
-  is_primary: boolean;
-  include_filters: Record<string, unknown>;
-  exclude_filters: Record<string, unknown>;
-  last_synced_at?: string;
-}
-
-export interface ProjectResourceCreate {
-  platform: ResourcePlatform;
-  resource_type: string;
-  resource_id: string;
-  resource_name?: string;
-  is_primary?: boolean;
-  include_filters?: Record<string, unknown>;
-}
-
-// Auto-suggested resource for a project
-export interface ResourceSuggestion {
-  platform: string;
-  resource_id: string;
-  resource_name?: string;
-  confidence: number;  // 0-1 score
-  reason: string;
-}
-
-// Context summary for a linked resource
-export interface ContextSummaryItem {
-  platform: string;
-  resource_id: string;
-  resource_name?: string;
-  item_count: number;
-  latest_item?: string;
-  oldest_item?: string;
-}
 
 // Synthesizer types (new deliverable archetypes)
 export type SynthesizerType =

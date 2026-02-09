@@ -20,7 +20,3 @@ export { ContextEditorSurface } from './ContextEditorSurface';
 // Document surfaces
 export { DocumentViewerSurface } from './DocumentViewerSurface';
 export { DocumentListSurface } from './DocumentListSurface';
-
-// Project surfaces
-export { ProjectDetailSurface } from './ProjectDetailSurface';
-export { ProjectListSurface } from './ProjectListSurface';

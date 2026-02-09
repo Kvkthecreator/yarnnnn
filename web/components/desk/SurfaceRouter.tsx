@@ -15,8 +15,6 @@ import { ContextBrowserSurface } from '@/components/surfaces/ContextBrowserSurfa
 import { ContextEditorSurface } from '@/components/surfaces/ContextEditorSurface';
 import { DocumentViewerSurface } from '@/components/surfaces/DocumentViewerSurface';
 import { DocumentListSurface } from '@/components/surfaces/DocumentListSurface';
-import { ProjectDetailSurface } from '@/components/surfaces/ProjectDetailSurface';
-import { ProjectListSurface } from '@/components/surfaces/ProjectListSurface';
 import { PlatformListSurface } from '@/components/surfaces/PlatformListSurface';
 import { PlatformDetailSurface } from '@/components/surfaces/PlatformDetailSurface';
 import { IdleSurface } from '@/components/surfaces/IdleSurface';
@@ -60,13 +58,7 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
       return <DocumentViewerSurface documentId={surface.documentId} />;
 
     case 'document-list':
-      return <DocumentListSurface projectId={surface.projectId} />;
-
-    case 'project-detail':
-      return <ProjectDetailSurface projectId={surface.projectId} />;
-
-    case 'project-list':
-      return <ProjectListSurface />;
+      return <DocumentListSurface />;
 
     case 'platform-list':
       return <PlatformListSurface />;

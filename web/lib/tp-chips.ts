@@ -1,5 +1,7 @@
 /**
  * ADR-023: Supervisor Desk Architecture
+ * ADR-034: Context (emergent domains)
+ *
  * TP Chip utilities - human-readable labels for TP state indicators
  */
 
@@ -30,10 +32,10 @@ export function getSurfaceLabel(surface: DeskSurface): string {
       return 'Document';
     case 'document-list':
       return 'Documents';
-    case 'project-detail':
-      return 'Project';
-    case 'project-list':
-      return 'Projects';
+    case 'platform-list':
+      return 'Platforms';
+    case 'platform-detail':
+      return 'Platform';
     default:
       return 'Dashboard';
   }
@@ -60,27 +62,25 @@ export function getSurfaceIcon(surface: DeskSurface): string {
     case 'document-viewer':
     case 'document-list':
       return 'FileText';
-    case 'project-detail':
-    case 'project-list':
-      return 'Folder';
+    case 'platform-list':
+    case 'platform-detail':
+      return 'Plug';
     default:
       return 'LayoutDashboard';
   }
 }
 
 /**
- * Context scope - what context basket TP is working under
- * This is inferred from the current surface
+ * Context scope - what context TP is working under
+ * ADR-034: Context is the user's accumulated knowledge, auto-scoped by deliverable
  */
 export type ContextScope =
   | { type: 'user'; label: 'Your context' }
-  | { type: 'deliverable'; label: string; deliverableId: string }
-  | { type: 'domain'; label: string; domainId: string };
+  | { type: 'deliverable'; label: string; deliverableId: string };
 
 /**
  * Get context scope from surface
- * Note: For now, this is a simple mapping. In the future,
- * this could be enhanced with actual deliverable/project names from an API call.
+ * Context is automatically scoped when viewing a deliverable
  */
 export function getContextScope(surface: DeskSurface): ContextScope {
   switch (surface.type) {
@@ -91,22 +91,12 @@ export function getContextScope(surface: DeskSurface): ContextScope {
         label: 'Deliverable context',
         deliverableId: surface.deliverableId,
       };
-    case 'project-detail':
-      // Projects map to user context (domains are the new scoping mechanism)
-      return { type: 'user', label: 'Your context' };
     case 'context-browser':
       if (surface.scope === 'deliverable' && surface.scopeId) {
         return {
           type: 'deliverable',
           label: 'Deliverable context',
           deliverableId: surface.scopeId,
-        };
-      }
-      if (surface.scope === 'domain' && surface.scopeId) {
-        return {
-          type: 'domain',
-          label: 'Domain context',
-          domainId: surface.scopeId,
         };
       }
       return { type: 'user', label: 'Your context' };
@@ -124,7 +114,7 @@ export interface TPStateIndicators {
     label: string;
     icon: string;
   };
-  /** What context basket TP is working under */
+  /** What context TP is working under */
   context: ContextScope;
   /** Deliverable focus (if any) */
   deliverable: {
@@ -151,7 +141,7 @@ export function getTPStateIndicators(surface: DeskSurface): TPStateIndicators {
   if (surface.type === 'deliverable-detail' || surface.type === 'deliverable-review') {
     deliverable = {
       active: true,
-      label: 'Active', // Could be enhanced with actual deliverable name
+      label: 'Active',
       id: surface.deliverableId,
     };
   }
