@@ -753,6 +753,9 @@ export interface DeliverableVersion {
   delivery_external_id?: string;
   delivery_external_url?: string;
   delivered_at?: string;
+  delivery_error?: string;
+  // ADR-032: Platform-centric draft delivery
+  delivery_mode?: 'draft' | 'direct';
 }
 
 // ADR-018: Feedback summary for learned preferences
