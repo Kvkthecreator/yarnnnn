@@ -890,6 +890,22 @@ export const api = {
           body: JSON.stringify({ coverage_state: coverageState }),
         }
       ),
+
+    // ADR-033: Get integrations summary for Dashboard platform cards
+    getSummary: () =>
+      request<{
+        platforms: Array<{
+          provider: string;
+          status: string;
+          workspace_name: string | null;
+          connected_at: string;
+          resource_count: number;
+          resource_type: string;
+          deliverable_count: number;
+          activity_7d: number;
+        }>;
+        total_deliverables: number;
+      }>("/api/integrations/summary"),
   },
 };
 

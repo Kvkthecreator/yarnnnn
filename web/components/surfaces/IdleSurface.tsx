@@ -32,12 +32,15 @@ import {
   Minus,
   Plus,
   FolderOpen,
+  Settings,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP } from '@/contexts/TPContext';
 import { useOnboardingState } from '@/hooks/useOnboardingState';
 import { WelcomePrompt, MinimalContextBanner } from '@/components/WelcomePrompt';
+import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
+import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import { formatDistanceToNow } from 'date-fns';
 import type { Deliverable, ScheduleConfig, Work, Document as DocType } from '@/types';
 
@@ -363,6 +366,18 @@ export function IdleSurface() {
             )}
           </div>
         )}
+
+        {/* ADR-033: Platform Cards - Forest View */}
+        <PlatformCardGrid
+          onPlatformClick={(platform: PlatformSummary) => {
+            // TODO: Phase 2 - Open PlatformDetailPanel
+            console.log('Platform clicked:', platform.provider);
+          }}
+          onAddPlatformClick={() => {
+            // Navigate to settings/integrations
+            window.location.href = '/settings';
+          }}
+        />
 
         {/* Upcoming Schedule (primary focus) */}
         <DashboardSection

@@ -1672,3 +1672,112 @@ async def update_coverage(
         }).execute()
 
     return {"success": True, "resource_id": resource_id, "coverage_state": request.coverage_state}
+
+
+# =============================================================================
+# Integration Summary (ADR-033: Dashboard Platform Cards)
+# =============================================================================
+
+class PlatformSummary(BaseModel):
+    """Summary of a single platform integration for Dashboard cards."""
+    provider: str
+    status: str  # active, error, expired
+    workspace_name: Optional[str] = None
+    connected_at: datetime
+    resource_count: int = 0
+    resource_type: str = ""  # channels, labels, pages
+    deliverable_count: int = 0
+    activity_7d: int = 0  # messages/emails/updates in last 7 days
+
+
+class IntegrationsSummaryResponse(BaseModel):
+    """
+    ADR-033: Summary of all integrations for Dashboard platform cards.
+
+    Provides aggregated stats for each connected platform:
+    - Connection status
+    - Resource counts (channels, labels, pages)
+    - Deliverable counts targeting this platform
+    - Recent activity from ephemeral context
+    """
+    platforms: list[PlatformSummary]
+    total_deliverables: int = 0
+
+
+@router.get("/integrations/summary")
+async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryResponse:
+    """
+    Get summary of all integrations for Dashboard platform cards.
+
+    ADR-033 Phase 1: Returns aggregated stats for each connected platform
+    to power the Dashboard's forest view.
+    """
+    user_id = auth.user_id
+
+    try:
+        # Get all integrations
+        integrations_result = auth.client.table("user_integrations").select(
+            "id, provider, status, metadata, landscape, created_at"
+        ).eq("user_id", user_id).execute()
+
+        if not integrations_result.data:
+            return IntegrationsSummaryResponse(platforms=[], total_deliverables=0)
+
+        platforms = []
+        for integration in integrations_result.data:
+            provider = integration["provider"]
+            metadata = integration.get("metadata", {}) or {}
+            landscape = integration.get("landscape", {}) or {}
+            resources = landscape.get("resources", [])
+
+            # Determine resource type name
+            resource_type = {
+                "slack": "channels",
+                "gmail": "labels",
+                "notion": "pages",
+                "google": "calendars"
+            }.get(provider, "resources")
+
+            # Count deliverables targeting this platform
+            deliverables_result = auth.client.table("deliverables").select(
+                "id", count="exact"
+            ).eq("user_id", user_id).contains(
+                "destination", {"platform": provider}
+            ).execute()
+            deliverable_count = deliverables_result.count or 0
+
+            # Count recent activity from ephemeral_context (last 7 days)
+            from datetime import timedelta
+            seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
+            activity_result = auth.client.table("ephemeral_context").select(
+                "id", count="exact"
+            ).eq("user_id", user_id).eq(
+                "platform", provider
+            ).gte("created_at", seven_days_ago).execute()
+            activity_7d = activity_result.count or 0
+
+            platforms.append(PlatformSummary(
+                provider=provider,
+                status=integration["status"],
+                workspace_name=metadata.get("workspace_name"),
+                connected_at=integration["created_at"],
+                resource_count=len(resources),
+                resource_type=resource_type,
+                deliverable_count=deliverable_count,
+                activity_7d=activity_7d
+            ))
+
+        # Total deliverables count
+        total_result = auth.client.table("deliverables").select(
+            "id", count="exact"
+        ).eq("user_id", user_id).execute()
+        total_deliverables = total_result.count or 0
+
+        return IntegrationsSummaryResponse(
+            platforms=platforms,
+            total_deliverables=total_deliverables
+        )
+
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to get summary for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get integrations summary")
