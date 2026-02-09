@@ -26,18 +26,11 @@ export function PlatformListSurface() {
     });
   };
 
-  const handleAddPlatform = () => {
-    window.location.href = '/settings';
-  };
-
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
         <h1 className="text-lg font-semibold mb-6">Platforms</h1>
-        <PlatformCardGrid
-          onPlatformClick={handlePlatformClick}
-          onAddPlatformClick={handleAddPlatform}
-        />
+        <PlatformCardGrid onPlatformClick={handlePlatformClick} />
       </div>
     </div>
   );

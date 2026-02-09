@@ -293,10 +293,6 @@ export function IdleSurface() {
               platform: platform.provider as 'slack' | 'notion' | 'gmail' | 'google',
             });
           }}
-          onAddPlatformClick={() => {
-            // Navigate to settings/integrations
-            window.location.href = '/settings';
-          }}
         />
 
         {/* Upcoming Schedule (primary focus) */}

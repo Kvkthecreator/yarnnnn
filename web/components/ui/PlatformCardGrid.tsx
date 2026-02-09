@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import { useState, useEffect, useCallback } from 'react';
-import { PlatformCard, AddPlatformCard, type PlatformSummary } from './PlatformCard';
+import { PlatformCard, type PlatformSummary } from './PlatformCard';
 import { Loader2, RefreshCw } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import api from '@/lib/api/client';
@@ -16,13 +16,11 @@ import api from '@/lib/api/client';
 
 interface PlatformCardGridProps {
   onPlatformClick?: (platform: PlatformSummary) => void;
-  onAddPlatformClick?: () => void;
   className?: string;
 }
 
 export function PlatformCardGrid({
   onPlatformClick,
-  onAddPlatformClick,
   className,
 }: PlatformCardGridProps) {
   const [platforms, setPlatforms] = useState<PlatformSummary[]>([]);
@@ -110,9 +108,6 @@ export function PlatformCardGrid({
             onClick={onPlatformClick ? () => onPlatformClick(platform) : undefined}
           />
         ))}
-
-        {/* Add platform card - always show if user can add more */}
-        <AddPlatformCard onClick={onAddPlatformClick} />
       </div>
 
       {/* Empty state message when no platforms connected */}
