@@ -35,7 +35,6 @@ import {
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { usePlatformOnboardingState } from '@/hooks/usePlatformOnboardingState';
-import { DeliverableCreateWizard } from '@/components/modals/DeliverableCreateWizard';
 import {
   PlatformOnboardingPrompt,
   PlatformSyncingBanner,
@@ -87,12 +86,6 @@ interface DashboardData {
 
 export function IdleSurface() {
   const { setSurface, attention, refreshAttention } = useDesk();
-
-  // ADR-032: Create wizard state
-  const [createWizardOpen, setCreateWizardOpen] = useState(false);
-  const [wizardInitialDestination, setWizardInitialDestination] = useState<
-    { platform: string; format?: string } | undefined
-  >(undefined);
 
   // ADR-033: Platform-first onboarding state
   const {
@@ -399,9 +392,9 @@ export function IdleSurface() {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-3 gap-3">
-          {/* Create Deliverable - Primary (ADR-032: Opens wizard) */}
+          {/* Create Deliverable - Primary (ADR-035: Full-screen surface) */}
           <button
-            onClick={() => setCreateWizardOpen(true)}
+            onClick={() => setSurface({ type: 'deliverable-create' })}
             className="p-4 border-2 border-dashed border-primary/30 rounded-lg hover:border-primary/50 hover:bg-primary/5 text-left"
           >
             <div className="flex items-center gap-2 mb-1">
@@ -440,26 +433,6 @@ export function IdleSurface() {
           </button>
         </div>
       </div>
-
-      {/* ADR-032: Deliverable Create Wizard */}
-      <DeliverableCreateWizard
-        open={createWizardOpen}
-        onClose={() => {
-          setCreateWizardOpen(false);
-          setWizardInitialDestination(undefined);
-        }}
-        onCreated={(deliverable) => {
-          // Refresh dashboard data and navigate to the new deliverable
-          loadDashboardData();
-          refreshAttention();
-          setSurface({
-            type: 'deliverable-detail',
-            deliverableId: deliverable.id,
-          });
-        }}
-        initialDestination={wizardInitialDestination as any}
-        suggestedPlatform={wizardInitialDestination?.platform as any}
-      />
     </div>
   );
 }

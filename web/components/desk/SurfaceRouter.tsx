@@ -17,6 +17,7 @@ import { DocumentViewerSurface } from '@/components/surfaces/DocumentViewerSurfa
 import { DocumentListSurface } from '@/components/surfaces/DocumentListSurface';
 import { PlatformListSurface } from '@/components/surfaces/PlatformListSurface';
 import { PlatformDetailSurface } from '@/components/surfaces/PlatformDetailSurface';
+import { DeliverableCreateSurface } from '@/components/surfaces/DeliverableCreateSurface';
 import { IdleSurface } from '@/components/surfaces/IdleSurface';
 import { HandoffBanner } from './HandoffBanner';
 
@@ -65,6 +66,9 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
 
     case 'platform-detail':
       return <PlatformDetailSurface platform={surface.platform} />;
+
+    case 'deliverable-create':
+      return <DeliverableCreateSurface initialPlatform={surface.initialPlatform} />;
 
     case 'idle':
     default:
