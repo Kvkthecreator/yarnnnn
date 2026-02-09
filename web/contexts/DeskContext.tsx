@@ -241,6 +241,10 @@ export function DeskProvider({ children }: DeskProviderProps) {
         const current = state.surface as { type: 'project-detail'; projectId: string };
         const url = surfaceFromUrl as { type: 'project-detail'; projectId: string };
         shouldUpdate = current.projectId !== url.projectId;
+      } else if (currentType === 'platform-detail') {
+        const current = state.surface as { type: 'platform-detail'; platform: string };
+        const url = surfaceFromUrl as { type: 'platform-detail'; platform: string };
+        shouldUpdate = current.platform !== url.platform;
       }
     }
 

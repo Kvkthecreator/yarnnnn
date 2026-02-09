@@ -24,6 +24,8 @@ export type DeskSurface =
   // Projects domain
   | { type: 'project-detail'; projectId: string }
   | { type: 'project-list' }
+  // Platforms domain (ADR-033 Phase 4)
+  | { type: 'platform-detail'; platform: 'slack' | 'notion' | 'gmail' | 'google' }
   // Idle state
   | { type: 'idle' };
 
@@ -200,6 +202,14 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'project-list':
       return { type: 'project-list' };
 
+    // Platforms (ADR-033 Phase 4)
+    case 'platform':
+    case 'platform-detail':
+      return {
+        type: 'platform-detail',
+        platform: data.platform as 'slack' | 'notion' | 'gmail' | 'google',
+      };
+
     // Dashboard/Home
     case 'dashboard':
     case 'home':
@@ -251,6 +261,9 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
       break;
     case 'project-detail':
       params.set('pid', surface.projectId);
+      break;
+    case 'platform-detail':
+      params.set('platform', surface.platform);
       break;
   }
 
@@ -309,6 +322,13 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
     }
     case 'project-list':
       return { type: 'project-list' };
+    case 'platform-detail': {
+      const platform = params.get('platform');
+      if (platform && ['slack', 'notion', 'gmail', 'google'].includes(platform)) {
+        return { type: 'platform-detail', platform: platform as 'slack' | 'notion' | 'gmail' | 'google' };
+      }
+      break;
+    }
   }
 
   return { type: 'idle' };

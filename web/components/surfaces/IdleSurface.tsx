@@ -555,8 +555,14 @@ export function IdleSurface() {
           });
         }}
         onFullViewClick={() => {
-          // TODO: Phase 4 - Navigate to full platform surface
-          setPlatformPanelOpen(false);
+          // ADR-033 Phase 4: Navigate to full platform surface
+          if (selectedPlatform) {
+            setPlatformPanelOpen(false);
+            setSurface({
+              type: 'platform-detail',
+              platform: selectedPlatform.provider as 'slack' | 'notion' | 'gmail' | 'google',
+            });
+          }
         }}
       />
     </div>
