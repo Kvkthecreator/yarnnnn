@@ -42,7 +42,6 @@ import {
   NoPlatformsBanner,
 } from '@/components/PlatformOnboardingPrompt';
 import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
-import { PlatformDetailPanel } from '@/components/ui/PlatformDetailPanel';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import { formatDistanceToNow } from 'date-fns';
 import type { Deliverable, ScheduleConfig, Work, Document as DocType } from '@/types';
@@ -108,10 +107,6 @@ export function IdleSurface() {
 
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<DashboardData | null>(null);
-
-  // ADR-033 Phase 2: Platform detail panel state
-  const [selectedPlatform, setSelectedPlatform] = useState<PlatformSummary | null>(null);
-  const [platformPanelOpen, setPlatformPanelOpen] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -292,8 +287,11 @@ export function IdleSurface() {
         {/* ADR-033: Platform Cards - Forest View */}
         <PlatformCardGrid
           onPlatformClick={(platform: PlatformSummary) => {
-            setSelectedPlatform(platform);
-            setPlatformPanelOpen(true);
+            // Navigate directly to full platform surface (no drawer)
+            setSurface({
+              type: 'platform-detail',
+              platform: platform.provider as 'slack' | 'notion' | 'gmail' | 'google',
+            });
           }}
           onAddPlatformClick={() => {
             // Navigate to settings/integrations
@@ -446,53 +444,6 @@ export function IdleSurface() {
           </button>
         </div>
       </div>
-
-      {/* ADR-033 Phase 2: Platform Detail Panel */}
-      <PlatformDetailPanel
-        platform={selectedPlatform}
-        isOpen={platformPanelOpen}
-        onClose={() => {
-          setPlatformPanelOpen(false);
-          setSelectedPlatform(null);
-        }}
-        onResourceClick={(resourceId, resourceName) => {
-          // Navigate to context browser filtered by this resource
-          setPlatformPanelOpen(false);
-          setSurface({
-            type: 'context-browser',
-            scope: 'user',
-            // TODO: Add resource filter when context browser supports it
-          });
-        }}
-        onDeliverableClick={(deliverableId) => {
-          setPlatformPanelOpen(false);
-          setSurface({
-            type: 'deliverable-detail',
-            deliverableId,
-          });
-        }}
-        onFullViewClick={() => {
-          // ADR-033 Phase 4: Navigate to full platform surface
-          if (selectedPlatform) {
-            setPlatformPanelOpen(false);
-            setSurface({
-              type: 'platform-detail',
-              platform: selectedPlatform.provider as 'slack' | 'notion' | 'gmail' | 'google',
-            });
-          }
-        }}
-        onCreateDeliverableClick={() => {
-          // ADR-032: Open wizard with pre-filled destination
-          if (selectedPlatform) {
-            setPlatformPanelOpen(false);
-            setWizardInitialDestination({
-              platform: selectedPlatform.provider,
-              format: 'draft', // Default to draft mode
-            });
-            setCreateWizardOpen(true);
-          }
-        }}
-      />
 
       {/* ADR-032: Deliverable Create Wizard */}
       <DeliverableCreateWizard
