@@ -40,6 +40,7 @@ import { useTP } from '@/contexts/TPContext';
 import { useOnboardingState } from '@/hooks/useOnboardingState';
 import { WelcomePrompt, MinimalContextBanner } from '@/components/WelcomePrompt';
 import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
+import { PlatformDetailPanel } from '@/components/ui/PlatformDetailPanel';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import { formatDistanceToNow } from 'date-fns';
 import type { Deliverable, ScheduleConfig, Work, Document as DocType } from '@/types';
@@ -101,6 +102,10 @@ export function IdleSurface() {
   const [pasteModalOpen, setPasteModalOpen] = useState(false);
   const [pasteContent, setPasteContent] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ADR-033 Phase 2: Platform detail panel state
+  const [selectedPlatform, setSelectedPlatform] = useState<PlatformSummary | null>(null);
+  const [platformPanelOpen, setPlatformPanelOpen] = useState(false);
 
   useEffect(() => {
     loadDashboardData();
@@ -370,8 +375,8 @@ export function IdleSurface() {
         {/* ADR-033: Platform Cards - Forest View */}
         <PlatformCardGrid
           onPlatformClick={(platform: PlatformSummary) => {
-            // TODO: Phase 2 - Open PlatformDetailPanel
-            console.log('Platform clicked:', platform.provider);
+            setSelectedPlatform(platform);
+            setPlatformPanelOpen(true);
           }}
           onAddPlatformClick={() => {
             // Navigate to settings/integrations
@@ -524,6 +529,36 @@ export function IdleSurface() {
           </button>
         </div>
       </div>
+
+      {/* ADR-033 Phase 2: Platform Detail Panel */}
+      <PlatformDetailPanel
+        platform={selectedPlatform}
+        isOpen={platformPanelOpen}
+        onClose={() => {
+          setPlatformPanelOpen(false);
+          setSelectedPlatform(null);
+        }}
+        onResourceClick={(resourceId, resourceName) => {
+          // Navigate to context browser filtered by this resource
+          setPlatformPanelOpen(false);
+          setSurface({
+            type: 'context-browser',
+            scope: 'user',
+            // TODO: Add resource filter when context browser supports it
+          });
+        }}
+        onDeliverableClick={(deliverableId) => {
+          setPlatformPanelOpen(false);
+          setSurface({
+            type: 'deliverable-detail',
+            deliverableId,
+          });
+        }}
+        onFullViewClick={() => {
+          // TODO: Phase 4 - Navigate to full platform surface
+          setPlatformPanelOpen(false);
+        }}
+      />
     </div>
   );
 }
