@@ -170,13 +170,12 @@ export function IdleSurface() {
   // =============================================================================
 
   // Show full platform onboarding if:
-  // 1. Onboarding state is no_platforms
-  // 2. No deliverables exist (fallback check)
-  // 3. User hasn't dismissed the onboarding
+  // 1. Onboarding state is no_platforms (no integrations connected)
+  // 2. User hasn't dismissed the onboarding
+  // Note: We no longer use "no deliverables" as a fallback - users with platforms
+  // but no deliverables should see the dashboard with platform cards, not onboarding.
   const showPlatformOnboarding =
-    !isDismissed &&
-    (onboardingState === 'no_platforms' ||
-      (!data?.deliverables || data.deliverables.length === 0));
+    !isDismissed && onboardingState === 'no_platforms';
 
   if (showPlatformOnboarding) {
     return (
