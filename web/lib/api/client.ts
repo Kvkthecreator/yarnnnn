@@ -202,15 +202,19 @@ export const api = {
       }),
   },
 
-  // Project memories (project-scoped)
+  // DEPRECATED: Project memories (use domains.memories instead)
+  // Project-scoped memory routes are deprecated in favor of domain-based scoping (ADR-034)
   projectMemories: {
+    /** @deprecated Use domains.memories.list(domainId) instead */
     list: (projectId: string) =>
       request<Memory[]>(`/api/context/projects/${projectId}/memories`),
+    /** @deprecated Use domains.memories.create(domainId, data) instead */
     create: (projectId: string, data: MemoryCreate) =>
       request<Memory>(`/api/context/projects/${projectId}/memories`, {
         method: "POST",
         body: JSON.stringify(data),
       }),
+    /** @deprecated Use domain-based import flow instead */
     importBulk: (projectId: string, data: BulkImportRequest) =>
       request<BulkImportResponse>(
         `/api/context/projects/${projectId}/memories/import`,
@@ -234,8 +238,9 @@ export const api = {
       }),
   },
 
-  // Context bundle (full context for a project)
+  // DEPRECATED: Context bundle (use domains.get instead)
   context: {
+    /** @deprecated Use domains.get(domainId) instead */
     getBundle: (projectId: string) =>
       request<ContextBundle>(`/api/context/projects/${projectId}/context`),
   },
@@ -912,7 +917,7 @@ export const api = {
       }>("/api/integrations/summary"),
   },
 
-  // ADR-034: Context Domains
+  // ADR-034: Context Domains (Context v2)
   domains: {
     // List user's domains with summary stats
     list: () =>
@@ -944,6 +949,20 @@ export const api = {
         "/api/domains/recompute",
         { method: "POST" }
       ),
+
+    // Domain memories (Context v2 - replaces projectMemories)
+    memories: {
+      // List memories in a domain
+      list: (domainId: string) =>
+        request<Memory[]>(`/api/domains/${domainId}/memories`),
+
+      // Create a memory in a domain
+      create: (domainId: string, data: MemoryCreate) =>
+        request<Memory>(`/api/domains/${domainId}/memories`, {
+          method: "POST",
+          body: JSON.stringify(data),
+        }),
+    },
   },
 };
 

@@ -1,18 +1,22 @@
 """
 Domain routes - ADR-034 Emergent Context Domains
 
-Endpoints for domain management and lookup.
+Endpoints for domain management and memory access.
 Domains emerge from deliverable source patterns - users don't manage them directly,
 but can view and rename them.
+
+Context v2: Domains replace project-based context scoping.
 """
 
 import logging
+from datetime import datetime
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
 
 from services.supabase import UserClient
+from services.extraction import create_memory_manual
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/domains", tags=["domains"])
@@ -50,6 +54,35 @@ class DomainDetail(BaseModel):
 class DomainUpdateRequest(BaseModel):
     """Request to update domain (rename)."""
     name: str
+
+
+class MemoryResponse(BaseModel):
+    """Memory item response."""
+    id: str
+    content: str
+    tags: list[str]
+    entities: dict
+    importance: float
+    source_type: str
+    source_ref: Optional[dict] = None
+    domain_id: Optional[str] = None
+    is_active: bool
+    created_at: datetime
+    updated_at: datetime
+
+
+class MemoryCreate(BaseModel):
+    """Request to create a memory."""
+    content: str
+    tags: list[str] = []
+    importance: float = 0.5
+
+
+class MemoryUpdate(BaseModel):
+    """Request to update a memory."""
+    content: Optional[str] = None
+    tags: Optional[list[str]] = None
+    importance: Optional[float] = None
 
 
 # =============================================================================
@@ -275,4 +308,101 @@ async def trigger_recompute(auth: UserClient):
         }
     except Exception as e:
         logger.error(f"Failed to recompute domains: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# Domain Memory Routes (Context v2)
+# =============================================================================
+
+@router.get("/{domain_id}/memories", response_model=list[MemoryResponse])
+async def list_domain_memories(domain_id: UUID, auth: UserClient):
+    """
+    List all memories in a domain.
+
+    For default domain, returns user-scoped memories (previously "personal" context).
+    For other domains, returns domain-scoped memories.
+    """
+    try:
+        # Verify domain ownership
+        domain_result = auth.client.table("context_domains")\
+            .select("id, is_default")\
+            .eq("id", str(domain_id))\
+            .eq("user_id", auth.user_id)\
+            .single()\
+            .execute()
+
+        if not domain_result.data:
+            raise HTTPException(status_code=404, detail="Domain not found")
+
+        is_default = domain_result.data["is_default"]
+
+        if is_default:
+            # Default domain: get user-scoped memories (domain_id is null or matches)
+            result = auth.client.table("memories")\
+                .select("*")\
+                .eq("user_id", auth.user_id)\
+                .eq("is_active", True)\
+                .or_(f"domain_id.is.null,domain_id.eq.{domain_id}")\
+                .order("importance", desc=True)\
+                .execute()
+        else:
+            # Non-default domain: get domain-scoped memories
+            result = auth.client.table("memories")\
+                .select("*")\
+                .eq("domain_id", str(domain_id))\
+                .eq("is_active", True)\
+                .order("importance", desc=True)\
+                .execute()
+
+        return result.data or []
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to list domain memories: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/{domain_id}/memories", response_model=MemoryResponse)
+async def create_domain_memory(domain_id: UUID, memory: MemoryCreate, auth: UserClient):
+    """
+    Create a memory in a domain.
+
+    For default domain, creates user-scoped memory.
+    For other domains, creates domain-scoped memory.
+    """
+    try:
+        # Verify domain ownership
+        domain_result = auth.client.table("context_domains")\
+            .select("id, is_default")\
+            .eq("id", str(domain_id))\
+            .eq("user_id", auth.user_id)\
+            .single()\
+            .execute()
+
+        if not domain_result.data:
+            raise HTTPException(status_code=404, detail="Domain not found")
+
+        is_default = domain_result.data["is_default"]
+
+        # Create memory with domain_id (null for default domain = user-scoped)
+        result = await create_memory_manual(
+            user_id=auth.user_id,
+            content=memory.content,
+            db_client=auth.client,
+            domain_id=None if is_default else str(domain_id),
+            tags=memory.tags,
+            importance=memory.importance
+        )
+
+        if not result:
+            raise HTTPException(status_code=400, detail="Failed to create memory")
+
+        return result
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Failed to create domain memory: {e}")
         raise HTTPException(status_code=500, detail=str(e))

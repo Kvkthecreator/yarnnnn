@@ -2,18 +2,27 @@
 Context routes - Memory management
 
 ADR-005: Unified memory with embeddings
+ADR-034: Context v2 - Domain-based scoping replaces project-based
 
-Endpoints:
+User-scoped endpoints (maps to default domain):
 - GET /user/memories - List user-scoped memories
 - POST /user/memories - Create user memory manually
+- POST /user/memories/import - Bulk import text (user-scoped)
+- GET /user/onboarding-state - Get onboarding state
+
+Memory management:
 - PATCH /memories/:id - Update memory
 - DELETE /memories/:id - Soft-delete memory
-- GET /projects/:id/memories - List project memories
-- POST /projects/:id/memories - Create project memory manually
-- POST /projects/:id/memories/import - Bulk import text → extract memories
-- GET /projects/:id/context - Get full context bundle
-- POST /projects/:id/documents - Upload document
-- GET /projects/:id/documents - List documents
+
+Document routes:
+- GET /documents/:id - Get document
+- DELETE /documents/:id - Delete document
+
+DEPRECATED (use /api/domains/{domain_id}/memories instead):
+- GET /projects/:id/memories
+- POST /projects/:id/memories
+- POST /projects/:id/memories/import
+- GET /projects/:id/context
 """
 
 import asyncio
@@ -244,11 +253,15 @@ async def create_user_memory(memory: MemoryCreate, auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- Project Memory Routes ---
+# --- Project Memory Routes (DEPRECATED - use /api/domains/{domain_id}/memories) ---
 
-@router.get("/projects/{project_id}/memories", response_model=list[MemoryResponse])
+@router.get("/projects/{project_id}/memories", response_model=list[MemoryResponse], deprecated=True)
 async def list_project_memories(project_id: UUID, auth: UserClient):
-    """List all memories for a project (project-scoped only)."""
+    """
+    DEPRECATED: Use GET /api/domains/{domain_id}/memories instead.
+
+    List all memories for a project (project-scoped only).
+    """
     try:
         # Verify project access
         project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
@@ -272,9 +285,13 @@ async def list_project_memories(project_id: UUID, auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/projects/{project_id}/memories", response_model=MemoryResponse)
+@router.post("/projects/{project_id}/memories", response_model=MemoryResponse, deprecated=True)
 async def create_project_memory(project_id: UUID, memory: MemoryCreate, auth: UserClient):
-    """Create a project-scoped memory manually."""
+    """
+    DEPRECATED: Use POST /api/domains/{domain_id}/memories instead.
+
+    Create a project-scoped memory manually.
+    """
     try:
         # Verify project access
         project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
@@ -303,9 +320,11 @@ async def create_project_memory(project_id: UUID, memory: MemoryCreate, auth: Us
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@router.post("/projects/{project_id}/memories/import", response_model=BulkImportResponse)
+@router.post("/projects/{project_id}/memories/import", response_model=BulkImportResponse, deprecated=True)
 async def import_memories(project_id: UUID, request: BulkImportRequest, auth: UserClient):
     """
+    DEPRECATED: Use domain-based import flow instead.
+
     Bulk import: paste text → extract memories.
 
     Takes raw text (notes, meeting transcripts, documents) and uses LLM
@@ -403,11 +422,15 @@ async def delete_memory(memory_id: UUID, auth: UserClient):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- Context Bundle Route ---
+# --- Context Bundle Route (DEPRECATED) ---
 
-@router.get("/projects/{project_id}/context", response_model=ContextBundleResponse)
+@router.get("/projects/{project_id}/context", response_model=ContextBundleResponse, deprecated=True)
 async def get_context_bundle(project_id: UUID, auth: UserClient):
-    """Get full context bundle (user memories + project memories + documents)."""
+    """
+    DEPRECATED: Use GET /api/domains/{domain_id} instead.
+
+    Get full context bundle (user memories + project memories + documents).
+    """
     try:
         # Verify project access
         project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()

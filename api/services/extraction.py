@@ -400,9 +400,10 @@ async def create_memory_manual(
     user_id: str,
     content: str,
     db_client,
-    project_id: Optional[str] = None,
+    project_id: Optional[str] = None,  # Deprecated: use domain_id
     tags: list[str] = None,
-    importance: float = 0.5
+    importance: float = 0.5,
+    domain_id: Optional[str] = None  # ADR-034: Domain for routing
 ) -> dict:
     """
     Create a memory manually (user-entered).
@@ -411,9 +412,10 @@ async def create_memory_manual(
         user_id: User UUID
         content: Memory content
         db_client: Supabase client
-        project_id: Optional project UUID (None = user-scoped)
+        project_id: Deprecated - kept for backwards compatibility
         tags: Optional tags
         importance: Importance score (0-1)
+        domain_id: Optional domain UUID (None = default domain / user-scoped)
 
     Returns:
         Created memory record
@@ -427,7 +429,7 @@ async def create_memory_manual(
 
     record = {
         "user_id": user_id,
-        "project_id": project_id,
+        "domain_id": domain_id,  # ADR-034: Use domain_id instead of project_id
         "content": content,
         "tags": tags or [],
         "entities": {},

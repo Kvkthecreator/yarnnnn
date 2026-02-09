@@ -839,6 +839,92 @@ Emergent Context Domains solve the fundamental tension between:
 
 ---
 
+## Addendum: Context v2 Migration (Project → Domain Swap)
+
+> **Added**: 2026-02-09
+> **Status**: In Progress
+
+### Rationale
+
+After implementing Phases 1-3, a hybrid state emerged where both `project_id` and `domain_id` coexist. This creates:
+- Duplicated API surface (`/api/context/*` and `/api/domains/*`)
+- Confusion about which scoping mechanism to use
+- Frontend components using inconsistent patterns
+
+**Decision**: Treat domains as "Context v2" - a complete replacement, not an addition.
+
+### Migration Plan
+
+#### Step 1: Deprecate `/api/context/*` project-scoped routes
+
+**Routes to remove/migrate:**
+
+| Current Route | Action | New Route |
+|---------------|--------|-----------|
+| `GET /api/context/user/memories` | Keep | (maps to default domain) |
+| `POST /api/context/user/memories` | Keep | (creates in default domain) |
+| `GET /api/context/projects/{id}/memories` | **Remove** | `GET /api/domains/{id}/memories` |
+| `POST /api/context/projects/{id}/memories` | **Remove** | `POST /api/domains/{id}/memories` |
+| `GET /api/context/projects/{id}/context` | **Remove** | `GET /api/domains/{id}` |
+| `POST /api/context/projects/{id}/memories/import` | **Remove** | Use import job with domain routing |
+
+#### Step 2: Add domain memory routes
+
+New routes to add to `api/routes/domains.py`:
+- `GET /api/domains/{domain_id}/memories` - List domain memories
+- `POST /api/domains/{domain_id}/memories` - Create domain memory
+
+#### Step 3: Migrate ContextBrowserSurface
+
+Replace project-based browsing with domain-based:
+- Remove `ProjectSelector` component
+- Add `DomainSelector` component
+- Use domain_id for memory fetching
+
+#### Step 4: Remove ProjectContext
+
+The `ProjectContext.tsx` becomes unnecessary:
+- Active domain comes from surface context (via `useActiveDomain`)
+- No need for global project selection state
+
+#### Step 5: Update API client
+
+In `web/lib/api/client.ts`:
+- Remove `projectMemories` section
+- Remove `context.getBundle`
+- Keep `userMemories` (maps to default domain)
+- Add `domains.memories.list(domainId)` and `domains.memories.create(domainId, data)`
+
+#### Step 6: Update frontend hooks
+
+- Remove `useProjectMemories` from `useMemories.ts`
+- Add `useDomainMemories(domainId)` hook
+- Keep `useUserMemories` (default domain context)
+
+### Files to Modify
+
+| File | Changes |
+|------|---------|
+| `api/routes/context.py` | Remove project-scoped routes, keep user routes |
+| `api/routes/domains.py` | Add memory routes |
+| `api/main.py` | Verify router registration |
+| `web/lib/api/client.ts` | Remove projectMemories, update domains section |
+| `web/hooks/useMemories.ts` | Remove useProjectMemories, add useDomainMemories |
+| `web/contexts/ProjectContext.tsx` | **Delete** |
+| `web/components/surfaces/ContextBrowserSurface.tsx` | Rewrite for domains |
+
+### Files to Delete
+
+- `web/contexts/ProjectContext.tsx` - Replaced by domain context
+
+### Backwards Compatibility
+
+- Keep `project_id` column in `memories` table temporarily
+- Existing memories with `project_id` but no `domain_id` will be assigned to default domain
+- API returns 410 Gone for deprecated routes after transition period
+
+---
+
 ## References
 
 - [ADR-005: Unified Memory with Embeddings](./ADR-005-unified-memory-with-embeddings.md)

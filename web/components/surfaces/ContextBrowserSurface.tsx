@@ -2,16 +2,16 @@
 
 /**
  * ADR-023: Supervisor Desk Architecture
- * ADR-024: Context Classification Layer
+ * ADR-034: Context v2 - Domain-based context scoping
  *
- * ContextBrowserSurface - Browse memories/context across all projects
+ * ContextBrowserSurface - Browse memories/context across all domains
  *
  * Tab-based layout:
- * - "Personal" tab: User-scoped memories (project_id = null)
- * - Project tabs: Browse any project's scoped memories
+ * - "Personal" tab: User-scoped memories (default domain)
+ * - Domain tabs: Browse any domain's scoped memories
  *
  * Features:
- * - Project selector dropdown to browse any project's context
+ * - Domain selector dropdown to browse any domain's context
  * - Search filtering across content and tags
  * - Tags displayed inline on each memory card
  */
@@ -23,7 +23,7 @@ import {
   Edit,
   Trash2,
   User,
-  Folder,
+  Layers,
   Search,
   X,
   ChevronDown,
@@ -36,12 +36,13 @@ import { PlatformFilter, type PlatformFilterValue } from '@/components/ui/Platfo
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP } from '@/contexts/TPContext';
+import { useActiveDomain } from '@/hooks/useActiveDomain';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import type { Memory, Project } from '@/types';
+import type { Memory, ContextDomainSummary } from '@/types';
 
 interface ContextBrowserSurfaceProps {
-  scope: 'user' | 'deliverable' | 'project';
+  scope: 'user' | 'deliverable' | 'domain';
   scopeId?: string;
 }
 
@@ -196,16 +197,16 @@ function MemoryList({
   );
 }
 
-// Project selector dropdown component
-function ProjectSelector({
-  projects,
-  selectedProjectId,
+// Domain selector dropdown component (ADR-034: Context v2)
+function DomainSelector({
+  domains,
+  selectedDomainId,
   onSelect,
   isLoading,
 }: {
-  projects: Project[];
-  selectedProjectId: string | null;
-  onSelect: (projectId: string | null) => void;
+  domains: ContextDomainSummary[];
+  selectedDomainId: string | null;
+  onSelect: (domainId: string | null) => void;
   isLoading: boolean;
 }) {
   const [isOpen, setIsOpen] = useState(false);
@@ -222,8 +223,14 @@ function ProjectSelector({
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const selectedProject = projects.find((p) => p.id === selectedProjectId);
-  const buttonLabel = selectedProject?.name || 'Select project...';
+  // Filter to non-default domains only
+  const nonDefaultDomains = domains.filter((d) => !d.is_default);
+  const selectedDomain = domains.find((d) => d.id === selectedDomainId);
+  const buttonLabel = selectedDomain?.name || 'Select domain...';
+
+  if (nonDefaultDomains.length === 0 && !isLoading) {
+    return null; // Don't show selector if no non-default domains
+  }
 
   return (
     <div ref={dropdownRef} className="relative">
@@ -232,12 +239,12 @@ function ProjectSelector({
         disabled={isLoading}
         className={cn(
           'inline-flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
-          selectedProjectId
+          selectedDomainId
             ? 'border-primary text-foreground'
             : 'border-transparent text-muted-foreground hover:text-foreground'
         )}
       >
-        <Folder className="w-3.5 h-3.5" />
+        <Layers className="w-3.5 h-3.5" />
         <span className="max-w-[120px] truncate">{buttonLabel}</span>
         <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', isOpen && 'rotate-180')} />
       </button>
@@ -249,25 +256,30 @@ function ProjectSelector({
               <Loader2 className="w-4 h-4 animate-spin inline mr-2" />
               Loading...
             </div>
-          ) : projects.length === 0 ? (
+          ) : nonDefaultDomains.length === 0 ? (
             <div className="px-3 py-2 text-sm text-muted-foreground">
-              No projects yet
+              No domains yet
             </div>
           ) : (
-            projects.map((project) => (
+            nonDefaultDomains.map((domain) => (
               <button
-                key={project.id}
+                key={domain.id}
                 onClick={() => {
-                  onSelect(project.id);
+                  onSelect(domain.id);
                   setIsOpen(false);
                 }}
                 className={cn(
                   'w-full px-3 py-2 text-sm text-left hover:bg-muted flex items-center justify-between gap-2',
-                  selectedProjectId === project.id && 'bg-muted/50'
+                  selectedDomainId === domain.id && 'bg-muted/50'
                 )}
               >
-                <span className="truncate">{project.name}</span>
-                {selectedProjectId === project.id && (
+                <div className="flex flex-col min-w-0">
+                  <span className="truncate">{domain.name}</span>
+                  <span className="text-[10px] text-muted-foreground">
+                    {domain.memory_count} memories
+                  </span>
+                </div>
+                {selectedDomainId === domain.id && (
                   <Check className="w-3.5 h-3.5 text-primary shrink-0" />
                 )}
               </button>
@@ -282,6 +294,8 @@ function ProjectSelector({
 export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceProps) {
   const { setSurface } = useDesk();
   const { sendMessage } = useTP();
+  const { domain: activeDomain } = useActiveDomain();
+
   const [loading, setLoading] = useState(true);
   const [userMemories, setUserMemories] = useState<Memory[]>([]);
   const [scopedMemories, setScopedMemories] = useState<Memory[]>([]);
@@ -290,43 +304,51 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
   const [searchQuery, setSearchQuery] = useState('');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilterValue>('all');
 
-  // ADR-024: Project selector state
-  const [projects, setProjects] = useState<Project[]>([]);
-  const [loadingProjects, setLoadingProjects] = useState(false);
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
-    scope === 'project' ? (scopeId ?? null) : null
+  // ADR-034: Domain selector state
+  const [domains, setDomains] = useState<ContextDomainSummary[]>([]);
+  const [loadingDomains, setLoadingDomains] = useState(false);
+  const [selectedDomainId, setSelectedDomainId] = useState<string | null>(
+    scope === 'domain' ? (scopeId ?? null) : null
   );
-  const [selectedProjectName, setSelectedProjectName] = useState<string>('Project');
+  const [selectedDomainName, setSelectedDomainName] = useState<string>('Domain');
 
   const loadedRef = useRef<string | null>(null);
 
-  // Load user's projects for the selector
+  // Load user's domains for the selector
   useEffect(() => {
-    async function loadProjects() {
-      setLoadingProjects(true);
+    async function loadDomains() {
+      setLoadingDomains(true);
       try {
-        const projectList = await api.projects.list();
-        setProjects(projectList);
+        const result = await api.domains.list();
+        setDomains(result.domains);
 
         // If we have an initial scopeId, find its name
-        if (scopeId && scope === 'project') {
-          const found = projectList.find((p) => p.id === scopeId);
+        if (scopeId && scope === 'domain') {
+          const found = result.domains.find((d) => d.id === scopeId);
           if (found) {
-            setSelectedProjectName(found.name);
+            setSelectedDomainName(found.name);
           }
         }
       } catch (err) {
-        console.error('Failed to load projects:', err);
+        console.error('Failed to load domains:', err);
       } finally {
-        setLoadingProjects(false);
+        setLoadingDomains(false);
       }
     }
-    loadProjects();
+    loadDomains();
   }, [scope, scopeId]);
+
+  // Auto-select domain from active context
+  useEffect(() => {
+    if (activeDomain && !selectedDomainId && scope !== 'domain') {
+      setSelectedDomainId(activeDomain.id);
+      setSelectedDomainName(activeDomain.name);
+    }
+  }, [activeDomain, selectedDomainId, scope]);
 
   // Load memories based on scope
   const loadMemories = useCallback(async () => {
-    const loadKey = `${scope}:${selectedProjectId || scopeId || 'none'}`;
+    const loadKey = `${scope}:${selectedDomainId || scopeId || 'none'}`;
 
     // Skip if we've already loaded this exact combination
     if (loadedRef.current === loadKey && (userMemories.length > 0 || scopedMemories.length > 0)) {
@@ -339,24 +361,24 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
       const userData = await api.userMemories.list();
       setUserMemories(userData);
 
-      // Load scoped memories based on selected project
-      if (selectedProjectId) {
-        const projectData = await api.projectMemories.list(selectedProjectId);
-        setScopedMemories(projectData);
+      // Load scoped memories based on selected domain
+      if (selectedDomainId) {
+        const domainData = await api.domains.memories.list(selectedDomainId);
+        setScopedMemories(domainData);
 
-        // Update project name
-        const found = projects.find((p) => p.id === selectedProjectId);
+        // Update domain name
+        const found = domains.find((d) => d.id === selectedDomainId);
         if (found) {
-          setSelectedProjectName(found.name);
+          setSelectedDomainName(found.name);
         }
       } else if (scope === 'deliverable' && scopeId) {
-        // Deliverable scope: get deliverable's project
-        const detail = await api.deliverables.get(scopeId);
-        if (detail.deliverable?.project_id) {
-          const projectData = await api.projectMemories.list(detail.deliverable.project_id);
-          setScopedMemories(projectData);
-          setSelectedProjectId(detail.deliverable.project_id);
-          setSelectedProjectName(detail.deliverable.title || 'Deliverable');
+        // Deliverable scope: get deliverable's domain
+        const domainResult = await api.domains.getActive(scopeId);
+        if (domainResult.domain) {
+          const domainData = await api.domains.memories.list(domainResult.domain.id);
+          setScopedMemories(domainData);
+          setSelectedDomainId(domainResult.domain.id);
+          setSelectedDomainName(domainResult.domain.name);
         } else {
           setScopedMemories([]);
         }
@@ -370,17 +392,17 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
     } finally {
       setLoading(false);
     }
-  }, [scope, scopeId, selectedProjectId, projects, userMemories.length, scopedMemories.length]);
+  }, [scope, scopeId, selectedDomainId, domains, userMemories.length, scopedMemories.length]);
 
   useEffect(() => {
     loadMemories();
   }, [loadMemories]);
 
-  // Handle project selection change
-  const handleProjectSelect = useCallback((projectId: string | null) => {
-    setSelectedProjectId(projectId);
+  // Handle domain selection change
+  const handleDomainSelect = useCallback((domainId: string | null) => {
+    setSelectedDomainId(domainId);
     loadedRef.current = null; // Force reload
-    if (projectId) {
+    if (domainId) {
       setActiveTab('scoped');
     }
   }, []);
@@ -471,8 +493,9 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
     return platforms;
   }, [platformCounts]);
 
-  // Determine if we show project tab (when a project is selected or we have scope context)
-  const showProjectTab = selectedProjectId !== null || (scope !== 'user' && scopeId);
+  // Determine if we show domain tab (when a domain is selected or we have scope context)
+  const nonDefaultDomains = domains.filter((d) => !d.is_default);
+  const showDomainTab = selectedDomainId !== null || (scope !== 'user' && scopeId) || nonDefaultDomains.length > 0;
 
   return (
     <div className="h-full overflow-auto">
@@ -510,7 +533,7 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
           </div>
         </div>
 
-        {/* Tabs with project selector */}
+        {/* Tabs with domain selector */}
         <div className="flex gap-1 mb-4 border-b border-border">
           {/* Personal tab */}
           <button
@@ -529,16 +552,18 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
             </span>
           </button>
 
-          {/* Project selector dropdown (ADR-024) */}
-          <ProjectSelector
-            projects={projects}
-            selectedProjectId={selectedProjectId}
-            onSelect={handleProjectSelect}
-            isLoading={loadingProjects}
-          />
+          {/* Domain selector dropdown (ADR-034: Context v2) */}
+          {showDomainTab && (
+            <DomainSelector
+              domains={domains}
+              selectedDomainId={selectedDomainId}
+              onSelect={handleDomainSelect}
+              isLoading={loadingDomains}
+            />
+          )}
 
-          {/* Show memory count when project is selected */}
-          {showProjectTab && activeTab === 'scoped' && (
+          {/* Show memory count when domain is selected */}
+          {showDomainTab && activeTab === 'scoped' && selectedDomainId && (
             <span className="self-center text-xs text-muted-foreground ml-0.5">
               {filteredScopedMemories.length}
             </span>
@@ -563,12 +588,12 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        ) : activeTab === 'scoped' && !selectedProjectId ? (
+        ) : activeTab === 'scoped' && !selectedDomainId ? (
           <div className="text-center py-12 border border-dashed border-border rounded-lg">
-            <Folder className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
-            <p className="text-muted-foreground mb-1">Select a project</p>
+            <Layers className="w-8 h-8 mx-auto text-muted-foreground/50 mb-2" />
+            <p className="text-muted-foreground mb-1">Select a domain</p>
             <p className="text-sm text-muted-foreground/70">
-              Choose a project from the dropdown to browse its context
+              Choose a domain from the dropdown to browse its context
             </p>
           </div>
         ) : activeMemories.length === 0 && totalCount === 0 ? (
@@ -589,7 +614,7 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
                   ? `No ${platformFilter} context found`
                   : activeTab === 'personal'
                     ? 'No personal context yet. Share things TP should always know about you.'
-                    : `No context in ${selectedProjectName} yet.`
+                    : `No context in ${selectedDomainName} yet.`
             }
             onEdit={handleEdit}
             onDelete={handleDelete}
