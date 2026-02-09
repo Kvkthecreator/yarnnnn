@@ -1656,9 +1656,10 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
     mcp_manager = get_mcp_manager()
 
     if provider == "gmail":
-        # Get Gmail credentials
-        client_id = OAUTH_CONFIGS["gmail"]["client_id"]
-        client_secret = OAUTH_CONFIGS["gmail"]["client_secret"]
+        # Get Gmail credentials (OAUTH_CONFIGS values are OAuthConfig objects, not dicts)
+        gmail_config = OAUTH_CONFIGS["gmail"]
+        client_id = gmail_config.client_id
+        client_secret = gmail_config.client_secret
         refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
 
         # List labels
