@@ -32,6 +32,7 @@ import {
   Mail,
   FileText,
 } from 'lucide-react';
+import { PlatformFilter, type PlatformFilterValue } from '@/components/ui/PlatformFilter';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP } from '@/contexts/TPContext';
@@ -287,7 +288,7 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
   const [deleting, setDeleting] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'personal' | 'scoped'>('personal');
   const [searchQuery, setSearchQuery] = useState('');
-  const [sourceFilter, setSourceFilter] = useState<'all' | 'slack' | 'notion' | 'gmail' | 'manual'>('all');
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilterValue>('all');
 
   // ADR-024: Project selector state
   const [projects, setProjects] = useState<Project[]>([]);
@@ -384,22 +385,17 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
     }
   }, []);
 
-  // Filter memories by search query and source
+  // Filter memories by search query and platform
   const filterMemories = useCallback(
     (memories: Memory[]) => {
       let filtered = memories;
 
-      // Source filter
-      if (sourceFilter !== 'all') {
-        if (sourceFilter === 'manual') {
-          // Show non-import sources (manual, chat, document, bulk)
-          filtered = filtered.filter((m) => m.source_type !== 'import');
-        } else {
-          // Filter by specific platform
-          filtered = filtered.filter(
-            (m) => m.source_type === 'import' && m.source_ref?.platform === sourceFilter
-          );
-        }
+      // Platform filter (ADR-033 Phase 3)
+      if (platformFilter !== 'all') {
+        // Filter by specific platform
+        filtered = filtered.filter(
+          (m) => m.source_type === 'import' && m.source_ref?.platform === platformFilter
+        );
       }
 
       // Search query filter
@@ -415,18 +411,16 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
 
       return filtered;
     },
-    [searchQuery, sourceFilter]
+    [searchQuery, platformFilter]
   );
 
-  // Calculate source counts for filter buttons
-  const getSourceCounts = useCallback((memories: Memory[]) => {
-    const counts = { slack: 0, notion: 0, gmail: 0, manual: 0 };
+  // Calculate platform counts for filter (ADR-033 Phase 3)
+  const getPlatformCounts = useCallback((memories: Memory[]) => {
+    const counts: Partial<Record<PlatformFilterValue, number>> = { all: memories.length };
     memories.forEach((m) => {
       if (m.source_type === 'import' && m.source_ref?.platform) {
-        const platform = m.source_ref.platform as keyof typeof counts;
-        if (platform in counts) counts[platform]++;
-      } else {
-        counts.manual++;
+        const platform = m.source_ref.platform as PlatformFilterValue;
+        counts[platform] = (counts[platform] || 0) + 1;
       }
     });
     return counts;
@@ -465,8 +459,17 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
   const totalCount = userMemories.length + scopedMemories.length;
   const activeMemories = activeTab === 'personal' ? filteredUserMemories : filteredScopedMemories;
   const currentMemories = activeTab === 'personal' ? userMemories : scopedMemories;
-  const sourceCounts = useMemo(() => getSourceCounts(currentMemories), [getSourceCounts, currentMemories]);
-  const hasImports = sourceCounts.slack > 0 || sourceCounts.notion > 0 || sourceCounts.gmail > 0;
+  const platformCounts = useMemo(() => getPlatformCounts(currentMemories), [getPlatformCounts, currentMemories]);
+  const hasImports = (platformCounts.slack || 0) > 0 || (platformCounts.notion || 0) > 0 || (platformCounts.gmail || 0) > 0;
+
+  // Determine which platforms are available for filtering
+  const availablePlatforms = useMemo(() => {
+    const platforms: PlatformFilterValue[] = ['all'];
+    if (platformCounts.slack) platforms.push('slack');
+    if (platformCounts.notion) platforms.push('notion');
+    if (platformCounts.gmail) platforms.push('gmail');
+    return platforms;
+  }, [platformCounts]);
 
   // Determine if we show project tab (when a project is selected or we have scope context)
   const showProjectTab = selectedProjectId !== null || (scope !== 'user' && scopeId);
@@ -542,77 +545,16 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
           )}
         </div>
 
-        {/* Source filter - only show if there are imports */}
+        {/* Platform filter - ADR-033 Phase 3 */}
         {!loading && hasImports && (
-          <div className="flex items-center gap-1.5 mb-4 flex-wrap">
-            <span className="text-xs text-muted-foreground mr-1">Source:</span>
-            <button
-              onClick={() => setSourceFilter('all')}
-              className={cn(
-                'px-2 py-1 text-xs rounded-md transition-colors',
-                sourceFilter === 'all'
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted hover:bg-muted/80 text-muted-foreground'
-              )}
-            >
-              All ({currentMemories.length})
-            </button>
-            {sourceCounts.slack > 0 && (
-              <button
-                onClick={() => setSourceFilter('slack')}
-                className={cn(
-                  'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors',
-                  sourceFilter === 'slack'
-                    ? 'bg-[#4A154B] text-white'
-                    : 'bg-[#4A154B]/10 hover:bg-[#4A154B]/20 text-[#4A154B] dark:text-[#E01E5A]'
-                )}
-              >
-                <Hash className="w-2.5 h-2.5" />
-                Slack ({sourceCounts.slack})
-              </button>
-            )}
-            {sourceCounts.notion > 0 && (
-              <button
-                onClick={() => setSourceFilter('notion')}
-                className={cn(
-                  'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors',
-                  sourceFilter === 'notion'
-                    ? 'bg-black text-white dark:bg-white dark:text-black'
-                    : 'bg-black/5 hover:bg-black/10 text-black dark:bg-white/10 dark:hover:bg-white/20 dark:text-white'
-                )}
-              >
-                <FileText className="w-2.5 h-2.5" />
-                Notion ({sourceCounts.notion})
-              </button>
-            )}
-            {sourceCounts.gmail > 0 && (
-              <button
-                onClick={() => setSourceFilter('gmail')}
-                className={cn(
-                  'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors',
-                  sourceFilter === 'gmail'
-                    ? 'bg-red-500 text-white'
-                    : 'bg-red-500/10 hover:bg-red-500/20 text-red-600 dark:text-red-400'
-                )}
-              >
-                <Mail className="w-2.5 h-2.5" />
-                Gmail ({sourceCounts.gmail})
-              </button>
-            )}
-            {sourceCounts.manual > 0 && (
-              <button
-                onClick={() => setSourceFilter('manual')}
-                className={cn(
-                  'inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md transition-colors',
-                  sourceFilter === 'manual'
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-muted hover:bg-muted/80 text-muted-foreground'
-                )}
-              >
-                <User className="w-2.5 h-2.5" />
-                Manual ({sourceCounts.manual})
-              </button>
-            )}
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-muted-foreground">Platform:</span>
+            <PlatformFilter
+              value={platformFilter}
+              onChange={setPlatformFilter}
+              availablePlatforms={availablePlatforms}
+              counts={platformCounts}
+            />
           </div>
         )}
 
@@ -643,8 +585,8 @@ export function ContextBrowserSurface({ scope, scopeId }: ContextBrowserSurfaceP
             emptyMessage={
               searchQuery
                 ? 'No memories match your search'
-                : sourceFilter !== 'all'
-                  ? `No ${sourceFilter === 'manual' ? 'manually added' : sourceFilter} context found`
+                : platformFilter !== 'all'
+                  ? `No ${platformFilter} context found`
                   : activeTab === 'personal'
                     ? 'No personal context yet. Share things TP should always know about you.'
                     : `No context in ${selectedProjectName} yet.`

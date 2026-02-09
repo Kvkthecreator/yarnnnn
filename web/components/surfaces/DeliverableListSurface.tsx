@@ -5,12 +5,13 @@
  * DeliverableListSurface - List of user's recurring deliverables
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Loader2, Play, Pause, Calendar, Clock, FileText, Plus, Send, Slack } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { useTP } from '@/contexts/TPContext';
 import { formatDistanceToNow } from 'date-fns';
+import { PlatformFilter, type PlatformFilterValue } from '@/components/ui/PlatformFilter';
 import type { Deliverable, DeliverableStatus } from '@/types';
 
 interface DeliverableListSurfaceProps {
@@ -23,6 +24,8 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
   const [loading, setLoading] = useState(true);
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
   const [currentFilter, setCurrentFilter] = useState<DeliverableStatus | 'all'>(initialStatus || 'all');
+  // ADR-033 Phase 3: Platform filter
+  const [platformFilter, setPlatformFilter] = useState<PlatformFilterValue>('all');
 
   useEffect(() => {
     loadDeliverables();
@@ -99,13 +102,42 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
     };
   };
 
+  // ADR-033 Phase 3: Platform filter logic
+  const filteredDeliverables = useMemo(() => {
+    if (platformFilter === 'all') return deliverables;
+    return deliverables.filter((d) => d.destination?.platform === platformFilter);
+  }, [deliverables, platformFilter]);
+
+  // Calculate platform counts for filter
+  const platformCounts = useMemo(() => {
+    const counts: Partial<Record<PlatformFilterValue, number>> = { all: deliverables.length };
+    deliverables.forEach((d) => {
+      if (d.destination?.platform) {
+        const platform = d.destination.platform as PlatformFilterValue;
+        counts[platform] = (counts[platform] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [deliverables]);
+
+  // Determine which platforms are available for filtering
+  const availablePlatforms = useMemo(() => {
+    const platforms: PlatformFilterValue[] = ['all'];
+    if (platformCounts.slack) platforms.push('slack');
+    if (platformCounts.notion) platforms.push('notion');
+    if (platformCounts.gmail) platforms.push('gmail');
+    return platforms;
+  }, [platformCounts]);
+
+  const hasPlatformTargets = availablePlatforms.length > 1;
+
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-6 py-6">
         {/* Inline header with count, filters, and new button */}
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-muted-foreground">
-            {loading ? 'Loading...' : `${deliverables.length} deliverable${deliverables.length === 1 ? '' : 's'}`}
+            {loading ? 'Loading...' : `${filteredDeliverables.length} deliverable${filteredDeliverables.length === 1 ? '' : 's'}`}
           </p>
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -133,25 +165,44 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
           </div>
         </div>
 
+        {/* ADR-033 Phase 3: Platform filter */}
+        {!loading && hasPlatformTargets && (
+          <div className="flex items-center gap-2 mb-4">
+            <span className="text-xs text-muted-foreground">Target platform:</span>
+            <PlatformFilter
+              value={platformFilter}
+              onChange={setPlatformFilter}
+              availablePlatforms={availablePlatforms}
+              counts={platformCounts}
+            />
+          </div>
+        )}
+
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        ) : deliverables.length === 0 ? (
+        ) : filteredDeliverables.length === 0 ? (
           <div className="text-center py-12">
             <Calendar className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
-            <p className="text-muted-foreground mb-4">No deliverables yet</p>
-            <button
-              onClick={() => sendMessage("I'd like to create a new recurring deliverable")}
-              className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-            >
-              <Plus className="w-4 h-4" />
-              Create your first deliverable
-            </button>
+            <p className="text-muted-foreground mb-4">
+              {deliverables.length === 0
+                ? 'No deliverables yet'
+                : `No deliverables target ${platformFilter}`}
+            </p>
+            {deliverables.length === 0 && (
+              <button
+                onClick={() => sendMessage("I'd like to create a new recurring deliverable")}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+              >
+                <Plus className="w-4 h-4" />
+                Create your first deliverable
+              </button>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
-            {deliverables.map((d) => {
+            {filteredDeliverables.map((d) => {
               const dest = formatDestination(d);
               return (
                 <button
