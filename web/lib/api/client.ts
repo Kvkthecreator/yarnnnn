@@ -44,6 +44,10 @@ import type {
   ProjectResourceCreate,
   ResourceSuggestion,
   ContextSummaryItem,
+  // ADR-034: Context Domains
+  ContextDomainSummary,
+  ContextDomainDetail,
+  ActiveDomainResponse,
 } from "@/types";
 import type {
   AdminOverviewStats,
@@ -906,6 +910,40 @@ export const api = {
         }>;
         total_deliverables: number;
       }>("/api/integrations/summary"),
+  },
+
+  // ADR-034: Context Domains
+  domains: {
+    // List user's domains with summary stats
+    list: () =>
+      request<{
+        domains: ContextDomainSummary[];
+        total: number;
+      }>("/api/domains"),
+
+    // Get active domain for current context
+    getActive: (deliverableId?: string) => {
+      const params = deliverableId ? `?deliverable_id=${deliverableId}` : "";
+      return request<ActiveDomainResponse>(`/api/domains/active${params}`);
+    },
+
+    // Get domain details
+    get: (domainId: string) =>
+      request<ContextDomainDetail>(`/api/domains/${domainId}`),
+
+    // Rename a domain
+    rename: (domainId: string, name: string) =>
+      request<{ success: boolean; name: string }>(`/api/domains/${domainId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ name }),
+      }),
+
+    // Manually trigger domain recomputation (admin/debug)
+    recompute: () =>
+      request<{ success: boolean; changes: Record<string, number> }>(
+        "/api/domains/recompute",
+        { method: "POST" }
+      ),
   },
 };
 

@@ -879,3 +879,40 @@ export interface MultiDestinationResult {
   results: DestinationDeliveryResult[];
   all_succeeded: boolean;
 }
+
+// =============================================================================
+// ADR-034: Emergent Context Domains
+// =============================================================================
+
+export interface ContextDomainSummary {
+  id: string;
+  name: string;
+  name_source: "auto" | "user";
+  is_default: boolean;
+  source_count: number;
+  deliverable_count: number;
+  memory_count: number;
+  created_at: string;
+}
+
+export interface DomainSource {
+  provider: string;
+  resource_id: string;
+  resource_name?: string;
+}
+
+export interface ContextDomainDetail extends ContextDomainSummary {
+  sources: DomainSource[];
+  deliverable_ids: string[];
+  updated_at: string;
+}
+
+export interface ActiveDomainResponse {
+  domain: {
+    id: string;
+    name: string;
+    is_default: boolean;
+  } | null;
+  source: "deliverable" | "single_domain" | "ambiguous";
+  domain_count?: number;
+}

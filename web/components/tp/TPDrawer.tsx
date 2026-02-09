@@ -2,6 +2,7 @@
 
 /**
  * ADR-025 Addendum: TP as Persistent Drawer (Model B)
+ * ADR-034: Updated for domain-based context scoping
  *
  * TPDrawer - Right-side collapsible drawer for TP conversation
  *
@@ -12,7 +13,7 @@
  * - Full message history
  * - Inline todo progress when TP is working
  * - Input field with skill picker
- * - Context indicators (surface, project)
+ * - Context indicators (surface, domain)
  */
 
 import { useState, useRef, useEffect } from 'react';
@@ -25,12 +26,12 @@ import {
   Send,
   ChevronLeft,
   MapPin,
-  FolderOpen,
+  Layers,
   User,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
-import { useProjects } from '@/hooks/useProjects';
+import { useActiveDomain } from '@/hooks/useActiveDomain';
 import { Todo } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { getTPStateIndicators } from '@/lib/tp-chips';
@@ -48,8 +49,8 @@ export function TPDrawer() {
     pendingClarification,
     respondToClarification,
   } = useTP();
-  const { surface, selectedProject, setSelectedProject } = useDesk();
-  const { projects } = useProjects();
+  const { surface } = useDesk();
+  const { domain, source: domainSource, isLoading: domainLoading } = useActiveDomain();
 
   const [expanded, setExpanded] = useState(true);
   const [input, setInput] = useState('');
@@ -100,7 +101,7 @@ export function TPDrawer() {
 
     sendMessage(input, {
       surface,
-      projectId: selectedProject?.id,
+      // ADR-034: Domain is inferred from surface context on backend
     });
     setInput('');
   };
@@ -155,7 +156,7 @@ export function TPDrawer() {
         </button>
       </div>
 
-      {/* Context indicators */}
+      {/* Context indicators - ADR-034: Domain-based */}
       <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 text-xs">
         <span className="text-muted-foreground/60">Context:</span>
         <div className="flex items-center gap-1 text-muted-foreground">
@@ -164,37 +165,21 @@ export function TPDrawer() {
         </div>
         <span className="text-muted-foreground/40">·</span>
         <div className="flex items-center gap-1">
-          {selectedProject ? (
-            <FolderOpen className="w-3 h-3 text-primary" />
+          {domainLoading ? (
+            <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
+          ) : domain ? (
+            <>
+              <Layers className="w-3 h-3 text-primary" />
+              <span className="text-primary truncate max-w-[80px]" title={domain.name}>
+                {domain.name}
+              </span>
+            </>
           ) : (
-            <User className="w-3 h-3 text-muted-foreground" />
+            <>
+              <User className="w-3 h-3 text-muted-foreground" />
+              <span className="text-muted-foreground">All Context</span>
+            </>
           )}
-          <select
-            value={selectedProject?.id || ''}
-            onChange={(e) => {
-              const projectId = e.target.value;
-              if (!projectId) {
-                setSelectedProject(null);
-              } else {
-                const project = projects.find((p) => p.id === projectId);
-                if (project) {
-                  setSelectedProject({ id: project.id, name: project.name });
-                }
-              }
-            }}
-            className={cn(
-              'bg-transparent border-none cursor-pointer text-xs',
-              'focus:outline-none focus:ring-0',
-              selectedProject ? 'text-primary' : 'text-muted-foreground'
-            )}
-          >
-            <option value="">Personal</option>
-            {projects.map((project) => (
-              <option key={project.id} value={project.id}>
-                {project.name}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
