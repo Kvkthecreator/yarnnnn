@@ -19,12 +19,14 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Memory:
     """
-    Unified memory item (ADR-005).
+    Unified memory item (ADR-005, ADR-034).
 
-    Replaces the previous Block + UserContextItem split.
-    Scope is determined by project_id:
-    - project_id is None → user-scoped (portable across projects)
-    - project_id is not None → project-scoped (isolated to that project)
+    Scope is determined by domain_id:
+    - domain_id is None or default domain → always accessible (user profile)
+    - domain_id is specific domain → domain-scoped context
+
+    ADR-034: Domains emerge from deliverable source patterns.
+    The default domain holds portable user profile information.
     """
     id: UUID
     content: str
@@ -32,12 +34,12 @@ class Memory:
     tags: list[str] = field(default_factory=list)
     entities: dict = field(default_factory=dict)  # {people: [], companies: [], concepts: []}
     source_type: str = "chat"  # chat, document, manual, import
-    project_id: Optional[UUID] = None  # None = user-scoped
+    domain_id: Optional[UUID] = None  # None or default = always accessible
 
     @property
-    def is_user_scoped(self) -> bool:
-        """Returns True if this memory is user-scoped (portable)."""
-        return self.project_id is None
+    def is_default_domain(self) -> bool:
+        """Returns True if this memory is in the default domain (always accessible)."""
+        return self.domain_id is None
 
 
 @dataclass
@@ -45,30 +47,40 @@ class ContextBundle:
     """
     Context provided to agents.
 
-    ADR-005 unified architecture:
-    - memories: Combined list of user + project memories
-    - Scope is implicit in each memory's project_id
+    ADR-005 + ADR-034 unified architecture:
+    - memories: All loaded memories (already filtered by domain at load time)
+    - domain_id: The active domain for this context
 
-    For filtering:
-    - user_memories: Returns memories where project_id is None
-    - project_memories: Returns memories where project_id matches
+    The search function handles domain scoping:
+    - If domain_id is set, includes memories from that domain + default domain
+    - Default domain memories (user profile) are always accessible
+
+    For filtering (backwards compatible naming):
+    - user_memories: Returns memories from default domain (always accessible)
+    - domain_memories: Returns memories from the active domain
     """
     memories: list[Memory] = field(default_factory=list)
     documents: list[dict] = field(default_factory=list)  # {id, filename, content_preview}
-    project_id: Optional[UUID] = None  # The current project (if any)
-    project_name: Optional[str] = None  # Project name for context
+    domain_id: Optional[UUID] = None  # The active domain (if any)
+    domain_name: Optional[str] = None  # Domain name for context
 
     @property
     def user_memories(self) -> list[Memory]:
-        """Get user-scoped memories (portable across projects)."""
-        return [m for m in self.memories if m.project_id is None]
+        """Get default domain memories (always accessible - user profile)."""
+        return [m for m in self.memories if m.is_default_domain]
 
     @property
-    def project_memories(self) -> list[Memory]:
-        """Get project-scoped memories (for current project only)."""
-        if self.project_id is None:
+    def domain_memories(self) -> list[Memory]:
+        """Get domain-scoped memories (for active domain only)."""
+        if self.domain_id is None:
             return []
-        return [m for m in self.memories if m.project_id == self.project_id]
+        return [m for m in self.memories if m.domain_id == self.domain_id]
+
+    # Backwards compatibility alias
+    @property
+    def project_memories(self) -> list[Memory]:
+        """Deprecated: Use domain_memories instead."""
+        return self.domain_memories
 
     @property
     def has_context(self) -> bool:
@@ -249,12 +261,12 @@ class BaseAgent(ABC):
                 lines.append(f"- {mem.content}{tags_str}")
             lines.append("")
 
-        # Format project memories
-        project_memories = context.project_memories
-        if project_memories:
-            project_label = f"### Project Context: {context.project_name}" if context.project_name else "### Project Context"
-            lines.append(project_label)
-            for mem in project_memories:
+        # Format domain memories
+        domain_memories = context.domain_memories
+        if domain_memories:
+            domain_label = f"### Context: {context.domain_name}" if context.domain_name else "### Domain Context"
+            lines.append(domain_label)
+            for mem in domain_memories:
                 tags_str = f" [{', '.join(mem.tags)}]" if mem.tags else ""
                 lines.append(f"- {mem.content}{tags_str}")
             lines.append("")

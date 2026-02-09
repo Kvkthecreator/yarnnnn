@@ -56,7 +56,7 @@ class ChatRequest(BaseModel):
     include_context: bool = True
     session_id: Optional[str] = None  # Optional: continue existing session
     surface_context: Optional[SurfaceContext] = None  # ADR-023: What user is viewing
-    project_id: Optional[str] = None  # ADR-024: Selected project for context routing
+    project_id: Optional[str] = None  # Deprecated: ADR-034 uses domain scoping from surface_context
 
 
 # =============================================================================
@@ -297,18 +297,22 @@ def _parse_input_summary(input_summary: str) -> dict:
 
 
 # =============================================================================
-# Memory Loading (ADR-005)
+# Memory Loading (ADR-005, ADR-034)
 # =============================================================================
 
 async def load_memories(
     client,
     user_id: str,
-    project_id: Optional[UUID] = None,
+    domain_id: Optional[UUID] = None,
     query: Optional[str] = None,
     max_results: int = 20
 ) -> ContextBundle:
     """
-    Load memories for context assembly (ADR-005).
+    Load memories for context assembly (ADR-005, ADR-034).
+
+    Domain scoping (ADR-034):
+    - If domain_id is provided: searches domain + default domain (user profile)
+    - If domain_id is None: searches all user's memories
 
     Uses semantic search if query provided, otherwise importance-based retrieval.
     """
@@ -325,7 +329,7 @@ async def load_memories(
                     {
                         "query_embedding": query_embedding,
                         "match_user_id": user_id,
-                        "match_project_id": str(project_id) if project_id else None,
+                        "match_domain_id": str(domain_id) if domain_id else None,
                         "match_count": max_results,
                         "similarity_threshold": 0.0
                     }
@@ -339,48 +343,23 @@ async def load_memories(
                         tags=row.get("tags", []),
                         entities=row.get("entities", {}),
                         source_type=row.get("source_type", "chat"),
-                        project_id=UUID(row["project_id"]) if row.get("project_id") else None,
+                        domain_id=UUID(row["domain_id"]) if row.get("domain_id") else None,
                     ))
             except Exception:
                 use_semantic = False
 
         if not use_semantic:
-            if project_id:
-                user_result = (
-                    client.table("memories")
-                    .select("*")
-                    .eq("user_id", user_id)
-                    .is_("project_id", "null")
-                    .eq("is_active", True)
-                    .order("importance", desc=True)
-                    .limit(max_results // 2)
-                    .execute()
-                )
-                project_result = (
-                    client.table("memories")
-                    .select("*")
-                    .eq("user_id", user_id)
-                    .eq("project_id", str(project_id))
-                    .eq("is_active", True)
-                    .order("importance", desc=True)
-                    .limit(max_results // 2)
-                    .execute()
-                )
-                rows = (user_result.data or []) + (project_result.data or [])
-            else:
-                result = (
-                    client.table("memories")
-                    .select("*")
-                    .eq("user_id", user_id)
-                    .is_("project_id", "null")
-                    .eq("is_active", True)
-                    .order("importance", desc=True)
-                    .limit(max_results)
-                    .execute()
-                )
-                rows = result.data or []
+            # Use the get_memories_by_importance RPC for domain-scoped retrieval
+            result = client.rpc(
+                "get_memories_by_importance",
+                {
+                    "p_user_id": user_id,
+                    "p_domain_id": str(domain_id) if domain_id else None,
+                    "p_limit": max_results
+                }
+            ).execute()
 
-            for row in rows:
+            for row in (result.data or []):
                 memories.append(Memory(
                     id=UUID(row["id"]),
                     content=row["content"],
@@ -388,7 +367,7 @@ async def load_memories(
                     tags=row.get("tags", []),
                     entities=row.get("entities", {}),
                     source_type=row.get("source_type", "chat"),
-                    project_id=UUID(row["project_id"]) if row.get("project_id") else None,
+                    domain_id=UUID(row["domain_id"]) if row.get("domain_id") else None,
                 ))
 
     except Exception:
@@ -397,7 +376,7 @@ async def load_memories(
     return ContextBundle(
         memories=memories,
         documents=[],
-        project_id=project_id,
+        domain_id=domain_id,
     )
 
 
@@ -533,16 +512,16 @@ async def _background_extraction(
     user_id: str,
     messages: list[dict],
     client,
-    project_id: Optional[str] = None
+    domain_id: Optional[str] = None
 ):
-    """Background task for memory extraction (ADR-005)."""
+    """Background task for memory extraction (ADR-005, ADR-034)."""
     try:
         result = await extract_from_conversation(
             user_id=user_id,
             messages=messages,
             db_client=client,
-            project_id=project_id,
-            source_type="chat"
+            source_type="chat",
+            domain_id=domain_id
         )
     except Exception:
         pass  # Background extraction failures are non-critical
@@ -578,29 +557,59 @@ async def global_chat(
     history = build_history_for_claude(existing_messages, use_structured_format=True)
     logger.info(f"[TP] Loaded {len(existing_messages)} messages, built {len(history)} history entries")
 
-    # ADR-024: Parse selected project context
-    selected_project_id = UUID(request.project_id) if request.project_id else None
-    selected_project_name = None
-    if selected_project_id:
-        try:
-            project_result = auth.client.table("projects")\
-                .select("name")\
-                .eq("id", str(selected_project_id))\
-                .single()\
-                .execute()
-            if project_result.data:
-                selected_project_name = project_result.data["name"]
-                logger.info(f"[TP] Selected project context: {selected_project_name} ({selected_project_id})")
-        except Exception as e:
-            logger.warning(f"[TP] Failed to load project name: {e}")
+    # ADR-034: Determine active domain from context
+    # Priority: surface deliverable > only-one-domain > none (search all)
+    active_domain_id = None
+    active_domain_name = None
 
-    # Load memories - include project context if selected (ADR-024)
+    # Get domain from surface context if viewing a deliverable
+    deliverable_id_for_domain = None
+    if request.surface_context and request.surface_context.deliverableId:
+        deliverable_id_for_domain = request.surface_context.deliverableId
+
+    if deliverable_id_for_domain:
+        try:
+            domain_result = auth.client.rpc(
+                "get_deliverable_domain",
+                {"p_deliverable_id": deliverable_id_for_domain}
+            ).execute()
+            if domain_result.data:
+                active_domain_id = UUID(domain_result.data)
+                # Get domain name
+                domain_name_result = auth.client.table("context_domains")\
+                    .select("name")\
+                    .eq("id", str(active_domain_id))\
+                    .single()\
+                    .execute()
+                if domain_name_result.data:
+                    active_domain_name = domain_name_result.data["name"]
+                logger.info(f"[TP] Active domain from deliverable: {active_domain_name} ({active_domain_id})")
+        except Exception as e:
+            logger.debug(f"[TP] Could not resolve domain from deliverable: {e}")
+
+    # Fallback: check if user has only one domain (use it implicitly)
+    if not active_domain_id:
+        try:
+            domains_result = auth.client.table("context_domains")\
+                .select("id, name")\
+                .eq("user_id", auth.user_id)\
+                .eq("is_default", False)\
+                .execute()
+            if domains_result.data and len(domains_result.data) == 1:
+                active_domain_id = UUID(domains_result.data[0]["id"])
+                active_domain_name = domains_result.data[0]["name"]
+                logger.info(f"[TP] Single domain auto-selected: {active_domain_name}")
+        except Exception as e:
+            logger.debug(f"[TP] Could not check user domains: {e}")
+
+    # Load memories with domain scoping (ADR-034)
     context = await load_memories(
         auth.client,
         auth.user_id,
-        project_id=selected_project_id,
+        domain_id=active_domain_id,
         query=request.content if request.include_context else None
     )
+    context.domain_name = active_domain_name
 
     # Check if user has any deliverables (for onboarding mode)
     is_onboarding = False
@@ -723,13 +732,18 @@ async def global_chat(
 
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
 
-            # Fire-and-forget extraction
+            # Fire-and-forget extraction with domain context (ADR-034)
             messages_for_extraction = history + [
                 {"role": "user", "content": request.content},
                 {"role": "assistant", "content": full_response},
             ]
             asyncio.create_task(
-                _background_extraction(auth.user_id, messages_for_extraction, auth.client, None)
+                _background_extraction(
+                    auth.user_id,
+                    messages_for_extraction,
+                    auth.client,
+                    str(active_domain_id) if active_domain_id else None
+                )
             )
 
         except Exception as e:
@@ -755,13 +769,15 @@ async def project_chat(
 ):
     """
     Project chat with Thinking Partner.
-    Loads both user and project memories. Session is reused daily per project.
+    ADR-034: Now uses domain scoping. Project context is mapped to its domain.
+    Session is reused daily per project.
     Supports tool use with streaming (ADR-007).
     """
-    # Verify project access
-    project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
+    # Verify project access and get project name
+    project_result = auth.client.table("projects").select("id, name").eq("id", str(project_id)).single().execute()
     if not project_result.data:
         raise HTTPException(status_code=404, detail="Project not found")
+    project_name = project_result.data.get("name")
 
     # Get or create session (daily scope)
     session = await get_or_create_session(
@@ -778,13 +794,43 @@ async def project_chat(
     existing_messages = await get_session_messages(auth.client, session_id)
     history = build_history_for_claude(existing_messages, use_structured_format=True)
 
-    # Load memories (user + project)
+    # ADR-034: Find domain associated with this project's deliverables
+    # Projects are organizational containers; domains emerge from deliverable sources
+    active_domain_id = None
+    active_domain_name = None
+    try:
+        # Get the domain from any deliverable in this project
+        deliverable_result = auth.client.table("deliverables")\
+            .select("id")\
+            .eq("project_id", str(project_id))\
+            .neq("status", "archived")\
+            .limit(1)\
+            .execute()
+        if deliverable_result.data:
+            domain_result = auth.client.rpc(
+                "get_deliverable_domain",
+                {"p_deliverable_id": deliverable_result.data[0]["id"]}
+            ).execute()
+            if domain_result.data:
+                active_domain_id = UUID(domain_result.data)
+                domain_name_result = auth.client.table("context_domains")\
+                    .select("name")\
+                    .eq("id", str(active_domain_id))\
+                    .single()\
+                    .execute()
+                if domain_name_result.data:
+                    active_domain_name = domain_name_result.data["name"]
+    except Exception as e:
+        logger.debug(f"[TP] Could not resolve domain for project {project_id}: {e}")
+
+    # Load memories with domain scoping (ADR-034)
     context = await load_memories(
         auth.client,
         auth.user_id,
-        project_id=project_id,
+        domain_id=active_domain_id,
         query=request.content if request.include_context else None
     )
+    context.domain_name = active_domain_name or project_name
 
     agent = ThinkingPartnerAgent()
 
@@ -857,13 +903,18 @@ async def project_chat(
 
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
 
-            # Fire-and-forget extraction
+            # Fire-and-forget extraction with domain context (ADR-034)
             messages_for_extraction = history + [
                 {"role": "user", "content": request.content},
                 {"role": "assistant", "content": full_response},
             ]
             asyncio.create_task(
-                _background_extraction(auth.user_id, messages_for_extraction, auth.client, str(project_id))
+                _background_extraction(
+                    auth.user_id,
+                    messages_for_extraction,
+                    auth.client,
+                    str(active_domain_id) if active_domain_id else None
+                )
             )
 
         except Exception as e:

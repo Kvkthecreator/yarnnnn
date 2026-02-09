@@ -10,10 +10,11 @@ Flow:
 3. Fetch data via MCP (Slack channels, Notion pages)
 4. Run ContextImportAgent to extract structured blocks
 5. Optionally run StyleLearningAgent to extract communication style (Phase 5)
-6. Store results in memories table with source_type='import'
+6. Store results in memories table with domain_id (ADR-034: Emergent Context Domains)
 7. Update job status
 
 See ADR-027: Integration Read Architecture
+See ADR-034: Emergent Context Domains
 """
 
 from __future__ import annotations
@@ -279,12 +280,18 @@ async def store_memory_blocks(
     source_ref: dict
 ) -> int:
     """
-    Store extracted context blocks as memories.
+    Store extracted context blocks as memories with domain routing.
+
+    ADR-034: Emergent Context Domains
+    - Memories are routed to domains based on source (provider + resource_id)
+    - Domain is looked up from domain_sources table
+    - Falls back to default (uncategorized) domain if source not in any domain
+    - project_id is deprecated, domain_id is the new scoping mechanism
 
     Args:
         supabase_client: Supabase client
         user_id: User ID
-        project_id: Optional project ID for scoping
+        project_id: Deprecated - kept for backward compatibility
         blocks: List of ContextBlock objects from the agent
         source_ref: Provenance info (platform, resource_id, job_id)
 
@@ -293,6 +300,33 @@ async def store_memory_blocks(
     """
     if not blocks:
         return 0
+
+    # ADR-034: Look up domain for this source
+    provider = source_ref.get("platform")
+    resource_id = source_ref.get("resource_id")
+
+    domain_id = None
+    if provider and resource_id:
+        # Try to find domain for this source
+        domain_result = supabase_client.rpc("find_domain_for_source", {
+            "p_user_id": user_id,
+            "p_provider": provider,
+            "p_resource_id": resource_id
+        }).execute()
+
+        domain_id = domain_result.data if domain_result.data else None
+
+    # Fall back to default domain if source not mapped
+    if not domain_id:
+        default_result = supabase_client.rpc("get_or_create_default_domain", {
+            "p_user_id": user_id
+        }).execute()
+        domain_id = default_result.data
+
+    logger.info(
+        f"[IMPORT] Routing memories to domain {domain_id} "
+        f"(source: {provider}/{resource_id})"
+    )
 
     # Map block types to importance scores
     importance_map = {
@@ -307,7 +341,8 @@ async def store_memory_blocks(
     for block in blocks:
         memories_to_insert.append({
             "user_id": user_id,
-            "project_id": project_id,
+            "project_id": project_id,  # Deprecated, kept for backward compatibility
+            "domain_id": domain_id,  # ADR-034: New domain-based scoping
             "content": block.content,
             "source_type": "import",
             "source_ref": {

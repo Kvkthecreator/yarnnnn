@@ -196,9 +196,10 @@ async def extract_from_conversation(
     user_id: str,
     messages: list[dict],
     db_client,
-    project_id: Optional[str] = None,
+    project_id: Optional[str] = None,  # Deprecated: use domain_id
     source_type: str = "chat",
-    source_ref: Optional[str] = None
+    source_ref: Optional[str] = None,
+    domain_id: Optional[str] = None  # ADR-034: Domain for routing
 ) -> dict:
     """
     Extract memories from conversation and save to database.
@@ -207,12 +208,13 @@ async def extract_from_conversation(
         user_id: User UUID
         messages: List of {role, content} message dicts
         db_client: Supabase client with auth
-        project_id: Optional project UUID (None = global chat, user memories only)
+        project_id: Deprecated - kept for backwards compatibility
         source_type: Source identifier (chat, import)
         source_ref: Optional reference (session_id)
+        domain_id: Domain UUID for routing (ADR-034)
 
     Returns:
-        Dict with user_memories_inserted and project_memories_inserted counts
+        Dict with user_memories_inserted and domain_memories_inserted counts
     """
     # Format conversation for extraction
     formatted_messages = []
@@ -240,32 +242,38 @@ async def extract_from_conversation(
             .eq("user_id", user_id)\
             .eq("is_active", True)
 
-        if project_id:
-            # Include both user-scoped and project-scoped for this user
-            existing_result = existing_query.execute()
-        else:
-            # Only user-scoped (global chat)
-            existing_result = existing_query.is_("project_id", "null").execute()
+        # ADR-034: Include all memories for this user for deduplication
+        existing_result = existing_query.execute()
 
         existing_hashes = {content_hash(m["content"]) for m in (existing_result.data or [])}
 
+        # ADR-034: Get or create default domain for user-scoped memories
+        default_domain_id = None
+        if domain_id is None:
+            try:
+                default_result = db_client.rpc("get_or_create_default_domain", {
+                    "p_user_id": user_id
+                }).execute()
+                default_domain_id = default_result.data
+            except Exception:
+                pass  # Will insert with NULL domain_id
+
         # Prepare memories for insertion
-        user_inserted = 0
-        project_inserted = 0
+        default_inserted = 0
+        domain_inserted = 0
 
         for mem in memories:
             mem_hash = content_hash(mem["content"])
             if mem_hash in existing_hashes:
                 continue
 
-            # Determine project_id based on scope
+            # ADR-034: Determine domain_id based on scope
+            # "user" scope -> default domain (always accessible)
+            # "project" scope -> active domain (if provided)
             if mem["scope"] == "user":
-                mem_project_id = None  # User-scoped
+                mem_domain_id = default_domain_id
             else:
-                if project_id is None:
-                    # Global chat but project-scoped memory - skip or make user-scoped
-                    continue
-                mem_project_id = project_id
+                mem_domain_id = domain_id if domain_id else default_domain_id
 
             # Generate embedding
             try:
@@ -277,7 +285,7 @@ async def extract_from_conversation(
             # Build record
             record = {
                 "user_id": user_id,
-                "project_id": mem_project_id,
+                "domain_id": mem_domain_id,
                 "content": mem["content"],
                 "tags": mem["tags"],
                 "entities": mem["entities"],
@@ -295,16 +303,16 @@ async def extract_from_conversation(
                 db_client.table("memories").insert(record).execute()
                 existing_hashes.add(mem_hash)
 
-                if mem_project_id is None:
-                    user_inserted += 1
+                if mem_domain_id == default_domain_id:
+                    default_inserted += 1
                 else:
-                    project_inserted += 1
+                    domain_inserted += 1
             except Exception as e:
                 print(f"Failed to insert memory: {e}")
 
         return {
-            "user_memories_inserted": user_inserted,
-            "project_memories_inserted": project_inserted
+            "user_memories_inserted": default_inserted,  # Backwards compatible key
+            "domain_memories_inserted": domain_inserted
         }
 
     except Exception as e:

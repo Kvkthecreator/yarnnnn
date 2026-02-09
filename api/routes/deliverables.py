@@ -17,7 +17,7 @@ Endpoints:
 """
 
 import logging
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import Optional, Literal, Union, Annotated
 from uuid import UUID
@@ -27,6 +27,19 @@ from services.supabase import UserClient
 from routes.projects import get_or_create_workspace
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# ADR-034: Domain Inference Hook
+# =============================================================================
+
+async def _trigger_domain_recomputation(deliverable_id: str, user_id: str):
+    """Background task to recompute domains after deliverable change."""
+    try:
+        from services.domain_inference import on_deliverable_changed
+        await on_deliverable_changed(deliverable_id, user_id)
+    except Exception as e:
+        logger.error(f"[DOMAIN] Failed to recompute domains: {e}")
 
 router = APIRouter()
 
@@ -716,6 +729,7 @@ def _parse_source_fetch_summary(summary_dict: Optional[dict]) -> Optional[Source
 async def create_deliverable(
     request: DeliverableCreate,
     auth: UserClient,
+    background_tasks: BackgroundTasks,
 ) -> DeliverableResponse:
     """
     Create a new recurring deliverable.
@@ -810,6 +824,14 @@ async def create_deliverable(
 
     deliverable = result.data[0]
     logger.info(f"[DELIVERABLE] Created: {deliverable['id']} - {deliverable['title']}")
+
+    # ADR-034: Trigger domain recomputation if deliverable has sources
+    if request.sources:
+        background_tasks.add_task(
+            _trigger_domain_recomputation,
+            deliverable["id"],
+            auth.user_id
+        )
 
     return DeliverableResponse(
         id=deliverable["id"],
@@ -1060,6 +1082,7 @@ async def update_deliverable(
     deliverable_id: UUID,
     request: DeliverableUpdate,
     auth: UserClient,
+    background_tasks: BackgroundTasks,
 ) -> DeliverableResponse:
     """
     Update deliverable settings.
@@ -1127,6 +1150,14 @@ async def update_deliverable(
         raise HTTPException(status_code=500, detail="Failed to update deliverable")
 
     d = result.data[0]
+
+    # ADR-034: Trigger domain recomputation if sources changed
+    if request.sources is not None:
+        background_tasks.add_task(
+            _trigger_domain_recomputation,
+            str(deliverable_id),
+            auth.user_id
+        )
 
     return DeliverableResponse(
         id=d["id"],
