@@ -712,10 +712,6 @@ Returns the created deliverable. Always follow with respond() to:
                 "type": "string",
                 "description": "Brief description of what this deliverable should cover"
             },
-            "project_id": {
-                "type": "string",
-                "description": "Optional: Link to an existing project for context"
-            },
             "destination_platform": {
                 "type": "string",
                 "enum": ["slack", "notion", "gmail", "download"],
@@ -1970,7 +1966,6 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     recipient_name = input.get("recipient_name")
     recipient_relationship = input.get("recipient_relationship")
     description = input.get("description")
-    project_id = input.get("project_id")
 
     # Default day based on frequency
     if not day:
@@ -2083,8 +2078,6 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
         deliverable_data["destination"] = destination
     if recipient_context:
         deliverable_data["recipient_context"] = recipient_context
-    if project_id:
-        deliverable_data["project_id"] = project_id
 
     # Create deliverable
     result = auth.client.table("deliverables").insert(deliverable_data).execute()
@@ -2107,22 +2100,25 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     sample_memories = []
 
     try:
-        # Count user-level memories (project_id IS NULL)
-        user_mem_result = auth.client.table("memories").select("id, content", count="exact").is_("project_id", "null").execute()
+        # ADR-034: Count memories from default domain (user's portable context)
+        # Domain-scoped memories will be available via domain inference after sources are configured
+        user_mem_result = auth.client.table("memories")\
+            .select("id, content", count="exact")\
+            .eq("user_id", auth.user_id)\
+            .eq("is_active", True)\
+            .execute()
         user_memory_count = user_mem_result.count or 0
 
         # Get sample user memories (first 3)
         if user_mem_result.data:
             sample_memories = [m["content"][:100] for m in user_mem_result.data[:3]]
 
-        # Count deliverable-specific memories (if project_id provided)
-        if project_id:
-            deliv_mem_result = auth.client.table("memories").select("id", count="exact").eq("project_id", project_id).execute()
-            deliverable_memory_count = deliv_mem_result.count or 0
-
-            # Count documents for this project
-            doc_result = auth.client.table("documents").select("id", count="exact").eq("project_id", project_id).execute()
-            document_count = doc_result.count or 0
+        # Count user documents
+        doc_result = auth.client.table("documents")\
+            .select("id", count="exact")\
+            .eq("user_id", auth.user_id)\
+            .execute()
+        document_count = doc_result.count or 0
     except Exception:
         # If context fetch fails, continue with zeros - modal will still work
         pass
