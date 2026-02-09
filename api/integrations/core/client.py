@@ -310,11 +310,13 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="API-post-page",  # Actual MCP tool name from @notionhq/notion-mcp-server
+                tool_name="notion-create-pages",  # Official tool name from @notionhq/notion-mcp-server
                 arguments={
-                    "parent_id": parent_id,
-                    "title": title,
-                    "content": content
+                    "pages": [{
+                        "parent_id": parent_id,
+                        "title": title,
+                        "content_markdown": content
+                    }]
                 },
                 env={"NOTION_TOKEN": auth_token}
             )
@@ -770,7 +772,7 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="API-post-search",  # Actual MCP tool name from @notionhq/notion-mcp-server
+                tool_name="notion-search",  # Official tool name from @notionhq/notion-mcp-server
                 arguments=arguments,
                 env={"NOTION_TOKEN": auth_token}
             )
@@ -801,8 +803,8 @@ class MCPClientManager:
             result = await self.call_tool(
                 user_id=user_id,
                 provider="notion",
-                tool_name="API-retrieve-a-page",  # Actual MCP tool name from @notionhq/notion-mcp-server
-                arguments={"page_id": page_id},
+                tool_name="notion-fetch",  # Official tool name from @notionhq/notion-mcp-server
+                arguments={"resource_uri": f"notion://page/{page_id}"},
                 env={"NOTION_TOKEN": auth_token}
             )
             parsed = self._parse_mcp_result(result)

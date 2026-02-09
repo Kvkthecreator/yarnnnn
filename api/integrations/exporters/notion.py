@@ -114,15 +114,17 @@ class NotionExporter(DestinationExporter):
 
             if fmt == "page":
                 # Create a new page under the parent
-                # @notionhq/notion-mcp-server uses API-* tool names
+                # @notionhq/notion-mcp-server uses notion-create-pages
                 result = await mcp.call_tool(
                     user_id=context.user_id,
                     provider="notion",
-                    tool_name="API-post-page",
+                    tool_name="notion-create-pages",
                     arguments={
-                        "parent_id": target,
-                        "title": title,
-                        "content": content
+                        "pages": [{
+                            "parent_id": target,
+                            "title": title,
+                            "content_markdown": content
+                        }]
                     },
                     env={"NOTION_TOKEN": context.access_token}
                 )
@@ -134,12 +136,14 @@ class NotionExporter(DestinationExporter):
                 result = await mcp.call_tool(
                     user_id=context.user_id,
                     provider="notion",
-                    tool_name="API-post-page",  # Same tool, database support via parent_id
+                    tool_name="notion-create-pages",
                     arguments={
-                        "database_id": database_id,
-                        "title": title,
-                        "content": content,
-                        "properties": properties
+                        "pages": [{
+                            "parent_id": database_id,  # Database ID as parent
+                            "title": title,
+                            "content_markdown": content,
+                            "properties": properties
+                        }]
                     },
                     env={"NOTION_TOKEN": context.access_token}
                 )
@@ -244,12 +248,14 @@ class NotionExporter(DestinationExporter):
             result = await mcp.call_tool(
                 user_id=context.user_id,
                 provider="notion",
-                tool_name="API-post-page",
+                tool_name="notion-create-pages",
                 arguments={
-                    "database_id": drafts_database_id,
-                    "title": title,
-                    "content": draft_content,
-                    "properties": properties
+                    "pages": [{
+                        "parent_id": drafts_database_id,
+                        "title": title,
+                        "content_markdown": draft_content,
+                        "properties": properties
+                    }]
                 },
                 env={"NOTION_TOKEN": context.access_token}
             )
@@ -322,12 +328,12 @@ class NotionExporter(DestinationExporter):
             mcp = get_mcp_manager()
 
             # Try to get page info to verify access
-            # @notionhq/notion-mcp-server uses API-* tool names
+            # @notionhq/notion-mcp-server uses notion-fetch
             result = await mcp.call_tool(
                 user_id=context.user_id,
                 provider="notion",
-                tool_name="API-retrieve-a-page",
-                arguments={"page_id": target},
+                tool_name="notion-fetch",
+                arguments={"resource_uri": f"notion://page/{target}"},
                 env={"NOTION_TOKEN": context.access_token}
             )
 
