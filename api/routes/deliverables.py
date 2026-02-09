@@ -803,7 +803,7 @@ async def create_deliverable(
         type_config=deliverable.get("type_config"),
         # ADR-031: Platform-native variants
         platform_variant=deliverable.get("platform_variant"),
-        project_id=deliverable.get("project_id"),
+        project_id=None,  # ADR-034: Deprecated
         recipient_context=deliverable.get("recipient_context"),
         schedule=deliverable["schedule"],
         sources=deliverable.get("sources", []),
@@ -840,10 +840,11 @@ async def list_deliverables(
     - quality_trend: "improving" | "stable" | "declining"
     - avg_edit_distance: Average over recent versions
     """
-    # Fetch deliverables with versions and project name
+    # Fetch deliverables with versions
+    # Note: ADR-034 removed projects table, deliverables are now user-scoped
     query = (
         auth.client.table("deliverables")
-        .select("*, deliverable_versions(id, status, version_number, edit_distance_score, approved_at), projects(name)")
+        .select("*, deliverable_versions(id, status, version_number, edit_distance_score, approved_at)")
         .eq("user_id", auth.user_id)
         .order("created_at", desc=True)
         .limit(limit)
@@ -906,10 +907,7 @@ async def list_deliverables(
                 else:
                     quality_trend = "stable"
 
-        # Extract project name from join
-        project_data = d.get("projects")
-        project_name = project_data.get("name") if project_data else None
-
+        # ADR-034: Projects removed, deliverables are user-scoped
         responses.append(DeliverableResponse(
             id=d["id"],
             title=d["title"],
@@ -917,8 +915,8 @@ async def list_deliverables(
             type_config=d.get("type_config"),
             # ADR-031: Platform-native variants
             platform_variant=d.get("platform_variant"),
-            project_id=d.get("project_id"),
-            project_name=project_name,
+            project_id=None,  # ADR-034: Deprecated
+            project_name=None,  # ADR-034: Deprecated
             recipient_context=d.get("recipient_context"),
             schedule=d["schedule"],
             sources=d.get("sources", []),
@@ -954,9 +952,10 @@ async def get_deliverable(
     Get deliverable with recent version history.
     """
     # Get deliverable with project name
+    # ADR-034: Projects removed, deliverables are user-scoped
     result = (
         auth.client.table("deliverables")
-        .select("*, projects(name)")
+        .select("*")
         .eq("id", str(deliverable_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -967,8 +966,6 @@ async def get_deliverable(
         raise HTTPException(status_code=404, detail="Deliverable not found")
 
     deliverable = result.data
-    project_data = deliverable.get("projects")
-    project_name = project_data.get("name") if project_data else None
 
     # Get recent versions
     versions_result = (
@@ -994,8 +991,8 @@ async def get_deliverable(
             type_config=deliverable.get("type_config"),
             # ADR-031: Platform-native variants
             platform_variant=deliverable.get("platform_variant"),
-            project_id=deliverable.get("project_id"),
-            project_name=project_name,
+            project_id=None,  # ADR-034: Deprecated
+            project_name=None,  # ADR-034: Deprecated
             recipient_context=deliverable.get("recipient_context"),
             schedule=deliverable["schedule"],
             sources=deliverable.get("sources", []),
@@ -1129,7 +1126,7 @@ async def update_deliverable(
         type_config=d.get("type_config"),
         # ADR-031: Platform-native variants
         platform_variant=d.get("platform_variant"),
-        project_id=d.get("project_id"),
+        project_id=None,  # ADR-034: Deprecated
         recipient_context=d.get("recipient_context"),
         schedule=d["schedule"],
         sources=d.get("sources", []),
