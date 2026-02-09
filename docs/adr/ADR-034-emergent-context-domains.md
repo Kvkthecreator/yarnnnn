@@ -781,7 +781,7 @@ Emergent Context Domains solve the fundamental tension between:
 ## Implementation Status
 
 > **Implementation Date**: 2026-02-09
-> **Status**: Phases 1-3 Complete
+> **Status**: Phases 1-3 Complete, Context v2 Migration Complete
 
 ### Completed
 
@@ -807,8 +807,10 @@ Emergent Context Domains solve the fundamental tension between:
 
 ### Remaining
 
-#### Phase 4: UI Updates
-- [ ] Domain management UI in Settings
+#### Phase 4: UI Updates (Partial)
+- [x] Context v2: ContextBrowserSurface rewritten for domain-based browsing
+- [x] Context v2: DomainSelector replaces ProjectSelector
+- [ ] Domain management UI in Settings (power user feature)
 - [ ] Domain indicator in TP conversations
 - [ ] Domain context display in deliverable views
 
@@ -842,7 +844,8 @@ Emergent Context Domains solve the fundamental tension between:
 ## Addendum: Context v2 Migration (Project → Domain Swap)
 
 > **Added**: 2026-02-09
-> **Status**: In Progress
+> **Completed**: 2026-02-09
+> **Status**: ✅ Complete
 
 ### Rationale
 
@@ -853,69 +856,82 @@ After implementing Phases 1-3, a hybrid state emerged where both `project_id` an
 
 **Decision**: Treat domains as "Context v2" - a complete replacement, not an addition.
 
-### Migration Plan
+### Migration Plan (Completed)
 
-#### Step 1: Deprecate `/api/context/*` project-scoped routes
+#### Step 1: Deprecate `/api/context/*` project-scoped routes ✅
 
-**Routes to remove/migrate:**
+**Routes migrated:**
 
 | Current Route | Action | New Route |
 |---------------|--------|-----------|
 | `GET /api/context/user/memories` | Keep | (maps to default domain) |
 | `POST /api/context/user/memories` | Keep | (creates in default domain) |
-| `GET /api/context/projects/{id}/memories` | **Remove** | `GET /api/domains/{id}/memories` |
-| `POST /api/context/projects/{id}/memories` | **Remove** | `POST /api/domains/{id}/memories` |
-| `GET /api/context/projects/{id}/context` | **Remove** | `GET /api/domains/{id}` |
-| `POST /api/context/projects/{id}/memories/import` | **Remove** | Use import job with domain routing |
+| `GET /api/context/projects/{id}/memories` | **Deprecated** | `GET /api/domains/{id}/memories` |
+| `POST /api/context/projects/{id}/memories` | **Deprecated** | `POST /api/domains/{id}/memories` |
+| `GET /api/context/projects/{id}/context` | **Deprecated** | `GET /api/domains/{id}` |
+| `POST /api/context/projects/{id}/memories/import` | **Deprecated** | Use import job with domain routing |
 
-#### Step 2: Add domain memory routes
+Project-scoped routes marked deprecated in `api/routes/context.py`.
 
-New routes to add to `api/routes/domains.py`:
+#### Step 2: Add domain memory routes ✅
+
+Added to `api/routes/domains.py`:
 - `GET /api/domains/{domain_id}/memories` - List domain memories
 - `POST /api/domains/{domain_id}/memories` - Create domain memory
 
-#### Step 3: Migrate ContextBrowserSurface
+#### Step 3: Migrate ContextBrowserSurface ✅
 
-Replace project-based browsing with domain-based:
-- Remove `ProjectSelector` component
-- Add `DomainSelector` component
-- Use domain_id for memory fetching
+Replaced project-based browsing with domain-based:
+- ~~`ProjectSelector` component~~ → Removed
+- Added `DomainSelector` component (inline in ContextBrowserSurface)
+- Uses `domain_id` for memory fetching via `api.domains.memories.list()`
 
-#### Step 4: Remove ProjectContext
+#### Step 4: Remove ProjectContext ✅
 
-The `ProjectContext.tsx` becomes unnecessary:
+Deleted `web/contexts/ProjectContext.tsx`:
 - Active domain comes from surface context (via `useActiveDomain`)
-- No need for global project selection state
+- Removed `ProjectSelector.tsx` component
 
-#### Step 5: Update API client
+#### Step 5: Update API client ✅
 
-In `web/lib/api/client.ts`:
-- Remove `projectMemories` section
-- Remove `context.getBundle`
-- Keep `userMemories` (maps to default domain)
-- Add `domains.memories.list(domainId)` and `domains.memories.create(domainId, data)`
+Updated `web/lib/api/client.ts`:
+- Added `domains.memories.list(domainId)`
+- Added `domains.memories.create(domainId, data)`
+- `userMemories` still maps to default domain
 
-#### Step 6: Update frontend hooks
+#### Step 6: Update frontend hooks ✅
 
-- Remove `useProjectMemories` from `useMemories.ts`
-- Add `useDomainMemories(domainId)` hook
-- Keep `useUserMemories` (default domain context)
+Updated `web/hooks/useMemories.ts`:
+- Added `useDomainMemories(domainId)` hook
+- `useUserMemories` still works for default domain context
 
-### Files to Modify
+#### Step 7: Fix type definitions ✅
 
-| File | Changes |
-|------|---------|
-| `api/routes/context.py` | Remove project-scoped routes, keep user routes |
-| `api/routes/domains.py` | Add memory routes |
-| `api/main.py` | Verify router registration |
-| `web/lib/api/client.ts` | Remove projectMemories, update domains section |
-| `web/hooks/useMemories.ts` | Remove useProjectMemories, add useDomainMemories |
-| `web/contexts/ProjectContext.tsx` | **Delete** |
-| `web/components/surfaces/ContextBrowserSurface.tsx` | Rewrite for domains |
+Updated scope types from `'project'` to `'domain'`:
+- `web/types/desk.ts`: DeskSurface context-browser scope type
+- `web/lib/tp-chips.ts`: ContextScope type and getContextScope function
+- `web/components/surfaces/ProjectDetailSurface.tsx`: Navigate to user scope instead of project
 
-### Files to Delete
+### Files Modified
 
-- `web/contexts/ProjectContext.tsx` - Replaced by domain context
+| File | Changes | Status |
+|------|---------|--------|
+| `api/routes/context.py` | Marked project-scoped routes as deprecated | ✅ |
+| `api/routes/domains.py` | Added memory routes | ✅ |
+| `api/services/extraction.py` | Added `domain_id` parameter to `create_memory_manual` | ✅ |
+| `web/lib/api/client.ts` | Added `domains.memories` methods | ✅ |
+| `web/hooks/useMemories.ts` | Added `useDomainMemories` hook | ✅ |
+| `web/components/surfaces/ContextBrowserSurface.tsx` | Rewrote for domain-based browsing | ✅ |
+| `web/types/desk.ts` | Updated scope type `'project'` → `'domain'` | ✅ |
+| `web/lib/tp-chips.ts` | Updated ContextScope type for domains | ✅ |
+| `web/components/surfaces/ProjectDetailSurface.tsx` | Updated context link to user scope | ✅ |
+
+### Files Deleted
+
+| File | Reason | Status |
+|------|--------|--------|
+| `web/contexts/ProjectContext.tsx` | Replaced by domain context via `useActiveDomain` | ✅ |
+| `web/components/shell/ProjectSelector.tsx` | Replaced by DomainSelector in ContextBrowserSurface | ✅ |
 
 ### Backwards Compatibility
 

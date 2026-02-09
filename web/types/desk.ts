@@ -15,8 +15,8 @@ export type DeskSurface =
   // Work domain
   | { type: 'work-output'; workId: string; outputId?: string }
   | { type: 'work-list'; filter?: 'active' | 'completed' | 'all' }
-  // Context domain
-  | { type: 'context-browser'; scope: 'user' | 'deliverable' | 'project'; scopeId?: string }
+  // Context domain (ADR-034: domain-based scoping)
+  | { type: 'context-browser'; scope: 'user' | 'deliverable' | 'domain'; scopeId?: string }
   | { type: 'context-editor'; memoryId: string }
   // Documents domain
   | { type: 'document-viewer'; documentId: string }
@@ -180,12 +180,12 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'work-list':
       return { type: 'work-list' };
 
-    // Context
+    // Context (ADR-034: domain-based scoping)
     case 'context':
     case 'memory':
       return {
         type: 'context-browser',
-        scope: (data.scope as 'user' | 'deliverable' | 'project') || 'user',
+        scope: (data.scope as 'user' | 'deliverable' | 'domain') || 'user',
         scopeId: data.scopeId as string | undefined,
       };
     case 'memory-edit':
@@ -304,7 +304,7 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
     case 'context-browser':
       return {
         type: 'context-browser',
-        scope: (params.get('scope') as 'user' | 'deliverable' | 'project') || 'user',
+        scope: (params.get('scope') as 'user' | 'deliverable' | 'domain') || 'user',
         scopeId: params.get('scopeId') || undefined,
       };
     case 'context-editor': {

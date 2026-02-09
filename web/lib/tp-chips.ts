@@ -75,7 +75,7 @@ export function getSurfaceIcon(surface: DeskSurface): string {
 export type ContextScope =
   | { type: 'user'; label: 'Your context' }
   | { type: 'deliverable'; label: string; deliverableId: string }
-  | { type: 'project'; label: string; projectId: string };
+  | { type: 'domain'; label: string; domainId: string };
 
 /**
  * Get context scope from surface
@@ -92,11 +92,8 @@ export function getContextScope(surface: DeskSurface): ContextScope {
         deliverableId: surface.deliverableId,
       };
     case 'project-detail':
-      return {
-        type: 'project',
-        label: 'Project context',
-        projectId: surface.projectId,
-      };
+      // Projects map to user context (domains are the new scoping mechanism)
+      return { type: 'user', label: 'Your context' };
     case 'context-browser':
       if (surface.scope === 'deliverable' && surface.scopeId) {
         return {
@@ -105,11 +102,11 @@ export function getContextScope(surface: DeskSurface): ContextScope {
           deliverableId: surface.scopeId,
         };
       }
-      if (surface.scope === 'project' && surface.scopeId) {
+      if (surface.scope === 'domain' && surface.scopeId) {
         return {
-          type: 'project',
-          label: 'Project context',
-          projectId: surface.scopeId,
+          type: 'domain',
+          label: 'Domain context',
+          domainId: surface.scopeId,
         };
       }
       return { type: 'user', label: 'Your context' };

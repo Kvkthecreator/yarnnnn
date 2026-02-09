@@ -145,13 +145,13 @@ export function ProjectDetailSurface({ projectId }: ProjectDetailSurfaceProps) {
           <div className="mt-6 space-y-3">
             <button
               onClick={() =>
-                setSurface({ type: 'context-browser', scope: 'project', scopeId: projectId })
+                setSurface({ type: 'context-browser', scope: 'user' })
               }
               className="w-full p-4 border border-border rounded-lg hover:bg-muted text-left"
             >
-              <span className="text-sm font-medium">View Project Context</span>
+              <span className="text-sm font-medium">View Context</span>
               <p className="text-xs text-muted-foreground">
-                {project.memory_count || 0} memories stored
+                Browse memories and domain context
               </p>
             </button>
 
