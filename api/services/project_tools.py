@@ -1285,10 +1285,10 @@ async def handle_get_work(auth, input: dict) -> dict:
     """
     work_id = input["work_id"]
 
-    # Get work with project info
+    # ADR-034: Projects removed, work is user-scoped
     try:
         work_result = auth.client.table("work_tickets")\
-            .select("*, projects(name)")\
+            .select("*")\
             .eq("id", work_id)\
             .eq("user_id", auth.user_id)\
             .single()\
@@ -1307,7 +1307,7 @@ async def handle_get_work(auth, input: dict) -> dict:
         }
 
     work = work_result.data
-    project_name = work.get("projects", {}).get("name", "Personal") if work.get("projects") else "Personal"
+    project_name = "Personal"  # ADR-034: Deprecated
     is_recurring = work.get("schedule_cron") is not None
 
     # Get outputs for this work
@@ -2259,21 +2259,16 @@ async def handle_list_memories(auth, input: dict) -> dict:
     limit = input.get("limit", 20)
 
     # Build query - filter is_active=true since schema uses soft delete
+    # ADR-034: Projects removed, memories are user-scoped (domain_id replaces project_id)
     query = auth.client.table("memories")\
-        .select("id, content, tags, project_id, created_at, updated_at, projects(name)")\
+        .select("id, content, tags, domain_id, created_at, updated_at")\
         .eq("user_id", auth.user_id)\
         .eq("is_active", True)\
         .order("created_at", desc=True)\
         .limit(limit)
 
-    # Apply scope filter
-    if scope == "user":
-        query = query.is_("project_id", "null")
-    elif scope == "project":
-        if project_id:
-            query = query.eq("project_id", project_id)
-        else:
-            query = query.not_.is_("project_id", "null")
+    # ADR-034: Scope filter simplified - all memories are user-scoped
+    # Domain filtering can be added when domain_id is populated
 
     # Apply tag filter
     if tag:
@@ -2287,18 +2282,15 @@ async def handle_list_memories(auth, input: dict) -> dict:
     memories = result.data or []
 
     # Format response
+    # ADR-034: Projects removed, all memories are user-scoped
     items = []
     for m in memories:
-        project_name = None
-        if m.get("project_id") and m.get("projects"):
-            project_name = m["projects"].get("name")
-
         items.append({
             "id": m["id"],
             "content": m["content"][:200] + "..." if len(m["content"]) > 200 else m["content"],
             "tags": m.get("tags", []),
-            "scope": "project" if m.get("project_id") else "user",
-            "project_name": project_name,
+            "scope": "user",  # ADR-034: All memories are user-scoped
+            "domain_id": m.get("domain_id"),  # ADR-034: Domain scoping
             "created_at": m["created_at"],
         })
 
