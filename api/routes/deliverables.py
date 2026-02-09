@@ -24,7 +24,6 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
-from routes.projects import get_or_create_workspace
 
 logger = logging.getLogger(__name__)
 
@@ -577,7 +576,6 @@ class DeliverableCreate(BaseModel):
     type_config: Optional[dict] = None  # Type-specific config, validated per type
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None  # e.g., "slack_digest" for status_report
-    project_id: Optional[str] = None  # Optional - will create project if not provided
     recipient_context: Optional[RecipientContext] = None
     # ADR-031 Phase 4: Trigger configuration
     trigger_type: Literal["schedule", "event", "manual"] = "schedule"
@@ -733,41 +731,7 @@ async def create_deliverable(
 ) -> DeliverableResponse:
     """
     Create a new recurring deliverable.
-
-    If project_id is not provided, creates a new project for this deliverable.
     """
-    project_id = request.project_id
-
-    # Create project if not provided
-    if not project_id:
-        # Get or create workspace first
-        workspace = await get_or_create_workspace(auth)
-
-        project_result = (
-            auth.client.table("projects")
-            .insert({
-                "name": request.title,
-                "description": f"Project for deliverable: {request.title}",
-                "workspace_id": workspace["id"],
-            })
-            .execute()
-        )
-        if not project_result.data:
-            raise HTTPException(status_code=500, detail="Failed to create project")
-        project_id = project_result.data[0]["id"]
-        logger.info(f"[DELIVERABLE] Created project {project_id} for deliverable")
-    else:
-        # Verify project access
-        project_check = (
-            auth.client.table("projects")
-            .select("id")
-            .eq("id", project_id)
-            .single()
-            .execute()
-        )
-        if not project_check.data:
-            raise HTTPException(status_code=404, detail="Project not found")
-
     # Calculate next_run_at based on schedule
     next_run_at = calculate_next_run(request.schedule)
 
@@ -792,7 +756,6 @@ async def create_deliverable(
     # Create deliverable
     deliverable_data = {
         "user_id": auth.user_id,
-        "project_id": project_id,
         "title": request.title,
         "deliverable_type": request.deliverable_type,
         "type_tier": TYPE_TIERS.get(request.deliverable_type, "stable"),

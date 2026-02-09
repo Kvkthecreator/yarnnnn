@@ -4,9 +4,9 @@ Work routes - Ticket lifecycle management
 ADR-009: Work and Agent Orchestration
 
 Endpoints:
-- POST /projects/:id/work - Create and execute work request
-- POST /projects/:id/work/async - Create work request (async execution)
-- GET /projects/:id/work - List work tickets
+- POST /work - Create and execute work request
+- POST /work/async - Create work request (async execution)
+- GET /work - List work tickets
 - GET /work/:id - Get ticket with outputs
 - POST /work/:id/execute - Execute a pending ticket
 """
@@ -45,7 +45,6 @@ class WorkResponse(BaseModel):
     task: str
     agent_type: str
     status: str  # pending, running, completed, failed
-    project_id: str
     created_at: str
     started_at: Optional[str] = None
     completed_at: Optional[str] = None
@@ -78,9 +77,8 @@ class OutputResponse(BaseModel):
 # Routes
 # =============================================================================
 
-@router.post("/projects/{project_id}/work")
+@router.post("")
 async def create_and_execute(
-    project_id: UUID,
     request: WorkCreate,
     auth: UserClient,
 ) -> WorkExecutionResponse:
@@ -91,33 +89,20 @@ async def create_and_execute(
     Use this for interactive workflows where you want immediate results.
 
     Args:
-        project_id: Project UUID
         request: Work request with task, agent_type, parameters
         auth: Authenticated user
 
     Returns:
         Execution result with outputs
     """
-    # Verify project access
-    project_result = (
-        auth.client.table("projects")
-        .select("id, name")
-        .eq("id", str(project_id))
-        .single()
-        .execute()
-    )
-    if not project_result.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-
     logger.info(
-        f"[WORK] Creating and executing: project={project_id}, "
+        f"[WORK] Creating and executing: user={auth.user_id}, "
         f"agent={request.agent_type}, task='{request.task[:50]}...'"
     )
 
     result = await create_and_execute_work(
         client=auth.client,
         user_id=auth.user_id,
-        project_id=str(project_id),
         task=request.task,
         agent_type=request.agent_type,
         parameters=request.parameters,
@@ -139,9 +124,8 @@ async def create_and_execute(
     )
 
 
-@router.post("/projects/{project_id}/work/async")
+@router.post("/async")
 async def create_ticket_async(
-    project_id: UUID,
     request: WorkCreate,
     auth: UserClient,
 ) -> WorkResponse:
@@ -152,24 +136,12 @@ async def create_ticket_async(
     Use GET /work/{id} to check status and POST /work/{id}/execute to run it.
 
     Args:
-        project_id: Project UUID
         request: Work request with task, agent_type, parameters
         auth: Authenticated user
 
     Returns:
         Created ticket details
     """
-    # Verify project access
-    project_result = (
-        auth.client.table("projects")
-        .select("id")
-        .eq("id", str(project_id))
-        .single()
-        .execute()
-    )
-    if not project_result.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-
     # Validate agent type
     valid_types = ["research", "content", "reporting"]
     if request.agent_type not in valid_types:
@@ -180,9 +152,9 @@ async def create_ticket_async(
 
     # Create ticket
     ticket_data = {
+        "user_id": auth.user_id,
         "task": request.task,
         "agent_type": request.agent_type,
-        "project_id": str(project_id),
         "parameters": request.parameters or {},
         "status": "pending",
     }
@@ -204,23 +176,20 @@ async def create_ticket_async(
         task=ticket["task"],
         agent_type=ticket["agent_type"],
         status=ticket["status"],
-        project_id=ticket["project_id"],
         created_at=ticket["created_at"],
     )
 
 
-@router.get("/projects/{project_id}/work")
+@router.get("")
 async def list_work(
-    project_id: UUID,
     auth: UserClient,
     status: Optional[str] = None,
     limit: int = 20,
 ) -> list[WorkResponse]:
     """
-    List work tickets for a project.
+    List work tickets for the user.
 
     Args:
-        project_id: Project UUID
         auth: Authenticated user
         status: Optional filter by status (pending, running, completed, failed)
         limit: Maximum tickets to return
@@ -228,22 +197,11 @@ async def list_work(
     Returns:
         List of work tickets
     """
-    # Verify project access
-    project_result = (
-        auth.client.table("projects")
-        .select("id")
-        .eq("id", str(project_id))
-        .single()
-        .execute()
-    )
-    if not project_result.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-
     # Build query
     query = (
         auth.client.table("work_tickets")
         .select("*")
-        .eq("project_id", str(project_id))
+        .eq("user_id", auth.user_id)
         .order("created_at", desc=True)
         .limit(limit)
     )
@@ -260,7 +218,6 @@ async def list_work(
             task=t["task"],
             agent_type=t["agent_type"],
             status=t["status"],
-            project_id=t["project_id"],
             created_at=t["created_at"],
             started_at=t.get("started_at"),
             completed_at=t.get("completed_at"),
@@ -270,7 +227,7 @@ async def list_work(
     ]
 
 
-@router.get("/work/{ticket_id}")
+@router.get("/{ticket_id}")
 async def get_work(
     ticket_id: UUID,
     auth: UserClient,
@@ -288,7 +245,7 @@ async def get_work(
     # Get ticket
     ticket_result = (
         auth.client.table("work_tickets")
-        .select("*, projects(name)")
+        .select("*")
         .eq("id", str(ticket_id))
         .single()
         .execute()
@@ -316,8 +273,6 @@ async def get_work(
             "task": ticket["task"],
             "agent_type": ticket["agent_type"],
             "status": ticket["status"],
-            "project_id": ticket["project_id"],
-            "project_name": ticket.get("projects", {}).get("name") if ticket.get("projects") else None,
             "parameters": ticket.get("parameters", {}),
             "created_at": ticket["created_at"],
             "started_at": ticket.get("started_at"),
@@ -341,7 +296,7 @@ async def get_work(
     }
 
 
-@router.post("/work/{ticket_id}/execute")
+@router.post("/{ticket_id}/execute")
 async def execute_ticket(
     ticket_id: UUID,
     auth: UserClient,
@@ -413,10 +368,9 @@ class WorkUpdateRequest(BaseModel):
     frequency: Optional[str] = None
 
 
-@router.get("/work")
+@router.get("/all")
 async def list_all_work(
     auth: UserClient,
-    project_id: Optional[str] = None,
     active_only: bool = False,
     include_completed: bool = True,
     limit: int = 10,
@@ -424,12 +378,11 @@ async def list_all_work(
     """
     ADR-017: List all work for the current user.
 
-    Supports filtering by project, active status, and completion status.
+    Supports filtering by active status and completion status.
     Returns both one-time and recurring work.
 
     Args:
         auth: Authenticated user
-        project_id: Optional filter by project
         active_only: Only show active recurring work
         include_completed: Include completed one-time work
         limit: Maximum results
@@ -440,7 +393,6 @@ async def list_all_work(
     from services.project_tools import handle_list_work
 
     result = await handle_list_work(auth, {
-        "project_id": project_id,
         "active_only": active_only,
         "include_completed": include_completed,
         "limit": limit,
@@ -449,7 +401,7 @@ async def list_all_work(
     return result
 
 
-@router.patch("/work/{work_id}")
+@router.patch("/{work_id}")
 async def update_work(
     work_id: str,
     request: WorkUpdateRequest,
@@ -486,7 +438,7 @@ async def update_work(
     return result
 
 
-@router.delete("/work/{work_id}")
+@router.delete("/{work_id}")
 async def delete_work(
     work_id: str,
     auth: UserClient,

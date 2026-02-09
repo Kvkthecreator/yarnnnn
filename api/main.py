@@ -2,11 +2,10 @@
 YARNNN API - Context-aware AI work platform
 
 Single FastAPI application with route groups:
-- /api: Projects and workspaces
-- /api/context: Block and document management
+- /api/context: Memory and document management
 - /api/work: Work ticket lifecycle
-- /api/agents: Agent execution
 - /api/chat: Thinking Partner conversations
+- /api/domains: Context domains (ADR-034)
 """
 
 import os
@@ -25,7 +24,7 @@ logging.basicConfig(
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import context, projects, chat, documents, admin, webhooks, subscription, work, deliverables, account, integrations, project_resources, domains
+from routes import context, chat, documents, admin, webhooks, subscription, work, deliverables, account, integrations, domains
 
 app = FastAPI(
     title="YARNNN API",
@@ -56,7 +55,6 @@ async def health():
 
 
 # Mount routers
-app.include_router(projects.router, prefix="/api", tags=["projects"])
 app.include_router(context.router, prefix="/api/context", tags=["context"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(documents.router, prefix="/api", tags=["documents"])
@@ -76,9 +74,6 @@ app.include_router(account.router, prefix="/api", tags=["account"])
 
 # Integration routes (ADR-026)
 app.include_router(integrations.router, prefix="/api", tags=["integrations"])
-
-# Project resources routes (ADR-031 Phase 6)
-app.include_router(project_resources.router, prefix="/api/projects", tags=["project-resources"])
 
 # Domain routes (ADR-034)
 app.include_router(domains.router, tags=["domains"])

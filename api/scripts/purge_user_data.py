@@ -10,10 +10,10 @@ This will:
 1. Delete all deliverable_versions for user's deliverables
 2. Delete all deliverables
 3. Delete all chat_sessions (and cascade to session_messages)
-4. Delete all memories (user + project-scoped)
-5. Delete all documents
-6. Delete all projects
-7. Delete all workspaces
+4. Delete all memories
+5. Delete all work_outputs for user's work_tickets
+6. Delete all work_tickets
+7. Delete all context_domains
 
 WARNING: This is destructive and cannot be undone!
 """
@@ -70,22 +70,7 @@ def purge_user_data(email: str, dry_run: bool = False):
     print(f"✓ Found user_id: {user_id}")
     action = "Would delete" if dry_run else "Deleting"
 
-    # 1. Get workspace IDs (user owns workspaces via owner_id)
-    print(f"\n📂 Fetching workspaces...")
-    workspaces = client.table("workspaces").select("id, name").eq("owner_id", user_id).execute()
-    workspace_ids = [w["id"] for w in (workspaces.data or [])]
-    print(f"   Found {len(workspace_ids)} workspaces")
-
-    # 2. Get project IDs (projects belong to workspaces)
-    project_ids: List[str] = []
-    if workspace_ids:
-        print(f"\n📁 Fetching projects...")
-        for wid in workspace_ids:
-            projects = client.table("projects").select("id, name").eq("workspace_id", wid).execute()
-            project_ids.extend([p["id"] for p in (projects.data or [])])
-        print(f"   Found {len(project_ids)} projects")
-
-    # 3. Delete deliverable_versions and deliverables
+    # 1. Delete deliverable_versions and deliverables
     print(f"\n📦 Fetching deliverables...")
     deliverables = client.table("deliverables").select("id, title").eq("user_id", user_id).execute()
     deliverable_ids = [d["id"] for d in (deliverables.data or [])]
@@ -105,7 +90,7 @@ def purge_user_data(email: str, dry_run: bool = False):
     else:
         print(f"   Would delete {len(deliverable_ids)} deliverables")
 
-    # 4. Delete chat_sessions (session_messages cascade automatically)
+    # 2. Delete chat_sessions (session_messages cascade automatically)
     print(f"\n🗑️  {action} chat_sessions...")
     if not dry_run:
         result = client.table("chat_sessions").delete().eq("user_id", user_id).execute()
@@ -114,42 +99,42 @@ def purge_user_data(email: str, dry_run: bool = False):
         sessions = client.table("chat_sessions").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(sessions.data or [])} chat sessions")
 
-    # 5. Delete memories
+    # 3. Delete memories
     print(f"\n🗑️  {action} memories...")
     if not dry_run:
-        # User memories
         result = client.table("memories").delete().eq("user_id", user_id).execute()
         print(f"   Deleted {len(result.data or [])} memories")
     else:
         memories = client.table("memories").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(memories.data or [])} memories")
 
-    # 6. Delete documents (belong to projects)
-    if project_ids:
-        print(f"\n🗑️  {action} documents...")
-        for pid in project_ids:
-            if not dry_run:
-                result = client.table("documents").delete().eq("project_id", pid).execute()
-                if result.data:
-                    print(f"   - {len(result.data)} documents from project {pid[:8]}...")
-            else:
-                print(f"   - Documents for project {pid[:8]}...")
+    # 4. Delete work_outputs and work_tickets
+    print(f"\n📋 Fetching work_tickets...")
+    tickets = client.table("work_tickets").select("id").eq("user_id", user_id).execute()
+    ticket_ids = [t["id"] for t in (tickets.data or [])]
+    print(f"   Found {len(ticket_ids)} work tickets")
 
-    # 7. Delete projects (documents cascade if FK set up)
-    if project_ids:
-        print(f"\n🗑️  {action} projects...")
-        for pid in project_ids:
+    if ticket_ids:
+        print(f"\n🗑️  {action} work_outputs...")
+        for tid in ticket_ids:
             if not dry_run:
-                client.table("projects").delete().eq("id", pid).execute()
-        print(f"   {'Would delete' if dry_run else 'Deleted'} {len(project_ids)} projects")
+                result = client.table("work_outputs").delete().eq("ticket_id", tid).execute()
 
-    # 8. Delete workspaces (projects cascade if FK set up)
-    if workspace_ids:
-        print(f"\n🗑️  {action} workspaces...")
-        for wid in workspace_ids:
-            if not dry_run:
-                client.table("workspaces").delete().eq("id", wid).execute()
-        print(f"   {'Would delete' if dry_run else 'Deleted'} {len(workspace_ids)} workspaces")
+    print(f"\n🗑️  {action} work_tickets...")
+    if not dry_run:
+        result = client.table("work_tickets").delete().eq("user_id", user_id).execute()
+        print(f"   Deleted {len(result.data or [])} work tickets")
+    else:
+        print(f"   Would delete {len(ticket_ids)} work tickets")
+
+    # 5. Delete context_domains
+    print(f"\n🗑️  {action} context_domains...")
+    if not dry_run:
+        result = client.table("context_domains").delete().eq("user_id", user_id).execute()
+        print(f"   Deleted {len(result.data or [])} context domains")
+    else:
+        domains = client.table("context_domains").select("id").eq("user_id", user_id).execute()
+        print(f"   Would delete {len(domains.data or [])} context domains")
 
     print(f"\n{'🔍 DRY RUN COMPLETE' if dry_run else '✅ PURGE COMPLETE'}")
     print(f"User {email} is now in cold-start state (zero deliverables, no chat history).")
@@ -168,7 +153,7 @@ if __name__ == "__main__":
 
     if not dry_run:
         print(f"\n⚠️  WARNING: This will permanently delete ALL data for {email}")
-        print("This includes: deliverables, chat history, memories, documents, projects, workspaces")
+        print("This includes: deliverables, chat history, memories, work tickets, context domains")
         confirm = input("Type 'yes' to confirm: ")
         if confirm.lower() != "yes":
             print("Aborted.")

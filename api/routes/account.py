@@ -43,7 +43,6 @@ class DangerZoneStats(BaseModel):
     export_logs: int
 
     # Hierarchy
-    projects: int
     workspaces: int
 
 
@@ -211,15 +210,9 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         export_logs = auth.client.table("export_log").select("id", count="exact").eq("user_id", user_id).execute()
         export_logs_count = export_logs.count or 0
 
-        # Count workspaces and projects
+        # Count workspaces
         workspaces = auth.client.table("workspaces").select("id", count="exact").eq("owner_id", user_id).execute()
         workspaces_count = workspaces.count or 0
-
-        projects_count = 0
-        if workspaces.data:
-            for w in workspaces.data:
-                projects = auth.client.table("projects").select("id", count="exact").eq("workspace_id", w["id"]).execute()
-                projects_count += projects.count or 0
 
         return DangerZoneStats(
             chat_sessions=chat_sessions_count,
@@ -232,7 +225,6 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             user_integrations=integrations_count,
             integration_import_jobs=import_jobs_count,
             export_logs=export_logs_count,
-            projects=projects_count,
             workspaces=workspaces_count,
         )
 
@@ -530,13 +522,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         workspaces = auth.client.table("workspaces").select("id").eq("owner_id", user_id).execute()
         workspace_ids = [w["id"] for w in (workspaces.data or [])]
 
-        # 2. Get project IDs
-        project_ids = []
-        for wid in workspace_ids:
-            projects = auth.client.table("projects").select("id").eq("workspace_id", wid).execute()
-            project_ids.extend([p["id"] for p in (projects.data or [])])
-
-        # 3. Delete deliverable versions and deliverables
+        # 2. Delete deliverable versions and deliverables
         deliverables = auth.client.table("deliverables").select("id").eq("user_id", user_id).execute()
         deliverable_ids = [d["id"] for d in (deliverables.data or [])]
 
@@ -549,23 +535,23 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
         deleted["deliverables"] = len(result.data or [])
 
-        # 4. Delete work tickets (outputs cascade)
+        # 3. Delete work tickets (outputs cascade)
         result = auth.client.table("work_tickets").delete().eq("user_id", user_id).execute()
         deleted["work_tickets"] = len(result.data or [])
 
-        # 5. Delete chat sessions (messages cascade)
+        # 4. Delete chat sessions (messages cascade)
         result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
         deleted["chat_sessions"] = len(result.data or [])
 
-        # 6. Delete memories
+        # 5. Delete memories
         result = auth.client.table("memories").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
-        # 7. Delete documents
+        # 6. Delete documents
         result = auth.client.table("documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
-        # 8. Delete integration data
+        # 7. Delete integration data
         result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
         deleted["export_logs"] = len(result.data or [])
 
@@ -587,17 +573,12 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         result = auth.client.table("user_integrations").delete().eq("user_id", user_id).execute()
         deleted["user_integrations"] = len(result.data or [])
 
-        # 9. Delete projects
-        for pid in project_ids:
-            auth.client.table("projects").delete().eq("id", pid).execute()
-        deleted["projects"] = len(project_ids)
-
-        # 10. Delete workspaces
+        # 8. Delete workspaces
         for wid in workspace_ids:
             auth.client.table("workspaces").delete().eq("id", wid).execute()
         deleted["workspaces"] = len(workspace_ids)
 
-        # 11. Recreate default workspace so user can continue
+        # 9. Recreate default workspace so user can continue
         auth.client.table("workspaces").insert({
             "name": "My Workspace",
             "owner_id": user_id,
@@ -629,13 +610,7 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         workspaces = auth.client.table("workspaces").select("id").eq("owner_id", user_id).execute()
         workspace_ids = [w["id"] for w in (workspaces.data or [])]
 
-        # 2. Get project IDs
-        project_ids = []
-        for wid in workspace_ids:
-            projects = auth.client.table("projects").select("id").eq("workspace_id", wid).execute()
-            project_ids.extend([p["id"] for p in (projects.data or [])])
-
-        # 3. Delete deliverable versions and deliverables
+        # 2. Delete deliverable versions and deliverables
         deliverables = auth.client.table("deliverables").select("id").eq("user_id", user_id).execute()
         deliverable_ids = [d["id"] for d in (deliverables.data or [])]
 
@@ -648,23 +623,23 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
         deleted["deliverables"] = len(result.data or [])
 
-        # 4. Delete work tickets (outputs cascade)
+        # 3. Delete work tickets (outputs cascade)
         result = auth.client.table("work_tickets").delete().eq("user_id", user_id).execute()
         deleted["work_tickets"] = len(result.data or [])
 
-        # 5. Delete chat sessions
+        # 4. Delete chat sessions
         result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
         deleted["chat_sessions"] = len(result.data or [])
 
-        # 6. Delete memories
+        # 5. Delete memories
         result = auth.client.table("memories").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
-        # 7. Delete documents
+        # 6. Delete documents
         result = auth.client.table("documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
-        # 8. Delete integration data
+        # 7. Delete integration data
         result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
         deleted["export_logs"] = len(result.data or [])
 
@@ -686,17 +661,12 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         result = auth.client.table("user_integrations").delete().eq("user_id", user_id).execute()
         deleted["user_integrations"] = len(result.data or [])
 
-        # 9. Delete projects
-        for pid in project_ids:
-            auth.client.table("projects").delete().eq("id", pid).execute()
-        deleted["projects"] = len(project_ids)
-
-        # 10. Delete workspaces (don't recreate)
+        # 8. Delete workspaces (don't recreate)
         for wid in workspace_ids:
             auth.client.table("workspaces").delete().eq("id", wid).execute()
         deleted["workspaces"] = len(workspace_ids)
 
-        # 11. Delete from auth.users using service role
+        # 9. Delete from auth.users using service role
         try:
             service_client = get_service_client()
             service_client.auth.admin.delete_user(user_id)

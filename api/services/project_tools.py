@@ -743,6 +743,7 @@ Returns the created deliverable. Always follow with respond() to:
 
 # Tools available to Thinking Partner (ADR-023 Unified Tool Model)
 # All outputs are tools - including conversation itself
+# ADR-034: Removed project tools (list_projects, create_project, etc.)
 THINKING_PARTNER_TOOLS = [
     # Communication (conversation as explicit tool choice)
     RESPOND_TOOL,
@@ -750,23 +751,18 @@ THINKING_PARTNER_TOOLS = [
     # Progress tracking (ADR-025 Claude Code Alignment)
     TODO_WRITE_TOOL,
     # Navigation (open surfaces to show data)
-    LIST_PROJECTS_TOOL,
     LIST_MEMORIES_TOOL,
     LIST_DELIVERABLES_TOOL,
     LIST_WORK_TOOL,
     GET_DELIVERABLE_TOOL,
     GET_WORK_TOOL,
     # Actions (CRUD operations)
-    CREATE_PROJECT_TOOL,
-    RENAME_PROJECT_TOOL,
-    UPDATE_PROJECT_TOOL,
     CREATE_WORK_TOOL,
     UPDATE_WORK_TOOL,
     DELETE_WORK_TOOL,
     CREATE_MEMORY_TOOL,
     UPDATE_MEMORY_TOOL,
     DELETE_MEMORY_TOOL,
-    SUGGEST_PROJECT_FOR_MEMORY_TOOL,  # ADR-024: Memory routing
     RUN_DELIVERABLE_TOOL,
     UPDATE_DELIVERABLE_TOOL,
     CREATE_DELIVERABLE_TOOL,
@@ -1214,26 +1210,21 @@ async def handle_list_work(auth, input: dict) -> dict:
 
     Args:
         auth: UserClient with authenticated Supabase client
-        input: Tool input with optional project_id, active_only, include_completed, limit
+        input: Tool input with optional active_only, include_completed, limit
 
     Returns:
         Dict with work list
     """
-    project_id = input.get("project_id")
     active_only = input.get("active_only", False)
     include_completed = input.get("include_completed", True)
     limit = input.get("limit", 10)
 
     # Build query
     query = auth.client.table("work_tickets")\
-        .select("id, task, agent_type, status, project_id, user_id, created_at, started_at, completed_at, schedule_cron, schedule_enabled, schedule_next_run_at, is_template, projects(name)")\
+        .select("id, task, agent_type, status, user_id, created_at, started_at, completed_at, schedule_cron, schedule_enabled, schedule_next_run_at, is_template")\
         .eq("user_id", auth.user_id)\
         .order("created_at", desc=True)\
         .limit(limit)
-
-    # Filter by project if specified
-    if project_id:
-        query = query.eq("project_id", project_id)
 
     # Active only: show recurring work that's enabled
     if active_only:
@@ -1252,18 +1243,10 @@ async def handle_list_work(auth, input: dict) -> dict:
         if not include_completed and not is_recurring and t.get("status") == "completed":
             continue
 
-        # Project name
-        if t.get("project_id"):
-            project_name = t.get("projects", {}).get("name", "Unknown") if t.get("projects") else "Unknown"
-        else:
-            project_name = "Personal"
-
         work_item = {
             "id": t["id"],
             "task": t["task"][:100] + "..." if len(t["task"]) > 100 else t["task"],
             "agent_type": t["agent_type"],
-            "project_name": project_name,
-            "is_ambient": t.get("project_id") is None,
             "is_recurring": is_recurring,
             "created_at": t["created_at"],
         }
@@ -2748,23 +2731,17 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "clarify": handle_clarify,
     # Todo tracking (ADR-025 Claude Code Alignment)
     "todo_write": handle_todo_write,
-    # Project tools (ADR-007)
-    "list_projects": handle_list_projects,
-    "create_project": handle_create_project,
-    "rename_project": handle_rename_project,
-    "update_project": handle_update_project,
     # Unified work tools (ADR-017)
     "create_work": handle_create_work,
     "list_work": handle_list_work,
     "get_work": handle_get_work,
     "update_work": handle_update_work,
     "delete_work": handle_delete_work,
-    # Memory/Context tools (ADR-023, ADR-024)
+    # Memory/Context tools (ADR-023)
     "list_memories": handle_list_memories,
     "create_memory": handle_create_memory,
     "update_memory": handle_update_memory,
     "delete_memory": handle_delete_memory,
-    "suggest_project_for_memory": handle_suggest_project_for_memory,
     # Deliverable tools (ADR-018, ADR-020)
     "list_deliverables": handle_list_deliverables,
     "get_deliverable": handle_get_deliverable,

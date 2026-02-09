@@ -3,13 +3,13 @@ Chat routes - Thinking Partner conversations
 
 ADR-005: Unified memory with embeddings
 ADR-006: Session and message architecture
-ADR-007: Tool use for project authority (unified streaming + tools)
+ADR-007: Tool use for TP authority (unified streaming + tools)
+ADR-034: Domain-based context scoping
 
 Endpoints:
-- POST /chat - Global chat with streaming + tools (user-level, no project required)
-- POST /projects/:id/chat - Project chat with streaming + tools
+- POST /chat - Global chat with streaming + tools
 - GET /chat/history - Get global chat history
-- GET /projects/:id/chat/history - Get project chat history
+- GET /skills - List available TP skills
 """
 
 import json
@@ -45,9 +45,9 @@ class SurfaceContext(BaseModel):
     versionId: Optional[str] = None
     workId: Optional[str] = None
     outputId: Optional[str] = None
-    projectId: Optional[str] = None
     memoryId: Optional[str] = None
     documentId: Optional[str] = None
+    domainId: Optional[str] = None  # ADR-034: Domain scoping
     # Additional fields as needed based on DeskSurface types
 
 
@@ -56,7 +56,6 @@ class ChatRequest(BaseModel):
     include_context: bool = True
     session_id: Optional[str] = None  # Optional: continue existing session
     surface_context: Optional[SurfaceContext] = None  # ADR-023: What user is viewing
-    project_id: Optional[str] = None  # Deprecated: ADR-034 uses domain scoping from surface_context
 
 
 # =============================================================================
@@ -66,9 +65,8 @@ class ChatRequest(BaseModel):
 async def get_or_create_session(
     client,
     user_id: str,
-    project_id: Optional[UUID] = None,
     session_type: str = "thinking_partner",
-    scope: str = "daily"  # "conversation", "daily", "project"
+    scope: str = "daily"  # "conversation", "daily"
 ) -> dict:
     """
     Get or create a chat session using the database RPC.
@@ -76,14 +74,13 @@ async def get_or_create_session(
     Scope behaviors:
     - conversation: Always creates new session
     - daily: Reuses today's active session
-    - project: Reuses any active session for this project
     """
     try:
         result = client.rpc(
             "get_or_create_chat_session",
             {
                 "p_user_id": user_id,
-                "p_project_id": str(project_id) if project_id else None,
+                "p_project_id": None,
                 "p_session_type": session_type,
                 "p_scope": scope
             }
@@ -99,8 +96,6 @@ async def get_or_create_session(
             "session_type": session_type,
             "status": "active"
         }
-        if project_id:
-            data["project_id"] = str(project_id)
 
         result = client.table("chat_sessions").insert(data).execute()
         return result.data[0] if result.data else None
@@ -483,19 +478,6 @@ Status: {w['status']}{content_section}
             # User is browsing their context/memories - just note it
             return "## Currently Viewing: Context Browser\nUser is browsing their stored memories and context."
 
-        elif surface_type == "project-detail" and surface.projectId:
-            result = client.table("projects")\
-                .select("name, description")\
-                .eq("id", surface.projectId)\
-                .single()\
-                .execute()
-
-            if result.data:
-                p = result.data
-                return f"""## Currently Viewing: Project - {p['name']}
-Description: {p.get('description', 'No description')}
-"""
-
         # For list views and idle, no specific content needed
         return None
 
@@ -537,7 +519,7 @@ async def global_chat(
     auth: UserClient,
 ):
     """
-    Global chat with Thinking Partner (no project required).
+    Global chat with Thinking Partner.
     Uses user memories only. Session is reused daily.
     Supports tool use with streaming (ADR-007).
     """
@@ -545,7 +527,6 @@ async def global_chat(
     session = await get_or_create_session(
         auth.client,
         auth.user_id,
-        project_id=None,
         scope="daily"
     )
     session_id = session["id"]
@@ -660,8 +641,6 @@ async def global_chat(
                     "history": history,
                     "is_onboarding": is_onboarding,
                     "surface_content": surface_content,  # ADR-023: What user is viewing
-                    "selected_project_id": str(selected_project_id) if selected_project_id else None,  # ADR-024
-                    "selected_project_name": selected_project_name,  # ADR-024
                 },
             ):
                 if event.type == "text":
@@ -761,177 +740,6 @@ async def global_chat(
     )
 
 
-@router.post("/projects/{project_id}/chat")
-async def project_chat(
-    project_id: UUID,
-    request: ChatRequest,
-    auth: UserClient,
-):
-    """
-    Project chat with Thinking Partner.
-    ADR-034: Now uses domain scoping. Project context is mapped to its domain.
-    Session is reused daily per project.
-    Supports tool use with streaming (ADR-007).
-    """
-    # Verify project access and get project name
-    project_result = auth.client.table("projects").select("id, name").eq("id", str(project_id)).single().execute()
-    if not project_result.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-    project_name = project_result.data.get("name")
-
-    # Get or create session (daily scope)
-    session = await get_or_create_session(
-        auth.client,
-        auth.user_id,
-        project_id=project_id,
-        scope="daily"
-    )
-    session_id = session["id"]
-
-    # Load existing messages from session and build history
-    # Uses structured format with tool_use/tool_result blocks for better coherence
-    # Limited to MAX_HISTORY_MESSAGES to prevent context overflow
-    existing_messages = await get_session_messages(auth.client, session_id)
-    history = build_history_for_claude(existing_messages, use_structured_format=True)
-
-    # ADR-034: Find domain associated with this project's deliverables
-    # Projects are organizational containers; domains emerge from deliverable sources
-    active_domain_id = None
-    active_domain_name = None
-    try:
-        # Get the domain from any deliverable in this project
-        deliverable_result = auth.client.table("deliverables")\
-            .select("id")\
-            .eq("project_id", str(project_id))\
-            .neq("status", "archived")\
-            .limit(1)\
-            .execute()
-        if deliverable_result.data:
-            domain_result = auth.client.rpc(
-                "get_deliverable_domain",
-                {"p_deliverable_id": deliverable_result.data[0]["id"]}
-            ).execute()
-            if domain_result.data:
-                active_domain_id = UUID(domain_result.data)
-                domain_name_result = auth.client.table("context_domains")\
-                    .select("name")\
-                    .eq("id", str(active_domain_id))\
-                    .single()\
-                    .execute()
-                if domain_name_result.data:
-                    active_domain_name = domain_name_result.data["name"]
-    except Exception as e:
-        logger.debug(f"[TP] Could not resolve domain for project {project_id}: {e}")
-
-    # Load memories with domain scoping (ADR-034)
-    context = await load_memories(
-        auth.client,
-        auth.user_id,
-        domain_id=active_domain_id,
-        query=request.content if request.include_context else None
-    )
-    context.domain_name = active_domain_name or project_name
-
-    agent = ThinkingPartnerAgent()
-
-    async def response_stream():
-        full_response = ""
-        tools_used = []
-        tool_call_history = []
-        current_tool_use = None
-
-        try:
-            # Append user message to session
-            await append_message(auth.client, session_id, "user", request.content)
-
-            async for event in agent.execute_stream_with_tools(
-                task=request.content,
-                context=context,
-                auth=auth,
-                parameters={
-                    "include_context": request.include_context,
-                    "history": history,
-                },
-            ):
-                if event.type == "text":
-                    full_response += event.content
-                    yield f"data: {json.dumps({'content': event.content})}\n\n"
-                elif event.type == "tool_use":
-                    tools_used.append(event.content["name"])
-                    current_tool_use = event.content
-                    yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
-                elif event.type == "tool_result":
-                    if current_tool_use:
-                        tool_call_history.append({
-                            "tool_use": current_tool_use,
-                            "tool_result": event.content
-                        })
-                        current_tool_use = None
-                    yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
-                elif event.type == "done":
-                    pass  # Will send done event after saving
-
-            # Build tool history for session metadata
-            assistant_content_for_history = []
-            for tool_pair in tool_call_history:
-                tu = tool_pair["tool_use"]
-                tr = tool_pair["tool_result"]
-                assistant_content_for_history.append({
-                    "type": "tool_call",
-                    "name": tu["name"],
-                    "input_summary": str(tu.get("input", {}))[:200],
-                    "result_summary": str(tr.get("result", {}))[:500]
-                })
-            if full_response:
-                assistant_content_for_history.append({
-                    "type": "text",
-                    "content": full_response
-                })
-
-            # Append assistant response to session
-            await append_message(
-                auth.client,
-                session_id,
-                "assistant",
-                full_response,
-                {
-                    "model": agent.model,
-                    "tools_used": tools_used,
-                    "tool_history": assistant_content_for_history
-                }
-            )
-
-            yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
-
-            # Fire-and-forget extraction with domain context (ADR-034)
-            messages_for_extraction = history + [
-                {"role": "user", "content": request.content},
-                {"role": "assistant", "content": full_response},
-            ]
-            asyncio.create_task(
-                _background_extraction(
-                    auth.user_id,
-                    messages_for_extraction,
-                    auth.client,
-                    str(active_domain_id) if active_domain_id else None
-                )
-            )
-
-        except Exception as e:
-            import traceback
-            error_msg = f"[TP-STREAM] Project chat error: {type(e).__name__}: {str(e)}"
-            print(error_msg, flush=True)
-            logger.error(error_msg)
-            logger.error(f"[TP-STREAM] Traceback: {traceback.format_exc()}")
-            yield f"data: {json.dumps({'error': str(e)})}\n\n"
-
-    return StreamingResponse(
-        response_stream(),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "Connection": "keep-alive"},
-    )
-
-
 @router.get("/chat/history")
 async def get_global_chat_history(
     auth: UserClient,
@@ -969,89 +777,6 @@ async def get_global_chat_history(
         })
 
     return {"sessions": sessions}
-
-
-@router.get("/projects/{project_id}/chat/history")
-async def get_project_chat_history(
-    project_id: UUID,
-    auth: UserClient,
-    limit: int = Query(default=1, le=10),
-):
-    """
-    Get chat history for a project.
-    Returns the most recent session(s) with messages.
-    """
-    # Verify project access
-    project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
-    if not project_result.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    # Fetch recent project sessions
-    sessions_result = (
-        auth.client.table("chat_sessions")
-        .select("*")
-        .eq("user_id", auth.user_id)
-        .eq("project_id", str(project_id))
-        .eq("session_type", "thinking_partner")
-        .order("created_at", desc=True)
-        .limit(limit)
-        .execute()
-    )
-
-    sessions = []
-    for session in (sessions_result.data or []):
-        # Get messages for each session
-        messages_result = (
-            auth.client.table("session_messages")
-            .select("id, role, content, sequence_number, created_at")
-            .eq("session_id", session["id"])
-            .order("sequence_number")
-            .execute()
-        )
-        sessions.append({
-            **session,
-            "messages": messages_result.data or []
-        })
-
-    return {
-        "sessions": sessions,
-        "project_id": str(project_id),
-    }
-
-
-@router.get("/projects/{project_id}/context/stats")
-async def get_context_stats(
-    project_id: UUID,
-    auth: UserClient,
-):
-    """Get context statistics for a project."""
-    project_result = auth.client.table("projects").select("id").eq("id", str(project_id)).single().execute()
-    if not project_result.data:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    project_mem_result = (
-        auth.client.table("memories")
-        .select("id", count="exact")
-        .eq("project_id", str(project_id))
-        .eq("is_active", True)
-        .execute()
-    )
-
-    user_result = (
-        auth.client.table("memories")
-        .select("id", count="exact")
-        .eq("user_id", auth.user_id)
-        .is_("project_id", "null")
-        .eq("is_active", True)
-        .execute()
-    )
-
-    return {
-        "project_id": str(project_id),
-        "project_memories": project_mem_result.count or 0,
-        "user_memories": user_result.count or 0,
-        "total_memories": (project_mem_result.count or 0) + (user_result.count or 0),
-    }
 
 
 # =============================================================================

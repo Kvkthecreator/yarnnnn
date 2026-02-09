@@ -435,7 +435,6 @@ async def process_work(supabase_client, work: dict) -> bool:
 
     work_id = work.get("work_id") or work.get("template_id")
     user_id = work["user_id"]
-    project_id = work.get("project_id")
     cron_expr = work.get("frequency_cron") or work.get("schedule_cron")
     tz_name = work.get("timezone") or work.get("schedule_timezone", "UTC")
 
@@ -448,7 +447,6 @@ async def process_work(supabase_client, work: dict) -> bool:
             "agent_type": work["agent_type"],
             "status": "pending",
             "parameters": work.get("parameters", {}),
-            "project_id": project_id,
             "user_id": user_id,
             "parent_template_id": work_id,
             "is_template": False,
@@ -492,12 +490,6 @@ async def process_work(supabase_client, work: dict) -> bool:
         if await should_send_email(supabase_client, user_id, "work_complete"):
             user_email = await get_user_email(supabase_client, user_id)
             if user_email and exec_result.get("success"):
-                project_name = "Personal Work"
-                if project_id:
-                    proj = supabase_client.table("projects").select("name").eq("id", project_id).single().execute()
-                    if proj.data:
-                        project_name = proj.data.get("name", "Unknown Project")
-
                 # Get outputs
                 outputs_result = supabase_client.table("work_outputs").select("id, title, output_type, content").eq("ticket_id", ticket_id).execute()
                 outputs = []
@@ -521,11 +513,11 @@ async def process_work(supabase_client, work: dict) -> bool:
 
                 await send_work_complete_email(
                     to=user_email,
-                    project_name=project_name,
+                    project_name="yarnnn",
                     agent_type=work["agent_type"],
                     task=work["task"],
                     outputs=outputs,
-                    project_id=project_id or "",
+                    project_id="",
                 )
                 logger.info(f"[WORK] ✓ Email sent to {user_email}")
 
