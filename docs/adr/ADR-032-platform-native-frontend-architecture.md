@@ -1,8 +1,8 @@
 # ADR-032: Platform-Native Frontend Architecture
 
-> **Status**: Accepted (Phase 1 Complete)
+> **Status**: Accepted (Phase 2 Complete)
 > **Created**: 2026-02-09
-> **Updated**: 2026-02-09 (Phase 1 backend implementation complete)
+> **Updated**: 2026-02-09 (Phase 2 UI restructure complete)
 > **Related**: ADR-028 (Destination-First), ADR-031 (Platform-Native Deliverables), ADR-023 (Supervisor Desk)
 > **Builds On**: All 6 phases of ADR-031 now implemented in backend
 
@@ -666,13 +666,13 @@ This complexity is deferred. Phase 1 = blanket platform-centric draft mode.
 - Show draft delivery status in version history: "Draft sent to Gmail" / "Draft DM sent"
 - Platform-specific notification copy
 
-### Phase 2: Platform-First UI Restructure
+### Phase 2: Platform-First UI Restructure ✅
 
 **Goal**: Restructure deliverable creation to destination-first.
 
-**Current State** (analyzed from `DeliverableSettingsModal.tsx`):
+**Previous State** (before Phase 2):
 ```
-Current flow:
+Old flow:
 1. Title
 2. Schedule (frequency, day, time)
 3. Data Sources
@@ -680,34 +680,40 @@ Current flow:
 5. Delivery (destination + governance) ← last, optional
 ```
 
-**Target Flow**:
+**Implemented Flow**:
 ```
 New flow:
 1. Destination (where does this go?) ← first, required
-2. Type (what kind of output?)
-3. Sources (what informs it?) ← auto-suggest from project resources
-4. Schedule (when?)
+2. Title
+3. Schedule (when?)
+4. Sources (what informs it?)
+5. Recipient (collapsed, optional)
 ```
 
-**UI Changes**:
-- Restructure DeliverableSettingsModal: Destination → Type → Sources → Schedule
-- Make destination required (remove "No destination configured" option)
-- Default governance to "manual" (platform-centric draft mode)
-- Hide governance selector in Phase 2 (simplify, all drafts)
-- Show platform icon/badge prominently at top
+**Completed UI Changes**:
+- ✅ Restructured DeliverableSettingsModal: Destination → Title → Schedule → Sources → Recipient
+- ✅ Made destination required (validation prevents save without destination)
+- ✅ Defaulted governance to "manual" (platform-centric draft mode)
+- ✅ Simplified governance (hidden, fixed to manual)
+- ✅ Show platform icon/badge prominently in header
 
-**Components to Build**:
-- `DestinationSelector` - First step, shows connected platforms with targets
-  - Gmail: Show user's email, CC options
-  - Slack: Show channels user has access to
-  - Notion: Show pages/databases user has shared
-- `DraftStatusIndicator` - Shows where draft was pushed ("Draft in Gmail Drafts")
-- Update `DeliverableVersionDetail` with draft location info and deep link
+**Components Built**:
+- ✅ `DestinationSelector` - First step, shows connected platforms with targets
+  - Gmail: Draft/Send modes, recipient email input
+  - Slack: DM draft/Post modes, channel selector
+  - Notion: Draft/Page modes, target page input
+  - Download: Always available fallback
+- ✅ `DraftStatusIndicator` - Shows where draft was pushed with deep links
+  - States: pending, delivering, delivered, failed
+  - Platform-specific styling and icons
+  - Deep links to platform (Gmail Drafts, Slack DM, Notion page)
+- ✅ `DraftStatusBadge` - Compact version for list views
 
-**Existing Components to Modify**:
-- `DeliverableSettingsModal.tsx` - Reorder sections, make destination required
-- `DeliverableReviewSurface.tsx` - Add draft status after approval
-- `DeliverableDetailSurface.tsx` - Show destination prominently
+**Components Modified**:
+- ✅ `DeliverableSettingsModal.tsx` - Destination-first flow, required validation
+- ✅ `DeliverableReviewSurface.tsx` - Shows DraftStatusIndicator after approval
+- ✅ `DeliverableDetailSurface.tsx` - Shows destination in header, DraftStatusIndicator for approved versions
+- ✅ `types/index.ts` - Added `delivery_mode`, `delivery_error` to DeliverableVersion
 
 ### Phase 3: Project Resources UI
 

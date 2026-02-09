@@ -22,6 +22,7 @@ import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
 import { cacheEntity } from '@/lib/entity-cache';
 import { ExportActionBar } from '@/components/desk/ExportActionBar';
+import { DraftStatusIndicator } from '@/components/ui/DraftStatusIndicator';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
 interface DeliverableReviewSurfaceProps {
@@ -212,8 +213,18 @@ export function DeliverableReviewSurface({
               : `${deliverable.title} v${version.version_number} was discarded`}
           </p>
 
-          {/* Export option for approved versions */}
-          {approvalResult === 'approved' && version && (
+          {/* ADR-032: Show draft status after approval */}
+          {approvalResult === 'approved' && version && deliverable.destination && (
+            <div className="mt-4 w-full max-w-sm">
+              <DraftStatusIndicator
+                version={version}
+                destination={deliverable.destination}
+              />
+            </div>
+          )}
+
+          {/* Export option for approved versions (fallback if no destination) */}
+          {approvalResult === 'approved' && version && !deliverable.destination && (
             <div className="mt-4">
               <ExportActionBar
                 deliverableVersionId={version.id}

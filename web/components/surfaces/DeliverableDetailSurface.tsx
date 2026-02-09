@@ -33,6 +33,9 @@ import {
   FolderOpen,
   ChevronRight,
   Eye,
+  Mail,
+  Slack,
+  Download,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
@@ -41,7 +44,8 @@ import { cacheEntity } from '@/lib/entity-cache';
 import { cn } from '@/lib/utils';
 import { DeliverableSettingsModal } from '@/components/modals/DeliverableSettingsModal';
 import { ExportActionBar } from '@/components/desk/ExportActionBar';
-import type { Deliverable, DeliverableVersion, FeedbackSummary } from '@/types';
+import { DraftStatusIndicator } from '@/components/ui/DraftStatusIndicator';
+import type { Deliverable, DeliverableVersion, FeedbackSummary, Destination } from '@/types';
 
 interface DeliverableDetailSurfaceProps {
   deliverableId: string;
@@ -59,6 +63,39 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   changelog: 'Changelog',
   one_on_one_prep: '1:1 Prep',
   board_update: 'Board Update',
+};
+
+// ADR-032: Platform destination config
+const PLATFORM_CONFIG: Record<string, {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  color: string;
+  bgColor: string;
+}> = {
+  gmail: {
+    icon: Mail,
+    label: 'Gmail',
+    color: 'text-red-600',
+    bgColor: 'bg-red-50',
+  },
+  slack: {
+    icon: Slack,
+    label: 'Slack',
+    color: 'text-purple-600',
+    bgColor: 'bg-purple-50',
+  },
+  notion: {
+    icon: FileText,
+    label: 'Notion',
+    color: 'text-gray-700',
+    bgColor: 'bg-gray-100',
+  },
+  download: {
+    icon: Download,
+    label: 'Download',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-50',
+  },
 };
 
 export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSurfaceProps) {
@@ -255,6 +292,23 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
                 <Clock className="w-3 h-3" />
                 {formatSchedule()}
               </span>
+              {/* ADR-032: Show destination prominently */}
+              {deliverable.destination && (() => {
+                const config = PLATFORM_CONFIG[deliverable.destination.platform];
+                if (!config) return null;
+                const Icon = config.icon;
+                return (
+                  <span className={cn("flex items-center gap-1", config.color)}>
+                    <Icon className="w-3 h-3" />
+                    {config.label}
+                    {deliverable.destination.target && (
+                      <span className="text-muted-foreground">
+                        → {deliverable.destination.target}
+                      </span>
+                    )}
+                  </span>
+                );
+              })()}
             </div>
           </div>
 
@@ -441,8 +495,18 @@ export function DeliverableDetailSurface({ deliverableId }: DeliverableDetailSur
                   )}
                 </div>
 
-                {/* Export option for approved versions */}
-                {latestWithContent.status === 'approved' && (
+                {/* ADR-032: Show draft status for approved versions with destination */}
+                {latestWithContent.status === 'approved' && deliverable.destination && (
+                  <div className="px-4 pb-4">
+                    <DraftStatusIndicator
+                      version={latestWithContent}
+                      destination={deliverable.destination}
+                    />
+                  </div>
+                )}
+
+                {/* Export option for approved versions without destination */}
+                {latestWithContent.status === 'approved' && !deliverable.destination && (
                   <div className="px-4 pb-4">
                     <ExportActionBar
                       deliverableVersionId={latestWithContent.id}
