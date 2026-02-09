@@ -13,7 +13,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { LayoutDashboard, Brain, FolderOpen, ChevronDown, Settings } from 'lucide-react';
+import { LayoutDashboard, Brain, FolderOpen, ChevronDown, Settings, Link2 } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import { UserMenu } from './UserMenu';
@@ -103,6 +103,7 @@ interface RouteItem {
 // Surface domains available via dropdown when on /dashboard
 const SURFACE_DOMAINS: SurfaceDomainItem[] = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, surface: { type: 'idle' } },
+  { id: 'platforms', label: 'Platforms', icon: Link2, surface: { type: 'platform-list' } },
   { id: 'context', label: 'Context', icon: Brain, surface: { type: 'context-browser', scope: 'user' } },
   { id: 'documents', label: 'Docs', icon: FolderOpen, surface: { type: 'document-list' } },
 ];
@@ -123,6 +124,9 @@ function getCurrentSurfaceDomain(surface: DeskSurface): string {
     case 'project-detail':
     case 'project-list':
       return 'dashboard';
+    case 'platform-list':
+    case 'platform-detail':
+      return 'platforms';
     case 'context-browser':
     case 'context-editor':
       return 'context';
