@@ -681,9 +681,29 @@ async def global_chat(
                 elif event.type == "tool_result":
                     result = event.content.get("result", {})
                     ui_action = result.get("ui_action")
-                    msg = f"[TP-STREAM] Tool result for {event.content.get('name')}: ui_action={ui_action}, success={result.get('success')}"
+                    tool_name = event.content.get("name")
+                    msg = f"[TP-STREAM] Tool result for {tool_name}: ui_action={ui_action}, success={result.get('success')}"
                     print(msg, flush=True)
                     logger.info(msg)
+
+                    # Extract Respond/Clarify message as text content
+                    # This handles the case where Claude uses Respond tool instead of direct text
+                    if tool_name == "Respond" and ui_action:
+                        respond_message = ui_action.get("data", {}).get("message", "")
+                        if respond_message:
+                            full_response += respond_message
+                            yield f"data: {json.dumps({'content': respond_message})}\n\n"
+                    elif tool_name == "Clarify" and ui_action:
+                        clarify_data = ui_action.get("data", {})
+                        clarify_question = clarify_data.get("question", "")
+                        clarify_options = clarify_data.get("options", [])
+                        if clarify_question:
+                            clarify_text = clarify_question
+                            if clarify_options:
+                                clarify_text += "\n" + "\n".join(f"- {opt}" for opt in clarify_options)
+                            full_response += clarify_text
+                            yield f"data: {json.dumps({'content': clarify_text})}\n\n"
+
                     # Store tool call pair for history
                     if current_tool_use:
                         tool_call_history.append({
