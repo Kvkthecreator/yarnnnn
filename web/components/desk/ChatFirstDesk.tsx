@@ -118,9 +118,9 @@ export function ChatFirstDesk() {
   const hasActiveSurface = surface.type !== 'idle';
 
   return (
-    <div className="h-full flex">
-      {/* Main Chat Area - Primary */}
-      <div className="flex-1 flex flex-col bg-background min-w-0">
+    <div className="h-full flex justify-center">
+      {/* Main Chat Area - Primary, centered with max-width like ChatGPT/Claude */}
+      <div className="flex-1 flex flex-col bg-background min-w-0 max-w-3xl">
         {/* Attention Banner - ADR-037: surfaces attention items */}
         {attention.length > 0 && (
           <AttentionBanner />

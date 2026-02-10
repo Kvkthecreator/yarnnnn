@@ -1,16 +1,19 @@
 'use client';
 
 /**
- * ADR-037: Chat-First Surface Architecture
+ * ADR-036/037: Two-Layer + Chat-First Architecture
  *
- * AttentionBanner - Surfaces attention items in the chat-first experience
- * Displayed at top of chat when items need user review
+ * AttentionBanner - Subtle inline notification for items needing review
+ *
+ * Design philosophy (per ADR-036):
+ * - Interaction Layer is fluid and emergent
+ * - Notifications should be subtle, not alarm-like
+ * - Review items are part of the normal flow, not interruptions
  */
 
-import { Bell, ChevronRight } from 'lucide-react';
+import { FileCheck, ChevronRight } from 'lucide-react';
 import { useDesk } from '@/contexts/DeskContext';
 import { formatDistanceToNow } from 'date-fns';
-import { cn } from '@/lib/utils';
 
 export function AttentionBanner() {
   const { attention, setSurface } = useDesk();
@@ -29,54 +32,25 @@ export function AttentionBanner() {
   const [first, ...rest] = attention;
 
   return (
-    <div className="border-b border-border bg-amber-50 dark:bg-amber-950/20 px-4 py-3">
-      <div className="flex items-center gap-3">
-        <div className="flex items-center justify-center w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/30">
-          <Bell className="w-4 h-4 text-amber-600 dark:text-amber-400" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-amber-900 dark:text-amber-100">
-            {attention.length === 1
-              ? 'Ready for review'
-              : `${attention.length} items ready for review`}
-          </p>
-          <p className="text-xs text-amber-700 dark:text-amber-300 truncate">
-            {first.title} · staged {formatDistanceToNow(new Date(first.stagedAt), { addSuffix: true })}
-          </p>
-        </div>
+    <div className="px-4 py-2 border-b border-border">
+      <div className="flex items-center gap-2 text-sm">
+        <FileCheck className="w-4 h-4 text-primary shrink-0" />
         <button
           onClick={() => handleReview(first)}
-          className={cn(
-            'flex items-center gap-1 px-3 py-1.5 rounded-md text-sm font-medium',
-            'bg-amber-600 text-white hover:bg-amber-700 transition-colors'
-          )}
+          className="flex items-center gap-1 text-primary hover:underline truncate"
         >
-          Review
-          <ChevronRight className="w-4 h-4" />
+          <span className="truncate">{first.title}</span>
+          <span className="text-muted-foreground shrink-0">
+            · {formatDistanceToNow(new Date(first.stagedAt), { addSuffix: true })}
+          </span>
         </button>
+        {rest.length > 0 && (
+          <span className="text-muted-foreground shrink-0">
+            +{rest.length} more
+          </span>
+        )}
+        <ChevronRight className="w-4 h-4 text-muted-foreground ml-auto shrink-0" />
       </div>
-
-      {/* Show additional items if more than one */}
-      {rest.length > 0 && (
-        <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800">
-          <div className="flex flex-wrap gap-2">
-            {rest.slice(0, 3).map((item) => (
-              <button
-                key={item.versionId}
-                onClick={() => handleReview(item)}
-                className="text-xs px-2 py-1 rounded bg-amber-100 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 hover:bg-amber-200 dark:hover:bg-amber-900/50 transition-colors truncate max-w-[150px]"
-              >
-                {item.title}
-              </button>
-            ))}
-            {rest.length > 3 && (
-              <span className="text-xs text-amber-600 dark:text-amber-400 px-2 py-1">
-                +{rest.length - 3} more
-              </span>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
 }

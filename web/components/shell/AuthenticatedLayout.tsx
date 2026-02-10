@@ -20,7 +20,6 @@ import { MessageCircle, FolderOpen, ChevronDown, Settings, Link2 } from 'lucide-
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import { UserMenu } from './UserMenu';
-import { DeskSurface } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
 
@@ -87,18 +86,10 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 // Navigation Types
 // =============================================================================
 
-// ADR-037: Simplified navigation
-// - Chat is home (not a nav item)
-// - Context is invisible (ADR-034)
-// - Platforms and Docs are surfaces accessed via dropdown
-// - Settings is a separate route
-
-interface SurfaceDomainItem {
-  id: string;
-  label: string;
-  icon: typeof MessageCircle;
-  surface: DeskSurface;
-}
+// ADR-037: Chat-First Navigation
+// - Chat is home (dashboard with idle surface)
+// - All other items are routes (actual pages, not surfaces)
+// - Surfaces are invoked from chat, not from nav
 
 interface RouteItem {
   id: string;
@@ -107,43 +98,13 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-037: Simplified surface domains (no dashboard, no context)
-const SURFACE_DOMAINS: SurfaceDomainItem[] = [
-  { id: 'platforms', label: 'Platforms', icon: Link2, surface: { type: 'platform-list' } },
-  { id: 'documents', label: 'Docs', icon: FolderOpen, surface: { type: 'document-list' } },
-];
-
-// Route pages (non-surface pages)
+// ADR-037: All navigation items are now routes (not surfaces)
 const ROUTE_PAGES: RouteItem[] = [
+  { id: 'platforms', label: 'Platforms', icon: Link2, path: '/platforms' },
+  { id: 'documents', label: 'Docs', icon: FolderOpen, path: '/docs' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
-// ADR-037: Get current surface domain from surface type
-// - Home/chat surfaces return 'home'
-// - Context surfaces are deprecated but still map for backwards compat
-function getCurrentSurfaceDomain(surface: DeskSurface): string {
-  switch (surface.type) {
-    case 'idle':
-    case 'deliverable-review':
-    case 'deliverable-detail':
-    case 'deliverable-list':
-    case 'deliverable-create':
-    case 'work-output':
-    case 'work-list':
-      return 'home'; // Chat is home
-    case 'platform-list':
-    case 'platform-detail':
-      return 'platforms';
-    case 'context-browser':
-    case 'context-editor':
-      return 'home'; // Context deprecated, falls to home
-    case 'document-viewer':
-    case 'document-list':
-      return 'documents';
-    default:
-      return 'home';
-  }
-}
 
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
@@ -178,7 +139,6 @@ function AuthenticatedLayoutInner({
   // Determine navigation context
   const isOnDashboard = isDashboardRoute(pathname);
   const currentRoute = getRouteFromPathname(pathname);
-  const currentSurfaceDomain = getCurrentSurfaceDomain(surface);
 
   // Handle surface change from TP tool results (with optional handoff message)
   const handleSurfaceChange = useCallback(
@@ -217,23 +177,16 @@ function AuthenticatedLayoutInner({
   // ADR-037: Get current display info based on context
   const getCurrentDisplay = () => {
     if (currentRoute) {
-      // On a route page (e.g., /settings)
+      // On a route page (e.g., /platforms, /docs, /settings)
       return {
         icon: currentRoute.icon,
         label: currentRoute.label,
       };
     }
-    // On dashboard - show surface domain or Chat for home
-    if (currentSurfaceDomain === 'home') {
-      return {
-        icon: MessageCircle,
-        label: 'Chat',
-      };
-    }
-    const domainInfo = SURFACE_DOMAINS.find(d => d.id === currentSurfaceDomain);
+    // On dashboard = Chat (home)
     return {
-      icon: domainInfo?.icon || MessageCircle,
-      label: domainInfo?.label || 'Chat',
+      icon: MessageCircle,
+      label: 'Chat',
     };
   };
 
@@ -287,43 +240,17 @@ function AuthenticatedLayoutInner({
                   }}
                   className={cn(
                     'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    isOnDashboard && currentSurfaceDomain === 'home' && 'bg-primary/5 text-primary'
+                    isOnDashboard && 'bg-primary/5 text-primary'
                   )}
                 >
                   <MessageCircle className="w-4 h-4" />
                   Chat
                 </button>
 
-                {/* Surface domains - navigate to /dashboard with surface */}
-                {SURFACE_DOMAINS.map((domain) => {
-                  const Icon = domain.icon;
-                  const isActive = isOnDashboard && currentSurfaceDomain === domain.id;
-                  return (
-                    <button
-                      key={domain.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (!isOnDashboard) {
-                          router.push('/dashboard');
-                        }
-                        setSurface(domain.surface);
-                        setDropdownOpen(false);
-                      }}
-                      className={cn(
-                        'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                        isActive && 'bg-primary/5 text-primary'
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {domain.label}
-                    </button>
-                  );
-                })}
-
                 {/* Divider */}
                 <div className="border-t border-border my-1" />
 
-                {/* Route pages - navigate to separate routes */}
+                {/* Route pages - all navigation items are routes now */}
                 {ROUTE_PAGES.map((route) => {
                   const Icon = route.icon;
                   const isActive = currentRoute?.id === route.id;
