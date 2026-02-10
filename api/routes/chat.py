@@ -544,10 +544,10 @@ async def global_chat(
     session_id = session["id"]
 
     # Load existing messages from session and build history
-    # Uses structured format with tool_use/tool_result blocks for better coherence
+    # Using simple text format for robustness - structured format had ID mismatch issues
     # Limited to MAX_HISTORY_MESSAGES to prevent context overflow
     existing_messages = await get_session_messages(auth.client, session_id)
-    history = build_history_for_claude(existing_messages, use_structured_format=True)
+    history = build_history_for_claude(existing_messages, use_structured_format=False)
     logger.info(f"[TP] Loaded {len(existing_messages)} messages, built {len(history)} history entries")
 
     # ADR-034: Determine active domain from context
