@@ -3,6 +3,7 @@
 **Status:** Canon
 **Date:** 2026-02-10
 **Related:** ADR-025 (Claude Code Agentic Alignment), ADR-036 (Two-Layer Architecture), ADR-037 (Chat-First Surface)
+**Spawned:** ADR-039 (Background Work Agents), ADR-040 (Semantic Skill Matching), ADR-041 (MCP Server Exposure)
 
 ---
 
@@ -581,16 +582,15 @@ The mapping validates that YARNNN's TP infrastructure is architecturally aligned
 
 ### Implementation Direction
 
-With confidence in the mapping:
+With confidence in the mapping, three enhancement ADRs were spawned:
 
-1. **Skills are ready** — Current implementation follows Claude Code patterns
-2. **Pattern recognition** — Extend trigger_patterns with semantic matching
-3. **Background agents** — Add run_in_background capability to work agents
-4. **MCP bridge** — Consider exposing YARNNN as MCP server (future)
+1. **ADR-040: Semantic Skill Matching** (P1) — Extend trigger_patterns with embeddings
+2. **ADR-039: Background Work Agents** (P2) — Add run_in_background capability
+3. **ADR-041: MCP Server Exposure** (P3) — Expose YARNNN as MCP server
 
 ### No Divergence Required
 
-The mapping shows we're already aligned. Specific feature work (skill picker, pattern learning) can proceed without architectural changes.
+The mapping shows we're already aligned. Enhancement work can proceed without architectural changes.
 
 ---
 
@@ -601,6 +601,9 @@ The mapping shows we're already aligned. Specific feature work (skill picker, pa
 - ADR-025: Claude Code Agentic Alignment
 - ADR-036: Two-Layer Architecture
 - ADR-037: Chat-First Surface Architecture
+- **ADR-039: Background Work Agents** — Spawned from gap analysis
+- **ADR-040: Semantic Skill Matching** — Spawned from gap analysis
+- **ADR-041: MCP Server Exposure** — Spawned from gap analysis
 - YARNNN source: `api/services/`, `api/agents/`, `web/contexts/`
 
 ---

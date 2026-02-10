@@ -2,7 +2,7 @@
 
 > **Status**: Accepted
 > **Created**: 2026-02-10
-> **Updated**: 2026-02-10 (Open Item 1 resolved by ADR-037, Open Item 2 resolved by ADR-038)
+> **Updated**: 2026-02-10 (Open Items 1-3 resolved by ADR-037, ADR-038, ADR-040)
 > **Related**: ADR-034 (Emergent Context Domains), ADR-035 (Platform-First Type System), ADR-037 (Chat-First Surface Architecture), ADR-038 (Claude Code Architecture Mapping), Strategic Validation Document
 > **Supersedes**: None (foundational architecture decision)
 
@@ -323,7 +323,7 @@ These require follow-up ADRs or design decisions:
 
 2. ~~**TP Skill Interface**~~ → ✅ **Resolved by ADR-038**: Comprehensive mapping validates existing skill implementation follows Claude Code patterns; no new specification needed
 
-3. **Pattern Recognition Scope**: What patterns trigger proposals? Minimum viable implementation?
+3. ~~**Pattern Recognition Scope**~~ → ✅ **Resolved by ADR-040**: Semantic skill matching with embeddings provides the pattern recognition foundation
 
 4. **Power User Escape Hatch**: Do we offer explicit configuration for users who want it?
 
