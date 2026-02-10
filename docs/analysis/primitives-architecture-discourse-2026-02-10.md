@@ -323,26 +323,152 @@ Primitives should be thin wrappers. `Read("deliverable:123")` should just fetch 
 
 ---
 
-## Part 9: Open Questions
+## Part 9: Design Decisions (Resolved)
 
-### Implementation Questions
+Following commitment to the primitive direction, all open questions are resolved by deriving from Claude Code patterns:
 
-1. **Reference Syntax**: What's the exact grammar? `type:id`, `type:id/subpath`, `type:query=value`?
-2. **Action Catalog**: What Execute actions exist? How are they discovered?
-3. **Error Handling**: How do primitive errors surface inline?
-4. **Permissions**: How does ref-based access control work?
+### Implementation Decisions
 
-### Architectural Questions
+**1. Reference Syntax**
 
-1. **Migration Path**: How do we move from current tools to primitives?
-2. **Tool Discovery**: Does TP auto-discover available refs and actions?
-3. **Batching**: Can primitives be batched? `Read(["deliverable:1", "deliverable:2"])`
+Grammar mirrors file path semantics:
 
-### UX Questions
+```
+<type>:<identifier>[/<subpath>][?<query>]
 
-1. **User Visibility**: Do users ever see primitive names or only their results?
-2. **Debug Mode**: Should there be a way to see raw primitive calls?
-3. **Learning Curve**: Will users understand inline results without primitive context?
+Examples:
+deliverable:uuid-123              # Specific by ID
+deliverable:latest                # Most recent
+platform:twitter                  # By name
+platform:twitter/credentials      # Sub-entity
+memory:*                          # All memories
+memory:?type=fact&limit=10        # Query filter
+session:current                   # Special reference
+```
+
+**Entity types** (the `<type>` segment):
+- `deliverable` - Content deliverables
+- `platform` - Connected platforms
+- `memory` - Context memories
+- `session` - Conversation sessions
+- `domain` - Context domains (ADR-034)
+- `document` - Uploaded documents
+- `work` - Work execution records
+
+**Special identifiers**:
+- `new` - For Write operations (create)
+- `current` - Current active entity
+- `latest` - Most recently modified
+- `*` - All entities of type
+
+**2. Action Catalog (Execute)**
+
+Actions follow MCP-style namespacing:
+
+```python
+Execute(action="platform.sync", target="platform:slack")
+Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
+Execute(action="deliverable.generate", target="deliverable:uuid")
+Execute(action="deliverable.schedule", target="deliverable:uuid", cron="0 9 * * 1")
+```
+
+**Core actions**:
+| Namespace | Action | Description |
+|-----------|--------|-------------|
+| `platform.sync` | Pull latest from platform |
+| `platform.publish` | Push content to platform |
+| `platform.auth` | Initiate OAuth flow |
+| `deliverable.generate` | Run content generation |
+| `deliverable.schedule` | Set/update schedule |
+| `deliverable.approve` | Approve pending version |
+| `memory.extract` | Extract from conversation |
+| `session.summarize` | Summarize for context window |
+
+Actions are discoverable via `List(ref="action:*")`.
+
+**3. Error Handling**
+
+Errors return structured results (same as Claude Code):
+
+```python
+{
+  "success": False,
+  "error": "not_found",
+  "message": "Deliverable uuid-123 does not exist",
+  "ref": "deliverable:uuid-123"
+}
+```
+
+Inline rendering shows error state with retry affordance. TP can reason about errors and retry/adjust.
+
+**4. Permissions**
+
+Reference resolution includes auth context:
+
+```python
+async def resolve_ref(ref: str, auth: Auth) -> Entity:
+    entity_type, identifier = parse_ref(ref)
+    entity = await fetch(entity_type, identifier)
+
+    # All refs are user-scoped by auth context
+    if entity.user_id != auth.user_id:
+        raise PermissionError(f"No access to {ref}")
+
+    return entity
+```
+
+No explicit permission syntax needed—auth context flows through all operations.
+
+### Architectural Decisions
+
+**1. Migration Path**
+
+No migration needed. Pre-launch clean slate:
+- Remove existing `project_tools.py` tool handlers
+- Implement 8 primitives fresh
+- Update TP system prompt for primitive-first
+
+**2. Tool Discovery**
+
+TP receives entity schema in system prompt (like Claude Code receives file structure):
+
+```
+Available entity types: deliverable, platform, memory, session, domain, document, work
+Available actions: platform.sync, platform.publish, deliverable.generate, ...
+
+Use Read(ref) to retrieve, Write(ref, content) to create, Edit(ref, changes) to modify.
+```
+
+Dynamic discovery via `List(ref="action:*")` or `List(ref="deliverable:*")`.
+
+**3. Batching**
+
+Yes, primitives support arrays (like Claude Code parallel reads):
+
+```python
+Read(refs=["deliverable:uuid-1", "deliverable:uuid-2"])
+# Returns: [{ ref, content }, { ref, content }]
+```
+
+Single ref uses `ref` param, multiple uses `refs` param.
+
+### UX Decisions
+
+**1. User Visibility**
+
+Users never see primitive names. They see:
+- Status: "Reading...", "Writing...", "Searching..." (verb form of primitive)
+- Results: Formatted content inline (cards, lists, confirmations)
+
+Primitive names are internal/debugging only.
+
+**2. Debug Mode**
+
+Development only: `?debug=primitives` query param shows raw primitive calls in console. Not exposed in production UI.
+
+**3. Learning Curve**
+
+Non-issue. Users interact via natural language. TP translates to primitives internally. Users see results, not operations.
 
 ---
 
@@ -429,18 +555,200 @@ The `≅` symbol denotes isomorphism: same structure, different implementation.
 
 ---
 
-## Next Steps
+## Part 12: Confidence Assessment and Commitment
 
-This discourse establishes the philosophical and architectural foundation. Implementation would proceed as:
+> **Assessment Date**: 2026-02-10
+> **Decision**: COMMITTED to primitive architecture
 
-1. **Design Reference Syntax**: Formalize `type:id` grammar
-2. **Catalog Execute Actions**: Document all external system operations
-3. **Prototype Primitives**: Implement core 8 against existing backend
-4. **Migrate Incrementally**: Reimplement current tools as primitive compositions
-5. **Update TP System Prompt**: Teach primitive-first thinking
+### Devil's Advocate Analysis
 
-Whether to proceed with this architecture is a product decision that depends on timeline, priorities, and confidence in the direction.
+Before committing, we stress-tested the direction:
+
+**Concern 1: "Claude Code primitives are optimized for code, not content"**
+- Counter: Primitives are about structured data manipulation, not code specifically
+- Deliverables, platforms, memories are all structured data
+- **Conclusion**: Low concern, primitives are substrate-agnostic
+
+**Concern 2: "Domain-specific tools have better LLM ergonomics"**
+- Counter: This conflates layers. High-level capabilities can decompose to primitives
+- Claude Code's "write a function" decomposes to Read → Edit → Write internally
+- **Conclusion**: Composition happens in agent reasoning, not tool definitions
+
+**Concern 3: "More tools = more flexibility"**
+- Counter: Actually inverse. More specialized tools = more rigid API surface
+- Fewer primitives + reference syntax = infinite combinations
+- **Conclusion**: Supports primitive direction
+
+**Concern 4: "Users might need domain-specific affordances"**
+- Counter: Users never see tools. They see results
+- Interaction Layer (user-facing) is separate from Infrastructure Layer (primitives)
+- **Conclusion**: Non-issue per ADR-036 layer separation
+
+**Concern 5: "Migration risk"**
+- Counter: Pre-launch, pre-users. Clean slate.
+- **Conclusion**: Zero risk, timing is ideal
+
+### Risk Matrix
+
+| Risk | Likelihood | Mitigation |
+|------|------------|------------|
+| Reference syntax too complex | Low | Mirror file path semantics exactly |
+| Execute actions proliferate | Medium | Catalog like MCP, make discoverable |
+| TP struggles with composition | Low | Claude already does this natively |
+| Debugging harder | Medium | Primitives ARE named (Read, Write, etc.) |
+| Future requirements don't fit | Low | Primitives are universal by construction |
+
+### Supporting Evidence
+
+1. **Industry Convergence**: Claude Code, Cursor, Windsurf, OpenAI Assistants all converging on same primitive set
+2. **Anthropic Investment**: Claude is optimized for these patterns; we benefit automatically
+3. **ADR-036 Alignment**: Already implied this; primitives ARE the infrastructure layer
+
+### Final Confidence Level
+
+**95% confident** this is correct direction.
+
+The 5% is normal engineering uncertainty (edge cases in implementation), not directional doubt.
 
 ---
 
-*This document is a living analysis. As implementation proceeds, insights should be added.*
+## Part 13: Implementation Specification
+
+With commitment made, here is the concrete implementation plan:
+
+### Phase 1: Primitive Foundation
+
+**1. Reference Parser** (`api/services/primitives/refs.py`)
+```python
+@dataclass
+class EntityRef:
+    entity_type: str      # deliverable, platform, memory, etc.
+    identifier: str       # uuid, name, or special (new, current, latest, *)
+    subpath: str | None   # optional sub-entity path
+    query: dict | None    # optional filter params
+
+def parse_ref(ref: str) -> EntityRef:
+    """Parse 'deliverable:uuid-123/versions?limit=5' into EntityRef"""
+    ...
+
+async def resolve_ref(ref: EntityRef, auth: Auth) -> Entity | list[Entity]:
+    """Fetch entity from database with auth check"""
+    ...
+```
+
+**2. Primitive Handlers** (`api/services/primitives/`)
+```
+primitives/
+├── __init__.py
+├── refs.py          # Reference parsing and resolution
+├── read.py          # Read primitive
+├── write.py         # Write primitive
+├── edit.py          # Edit primitive
+├── search.py        # Search primitive (semantic)
+├── list.py          # List primitive (structural)
+├── execute.py       # Execute primitive (external actions)
+├── task.py          # Task primitive (sub-agent delegation)
+└── todo.py          # Todo primitive (intent tracking)
+```
+
+**3. Tool Registration**
+```python
+PRIMITIVES = [
+    {
+        "name": "Read",
+        "description": "Retrieve entity by reference",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "ref": {"type": "string", "description": "Entity reference (e.g., 'deliverable:uuid-123')"},
+                "refs": {"type": "array", "items": {"type": "string"}, "description": "Multiple refs for batch read"}
+            }
+        }
+    },
+    # ... other 7 primitives
+]
+```
+
+### Phase 2: TP System Prompt Update
+
+Replace domain-specific tool documentation with primitive documentation:
+
+```markdown
+## Available Operations
+
+You have 8 primitives for interacting with the user's workspace:
+
+### Read(ref)
+Retrieve any entity. Examples:
+- `Read(ref="deliverable:latest")` - most recent deliverable
+- `Read(ref="platform:twitter")` - Twitter platform config
+- `Read(refs=["memory:uuid-1", "memory:uuid-2"])` - batch read
+
+### Write(ref, content)
+Create new entity. Use ref ending in `:new`:
+- `Write(ref="deliverable:new", content={title: "Weekly Update", ...})`
+
+### Edit(ref, changes)
+Modify existing entity:
+- `Edit(ref="deliverable:uuid-123", changes={schedule: "weekly"})`
+
+### Search(query)
+Find by content (semantic search):
+- `Search(query="database migration decisions", scope="memory")`
+
+### List(pattern)
+Find by structure:
+- `List(pattern="deliverable:*")` - all deliverables
+- `List(pattern="action:platform.*")` - all platform actions
+
+### Execute(action, target, ...)
+External operations:
+- `Execute(action="platform.sync", target="platform:slack")`
+- `Execute(action="deliverable.generate", target="deliverable:uuid")`
+
+### Task(prompt)
+Delegate to sub-agent for complex work.
+
+### Todo(items)
+Track progress for multi-step work.
+```
+
+### Phase 3: Frontend Inline Rendering
+
+Each primitive maps to inline display:
+
+| Primitive | Inline Render |
+|-----------|---------------|
+| Read | Entity card (deliverable preview, platform status, etc.) |
+| Write | Confirmation card with created entity preview |
+| Edit | Diff view showing changes |
+| Search | Results list with relevance scores |
+| List | Entity grid/list |
+| Execute | Action result card (success/failure + details) |
+| Task | Sub-agent status (running → complete) |
+| Todo | Checklist display (current design preserved) |
+
+### Phase 4: Remove Legacy Tools
+
+Delete from `project_tools.py`:
+- `handle_create_deliverable` → becomes Write + Execute
+- `handle_list_deliverables` → becomes List
+- `handle_get_deliverable` → becomes Read
+- `handle_list_platforms` → becomes List
+- (etc. for all 15+ existing tools)
+
+---
+
+## Implementation Roadmap
+
+| Phase | Scope | Effort |
+|-------|-------|--------|
+| 1 | Primitive foundation (refs + 8 handlers) | Core |
+| 2 | TP system prompt rewrite | Medium |
+| 3 | Frontend inline renderers | Medium |
+| 4 | Remove legacy tools | Cleanup |
+| 5 | Testing + iteration | Ongoing |
+
+---
+
+*Document finalized with commitment. Implementation to follow.*
