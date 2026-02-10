@@ -812,10 +812,10 @@ async def get_global_chat_history(
 
     sessions = []
     for session in (sessions_result.data or []):
-        # Get messages for each session
+        # Get messages for each session (include metadata for tool_history)
         messages_result = (
             auth.client.table("session_messages")
-            .select("id, role, content, sequence_number, created_at")
+            .select("id, role, content, sequence_number, created_at, metadata")
             .eq("session_id", session["id"])
             .order("sequence_number")
             .execute()

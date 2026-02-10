@@ -186,12 +186,29 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         if (result.sessions && result.sessions.length > 0) {
           const session = result.sessions[0];
           if (session.messages && session.messages.length > 0) {
-            const messages: TPMessage[] = session.messages.map((m) => ({
-              id: m.id,
-              role: m.role as 'user' | 'assistant',
-              content: m.content,
-              timestamp: new Date(m.created_at),
-            }));
+            const messages: TPMessage[] = session.messages.map((m) => {
+              // Reconstruct tool results from metadata.tool_history
+              let toolResults: TPToolResult[] | undefined;
+              if (m.metadata?.tool_history) {
+                toolResults = m.metadata.tool_history
+                  .filter((item) => item.type === 'tool_call' && item.name)
+                  .map((item) => ({
+                    toolName: item.name!,
+                    success: true, // Assume success for historical
+                    data: {
+                      message: item.result_summary || 'Action completed',
+                    },
+                  }));
+              }
+
+              return {
+                id: m.id,
+                role: m.role as 'user' | 'assistant',
+                content: m.content,
+                timestamp: new Date(m.created_at),
+                toolResults: toolResults?.length ? toolResults : undefined,
+              };
+            });
             dispatch({ type: 'SET_MESSAGES', messages });
           }
         }

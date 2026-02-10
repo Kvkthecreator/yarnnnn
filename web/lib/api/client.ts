@@ -261,6 +261,16 @@ export const api = {
             content: string;
             sequence_number: number;
             created_at: string;
+            metadata?: {
+              tool_history?: Array<{
+                type: string;
+                name?: string;
+                input_summary?: string;
+                result_summary?: string;
+                content?: string;
+              }>;
+              tools_used?: string[];
+            };
           }>;
         }>;
       }>(`/api/chat/history?limit=${limit}`),

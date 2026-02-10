@@ -38,88 +38,96 @@ const PRIMITIVE_ICONS: Record<string, React.ElementType> = {
  * Render entity preview based on YARNNN entity type
  */
 function renderEntityPreview(entity: Record<string, unknown>, entityType?: string): React.ReactNode {
+  // Extract common fields with proper typing
+  const status = entity.status as string | undefined;
+  const title = entity.title as string | undefined;
+  const content = entity.content as string | undefined;
+
   switch (entityType) {
     case 'deliverable': {
       const schedule = entity.schedule as Record<string, unknown> | undefined;
-      const frequency = schedule?.frequency as string;
+      const frequency = schedule?.frequency as string | undefined;
       return (
         <div className="space-y-1">
-          <div className="font-medium">{String(entity.title || 'Untitled')}</div>
+          <div className="font-medium">{title || 'Untitled'}</div>
           <div className="flex gap-2 text-xs">
-            {entity.status && (
+            {status ? (
               <span className={cn(
                 "px-1.5 py-0.5 rounded",
-                entity.status === 'active' ? "bg-green-500/10 text-green-600" :
-                entity.status === 'paused' ? "bg-yellow-500/10 text-yellow-600" :
+                status === 'active' ? "bg-green-500/10 text-green-600" :
+                status === 'paused' ? "bg-yellow-500/10 text-yellow-600" :
                 "bg-muted text-muted-foreground"
               )}>
-                {String(entity.status)}
+                {status}
               </span>
-            )}
-            {frequency && (
+            ) : null}
+            {frequency ? (
               <span className="text-muted-foreground">{frequency}</span>
-            )}
+            ) : null}
           </div>
         </div>
       );
     }
 
     case 'memory': {
-      const content = String(entity.content || '');
+      const memoryContent = content || '';
       const tags = entity.tags as string[] | undefined;
       return (
         <div className="space-y-1">
-          <div className="text-sm line-clamp-2">{content}</div>
-          {tags && tags.length > 0 && (
+          <div className="text-sm line-clamp-2">{memoryContent}</div>
+          {tags && tags.length > 0 ? (
             <div className="flex gap-1 flex-wrap">
               {tags.slice(0, 3).map((tag, i) => (
                 <span key={i} className="px-1.5 py-0.5 text-xs bg-muted rounded">{tag}</span>
               ))}
             </div>
-          )}
+          ) : null}
         </div>
       );
     }
 
     case 'platform': {
+      const provider = entity.provider as string | undefined;
       return (
         <div className="space-y-1">
-          <div className="font-medium capitalize">{String(entity.provider || 'Platform')}</div>
-          {entity.status && (
+          <div className="font-medium capitalize">{provider || 'Platform'}</div>
+          {status ? (
             <span className={cn(
               "text-xs px-1.5 py-0.5 rounded",
-              entity.status === 'connected' ? "bg-green-500/10 text-green-600" : "bg-muted"
+              status === 'connected' ? "bg-green-500/10 text-green-600" : "bg-muted"
             )}>
-              {String(entity.status)}
+              {status}
             </span>
-          )}
+          ) : null}
         </div>
       );
     }
 
     case 'work': {
+      const description = entity.description as string | undefined;
       return (
         <div className="space-y-1">
-          <div className="text-sm">{String(entity.description || 'Work task')}</div>
-          {entity.status && (
-            <span className="text-xs text-muted-foreground">{String(entity.status)}</span>
-          )}
+          <div className="text-sm">{description || 'Work task'}</div>
+          {status ? (
+            <span className="text-xs text-muted-foreground">{status}</span>
+          ) : null}
         </div>
       );
     }
 
     default: {
       // Generic fallback
+      const name = entity.name as string | undefined;
       return (
         <div className="space-y-1">
-          {entity.title && <div className="font-medium">{String(entity.title)}</div>}
-          {entity.name && <div className="font-medium">{String(entity.name)}</div>}
-          {entity.content && <div className="text-sm line-clamp-2">{String(entity.content)}</div>}
-          {entity.status && (
+          {title ? <div className="font-medium">{title}</div> : null}
+          {name ? <div className="font-medium">{name}</div> : null}
+          {content ? <div className="text-sm line-clamp-2">{content}</div> : null}
+          {status ? (
             <div className="text-xs text-muted-foreground">
-              Status: <span className="text-foreground">{String(entity.status)}</span>
+              Status: <span className="text-foreground">{status}</span>
             </div>
-          )}
+          ) : null}
         </div>
       );
     }
@@ -211,18 +219,20 @@ function getDisplayData(toolName: string, data?: Record<string, unknown>): { con
       // Backend returns {success, data: <entity>, entity_type, message}
       const created = data.data as Record<string, unknown> | undefined;
       const entityType = data.entity_type as string || 'entity';
+      const createdTitle = created?.title as string | undefined;
+      const createdId = created?.id as string | undefined;
       return {
         content: (
           <div className="space-y-1">
             <div className="text-green-600 dark:text-green-400">
               Created {entityType}
             </div>
-            {created?.title && <div className="text-xs">{String(created.title)}</div>}
-            {created?.id && (
+            {createdTitle ? <div className="text-xs">{createdTitle}</div> : null}
+            {createdId ? (
               <div className="text-xs text-muted-foreground font-mono">
-                {String(created.id).slice(0, 8)}...
+                {createdId.slice(0, 8)}...
               </div>
-            )}
+            ) : null}
           </div>
         ),
       };
