@@ -46,10 +46,20 @@ export interface AttentionItem {
 // TP (Thinking Partner)
 // =============================================================================
 
+/** Image attachment sent inline as base64 (not stored, ephemeral) */
+export interface TPImageAttachment {
+  /** Base64-encoded image data */
+  data: string;
+  /** MIME type (image/jpeg, image/png, image/gif, image/webp) */
+  mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+}
+
 export interface TPMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
+  /** Images attached to this message (user messages only) */
+  images?: TPImageAttachment[];
   toolResults?: TPToolResult[];
   timestamp: Date;
 }

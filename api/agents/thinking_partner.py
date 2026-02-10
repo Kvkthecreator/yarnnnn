@@ -925,7 +925,15 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
             m for m in history
             if not (m.get("role") == "assistant" and not m.get("content"))
         ]
-        messages.append({"role": "user", "content": task})
+
+        # Build user message content - support images inline (Claude Code style, ephemeral)
+        images = params.get("images", [])
+        if images:
+            # Claude API format: array of content blocks (images before text for better perf)
+            user_content = images + [{"type": "text", "text": task}]
+            messages.append({"role": "user", "content": user_content})
+        else:
+            messages.append({"role": "user", "content": task})
 
         # Create tool executor that uses our auth context
         async def tool_executor(tool_name: str, tool_input: dict) -> dict:

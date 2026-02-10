@@ -8,7 +8,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, useEffect, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { TPState, TPAction, TPMessage, TPToolResult, mapToolActionToSurface, DeskSurface, Todo } from '@/types/desk';
+import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, mapToolActionToSurface, DeskSurface, Todo } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 
@@ -109,7 +109,7 @@ interface TPContextValue {
   // Actions
   sendMessage: (
     content: string,
-    context?: { surface?: DeskSurface }
+    context?: { surface?: DeskSurface; images?: TPImageAttachment[] }
   ) => Promise<TPToolResult[] | null>;
   clearMessages: () => void;
   clearClarification: () => void;
@@ -180,7 +180,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const sendMessage = useCallback(
     async (
       content: string,
-      context?: { surface?: DeskSurface }
+      context?: { surface?: DeskSurface; images?: TPImageAttachment[] }
     ): Promise<TPToolResult[] | null> => {
       // Cancel any ongoing request
       if (abortControllerRef.current) {
@@ -192,11 +192,12 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
       // This prevents stale todos from lingering when user switches topics
       dispatch({ type: 'CLEAR_WORK_STATE' });
 
-      // Add user message
+      // Add user message (with images for local display)
       const userMessage: TPMessage = {
         id: crypto.randomUUID(),
         role: 'user',
         content,
+        images: context?.images,
         timestamp: new Date(),
       };
       dispatch({ type: 'ADD_MESSAGE', message: userMessage });
@@ -213,6 +214,15 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         // Add surface context for TP to understand what user is looking at
         if (context?.surface) {
           body.surface_context = context.surface;
+        }
+
+        // Add images as base64 (Claude API format)
+        if (context?.images && context.images.length > 0) {
+          body.images = context.images.map((img) => ({
+            type: 'base64',
+            media_type: img.mediaType,
+            data: img.data,
+          }));
         }
 
         // Get auth token for API request

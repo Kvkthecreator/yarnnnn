@@ -26,7 +26,7 @@ import {
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
-import { Todo } from '@/types/desk';
+import { Todo, TPImageAttachment } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { getTPStateIndicators } from '@/lib/tp-chips';
 import { SkillPicker } from '@/components/tp/SkillPicker';
@@ -88,12 +88,40 @@ export function ChatFirstDesk() {
     }
   }, [skillQuery, input]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && attachments.length === 0) || isLoading) return;
 
-    sendMessage(input, { surface });
+    // Convert attachments to base64 TPImageAttachment format
+    const images: TPImageAttachment[] = [];
+    for (const file of attachments) {
+      const base64 = await fileToBase64(file);
+      const mediaType = file.type as TPImageAttachment['mediaType'];
+      // Only include supported image types
+      if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mediaType)) {
+        images.push({ data: base64, mediaType });
+      }
+    }
+
+    sendMessage(input, { surface, images: images.length > 0 ? images : undefined });
     setInput('');
+    setAttachments([]);
+    setAttachmentPreviews([]);
+  };
+
+  // Helper to convert File to base64 string (without data URL prefix)
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const result = reader.result as string;
+        // Remove "data:image/xxx;base64," prefix
+        const base64 = result.split(',')[1];
+        resolve(base64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleSkillSelect = (command: string) => {
@@ -244,6 +272,19 @@ export function ChatFirstDesk() {
               <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide block mb-1">
                 {msg.role === 'user' ? 'You' : 'TP'}
               </span>
+              {/* Display attached images */}
+              {msg.images && msg.images.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {msg.images.map((img, i) => (
+                    <img
+                      key={i}
+                      src={`data:${img.mediaType};base64,${img.data}`}
+                      alt={`Attachment ${i + 1}`}
+                      className="max-w-[200px] max-h-[150px] object-contain rounded border border-border"
+                    />
+                  ))}
+                </div>
+              )}
               <p className="whitespace-pre-wrap">{msg.content}</p>
             </div>
           ))}

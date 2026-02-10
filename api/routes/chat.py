@@ -18,7 +18,7 @@ import logging
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
 from uuid import UUID
 from datetime import datetime
 
@@ -51,11 +51,19 @@ class SurfaceContext(BaseModel):
     # Additional fields as needed based on DeskSurface types
 
 
+class ImageAttachment(BaseModel):
+    """Image sent inline as base64 (not stored, ephemeral like Claude Code)."""
+    type: Literal["base64"] = "base64"
+    media_type: Literal["image/jpeg", "image/png", "image/gif", "image/webp"]
+    data: str  # Base64-encoded image data
+
+
 class ChatRequest(BaseModel):
     content: str
     include_context: bool = True
     session_id: Optional[str] = None  # Optional: continue existing session
     surface_context: Optional[SurfaceContext] = None  # ADR-023: What user is viewing
+    images: Optional[list[ImageAttachment]] = None  # Images attached to message (ephemeral)
 
 
 # =============================================================================
@@ -632,6 +640,22 @@ async def global_chat(
             await append_message(auth.client, session_id, "user", request.content)
             logger.info(f"[TP-STREAM] Starting stream for message: {request.content[:50]}...")
 
+            # Build images list for Claude API format (if any)
+            images_for_api = None
+            if request.images:
+                images_for_api = [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": img.media_type,
+                            "data": img.data,
+                        }
+                    }
+                    for img in request.images
+                ]
+                logger.info(f"[TP] Processing {len(images_for_api)} image attachment(s)")
+
             async for event in agent.execute_stream_with_tools(
                 task=request.content,
                 context=context,
@@ -641,6 +665,7 @@ async def global_chat(
                     "history": history,
                     "is_onboarding": is_onboarding,
                     "surface_content": surface_content,  # ADR-023: What user is viewing
+                    "images": images_for_api,  # Inline base64 images
                 },
             ):
                 if event.type == "text":
