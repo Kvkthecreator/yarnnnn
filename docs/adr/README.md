@@ -30,6 +30,17 @@ ADRs document significant architectural decisions made during development.
 | [023](ADR-023-supervisor-desk-architecture.md) | Supervisor Desk Architecture | Implemented | 2026-02-03 |
 | [024](ADR-024-context-classification-layer.md) | Context Classification Layer | Implemented | 2026-02-04 |
 | [025](ADR-025-claude-code-agentic-alignment.md) | **Claude Code Agentic Alignment** | **Proposed** | 2026-02-05 |
+| [036](ADR-036-two-layer-architecture.md) | **Two-Layer Architecture** | **Accepted** | 2026-02-10 |
+| [037](ADR-037-chat-first-surface-architecture.md) | **Chat-First Surface Architecture** | **Accepted** | 2026-02-10 |
+
+## Canonical Architecture Docs
+
+Beyond ADRs, see [architecture/](../architecture/) for canonical specifications:
+
+| Document | Purpose |
+|----------|---------|
+| [primitives.md](../architecture/primitives.md) | Universal TP primitives (Read, Write, Edit, List, Search, Execute, Todo, Respond, Clarify) |
+| [mcp-integration-system.md](../architecture/mcp-integration-system.md) | MCP integration architecture |
 
 ## Template
 

@@ -2,21 +2,25 @@
 
 **The source of truth for YARNNN development.**
 
-## Current Architecture (as of 2026-02-03)
+## Current Architecture (as of 2026-02-10)
 
-> **Active ADR:** [ADR-023: Supervisor Desk Architecture](adr/ADR-023-supervisor-desk-architecture.md)
+> **Active ADRs:**
+> - [ADR-036: Two-Layer Architecture](adr/ADR-036-two-layer-architecture.md) — Foundational framework (Interaction + Infrastructure)
+> - [ADR-037: Chat-First Surface Architecture](adr/ADR-037-chat-first-surface-architecture.md) — Frontend manifestation (Chat = Home)
 >
-> The UI follows the "Supervisor Desk" model — one surface at a time, TP floating input bar,
-> attention queue for staged items. No tabs, no navigation pages.
+> The system follows a **Two-Layer Architecture**: Chat-first interaction layer (emergent, fluid) backed by structured infrastructure (primitives, scheduling, context).
 
 ## Quick Links
 
 | Document | Purpose |
 |----------|---------|
 | [ESSENCE.md](ESSENCE.md) | Core product spec - domain model, agents, data flow |
-| [ADR-023](adr/ADR-023-supervisor-desk-architecture.md) | **Current** UI architecture - Supervisor Desk |
+| [architecture/primitives.md](architecture/primitives.md) | **Canonical** — Universal TP primitives specification |
+| [ADR-036](adr/ADR-036-two-layer-architecture.md) | **Current** — Two-Layer Architecture framework |
+| [ADR-037](adr/ADR-037-chat-first-surface-architecture.md) | **Current** — Chat-First Surface Architecture |
 | [database/ACCESS.md](database/ACCESS.md) | Database connection strings and credentials |
 | [development/SETUP.md](development/SETUP.md) | Local development setup |
+| [testing/TESTING-ENVIRONMENT.md](testing/TESTING-ENVIRONMENT.md) | Testing patterns and environment |
 | [adr/](adr/) | Architecture Decision Records |
 
 ## Folder Structure
@@ -31,6 +35,10 @@ docs/
 │   ├── ADR-001-*.md     # Numbered decisions
 │   └── ...
 │
+├── architecture/        # Canonical architecture specifications
+│   ├── primitives.md    # TP primitives (Read, Write, Edit, etc.)
+│   └── mcp-integration-system.md
+│
 ├── analysis/            # Research and comparative analysis
 │   └── *.md             # Cross-repo learnings, technical research
 │
@@ -41,8 +49,12 @@ docs/
 │
 ├── development/         # Developer guides
 │   ├── SETUP.md         # Local environment setup
-│   ├── ARCHITECTURE.md  # System architecture overview
-│   └── DEPLOYMENT.md    # Deployment procedures
+│   └── ...
+│
+├── testing/             # Testing documentation
+│   ├── README.md        # Testing philosophy and links
+│   ├── TESTING-ENVIRONMENT.md  # Environment setup and patterns
+│   └── ...
 │
 ├── features/            # Feature specifications
 │   └── *.md             # Per-feature documentation
