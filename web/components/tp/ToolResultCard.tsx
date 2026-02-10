@@ -230,17 +230,24 @@ function getDisplayData(toolName: string, data?: Record<string, unknown>): { con
 
     case 'Edit': {
       // Entity edited - show changes
-      const changes = data.changes as Record<string, { old: unknown; new: unknown }> | undefined;
-      if (changes && Object.keys(changes).length > 0) {
+      // Backend returns {success, data, changes_applied: ["field1", "field2"], message}
+      const changesApplied = data.changes_applied as string[] | undefined;
+      const entity = data.data as Record<string, unknown> | undefined;
+      const entityType = data.entity_type as string;
+
+      if (changesApplied && changesApplied.length > 0 && entity) {
         return {
           content: (
             <div className="space-y-1">
-              {Object.entries(changes).map(([field, { old: oldVal, new: newVal }]) => (
+              <div className="text-xs text-muted-foreground">
+                Updated {entityType || 'entity'}
+              </div>
+              {changesApplied.filter(f => f !== 'updated_at').map((field) => (
                 <div key={field} className="text-xs">
                   <span className="text-muted-foreground">{field}:</span>{' '}
-                  <span className="line-through text-red-500/70">{String(oldVal)}</span>
-                  {' → '}
-                  <span className="text-green-600 dark:text-green-400">{String(newVal)}</span>
+                  <span className="text-green-600 dark:text-green-400">
+                    {String(entity[field] ?? '(set)')}
+                  </span>
                 </div>
               ))}
             </div>
