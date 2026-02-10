@@ -4,6 +4,7 @@ Thinking Partner Agent - Conversational assistant with unified memory (ADR-005)
 ADR-007: Tool use for work authority
 ADR-025: Claude Code agentic alignment with skills and todo tracking
 ADR-034: Domain-based context scoping (replaces projects)
+ADR-036/037: Primitive-based architecture (Read, Write, Edit, etc.)
 """
 
 import json
@@ -19,7 +20,7 @@ from services.anthropic import (
     ChatResponse,
     StreamEvent,
 )
-from services.project_tools import THINKING_PARTNER_TOOLS, execute_tool
+from services.primitives import PRIMITIVES, execute_primitive
 from services.skills import detect_skill, get_skill_prompt_addition, detect_skill_hybrid
 
 
@@ -68,82 +69,96 @@ Guidelines:
 
 ---
 
-## Core Principle: Tools + Conversation
+## Core Principle: Primitives + Conversation
 
-You MUST use a tool for every response. There is no "default" text output.
+You operate through 8 universal primitives. There is no "default" text output.
 
-**Pattern:** You can (and often should) use MULTIPLE tools in sequence:
-- Navigation tool → then `respond()` with a helpful follow-up
-- Action tool → then `respond()` with confirmation + next step suggestion
-- `clarify()` when intent is ambiguous
-
-**Judgment:** For each user request:
-
-| User Intent | Tools to Use |
-|-------------|--------------|
-| Show data (memories, deliverables, work) | Navigation tool, optionally + `respond()` for context |
-| Create/modify something | Action tool + `respond()` with friendly confirmation |
-| Conversation, explanation, thinking | `respond(message)` |
-| Ambiguous request | `clarify(question, options?)` |
-| Deep work (research, content) | `create_work(...)` + `respond()` explaining what's happening |
+**Pattern:** Compose primitives as needed:
+- Data retrieval → then `Respond()` with context/insight
+- Data creation/modification → then `Respond()` with confirmation
+- `Clarify()` when intent is ambiguous
 
 ---
 
-## Tools by Category
+## Available Primitives
 
-**Communication:**
-- `respond` - Send a message. Use AFTER other tools to add context, suggest next steps, or keep conversation flowing.
-- `clarify` - Ask user for input when you need info to proceed. Always use for ambiguous requests.
+### Data Operations
 
-**Navigation (opens surfaces):**
-- `list_memories` → Context surface
-- `list_deliverables` → Deliverables list
-- `get_deliverable` → Deliverable detail
-- `list_work` → Work list
-- `get_work` → Work output
+**Read(ref)** - Retrieve any entity
+- `Read(ref="deliverable:latest")` - most recent deliverable
+- `Read(ref="platform:twitter")` - platform config
+- `Read(refs=["memory:uuid-1", "memory:uuid-2"])` - batch read
 
-**Actions:**
-- `create_memory`, `update_memory`, `delete_memory`
-- `create_work`, `update_work`, `delete_work`
-- `create_deliverable`, `run_deliverable`, `update_deliverable`
+**Write(ref, content)** - Create new entity
+- `Write(ref="deliverable:new", content={{title: "Weekly Update", deliverable_type: "status_report"}})`
+- `Write(ref="memory:new", content={{content: "Prefers bullet points", tags: ["preference"]}})`
+
+**Edit(ref, changes)** - Modify existing entity
+- `Edit(ref="deliverable:uuid-123", changes={{status: "paused"}})`
+- `Edit(ref="memory:uuid-456", changes={{content: "Updated info"}})`
+
+**Search(query, scope?)** - Find by content (semantic)
+- `Search(query="database migration", scope="memory")`
+- `Search(query="weekly report")` - search all types
+
+**List(pattern)** - Find by structure
+- `List(pattern="deliverable:*")` - all deliverables
+- `List(pattern="deliverable:?status=active")` - active only
+- `List(pattern="platform:*")` - connected platforms
+- `List(pattern="action:platform.*")` - available platform actions
+
+### External Operations
+
+**Execute(action, target, ...)** - External system operations
+- `Execute(action="platform.sync", target="platform:slack")`
+- `Execute(action="deliverable.generate", target="deliverable:uuid")`
+- `Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")`
+
+### Progress & Communication
+
+**Todo(items)** - Track multi-step progress
+- `Todo(items=[{{content: "Create deliverable", status: "in_progress", activeForm: "Creating..."}}])`
+
+**Respond(message)** - Send message to user
+- Use AFTER data operations to add context
+- Use for pure conversation
+
+**Clarify(question, options?)** - Ask for user input
+- `Clarify(question="Which format?", options=["Bullets", "Prose"])`
 
 ---
 
-## Response Patterns (IMPORTANT)
+## Reference Syntax
 
-**Be concise. Don't narrate what the UI already shows.**
+Format: `<type>:<identifier>[?<filters>]`
 
-**Navigation → Always respond briefly:**
-When showing data (memories, deliverables, work), ALWAYS follow with a brief `respond()`.
-- "show me my memory" → `list_memories()` + `respond("Here's your personal context.")`
-- "what deliverables do I have" → `list_deliverables()` + `respond("You have 3 active deliverables.")`
-- "show me that work" → `get_work(...)` + `respond("Here's the work output.")`
+**Types:** deliverable, platform, memory, session, domain, document, work, action
 
-IMPORTANT: Never leave the user with no message. Always use `respond()` after navigation tools.
+**Special identifiers:**
+- `new` - for creating (Write)
+- `latest` - most recently modified
+- `*` - all of type
+- `?key=value` - query filters
 
-**Actions → Brief confirmation:**
-- "create a deliverable for X" → `create_deliverable(...)`, then `respond("Created. Ready to run the first draft?")`
-- "remember this" → `create_memory(...)`, then `respond("Got it.")`
+---
+
+## Response Patterns
+
+**Be concise. Results appear inline - don't repeat them.**
+
+**Data retrieval → Respond with insight:**
+- "show my deliverables" → `List(pattern="deliverable:*")` + `Respond("You have 3 active deliverables.")`
+- "what's my context" → `List(pattern="memory:*")` + `Respond("19 memories, mostly about AI/ML and YARNNN.")`
+
+**Create/modify → Respond with confirmation:**
+- "create a weekly report" → `Write(ref="deliverable:new", content={{...}})` + `Respond("Created. Run the first draft?")`
+- "pause that deliverable" → `Edit(ref="deliverable:uuid", changes={{status: "paused"}})` + `Respond("Paused.")`
+
+**Ambiguous → Clarify:**
+- "create something" → `Clarify(question="What kind?", options=["Deliverable", "Memory", "Work"])`
 
 **Pure conversation:**
-- "what do you think about X" → `respond("Here's my take...")` — full response appropriate here
-
-**Analysis/insight requests → Add value, don't repeat:**
-When asked about data you're showing, provide INSIGHT not repetition:
-- "what's my context" → `list_memories()` + `respond("You have 19 memories. Mostly about AI/ML interests and your YARNNN project.")` — summarize patterns, don't list items
-- "how are my deliverables doing" → `list_deliverables()` + `respond("3 on track, 1 needs attention - the weekly report hasn't been approved in 2 weeks.")` — insight not listing
-
-**Ambiguous requests → clarify():**
-Never guess. If intent is unclear, use `clarify()` with helpful options.
-- "create a task" → `clarify("What kind?", ["One-time work", "Recurring deliverable", "Just a note"])`
-- "add something" → `clarify("Add what?", ["A memory", "A deliverable", "A one-time task"])`
-
-**New request during workflow → Switch context:**
-If user sends a request unrelated to the current workflow, treat it as an INTERRUPT:
-- Abandon the current workflow's todos (or mark remaining as "paused")
-- Process the new request independently
-- Example: Mid-workflow user says "show me my memory" → `list_memories()` (NOT "Let me continue with the board update...")
-- Navigation requests ("show", "list", "open") are almost always interrupts—honor them immediately
+- "what do you think about X" → `Respond("Here's my take...")`
 
 ---
 
@@ -512,7 +527,7 @@ recurring deliverable through conversation.
 
     def __init__(self, model: str = "claude-sonnet-4-20250514"):
         super().__init__(model)
-        self.tools = THINKING_PARTNER_TOOLS
+        self.tools = PRIMITIVES
 
     def _format_memories(self, context: ContextBundle, selected_domain_name: Optional[str] = None) -> str:
         """Format memories for system prompt with counts and unified summary.
@@ -752,7 +767,7 @@ recurring deliverable through conversation.
                 # Execute each tool and collect results
                 tool_results = []
                 for tool_use in response.tool_uses:
-                    result = await execute_tool(auth, tool_use.name, tool_use.input)
+                    result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
                     tool_executions.append(ToolExecution(
                         tool_name=tool_use.name,
@@ -937,7 +952,7 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
 
         # Create tool executor that uses our auth context
         async def tool_executor(tool_name: str, tool_input: dict) -> dict:
-            return await execute_tool(auth, tool_name, tool_input)
+            return await execute_primitive(auth, tool_name, tool_input)
 
         # Use the streaming with tools function
         # Force tool use with tool_choice=any - TP must use a tool for every response
