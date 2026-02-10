@@ -499,7 +499,7 @@ Unlike Claude Code, YARNNN extracts durable context:
 
 | Capability | Claude Code | YARNNN Gap | Priority |
 |------------|-------------|------------|----------|
-| Background agents | Task with run_in_background | Sync only | Medium |
+| Background agents | Task with run_in_background | ~~Sync only~~ ✅ ADR-039 | ~~Medium~~ Done |
 | Agent resume | Resume via agent_id | No persistence | Low |
 | File editing | Edit, Write tools | N/A (different domain) | N/A |
 | Code execution | Bash tool | N/A | N/A |
@@ -533,29 +533,38 @@ Given the mapping, skill implementation should follow Claude Code patterns:
 - SkillPicker UI for discoverability (deprioritized per ADR-025)
 - Skill customization (deferred)
 
-### 2. Pattern Recognition
+### 2. Pattern Recognition ✅ (ADR-040 Implemented)
 
 Claude Code implicitly detects patterns ("add tests" → test-runner skill). YARNNN has `trigger_patterns` in skill definitions:
 ```python
 "trigger_patterns": ["board update", "investor update", "board report"]
 ```
 
-**Enhancement opportunity:**
-- Semantic similarity matching (embeddings)
+**✅ Implemented (ADR-040):**
+- Semantic similarity matching via `detect_skill_hybrid()` in `services/skills.py`
+- Embedding-based fallback with 0.72 threshold
+- Pattern matching first (fast), semantic fallback (higher recall)
+
+**Deferred:**
 - User correction learning ("when I say X, I mean skill Y")
 
-### 3. Deep Research / Sub-agents
+### 3. Deep Research / Sub-agents ✅ (ADR-039 Implemented)
 
 Claude Code's Task tool with Explore agent maps to YARNNN's ResearchAgent:
 - Both investigate and synthesize
 - Both return structured results
 - YARNNN stores output in `work_outputs`
 
-**Enhancement opportunity:**
-- Background execution for long research
-- Progressive updates via streaming
+**✅ Implemented (ADR-039):**
+- Background execution via `run_in_background=True` in `create_and_execute_work()`
+- Redis/RQ job queue with worker process
+- Progress tracking via `/work/{id}/status` endpoint
+- Graceful fallback to sync execution if queue unavailable
 
-### 4. MCP Interoperability
+**Deferred:**
+- Progressive updates via streaming (SSE for background jobs)
+
+### 4. MCP Interoperability (ADR-041 Deferred)
 
 Future direction: YARNNN's platform integrations could expose an MCP interface:
 ```
@@ -565,6 +574,8 @@ mcp__yarnnn__get_memories
 ```
 
 This would allow Claude Code to orchestrate YARNNN workflows.
+
+**Deferred (ADR-041):** MCP server exposure is additive integration, not core architecture. Deferred pending validation of ADR-039/ADR-040 and clearer Claude Code adoption signals.
 
 ---
 

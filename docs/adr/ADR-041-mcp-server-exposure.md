@@ -1,11 +1,14 @@
 # ADR-041: MCP Server Exposure
 
-> **Status**: Proposed
+> **Status**: Deferred
 > **Created**: 2026-02-10
+> **Deferred**: 2026-02-10 (pending validation of core architecture)
 > **Priority**: P3 (Strategic, longer timeline)
 > **Related**: ADR-026 (Integration Architecture), ADR-038 (Claude Code Architecture Mapping)
 > **Effort**: 2 months development
 > **Prerequisite**: ADR-026 Section 3.3 provides initial blueprint
+>
+> **Deferral Rationale**: ADR-041 is an additive integration channel, not foundational architecture. It enables external tools (Claude Code) to consume YARNNN but doesn't affect the Two-Layer Architecture (ADR-036) or core TP capabilities. Deferred pending validation and testing of ADR-039 (Background Work) and ADR-040 (Semantic Skill Matching) implementations. Can be revisited when Claude Code adoption patterns provide clearer value signal.
 
 ---
 
