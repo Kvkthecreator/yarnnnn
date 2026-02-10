@@ -35,7 +35,6 @@ import { getTPStateIndicators } from '@/lib/tp-chips';
 import { getEntityName } from '@/lib/entity-cache';
 import { SkillPicker } from '@/components/tp/SkillPicker';
 import { SurfaceRouter } from './SurfaceRouter';
-import { AttentionBanner } from './AttentionBanner';
 
 export function ChatFirstDesk() {
   const {
@@ -48,7 +47,7 @@ export function ChatFirstDesk() {
     pendingClarification,
     respondToClarification,
   } = useTP();
-  const { surface, attention } = useDesk();
+  const { surface } = useDesk();
   const { domain, isLoading: domainLoading } = useActiveDomain();
 
   const [input, setInput] = useState('');
@@ -121,11 +120,6 @@ export function ChatFirstDesk() {
     <div className="h-full flex justify-center">
       {/* Main Chat Area - Primary, centered with max-width like ChatGPT/Claude */}
       <div className="flex-1 flex flex-col bg-background min-w-0 max-w-3xl">
-        {/* Attention Banner - ADR-037: surfaces attention items */}
-        {attention.length > 0 && (
-          <AttentionBanner />
-        )}
-
         {/* Header */}
         <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
