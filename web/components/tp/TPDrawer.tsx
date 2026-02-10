@@ -1,19 +1,15 @@
 'use client';
 
 /**
- * ADR-025 Addendum: TP as Persistent Drawer (Model B)
- * ADR-034: Updated for domain-based context scoping
+ * DEPRECATED: ADR-037 supersedes this with ChatFirstDesk
  *
- * TPDrawer - Right-side collapsible drawer for TP conversation
+ * TPDrawer was a side-panel TP experience used with the old Desk component.
+ * Under ADR-037, TP is the primary interface (ChatFirstDesk) not a drawer.
  *
- * Desktop (≥768px): 360px right panel, collapsible
- * Mobile (<768px): Full-screen overlay when expanded, FAB when collapsed
+ * This component is kept for backwards compatibility with the deprecated
+ * Desk component but is no longer used in the main flow.
  *
- * Features:
- * - Full message history
- * - Inline todo progress when TP is working
- * - Input field with skill picker
- * - Context indicators (surface, domain)
+ * @deprecated ChatFirstDesk now contains the TP interface inline
  */
 
 import { useState, useRef, useEffect } from 'react';

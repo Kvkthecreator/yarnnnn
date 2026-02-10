@@ -1,13 +1,14 @@
 'use client';
 
 /**
- * ADR-023: Supervisor Desk Architecture
+ * ADR-037: Chat-First Surface Architecture
  *
- * Single desk view - one surface at a time, TP always present
+ * Dashboard now uses ChatFirstDesk - TP is the primary interface
+ * Replaces the previous ADR-023 surface-first architecture
  */
 
-import { Desk } from '@/components/desk/Desk';
+import { ChatFirstDesk } from '@/components/desk/ChatFirstDesk';
 
 export default function DashboardPage() {
-  return <Desk />;
+  return <ChatFirstDesk />;
 }

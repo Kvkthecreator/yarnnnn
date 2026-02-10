@@ -1,13 +1,14 @@
 'use client';
 
 /**
- * ADR-023: Supervisor Desk Architecture
- * ADR-025 Addendum: TP as Persistent Drawer (Model B)
+ * DEPRECATED: ADR-037 supersedes this with ChatFirstDesk
  *
- * Main desk container - Surface + TPDrawer side by side
+ * This component (ADR-023: Supervisor Desk Architecture) is kept for
+ * backwards compatibility but is no longer the primary layout.
  *
- * Desktop: Surface (flex-1) + TPDrawer (360px right panel, collapsible)
- * Mobile: Surface full screen + TPDrawer as full-screen overlay
+ * Use ChatFirstDesk instead for the chat-first experience.
+ *
+ * @deprecated Use ChatFirstDesk from '@/components/desk/ChatFirstDesk'
  */
 
 import { Loader2 } from 'lucide-react';

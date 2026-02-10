@@ -1,8 +1,13 @@
 'use client';
 
 /**
- * ADR-023: Supervisor Desk Architecture
- * Routes to the appropriate surface component based on type
+ * ADR-037: Chat-First Surface Architecture
+ *
+ * Routes to the appropriate surface component based on type.
+ *
+ * Key changes from ADR-023:
+ * - Context browser deprecated (returns null, chat handles context)
+ * - Idle surface still available but ChatFirstDesk is primary
  */
 
 import { DeskSurface } from '@/types/desk';
@@ -11,7 +16,6 @@ import { DeliverableDetailSurface } from '@/components/surfaces/DeliverableDetai
 import { DeliverableListSurface } from '@/components/surfaces/DeliverableListSurface';
 import { WorkOutputSurface } from '@/components/surfaces/WorkOutputSurface';
 import { WorkListSurface } from '@/components/surfaces/WorkListSurface';
-import { ContextBrowserSurface } from '@/components/surfaces/ContextBrowserSurface';
 import { ContextEditorSurface } from '@/components/surfaces/ContextEditorSurface';
 import { DocumentViewerSurface } from '@/components/surfaces/DocumentViewerSurface';
 import { DocumentListSurface } from '@/components/surfaces/DocumentListSurface';
@@ -49,10 +53,17 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
     case 'work-list':
       return <WorkListSurface filter={surface.filter} />;
 
+    // ADR-037: Context browser deprecated - context is invisible (ADR-034)
+    // Falls through to idle (chat home)
     case 'context-browser':
-      return <ContextBrowserSurface scope={surface.scope} scopeId={surface.scopeId} />;
+      // Show deprecation notice in dev, fall to idle
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('ADR-037: context-browser surface is deprecated. Use chat for context.');
+      }
+      return <IdleSurface />;
 
     case 'context-editor':
+      // Keep context editor for now - used when viewing specific memory
       return <ContextEditorSurface memoryId={surface.memoryId} />;
 
     case 'document-viewer':

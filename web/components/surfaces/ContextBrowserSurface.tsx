@@ -1,20 +1,16 @@
 'use client';
 
 /**
- * ADR-023: Supervisor Desk Architecture
- * ADR-034: Context v2 - Domain-based context scoping
+ * DEPRECATED: ADR-037 + ADR-034
  *
- * ContextBrowserSurface - Browse memories/context with source-first design
+ * ContextBrowserSurface is deprecated. Under ADR-034, context domains are
+ * emergent (not user-configured). Under ADR-037, context is invisible
+ * infrastructure that TP accesses - users don't browse context directly.
  *
- * Source-first layout (ADR-034 refactor):
- * - All memories displayed in a single view
- * - Grouped by platform source (Slack, Gmail, Notion, Manual)
- * - Domain filter only shown when multiple non-default domains exist
+ * This component is kept for backwards compatibility but the surface type
+ * 'context-browser' now falls through to IdleSurface (chat home).
  *
- * Features:
- * - Search filtering across content and tags
- * - Platform grouping for easy navigation
- * - Tags displayed inline on each memory card
+ * @deprecated Context is invisible infrastructure per ADR-034/037
  */
 
 import { useState, useEffect, useCallback, useMemo } from 'react';

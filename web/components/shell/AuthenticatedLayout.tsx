@@ -1,19 +1,22 @@
 'use client';
 
 /**
- * ADR-023: Supervisor Desk Architecture
- * Simplified layout - single desk, no surface drawer
+ * ADR-037: Chat-First Surface Architecture
  *
  * Navigation model:
- * - Routes: /dashboard (surfaces), /settings, /projects/[id]
- * - Surfaces: Query-param states within /dashboard
- * - Domain dropdown shows surfaces when on /dashboard, routes otherwise
+ * - Home (/dashboard) = Chat-first experience (TP primary)
+ * - Entity pages: /platforms, /docs, /settings
+ * - Surfaces exist but are secondary to chat
+ *
+ * Key changes from ADR-023:
+ * - Dashboard is home (chat), not a nav item
+ * - Context browser deprecated (invisible per ADR-034)
  */
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { LayoutDashboard, Brain, FolderOpen, ChevronDown, Settings, Link2 } from 'lucide-react';
+import { MessageCircle, FolderOpen, ChevronDown, Settings, Link2 } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import { UserMenu } from './UserMenu';
@@ -84,27 +87,29 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 // Navigation Types
 // =============================================================================
 
-// Surface domains - navigable within /dashboard via query params
+// ADR-037: Simplified navigation
+// - Chat is home (not a nav item)
+// - Context is invisible (ADR-034)
+// - Platforms and Docs are surfaces accessed via dropdown
+// - Settings is a separate route
+
 interface SurfaceDomainItem {
   id: string;
   label: string;
-  icon: typeof LayoutDashboard;
+  icon: typeof MessageCircle;
   surface: DeskSurface;
 }
 
-// Route pages - separate Next.js routes outside /dashboard
 interface RouteItem {
   id: string;
   label: string;
-  icon: typeof LayoutDashboard;
+  icon: typeof MessageCircle;
   path: string;
 }
 
-// Surface domains available via dropdown when on /dashboard
+// ADR-037: Simplified surface domains (no dashboard, no context)
 const SURFACE_DOMAINS: SurfaceDomainItem[] = [
-  { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard, surface: { type: 'idle' } },
   { id: 'platforms', label: 'Platforms', icon: Link2, surface: { type: 'platform-list' } },
-  { id: 'context', label: 'Context', icon: Brain, surface: { type: 'context-browser', scope: 'user' } },
   { id: 'documents', label: 'Docs', icon: FolderOpen, surface: { type: 'document-list' } },
 ];
 
@@ -113,27 +118,30 @@ const ROUTE_PAGES: RouteItem[] = [
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
-// Get current surface domain from surface type
+// ADR-037: Get current surface domain from surface type
+// - Home/chat surfaces return 'home'
+// - Context surfaces are deprecated but still map for backwards compat
 function getCurrentSurfaceDomain(surface: DeskSurface): string {
   switch (surface.type) {
     case 'idle':
     case 'deliverable-review':
     case 'deliverable-detail':
     case 'deliverable-list':
+    case 'deliverable-create':
     case 'work-output':
     case 'work-list':
-      return 'dashboard';
+      return 'home'; // Chat is home
     case 'platform-list':
     case 'platform-detail':
       return 'platforms';
     case 'context-browser':
     case 'context-editor':
-      return 'context';
+      return 'home'; // Context deprecated, falls to home
     case 'document-viewer':
     case 'document-list':
       return 'documents';
     default:
-      return 'dashboard';
+      return 'home';
   }
 }
 
@@ -206,7 +214,7 @@ function AuthenticatedLayoutInner({
     }
   }, [dropdownOpen]);
 
-  // Get current display info based on context
+  // ADR-037: Get current display info based on context
   const getCurrentDisplay = () => {
     if (currentRoute) {
       // On a route page (e.g., /settings)
@@ -215,11 +223,17 @@ function AuthenticatedLayoutInner({
         label: currentRoute.label,
       };
     }
-    // On dashboard - show surface domain
+    // On dashboard - show surface domain or Chat for home
+    if (currentSurfaceDomain === 'home') {
+      return {
+        icon: MessageCircle,
+        label: 'Chat',
+      };
+    }
     const domainInfo = SURFACE_DOMAINS.find(d => d.id === currentSurfaceDomain);
     return {
-      icon: domainInfo?.icon || LayoutDashboard,
-      label: domainInfo?.label || 'Dashboard',
+      icon: domainInfo?.icon || MessageCircle,
+      label: domainInfo?.label || 'Chat',
     };
   };
 
@@ -261,6 +275,25 @@ function AuthenticatedLayoutInner({
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-40 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+                {/* ADR-037: Chat (home) - always first */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isOnDashboard) {
+                      router.push('/dashboard');
+                    }
+                    setSurface({ type: 'idle' });
+                    setDropdownOpen(false);
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                    isOnDashboard && currentSurfaceDomain === 'home' && 'bg-primary/5 text-primary'
+                  )}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  Chat
+                </button>
+
                 {/* Surface domains - navigate to /dashboard with surface */}
                 {SURFACE_DOMAINS.map((domain) => {
                   const Icon = domain.icon;
@@ -270,7 +303,6 @@ function AuthenticatedLayoutInner({
                       key={domain.id}
                       onClick={(e) => {
                         e.stopPropagation();
-                        // Navigate to dashboard if not there
                         if (!isOnDashboard) {
                           router.push('/dashboard');
                         }
