@@ -13,26 +13,22 @@
  * and TP was a side drawer.
  */
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import {
   MessageCircle,
   CheckCircle2,
   Circle,
   Loader2,
   Send,
-  MapPin,
-  Layers,
-  User,
   ChevronRight,
   X,
+  Paperclip,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
-import { useActiveDomain } from '@/hooks/useActiveDomain';
 import { Todo } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { getTPStateIndicators } from '@/lib/tp-chips';
-import { getEntityName } from '@/lib/entity-cache';
 import { SkillPicker } from '@/components/tp/SkillPicker';
 import { SurfaceRouter } from './SurfaceRouter';
 
@@ -48,23 +44,38 @@ export function ChatFirstDesk() {
     respondToClarification,
   } = useTP();
   const { surface } = useDesk();
-  const { domain, isLoading: domainLoading } = useActiveDomain();
 
   const [input, setInput] = useState('');
+  const [attachments, setAttachments] = useState<File[]>([]);
+  const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [surfacePanelOpen, setSurfacePanelOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, status]);
 
-  // Focus input on mount
+  // Focus textarea on mount
   useEffect(() => {
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
   }, []);
+
+  // Auto-resize textarea
+  const adjustTextareaHeight = useCallback(() => {
+    const textarea = textareaRef.current;
+    if (textarea) {
+      textarea.style.height = 'auto';
+      textarea.style.height = `${Math.min(textarea.scrollHeight, 200)}px`;
+    }
+  }, []);
+
+  useEffect(() => {
+    adjustTextareaHeight();
+  }, [input, adjustTextareaHeight]);
 
   // Detect skill picker trigger
   const skillQuery = input.startsWith('/') ? input.slice(1).split(' ')[0] : null;
@@ -88,18 +99,53 @@ export function ChatFirstDesk() {
   const handleSkillSelect = (command: string) => {
     setInput(command + ' ');
     setSkillPickerOpen(false);
-    inputRef.current?.focus();
+    textareaRef.current?.focus();
+  };
+
+  // File attachment handling
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+
+    if (imageFiles.length === 0) return;
+
+    // Create previews for images
+    imageFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setAttachmentPreviews((prev) => [...prev, e.target?.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
+
+    setAttachments((prev) => [...prev, ...imageFiles]);
+
+    // Reset file input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const removeAttachment = (index: number) => {
+    setAttachments((prev) => prev.filter((_, i) => i !== index));
+    setAttachmentPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    // Submit on Enter (without Shift)
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e as unknown as React.FormEvent);
+    }
   };
 
   const handleOptionClick = (option: string) => {
     respondToClarification(option);
   };
 
-  // Get context indicators
+  // Get surface label for panel header
   const indicators = getTPStateIndicators(surface);
-  const deliverableId = indicators.deliverable.id;
-  const cachedDeliverableName = deliverableId ? getEntityName(deliverableId) : undefined;
-  const surfaceLabel = cachedDeliverableName || indicators.surface.label;
+  const surfaceLabel = indicators.surface.label;
 
   const formatSkillName = (skill: string) => {
     return skill
@@ -141,33 +187,6 @@ export function ChatFirstDesk() {
               )} />
             </button>
           )}
-        </div>
-
-        {/* Context indicators */}
-        <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-muted/30 text-xs">
-          <span className="text-muted-foreground/60">Context:</span>
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <MapPin className="w-3 h-3" />
-            <span className="truncate max-w-[100px]">{surfaceLabel}</span>
-          </div>
-          <span className="text-muted-foreground/40">·</span>
-          <div className="flex items-center gap-1">
-            {domainLoading ? (
-              <Loader2 className="w-3 h-3 animate-spin text-muted-foreground" />
-            ) : domain ? (
-              <>
-                <Layers className="w-3 h-3 text-primary" />
-                <span className="text-primary truncate max-w-[80px]" title={domain.name}>
-                  {domain.name}
-                </span>
-              </>
-            ) : (
-              <>
-                <User className="w-3 h-3 text-muted-foreground" />
-                <span className="text-muted-foreground">All Context</span>
-              </>
-            )}
-          </div>
         </div>
 
         {/* Todos (when active) */}
@@ -270,7 +289,7 @@ export function ChatFirstDesk() {
           <div ref={messagesEndRef} />
         </div>
 
-        {/* Input */}
+        {/* Input - Claude Code IDE style */}
         <div className="p-4 border-t border-border shrink-0">
           <div className="relative max-w-2xl mx-auto">
             <SkillPicker
@@ -279,26 +298,87 @@ export function ChatFirstDesk() {
               onClose={() => setSkillPickerOpen(false)}
               isOpen={skillPickerOpen}
             />
-            <form onSubmit={handleSubmit} className="flex gap-2">
-              <input
-                ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                disabled={isLoading}
-                placeholder={
-                  status.type === 'clarify' ? 'Type your answer...' : 'Ask anything or type /...'
-                }
-                className="flex-1 px-4 py-3 text-sm border border-border rounded-lg bg-background focus:outline-none focus:ring-2 focus:ring-primary/50 disabled:opacity-50"
-              />
-              <button
-                type="submit"
-                disabled={isLoading || !input.trim()}
-                className="px-4 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                aria-label="Send"
+            <form onSubmit={handleSubmit}>
+              {/* Attachment previews */}
+              {attachmentPreviews.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2 p-2 rounded-t-lg border border-b-0 border-border bg-muted/30">
+                  {attachmentPreviews.map((preview, index) => (
+                    <div key={index} className="relative group">
+                      <img
+                        src={preview}
+                        alt={`Attachment ${index + 1}`}
+                        className="h-16 w-16 object-cover rounded-md border border-border"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => removeAttachment(index)}
+                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-background border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Input container */}
+              <div
+                className={cn(
+                  'flex items-end gap-2 border border-border bg-background transition-colors',
+                  attachmentPreviews.length > 0 ? 'rounded-b-lg border-t-0' : 'rounded-lg',
+                  'focus-within:ring-2 focus-within:ring-primary/50'
+                )}
               >
-                <Send className="w-5 h-5" />
-              </button>
+                {/* Attachment button */}
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileSelect}
+                  className="hidden"
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isLoading}
+                  className="shrink-0 p-3 text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                  title="Attach images"
+                >
+                  <Paperclip className="w-5 h-5" />
+                </button>
+
+                {/* Textarea */}
+                <textarea
+                  ref={textareaRef}
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  disabled={isLoading}
+                  placeholder={
+                    status.type === 'clarify'
+                      ? 'Type your answer...'
+                      : 'Ask anything or type / for skills...'
+                  }
+                  rows={1}
+                  className="flex-1 py-3 pr-2 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
+                />
+
+                {/* Send button */}
+                <button
+                  type="submit"
+                  disabled={isLoading || (!input.trim() && attachments.length === 0)}
+                  className="shrink-0 p-3 text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:opacity-50 transition-colors"
+                  aria-label="Send"
+                >
+                  <Send className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Hint text */}
+              <p className="mt-1.5 text-[10px] text-muted-foreground/60 text-center">
+                Press Enter to send, Shift+Enter for new line
+              </p>
             </form>
           </div>
         </div>
