@@ -550,13 +550,13 @@ export function IntegrationImportModal({
               job={importJob}
               provider={provider}
               onViewContext={() => {
-                // Navigate to Context browser
+                // ADR-034: Context browser deprecated - go to chat instead
                 if (onNavigateToContext) {
                   onNavigateToContext();
-                } else if (deskContext?.setSurface) {
-                  deskContext.setSurface({ type: 'context-browser', scope: 'user' });
+                } else if (deskContext?.clearSurface) {
+                  deskContext.clearSurface();
                 } else {
-                  router.push('/');
+                  router.push('/dashboard');
                 }
                 handleClose();
               }}

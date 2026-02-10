@@ -13,6 +13,7 @@
  */
 
 import { useState, useCallback, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Loader2,
@@ -225,6 +226,7 @@ const PLATFORM_ICONS: Record<string, React.ReactNode> = {
 // =============================================================================
 
 export function DeliverableCreateSurface({ initialPlatform }: DeliverableCreateSurfaceProps) {
+  const router = useRouter();
   const { setSurface } = useDesk();
 
   // Form state
@@ -363,8 +365,8 @@ export function DeliverableCreateSurface({ initialPlatform }: DeliverableCreateS
 
       const deliverable = await api.deliverables.create(createData);
 
-      // Navigate to the new deliverable
-      setSurface({ type: 'deliverable-detail', deliverableId: deliverable.id });
+      // Navigate to the new deliverable (ADR-037: route)
+      router.push(`/deliverables/${deliverable.id}`);
     } catch (err) {
       console.error('Failed to create deliverable:', err);
       setError('Failed to create deliverable. Please try again.');

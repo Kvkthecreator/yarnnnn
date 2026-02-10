@@ -5,23 +5,23 @@
  *
  * Shown after TP creates a deliverable to confirm context before first run.
  * Part of the Deliverable Workflow assurance pattern.
+ *
+ * ADR-037: Uses router.push for deliverable navigation
+ * ADR-034: Context browser deprecated - removed "Edit context" functionality
  */
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   X,
   CheckCircle,
   FileText,
-  Brain,
   Calendar,
-  Plus,
-  FileUp,
   Loader2,
   Play,
+  Brain,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
-import { useDesk } from "@/contexts/DeskContext";
-import { DeskSurface } from "@/types/desk";
 
 export interface SetupConfirmData {
   deliverableId: string;
@@ -46,7 +46,7 @@ export function SetupConfirmModal({
   onClose,
   data,
 }: SetupConfirmModalProps) {
-  const { setSurface } = useDesk();
+  const router = useRouter();
   const [isRunning, setIsRunning] = useState(false);
 
   if (!open || !data) return null;
@@ -58,28 +58,13 @@ export function SetupConfirmModal({
         await api.deliverables.run(data.deliverableId);
       } catch (err) {
         console.error("Failed to run deliverable:", err);
-        // Continue to navigation even if run fails - user can retry from detail surface
+        // Continue to navigation even if run fails - user can retry from detail page
       }
       setIsRunning(false);
     }
 
-    // Navigate to deliverable detail
-    const surface: DeskSurface = {
-      type: "deliverable-detail",
-      deliverableId: data.deliverableId,
-    };
-    setSurface(surface);
-    onClose();
-  };
-
-  const handleEditContext = () => {
-    // Navigate to context browser for this deliverable's scope
-    const surface: DeskSurface = {
-      type: "context-browser",
-      scope: "deliverable",
-      scopeId: data.deliverableId,
-    };
-    setSurface(surface);
+    // ADR-037: Navigate to deliverable detail route
+    router.push(`/deliverables/${data.deliverableId}`);
     onClose();
   };
 
@@ -124,24 +109,16 @@ export function SetupConfirmModal({
             </h4>
             <p className="text-sm text-muted-foreground flex items-center gap-2">
               <Calendar className="w-3 h-3" />
-              {data.title} &bull; {data.schedule}
+              {data.title} · {data.schedule}
             </p>
           </section>
 
           {/* Context I'll Use */}
           <section className="p-3 rounded-lg bg-muted">
-            <div className="flex items-center justify-between mb-2">
-              <h4 className="text-sm font-medium flex items-center gap-2">
-                <Brain className="w-4 h-4" />
-                Context I'll Use
-              </h4>
-              <button
-                onClick={handleEditContext}
-                className="text-xs text-primary hover:underline"
-              >
-                Edit
-              </button>
-            </div>
+            <h4 className="text-sm font-medium flex items-center gap-2 mb-2">
+              <Brain className="w-4 h-4" />
+              Context I'll Use
+            </h4>
 
             <div className="space-y-2 text-sm text-muted-foreground">
               <div>
@@ -168,29 +145,12 @@ export function SetupConfirmModal({
                   <ul className="text-xs space-y-1">
                     {data.context.sample_memories.map((mem, i) => (
                       <li key={i} className="truncate">
-                        &bull; {mem}
+                        · {mem}
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
-            </div>
-
-            <div className="flex gap-2 mt-3">
-              <button
-                onClick={handleEditContext}
-                className="px-2 py-1 text-xs border border-border rounded hover:bg-background flex items-center gap-1"
-              >
-                <Plus className="w-3 h-3" />
-                Add context
-              </button>
-              <button
-                onClick={handleEditContext}
-                className="px-2 py-1 text-xs border border-border rounded hover:bg-background flex items-center gap-1"
-              >
-                <FileUp className="w-3 h-3" />
-                Add document
-              </button>
             </div>
           </section>
         </div>

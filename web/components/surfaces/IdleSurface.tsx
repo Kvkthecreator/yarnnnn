@@ -17,13 +17,13 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Clock,
   Loader2,
   Pause,
   AlertCircle,
   Calendar,
-  Brain,
   FileText,
   ChevronRight,
   CheckCircle2,
@@ -85,6 +85,7 @@ interface DashboardData {
 }
 
 export function IdleSurface() {
+  const router = useRouter();
   const { setSurface, attention, refreshAttention } = useDesk();
 
   // ADR-033: Platform-first onboarding state
@@ -280,11 +281,8 @@ export function IdleSurface() {
         {/* ADR-033: Platform Cards - Forest View */}
         <PlatformCardGrid
           onPlatformClick={(platform: PlatformSummary) => {
-            // Navigate directly to full platform surface (no drawer)
-            setSurface({
-              type: 'platform-detail',
-              platform: platform.provider as 'slack' | 'notion' | 'gmail' | 'google',
-            });
+            // ADR-037: Navigate to integration route
+            router.push(`/integrations/${platform.provider}`);
           }}
         />
 
@@ -295,7 +293,7 @@ export function IdleSurface() {
           action={
             data && data.deliverables.length > 0 ? (
               <button
-                onClick={() => setSurface({ type: 'deliverable-list' })}
+                onClick={() => router.push('/deliverables')}
                 className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
               >
                 All deliverables ({data.deliverables.length})
@@ -309,7 +307,7 @@ export function IdleSurface() {
               <DeliverableCard
                 key={d.id}
                 deliverable={d}
-                onClick={() => setSurface({ type: 'deliverable-detail', deliverableId: d.id })}
+                onClick={() => router.push(`/deliverables/${d.id}`)}
               />
             ))
           ) : (
@@ -391,7 +389,7 @@ export function IdleSurface() {
         )}
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           {/* Create Deliverable - Primary (ADR-035: Full-screen surface) */}
           <button
             onClick={() => setSurface({ type: 'deliverable-create' })}
@@ -404,23 +402,9 @@ export function IdleSurface() {
             <p className="text-xs text-muted-foreground">Set up recurring work</p>
           </button>
 
-          {/* Context */}
+          {/* Documents - ADR-037: Navigate to route */}
           <button
-            onClick={() => setSurface({ type: 'context-browser', scope: 'user' })}
-            className="p-4 border border-border rounded-lg hover:bg-muted text-left"
-          >
-            <div className="flex items-center gap-2 mb-1">
-              <Brain className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-medium">Context</span>
-            </div>
-            <p className="text-xs text-muted-foreground">
-              {data?.memoryCount || 0} memories
-            </p>
-          </button>
-
-          {/* Documents */}
-          <button
-            onClick={() => setSurface({ type: 'document-list' })}
+            onClick={() => router.push('/docs')}
             className="p-4 border border-border rounded-lg hover:bg-muted text-left"
           >
             <div className="flex items-center gap-2 mb-1">

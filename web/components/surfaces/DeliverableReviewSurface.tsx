@@ -9,6 +9,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import {
   Check,
   XCircle,
@@ -34,7 +35,8 @@ export function DeliverableReviewSurface({
   deliverableId,
   versionId,
 }: DeliverableReviewSurfaceProps) {
-  const { attention, nextAttention, removeAttention, clearSurface, setSurface } = useDesk();
+  const router = useRouter();
+  const { attention, nextAttention, removeAttention, clearSurface } = useDesk();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
@@ -143,9 +145,9 @@ export function DeliverableReviewSurface({
     }
   };
 
-  // Navigate back to deliverable detail
+  // Navigate back to deliverable detail (ADR-037: route)
   const handleBack = () => {
-    setSurface({ type: 'deliverable-detail', deliverableId });
+    router.push(`/deliverables/${deliverableId}`);
   };
 
   // Handle skip (go to next without action)

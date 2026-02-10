@@ -2,7 +2,12 @@
 
 /**
  * ADR-023: Supervisor Desk Architecture
+ * ADR-034: Context browser deprecated
+ *
  * ContextEditorSurface - Edit a single memory
+ *
+ * Note: After save/delete, returns to idle (dashboard) since
+ * context-browser is deprecated per ADR-034.
  */
 
 import { useState, useEffect } from 'react';
@@ -16,7 +21,7 @@ interface ContextEditorSurfaceProps {
 }
 
 export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
-  const { setSurface } = useDesk();
+  const { clearSurface } = useDesk();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [memory, setMemory] = useState<Memory | null>(null);
@@ -55,8 +60,8 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
         content,
         tags,
       });
-      // Go back to browser
-      setSurface({ type: 'context-browser', scope: 'user' });
+      // ADR-034: Context browser deprecated - return to dashboard
+      clearSurface();
     } catch (err) {
       console.error('Failed to save memory:', err);
       alert('Failed to save. Please try again.');
@@ -72,7 +77,8 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
     setSaving(true);
     try {
       await api.memories.delete(memoryId);
-      setSurface({ type: 'context-browser', scope: 'user' });
+      // ADR-034: Context browser deprecated - return to dashboard
+      clearSurface();
     } catch (err) {
       console.error('Failed to delete memory:', err);
       alert('Failed to delete. Please try again.');
@@ -82,7 +88,8 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
   };
 
   const goBack = () => {
-    setSurface({ type: 'context-browser', scope: 'user' });
+    // ADR-034: Context browser deprecated - return to dashboard
+    clearSurface();
   };
 
   if (loading) {
