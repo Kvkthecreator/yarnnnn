@@ -20,7 +20,7 @@ from services.anthropic import (
     StreamEvent,
 )
 from services.project_tools import THINKING_PARTNER_TOOLS, execute_tool
-from services.skills import detect_skill, get_skill_prompt_addition
+from services.skills import detect_skill, get_skill_prompt_addition, detect_skill_hybrid
 
 
 @dataclass
@@ -707,8 +707,8 @@ recurring deliverable through conversation.
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
 
-        # ADR-025: Detect skill from user message
-        active_skill = detect_skill(task)
+        # ADR-025 + ADR-040: Detect skill from user message (hybrid: pattern + semantic)
+        active_skill, detection_method, confidence = await detect_skill_hybrid(task)
         skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
 
         system = self._build_system_prompt(
@@ -891,8 +891,8 @@ recurring deliverable through conversation.
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
 
-        # ADR-025: Detect skill from user message
-        active_skill = detect_skill(task)
+        # ADR-025 + ADR-040: Detect skill from user message (hybrid: pattern + semantic)
+        active_skill, detection_method, confidence = await detect_skill_hybrid(task)
         skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
 
         # Detect if this is a response to a clarify() call

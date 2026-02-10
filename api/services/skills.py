@@ -11,9 +11,16 @@ Tier 1 Integration (Plan Mode, Assumption Checking, Todo Revision):
 - All skills now follow plan mode discipline
 - Assumption checks are required before creating entities
 - Plans can be revised when assumptions fail
+
+ADR-040 Enhancement: Semantic Skill Matching
+- Hybrid detection: pattern matching first (fast), semantic fallback (higher recall)
+- Embeddings enable natural language skill activation for variations not in patterns
 """
 
-from typing import Optional, Dict, Any
+import logging
+from typing import Optional, Dict, Any, Tuple
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -598,3 +605,42 @@ def list_available_skills() -> list[Dict[str, str]]:
         }
         for skill in SKILLS.values()
     ]
+
+
+# =============================================================================
+# Hybrid Detection (ADR-040)
+# =============================================================================
+
+async def detect_skill_hybrid(user_message: str) -> Tuple[Optional[str], str, float]:
+    """
+    Hybrid skill detection: pattern matching first, semantic fallback.
+
+    This provides the best of both approaches:
+    - Pattern matching is fast and precise for known phrases
+    - Semantic matching catches natural language variations
+
+    Args:
+        user_message: The user's message to analyze
+
+    Returns:
+        Tuple of (skill_name, detection_method, confidence)
+        - skill_name: The detected skill, or None
+        - detection_method: "pattern" | "semantic" | "none"
+        - confidence: 1.0 for pattern matches, 0.0-1.0 for semantic
+    """
+    # Fast path: pattern matching (existing behavior)
+    pattern_match = detect_skill(user_message)
+    if pattern_match:
+        logger.debug(f"Skill detected via pattern: {pattern_match}")
+        return (pattern_match, "pattern", 1.0)
+
+    # Fallback: semantic matching
+    # Import here to avoid circular dependency and lazy-load embeddings
+    from services.skill_embeddings import detect_skill_semantic
+
+    semantic_match, confidence = await detect_skill_semantic(user_message)
+    if semantic_match:
+        logger.info(f"Skill detected via semantic: {semantic_match} (confidence: {confidence:.3f})")
+        return (semantic_match, "semantic", confidence)
+
+    return (None, "none", 0.0)

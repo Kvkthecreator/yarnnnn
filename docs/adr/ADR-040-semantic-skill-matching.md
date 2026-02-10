@@ -1,10 +1,11 @@
 # ADR-040: Semantic Skill Matching
 
-> **Status**: Proposed
+> **Status**: Implemented
 > **Created**: 2026-02-10
+> **Implemented**: 2026-02-10
 > **Priority**: P1 (Low effort, immediate value)
 > **Related**: ADR-025 (Claude Code Agentic Alignment), ADR-038 (Claude Code Architecture Mapping)
-> **Effort**: 2-3 days development
+> **Effort**: 2-3 days development (actual: <1 day)
 
 ---
 
@@ -156,7 +157,7 @@ Pre-compute skill embeddings at startup (or lazy-load on first use):
 ```python
 # services/skill_embeddings.py
 
-import numpy as np
+import math  # Pure Python, no numpy dependency
 from services.embeddings import get_embedding
 
 _SKILL_EMBEDDINGS: dict[str, list[float]] = {}
@@ -172,10 +173,11 @@ async def get_skill_embeddings() -> dict[str, list[float]]:
     return _SKILL_EMBEDDINGS
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    """Compute cosine similarity between two vectors."""
-    a_np = np.array(a)
-    b_np = np.array(b)
-    return float(np.dot(a_np, b_np) / (np.linalg.norm(a_np) * np.linalg.norm(b_np)))
+    """Compute cosine similarity between two vectors (pure Python)."""
+    dot_product = sum(x * y for x, y in zip(a, b))
+    norm_a = math.sqrt(sum(x * x for x in a))
+    norm_b = math.sqrt(sum(y * y for y in b))
+    return dot_product / (norm_a * norm_b) if norm_a and norm_b else 0.0
 ```
 
 ### 3. Semantic Detection Function
