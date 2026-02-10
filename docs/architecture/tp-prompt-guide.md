@@ -2,6 +2,7 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-11
+> **Updated**: 2026-02-11
 > **Location**: `api/agents/thinking_partner.py`
 
 ---
@@ -12,7 +13,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 
 ---
 
-## Current Version: v2 (2026-02-11)
+## Current Version: v3 (2026-02-11)
 
 ### Key Principles
 
@@ -21,25 +22,27 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 | **Conciseness** | Short answers for simple questions; thorough for complex |
 | **No preamble/postamble** | Skip "I'll help you with..." and "Let me know if..." |
 | **Proactiveness balance** | Answer questions before taking action |
-| **One clarifying question** | Don't over-ask; gather what's needed, then act |
-| **Gates before execution** | `[GATE]` phase requires user confirmation |
+| **One clarifying question** | Use `Clarify` tool with 2-4 options |
+| **Confirm before creating** | Ask user, then create on confirmation |
+| **Primitives only** | All tools are primitives (no legacy tool names) |
 
-### Prompt Structure
+### Prompt Structure (Streamlined)
 
 ```
 1. Context injection ({context})
 2. Tone and Style - conciseness rules
 3. How You Work - text primary, tools for actions
-4. Available Tools - primitives reference
-5. Reference Syntax - entity addressing
+4. Available Tools - 9 primitives
+5. Reference Syntax - type:identifier
 6. Guidelines - behavioral rules
 7. Domain Terms - vocabulary
-8. Task Progress - todo/gate patterns (ADR-025)
-9. Plan Mode - when to plan vs act
-10. Assumption Checking - verify before major actions
-11. Deliverable Creation - parse → confirm → create flow
-12. Memory Routing - ADR-034 domain scoping
+8. Multi-Step Work - when to use Todo (simplified)
+9. Asking for Clarification - Clarify tool usage
+10. Creating Entities - Write examples
+11. Checking Before Acting - List for duplicates
 ```
+
+**Removed in v3:** Verbose plan mode, gate phases, assumption checking sections (300+ lines → 90 lines)
 
 ### Good Response Examples
 
@@ -67,6 +70,19 @@ User: "What platforms are connected?"
 
 ## Changelog
 
+### v3 (2026-02-11)
+
+**Changes:**
+- Removed verbose plan mode/gate/assumption sections (300+ lines → 90 lines)
+- Replaced all legacy tool references with primitives
+- Simplified multi-step work guidance
+- Added explicit `Clarify` tool examples
+- Added `/create` skill
+
+**Rationale:** Audit revealed TP prompt referenced non-existent tools (`list_deliverables`, `create_deliverable`). Streamlined to use only the 9 primitives consistently.
+
+**Breaking:** Skills completely rewritten to use primitives
+
 ### v2 (2026-02-11)
 
 **Changes:**
@@ -78,8 +94,6 @@ User: "What platforms are connected?"
 - Added security note (no secrets in code)
 
 **Rationale:** Cross-analysis with Claude Code system prompt revealed opportunity for more concise, direct responses without losing helpfulness.
-
-**Source:** Claude Code prompt patterns (conciseness, no preamble, proactiveness balance)
 
 ### v1 (2026-02-10)
 
@@ -118,14 +132,14 @@ Users sometimes ask "how should I..." expecting advice, not immediate action. Ta
 
 Pattern: Answer the question → Offer to act → Act on confirmation
 
-### Why Gates?
+### Why Confirm Before Creating?
 
 Creating entities (deliverables, work) without confirmation leads to:
 - Duplicates when user meant something else
 - Wrong parameters from misunderstood intent
 - User feeling loss of control
 
-The `[GATE]` pattern ensures user approval before any `[EXEC]` phase.
+Simple pattern: Check duplicates → Confirm → Create (no verbose gate phases needed)
 
 ---
 
@@ -133,16 +147,16 @@ The `[GATE]` pattern ensures user approval before any `[EXEC]` phase.
 
 When modifying the TP prompt:
 
-1. **Test simple queries** - Should get short responses
-2. **Test complex requests** - Should see todo/gate pattern
-3. **Test ambiguous requests** - Should ask ONE clarifying question
+1. **Test simple queries** - Should get short responses, NO todos
+2. **Test `/create`** - Should use `Clarify` tool with options
+3. **Test ambiguous requests** - Should use `Clarify` with options
 4. **Test action requests** - Should confirm before creating
 
 Example test cases:
-- "How many deliverables?" → Short answer
-- "Set up monthly board updates" → Plan with gate
-- "Make me a report" → One clarifying question
-- "yes" (after confirmation) → Immediate action
+- "How many deliverables?" → `List` → Short answer (no todos)
+- "/create" → `Clarify(options=[...])` → User picks → Create
+- "Make me a report" → `Clarify` asking what type
+- "yes" (after confirmation) → `Write` immediately
 
 ---
 
