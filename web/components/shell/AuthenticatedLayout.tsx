@@ -17,7 +17,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { MessageCircle, FolderOpen, ChevronDown, Settings, Link2 } from 'lucide-react';
+import { MessageCircle, FolderOpen, ChevronDown, Settings, Link2, Calendar, Activity } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -102,7 +102,9 @@ interface RouteItem {
 
 // ADR-037: All navigation items are now routes (not surfaces)
 const ROUTE_PAGES: RouteItem[] = [
+  { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' },
   { id: 'integrations', label: 'Integrations', icon: Link2, path: '/integrations' },
+  { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
   { id: 'documents', label: 'Docs', icon: FolderOpen, path: '/docs' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];

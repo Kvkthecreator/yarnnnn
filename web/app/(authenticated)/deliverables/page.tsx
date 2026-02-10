@@ -1,30 +1,37 @@
 'use client';
 
 /**
- * ADR-023: Supervisor Desk Architecture
- * DeliverableListSurface - List of user's recurring deliverables
+ * ADR-037: Deliverables Page (Route-based)
+ *
+ * Standalone page for listing and managing recurring deliverables.
+ * Core feature page - list, filter, and navigate to deliverable details.
  */
 
 import { useState, useEffect, useMemo } from 'react';
-import { Loader2, Play, Pause, Calendar, Clock, FileText, Plus, Send, Slack } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import {
+  Loader2,
+  Play,
+  Pause,
+  Calendar,
+  Clock,
+  FileText,
+  Plus,
+  Send,
+  Mail,
+  FileCode,
+  MessageSquare,
+} from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { useDesk } from '@/contexts/DeskContext';
-import { useTP } from '@/contexts/TPContext';
 import { formatDistanceToNow } from 'date-fns';
 import { PlatformFilter, type PlatformFilterValue } from '@/components/ui/PlatformFilter';
 import type { Deliverable, DeliverableStatus } from '@/types';
 
-interface DeliverableListSurfaceProps {
-  status?: 'active' | 'paused' | 'archived';
-}
-
-export function DeliverableListSurface({ status: initialStatus }: DeliverableListSurfaceProps) {
-  const { setSurface } = useDesk();
-  const { sendMessage } = useTP();
+export default function DeliverablesPage() {
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
-  const [currentFilter, setCurrentFilter] = useState<DeliverableStatus | 'all'>(initialStatus || 'all');
-  // ADR-033 Phase 3: Platform filter
+  const [currentFilter, setCurrentFilter] = useState<DeliverableStatus | 'all'>('all');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilterValue>('all');
 
   useEffect(() => {
@@ -57,12 +64,24 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
     }
   };
 
+  const getPlatformIcon = (platform?: string) => {
+    switch (platform) {
+      case 'slack':
+        return <MessageSquare className="w-3 h-3" />;
+      case 'gmail':
+        return <Mail className="w-3 h-3" />;
+      case 'notion':
+        return <FileCode className="w-3 h-3" />;
+      default:
+        return <Send className="w-3 h-3" />;
+    }
+  };
+
   const formatSchedule = (schedule: Deliverable['schedule']) => {
     const freq = schedule.frequency;
     const day = schedule.day;
     const time = schedule.time || '09:00';
 
-    // Parse time for display
     let timeStr = time;
     try {
       const [hour, minute] = time.split(':').map(Number);
@@ -87,28 +106,23 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
     }
   };
 
-  // ADR-028: Format destination for display
   const formatDestination = (d: Deliverable) => {
     if (!d.destination) return null;
     const platform = d.destination.platform;
-    const target = d.destination.target;
     const isAuto = d.governance === 'semi_auto' || d.governance === 'full_auto';
 
     return {
       platform,
-      target,
       isAuto,
-      icon: platform === 'slack' ? <Slack className="w-3 h-3" /> : <Send className="w-3 h-3" />,
+      icon: getPlatformIcon(platform),
     };
   };
 
-  // ADR-033 Phase 3: Platform filter logic
   const filteredDeliverables = useMemo(() => {
     if (platformFilter === 'all') return deliverables;
     return deliverables.filter((d) => d.destination?.platform === platformFilter);
   }, [deliverables, platformFilter]);
 
-  // Calculate platform counts for filter
   const platformCounts = useMemo(() => {
     const counts: Partial<Record<PlatformFilterValue, number>> = { all: deliverables.length };
     deliverables.forEach((d) => {
@@ -120,7 +134,6 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
     return counts;
   }, [deliverables]);
 
-  // Determine which platforms are available for filtering
   const availablePlatforms = useMemo(() => {
     const platforms: PlatformFilterValue[] = ['all'];
     if (platformCounts.slack) platforms.push('slack');
@@ -131,10 +144,28 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
 
   const hasPlatformTargets = availablePlatforms.length > 1;
 
+  const handleDeliverableClick = (deliverableId: string) => {
+    router.push(`/deliverables/${deliverableId}`);
+  };
+
+  const handleCreateNew = () => {
+    // Navigate to dashboard where chat can help create
+    router.push('/dashboard');
+  };
+
   return (
     <div className="h-full overflow-auto">
-      <div className="max-w-4xl mx-auto px-6 py-6">
-        {/* Inline header with count, filters, and new button */}
+      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
+        {/* Header */}
+        <div className="flex items-center gap-3 mb-6">
+          <Calendar className="w-6 h-6" />
+          <h1 className="text-2xl font-bold">Deliverables</h1>
+        </div>
+        <p className="text-muted-foreground mb-6">
+          Recurring outputs that are automatically generated on schedule.
+        </p>
+
+        {/* Filters and actions */}
         <div className="flex items-center justify-between mb-4">
           <p className="text-sm text-muted-foreground">
             {loading ? 'Loading...' : `${filteredDeliverables.length} deliverable${filteredDeliverables.length === 1 ? '' : 's'}`}
@@ -156,7 +187,7 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
               ))}
             </div>
             <button
-              onClick={() => sendMessage("I'd like to create a new recurring deliverable")}
+              onClick={handleCreateNew}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs border border-border rounded-md hover:bg-muted"
             >
               <Plus className="w-3.5 h-3.5" />
@@ -165,7 +196,7 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
           </div>
         </div>
 
-        {/* ADR-033 Phase 3: Platform filter */}
+        {/* Platform filter */}
         {!loading && hasPlatformTargets && (
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xs text-muted-foreground">Target platform:</span>
@@ -178,6 +209,7 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
           </div>
         )}
 
+        {/* Content */}
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
@@ -192,7 +224,7 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
             </p>
             {deliverables.length === 0 && (
               <button
-                onClick={() => sendMessage("I'd like to create a new recurring deliverable")}
+                onClick={handleCreateNew}
                 className="inline-flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
               >
                 <Plus className="w-4 h-4" />
@@ -207,7 +239,7 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
               return (
                 <button
                   key={d.id}
-                  onClick={() => setSurface({ type: 'deliverable-detail', deliverableId: d.id })}
+                  onClick={() => handleDeliverableClick(d.id)}
                   className="w-full p-4 border border-border rounded-lg text-left hover:bg-muted cursor-pointer"
                 >
                   <div className="flex items-center justify-between">
@@ -217,12 +249,11 @@ export function DeliverableListSurface({ status: initialStatus }: DeliverableLis
                         <span className="text-sm font-medium">{d.title}</span>
                         <div className="flex items-center gap-2 text-xs text-muted-foreground">
                           <span>{d.deliverable_type.replace(/_/g, ' ')}</span>
-                          <span>•</span>
+                          <span>·</span>
                           <span>{formatSchedule(d.schedule)}</span>
-                          {/* ADR-028: Show destination if configured */}
                           {dest && (
                             <>
-                              <span>•</span>
+                              <span>·</span>
                               <span className="inline-flex items-center gap-1">
                                 {dest.icon}
                                 <span className="capitalize">{dest.platform}</span>
