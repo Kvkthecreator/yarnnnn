@@ -145,8 +145,36 @@ function AuthenticatedLayoutInner({
   const currentRoute = getRouteFromPathname(pathname);
 
   // Handle surface change from TP tool results (with optional handoff message)
+  // ADR-037: For migrated entities, navigate to routes instead of surfaces
   const handleSurfaceChange = useCallback(
     (newSurface: DeskSurface, handoffMessage?: string) => {
+      // ADR-037: Route-first navigation for migrated entities
+      switch (newSurface.type) {
+        case 'deliverable-list':
+          router.push('/deliverables');
+          return;
+        case 'deliverable-detail':
+          router.push(`/deliverables/${newSurface.deliverableId}`);
+          return;
+        case 'document-list':
+          router.push('/docs');
+          return;
+        case 'document-viewer':
+          router.push(`/docs/${newSurface.documentId}`);
+          return;
+        case 'platform-list':
+          router.push('/integrations');
+          return;
+        case 'platform-detail':
+          router.push(`/integrations/${newSurface.platform}`);
+          return;
+        case 'context-browser':
+          // Deprecated per ADR-034, just stay on current page
+          console.warn('ADR-034: context-browser is deprecated');
+          return;
+      }
+
+      // For remaining surfaces (work, review, create, etc.), use surface system
       // If not on dashboard, navigate there first
       if (!isDashboardRoute(window.location.pathname)) {
         router.push('/dashboard');

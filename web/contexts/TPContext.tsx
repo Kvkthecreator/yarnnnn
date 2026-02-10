@@ -411,10 +411,20 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         }
 
         // Add assistant message
+        // If no content but we have tool results, use the first tool result's message as fallback
+        // This handles cases where TP uses tools but doesn't call respond() afterward
+        let finalContent = assistantContent;
+        if (!finalContent && toolResults.length > 0) {
+          const firstMessage = toolResults.find((r) => r.data?.message)?.data?.message as string;
+          if (firstMessage) {
+            finalContent = firstMessage;
+          }
+        }
+
         const assistantMessage: TPMessage = {
           id: crypto.randomUUID(),
           role: 'assistant',
-          content: assistantContent,
+          content: finalContent,
           toolResults: toolResults.length > 0 ? toolResults : undefined,
           timestamp: new Date(),
         };
