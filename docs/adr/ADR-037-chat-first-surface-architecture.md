@@ -2,7 +2,7 @@
 
 > **Status**: Accepted
 > **Created**: 2026-02-10
-> **Related**: ADR-036 (Two-Layer Architecture), ADR-023 (Supervisor Desk - superseded), ADR-034 (Emergent Context Domains)
+> **Related**: ADR-036 (Two-Layer Architecture), ADR-023 (Supervisor Desk - superseded), ADR-034 (Emergent Context Domains), ADR-038 (Claude Code Architecture Mapping)
 > **Supersedes**: ADR-023 (Supervisor Desk Architecture)
 
 ---

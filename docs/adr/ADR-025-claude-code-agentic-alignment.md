@@ -2,9 +2,9 @@
 
 **Status:** In Progress
 **Date:** 2026-02-05
-**Updated:** 2026-02-05
+**Updated:** 2026-02-10
 **Extends:** ADR-010 (Thinking Partner Architecture), ADR-018 (Recurring Deliverables)
-**Related:** ADR-019 (Deliverable Types), ADR-023 (Supervisor Desk), ADR-024 (Context Classification)
+**Related:** ADR-019 (Deliverable Types), ADR-023 (Supervisor Desk), ADR-024 (Context Classification), ADR-038 (Claude Code Architecture Mapping)
 
 ---
 
@@ -568,6 +568,7 @@ Build comprehensive agent orchestration from scratch.
 - ADR-019: Deliverable Types System
 - ADR-023: Supervisor Desk Architecture
 - ADR-024: Context Classification Layer
+- **ADR-038: Claude Code Architecture Mapping** — Comprehensive mapping validation confirming architectural alignment
 
 ---
 

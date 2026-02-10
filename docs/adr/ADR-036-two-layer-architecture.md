@@ -2,8 +2,8 @@
 
 > **Status**: Accepted
 > **Created**: 2026-02-10
-> **Updated**: 2026-02-10 (Open Item 1 resolved by ADR-037)
-> **Related**: ADR-034 (Emergent Context Domains), ADR-035 (Platform-First Type System), ADR-037 (Chat-First Surface Architecture), Strategic Validation Document
+> **Updated**: 2026-02-10 (Open Item 1 resolved by ADR-037, Open Item 2 resolved by ADR-038)
+> **Related**: ADR-034 (Emergent Context Domains), ADR-035 (Platform-First Type System), ADR-037 (Chat-First Surface Architecture), ADR-038 (Claude Code Architecture Mapping), Strategic Validation Document
 > **Supersedes**: None (foundational architecture decision)
 
 ---
@@ -321,7 +321,7 @@ These require follow-up ADRs or design decisions:
 
 1. ~~**Dashboard Reinterpretation**~~ → ✅ **Resolved by ADR-037**: Chat is home; dashboard deprecated; pages are CRUD + receipts
 
-2. **TP Skill Interface**: Formal specification of how TP invokes skills (ADR-038 candidate)
+2. ~~**TP Skill Interface**~~ → ✅ **Resolved by ADR-038**: Comprehensive mapping validates existing skill implementation follows Claude Code patterns; no new specification needed
 
 3. **Pattern Recognition Scope**: What patterns trigger proposals? Minimum viable implementation?
 
