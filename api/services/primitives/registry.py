@@ -119,13 +119,13 @@ HANDLERS: dict[str, Callable] = {
 }
 
 
-async def execute_primitive(name: str, auth: Any, input: dict) -> dict:
+async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
     """
     Execute a primitive by name.
 
     Args:
-        name: Primitive name (e.g., "Read", "Write")
         auth: Auth context with user_id and client
+        name: Primitive name (e.g., "Read", "Write")
         input: Primitive input parameters
 
     Returns:
