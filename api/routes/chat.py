@@ -213,18 +213,30 @@ def build_history_for_claude(
             # Build structured content with tool_use blocks
             # This matches Claude Code's format for better model understanding
             assistant_content = []
+            tool_results = []
+            tool_call_index = 0
 
             for item in tool_history:
                 if item.get("type") == "tool_call":
-                    # Add tool_use block
-                    # Note: We use a synthetic ID since we don't store the original
-                    tool_id = f"tool_{item['name']}_{len(assistant_content)}"
+                    # Use consistent index for tool_use and tool_result matching
+                    tool_id = f"tool_{item['name']}_{tool_call_index}"
+
+                    # Add tool_use block to assistant content
                     assistant_content.append({
                         "type": "tool_use",
                         "id": tool_id,
                         "name": item["name"],
                         "input": _parse_input_summary(item.get("input_summary", "{}"))
                     })
+
+                    # Add corresponding tool_result
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": tool_id,
+                        "content": item.get("result_summary", "Success")
+                    })
+
+                    tool_call_index += 1
                 elif item.get("type") == "text" and item.get("content"):
                     # Add text block
                     assistant_content.append({
@@ -232,34 +244,26 @@ def build_history_for_claude(
                         "text": item["content"]
                     })
 
-            # If we have tool_use blocks, we need to add tool_result as next user message
-            tool_uses = [c for c in assistant_content if c.get("type") == "tool_use"]
-
-            if tool_uses:
+            if tool_results:
                 # Add assistant message with tool_use blocks
                 history.append({
                     "role": "assistant",
                     "content": assistant_content if assistant_content else [{"type": "text", "text": content}]
                 })
 
-                # Build tool_result blocks for the next "user" turn
-                tool_results = []
-                for i, item in enumerate(tool_history):
-                    if item.get("type") == "tool_call":
-                        tool_id = f"tool_{item['name']}_{i}"
-                        tool_results.append({
-                            "type": "tool_result",
-                            "tool_use_id": tool_id,
-                            "content": item.get("result_summary", "Success")
-                        })
-
-                if tool_results:
-                    history.append({
-                        "role": "user",
-                        "content": tool_results
-                    })
+                # Add tool_result blocks as next "user" turn
+                history.append({
+                    "role": "user",
+                    "content": tool_results
+                })
+            elif assistant_content:
+                # Just text content, no tools
+                history.append({
+                    "role": "assistant",
+                    "content": assistant_content
+                })
             else:
-                # No tool uses, just text
+                # Fallback to simple text
                 history.append({"role": role, "content": content})
 
         elif role == "assistant" and tool_history:
