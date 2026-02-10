@@ -887,12 +887,7 @@ async def handle_list_projects(auth, input: dict) -> dict:
             for p in projects
         ],
         "count": len(projects),
-        "message": f"Found {len(projects)} project(s)" if projects else "No projects yet",
-        "ui_action": {
-            "type": "OPEN_SURFACE",
-            "surface": "project-list",
-            "data": {}
-        }
+        "message": f"Found {len(projects)} project(s)" if projects else "No projects yet"
     }
 
 
@@ -1183,17 +1178,10 @@ async def handle_create_work(auth, input: dict) -> dict:
             response["message"] = f"Work failed: {response['error']}"
             return response
 
-    # UI action for completed work
+    # ADR-036: Results stay inline in chat - no navigation
+    # TP will use respond() to present the output summary
     if output_summary:
-        response["ui_action"] = {
-            "type": "OPEN_SURFACE",
-            "surface": "output",
-            "data": {
-                "workId": work_id,
-                "projectId": project_id,
-            }
-        }
-        response["instruction_to_assistant"] = "Keep your response brief (1-2 sentences). Acknowledge the work is done and direct the user to the output panel."
+        response["instruction_to_assistant"] = "Keep your response brief (1-2 sentences). Present the key output inline."
 
     return response
 
@@ -1261,12 +1249,7 @@ async def handle_list_work(auth, input: dict) -> dict:
         "success": True,
         "work": work_items,
         "count": len(work_items),
-        "message": f"Found {len(work_items)} work item(s)",
-        "ui_action": {
-            "type": "OPEN_SURFACE",
-            "surface": "work-list",
-            "data": {}
-        }
+        "message": f"Found {len(work_items)} work item(s)"
     }
 
 
@@ -1365,12 +1348,7 @@ async def handle_get_work(auth, input: dict) -> dict:
         "work": work_info,
         "outputs": list(reversed(output_list)),  # Most recent first
         "output_count": len(outputs),
-        "message": f"Work has {len(outputs)} output(s)",
-        "ui_action": {
-            "type": "OPEN_SURFACE",
-            "surface": "work-output",
-            "data": {"workId": work_id}
-        }
+        "message": f"Work has {len(outputs)} output(s)"
     }
 
 
@@ -1707,12 +1685,7 @@ async def handle_list_deliverables(auth, input: dict) -> dict:
         "success": True,
         "deliverables": items,
         "count": len(items),
-        "message": f"Found {len(items)} deliverable(s)" if items else "No deliverables yet. Would you like to create one?",
-        "ui_action": {
-            "type": "OPEN_SURFACE",
-            "surface": "deliverable-list",
-            "data": {}
-        }
+        "message": f"Found {len(items)} deliverable(s)" if items else "No deliverables yet. Would you like to create one?"
     }
 
 
@@ -1782,12 +1755,7 @@ async def handle_get_deliverable(auth, input: dict) -> dict:
             }
             for v in versions_sorted[:5]  # Last 5 versions
         ],
-        "version_count": len(versions),
-        "ui_action": {
-            "type": "OPEN_SURFACE",
-            "surface": "deliverable",
-            "data": {"deliverableId": deliverable_id}
-        }
+        "version_count": len(versions)
     }
 
 
@@ -1859,11 +1827,6 @@ async def handle_run_deliverable(auth, input: dict) -> dict:
             "deliverable_id": deliverable_id,
             "version_number": next_version,
             "message": f"Started generating '{deliverable['title']}' v{next_version}. Check the deliverables dashboard for the result.",
-            "ui_action": {
-                "type": "OPEN_SURFACE",
-                "surface": "deliverable",
-                "data": {"deliverableId": deliverable_id}
-            },
             "instruction_to_assistant": "Let the user know their deliverable is being generated. Direct them to the deliverables dashboard to review once ready."
         }
     else:
@@ -2298,15 +2261,7 @@ async def handle_list_memories(auth, input: dict) -> dict:
         "success": True,
         "memories": items,
         "count": len(items),
-        "message": f"Found {len(items)} memory/memories" if items else "No memories stored yet.",
-        "ui_action": {
-            "type": "OPEN_SURFACE",
-            "surface": "context",
-            "data": {
-                "scope": scope or "user",
-                "scopeId": project_id,
-            }
-        }
+        "message": f"Found {len(items)} memory/memories" if items else "No memories stored yet."
     }
 
 
@@ -2389,14 +2344,6 @@ async def handle_create_memory(auth, input: dict) -> dict:
             "scope_display": scope_display,
             "project_id": project_id,
             "project_name": project_name,
-        },
-        "ui_action": {
-            "type": "OPEN_SURFACE",
-            "surface": "context",
-            "data": {
-                "scope": scope,
-                "scopeId": project_id,
-            }
         }
     }
 
