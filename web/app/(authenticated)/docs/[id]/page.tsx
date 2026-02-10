@@ -168,15 +168,13 @@ export default function DocumentDetailPage({
           </div>
         </div>
 
-        {/* Document Preview / Content */}
-        {document.processing_status === 'completed' && document.extracted_text && (
-          <div className="border border-border rounded-lg">
-            <div className="p-4 border-b border-border bg-muted/30">
-              <h2 className="font-medium">Extracted Content</h2>
-            </div>
-            <div className="p-4 max-h-[500px] overflow-auto">
-              <pre className="text-sm whitespace-pre-wrap font-mono">{document.extracted_text}</pre>
-            </div>
+        {/* Document Info */}
+        {document.processing_status === 'completed' && (
+          <div className="p-4 border border-border rounded-lg bg-muted/30">
+            <p className="text-muted-foreground">
+              Document processed successfully.
+              {document.word_count && ` ${document.word_count.toLocaleString()} words extracted.`}
+            </p>
           </div>
         )}
 
