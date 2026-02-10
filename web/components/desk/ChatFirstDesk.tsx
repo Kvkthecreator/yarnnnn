@@ -30,6 +30,7 @@ import { Todo, TPImageAttachment } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { getTPStateIndicators } from '@/lib/tp-chips';
 import { SkillPicker } from '@/components/tp/SkillPicker';
+import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { SurfaceRouter } from './SurfaceRouter';
 
 export function ChatFirstDesk() {
@@ -217,8 +218,8 @@ export function ChatFirstDesk() {
           )}
         </div>
 
-        {/* Todos (when active) */}
-        {todos.length > 0 && (
+        {/* Todos - Only show when there's active work (in_progress or pending after started) */}
+        {todos.length > 0 && todos.some((t) => t.status === 'in_progress') && (
           <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs font-medium text-muted-foreground">Progress</span>
@@ -286,6 +287,10 @@ export function ChatFirstDesk() {
                 </div>
               )}
               <p className="whitespace-pre-wrap">{msg.content}</p>
+              {/* Inline tool results - Claude Code style */}
+              {msg.toolResults && msg.toolResults.length > 0 && (
+                <ToolResultList results={msg.toolResults} compact />
+              )}
             </div>
           ))}
 
@@ -309,21 +314,25 @@ export function ChatFirstDesk() {
             </div>
           )}
 
-          {/* Clarification options */}
-          {status.type === 'clarify' && pendingClarification?.options && (
-            <div className="space-y-2 bg-muted rounded-lg p-3 max-w-2xl">
-              <p className="text-sm">{pendingClarification.question}</p>
-              <div className="flex flex-wrap gap-2">
-                {pendingClarification.options.map((option, i) => (
-                  <button
-                    key={i}
-                    onClick={() => handleOptionClick(option)}
-                    className="px-3 py-1.5 text-sm rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                  >
-                    {option}
-                  </button>
-                ))}
-              </div>
+          {/* Clarification options - Claude Code style chips */}
+          {status.type === 'clarify' && pendingClarification && (
+            <div className="space-y-3 bg-muted/50 rounded-lg p-4 max-w-2xl border border-border">
+              <p className="text-sm font-medium">{pendingClarification.question}</p>
+              {pendingClarification.options && pendingClarification.options.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {pendingClarification.options.map((option, i) => (
+                    <button
+                      key={i}
+                      onClick={() => handleOptionClick(option)}
+                      className="px-4 py-2 text-sm rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 hover:border-primary/50 transition-all font-medium shadow-sm"
+                    >
+                      {option}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">Type your response below</p>
+              )}
             </div>
           )}
 

@@ -242,21 +242,25 @@ export function TPDrawer() {
           </div>
         )}
 
-        {/* Clarification options */}
-        {status.type === 'clarify' && pendingClarification?.options && (
-          <div className="space-y-2 bg-muted rounded-lg p-3">
-            <p className="text-sm">{pendingClarification.question}</p>
-            <div className="flex flex-wrap gap-2">
-              {pendingClarification.options.map((option, i) => (
-                <button
-                  key={i}
-                  onClick={() => handleOptionClick(option)}
-                  className="px-3 py-1.5 text-sm rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                >
-                  {option}
-                </button>
-              ))}
-            </div>
+        {/* Clarification options - Claude Code style chips */}
+        {status.type === 'clarify' && pendingClarification && (
+          <div className="space-y-3 bg-muted/50 rounded-lg p-4 border border-border">
+            <p className="text-sm font-medium">{pendingClarification.question}</p>
+            {pendingClarification.options && pendingClarification.options.length > 0 ? (
+              <div className="flex flex-wrap gap-2">
+                {pendingClarification.options.map((option, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleOptionClick(option)}
+                    className="px-4 py-2 text-sm rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/15 hover:border-primary/50 transition-all font-medium shadow-sm"
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">Type your response below</p>
+            )}
           </div>
         )}
 

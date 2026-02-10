@@ -141,6 +141,36 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
   const abortControllerRef = useRef<AbortController | null>(null);
   // Track if we've loaded history
   const historyLoadedRef = useRef(false);
+  // Timeout ref for stuck status safety
+  const statusTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // ---------------------------------------------------------------------------
+  // Status timeout safety - reset to idle if stuck in loading state for >30s
+  // ---------------------------------------------------------------------------
+  useEffect(() => {
+    // Clear any existing timeout
+    if (statusTimeoutRef.current) {
+      clearTimeout(statusTimeoutRef.current);
+      statusTimeoutRef.current = null;
+    }
+
+    // Set timeout for loading states (thinking, tool, streaming)
+    // Don't timeout clarify since that's waiting for user input
+    const loadingStates = ['thinking', 'tool', 'streaming'];
+    if (loadingStates.includes(status.type)) {
+      statusTimeoutRef.current = setTimeout(() => {
+        console.warn('[TPContext] Status timeout - resetting stuck state:', status.type);
+        setStatus({ type: 'idle' });
+        dispatch({ type: 'SET_LOADING', isLoading: false });
+      }, 30000); // 30 second safety timeout
+    }
+
+    return () => {
+      if (statusTimeoutRef.current) {
+        clearTimeout(statusTimeoutRef.current);
+      }
+    };
+  }, [status.type]);
 
   // ---------------------------------------------------------------------------
   // Load chat history on mount

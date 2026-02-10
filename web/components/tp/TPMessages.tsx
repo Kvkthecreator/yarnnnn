@@ -7,6 +7,7 @@
 
 import { X, Bot, User } from 'lucide-react';
 import { TPMessage } from '@/types/desk';
+import { ToolResultList } from './ToolResultCard';
 
 interface TPMessagesProps {
   messages: TPMessage[];
@@ -45,13 +46,9 @@ export function TPMessages({ messages, onDismiss }: TPMessagesProps) {
               >
                 <p className="whitespace-pre-wrap">{message.content}</p>
 
-                {/* Tool results indicator */}
+                {/* Inline tool results - Claude Code style */}
                 {message.toolResults && message.toolResults.length > 0 && (
-                  <div className="mt-1.5 pt-1.5 border-t border-border/50">
-                    <p className="text-xs opacity-70">
-                      {message.toolResults.length} action{message.toolResults.length === 1 ? '' : 's'} performed
-                    </p>
-                  </div>
+                  <ToolResultList results={message.toolResults} compact />
                 )}
               </div>
 
