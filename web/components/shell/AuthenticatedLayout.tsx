@@ -5,12 +5,13 @@
  *
  * Navigation model:
  * - Home (/dashboard) = Chat-first experience (TP primary)
- * - Entity pages: /platforms, /docs, /settings
- * - Surfaces exist but are secondary to chat
+ * - Entity pages: /integrations, /docs, /settings
+ * - Surfaces exist but are secondary to chat (invoked via TP tools)
  *
  * Key changes from ADR-023:
  * - Dashboard is home (chat), not a nav item
  * - Context browser deprecated (invisible per ADR-034)
+ * - Platforms renamed to Integrations (core feature)
  */
 
 import { useEffect, useState, useCallback } from 'react';
@@ -19,6 +20,7 @@ import { createClient } from '@/lib/supabase/client';
 import { MessageCircle, FolderOpen, ChevronDown, Settings, Link2 } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
+import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/lib/utils';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
@@ -100,7 +102,7 @@ interface RouteItem {
 
 // ADR-037: All navigation items are now routes (not surfaces)
 const ROUTE_PAGES: RouteItem[] = [
-  { id: 'platforms', label: 'Platforms', icon: Link2, path: '/platforms' },
+  { id: 'integrations', label: 'Integrations', icon: Link2, path: '/integrations' },
   { id: 'documents', label: 'Docs', icon: FolderOpen, path: '/docs' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];

@@ -1,11 +1,10 @@
 'use client';
 
 /**
- * ADR-037: Platform Detail Page (Route-based)
+ * ADR-037: Integration Detail Page (Route-based)
  *
- * Standalone page for a specific platform's details.
- * Uses the existing PlatformDetailSurface component but
- * adapts navigation to be route-based.
+ * Standalone page for a specific integration's details.
+ * Shows resources, deliverables targeting this integration, and context.
  */
 
 import { use } from 'react';
@@ -235,7 +234,7 @@ function ContextCard({ memory }: { memory: PlatformMemory }) {
   );
 }
 
-export default function PlatformDetailPage({
+export default function IntegrationDetailPage({
   params,
 }: {
   params: Promise<{ provider: string }>;
@@ -318,7 +317,7 @@ export default function PlatformDetailPage({
   }, [loadPlatformData, config]);
 
   const handleBack = () => {
-    router.push('/platforms');
+    router.push('/integrations');
   };
 
   const handleRefresh = () => {
@@ -346,8 +345,8 @@ export default function PlatformDetailPage({
       <div className="h-full flex flex-col items-center justify-center gap-4">
         <Link2 className="w-8 h-8 text-muted-foreground" />
         <p className="text-muted-foreground">Unknown platform: {provider}</p>
-        <button onClick={() => router.push('/platforms')} className="text-sm text-primary hover:underline">
-          Back to Platforms
+        <button onClick={() => router.push('/integrations')} className="text-sm text-primary hover:underline">
+          Back to Integrations
         </button>
       </div>
     );
@@ -382,7 +381,7 @@ export default function PlatformDetailPage({
             <button
               onClick={handleBack}
               className="p-2 hover:bg-muted rounded-lg transition-colors"
-              title="Back to Platforms"
+              title="Back to Integrations"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
