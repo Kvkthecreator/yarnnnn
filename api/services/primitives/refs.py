@@ -81,8 +81,9 @@ ENTITY_TYPES = {
 SPECIAL_IDENTIFIERS = {"new", "current", "latest", "*"}
 
 # Reference pattern: type:identifier[/subpath][?query]
+# Identifier can include dots for action namespacing (e.g., platform.sync)
 REF_PATTERN = re.compile(
-    r"^(?P<type>[a-z]+):(?P<identifier>[a-zA-Z0-9_*-]+)"
+    r"^(?P<type>[a-z]+):(?P<identifier>[a-zA-Z0-9_.*-]+)"
     r"(?:/(?P<subpath>[a-zA-Z0-9_/-]+))?"
     r"(?:\?(?P<query>.+))?$"
 )
@@ -211,13 +212,13 @@ async def resolve_ref(
         if "status" in ref.query and ref.entity_type == "deliverable":
             query = query.eq("status", ref.query["status"])
 
-        result = await query.execute()
+        result = query.execute()
         return result.data if result.data else []
 
     elif ref.identifier == "latest":
         # Get most recently modified
         query = query.order("updated_at", desc=True).limit(1)
-        result = await query.execute()
+        result = query.execute()
         return result.data[0] if result.data else None
 
     elif ref.identifier == "current":
@@ -237,7 +238,7 @@ async def resolve_ref(
             # Others use id
             query = query.eq("id", ref.identifier)
 
-        result = await query.execute()
+        result = query.execute()
 
         if not result.data:
             return None

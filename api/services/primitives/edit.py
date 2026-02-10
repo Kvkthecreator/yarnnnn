@@ -146,7 +146,7 @@ async def handle_edit(auth: Any, input: dict) -> dict:
                 "id", parsed.identifier
             ).eq("user_id", auth.user_id)
 
-        result = await query.execute()
+        result = query.execute()
 
         if not result.data:
             return {

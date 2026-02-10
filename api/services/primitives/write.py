@@ -60,6 +60,9 @@ DEFAULTS = {
     },
     "memory": {
         "tags": [],
+        "source_type": "conversation",  # Required field
+        "is_active": True,
+        "importance": 0.5,
     },
     "work": {
         "frequency": "once",
@@ -147,7 +150,7 @@ async def handle_write(auth: Any, input: dict) -> dict:
         entity_data = _process_work(entity_data)
 
     try:
-        result = await auth.client.table(table).insert(entity_data).execute()
+        result = auth.client.table(table).insert(entity_data).execute()
 
         if not result.data:
             return {

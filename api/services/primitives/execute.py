@@ -256,7 +256,7 @@ async def _handle_platform_publish(auth, entity, ref, via, params):
     deliverable_id = entity.get("id")
 
     # Get latest approved version
-    versions = await auth.client.table("deliverable_versions").select("*").eq(
+    versions = auth.client.table("deliverable_versions").select("*").eq(
         "deliverable_id", deliverable_id
     ).eq("status", "approved").order("version_number", desc=True).limit(1).execute()
 
@@ -288,7 +288,7 @@ async def _handle_deliverable_generate(auth, entity, ref, via, params):
     deliverable_id = entity.get("id")
 
     # Get next version number
-    versions = await auth.client.table("deliverable_versions").select("version_number").eq(
+    versions = auth.client.table("deliverable_versions").select("version_number").eq(
         "deliverable_id", deliverable_id
     ).order("version_number", desc=True).limit(1).execute()
 
@@ -299,7 +299,7 @@ async def _handle_deliverable_generate(auth, entity, ref, via, params):
     from datetime import datetime, timezone
 
     version_id = str(uuid4())
-    await auth.client.table("deliverable_versions").insert({
+    auth.client.table("deliverable_versions").insert({
         "id": version_id,
         "deliverable_id": deliverable_id,
         "version_number": next_version,
@@ -333,7 +333,7 @@ async def _handle_deliverable_approve(auth, entity, ref, via, params):
 
     if not version_id:
         # Get latest pending version
-        versions = await auth.client.table("deliverable_versions").select("*").eq(
+        versions = auth.client.table("deliverable_versions").select("*").eq(
             "deliverable_id", deliverable_id
         ).eq("status", "pending_approval").order("version_number", desc=True).limit(1).execute()
 
@@ -345,7 +345,7 @@ async def _handle_deliverable_approve(auth, entity, ref, via, params):
     # Approve
     from datetime import datetime, timezone
 
-    await auth.client.table("deliverable_versions").update({
+    auth.client.table("deliverable_versions").update({
         "status": "approved",
         "approved_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", version_id).execute()

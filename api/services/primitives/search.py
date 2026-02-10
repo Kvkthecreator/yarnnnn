@@ -135,7 +135,7 @@ async def _vector_search(
 
     try:
         # Use the match_memories RPC function
-        result = await auth.client.rpc(
+        result = auth.client.rpc(
             "match_memories",
             {
                 "query_embedding": embedding,
@@ -188,7 +188,7 @@ async def _text_search(
         try:
             # Simple ilike search on first searchable field
             field = fields[0]
-            result = await auth.client.table(table).select("*").eq(
+            result = auth.client.table(table).select("*").eq(
                 "user_id", auth.user_id
             ).ilike(field, f"%{query}%").limit(limit).execute()
 
