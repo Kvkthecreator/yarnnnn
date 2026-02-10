@@ -38,7 +38,43 @@ services:
         sync: false
       - key: GOOGLE_CLIENT_SECRET
         sync: false
+      # Redis for Background Jobs (ADR-039)
+      - key: REDIS_URL
+        fromDatabase:
+          name: yarnnn-redis
+          property: connectionString
+      - key: REDIS_OPTIONAL
+        value: "true"  # Graceful fallback if Redis unavailable
     healthCheckPath: /health
+
+  # Background Work Worker (ADR-039)
+  # Processes queued work tickets asynchronously
+  - type: worker
+    name: yarnnn-worker
+    runtime: python
+    region: oregon
+    plan: starter
+    buildCommand: pip install -r api/requirements.txt
+    startCommand: cd api && rq worker work --url $REDIS_URL
+    envVars:
+      - key: REDIS_URL
+        fromDatabase:
+          name: yarnnn-redis
+          property: connectionString
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+
+# Redis Database (ADR-039)
+databases:
+  - name: yarnnn-redis
+    databaseName: yarnnn_redis
+    plan: starter  # 25MB, sufficient for job queue
 
 # Cron Jobs
 crons:

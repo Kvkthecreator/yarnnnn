@@ -1,10 +1,11 @@
 # ADR-039: Background Work Agents
 
-> **Status**: Proposed
+> **Status**: Implemented
 > **Created**: 2026-02-10
+> **Implemented**: 2026-02-10
 > **Priority**: P2 (High value, requires infrastructure)
 > **Related**: ADR-038 (Claude Code Architecture Mapping), ADR-017 (Recurring Work)
-> **Effort**: 2-3 weeks development
+> **Effort**: 2-3 weeks development (actual: <1 day for core implementation)
 
 ---
 

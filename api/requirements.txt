@@ -27,5 +27,9 @@ cryptography>=42.0.0  # For Fernet token encryption
 croniter>=2.0.0
 pytz>=2024.1
 
+# Background Jobs (ADR-039)
+redis>=5.0.0
+rq>=1.16.0
+
 # Excel export
 openpyxl>=3.1.0

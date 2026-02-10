@@ -2,12 +2,15 @@
 Work routes - Ticket lifecycle management
 
 ADR-009: Work and Agent Orchestration
+ADR-039: Background Work Agents
 
 Endpoints:
 - POST /work - Create and execute work request
 - POST /work/async - Create work request (async execution)
+- POST /work/background - Create and queue for background execution (ADR-039)
 - GET /work - List work tickets
 - GET /work/:id - Get ticket with outputs
+- GET /work/:id/status - Get real-time execution status (ADR-039)
 - POST /work/:id/execute - Execute a pending ticket
 """
 
@@ -37,6 +40,7 @@ class WorkCreate(BaseModel):
     task: str
     agent_type: Literal["research", "content", "reporting"]
     parameters: Optional[dict] = None
+    run_in_background: bool = False  # ADR-039: Background execution
 
 
 class WorkResponse(BaseModel):
@@ -71,6 +75,31 @@ class OutputResponse(BaseModel):
     file_url: Optional[str] = None
     status: str
     created_at: str
+
+
+class WorkStatusResponse(BaseModel):
+    """Work status response (ADR-039)."""
+    ticket_id: str
+    status: str  # pending, queued, running, completed, failed
+    execution_mode: str  # foreground, background
+    progress: Optional[dict] = None  # {stage, percent, message}
+    queued_at: Optional[str] = None
+    started_at: Optional[str] = None
+    completed_at: Optional[str] = None
+    error_message: Optional[str] = None
+    recent_logs: Optional[list] = None
+    output_available: bool = False
+
+
+class BackgroundWorkResponse(BaseModel):
+    """Background work creation response (ADR-039)."""
+    success: bool
+    ticket_id: str
+    job_id: Optional[str] = None
+    status: str
+    execution_mode: str
+    message: str
+    error: Optional[str] = None
 
 
 # =============================================================================
@@ -177,6 +206,59 @@ async def create_ticket_async(
         agent_type=ticket["agent_type"],
         status=ticket["status"],
         created_at=ticket["created_at"],
+    )
+
+
+@router.post("/background")
+async def create_background_work(
+    request: WorkCreate,
+    auth: UserClient,
+) -> BackgroundWorkResponse:
+    """
+    ADR-039: Create work for background execution.
+
+    This creates a work ticket and queues it for background processing.
+    Returns immediately with ticket_id and job_id for tracking.
+    Poll GET /work/{id}/status for progress updates.
+
+    Args:
+        request: Work request with task, agent_type, parameters
+        auth: Authenticated user
+
+    Returns:
+        Background work response with queue info
+    """
+    logger.info(
+        f"[WORK] Creating background work: user={auth.user_id}, "
+        f"agent={request.agent_type}, task='{request.task[:50]}...'"
+    )
+
+    result = await create_and_execute_work(
+        client=auth.client,
+        user_id=auth.user_id,
+        task=request.task,
+        agent_type=request.agent_type,
+        parameters=request.parameters,
+        run_in_background=True,
+    )
+
+    if not result.get("success"):
+        return BackgroundWorkResponse(
+            success=False,
+            ticket_id=result.get("ticket_id", ""),
+            status="failed",
+            execution_mode="background",
+            message=result.get("error", "Failed to queue work"),
+            error=result.get("error"),
+        )
+
+    return BackgroundWorkResponse(
+        success=True,
+        ticket_id=result["ticket_id"],
+        job_id=result.get("job_id"),
+        status=result.get("status", "queued"),
+        execution_mode=result.get("execution_mode", "background"),
+        message=result.get("message", "Work queued for background execution"),
     )
 
 
@@ -294,6 +376,92 @@ async def get_work(
         ],
         "output_count": len(outputs),
     }
+
+
+@router.get("/{ticket_id}/status")
+async def get_work_status(
+    ticket_id: UUID,
+    auth: UserClient,
+) -> WorkStatusResponse:
+    """
+    ADR-039: Get real-time status of work execution.
+
+    Use this to poll for progress on background work.
+    Returns progress info, execution logs, and completion status.
+
+    Args:
+        ticket_id: Work ticket UUID
+        auth: Authenticated user
+
+    Returns:
+        Work status with progress and logs
+    """
+    # Use the database function for comprehensive status
+    try:
+        result = auth.client.rpc(
+            "get_work_status",
+            {"p_ticket_id": str(ticket_id)}
+        ).execute()
+
+        if result.data and len(result.data) > 0:
+            status_data = result.data[0]
+            return WorkStatusResponse(
+                ticket_id=str(ticket_id),
+                status=status_data.get("status", "unknown"),
+                execution_mode=status_data.get("execution_mode", "foreground"),
+                progress=status_data.get("progress"),
+                queued_at=status_data.get("queued_at"),
+                started_at=status_data.get("started_at"),
+                completed_at=status_data.get("completed_at"),
+                error_message=status_data.get("error_message"),
+                recent_logs=status_data.get("recent_logs"),
+                output_available=status_data.get("status") == "completed",
+            )
+    except Exception as e:
+        logger.warning(f"Failed to get work status via RPC: {e}")
+
+    # Fallback to direct query
+    ticket_result = (
+        auth.client.table("work_tickets")
+        .select("*")
+        .eq("id", str(ticket_id))
+        .single()
+        .execute()
+    )
+
+    if not ticket_result.data:
+        raise HTTPException(status_code=404, detail="Work ticket not found")
+
+    ticket = ticket_result.data
+
+    # Get recent logs if available
+    recent_logs = None
+    try:
+        log_result = (
+            auth.client.table("work_execution_log")
+            .select("stage, message, timestamp")
+            .eq("ticket_id", str(ticket_id))
+            .order("timestamp", desc=True)
+            .limit(10)
+            .execute()
+        )
+        if log_result.data:
+            recent_logs = log_result.data
+    except Exception:
+        pass  # Table might not exist yet
+
+    return WorkStatusResponse(
+        ticket_id=str(ticket_id),
+        status=ticket["status"],
+        execution_mode=ticket.get("execution_mode", "foreground"),
+        progress=ticket.get("progress"),
+        queued_at=ticket.get("queued_at"),
+        started_at=ticket.get("started_at"),
+        completed_at=ticket.get("completed_at"),
+        error_message=ticket.get("error_message"),
+        recent_logs=recent_logs,
+        output_available=ticket["status"] == "completed",
+    )
 
 
 @router.post("/{ticket_id}/execute")
