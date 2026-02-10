@@ -66,6 +66,87 @@ All entity references follow a consistent grammar:
 | `work` | `work_tickets` | Work execution records |
 | `action` | (virtual) | Available actions for Execute |
 
+### Entity Schemas
+
+Each entity type has a defined schema. Key fields are shown for display purposes.
+
+#### deliverable
+
+| Field | Type | Description | Display |
+|-------|------|-------------|---------|
+| `id` | UUID | Primary key | — |
+| `title` | string | Deliverable name | ✓ Primary |
+| `description` | string | Optional description | — |
+| `status` | enum | `active`, `paused`, `archived` | ✓ Badge |
+| `schedule` | JSONB | `{frequency, day, time, timezone}` | ✓ Frequency |
+| `recipient_context` | JSONB | `{name, role, priorities}` | — |
+| `sources` | JSONB[] | Data source configs | — |
+| `template_structure` | JSONB | Output template config | — |
+| `next_run_at` | timestamp | Next scheduled run | — |
+
+**Display Priority:** `title` > `status` > `schedule.frequency`
+
+#### memory
+
+| Field | Type | Description | Display |
+|-------|------|-------------|---------|
+| `id` | UUID | Primary key | — |
+| `content` | string | The memory content | ✓ Primary |
+| `tags` | string[] | Categorization tags | ✓ Chips |
+| `importance` | float | 0.0–1.0 retrieval weight | — |
+| `source_type` | enum | `chat`, `document`, `manual`, `import` | — |
+| `entities` | JSONB | Extracted entities | — |
+
+**Display Priority:** `content` (truncated) > `tags`
+
+#### platform
+
+| Field | Type | Description | Display |
+|-------|------|-------------|---------|
+| `id` | UUID | Primary key | — |
+| `provider` | string | Platform name (slack, notion, etc.) | ✓ Primary |
+| `status` | string | Connection status | ✓ Badge |
+| `credentials` | JSONB | OAuth tokens (encrypted) | — |
+| `settings` | JSONB | Platform-specific settings | — |
+
+**Display Priority:** `provider` > `status`
+
+#### work
+
+| Field | Type | Description | Display |
+|-------|------|-------------|---------|
+| `id` | UUID | Primary key | — |
+| `description` | string | Task description | ✓ Primary |
+| `status` | enum | `pending`, `running`, `completed`, `failed` | ✓ Badge |
+| `agent_type` | string | Which agent handles it | — |
+| `result` | JSONB | Execution result | — |
+| `deliverable_id` | UUID | Optional linked deliverable | — |
+
+**Display Priority:** `description` > `status`
+
+#### document
+
+| Field | Type | Description | Display |
+|-------|------|-------------|---------|
+| `id` | UUID | Primary key | — |
+| `filename` | string | Original filename | ✓ Primary |
+| `content_type` | string | MIME type | ✓ Icon |
+| `extracted_text` | string | Processed content | — |
+| `size_bytes` | int | File size | — |
+
+**Display Priority:** `filename` > `content_type`
+
+#### session
+
+| Field | Type | Description | Display |
+|-------|------|-------------|---------|
+| `id` | UUID | Primary key | — |
+| `created_at` | timestamp | Session start | ✓ Date |
+| `messages` | JSONB[] | Chat history | — |
+| `summary` | string | AI-generated summary | — |
+
+**Display Priority:** `created_at` > `summary`
+
 ### Special Identifiers
 
 | Identifier | Meaning | Used With |

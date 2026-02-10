@@ -194,7 +194,8 @@ function getDisplayData(toolName: string, data?: Record<string, unknown>): { con
   switch (toolName) {
     case 'Read': {
       // Entity read - show key fields based on entity type
-      const entity = data.entity as Record<string, unknown> | undefined;
+      // Backend returns {success, data: <entity>, entity_type, message}
+      const entity = data.data as Record<string, unknown> | undefined;
       const entityType = data.entity_type as string;
 
       if (entity) {
@@ -207,7 +208,8 @@ function getDisplayData(toolName: string, data?: Record<string, unknown>): { con
 
     case 'Write': {
       // Entity created - show confirmation
-      const created = data.entity as Record<string, unknown> | undefined;
+      // Backend returns {success, data: <entity>, entity_type, message}
+      const created = data.data as Record<string, unknown> | undefined;
       const entityType = data.entity_type as string || 'entity';
       return {
         content: (
@@ -250,7 +252,8 @@ function getDisplayData(toolName: string, data?: Record<string, unknown>): { con
 
     case 'List': {
       // Entity list - show compact grid with entity-type awareness
-      const entities = data.entities as Array<Record<string, unknown>> | undefined;
+      // Backend returns {success, items: [...], count, entity_type}
+      const entities = (data.items || data.entities) as Array<Record<string, unknown>> | undefined;
       const entityType = data.entity_type as string;
       const count = data.count as number || entities?.length || 0;
 

@@ -105,41 +105,35 @@ git push ...                  Execute(action="platform.publish", ...)
 
 Claude Code shows file operations inline in the terminal. YARNNN should show entity operations inline in chat.
 
-### Current State
+### Current State (Implemented)
 
-| Primitive | Claude Code Display | YARNNN Display (Current) |
-|-----------|---------------------|--------------------------|
-| Read | File content preview | ❌ Just counter |
-| Write | "Created file.py" | ❌ Just counter |
-| Edit | Diff view | ❌ Just counter |
-| List | File list | ❌ Just counter |
-| Search | Match results | ❌ Just counter |
+| Primitive | Claude Code Display | YARNNN Display |
+|-----------|---------------------|----------------|
+| Read | File content preview | ✅ Entity card (title, status, key fields) |
+| Write | "Created file.py" | ✅ Confirmation card + entity type |
+| Edit | Diff view | ✅ Change summary (field: old → new) |
+| List | File list | ✅ Entity-type-aware compact list |
+| Search | Match results | ✅ Query + match count |
+| Execute | Command output | ✅ Action result card |
+| Todo | Progress bar | ✅ Progress indicator |
 
-### Target State
+### Implementation
 
-| Primitive | YARNNN Display (Target) |
-|-----------|-------------------------|
-| **Read** | Entity card (title, status, key fields) |
-| **Write** | Confirmation card + preview |
-| **Edit** | Change summary ("status: active → paused") |
-| **List** | Compact entity grid/list |
-| **Search** | Results with relevance scores |
-| **Execute** | Action result card (success/error + details) |
-
-### Display Component Mapping
+**Component:** `web/components/tp/ToolResultCard.tsx`
 
 ```tsx
-// Target inline rendering structure
-<ToolResultCard>
-  <ToolResultHeader>
-    <PrimitiveIcon type="Read" />
-    <EntityRef ref="deliverable:uuid-123" />
-  </ToolResultHeader>
-  <ToolResultBody>
-    <EntityPreview data={result.data} type="deliverable" />
-  </ToolResultBody>
-</ToolResultCard>
+// Actual implementation
+<ToolResultCard result={toolResult} compact={true} />
+<ToolResultList results={toolResults} compact />
 ```
+
+**Entity-aware rendering** - Each entity type displays appropriate fields:
+- `deliverable`: title, status badge (active/paused), frequency
+- `memory`: content preview, tags as chips
+- `platform`: provider name, connection status
+- `work`: description, status
+
+See [primitives.md](./primitives.md#entity-schemas) for full schema reference.
 
 ---
 
@@ -190,19 +184,27 @@ package.json                 deliverable.output_config
 
 ---
 
-## Implementation Gaps
+## Implementation Status
 
-### 1. Inline Display (Priority)
+### ✅ 1. Inline Display (Completed 2026-02-11)
 
-**Current:** Tool results show only `{N} action(s) performed`
+**Status:** Implemented
 
-**Target:** Rich inline cards per primitive type
+**Implementation:**
+- `web/components/tp/ToolResultCard.tsx` - Entity-aware inline cards
+- `web/components/desk/ChatFirstDesk.tsx` - Renders `ToolResultList`
+- `web/components/tp/TPMessages.tsx` - Renders `ToolResultList`
 
-**Files to modify:**
-- `web/components/desk/ChatFirstDesk.tsx` - Add inline result rendering
-- `web/components/tp/` - Create `ToolResultCard`, `EntityPreview` components
+Each primitive type renders appropriate content:
+- Read/Write/Edit: Entity preview with type-specific fields
+- List: Compact entity rows with status indicators
+- Search: Query and match count
+- Execute: Action name and result message
+- Todo: Progress bar
 
-### 2. Platform Read Operations
+### 🔲 2. Platform Read Operations
+
+**Status:** Not started
 
 **Current:** Platforms are write-mostly (publish, sync)
 
@@ -213,7 +215,9 @@ package.json                 deliverable.output_config
 Read(ref="platform:slack/channels/C123/messages?limit=10")
 ```
 
-### 3. Entity Subpaths
+### 🔲 3. Entity Subpaths
+
+**Status:** Partial (credentials subpath works)
 
 **Current:** Basic subpath support (`platform:twitter/credentials`)
 
