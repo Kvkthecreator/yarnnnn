@@ -2,19 +2,35 @@
 
 **Date**: February 10, 2026
 **Purpose**: Validate whether the proposed context/deliverables split is the optimal path for user convenience, intuitiveness, and GTM positioning
-**Status**: Active discourse — foundational decision pending
-**Last Updated**: February 10, 2026 (Added Part II: Emergent vs. Structured Systems Analysis)
+**Status**: ✅ CANON DECISION REACHED
+**Last Updated**: February 10, 2026 (Added Part III: Two-Layer Architecture Synthesis)
 
 ---
 
 ## Document Structure
 
-This document captures an evolving strategic discussion in two parts:
+This document captures a strategic discourse that culminated in a **canon architectural decision**:
 
-- **Part I**: Initial validation of TP-first activation model (context invisible, deliverables first-class)
-- **Part II**: Deeper discourse questioning whether deliverables themselves should be emergent, not just context
+- **Part I**: Initial validation of TP-first activation model
+- **Part II**: Deeper discourse on emergent vs. structured systems
+- **Part III**: **THE SYNTHESIS** — Two-Layer Architecture (Canon Decision)
 
-Part II represents a potential philosophical fork that may supersede Part I's recommendations.
+**Executive Decision**: Parts I and II are complementary, not competing. They govern different layers of the system.
+
+---
+
+## Canon Decision Summary
+
+> **Users know what they want, but express it fluidly. Chat captures this fluidity naturally. Everything else — deliverables, context, tools, scheduling — is supporting infrastructure that makes chat effective.**
+
+This crystallizes into a **Two-Layer Architecture**:
+
+| Layer | Philosophy | What It Governs |
+|-------|------------|-----------------|
+| **Interaction Layer** | Emergent, fluid, chat-first | How users express intent, how system responds |
+| **Infrastructure Layer** | Structured, predictive, hardened | How system reliably delivers value |
+
+The interaction layer is *enabled by* the infrastructure layer. They are not in tension — they are complementary.
 
 ---
 
@@ -642,4 +658,349 @@ Based on:
 
 ---
 
-*This document captures a strategic inflection point. The decision between structured and emergent deliverables will significantly impact product direction, architecture, and GTM positioning.*
+# PART III: The Two-Layer Architecture Synthesis
+
+**Added**: February 10, 2026
+**Status**: ✅ CANON DECISION
+**Context**: Synthesis of Parts I and II discourse, resolving the apparent tension
+
+---
+
+## The Resolution
+
+Parts I and II appeared to present a fork:
+- **Part I**: TP-first, but deliverables remain user-defined objects
+- **Part II**: Fully emergent, system discovers everything
+
+**The synthesis**: Both are correct, but they operate at different layers.
+
+### The Key Insight
+
+> Users know what they want, but it's fluid. Chat captures this fluidity naturally. Deliverables, context, and tools are supporting infrastructure — not user-facing configuration.
+
+This mirrors how successful AI products actually work:
+- **Claude Code**: User expresses intent conversationally; tools (Bash, Edit, Read) are invisible infrastructure
+- **ClawdBot**: User chats naturally; memory, heartbeats, integrations are invisible infrastructure
+- **ChatGPT**: User asks questions; retrieval, plugins, code interpreter are invisible infrastructure
+
+The pattern: **Chat is the interface; infrastructure makes chat effective.**
+
+---
+
+## The Two-Layer Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    INTERACTION LAYER                             │
+│                    Philosophy: Emergent, Fluid, Chat-First       │
+│                                                                  │
+│    ┌──────────────────────────────────────────────────────────┐ │
+│    │                                                          │ │
+│    │                     CHAT (TP)                            │ │
+│    │                                                          │ │
+│    │   • User expresses intent naturally                      │ │
+│    │   • System responds conversationally                     │ │
+│    │   • No configuration exposed in chat                     │ │
+│    │   • Accessible anywhere: web, mobile, WhatsApp           │ │
+│    │                                                          │ │
+│    └──────────────────────────────────────────────────────────┘ │
+│                              │                                   │
+│                              │ intent flows down                 │
+│                              ▼                                   │
+├──────────────────────────────────────────────────────────────────┤
+│                    ORCHESTRATION LAYER                           │
+│                    (TP's Internal Capabilities)                  │
+│                                                                  │
+│    • Interprets user intent                                      │
+│    • Selects appropriate skills/tools                            │
+│    • Retrieves relevant context                                  │
+│    • Decides when to push/notify                                 │
+│    • Pattern recognition for proactive proposals                 │
+│                                                                  │
+│                              │                                   │
+│                              │ invokes infrastructure            │
+│                              ▼                                   │
+├──────────────────────────────────────────────────────────────────┤
+│                    INFRASTRUCTURE LAYER                          │
+│                    Philosophy: Structured, Predictive, Hardened  │
+│                                                                  │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌────────────┐ │
+│  │    PUSH     │ │ DELIVERABLE │ │  PLATFORM   │ │  CONTEXT   │ │
+│  │ SCHEDULING  │ │  AS SKILL   │ │ INTEGRATION │ │   MEMORY   │ │
+│  │ PREDICTIVE  │ │   (TOOL)    │ │  LANDSCAPE  │ │ RECURSIVE  │ │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └────────────┘ │
+│                                                                  │
+└──────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## Layer 1: Interaction Philosophy
+
+### Core Principles
+
+1. **Chat is the universal interface**
+   - User intent is fluid, emergent, conversational
+   - System responds in kind — no forms, no wizards, no configuration
+   - Works on any surface: web, mobile, WhatsApp, API
+
+2. **Infrastructure is invisible**
+   - User never sees "deliverable templates" or "context blocks"
+   - These are internal constructs TP uses to fulfill requests
+   - Like file systems — invisible until you need to know
+
+3. **Natural escalation**
+   - Ad-hoc request → system suggests recurrence
+   - One-time task → system proposes scheduling
+   - Trust builds through demonstrated value, not upfront configuration
+
+### What This Means for UX
+
+| Current Experience | Two-Layer Experience |
+|-------------------|---------------------|
+| Navigate to dashboard | Chat with TP |
+| Create deliverable template | "Give me a weekly update on Acme" |
+| Configure sources | TP: "I'll pull from #acme-eng. Include #product too?" |
+| Set schedule | TP: "Want this every Monday?" |
+| Wait for execution | TP: "Here's your first draft. Look good?" |
+
+The entire flow is conversational. Infrastructure is invoked, not exposed.
+
+---
+
+## Layer 2: Infrastructure Philosophy
+
+### Core Principles
+
+1. **Structured for reliability**
+   - Deliverables have defined schemas (but TP creates them, not users)
+   - Context extraction follows platform-specific rules
+   - Scheduling is deterministic and dependable
+
+2. **Predictive for proactivity**
+   - Pattern recognition observes user behavior
+   - System proposes before user asks
+   - Push notifications deliver value unprompted
+
+3. **Hardened for trust**
+   - When TP says "I'll do X," it actually happens
+   - Execution is bulletproof, not best-effort
+   - Errors are surfaced clearly, not silently swallowed
+
+### The Four Infrastructure Pillars
+
+#### Pillar 1: Push / Predictive / Scheduling (First-Class)
+
+**Purpose**: System-initiated contact based on patterns, schedules, predictions.
+
+**Differentiator**: ChatGPT/Claude are purely reactive. YARNNN contacts you.
+
+**Components**:
+- Pattern recognition engine (observes user behavior over time)
+- Scheduling system (cron-like execution, timezone-aware)
+- Attention queue (what needs user review)
+- Notification delivery (push to user across channels)
+
+**Examples**:
+- "Your weekly status is ready for review"
+- "I noticed you ask about Acme every Monday — want me to automate this?"
+- "You haven't checked the BigCo digest in 2 weeks — still useful?"
+
+#### Pillar 2: Deliverables as Skills/Tools
+
+**Purpose**: Deliverables are capabilities TP invokes, not objects users configure.
+
+**The Reframe**:
+```
+Old: Deliverable = thing user creates in dashboard
+New: Deliverable = skill/tool TP uses to fulfill intent
+```
+
+**Skill Interface** (conceptual):
+```python
+# TP invokes skills like Claude Code invokes tools
+tp.invoke_skill(
+    skill="generate_status_update",
+    params={
+        "sources": ["#acme-eng", "#product"],
+        "timeframe": "last 7 days",
+        "audience": "engineering manager",
+        "format": "slack_message"
+    }
+)
+```
+
+**Components**:
+- Skill definitions with typed parameters
+- Execution pipeline (gather → synthesize → output)
+- Version tracking (for feedback loop)
+- Quality metrics (edit distance, approval rate)
+
+#### Pillar 3: Platform Integration with Landscape Awareness
+
+**Purpose**: Reliable, structured extraction from Slack/Gmail/Notion with deep platform understanding.
+
+**Landscape Concept**:
+- Know what's *available* (channels, labels, pages)
+- Know what's *relevant* (based on user's work patterns)
+- Know *how* to extract (platform-specific signals)
+
+**Components**:
+- Platform connectors with landscape models
+- Extraction rules per platform type
+- MCP orchestration for on-demand fetch
+- Caching with delta detection
+
+**Examples**:
+- Slack: Thread depth, reactions, decision language, @mentions
+- Gmail: Labels, priority senders, action-required patterns
+- Notion: Recent edits, status changes, unresolved comments
+
+#### Pillar 4: Persistent & Recursive Context Memory
+
+**Purpose**: Context that accumulates, persists, and feeds back into future interactions.
+
+**The Recursive Loop**:
+```
+User request → Context retrieved → Output generated → User feedback
+                    ↑                                      │
+                    └──────────────────────────────────────┘
+                         (feedback becomes context)
+```
+
+**Components**:
+- Memory storage (embeddings, semantic search)
+- Domain scoping (keep work contexts separate)
+- Feedback capture (edit distance, user corrections)
+- Memory compaction (summarize when too large)
+
+**Differentiator**: ChatGPT forgets. YARNNN remembers and improves.
+
+---
+
+## How the Layers Combine
+
+### Solving Differentiation (vs. ChatGPT/Claude)
+
+| ChatGPT/Claude | YARNNN (Two-Layer) |
+|----------------|-------------------|
+| Reactive (you ask) | **Proactive** (it contacts you) — Push/Scheduling pillar |
+| Stateless (forgets) | **Persistent** (remembers everything) — Memory pillar |
+| Generic (no work context) | **Contextual** (knows your platforms) — Integration pillar |
+| One-off (each chat isolated) | **Recursive** (feedback improves over time) — Memory pillar |
+
+### Solving Reliability (vs. "badly built chat app")
+
+| Badly Built Chat | YARNNN (Two-Layer) |
+|------------------|-------------------|
+| Says "I'll do X" → doesn't | **Actually executes** — Deliverables-as-Skills pillar |
+| Generic extraction | **Platform-specific, landscape-aware** — Integration pillar |
+| Slow, unreliable | **Cached, pre-computed, reliable** — Infrastructure hardening |
+| Leaky abstractions | **Infrastructure invisible** — Interaction layer philosophy |
+
+---
+
+## Architectural Implications
+
+### What Gets Built/Hardened (Backend)
+
+1. **Skill/Tool Definitions**
+   - Formalize deliverable types as TP-invocable skills
+   - Typed parameters, clear execution contracts
+   - Reliable output capture
+
+2. **Platform Integration**
+   - Landscape models per platform
+   - Extraction rules with platform-specific signals
+   - MCP orchestration for on-demand fetch
+
+3. **Context Memory System**
+   - Domain-scoped storage
+   - Feedback → memory loop
+   - Compaction/summarization
+
+4. **Scheduling & Push**
+   - Pattern detection engine
+   - Cron-like execution
+   - Multi-channel notification delivery
+
+### What Gets Reshuffled (Frontend/UX)
+
+1. **TP as Primary Interface**
+   - All user interaction flows through chat
+   - Other surfaces are secondary (review, settings)
+
+2. **Dashboard Role TBD**
+   - May become observation surface
+   - May retain existing design with reinterpretation
+   - Further discussion needed (noted as open item)
+
+3. **Deliverable Creation Becomes Conversational**
+   - TP proposes based on patterns OR fulfills explicit requests
+   - No wizards, no forms for primary flow
+   - Escape hatch for power users TBD
+
+---
+
+## What This Means for "The Added Layer"
+
+The original question that sparked this discourse:
+
+> Should we add a layer above context blocks for more determinism?
+
+**Answer in Two-Layer frame**:
+
+The "added layer" is **pattern recognition in the orchestration layer**. It's not a user-facing structure — it's how TP decides:
+- What context to retrieve
+- What skills to invoke
+- When to propose recurring work
+- How to interpret feedback
+
+This gives determinism without user configuration. The structure exists, but it's internal.
+
+---
+
+## Decision Status
+
+| Part | Status | Summary |
+|------|--------|---------|
+| **Part I** | ✅ Incorporated | TP-first, context invisible — now part of Interaction Layer |
+| **Part II** | ✅ Incorporated | Emergent behavior — now Orchestration Layer capability |
+| **Part III** | ✅ Canon | Two-Layer Architecture is the governing framework |
+
+---
+
+## Open Items for Follow-Up Discussion
+
+1. **Dashboard/Observation Surface**: How does existing dashboard design philosophy fit? Reinterpretation vs. redesign?
+
+2. **TP Tool Interface**: What specific skills/tools does TP need? Formal specification required.
+
+3. **Pattern Recognition Scope**: What patterns trigger proposals? Minimum viable implementation?
+
+4. **Power User Escape Hatch**: Do we offer explicit configuration for users who want it?
+
+5. **Cold Start Experience**: What happens before system has patterns? Onboarding flow.
+
+---
+
+## Next Steps
+
+1. **ADR Document**: Formalize Two-Layer Architecture as ADR-036
+2. **Implementation Plan**: Map infrastructure pillars to codebase work
+3. **TP Skill Specification**: Define tool interface for deliverables-as-skills
+4. **Dashboard Discussion**: Resolve observation surface design
+
+---
+
+## Document History
+
+| Date | Change | Author |
+|------|--------|--------|
+| 2026-02-10 | Initial Part I validation | Claude (online session) |
+| 2026-02-10 | Added Part II: Emergent systems analysis | Claude (Claude Code session) |
+| 2026-02-10 | **Added Part III: Two-Layer Synthesis (Canon)** | Claude (Claude Code session) |
+
+---
+
+*This document captures a canon architectural decision. The Two-Layer Architecture — Emergent Interaction Layer + Hardened Infrastructure Layer — is the governing framework for YARNNN's evolution.*
