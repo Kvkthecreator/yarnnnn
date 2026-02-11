@@ -1,7 +1,7 @@
 # Work Orchestration
 
-> **Status**: ADR-017 approved, migration pending
-> **ADRs**: ADR-017 (Unified Work Model), ADR-016 (Layered Architecture), ADR-015 (Unified Context)
+> **Status**: ADR-045 proposed, ADR-042 implemented
+> **ADRs**: ADR-045 (Type-Aware Orchestration), ADR-042 (Simplified Execution), ADR-017 (Unified Work Model), ADR-016 (Layered Architecture)
 
 ---
 
@@ -10,7 +10,18 @@
 YARNNN uses a two-layer agent architecture for handling user requests:
 
 1. **Layer 1: Thinking Partner (TP)** - Conversational orchestrator
-2. **Layer 2: Work Agents** - Specialized executors (Research, Content, Reporting)
+2. **Layer 2: Work Agents** - Specialized executors
+
+### Agent Types (ADR-045)
+
+| Type | Class | Purpose |
+|------|-------|---------|
+| `synthesizer` | SynthesizerAgent | Synthesizes pre-fetched context into summaries |
+| `deliverable` | DeliverableAgent | Generates deliverable output (primary flow) |
+| `report` | ReportAgent | Generates standalone structured reports |
+| `chat` | ThinkingPartnerAgent | Conversational assistant |
+
+*Legacy names (`research`, `content`, `reporting`) are mapped to new names for backwards compatibility.*
 
 TP judges whether to handle a request directly or delegate to a work agent for deeper work.
 
@@ -93,7 +104,7 @@ Single table for all work (one-time and recurring):
 |--------|------|-------|
 | id | UUID | PK |
 | task | TEXT | What the agent should do |
-| agent_type | TEXT | research, content, reporting |
+| agent_type | TEXT | synthesizer, deliverable, report (legacy: research, content, reporting) |
 | frequency | TEXT | "once" or schedule ("daily at 9am") |
 | frequency_cron | TEXT | Parsed cron expression |
 | timezone | TEXT | User's timezone |
@@ -134,22 +145,25 @@ Each execution produces one output:
 
 ---
 
-## Work Agents
+## Work Agents (ADR-045)
 
-### Research Agent
-- **Purpose**: Investigate, analyze, synthesize
+### Synthesizer Agent (`synthesizer`)
+- **Purpose**: Synthesize pre-fetched context into coherent summaries
 - **Output**: Markdown document (findings, analysis, recommendations)
 - **Metadata**: sources, confidence, scope, depth
+- **Note**: Does NOT actively fetch - context is gathered by pipeline before agent runs
 
-### Content Agent
-- **Purpose**: Create, draft, write content
-- **Output**: The content itself (post, article, email, etc.)
+### Deliverable Agent (`deliverable`)
+- **Purpose**: Generate deliverable output (the primary agent for deliverables)
+- **Output**: The deliverable itself (post, digest, report, etc.)
 - **Metadata**: format, platform, tone, word_count
+- **Formats**: LinkedIn, Twitter, Blog, Email, Slack Digest, Status Report, etc.
 
-### Reporting Agent
-- **Purpose**: Summarize, structure, present
-- **Output**: Structured report
+### Report Agent (`report`)
+- **Purpose**: Generate standalone structured reports
+- **Output**: Executive, technical, or summary reports
 - **Metadata**: style, audience, period
+- **Note**: Used for standalone work tickets, not deliverable generation
 
 ---
 
@@ -283,6 +297,55 @@ Later (via cron job every 5 min):
 
 ---
 
+## Deliverable Execution Flow (ADR-042)
+
+Deliverables use a simplified single-call execution:
+
+```
+Execute(action="deliverable.generate", target="deliverable:uuid")
+        │
+        ▼
+┌───────────────────────────────────────────────────┐
+│  1. Create version record (status=generating)     │
+│  2. Create single work_ticket                     │
+│  3. Gather context inline:                        │
+│     - Fetch from platform sources (Slack, Gmail)  │
+│     - Get user memories                           │
+│     - Get past version feedback                   │
+│  4. Generate draft via DeliverableAgent           │
+│  5. Update version → staged                       │
+│  6. Complete work_ticket                          │
+└───────────────────────────────────────────────────┘
+        │
+        ▼
+  Draft ready for review (manual governance)
+        OR
+  Auto-approved + delivered (full_auto governance)
+```
+
+**Key Simplifications (ADR-042)**:
+- One work_ticket per generation (no chaining)
+- Context gathered inline (no separate gather work_ticket)
+- Single LLM call for draft generation
+- Deferred: edit-distance learning, full context snapshots
+
+---
+
+## Type-Aware Orchestration (ADR-045 - Proposed)
+
+Future: Orchestration strategy determined by `type_classification.binding`:
+
+| Binding | Strategy |
+|---------|----------|
+| `platform_bound` | Single platform gatherer → Platform synthesizer |
+| `cross_platform` | Parallel gatherers → Cross-platform synthesizer |
+| `research` | Web researcher → Research synthesizer |
+| `hybrid` | Research + Platform → Hybrid synthesizer |
+
+**Not yet implemented**: Requires WebSearch/WebFetch primitives.
+
+---
+
 ## Ambient Work (ADR-015)
 
 Work can exist without a project:
@@ -301,9 +364,9 @@ TP routes intelligently based on context.
 Use create_work to delegate to specialized agents:
 
 **Agent types:**
-- "research" - Investigation, analysis, synthesis
-- "content" - Writing, drafting, content creation
-- "reporting" - Summaries, structured reports
+- "synthesizer" - Context synthesis (formerly "research")
+- "deliverable" - Deliverable generation (formerly "content")
+- "report" - Structured reports (formerly "reporting")
 
 **Frequency:**
 - "once" - Do it now, one time (default)
@@ -312,9 +375,8 @@ Use create_work to delegate to specialized agents:
 - "every 6 hours" - Repeat at interval
 
 **Examples:**
-- "Research competitors" → create_work(task=..., frequency="once")
-- "Weekly status report" → create_work(task=..., frequency="weekly on Monday at 9am")
-- "Daily news digest" → create_work(task=..., frequency="daily at 6pm")
+- "Synthesize meeting notes" → create_work(task=..., agent_type="synthesizer")
+- "Weekly status report" → create_work(task=..., agent_type="report", frequency="weekly on Monday at 9am")
 ```
 
 ---
@@ -338,13 +400,15 @@ User sees what TP is doing:
 |-----------|--------|
 | TP judgment/delegation | ✅ Implemented |
 | create_work tool (one-time) | ✅ Implemented |
-| Work agents (Research, Content, Reporting) | ✅ Implemented (ADR-016 unified output) |
+| Work agents (Synthesizer, Deliverable, Report) | ✅ Implemented (ADR-045 rename) |
 | Unified output model (ADR-016) | ✅ Implemented |
+| Simplified execution (ADR-042) | ✅ Implemented |
+| Agent type rename (ADR-045) | ✅ Implemented |
 | TP brevity guidance | ✅ Implemented |
 | Work cancellation | ✅ Implemented (cancel_work tool) |
 | Timeouts | ✅ Implemented (5 min default) |
 | Cron job for scheduled work | ✅ Deployed on Render |
-| **Unified work model (ADR-017)** | 🔲 Migration pending |
+| **Type-aware orchestration (ADR-045)** | 🔲 Proposed |
 | TP awareness status UI | 🔲 Pending (frontend) |
 
 ---
@@ -365,7 +429,9 @@ ADR-017 simplifies the current system:
 
 ## Related ADRs
 
-- **ADR-017**: Unified Work Model (current spec)
+- **ADR-045**: Type-Aware Orchestration + Agent Rename (current spec)
+- **ADR-042**: Simplified Deliverable Execution
+- **ADR-017**: Unified Work Model
 - **ADR-016**: Layered Agent Architecture (unified output)
 - **ADR-015**: Unified Context Model (ambient work)
-- **ADR-009**: Work and Agent Orchestration (superseded for scheduling)
+- **ADR-009**: Work and Agent Orchestration (superseded)

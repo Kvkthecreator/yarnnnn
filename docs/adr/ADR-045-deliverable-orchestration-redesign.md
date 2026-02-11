@@ -27,21 +27,26 @@ This ignores:
 - **Research types**: Need web search, which doesn't exist
 - **Parallel execution**: All sources fetched sequentially despite being independent
 
-### Current Agent Architecture
+### Current Agent Architecture (Post-Rename)
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ Agents (api/agents/)                                            │
 ├─────────────────────────────────────────────────────────────────┤
-│ ResearchAgent    - Synthesizes provided context into research   │
-│ ContentAgent     - Formats content for specific platforms       │
-│ ReportingAgent   - Generates reports (unused in deliverables)   │
-│ ThinkingPartner  - Chat agent with primitives                   │
+│ SynthesizerAgent  - Synthesizes pre-fetched context             │
+│ DeliverableAgent  - Generates deliverable output (primary)      │
+│ ReportAgent       - Generates standalone reports                │
+│ ThinkingPartner   - Chat agent with primitives                  │
 ├─────────────────────────────────────────────────────────────────┤
 │ All agents have ONE tool: submit_output                         │
 │ No agents have: web_search, platform_fetch, file operations     │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+**Agent Type Mapping** (old → new):
+- `research` → `synthesizer`
+- `content` → `deliverable`
+- `reporting` → `report`
 
 **Problem**: Agents are passive processors, not active gatherers. The pipeline hardcodes gather logic in Python, not in agent reasoning.
 
