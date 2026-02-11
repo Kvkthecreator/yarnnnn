@@ -96,3 +96,20 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 ### Connection Timeout
 - Add `?sslmode=require` to connection string
 - Try session pooler (port 5432) instead of transaction pooler (6543)
+
+---
+
+## Pending Migrations
+
+### Migration 037: ADR-044 Deliverable Type Classification (2026-02-11)
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/037_deliverable_type_classification.sql
+```
+
+**Changes**:
+- Adds `type_classification` JSONB column to `deliverables` table
+- Creates `deliverable_proposals` table for emergent discovery
+- Creates `user_interaction_patterns` table for pattern detection
+- Backfills existing deliverables with inferred classification
+- Helper functions: `increment_interaction_pattern`, `should_propose_deliverable`
