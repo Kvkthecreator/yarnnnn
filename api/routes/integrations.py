@@ -130,6 +130,123 @@ def _extract_notion_parent_type(page: dict) -> str:
         return "database"
     return "unknown"
 
+
+async def _fetch_google_calendars(
+    user_id: str,
+    client_id: str,
+    client_secret: str,
+    refresh_token: str
+) -> list[dict]:
+    """
+    ADR-046: Fetch list of calendars from Google Calendar API.
+
+    Uses refresh token to get fresh access token, then lists calendars.
+    """
+    import httpx
+
+    # First, get a fresh access token using refresh token
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            }
+        )
+
+        if token_response.status_code != 200:
+            raise Exception(f"Failed to refresh token: {token_response.text}")
+
+        access_token = token_response.json().get("access_token")
+
+        # Now list calendars
+        calendar_response = await client.get(
+            "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"maxResults": 50}
+        )
+
+        if calendar_response.status_code != 200:
+            raise Exception(f"Failed to list calendars: {calendar_response.text}")
+
+        data = calendar_response.json()
+        return data.get("items", [])
+
+
+async def _fetch_google_calendar_events(
+    user_id: str,
+    client_id: str,
+    client_secret: str,
+    refresh_token: str,
+    calendar_id: str = "primary",
+    time_min: Optional[str] = None,
+    time_max: Optional[str] = None,
+    max_results: int = 50
+) -> list[dict]:
+    """
+    ADR-046: Fetch calendar events from Google Calendar API.
+
+    Args:
+        user_id: User ID for logging
+        client_id: Google OAuth client ID
+        client_secret: Google OAuth client secret
+        refresh_token: User's refresh token
+        calendar_id: Calendar to fetch from (default: "primary")
+        time_min: Start time (RFC3339), defaults to now
+        time_max: End time (RFC3339), defaults to 7 days from now
+        max_results: Maximum events to return
+
+    Returns:
+        List of calendar event dicts
+    """
+    import httpx
+    from datetime import datetime, timedelta
+
+    # First, get a fresh access token using refresh token
+    async with httpx.AsyncClient() as client:
+        token_response = await client.post(
+            "https://oauth2.googleapis.com/token",
+            data={
+                "client_id": client_id,
+                "client_secret": client_secret,
+                "refresh_token": refresh_token,
+                "grant_type": "refresh_token",
+            }
+        )
+
+        if token_response.status_code != 200:
+            raise Exception(f"Failed to refresh token: {token_response.text}")
+
+        access_token = token_response.json().get("access_token")
+
+        # Default time window: now to 7 days from now
+        if not time_min:
+            time_min = datetime.utcnow().isoformat() + "Z"
+        if not time_max:
+            time_max = (datetime.utcnow() + timedelta(days=7)).isoformat() + "Z"
+
+        # Fetch events
+        events_response = await client.get(
+            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={
+                "timeMin": time_min,
+                "timeMax": time_max,
+                "maxResults": max_results,
+                "singleEvents": "true",  # Expand recurring events
+                "orderBy": "startTime",
+            }
+        )
+
+        if events_response.status_code != 200:
+            raise Exception(f"Failed to list events: {events_response.text}")
+
+        data = events_response.json()
+        return data.get("items", [])
+
+
 router = APIRouter()
 
 
@@ -206,6 +323,26 @@ class NotionPageResponse(BaseModel):
 class NotionPagesListResponse(BaseModel):
     """List of Notion pages."""
     pages: list[NotionPageResponse]
+
+
+# ADR-046: Calendar response models
+class CalendarEventResponse(BaseModel):
+    """Google Calendar event info."""
+    id: str
+    title: str
+    start: str  # ISO datetime
+    end: str  # ISO datetime
+    attendees: list[dict] = []
+    location: Optional[str] = None
+    description: Optional[str] = None
+    meeting_link: Optional[str] = None
+    recurring: bool = False
+
+
+class CalendarEventsListResponse(BaseModel):
+    """List of calendar events."""
+    events: list[CalendarEventResponse]
+    calendar_id: str
 
 
 # =============================================================================
@@ -1000,6 +1137,238 @@ async def list_notion_pages(
 
 
 # =============================================================================
+# Resource Discovery - Google Calendar Events (ADR-046)
+# =============================================================================
+
+class CalendarListResponse(BaseModel):
+    """List of available calendars."""
+    calendars: list[dict]
+
+
+@router.get("/integrations/google/calendars")
+async def list_google_calendars(
+    auth: UserClient
+) -> CalendarListResponse:
+    """
+    ADR-046: List Google Calendars the user has access to.
+
+    Used for:
+    - Calendar selection in deliverable creation
+    - Meeting prep source configuration
+    """
+    user_id = auth.user_id
+    import os
+
+    try:
+        # Get user's Google integration (try google first, then gmail for legacy)
+        integration = auth.client.table("user_integrations").select(
+            "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
+        ).eq("user_id", user_id).eq("provider", "google").single().execute()
+
+        if not integration.data:
+            # Try legacy gmail provider
+            integration = auth.client.table("user_integrations").select(
+                "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
+            ).eq("user_id", user_id).eq("provider", "gmail").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Google integration found. Please connect first."
+            )
+
+        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Google integration is {integration.data['status']}. Please reconnect."
+            )
+
+        # Check capabilities
+        metadata = integration.data.get("metadata", {}) or {}
+        capabilities = metadata.get("capabilities", [])
+        if capabilities and "calendar" not in capabilities:
+            raise HTTPException(
+                status_code=400,
+                detail="Calendar access not granted. Please reconnect with calendar permissions."
+            )
+
+        # Get credentials
+        token_manager = get_token_manager()
+        refresh_token_encrypted = integration.data.get("refresh_token_encrypted")
+        if not refresh_token_encrypted:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing refresh token. Please reconnect Google integration."
+            )
+
+        refresh_token = token_manager.decrypt(refresh_token_encrypted)
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+        # Fetch calendars
+        raw_calendars = await _fetch_google_calendars(
+            user_id=user_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token
+        )
+
+        calendars = [
+            {
+                "id": cal.get("id"),
+                "name": cal.get("summary", "Untitled Calendar"),
+                "primary": cal.get("primary", False),
+                "access_role": cal.get("accessRole"),
+                "background_color": cal.get("backgroundColor"),
+            }
+            for cal in raw_calendars
+        ]
+
+        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(calendars)} Google calendars")
+
+        return CalendarListResponse(calendars=calendars)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to list Google calendars for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list calendars: {str(e)}")
+
+
+@router.get("/integrations/google/events")
+async def list_google_calendar_events(
+    auth: UserClient,
+    calendar_id: str = Query("primary", description="Calendar ID to fetch events from"),
+    time_min: Optional[str] = Query(None, description="Start time (RFC3339)"),
+    time_max: Optional[str] = Query(None, description="End time (RFC3339)"),
+    max_results: int = Query(50, description="Maximum events to return", le=250)
+) -> CalendarEventsListResponse:
+    """
+    ADR-046: List calendar events for meeting prep and context.
+
+    Used for:
+    - Meeting prep deliverable context
+    - Weekly calendar preview
+    - 1:1 prep with attendee info
+
+    Default time window is now to 7 days from now.
+    """
+    user_id = auth.user_id
+    import os
+
+    try:
+        # Get user's Google integration (try google first, then gmail for legacy)
+        integration = auth.client.table("user_integrations").select(
+            "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
+        ).eq("user_id", user_id).eq("provider", "google").single().execute()
+
+        if not integration.data:
+            # Try legacy gmail provider
+            integration = auth.client.table("user_integrations").select(
+                "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
+            ).eq("user_id", user_id).eq("provider", "gmail").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Google integration found. Please connect first."
+            )
+
+        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Google integration is {integration.data['status']}. Please reconnect."
+            )
+
+        # Check capabilities
+        metadata = integration.data.get("metadata", {}) or {}
+        capabilities = metadata.get("capabilities", [])
+        if capabilities and "calendar" not in capabilities:
+            raise HTTPException(
+                status_code=400,
+                detail="Calendar access not granted. Please reconnect with calendar permissions."
+            )
+
+        # Get credentials
+        token_manager = get_token_manager()
+        refresh_token_encrypted = integration.data.get("refresh_token_encrypted")
+        if not refresh_token_encrypted:
+            raise HTTPException(
+                status_code=400,
+                detail="Missing refresh token. Please reconnect Google integration."
+            )
+
+        refresh_token = token_manager.decrypt(refresh_token_encrypted)
+        client_id = os.getenv("GOOGLE_CLIENT_ID", "")
+        client_secret = os.getenv("GOOGLE_CLIENT_SECRET", "")
+
+        # Fetch events
+        raw_events = await _fetch_google_calendar_events(
+            user_id=user_id,
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token,
+            calendar_id=calendar_id,
+            time_min=time_min,
+            time_max=time_max,
+            max_results=max_results
+        )
+
+        # Transform to response format
+        events = []
+        for event in raw_events:
+            # Extract start/end time (can be date or dateTime)
+            start = event.get("start", {})
+            end = event.get("end", {})
+            start_time = start.get("dateTime") or start.get("date", "")
+            end_time = end.get("dateTime") or end.get("date", "")
+
+            # Extract attendees
+            attendees = [
+                {
+                    "email": a.get("email"),
+                    "display_name": a.get("displayName"),
+                    "response_status": a.get("responseStatus"),
+                    "organizer": a.get("organizer", False),
+                    "self": a.get("self", False),
+                }
+                for a in event.get("attendees", [])
+            ]
+
+            # Extract meeting link (Google Meet, Zoom, etc.)
+            meeting_link = None
+            if event.get("hangoutLink"):
+                meeting_link = event.get("hangoutLink")
+            elif event.get("conferenceData", {}).get("entryPoints"):
+                for entry in event["conferenceData"]["entryPoints"]:
+                    if entry.get("entryPointType") == "video":
+                        meeting_link = entry.get("uri")
+                        break
+
+            events.append(CalendarEventResponse(
+                id=event.get("id", ""),
+                title=event.get("summary", "Untitled Event"),
+                start=start_time,
+                end=end_time,
+                attendees=attendees,
+                location=event.get("location"),
+                description=event.get("description"),
+                meeting_link=meeting_link,
+                recurring=bool(event.get("recurringEventId")),
+            ))
+
+        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(events)} calendar events from {calendar_id}")
+
+        return CalendarEventsListResponse(events=events, calendar_id=calendar_id)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to list calendar events for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to list events: {str(e)}")
+
+
+# =============================================================================
 # Import Jobs - Start Import
 # =============================================================================
 
@@ -1574,7 +1943,7 @@ async def get_landscape(
 
     If landscape hasn't been discovered or refresh=True, fetches from provider.
     """
-    if provider not in ["gmail", "slack", "notion"]:
+    if provider not in ["gmail", "slack", "notion", "google"]:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     user_id = auth.user_id
@@ -1661,14 +2030,16 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
     token_manager = get_token_manager()
     mcp_manager = get_mcp_manager()
 
-    if provider == "gmail":
-        # Get Gmail credentials (OAUTH_CONFIGS values are OAuthConfig objects, not dicts)
-        gmail_config = OAUTH_CONFIGS["gmail"]
-        client_id = gmail_config.client_id
-        client_secret = gmail_config.client_secret
+    if provider in ("gmail", "google"):
+        # Get Google credentials (OAUTH_CONFIGS values are OAuthConfig objects, not dicts)
+        google_config = OAUTH_CONFIGS.get("google") or OAUTH_CONFIGS["gmail"]
+        client_id = google_config.client_id
+        client_secret = google_config.client_secret
         refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
 
-        # List labels
+        resources = []
+
+        # List Gmail labels
         labels = await mcp_manager.list_gmail_labels(
             user_id=user_id,
             client_id=client_id,
@@ -1676,7 +2047,6 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
             refresh_token=refresh_token
         )
 
-        resources = []
         for label in labels:
             resources.append({
                 "id": label.get("id"),
@@ -1685,9 +2055,34 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
                 "metadata": {
                     "type": label.get("type"),  # system, user
                     "messageListVisibility": label.get("messageListVisibility"),
-                    "labelListVisibility": label.get("labelListVisibility")
+                    "labelListVisibility": label.get("labelListVisibility"),
+                    "platform": "gmail",
                 }
             })
+
+        # ADR-046: Also list calendars if google provider
+        if provider == "google":
+            try:
+                calendars = await _fetch_google_calendars(
+                    user_id=user_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    refresh_token=refresh_token
+                )
+                for cal in calendars:
+                    resources.append({
+                        "id": cal.get("id"),
+                        "name": cal.get("summary", "Untitled Calendar"),
+                        "type": "calendar",
+                        "metadata": {
+                            "primary": cal.get("primary", False),
+                            "accessRole": cal.get("accessRole"),
+                            "platform": "calendar",
+                        }
+                    })
+            except Exception as e:
+                logger.warning(f"[INTEGRATIONS] Failed to list calendars for {user_id}: {e}")
+                # Continue without calendars - user may not have calendar scope
 
         return {"resources": resources}
 

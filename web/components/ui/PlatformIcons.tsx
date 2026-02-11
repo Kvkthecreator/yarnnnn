@@ -48,6 +48,7 @@ export function getPlatformIcon(
       return <GmailIcon className={className} />;
     case "google":
     case "google-calendar":
+    case "calendar":
       return <GoogleCalendarIcon className={className} />;
     default:
       return null;

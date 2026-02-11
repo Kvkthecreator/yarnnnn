@@ -8,8 +8,9 @@
 export type SourceType = "manual" | "chat" | "document" | "import" | "bulk" | "user_stated" | "conversation" | "preference";
 
 // Source reference for imported memories (platform provenance)
+// ADR-046: Added calendar as a platform
 export interface SourceRef {
-  platform?: "slack" | "notion" | "gmail";
+  platform?: "slack" | "notion" | "gmail" | "calendar";
   resource_id?: string;
   resource_name?: string;
   job_id?: string;
@@ -265,7 +266,8 @@ export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "c
 export type DataSourceType = "url" | "document" | "description" | "integration_import";
 
 // Integration import source provider
-export type IntegrationProvider = "slack" | "notion" | "gmail";
+// ADR-046: Added google and calendar providers
+export type IntegrationProvider = "slack" | "notion" | "gmail" | "google" | "calendar";
 
 // Integration import filter configuration
 export interface IntegrationImportFilters {
@@ -309,7 +311,10 @@ export type DeliverableType =
   | "slack_channel_digest"
   | "slack_standup"
   | "gmail_inbox_brief"
-  | "notion_page_summary";
+  | "notion_page_summary"
+  // ADR-046: Calendar-triggered types
+  | "meeting_prep"
+  | "weekly_calendar_preview";
 
 export type DeliverableTier = "stable" | "beta" | "experimental";
 
@@ -320,9 +325,9 @@ export type TemporalPattern = "reactive" | "scheduled" | "on_demand" | "emergent
 export interface TypeClassification {
   binding: ContextBinding;
   temporal_pattern: TemporalPattern;
-  primary_platform?: "slack" | "gmail" | "notion";
+  primary_platform?: "slack" | "gmail" | "notion" | "calendar";
   platform_grounding?: Array<{
-    platform: "slack" | "gmail" | "notion";
+    platform: "slack" | "gmail" | "notion" | "calendar";
     sources: string[];
     instruction?: string;
   }>;
@@ -649,7 +654,8 @@ export type QualityTrend = "improving" | "stable" | "declining";
 
 // ADR-028: Destination-first deliverables
 // ADR-029: Gmail as full integration platform
-export type DestinationPlatform = "slack" | "notion" | "gmail" | "email" | "download";
+// ADR-046: Added google and calendar providers
+export type DestinationPlatform = "slack" | "notion" | "gmail" | "google" | "calendar" | "email" | "download";
 export type GovernanceLevel = "manual" | "semi_auto" | "full_auto";
 export type DeliveryStatus = "pending" | "delivering" | "delivered" | "failed";
 

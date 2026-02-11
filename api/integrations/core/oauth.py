@@ -86,7 +86,7 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         scopes=[],  # Notion doesn't use scopes in the same way
         redirect_path="/api/integrations/notion/callback",
     ),
-    # ADR-029: Gmail integration
+    # ADR-029: Gmail integration (legacy, redirects to google)
     "gmail": OAuthConfig(
         provider="gmail",
         client_id_env="GOOGLE_CLIENT_ID",
@@ -94,14 +94,34 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
         token_url="https://oauth2.googleapis.com/token",
         scopes=[
-            # Phase 1: Read-only for context extraction
+            # Gmail: Read-only for context extraction
             "https://www.googleapis.com/auth/gmail.readonly",
+            # Calendar (ADR-046): Read events and attendees
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.events.readonly",
             # Phase 2 (future): Add send/compose for deliverable export
             # "https://www.googleapis.com/auth/gmail.send",
             # "https://www.googleapis.com/auth/gmail.compose",
             # "https://www.googleapis.com/auth/gmail.modify",
         ],
         redirect_path="/api/integrations/gmail/callback",
+    ),
+    # ADR-046: Google integration (unified Gmail + Calendar)
+    # This is the preferred provider name going forward
+    "google": OAuthConfig(
+        provider="google",
+        client_id_env="GOOGLE_CLIENT_ID",
+        client_secret_env="GOOGLE_CLIENT_SECRET",
+        authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
+        token_url="https://oauth2.googleapis.com/token",
+        scopes=[
+            # Gmail: Read-only for context extraction
+            "https://www.googleapis.com/auth/gmail.readonly",
+            # Calendar (ADR-046): Read events and attendees
+            "https://www.googleapis.com/auth/calendar.readonly",
+            "https://www.googleapis.com/auth/calendar.events.readonly",
+        ],
+        redirect_path="/api/integrations/google/callback",
     ),
 }
 
@@ -188,8 +208,9 @@ def get_authorization_url(provider: str, user_id: str) -> str:
             "owner": "user",
             "state": state,
         }
-    elif provider == "gmail":
-        # ADR-029: Gmail OAuth with offline access for refresh token
+    elif provider in ("gmail", "google"):
+        # ADR-029/046: Google OAuth with offline access for refresh token
+        # Supports both Gmail and Calendar scopes
         params = {
             "client_id": config.client_id,
             "redirect_uri": config.redirect_uri,
@@ -306,8 +327,8 @@ async def exchange_code_for_token(
                 "status": IntegrationStatus.ACTIVE.value,
             }
 
-        elif provider == "gmail":
-            # ADR-029: Gmail OAuth token exchange
+        elif provider in ("gmail", "google"):
+            # ADR-029/046: Google OAuth token exchange (Gmail + Calendar)
             response = await client.post(
                 config.token_url,
                 data={
@@ -321,7 +342,7 @@ async def exchange_code_for_token(
             data = response.json()
 
             if "error" in data:
-                raise ValueError(f"Gmail OAuth error: {data.get('error_description', data.get('error'))}")
+                raise ValueError(f"Google OAuth error: {data.get('error_description', data.get('error'))}")
 
             token_manager = get_token_manager()
 
@@ -336,6 +357,14 @@ async def exchange_code_for_token(
             expires_in = data.get("expires_in", 3600)
             expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
 
+            # ADR-046: Determine capabilities from granted scopes
+            granted_scope = data.get("scope", "")
+            capabilities = []
+            if "gmail" in granted_scope:
+                capabilities.append("gmail")
+            if "calendar" in granted_scope:
+                capabilities.append("calendar")
+
             return {
                 "user_id": user_id,
                 "provider": provider,
@@ -345,8 +374,9 @@ async def exchange_code_for_token(
                     "email": user_info.get("email"),
                     "name": user_info.get("name"),
                     "picture": user_info.get("picture"),
-                    "scope": data.get("scope"),
+                    "scope": granted_scope,
                     "expires_at": expires_at.isoformat(),
+                    "capabilities": capabilities,  # ADR-046: Track enabled capabilities
                 },
                 "status": IntegrationStatus.ACTIVE.value,
             }

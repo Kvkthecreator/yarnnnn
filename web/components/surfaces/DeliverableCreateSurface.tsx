@@ -156,6 +156,43 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
       freshness_requirement_hours: 1,
     },
   },
+  // ADR-046: Calendar-Triggered Types
+  {
+    id: 'meeting_prep',
+    label: 'Meeting Prep',
+    description: 'Context brief from Calendar + Slack + Gmail',
+    icon: <Users className="w-5 h-5" />,
+    flow: 'Calendar → Draft',
+    sourceplatforms: ['slack', 'gmail', 'notion'],
+    destinationPlatforms: ['gmail', 'slack', 'download'],
+    wave: 1,
+    enabled: true,
+    defaultScope: { recencyDays: 7, maxItems: 100 },
+    classification: {
+      binding: 'cross_platform',
+      temporal_pattern: 'reactive',
+      primary_platform: 'calendar',
+      freshness_requirement_hours: 1,
+    },
+  },
+  {
+    id: 'weekly_calendar_preview',
+    label: 'Week Preview',
+    description: 'Overview of your week ahead from Calendar',
+    icon: <Clock className="w-5 h-5" />,
+    flow: 'Calendar → Draft',
+    sourceplatforms: ['slack', 'gmail'],
+    destinationPlatforms: ['gmail', 'slack', 'download'],
+    wave: 1,
+    enabled: true,
+    defaultScope: { recencyDays: 7, maxItems: 50 },
+    classification: {
+      binding: 'platform_bound',
+      temporal_pattern: 'scheduled',
+      primary_platform: 'calendar',
+      freshness_requirement_hours: 4,
+    },
+  },
   // Wave 2: Cross-Platform Internal (ADR-044: cross_platform)
   {
     id: 'weekly_status',

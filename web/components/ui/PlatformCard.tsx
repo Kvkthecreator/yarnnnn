@@ -58,6 +58,12 @@ const PLATFORM_CONFIG: Record<string, {
   },
   google: {
     icon: <Calendar className="w-6 h-6" />,
+    label: 'Google',
+    color: 'text-blue-500',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+  },
+  calendar: {
+    icon: <Calendar className="w-6 h-6" />,
     label: 'Calendar',
     color: 'text-blue-500',
     bgColor: 'bg-blue-50 dark:bg-blue-950/30',
@@ -210,7 +216,7 @@ export function AddPlatformCard({ onClick, className }: AddPlatformCardProps) {
           Connect Platform
         </p>
         <p className="text-xs text-muted-foreground/70 mt-1">
-          Slack, Gmail, Notion
+          Slack, Gmail, Notion, Calendar
         </p>
       </CardContent>
     </Card>

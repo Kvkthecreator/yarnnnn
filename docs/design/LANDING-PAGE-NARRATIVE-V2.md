@@ -14,7 +14,7 @@
 Focus: Output automation + learning loop
 
 ### After (v2)
-> "yarnnn reads your Slack, Gmail, and Notion—then writes the updates you owe people."
+> "yarnnn reads your Slack, Gmail, Notion, and Calendar—then writes the updates you owe people."
 
 Focus: **Platform intelligence** + **emergent suggestions**
 
@@ -22,9 +22,9 @@ Focus: **Platform intelligence** + **emergent suggestions**
 
 Apple says "M3 chip" not "faster processor." Specificity builds credibility.
 
-- **Slack, Gmail, Notion** are recognizable—people immediately know if this is for them
+- **Slack, Gmail, Notion, Calendar** are recognizable—people immediately know if this is for them
 - Shows we built something purpose-fit, not generic
-- The platform names carry meaning (collaboration, communication, documentation)
+- The platform names carry meaning (collaboration, communication, documentation, schedule)
 - Avoids vague "connect your tools" language that sounds like every other integration
 
 ### But Also: Bring Your Own Data
@@ -56,6 +56,7 @@ What makes this different:
 | **Slack** | Messages in a channel | Which threads are heating up. Who's waiting for answers. What decisions got made. |
 | **Gmail** | Emails in your inbox | Which threads need replies. Who you haven't gotten back to. What's urgent vs. routine. |
 | **Notion** | Pages and databases | What changed recently. Which docs are going stale. Where decisions are documented. |
+| **Calendar** | A list of meetings | Who you're meeting with. What context you need. Which 1:1s are coming up. |
 
 **The insight:** Your platforms already contain the signal. yarnnn reads it the way you would—if you had time to read everything.
 
@@ -79,15 +80,15 @@ How it works:
 ### Hero
 
 **Headline:**
-> yarnnn reads your Slack, Gmail, and Notion—then writes the updates you owe people.
+> yarnnn reads your Slack, Gmail, Notion, and Calendar—then writes the updates you owe people.
 
 **Subhead:**
-> Status reports. Investor updates. Client briefs. yarnnn pulls context from your platforms, drafts it in your voice, and gets better every time you approve.
+> Status reports. Investor updates. Meeting prep. yarnnn pulls context from your platforms, drafts it in your voice, and gets better every time you approve.
 
 **CTA:** Start for free
 
 **Secondary note (smaller text below CTA):**
-> Don't use Slack, Gmail, or Notion? You can paste in context or describe what you need—yarnnn works with whatever you give it.
+> Don't use these platforms? You can paste in context or describe what you need—yarnnn works with whatever you give it.
 
 ---
 
@@ -121,7 +122,7 @@ It's not thinking work. It's just assembly.
 **Body:**
 Most integrations dump raw data. yarnnn reads your platforms the way you would—if you had time to read everything.
 
-**Three cards (with platform icons):**
+**Four cards (with platform icons):**
 
 **Slack**
 > Hot threads. Decisions made. Questions still waiting for answers. yarnnn sees the signal, not just the messages.
@@ -132,15 +133,19 @@ Most integrations dump raw data. yarnnn reads your platforms the way you would�
 **Notion**
 > Recent changes. Stale docs. Where decisions are documented. yarnnn knows what's current and what's not.
 
+**Calendar**
+> Who you're meeting. When you're meeting them. What context you need before you walk in. yarnnn connects meetings to everything else.
+
 **Visual opportunity:** Platform icon + specific signal examples:
 - Slack: thread with 12 replies + fire icon, message with ❓ + "unanswered" label
 - Gmail: thread with "3 days" badge, sender with importance indicator
 - Notion: page with "edited 2h ago" badge, page with "last touched 3 months ago" warning
+- Calendar: event card with attendee avatars, "in 2 hours" badge, linked Slack/Gmail context
 
-**Tagline for section:** "Three platforms today. More coming."
+**Tagline for section:** "Four platforms. One intelligent reader."
 
-**Future platforms teaser (subtle, below the three cards):**
-> Linear, Jira, Google Docs, Calendar, and more on the way. Want something specific? [Let us know →]
+**Future platforms teaser (subtle, below the cards):**
+> Linear, Jira, Google Docs, GitHub, and more on the way. Want something specific? [Let us know →]
 
 ---
 
@@ -181,12 +186,52 @@ Format: Key updates, decisions, open questions
 
 ---
 
+### Section 3.5: Calendar Connects Everything
+
+**Header:** Your calendar knows who matters. yarnnn brings the context.
+
+**Body:**
+Meetings don't happen in isolation. The person you're meeting at 2pm? You've got Slack DMs with them, email threads, shared Notion docs. yarnnn pulls it all together before you walk in.
+
+**Example: Meeting prep brief**
+
+```
+📅 1:1 with Sarah Chen — in 2 hours
+
+Context from your platforms:
+
+💬 Slack
+  - Last DM: discussed Q1 hiring timeline (3 days ago)
+  - Mentioned in #product: flagged API latency issue
+
+📧 Gmail
+  - Open thread: budget approval (awaiting your reply)
+  - Last email: sent deck for board review
+
+📝 Notion
+  - Shared doc: Q1 OKRs (Sarah commented yesterday)
+
+Suggested topics:
+  • Follow up on hiring timeline
+  • Respond to budget thread before meeting
+  • Discuss API latency flag
+```
+
+**Why this matters:**
+- You never walk into a meeting unprepared
+- Context from every platform, organized by person
+- yarnnn does the research, you do the thinking
+
+**Visual opportunity:** Meeting card with attendee → expanded view showing Slack/Gmail/Notion context for that person
+
+---
+
 ### Section 4: How It Works
 
 **Header:** Three steps. Then it just runs.
 
 **Step 1: Connect your tools**
-> Link Slack, Gmail, or Notion. One-time sign-in. yarnnn can now see what you see.
+> Link Slack, Gmail, Notion, or Google Calendar. One-time sign-in. yarnnn can now see what you see.
 
 **Step 2: Tell it what you send (or let it suggest)**
 > Describe what you need—a weekly status, a client update—or let yarnnn suggest based on your patterns.
@@ -227,10 +272,11 @@ yarnnn learns:
 |-------------|------------|-------------|
 | Weekly status report | Slack #engineering, #product | Your manager |
 | Investor update | Notion metrics, Slack #founders | Your investors |
+| Meeting prep | Calendar + Slack + Gmail with attendees | You (before the meeting) |
 | Client brief | Gmail threads, Notion project page | Your client |
+| 1:1 prep | Calendar + Slack history + last meeting notes | You (before your 1:1) |
 | Slack digest | Slack channels you pick | You (stay caught up) |
-| Inbox triage | Gmail labels you pick | You (know what needs replies) |
-| Cross-team update | Multiple Slack channels | Leadership |
+| Weekly preview | Calendar | You (know what's ahead) |
 
 **Visual opportunity:**
 - Each card shows platform icons (1-3 depending on sources)
@@ -243,7 +289,7 @@ yarnnn learns:
 
 ### Section 7: More Platforms Coming
 
-**Header:** Slack, Gmail, and Notion are just the start.
+**Header:** Slack, Gmail, Notion, and Calendar are just the start.
 
 **Body:**
 We're building integrations for the tools you actually use.
@@ -252,10 +298,10 @@ We're building integrations for the tools you actually use.
 - **Linear** — Pull sprint updates and issue status
 - **Jira** — Track tickets and project progress
 - **Google Docs** — Reference your documents and notes
-- **Google Calendar** — Meeting context and schedules
 - **GitHub** — PRs, commits, and repo activity
+- **Microsoft Teams** — For teams on the Microsoft stack
 
-**Visual opportunity:** Grid of platform logos—3 lit up (current), others grayed with "coming soon" treatment
+**Visual opportunity:** Grid of platform logos—4 lit up (current: Slack, Gmail, Notion, Calendar), others grayed with "coming soon" treatment
 
 **CTA within section:**
 > Want a specific integration? [Request it →]
@@ -288,7 +334,7 @@ yarnnn will draft from whatever you give it. Connect platforms later when you're
 **CTA:** Start for free
 
 **Below CTA:**
-> Works with Slack, Gmail, Notion—or just paste in your own context.
+> Works with Slack, Gmail, Notion, Calendar—or just paste in your own context.
 
 ---
 
@@ -297,10 +343,10 @@ yarnnn will draft from whatever you give it. Connect platforms later when you're
 ### Hero
 
 **Headline:**
-> We built yarnnn because your Slack, Gmail, and Notion already have everything you need to write that update.
+> We built yarnnn because your Slack, Gmail, Notion, and Calendar already have everything you need to write that update.
 
 **Body:**
-The conversations are in Slack. The email threads are in Gmail. The project notes are in Notion. When you write a status report, you're not creating anything new—you're assembling what's already there into a sendable shape.
+The conversations are in Slack. The email threads are in Gmail. The project notes are in Notion. Your meetings are in Calendar. When you write a status report or prep for a 1:1, you're not creating anything new—you're assembling what's already there into a sendable shape.
 
 That assembly work? A machine should do it. Your job is to review and decide what matters.
 
@@ -310,10 +356,10 @@ That assembly work? A machine should do it. Your job is to review and decide wha
 
 **Three pillars:**
 
-**Slack, Gmail, and Notion already have the context**
-> Your #engineering channel has the updates. Your inbox has the client threads. Your Notion has the project notes. Every status report you've ever written? The raw material was already there. You just spent an hour assembling it.
+**Slack, Gmail, Notion, and Calendar already have the context**
+> Your #engineering channel has the updates. Your inbox has the client threads. Your Notion has the project notes. Your calendar has the meetings. Every status report you've ever written, every 1:1 you've prepared for? The raw material was already there. You just spent an hour assembling it.
 
-**Status reports follow patterns. So do investor updates. So do client briefs.**
+**Status reports follow patterns. So do investor updates. So do meeting preps.**
 > The content changes weekly, but the shape stays the same. Section headers. Level of detail. What to highlight. yarnnn learns that shape from watching what you approve.
 
 **Your job is judgment, not assembly**
@@ -324,7 +370,7 @@ That assembly work? A machine should do it. Your job is to review and decide wha
 ### Section: How It's Different
 
 **Platform intelligence, not data extraction**
-> Most integrations just pull messages and dump them somewhere. yarnnn reads your Slack like you would—seeing which threads are heating up, which questions are still open, which decisions got made. Same for Gmail (what's urgent, who's waiting) and Notion (what changed, what's stale).
+> Most integrations just pull messages and dump them somewhere. yarnnn reads your Slack like you would—seeing which threads are heating up, which questions are still open, which decisions got made. Same for Gmail (what's urgent, who's waiting), Notion (what changed, what's stale), and Calendar (who you're meeting, what context you need).
 
 **Learns from approvals, not configuration**
 > You don't set up rules or write prompts. You just review drafts and approve them. Every approval teaches yarnnn something—how you structure things, what tone you use for your manager vs. your investors, which details you always include.
@@ -461,7 +507,7 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 
 **Free — $0/month**
 - 1 deliverable
-- All platform connections (Slack, Gmail, Notion)
+- All platform connections (Slack, Gmail, Notion, Calendar)
 - Platform intelligence included
 - Learning from your edits
 - yarnnn suggestions
@@ -475,7 +521,7 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 
 ### What's Always Free
 
-- **All platform connections** — Slack, Gmail, Notion (and future integrations) on every plan
+- **All platform connections** — Slack, Gmail, Notion, Calendar (and future integrations) on every plan
 - **Paste or describe context** — Works without any integrations at all
 - **Platform intelligence** — yarnnn reads your tools properly, not just extracting text
 - **The learning loop** — Your edits improve drafts regardless of tier
@@ -488,8 +534,8 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 **Why is connecting tools free?**
 > The platforms are where your context lives. Limiting connections would make yarnnn worse. We want you to connect everything—then decide which deliverables are worth automating.
 
-**What if I don't use Slack, Gmail, or Notion?**
-> You can paste in context or describe what you need—yarnnn works with whatever you give it. And we're adding more integrations (Linear, Jira, Google Docs, Calendar) soon.
+**What if I don't use Slack, Gmail, Notion, or Google Calendar?**
+> You can paste in context or describe what you need—yarnnn works with whatever you give it. And we're adding more integrations (Linear, Jira, Google Docs, Microsoft Teams) soon.
 
 **What counts as a deliverable?**
 > A deliverable is a recurring thing you send: a weekly status, a monthly update, a daily digest. Each one counts as one deliverable, regardless of how often it runs.
@@ -498,7 +544,10 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 > Start with Free. If you set up more than one deliverable and want to keep them all running, upgrade to Pro.
 
 **What integrations are coming next?**
-> Linear, Jira, Google Docs, Google Calendar, and GitHub are on the roadmap. [Request an integration →]
+> Linear, Jira, Google Docs, GitHub, and Microsoft Teams are on the roadmap. [Request an integration →]
+
+**What makes Calendar different from other integrations?**
+> Calendar is the connective tissue. When you have a meeting with someone, yarnnn automatically pulls context from your Slack, Gmail, and Notion history with that person. It turns your calendar into a hub for understanding who you're meeting and what you need to know.
 
 ---
 

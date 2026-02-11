@@ -324,6 +324,39 @@ async def fetch_integration_source_data(
                 mcp_manager, token_manager, integration, user_id,
                 source_query, enhanced_filters, max_items
             )
+        elif provider in ("calendar", "google"):
+            # ADR-046: Google Calendar integration
+            # Note: "google" provider uses same integration record but routes to calendar fetch
+            # For calendar sources, use the google integration
+            if provider == "calendar":
+                # Look for google integration instead
+                calendar_integration_result = client.table("user_integrations").select(
+                    "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
+                ).eq("user_id", user_id).eq("provider", "google").eq(
+                    "status", "active"
+                ).single().execute()
+
+                if not calendar_integration_result.data:
+                    # Try legacy gmail provider
+                    calendar_integration_result = client.table("user_integrations").select(
+                        "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
+                    ).eq("user_id", user_id).eq("provider", "gmail").eq(
+                        "status", "active"
+                    ).single().execute()
+
+                if not calendar_integration_result.data:
+                    logger.warning(f"[GATHER] No active Google/Gmail integration for calendar access")
+                    error_msg = "No active Google integration for calendar"
+                    if source_run_id:
+                        _update_source_run(client, source_run_id, "failed", error_message=error_msg)
+                    return SourceFetchResult(error=error_msg)
+
+                integration = calendar_integration_result.data
+
+            result = await _fetch_calendar_data(
+                mcp_manager, token_manager, integration, user_id,
+                source_query, enhanced_filters, max_items
+            )
         else:
             logger.warning(f"[GATHER] Unsupported integration provider: {provider}")
             error_msg = f"Unsupported provider: {provider}"
@@ -597,6 +630,189 @@ async def _fetch_notion_data(
         items_fetched=1,
         items_filtered=0,
     )
+
+
+async def _fetch_calendar_data(
+    mcp_manager,
+    token_manager,
+    integration: dict,
+    user_id: str,
+    source_query: str,
+    filters: dict,
+    max_items: int = 50,
+) -> SourceFetchResult:
+    """
+    ADR-046: Fetch Google Calendar events and format as context.
+
+    Used for:
+    - Meeting prep deliverables
+    - Weekly calendar preview
+    - 1:1 prep with attendee context
+
+    Source query format:
+    - "primary" - User's primary calendar
+    - "<calendar_id>" - Specific calendar
+
+    Filters:
+    - time_min: Start time (RFC3339 or relative like "now", "+2h")
+    - time_max: End time (RFC3339 or relative like "+24h", "+7d")
+    - attendee: Filter to events with specific attendee email
+    - recurring: Only show recurring events (true/false)
+    """
+    import os
+    import httpx
+    from datetime import timedelta
+
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        return SourceFetchResult(error="Missing Google OAuth credentials")
+
+    refresh_token_encrypted = integration.get("refresh_token_encrypted")
+    if not refresh_token_encrypted:
+        return SourceFetchResult(error="Missing Google refresh token")
+
+    refresh_token = token_manager.decrypt(refresh_token_encrypted)
+
+    # Parse time filters
+    def parse_time(val: str, default_offset_days: int = 0) -> str:
+        """Parse time value to RFC3339 format."""
+        if not val:
+            return (datetime.utcnow() + timedelta(days=default_offset_days)).isoformat() + "Z"
+        if val == "now":
+            return datetime.utcnow().isoformat() + "Z"
+        if val.startswith("+"):
+            # Relative time: +2h, +24h, +7d
+            val = val[1:]
+            if val.endswith("h"):
+                delta = timedelta(hours=int(val[:-1]))
+            elif val.endswith("d"):
+                delta = timedelta(days=int(val[:-1]))
+            else:
+                delta = timedelta(days=int(val))
+            return (datetime.utcnow() + delta).isoformat() + "Z"
+        # Assume RFC3339 format
+        return val
+
+    time_min = parse_time(filters.get("time_min", "now"), 0)
+    time_max = parse_time(filters.get("time_max", "+7d"), 7)
+    calendar_id = source_query if source_query else "primary"
+
+    try:
+        # Get fresh access token
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                    "grant_type": "refresh_token",
+                }
+            )
+
+            if token_response.status_code != 200:
+                return SourceFetchResult(error=f"Failed to refresh Google token: {token_response.text}")
+
+            access_token = token_response.json().get("access_token")
+
+            # Fetch events
+            events_response = await client.get(
+                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params={
+                    "timeMin": time_min,
+                    "timeMax": time_max,
+                    "maxResults": min(max_items, 250),
+                    "singleEvents": "true",
+                    "orderBy": "startTime",
+                }
+            )
+
+            if events_response.status_code != 200:
+                return SourceFetchResult(error=f"Failed to fetch calendar events: {events_response.text}")
+
+            events = events_response.json().get("items", [])
+
+        if not events:
+            return SourceFetchResult(
+                content=f"[Calendar] No events found from {time_min} to {time_max}",
+                items_fetched=0,
+            )
+
+        # Apply filters
+        filtered_events = events
+        attendee_filter = filters.get("attendee")
+        recurring_only = filters.get("recurring")
+
+        if attendee_filter:
+            filtered_events = [
+                e for e in filtered_events
+                if any(a.get("email", "").lower() == attendee_filter.lower()
+                       for a in e.get("attendees", []))
+            ]
+
+        if recurring_only:
+            filtered_events = [e for e in filtered_events if e.get("recurringEventId")]
+
+        # Format events as context
+        lines = [f"[Google Calendar Events - {len(filtered_events)} events from {calendar_id}]\n"]
+
+        for event in filtered_events:
+            start = event.get("start", {})
+            end = event.get("end", {})
+            start_time = start.get("dateTime") or start.get("date", "")
+            end_time = end.get("dateTime") or end.get("date", "")
+
+            # Format attendees
+            attendees = event.get("attendees", [])
+            attendee_strs = []
+            for a in attendees[:5]:  # Limit to first 5 attendees
+                status = a.get("responseStatus", "needsAction")
+                status_emoji = {"accepted": "✓", "declined": "✗", "tentative": "?", "needsAction": "•"}.get(status, "•")
+                name = a.get("displayName") or a.get("email", "Unknown")
+                if a.get("organizer"):
+                    name += " (organizer)"
+                attendee_strs.append(f"  {status_emoji} {name}")
+
+            if len(attendees) > 5:
+                attendee_strs.append(f"  ... and {len(attendees) - 5} more")
+
+            lines.append(f"---")
+            lines.append(f"Event: {event.get('summary', 'Untitled')}")
+            lines.append(f"When: {start_time} to {end_time}")
+
+            if event.get("location"):
+                lines.append(f"Location: {event['location']}")
+
+            if event.get("hangoutLink"):
+                lines.append(f"Meeting Link: {event['hangoutLink']}")
+
+            if attendee_strs:
+                lines.append("Attendees:")
+                lines.extend(attendee_strs)
+
+            if event.get("description"):
+                desc = event["description"]
+                if len(desc) > 300:
+                    desc = desc[:300] + "..."
+                lines.append(f"Description: {desc}")
+
+            if event.get("recurringEventId"):
+                lines.append("(Recurring event)")
+
+            lines.append("")
+
+        return SourceFetchResult(
+            content="\n".join(lines),
+            items_fetched=len(filtered_events),
+            items_filtered=len(events) - len(filtered_events),
+        )
+
+    except Exception as e:
+        logger.error(f"[GATHER] Calendar fetch error: {e}")
+        return SourceFetchResult(error=f"Calendar fetch failed: {str(e)}")
 
 
 # =============================================================================
@@ -1247,6 +1463,21 @@ SECTION_TEMPLATES = {
         "completed_tasks": "Completed Tasks - Items marked done",
         "open_comments": "Open Comments - Unresolved discussions",
     },
+    # ADR-046: Calendar-Triggered Section Templates
+    "meeting_prep": {
+        "attendee_context": "Attendee Context - Recent interactions with meeting participants",
+        "open_items": "Open Items - Unresolved discussions or decisions",
+        "recent_updates": "Recent Updates - Relevant project or topic updates",
+        "suggested_topics": "Suggested Topics - Discussion points to raise",
+        "previous_meeting": "Previous Meeting - Notes from last occurrence (if recurring)",
+    },
+    "weekly_calendar_preview": {
+        "overview": "Week Overview - Meeting count, hours, busy/free patterns",
+        "key_people": "Key People - Who you're meeting with most",
+        "recurring": "Recurring Meetings - Regular syncs and 1:1s",
+        "high_priority": "High Priority - Meetings needing extra attention",
+        "prep_suggestions": "Prep Suggestions - Meetings worth preparing for",
+    },
 }
 
 
@@ -1703,6 +1934,79 @@ INSTRUCTIONS:
 - Make it actionable - what should the user do next?
 
 Generate the activity summary now:""",
+
+    # ==========================================================================
+    # ADR-046: Calendar-Triggered Deliverable Prompts
+    # ==========================================================================
+
+    "meeting_prep": """You are preparing a context brief for an upcoming meeting.
+
+MEETING: {meeting_title}
+WHEN: {meeting_time}
+ATTENDEES: {attendees_list}
+{meeting_description}
+
+CONTEXT SOURCES:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+INSTRUCTIONS:
+- Focus on what the user needs to know BEFORE this meeting
+- Summarize recent interactions with each attendee from the context
+- Highlight any open items, pending decisions, or unresolved discussions
+- Include relevant project updates or blockers
+- Suggest 2-3 talking points or questions to raise
+- Keep it scannable - use bullet points and clear headers
+- If recurring meeting, note what was discussed in previous occurrence if available
+
+Write the meeting prep brief now:""",
+
+    "weekly_calendar_preview": """You are creating a weekly calendar preview for the user.
+
+WEEK OF: {week_start}
+CALENDAR SUMMARY:
+{calendar_summary}
+
+ADDITIONAL CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+STRUCTURE:
+
+## 📅 Week Overview
+{meeting_count} meetings, {total_hours} hours of scheduled time.
+Busiest day: {busiest_day}
+Free blocks: {free_blocks}
+
+## 👥 Key People This Week
+Who you're meeting with most, and notable external meetings.
+
+## 🔄 Recurring Meetings
+Your regular 1:1s, syncs, and standups this week.
+
+## ⚡ High-Priority
+Meetings that likely need prep or are particularly important.
+
+## 💭 Suggested Prep
+Meetings that would benefit from a meeting prep deliverable.
+
+INSTRUCTIONS:
+- Provide a high-level view of the week ahead
+- Identify patterns (heavy meeting days, back-to-back blocks)
+- Call out meetings with external attendees
+- Suggest which meetings need prep work
+- Keep it brief and scannable
+
+Generate the weekly calendar preview now:""",
 }
 
 
@@ -2012,6 +2316,36 @@ def build_type_prompt(
             "sections_list": build_sections_list(deliverable_type, config),
             "detail_level": detail_level,
             "detail_guidance": detail_guidance,
+        })
+
+    # =========================================================================
+    # ADR-046: Calendar-Triggered Types
+    # =========================================================================
+
+    elif deliverable_type == "meeting_prep":
+        # Extract meeting info from config
+        meeting_info = config.get("meeting", {})
+        attendees = meeting_info.get("attendees", [])
+        attendee_names = [a.get("display_name") or a.get("email", "Unknown") for a in attendees[:10]]
+        fields.update({
+            "meeting_title": meeting_info.get("title", config.get("meeting_title", "Upcoming Meeting")),
+            "meeting_time": meeting_info.get("start", config.get("meeting_time", "")),
+            "attendees_list": ", ".join(attendee_names) if attendee_names else "Not specified",
+            "meeting_description": f"MEETING DESCRIPTION:\n{meeting_info.get('description', '')}" if meeting_info.get("description") else "",
+            "sections_list": build_sections_list(deliverable_type, config),
+        })
+
+    elif deliverable_type == "weekly_calendar_preview":
+        # Extract calendar summary info
+        calendar_summary = config.get("calendar_summary", {})
+        fields.update({
+            "week_start": config.get("week_start", "this week"),
+            "calendar_summary": calendar_summary.get("raw", "See events in context"),
+            "meeting_count": str(calendar_summary.get("meeting_count", "multiple")),
+            "total_hours": str(calendar_summary.get("total_hours", "N/A")),
+            "busiest_day": calendar_summary.get("busiest_day", "N/A"),
+            "free_blocks": calendar_summary.get("free_blocks", "See calendar for details"),
+            "sections_list": build_sections_list(deliverable_type, config),
         })
 
     else:  # custom and any unknown types

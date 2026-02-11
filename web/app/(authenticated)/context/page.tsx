@@ -30,6 +30,7 @@ import {
   Slack,
   Mail,
   FileCode,
+  Calendar,
   Edit2,
   Trash2,
   ExternalLink,
@@ -63,12 +64,16 @@ const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   slack: <Slack className="w-5 h-5" />,
   gmail: <Mail className="w-5 h-5" />,
   notion: <FileCode className="w-5 h-5" />,
+  google: <Calendar className="w-5 h-5" />,
+  calendar: <Calendar className="w-5 h-5" />,
 };
 
 const PLATFORM_COLORS: Record<string, { bg: string; text: string }> = {
   slack: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
   gmail: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-600 dark:text-red-400' },
   notion: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
+  google: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
+  calendar: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
 };
 
 // =============================================================================
@@ -632,7 +637,7 @@ function EmptyState({
           <Link2 className="w-8 h-8 mb-3 text-primary" />
           <h3 className="font-medium mb-1">Connect</h3>
           <p className="text-sm text-muted-foreground">
-            Slack, Gmail, Notion
+            Slack, Gmail, Notion, Calendar
           </p>
         </button>
 
