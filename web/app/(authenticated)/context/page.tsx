@@ -33,7 +33,6 @@ import {
   Calendar,
   Edit2,
   Trash2,
-  ExternalLink,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -57,24 +56,61 @@ interface UserFact {
 }
 
 // =============================================================================
-// Platform Icons
+// Platform Configuration
 // =============================================================================
 
-const PLATFORM_ICONS: Record<string, React.ReactNode> = {
-  slack: <Slack className="w-5 h-5" />,
-  gmail: <Mail className="w-5 h-5" />,
-  notion: <FileCode className="w-5 h-5" />,
-  google: <Calendar className="w-5 h-5" />,
-  calendar: <Calendar className="w-5 h-5" />,
-};
+interface PlatformConfig {
+  provider: string;
+  label: string;
+  description: string;
+  resourceType: string;
+  icon: React.ReactNode;
+  colors: { bg: string; text: string };
+}
 
-const PLATFORM_COLORS: Record<string, { bg: string; text: string }> = {
-  slack: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
-  gmail: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-600 dark:text-red-400' },
-  notion: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
-  google: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
-  calendar: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
-};
+const AVAILABLE_PLATFORMS: PlatformConfig[] = [
+  {
+    provider: 'slack',
+    label: 'Slack',
+    description: 'Channels and messages',
+    resourceType: 'channels',
+    icon: <Slack className="w-5 h-5" />,
+    colors: { bg: 'bg-purple-100 dark:bg-purple-900/30', text: 'text-purple-600 dark:text-purple-400' },
+  },
+  {
+    provider: 'gmail',
+    label: 'Gmail',
+    description: 'Email labels and threads',
+    resourceType: 'labels',
+    icon: <Mail className="w-5 h-5" />,
+    colors: { bg: 'bg-red-100 dark:bg-red-900/30', text: 'text-red-600 dark:text-red-400' },
+  },
+  {
+    provider: 'notion',
+    label: 'Notion',
+    description: 'Pages and databases',
+    resourceType: 'pages',
+    icon: <FileCode className="w-5 h-5" />,
+    colors: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
+  },
+  {
+    provider: 'google',
+    label: 'Calendar',
+    description: 'Events and meetings',
+    resourceType: 'events',
+    icon: <Calendar className="w-5 h-5" />,
+    colors: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
+  },
+];
+
+// Legacy lookup maps for backwards compatibility
+const PLATFORM_ICONS: Record<string, React.ReactNode> = Object.fromEntries(
+  AVAILABLE_PLATFORMS.map(p => [p.provider, p.icon])
+);
+
+const PLATFORM_COLORS: Record<string, { bg: string; text: string }> = Object.fromEntries(
+  AVAILABLE_PLATFORMS.map(p => [p.provider, p.colors])
+);
 
 // =============================================================================
 // Main Component
@@ -287,14 +323,17 @@ export default function ContextPage() {
   });
 
   // Counts for sidebar
+  // For platforms, show connected count out of total available
+  const connectedPlatformCount = platforms.length;
   const counts = {
-    all: platforms.length + documents.length + facts.length,
-    platforms: platforms.length,
+    all: AVAILABLE_PLATFORMS.length + documents.length + facts.length,
+    platforms: AVAILABLE_PLATFORMS.length,
     documents: documents.length,
     facts: facts.length,
   };
 
-  const isEmpty = counts.all === 0;
+  // Empty state is when no platforms are connected AND no documents AND no facts
+  const isEmpty = connectedPlatformCount === 0 && documents.length === 0 && facts.length === 0;
 
   // =============================================================================
   // Render
@@ -320,7 +359,8 @@ export default function ContextPage() {
             <SidebarItem
               icon={<Link2 className="w-4 h-4" />}
               label="Platforms"
-              count={counts.platforms}
+              count={connectedPlatformCount}
+              suffix={`/${AVAILABLE_PLATFORMS.length}`}
               active={filter === 'platforms'}
               onClick={() => handleFilterChange('platforms')}
             />
@@ -343,13 +383,6 @@ export default function ContextPage() {
 
         {/* Quick Actions */}
         <div className="p-4 border-t border-border space-y-2">
-          <button
-            onClick={() => handleConnectPlatform('slack')}
-            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-left rounded-md hover:bg-muted transition-colors"
-          >
-            <Link2 className="w-4 h-4 text-muted-foreground" />
-            <span>Connect Platform</span>
-          </button>
           <button
             onClick={() => fileInputRef.current?.click()}
             disabled={uploading}
@@ -424,45 +457,44 @@ export default function ContextPage() {
             </div>
           ) : isEmpty ? (
             <EmptyState
-              onConnectPlatform={() => handleConnectPlatform('slack')}
+              onViewPlatforms={() => handleFilterChange('platforms')}
               onUploadDocument={() => fileInputRef.current?.click()}
               onAddFact={() => setAddingFact(true)}
             />
           ) : (
             <div className="space-y-8">
-              {/* Platforms Section */}
-              {(filter === 'all' || filter === 'platforms') && filteredPlatforms.length > 0 && (
+              {/* Platforms Section - Always show all available platforms */}
+              {(filter === 'all' || filter === 'platforms') && (
                 <section>
                   {filter === 'all' && (
                     <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
                       Platforms
                     </h2>
                   )}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {filteredPlatforms.map((platform) => (
-                      <PlatformSourceCard
-                        key={platform.provider}
-                        platform={platform}
-                        onClick={() => router.push(`/context/${platform.provider}`)}
-                      />
-                    ))}
-                    {/* Add Platform Card */}
-                    <AddSourceCard
-                      type="platform"
-                      onClick={() => handleConnectPlatform('slack')}
-                    />
-                  </div>
-                </section>
-              )}
-
-              {/* Show add platform when in platforms filter with no connected platforms */}
-              {filter === 'platforms' && filteredPlatforms.length === 0 && (
-                <section>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    <AddSourceCard
-                      type="platform"
-                      onClick={() => handleConnectPlatform('slack')}
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                    {AVAILABLE_PLATFORMS
+                      .filter((config) => {
+                        if (!searchQuery) return true;
+                        const q = searchQuery.toLowerCase();
+                        const connected = platforms.find(p => p.provider === config.provider);
+                        return (
+                          config.label.toLowerCase().includes(q) ||
+                          config.provider.toLowerCase().includes(q) ||
+                          (connected?.workspace_name?.toLowerCase().includes(q))
+                        );
+                      })
+                      .map((config) => {
+                        const connectedPlatform = platforms.find(p => p.provider === config.provider);
+                        return (
+                          <PlatformCard
+                            key={config.provider}
+                            config={config}
+                            connectedPlatform={connectedPlatform}
+                            onConnect={() => handleConnectPlatform(config.provider)}
+                            onNavigate={() => router.push(`/context/${config.provider}`)}
+                          />
+                        );
+                      })}
                   </div>
                 </section>
               )}
@@ -485,10 +517,7 @@ export default function ContextPage() {
                       />
                     ))}
                     {/* Add Document Card */}
-                    <AddSourceCard
-                      type="document"
-                      onClick={() => fileInputRef.current?.click()}
-                    />
+                    <AddDocumentCard onClick={() => fileInputRef.current?.click()} />
                   </div>
                 </section>
               )}
@@ -583,12 +612,14 @@ function SidebarItem({
   icon,
   label,
   count,
+  suffix,
   active,
   onClick,
 }: {
   icon: React.ReactNode;
   label: string;
   count: number;
+  suffix?: string;
   active: boolean;
   onClick: () => void;
 }) {
@@ -606,17 +637,19 @@ function SidebarItem({
         {icon}
         {label}
       </span>
-      <span className="text-xs text-muted-foreground">{count}</span>
+      <span className="text-xs text-muted-foreground">
+        {count}{suffix}
+      </span>
     </button>
   );
 }
 
 function EmptyState({
-  onConnectPlatform,
+  onViewPlatforms,
   onUploadDocument,
   onAddFact,
 }: {
-  onConnectPlatform: () => void;
+  onViewPlatforms: () => void;
   onUploadDocument: () => void;
   onAddFact: () => void;
 }) {
@@ -631,7 +664,7 @@ function EmptyState({
 
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <button
-          onClick={onConnectPlatform}
+          onClick={onViewPlatforms}
           className="p-6 border border-border rounded-lg hover:border-primary/50 hover:bg-muted/50 transition-all text-left"
         >
           <Link2 className="w-8 h-8 mb-3 text-primary" />
@@ -671,43 +704,69 @@ function EmptyState({
   );
 }
 
-function PlatformSourceCard({
-  platform,
-  onClick,
+function PlatformCard({
+  config,
+  connectedPlatform,
+  onConnect,
+  onNavigate,
 }: {
-  platform: PlatformSummary;
-  onClick: () => void;
+  config: PlatformConfig;
+  connectedPlatform?: PlatformSummary;
+  onConnect: () => void;
+  onNavigate: () => void;
 }) {
-  const colors = PLATFORM_COLORS[platform.provider] || { bg: 'bg-muted', text: 'text-foreground' };
-  const icon = PLATFORM_ICONS[platform.provider] || <Link2 className="w-5 h-5" />;
+  const isConnected = !!connectedPlatform;
 
   return (
     <button
-      onClick={onClick}
-      className="p-4 border border-border rounded-lg hover:border-primary/50 hover:shadow-sm transition-all text-left"
+      onClick={isConnected ? onNavigate : onConnect}
+      className={cn(
+        'p-4 border rounded-lg transition-all text-left',
+        isConnected
+          ? 'border-border hover:border-primary/50 hover:shadow-sm'
+          : 'border-dashed border-border hover:border-primary/50 hover:bg-muted/30'
+      )}
     >
       <div className="flex items-start justify-between mb-3">
-        <div className={cn('p-2 rounded-lg', colors.bg, colors.text)}>
-          {icon}
+        <div className={cn('p-2 rounded-lg', config.colors.bg, config.colors.text)}>
+          {config.icon}
         </div>
-        {platform.status === 'active' ? (
-          <CheckCircle2 className="w-4 h-4 text-green-500" />
-        ) : platform.status === 'error' ? (
-          <XCircle className="w-4 h-4 text-red-500" />
+        {isConnected ? (
+          connectedPlatform.status === 'active' ? (
+            <CheckCircle2 className="w-4 h-4 text-green-500" />
+          ) : connectedPlatform.status === 'error' ? (
+            <XCircle className="w-4 h-4 text-red-500" />
+          ) : (
+            <Clock className="w-4 h-4 text-amber-500" />
+          )
         ) : (
-          <Clock className="w-4 h-4 text-amber-500" />
+          <span className="text-xs text-muted-foreground">Connect</span>
         )}
       </div>
-      <h3 className="font-medium capitalize">{platform.provider}</h3>
-      {platform.workspace_name && (
-        <p className="text-xs text-muted-foreground truncate">{platform.workspace_name}</p>
+
+      <h3 className="font-medium">{config.label}</h3>
+
+      {isConnected ? (
+        <>
+          {connectedPlatform.workspace_name && (
+            <p className="text-xs text-muted-foreground truncate">
+              {connectedPlatform.workspace_name}
+            </p>
+          )}
+          <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
+            <span>
+              {connectedPlatform.resource_count} {connectedPlatform.resource_type || config.resourceType}
+            </span>
+            {connectedPlatform.connected_at && (
+              <span>
+                Connected {formatDistanceToNow(new Date(connectedPlatform.connected_at), { addSuffix: true })}
+              </span>
+            )}
+          </div>
+        </>
+      ) : (
+        <p className="text-xs text-muted-foreground mt-1">{config.description}</p>
       )}
-      <div className="flex items-center gap-3 mt-2 text-xs text-muted-foreground">
-        <span>{platform.resource_count} {platform.resource_type}</span>
-        {platform.activity_7d > 0 && (
-          <span>{platform.activity_7d} items (7d)</span>
-        )}
-      </div>
     </button>
   );
 }
@@ -866,13 +925,7 @@ function FactSourceCard({
   );
 }
 
-function AddSourceCard({
-  type,
-  onClick,
-}: {
-  type: 'platform' | 'document';
-  onClick: () => void;
-}) {
+function AddDocumentCard({ onClick }: { onClick: () => void }) {
   return (
     <button
       onClick={onClick}
@@ -881,9 +934,7 @@ function AddSourceCard({
       <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center mb-2">
         <Plus className="w-5 h-5 text-muted-foreground" />
       </div>
-      <p className="text-sm font-medium text-muted-foreground">
-        {type === 'platform' ? 'Connect Platform' : 'Upload Document'}
-      </p>
+      <p className="text-sm font-medium text-muted-foreground">Upload Document</p>
     </button>
   );
 }
