@@ -43,7 +43,7 @@ const PROVIDER_CONFIG: Record<
     resourceLabel: string;
     resourceLabelPlural: string;
     icon: React.ReactNode;
-    limitField: "slack_channels" | "gmail_labels" | "notion_pages";
+    limitField: "slack_channels" | "gmail_labels" | "notion_pages" | "calendar_events";
   }
 > = {
   slack: {
@@ -72,14 +72,14 @@ const PROVIDER_CONFIG: Record<
     resourceLabel: "Calendar",
     resourceLabelPlural: "Calendars",
     icon: <Calendar className="w-4 h-4" />,
-    limitField: "gmail_labels", // Placeholder until calendar limits added
+    limitField: "gmail_labels", // Google (non-calendar) uses Gmail limits
   },
   calendar: {
     label: "Calendar",
     resourceLabel: "Calendar",
     resourceLabelPlural: "Calendars",
     icon: <Calendar className="w-4 h-4" />,
-    limitField: "gmail_labels", // Placeholder until calendar limits added
+    limitField: "calendar_events",
   },
 };
 

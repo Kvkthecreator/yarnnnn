@@ -8,8 +8,8 @@
  *
  * Shows:
  * - Connection status and workspace info
- * - Resources list (channels/labels/pages/calendars) with coverage state
- * - Sync timestamps and item counts
+ * - Resources list with inline toggle for syncing (no modal)
+ * - Tier-based limits with upgrade prompts
  * - Deliverables targeting this platform
  * - Recent context extracted from this platform
  */
@@ -26,7 +26,6 @@ import {
   AlertCircle,
   Clock,
   XCircle,
-  ExternalLink,
   Hash,
   Tag,
   FileText,
@@ -34,11 +33,14 @@ import {
   Slack,
   Mail,
   FileCode,
+  Lock,
+  Check,
+  AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { SourceSelectionModal } from '@/components/platforms/SourceSelectionModal';
 
 // =============================================================================
 // Types
@@ -54,6 +56,13 @@ interface LandscapeResource {
   last_extracted_at: string | null;
   items_extracted: number;
   metadata: Record<string, unknown>;
+}
+
+interface SelectedSource {
+  id: string;
+  type: string;
+  name: string;
+  last_sync_at: string | null;
 }
 
 interface PlatformDeliverable {
@@ -86,6 +95,24 @@ interface IntegrationData {
   last_used_at: string | null;
 }
 
+interface TierLimits {
+  tier: 'free' | 'pro' | 'enterprise';
+  limits: {
+    slack_channels: number;
+    gmail_labels: number;
+    notion_pages: number;
+    calendar_events: number;
+    total_platforms: number;
+  };
+  usage: {
+    slack_channels: number;
+    gmail_labels: number;
+    notion_pages: number;
+    calendar_events: number;
+    platforms_connected: number;
+  };
+}
+
 // =============================================================================
 // Platform Configuration
 // =============================================================================
@@ -98,6 +125,7 @@ const PLATFORM_CONFIG: Record<PlatformProvider, {
   resourceIcon: React.ReactNode;
   resourceLabel: string;
   resourceLabelSingular: string;
+  limitField: keyof TierLimits['limits'];
 }> = {
   slack: {
     icon: <Slack className="w-6 h-6" />,
@@ -107,6 +135,7 @@ const PLATFORM_CONFIG: Record<PlatformProvider, {
     resourceIcon: <Hash className="w-4 h-4" />,
     resourceLabel: 'Channels',
     resourceLabelSingular: 'channel',
+    limitField: 'slack_channels',
   },
   gmail: {
     icon: <Mail className="w-6 h-6" />,
@@ -116,6 +145,7 @@ const PLATFORM_CONFIG: Record<PlatformProvider, {
     resourceIcon: <Tag className="w-4 h-4" />,
     resourceLabel: 'Labels',
     resourceLabelSingular: 'label',
+    limitField: 'gmail_labels',
   },
   notion: {
     icon: <FileCode className="w-6 h-6" />,
@@ -125,6 +155,7 @@ const PLATFORM_CONFIG: Record<PlatformProvider, {
     resourceIcon: <FileText className="w-4 h-4" />,
     resourceLabel: 'Pages',
     resourceLabelSingular: 'page',
+    limitField: 'notion_pages',
   },
   google: {
     icon: <Calendar className="w-6 h-6" />,
@@ -134,6 +165,7 @@ const PLATFORM_CONFIG: Record<PlatformProvider, {
     resourceIcon: <Calendar className="w-4 h-4" />,
     resourceLabel: 'Calendars',
     resourceLabelSingular: 'calendar',
+    limitField: 'gmail_labels', // Google (non-calendar) uses Gmail limits
   },
   calendar: {
     icon: <Calendar className="w-6 h-6" />,
@@ -143,6 +175,7 @@ const PLATFORM_CONFIG: Record<PlatformProvider, {
     resourceIcon: <Calendar className="w-4 h-4" />,
     resourceLabel: 'Calendars',
     resourceLabelSingular: 'calendar',
+    limitField: 'calendar_events',
   },
 };
 
@@ -162,22 +195,24 @@ export default function PlatformDetailPage() {
   // State
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Data
   const [integration, setIntegration] = useState<IntegrationData | null>(null);
   const [resources, setResources] = useState<LandscapeResource[]>([]);
-  const [coverageSummary, setCoverageSummary] = useState<{
-    total_resources: number;
-    covered_count: number;
-    coverage_percentage: number;
-  } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [originalIds, setOriginalIds] = useState<Set<string>>(new Set());
+  const [tierLimits, setTierLimits] = useState<TierLimits | null>(null);
   const [deliverables, setDeliverables] = useState<PlatformDeliverable[]>([]);
   const [recentMemories, setRecentMemories] = useState<PlatformMemory[]>([]);
-  const [sourceLimit, setSourceLimit] = useState<{ current: number; max: number } | null>(null);
 
-  // Modal state
-  const [showSourceModal, setShowSourceModal] = useState(false);
+  // Computed
+  const limit = tierLimits?.limits[config?.limitField || 'slack_channels'] || 5;
+  const atLimit = selectedIds.size >= limit;
+  const hasChanges = selectedIds.size !== originalIds.size ||
+    !Array.from(selectedIds).every(id => originalIds.has(id));
+  const totalItems = resources.reduce((sum, r) => sum + r.items_extracted, 0);
 
   // =============================================================================
   // Data Loading
@@ -195,17 +230,23 @@ export default function PlatformDetailPage() {
       setError(null);
 
       // Load all data in parallel
-      const [integrationResult, landscapeResult, deliverablesResult, memoriesResult, limitsResult] = await Promise.all([
+      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult] = await Promise.all([
         api.integrations.get(platform).catch(() => null),
-        api.integrations.getLandscape(platform, refresh).catch(() => ({ resources: [], coverage_summary: null })),
+        api.integrations.getLandscape(platform, refresh).catch(() => ({ resources: [] })),
+        api.integrations.getSources(platform).catch(() => ({ sources: [] })),
+        api.integrations.getLimits().catch(() => null),
         api.deliverables.list().catch(() => []),
         api.userMemories.list().catch(() => []),
-        api.integrations.getLimits().catch(() => ({ limits: {} })),
       ]);
 
       setIntegration(integrationResult);
       setResources(landscapeResult.resources || []);
-      setCoverageSummary(landscapeResult.coverage_summary || null);
+      setTierLimits(limitsResult);
+
+      // Set selected IDs from sources endpoint
+      const currentIds = new Set((sourcesResult.sources || []).map((s: SelectedSource) => s.id));
+      setSelectedIds(currentIds);
+      setOriginalIds(currentIds);
 
       // Filter deliverables targeting this platform
       const platformDeliverables = (deliverablesResult || []).filter(
@@ -218,18 +259,6 @@ export default function PlatformDetailPage() {
         .filter((m: PlatformMemory) => m.source_ref?.platform === platform)
         .slice(0, 10);
       setRecentMemories(platformMemories);
-
-      // Get source limits
-      const limitField = platform === 'slack' ? 'slack_channels' :
-                        platform === 'gmail' ? 'gmail_labels' :
-                        platform === 'notion' ? 'notion_pages' :
-                        'gmail_labels'; // fallback for google/calendar
-      const limits = limitsResult.limits as Record<string, number> | undefined;
-      const maxLimit = limits?.[limitField] || 5;
-      const currentCount = (landscapeResult.resources || []).filter(
-        (r: LandscapeResource) => r.coverage_state === 'covered' || r.coverage_state === 'partial'
-      ).length;
-      setSourceLimit({ current: currentCount, max: maxLimit });
 
     } catch (err) {
       console.error('Failed to load platform data:', err);
@@ -248,17 +277,49 @@ export default function PlatformDetailPage() {
   // Handlers
   // =============================================================================
 
+  const handleToggleSource = (sourceId: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(sourceId)) {
+        next.delete(sourceId);
+      } else if (next.size < limit) {
+        next.add(sourceId);
+      }
+      return next;
+    });
+  };
+
+  const handleSaveChanges = async () => {
+    setSaving(true);
+    setError(null);
+
+    try {
+      const result = await api.integrations.updateSources(platform, Array.from(selectedIds));
+      if (result.success) {
+        setOriginalIds(new Set(selectedIds));
+        // Optionally refresh to get updated coverage states
+        loadData(true);
+      } else {
+        setError('Failed to save changes');
+      }
+    } catch (err) {
+      console.error('Failed to save sources:', err);
+      setError('Failed to save changes');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDiscardChanges = () => {
+    setSelectedIds(new Set(originalIds));
+  };
+
   const handleCreateDeliverable = () => {
     router.push(`/deliverables/new?platform=${platform}`);
   };
 
   const handleViewDeliverable = (id: string) => {
     router.push(`/deliverables/${id}`);
-  };
-
-  const handleSourceModalSuccess = () => {
-    setShowSourceModal(false);
-    loadData(true);
   };
 
   // =============================================================================
@@ -338,9 +399,6 @@ export default function PlatformDetailPage() {
   // Render: Main Content
   // =============================================================================
 
-  const syncedCount = resources.filter(r => r.coverage_state === 'covered' || r.coverage_state === 'partial').length;
-  const totalItems = resources.reduce((sum, r) => sum + r.items_extracted, 0);
-
   return (
     <div className="h-full overflow-auto">
       {/* Header */}
@@ -415,20 +473,57 @@ export default function PlatformDetailPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <h2 className="text-base font-semibold">{config.resourceLabel}</h2>
-              {sourceLimit && (
-                <p className="text-sm text-muted-foreground">
-                  {syncedCount} of {sourceLimit.max} {config.resourceLabel.toLowerCase()} synced
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                {selectedIds.size} selected • {resources.length} available
+                {tierLimits && (
+                  <span className="ml-1">
+                    • {limit} max ({tierLimits.tier} tier)
+                  </span>
+                )}
+              </p>
             </div>
-            <button
-              onClick={() => setShowSourceModal(true)}
-              className="text-sm text-primary hover:underline flex items-center gap-1"
-            >
-              Manage sources
-              <ExternalLink className="w-3 h-3" />
-            </button>
+            {hasChanges && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDiscardChanges}
+                  className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Discard
+                </button>
+                <button
+                  onClick={handleSaveChanges}
+                  disabled={saving}
+                  className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+                >
+                  {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+                  Save changes
+                </button>
+              </div>
+            )}
           </div>
+
+          {/* Limit warning */}
+          {atLimit && !hasChanges && (
+            <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-medium text-amber-800 dark:text-amber-300">
+                    {config.resourceLabelSingular} limit reached
+                  </p>
+                  <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                    Your {tierLimits?.tier || 'free'} plan allows {limit} {config.resourceLabel.toLowerCase()}.
+                    {tierLimits?.tier === 'free' && (
+                      <button className="ml-1 underline hover:no-underline inline-flex items-center gap-1">
+                        <Sparkles className="w-3 h-3" />
+                        Upgrade to Pro
+                      </button>
+                    )}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {resources.length === 0 ? (
             <div className="border border-dashed border-border rounded-lg p-8 text-center">
@@ -445,7 +540,14 @@ export default function PlatformDetailPage() {
           ) : (
             <div className="border border-border rounded-lg divide-y divide-border">
               {resources.map((resource) => (
-                <ResourceRow key={resource.id} resource={resource} config={config} />
+                <ResourceRow
+                  key={resource.id}
+                  resource={resource}
+                  config={config}
+                  isSelected={selectedIds.has(resource.id)}
+                  onToggle={() => handleToggleSource(resource.id)}
+                  disabled={!selectedIds.has(resource.id) && atLimit}
+                />
               ))}
             </div>
           )}
@@ -508,7 +610,7 @@ export default function PlatformDetailPage() {
             <h2 className="text-base font-semibold">Recent Context from {config.label}</h2>
             {recentMemories.length > 0 && (
               <button
-                onClick={() => router.push(`/context?source=${platform}`)}
+                onClick={() => router.push(`/context?source=facts`)}
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
                 View all
@@ -522,7 +624,7 @@ export default function PlatformDetailPage() {
                 No context extracted from {config.label} yet.
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Import from a {config.resourceLabelSingular} to start building context.
+                Select {config.resourceLabel.toLowerCase()} above, then import to build context.
               </p>
             </div>
           ) : (
@@ -549,16 +651,6 @@ export default function PlatformDetailPage() {
           )}
         </section>
       </div>
-
-      {/* Source Selection Modal */}
-      {showSourceModal && (
-        <SourceSelectionModal
-          isOpen={showSourceModal}
-          onClose={() => setShowSourceModal(false)}
-          provider={platform as 'slack' | 'gmail' | 'notion' | 'google' | 'calendar'}
-          onSuccess={handleSourceModalSuccess}
-        />
-      )}
     </div>
   );
 }
@@ -570,40 +662,88 @@ export default function PlatformDetailPage() {
 function ResourceRow({
   resource,
   config,
+  isSelected,
+  onToggle,
+  disabled,
 }: {
   resource: LandscapeResource;
   config: typeof PLATFORM_CONFIG[PlatformProvider];
+  isSelected: boolean;
+  onToggle: () => void;
+  disabled: boolean;
 }) {
+  const isPrivate = resource.metadata?.is_private as boolean | undefined;
+  const memberCount = resource.metadata?.member_count as number | undefined;
+
   return (
-    <div className="px-4 py-3 flex items-center justify-between">
+    <button
+      onClick={onToggle}
+      disabled={disabled}
+      className={cn(
+        'w-full px-4 py-3 flex items-center justify-between transition-colors text-left',
+        isSelected
+          ? 'bg-primary/5'
+          : disabled
+            ? 'opacity-50 cursor-not-allowed'
+            : 'hover:bg-muted/50'
+      )}
+    >
       <div className="flex items-center gap-3">
-        <span className="text-muted-foreground">{config.resourceIcon}</span>
-        <div>
-          <p className="text-sm font-medium">{resource.name}</p>
-          {resource.items_extracted > 0 && (
-            <p className="text-xs text-muted-foreground">
-              {resource.items_extracted} items
-              {resource.last_extracted_at && (
-                <> • {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
+        {/* Checkbox */}
+        <div
+          className={cn(
+            'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0',
+            isSelected
+              ? 'bg-primary border-primary text-primary-foreground'
+              : 'border-muted-foreground/30'
+          )}
+        >
+          {isSelected && <Check className="w-3 h-3" />}
+        </div>
+
+        {/* Icon */}
+        <span className="text-muted-foreground flex-shrink-0">{config.resourceIcon}</span>
+
+        {/* Name and metadata */}
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-medium truncate">{resource.name}</span>
+            {isPrivate && (
+              <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+            )}
+          </div>
+          {(memberCount !== undefined || resource.items_extracted > 0) && (
+            <div className="text-xs text-muted-foreground">
+              {memberCount !== undefined && <span>{memberCount.toLocaleString()} members</span>}
+              {memberCount !== undefined && resource.items_extracted > 0 && <span> • </span>}
+              {resource.items_extracted > 0 && (
+                <span>
+                  {resource.items_extracted} items
+                  {resource.last_extracted_at && (
+                    <> synced {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
+                  )}
+                </span>
               )}
-            </p>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Coverage badge */}
       <CoverageBadge state={resource.coverage_state} />
-    </div>
+    </button>
   );
 }
 
 function CoverageBadge({ state }: { state: string }) {
-  const config: Record<string, { color: string; bg: string; label: string }> = {
+  const stateConfig: Record<string, { color: string; bg: string; label: string }> = {
     covered: { color: 'text-green-700 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', label: 'Synced' },
     partial: { color: 'text-yellow-700 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', label: 'Partial' },
     stale: { color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30', label: 'Stale' },
     uncovered: { color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-800', label: 'Not synced' },
     excluded: { color: 'text-gray-500 dark:text-gray-500', bg: 'bg-gray-50 dark:bg-gray-900', label: 'Excluded' },
   };
-  const { color, bg, label } = config[state] || config.uncovered;
+  const { color, bg, label } = stateConfig[state] || stateConfig.uncovered;
 
   return (
     <span className={cn('px-2 py-0.5 rounded text-xs font-medium', color, bg)}>

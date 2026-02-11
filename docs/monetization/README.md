@@ -10,6 +10,7 @@ This directory contains documentation for yarnnn's monetization strategy using L
 |----------|-------------|
 | [STRATEGY.md](./STRATEGY.md) | Business strategy, pricing tiers, and Lemon Squeezy setup |
 | [IMPLEMENTATION.md](./IMPLEMENTATION.md) | Technical implementation guide with code examples |
+| [LIMITS.md](./LIMITS.md) | Platform resource limits and enforcement framework |
 
 ## Quick Reference
 
@@ -19,7 +20,18 @@ This directory contains documentation for yarnnn's monetization strategy using L
 |------|-------|--------------|
 | Free | $0 | 1 project, 50 memories, 5 sessions/mo |
 | Pro | $19/mo | Unlimited projects, scheduled agents |
+| Enterprise | Custom | High limits, custom integrations, SLA |
 | Team | $49/seat/mo | Collaboration, SSO (future) |
+
+### Platform Resource Limits
+
+| Resource | Free | Pro | Enterprise |
+|----------|------|-----|------------|
+| Slack channels | 5 | 20 | 100 |
+| Gmail labels | 3 | 10 | 50 |
+| Notion pages | 5 | 25 | 100 |
+| Calendar events | 3 | 10 | 50 |
+| Total platforms | 3 | 10 | 50 |
 
 ### Key Environment Variables
 
@@ -49,14 +61,23 @@ CHECKOUT_SUCCESS_URL=https://yarnnn.com/dashboard?subscription=success
 
 ## Implementation Status
 
+### Subscription System (Lemon Squeezy)
 - [ ] Lemon Squeezy store setup
 - [ ] Product/variant configuration
-- [ ] Backend subscription routes
-- [ ] Database migrations
+- [x] Backend subscription routes (`api/routes/subscription.py`)
+- [x] Database migrations (`supabase/migrations/010_subscription_fields.sql`)
 - [ ] Frontend subscription components
 - [ ] Pricing page content
 - [ ] End-to-end testing
 - [ ] Production deployment
+
+### Platform Resource Limits
+- [x] Backend limit enforcement (`api/services/platform_limits.py`)
+- [x] Frontend limit display (platform detail page)
+- [x] Inline source selection with limit checking
+- [x] Upgrade prompts for free tier users at limit
+- [ ] Usage tracking dashboard
+- [ ] Overage handling/notifications
 
 ## Shared Account Notes
 

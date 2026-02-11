@@ -32,6 +32,12 @@ This document outlines the monetization strategy for yarnnn, leveraging the same
   - 5 chat sessions per month
   - No scheduled agents
   - Community support
+  - **Platform Resources**:
+    - 5 Slack channels
+    - 3 Gmail labels
+    - 5 Notion pages
+    - 3 Calendar events
+    - 3 total platforms
 
 ### Pro Tier
 - **Cost**: $19/month (or $190/year - 2 months free)
@@ -42,6 +48,26 @@ This document outlines the monetization strategy for yarnnn, leveraging the same
   - 5 scheduled agents per project
   - 100 agent executions per month
   - Priority support
+  - **Platform Resources**:
+    - 20 Slack channels
+    - 10 Gmail labels
+    - 25 Notion pages
+    - 10 Calendar events
+    - 10 total platforms
+
+### Enterprise Tier (Future)
+- **Cost**: Custom pricing
+- **Features**:
+  - Everything in Pro
+  - **Platform Resources**:
+    - 100 Slack channels
+    - 50 Gmail labels
+    - 100 Notion pages
+    - 50 Calendar events
+    - 50 total platforms
+  - Custom integrations
+  - Dedicated support
+  - SLA guarantees
 
 ### Team Tier (Future)
 - **Cost**: $49/month per seat
@@ -55,6 +81,13 @@ This document outlines the monetization strategy for yarnnn, leveraging the same
 ---
 
 ## Usage-Based Considerations
+
+### Platform Resource Limits
+Platform resources (channels, labels, pages, calendars) are the primary cost/value driver:
+- Resources require sync, storage, and API calls to external platforms
+- Limits prevent abuse and align value with pricing
+- Upgrade prompts shown when users hit limits
+- Implementation: `api/services/platform_limits.py`
 
 ### Agent Executions
 yarnnn's scheduled agents are the key differentiator. Consider:
@@ -86,13 +119,16 @@ yarnnn's scheduled agents are the key differentiator. Consider:
 3. **Webhook Configuration**
    - Endpoint: `https://api.yarnnn.com/webhooks/lemonsqueezy`
    - Events to enable:
-     - `subscription_created`
-     - `subscription_updated`
-     - `subscription_cancelled`
-     - `subscription_expired`
-     - `subscription_resumed`
-     - `subscription_payment_failed`
-     - `subscription_payment_success`
+     - `subscription_created` ✓ handled
+     - `subscription_updated` ✓ handled
+     - `subscription_cancelled` ✓ handled
+     - `subscription_expired` ✓ handled
+     - `subscription_resumed` ✓ handled
+     - `subscription_paused` (not yet handled)
+     - `subscription_unpaused` (not yet handled)
+     - `subscription_payment_failed` ✓ handled (logged only)
+     - `subscription_payment_success` ✓ handled
+     - `subscription_payment_recovered` (not yet handled)
    - Signing secret: Use strong random string
 
 ---
@@ -132,7 +168,7 @@ NEXT_PUBLIC_API_URL=https://api.yarnnn.com
 6. LS sends `subscription_created` webhook
 7. Backend verifies signature, updates user status
 8. User redirected to success URL
-9. Frontend reloads user data, shows premium features
+9. Frontend reloads user data, shows Pro features
 
 ### Manage Subscription Flow
 1. User clicks "Manage Subscription" in settings
@@ -208,7 +244,7 @@ async def check_subscription_limit(workspace_id: str, feature: str) -> bool:
     """Check if workspace has access to a feature based on subscription."""
     workspace = await get_workspace(workspace_id)
 
-    if workspace.subscription_status == "premium":
+    if workspace.subscription_status == "pro":
         return True  # Premium has all features
 
     # Free tier limits
@@ -229,10 +265,10 @@ async def check_subscription_limit(workspace_id: str, feature: str) -> bool:
 export function useSubscription() {
   const { workspace } = useWorkspace();
 
-  const isPremium = workspace?.subscription_status === "premium";
-  const canCreateAgent = isPremium; // Only premium can schedule agents
+  const isPro = workspace?.subscription_status === "pro";
+  const canCreateAgent = isPro; // Only premium can schedule agents
 
-  return { isPremium, canCreateAgent, ... };
+  return { isPro, canCreateAgent, ... };
 }
 ```
 

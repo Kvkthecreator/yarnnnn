@@ -795,12 +795,14 @@ export const api = {
           slack_channels: number;
           gmail_labels: number;
           notion_pages: number;
+          calendar_events: number;
           total_platforms: number;
         };
         usage: {
           slack_channels: number;
           gmail_labels: number;
           notion_pages: number;
+          calendar_events: number;
           platforms_connected: number;
         };
       }>("/api/user/limits"),

@@ -88,7 +88,7 @@ class CheckoutResponse(BaseModel):
 
 class SubscriptionStatus(BaseModel):
     """Current subscription status."""
-    status: str  # 'free', 'pro', 'cancelled'
+    status: str  # 'free', 'pro'
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
@@ -481,7 +481,7 @@ CREATE POLICY subscription_events_insert_service ON subscription_events
 
 ```typescript
 export interface SubscriptionStatus {
-  status: "free" | "pro" | "cancelled";
+  status: "free" | "pro";
   expires_at: string | null;
   customer_id: string | null;
   subscription_id: string | null;

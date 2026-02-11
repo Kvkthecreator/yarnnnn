@@ -18,6 +18,7 @@ class PlatformLimits:
     slack_channels: int
     gmail_labels: int
     notion_pages: int
+    calendar_events: int
     total_platforms: int
 
 
@@ -27,18 +28,21 @@ TIER_LIMITS = {
         slack_channels=5,
         gmail_labels=3,
         notion_pages=5,
+        calendar_events=3,
         total_platforms=3,
     ),
     "pro": PlatformLimits(
         slack_channels=20,
         gmail_labels=10,
         notion_pages=25,
+        calendar_events=10,
         total_platforms=10,
     ),
     "enterprise": PlatformLimits(
         slack_channels=100,
         gmail_labels=50,
         notion_pages=100,
+        calendar_events=50,
         total_platforms=50,
     ),
 }
@@ -47,7 +51,9 @@ TIER_LIMITS = {
 PROVIDER_LIMIT_MAP = {
     "slack": "slack_channels",
     "gmail": "gmail_labels",
+    "google": "gmail_labels",  # Google uses Gmail limits
     "notion": "notion_pages",
+    "calendar": "calendar_events",
 }
 
 
@@ -184,12 +190,14 @@ def get_usage_summary(client, user_id: str) -> dict:
             "slack_channels": limits.slack_channels,
             "gmail_labels": limits.gmail_labels,
             "notion_pages": limits.notion_pages,
+            "calendar_events": limits.calendar_events,
             "total_platforms": limits.total_platforms,
         },
         "usage": {
             "slack_channels": get_source_count(client, user_id, "slack"),
             "gmail_labels": get_source_count(client, user_id, "gmail"),
             "notion_pages": get_source_count(client, user_id, "notion"),
+            "calendar_events": get_source_count(client, user_id, "calendar"),
             "platforms_connected": get_platform_count(client, user_id),
         },
     }
