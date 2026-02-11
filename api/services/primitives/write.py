@@ -185,7 +185,7 @@ def _process_deliverable(data: dict) -> dict:
     - deliverable_type: defaults to 'custom' in schema
     - recipient_context: JSONB with {name, role, priorities}
     """
-    from services.deliverable_pipeline import calculate_next_run
+    from jobs.unified_scheduler import calculate_next_run_from_schedule
 
     # Build schedule JSONB from flat fields or existing schedule
     schedule = data.get("schedule", {})
@@ -221,12 +221,8 @@ def _process_deliverable(data: dict) -> dict:
 
     # Calculate next_run_at based on schedule
     if "next_run_at" not in data:
-        data["next_run_at"] = calculate_next_run(
-            frequency=schedule.get("frequency", "weekly"),
-            day=schedule.get("day"),
-            time=schedule.get("time", "09:00"),
-            timezone=schedule.get("timezone", "UTC"),
-        )
+        next_run = calculate_next_run_from_schedule(schedule)
+        data["next_run_at"] = next_run.isoformat()
 
     return data
 

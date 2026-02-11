@@ -97,6 +97,57 @@ def is_queue_available() -> bool:
         return False
 
 
+async def enqueue_job(
+    job_type: str,
+    **kwargs,
+) -> Optional[str]:
+    """
+    Enqueue a generic background job.
+
+    Args:
+        job_type: Type of job (platform_sync, deliverable_generate, work_execute)
+        **kwargs: Job-specific parameters (user_id, provider, etc.)
+
+    Returns:
+        Job ID if enqueued, None if queue not available
+    """
+    queue = _get_work_queue()
+    if queue is None:
+        logger.warning(f"Job queue not available - cannot enqueue {job_type}")
+        return None
+
+    try:
+        from rq import Retry
+
+        # Map job types to worker functions
+        worker_map = {
+            "platform_sync": "workers.platform_worker.sync_platform",
+            "deliverable_generate": "workers.deliverable_worker.generate_deliverable",
+            "work_execute": "workers.work_worker.execute_work_background",
+        }
+
+        worker_func = worker_map.get(job_type)
+        if not worker_func:
+            logger.error(f"Unknown job type: {job_type}")
+            return None
+
+        job = queue.enqueue(
+            worker_func,
+            kwargs=kwargs,
+            job_timeout=JOB_TIMEOUT_SECONDS,
+            result_ttl=JOB_RESULT_TTL_SECONDS,
+            retry=Retry(max=2, interval=[30, 60]),
+            description=f"{job_type}:{kwargs.get('user_id', 'unknown')[:8]}",
+        )
+
+        logger.info(f"Enqueued {job_type} job as {job.id}")
+        return job.id
+
+    except Exception as e:
+        logger.error(f"Failed to enqueue {job_type}: {e}")
+        return None
+
+
 async def enqueue_work(
     ticket_id: str,
     user_id: str,
