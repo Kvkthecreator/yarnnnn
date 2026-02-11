@@ -26,11 +26,12 @@ The question: does YARNNN need a separate memory layer, or can it treat platform
 2. **Introduce context injection** — Preload user profile, active deliverables, platform summaries, and recent session summaries at session start (analogous to Claude Code reading CLAUDE.md)
 3. **Demote domain entity** — Deferred; not essential for TP operations
 
-### Deferred Changes (Phase 2 - Pending Infrastructure)
+### Phase 2 Changes (Implemented 2026-02-11)
 
-4. **Demote memory from first-class entity to background cache** — Keep `memory` scope in Search for now; deprecate when `platform_content` scope is ready
-5. **Narrow Search scopes** — Replace `memory` scope with `platform_content` (requires `sync_summary` column and platform content indexing)
-6. **Move `memory.extract`** from Execute action catalog to background job triggered by `platform.sync`
+4. **Stop dual-write to memories** — Import jobs no longer write to `memories` table. Platform content stored ONLY in `ephemeral_context`.
+5. **Replace memory scope with platform_content** — Search primitive now uses `scope="platform_content"` to query `ephemeral_context` table.
+6. **Narrow memory table usage** — `memories` table now reserved for user-stated facts only (`source_type` IN ('chat', 'user_stated', 'conversation', 'preference')). No platform imports.
+7. **Add legacy scope redirect** — Search with `scope="memory"` automatically redirects to `platform_content` for backwards compatibility.
 
 ### The Mapping
 
@@ -131,10 +132,10 @@ When TP does `Execute(action="platform.publish", target="platform:slack")`, it w
 | 4 | Implement `build_session_context()` | ✅ Done |
 | 5 | Wire context injection into TP | ✅ Done |
 | 6 | Update tp-prompt-guide.md to v5 | ✅ Done |
-| 7 | Add `sync_summary` to platform schema | ⏸️ Phase 2 |
-| 8 | Add `platform_content` scope to Search | ⏸️ Phase 2 |
-| 9 | Remove `memory` scope from Search | ⏸️ Phase 2 |
-| 10 | Move `memory.extract` to background job | ⏸️ Phase 2 |
+| 7 | Stop dual-write to memories in import_jobs.py | ✅ Done (Phase 2) |
+| 8 | Add `platform_content` scope to Search | ✅ Done (Phase 2) |
+| 9 | Redirect legacy `memory` scope to `platform_content` | ✅ Done (Phase 2) |
+| 10 | Update refs.py with platform_content entity type | ✅ Done (Phase 2) |
 
 ---
 

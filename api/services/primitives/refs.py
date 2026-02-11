@@ -1,26 +1,29 @@
 """
-Reference Parsing and Resolution
+Reference Parsing and Resolution (ADR-038 Phase 2)
 
 Grammar: <type>:<identifier>[/<subpath>][?<query>]
 
 Examples:
   deliverable:uuid-123          # Specific by ID
   deliverable:latest            # Most recent
-  platform:twitter              # By name
-  platform:twitter/credentials  # Sub-entity
-  memory:*                      # All memories
-  memory:?type=fact&limit=10    # Query filter
+  platform:slack                # By provider name
+  platform:slack/credentials    # Sub-entity
+  platform_content:*            # All platform content (ephemeral_context)
   session:current               # Special reference
 
 Entity types:
   - deliverable: Content deliverables
   - platform: Connected platforms (user_integrations)
-  - memory: Context memories
+  - platform_content: Imported platform data (ephemeral_context) - ADR-038
+  - memory: User-stated facts only (source_type='chat', 'user_stated')
   - session: Chat sessions
   - domain: Context domains
   - document: Uploaded documents
   - work: Work execution records
   - action: Executable actions (for discovery)
+
+NOTE: Per ADR-038, 'memory' is narrowed to user-stated facts only.
+      Platform content (Slack/Gmail/Notion imports) lives in ephemeral_context.
 
 Special identifiers:
   - new: For Write operations (create)
@@ -69,7 +72,8 @@ class EntityRef:
 ENTITY_TYPES = {
     "deliverable",
     "platform",
-    "memory",
+    "platform_content",  # ADR-038: ephemeral_context
+    "memory",  # Narrowed to user-stated facts only
     "session",
     "domain",
     "document",
@@ -151,7 +155,8 @@ def parse_ref(ref: str) -> EntityRef:
 TABLE_MAP = {
     "deliverable": "deliverables",
     "platform": "user_integrations",
-    "memory": "memories",
+    "platform_content": "ephemeral_context",  # ADR-038
+    "memory": "memories",  # Narrowed to user-stated facts
     "session": "chat_sessions",
     "domain": "context_domains",
     "document": "documents",

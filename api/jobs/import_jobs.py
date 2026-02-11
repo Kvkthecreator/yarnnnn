@@ -225,12 +225,14 @@ async def update_coverage_state(
     coverage_state: str,
     scope: dict,
     items_extracted: int,
-    blocks_created: int,
+    blocks_created: int,  # Number of context blocks identified (stored in ephemeral_context per ADR-038)
 ) -> None:
     """
     ADR-030: Update coverage state for a resource after extraction.
 
     Upserts integration_coverage record with extraction results.
+    Note: blocks_created tracks blocks extracted, which are now stored
+    in ephemeral_context (not memories) per ADR-038.
     """
     try:
         # Check if exists
@@ -272,91 +274,10 @@ async def update_coverage_state(
         logger.warning(f"[COVERAGE] Failed to update coverage state: {e}")
 
 
-async def store_memory_blocks(
-    supabase_client,
-    user_id: str,
-    project_id: Optional[str],
-    blocks: list,
-    source_ref: dict
-) -> int:
-    """
-    Store extracted context blocks as memories with domain routing.
-
-    ADR-034: Emergent Context Domains
-    - Memories are routed to domains based on source (provider + resource_id)
-    - Domain is looked up from domain_sources table
-    - Falls back to default (uncategorized) domain if source not in any domain
-    - project_id is deprecated, domain_id is the new scoping mechanism
-
-    Args:
-        supabase_client: Supabase client
-        user_id: User ID
-        project_id: Deprecated - kept for backward compatibility
-        blocks: List of ContextBlock objects from the agent
-        source_ref: Provenance info (platform, resource_id, job_id)
-
-    Returns:
-        Number of memories created
-    """
-    if not blocks:
-        return 0
-
-    # ADR-034: Look up domain for this source
-    provider = source_ref.get("platform")
-    resource_id = source_ref.get("resource_id")
-
-    domain_id = None
-    if provider and resource_id:
-        # Try to find domain for this source
-        domain_result = supabase_client.rpc("find_domain_for_source", {
-            "p_user_id": user_id,
-            "p_provider": provider,
-            "p_resource_id": resource_id
-        }).execute()
-
-        domain_id = domain_result.data if domain_result.data else None
-
-    # Fall back to default domain if source not mapped
-    if not domain_id:
-        default_result = supabase_client.rpc("get_or_create_default_domain", {
-            "p_user_id": user_id
-        }).execute()
-        domain_id = default_result.data
-
-    logger.info(
-        f"[IMPORT] Routing memories to domain {domain_id} "
-        f"(source: {provider}/{resource_id})"
-    )
-
-    # Map block types to importance scores
-    importance_map = {
-        "decision": 0.9,
-        "action_item": 0.8,
-        "technical": 0.7,
-        "context": 0.6,
-        "person": 0.7,
-    }
-
-    memories_to_insert = []
-    for block in blocks:
-        memories_to_insert.append({
-            "user_id": user_id,
-            "project_id": project_id,  # Deprecated, kept for backward compatibility
-            "domain_id": domain_id,  # ADR-034: New domain-based scoping
-            "content": block.content,
-            "source_type": "import",
-            "source_ref": {
-                **source_ref,
-                "block_type": block.block_type,
-                "metadata": block.metadata,
-            },
-            "importance": importance_map.get(block.block_type, 0.5),
-            "tags": [block.block_type],  # Tag with block type
-        })
-
-    result = supabase_client.table("memories").insert(memories_to_insert).execute()
-
-    return len(result.data) if result.data else 0
+# NOTE: store_memory_blocks() removed per ADR-038 Phase 2
+# Platform content now stored ONLY in ephemeral_context table.
+# The memories table is reserved for user-stated facts (source_type='chat', 'user_stated').
+# See: ADR-038-filesystem-as-context.md
 
 
 async def process_slack_import(
@@ -475,31 +396,9 @@ async def process_slack_import(
     )
     logger.info(f"[IMPORT] Stored {ephemeral_stored} messages to ephemeral_context")
 
-    # ADR-030: Update progress
-    await update_job_progress(
-        supabase_client,
-        job["id"],
-        progress=85,
-        phase="storing",
-        items_total=len(import_result.blocks) if import_result.blocks else 0,
-        items_completed=0,
-        current_resource=resource_name,
-    )
-
-    # 5. Store extracted blocks as memories (for long-term context)
-    project_id = job.get("project_id")
-    blocks_created = await store_memory_blocks(
-        supabase_client,
-        user_id=user_id,
-        project_id=project_id,
-        blocks=import_result.blocks,
-        source_ref={
-            "platform": "slack",
-            "resource_id": resource_id,
-            "resource_name": resource_name,
-            "job_id": job["id"],
-        },
-    )
+    # ADR-038: Extracted blocks count tracked but NOT stored to memories
+    # Platform content lives in ephemeral_context only
+    blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
     await update_job_progress(
@@ -507,8 +406,8 @@ async def process_slack_import(
         job["id"],
         progress=95,
         phase="storing",
-        items_total=blocks_created,
-        items_completed=blocks_created,
+        items_total=blocks_extracted,
+        items_completed=blocks_extracted,
         current_resource=resource_name,
     )
 
@@ -553,11 +452,11 @@ async def process_slack_import(
         coverage_state="partial",  # Slack is always partial (time-based)
         scope=scope,
         items_extracted=len(messages),
-        blocks_created=blocks_created,
+        blocks_created=blocks_extracted,  # ADR-038: blocks extracted (not stored to memories)
     )
 
     return {
-        "blocks_created": blocks_created,
+        "blocks_extracted": blocks_extracted,  # ADR-038: renamed from blocks_created
         "ephemeral_stored": ephemeral_stored,  # ADR-031
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
@@ -677,31 +576,9 @@ async def process_notion_import(
     )
     logger.info(f"[IMPORT] Stored Notion page to ephemeral_context: {ephemeral_id}")
 
-    # ADR-030: Update progress
-    await update_job_progress(
-        supabase_client,
-        job["id"],
-        progress=85,
-        phase="storing",
-        items_total=len(import_result.blocks) if import_result.blocks else 0,
-        items_completed=0,
-        current_resource=resource_name,
-    )
-
-    # 3. Store extracted blocks as memories (for long-term context)
-    project_id = job.get("project_id")
-    blocks_created = await store_memory_blocks(
-        supabase_client,
-        user_id=user_id,
-        project_id=project_id,
-        blocks=import_result.blocks,
-        source_ref={
-            "platform": "notion",
-            "resource_id": resource_id,
-            "resource_name": resource_name,
-            "job_id": job["id"],
-        },
-    )
+    # ADR-038: Extracted blocks count tracked but NOT stored to memories
+    # Platform content lives in ephemeral_context only
+    blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
     await update_job_progress(
@@ -709,8 +586,8 @@ async def process_notion_import(
         job["id"],
         progress=95,
         phase="storing",
-        items_total=blocks_created,
-        items_completed=blocks_created,
+        items_total=blocks_extracted,
+        items_completed=blocks_extracted,
         current_resource=resource_name,
     )
 
@@ -747,11 +624,11 @@ async def process_notion_import(
         coverage_state="covered",  # Single page = covered
         scope=scope,
         items_extracted=1,  # Single page
-        blocks_created=blocks_created,
+        blocks_created=blocks_extracted,  # ADR-038: blocks extracted (not stored to memories)
     )
 
     return {
-        "blocks_created": blocks_created,
+        "blocks_extracted": blocks_extracted,  # ADR-038: renamed from blocks_created
         "ephemeral_stored": 1,  # ADR-031: Single page stored
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
@@ -947,31 +824,9 @@ async def process_gmail_import(
     )
     logger.info(f"[IMPORT] Stored {ephemeral_stored} emails to ephemeral_context")
 
-    # ADR-030: Update progress
-    await update_job_progress(
-        supabase_client,
-        job["id"],
-        progress=85,
-        phase="storing",
-        items_total=len(import_result.blocks) if import_result.blocks else 0,
-        items_completed=0,
-        current_resource=resource_name,
-    )
-
-    # Store extracted blocks as memories (for long-term context)
-    project_id = job.get("project_id")
-    blocks_created = await store_memory_blocks(
-        supabase_client,
-        user_id=user_id,
-        project_id=project_id,
-        blocks=import_result.blocks,
-        source_ref={
-            "platform": "gmail",
-            "resource_id": resource_id,
-            "resource_name": resource_name,
-            "job_id": job["id"],
-        },
-    )
+    # ADR-038: Extracted blocks count tracked but NOT stored to memories
+    # Platform content lives in ephemeral_context only
+    blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
     await update_job_progress(
@@ -979,8 +834,8 @@ async def process_gmail_import(
         job["id"],
         progress=95,
         phase="storing",
-        items_total=blocks_created,
-        items_completed=blocks_created,
+        items_total=blocks_extracted,
+        items_completed=blocks_extracted,
         current_resource=resource_name,
     )
 
@@ -1017,11 +872,11 @@ async def process_gmail_import(
         coverage_state="partial" if recency_days < 90 else "covered",
         scope=scope,
         items_extracted=len(full_messages),
-        blocks_created=blocks_created,
+        blocks_created=blocks_extracted,  # ADR-038: blocks extracted (not stored to memories)
     )
 
     return {
-        "blocks_created": blocks_created,
+        "blocks_extracted": blocks_extracted,  # ADR-038: renamed from blocks_created
         "ephemeral_stored": ephemeral_stored,  # ADR-031
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
@@ -1093,8 +948,8 @@ async def process_import_job(supabase_client, job: dict) -> bool:
 
         logger.info(
             f"[IMPORT] ✓ Completed job {job_id}: "
-            f"{result.get('blocks_created', 0)} blocks created, "
-            f"{result.get('items_processed', 0)} items processed"
+            f"{result.get('ephemeral_stored', 0)} items stored to ephemeral_context, "
+            f"{result.get('blocks_extracted', 0)} blocks extracted"
         )
         return True
 

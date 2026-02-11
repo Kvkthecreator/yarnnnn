@@ -240,7 +240,8 @@ class StartImportRequest(BaseModel):
 
 class ImportJobResultResponse(BaseModel):
     """Result details for a completed import job."""
-    blocks_created: int = 0
+    blocks_extracted: int = 0  # ADR-038: renamed from blocks_created (no longer stored to memories)
+    ephemeral_stored: int = 0  # ADR-038: items stored to ephemeral_context
     items_processed: int = 0
     items_filtered: int = 0
     summary: Optional[str] = None
@@ -262,7 +263,9 @@ def _parse_import_result(result_dict: Optional[dict]) -> Optional[ImportJobResul
     if not result_dict:
         return None
     return ImportJobResultResponse(
-        blocks_created=result_dict.get("blocks_created", 0),
+        # ADR-038: Support both old and new field names for backwards compatibility
+        blocks_extracted=result_dict.get("blocks_extracted", result_dict.get("blocks_created", 0)),
+        ephemeral_stored=result_dict.get("ephemeral_stored", 0),
         items_processed=result_dict.get("items_processed", 0),
         items_filtered=result_dict.get("items_filtered", 0),
         summary=result_dict.get("summary"),
