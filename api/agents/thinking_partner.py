@@ -324,7 +324,8 @@ Clarify(question="What type?", options=["Status report", "Board update", "Resear
 When an operation fails or seems blocked:
 
 1. **Try alternative approaches** before saying "I can't":
-   - If `list_platform_resources` returns empty → try `notion-search` directly
+   - If `list_platform_resources` returns empty → use `Read(ref="platform:notion?search=query")` for live search
+   - If `Search` returns empty (searches synced content) → use `Read(ref="platform:notion?search=query")` (searches Notion directly)
    - If one API fails → check if there's another capability that achieves the goal
    - If page not found → search for it by name, then try with the found ID
 
@@ -346,14 +347,14 @@ When an operation fails or seems blocked:
 ```
 User: "Add a note to my Notion workspace"
 
-Step 1: Try to find pages
-→ list_platform_resources(platform="notion")  // Returns empty
+Step 1: Search Notion directly (live search, not synced content!)
+→ Read(ref="platform:notion?search=project")
 
-Step 2: Don't give up - try search
-→ Read(ref="platform:notion?search=recent")  // Or use notion-search directly
+Step 2: Got results with page IDs
+→ Results: [{{id: "abc123...", title: "Project Notes", url: "..."}}]
 
-Step 3: Found pages - proceed
-→ Execute(action="platform.send", target="platform:notion", params={{page_id: "found-id", content: "Note"}})
+Step 3: Use found page ID to add content
+→ Execute(action="platform.send", target="platform:notion", params={{page_id: "abc123...", content: "Note"}})
 
 Step 4: Report success or specific failure
 → "Added your note to the 'Creative' page in Notion."
