@@ -74,7 +74,8 @@ def _generate_digest_blocks(content: str, metadata: dict) -> list[dict]:
     - Unanswered Questions section (if any)
     - Key Discussions section
     - Action Items section (if any)
-    - Footer with generation info
+
+    Note: No footer or attribution - user owns the content (ADR-032).
     """
     blocks = []
     title = metadata.get("title", "Channel Digest")
