@@ -191,18 +191,19 @@ Use `Execute(action="platform.send", ...)` for ad-hoc messages.
 **IMPORTANT**: `platform.send` is for direct messages. `platform.publish` is ONLY for publishing deliverables.
 
 **Slack channel param** - valid formats:
+- `"self"` - DM to the user (recommended for messaging the user)
 - `C0123ABC456` - Channel ID (posts to channel)
 - `#general` - Channel name (posts to channel)
 - `U0123ABC456` - User ID (auto-opens DM, then posts)
 
-**@mentions like @me, @self, @username do NOT work** - use user ID (U...) instead.
+**@mentions like @me, @self, @username do NOT work** - use `"self"` or user ID (U...) instead.
 
 ```
+// Send DM to user - use "self"
+Execute(action="platform.send", target="platform:slack", params={{channel: "self", message: "Hey!"}})
+
 // Send to Slack channel
 Execute(action="platform.send", target="platform:slack", params={{channel: "#general", message: "Hello!"}})
-
-// Send DM to Slack user (auto-opens DM)
-Execute(action="platform.send", target="platform:slack", params={{channel: "U0123ABC456", message: "Hey!"}})
 
 // Gmail
 Execute(action="platform.send", target="platform:gmail", params={{to: "user@example.com", subject: "Hi", body: "Message"}})

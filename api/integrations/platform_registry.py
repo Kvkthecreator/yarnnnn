@@ -33,14 +33,15 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
                     r"^C[A-Z0-9]+$",  # Channel ID: C0123ABC456
                     r"^#[\w-]+$",     # Channel name: #general
                     r"^U[A-Z0-9]+$",  # User ID: U0123ABC456 (auto-opens DM)
+                    r"^self$",        # "self" resolves to authed user (case-insensitive)
                 ],
-                "valid_examples": ["C0123ABC456", "#general", "U0123ABC456"],
+                "valid_examples": ["C0123ABC456", "#general", "U0123ABC456", "self"],
                 "invalid_patterns": [
                     r"^@",  # @mentions don't work
                 ],
                 "invalid_examples": ["@me", "@self", "@username"],
                 "resolution_tool": "list_platform_resources",
-                "error_hint": "Use channel ID (C...), #channel-name, or user ID (U...) for DMs. Call list_platform_resources(platform='slack') to find valid targets.",
+                "error_hint": "Use channel ID (C...), #channel-name, user ID (U...), or 'self' for DM to yourself.",
             },
             "message": {
                 "description": "Message content to send",

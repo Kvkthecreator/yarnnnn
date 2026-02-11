@@ -30,32 +30,41 @@ Each platform (Slack, Gmail, Notion) has unique requirements that differ from wh
 ### Valid Channel Formats
 
 ```
+✅ self            (DM to the user - recommended!)
 ✅ C0123ABC456     (Channel ID - posts to channel)
 ✅ #general        (Channel name - posts to channel)
 ✅ #team-updates   (Channel name - posts to channel)
 ✅ U0123ABC456     (User ID - auto-opens DM, then posts)
-❌ @username       (Not valid - use user ID instead)
-❌ @me             (Not valid - use user ID instead)
+❌ @username       (Not valid - use "self" or user ID)
+❌ @me             (Not valid - use "self")
 ❌ general         (Missing # prefix)
 ```
 
 ### Sending DMs
 
-**Now supported!** Use the user's Slack ID (starts with `U`):
+**Use `"self"` to DM the user:**
+
+```
+Execute(action="platform.send", target="platform:slack", params={channel: "self", message: "Hey!"})
+```
+
+This resolves to the user's Slack ID (stored during OAuth) and auto-opens a DM.
+
+**Or use a specific user ID** (starts with `U`):
 
 ```
 Execute(action="platform.send", target="platform:slack", params={channel: "U0123ABC456", message: "Hey!"})
 ```
 
 The system automatically:
-1. Opens a DM channel with the user (`conversations.open`)
-2. Sends the message to that DM channel
+1. Resolves `"self"` to the authed user's Slack ID (if used)
+2. Opens a DM channel with the user (`conversations.open`)
+3. Sends the message to that DM channel
 
-**How to get user ID**:
+**How to get other users' IDs**:
 - Use `list_platform_resources(platform="slack")` - returns users with their IDs
-- Or look up by email via Slack's `users.lookupByEmail` API
 
-**Alternative**: For simple notifications to the YARNNN user, use `send_notification` (sends email).
+**Alternative**: For simple notifications, use `send_notification` (sends email).
 
 ### Common Errors
 

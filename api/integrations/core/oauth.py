@@ -273,6 +273,10 @@ async def exchange_code_for_token(
 
             # Extract tokens and metadata
             token_manager = get_token_manager()
+
+            # Get authed user info (the human who authorized, not the bot)
+            authed_user = data.get("authed_user", {})
+
             return {
                 "user_id": user_id,
                 "provider": provider,
@@ -283,6 +287,7 @@ async def exchange_code_for_token(
                     "team_name": data.get("team", {}).get("name"),
                     "workspace_name": data.get("team", {}).get("name"),
                     "bot_user_id": data.get("bot_user_id"),
+                    "authed_user_id": authed_user.get("id"),  # User who authorized - for DMs to "self"
                     "scope": data.get("scope"),
                 },
                 "status": IntegrationStatus.ACTIVE.value,

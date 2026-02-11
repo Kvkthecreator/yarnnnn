@@ -445,6 +445,7 @@ async def _send_slack_message(auth, params, access_token, metadata, logger):
     - Channel IDs (C...): Posts to channel
     - Channel names (#...): Posts to channel
     - User IDs (U...): Auto-opens DM and posts there
+    - "self": DMs the user who authorized the integration
 
     ADR-047: Auto-open DM for user IDs enables direct messaging.
     """
@@ -455,17 +456,28 @@ async def _send_slack_message(auth, params, access_token, metadata, logger):
     if not MCP_AVAILABLE:
         raise ValueError("MCP not available. Install: pip install mcp")
 
-    # Validate params using registry
-    is_valid, errors = validate_params("slack", params)
-    if not is_valid:
-        raise ValueError(f"Invalid Slack params: {'; '.join(errors)}")
-
     channel = params.get("channel")
     message = params.get("message")
     team_id = metadata.get("team_id")
 
     if not team_id:
         raise ValueError("Missing team_id in Slack integration metadata")
+
+    # Resolve "self" to the authed user's Slack ID
+    if channel and channel.lower() == "self":
+        authed_user_id = metadata.get("authed_user_id")
+        if not authed_user_id:
+            raise ValueError(
+                "Cannot resolve 'self' - authed_user_id not in integration metadata. "
+                "Reconnect Slack to capture your user ID, or use list_platform_resources to find it."
+            )
+        channel = authed_user_id
+        logger.info(f"[PLATFORM_SEND] Resolved 'self' to user ID {channel}")
+
+    # Validate params using registry (after resolving 'self')
+    is_valid, errors = validate_params("slack", {"channel": channel, "message": message})
+    if not is_valid:
+        raise ValueError(f"Invalid Slack params: {'; '.join(errors)}")
 
     mcp = get_mcp_manager()
 
