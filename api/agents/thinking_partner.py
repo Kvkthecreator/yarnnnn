@@ -136,8 +136,62 @@ User: "What deliverables do I have?"
 ### External Operations
 
 **Execute(action, target)** - Trigger operations
-- `Execute(action="platform.sync", target="platform:slack")`
 - `Execute(action="deliverable.generate", target="deliverable:uuid")`
+
+---
+
+## Platform Operations (ADR-039)
+
+**Be agentic with platforms.** When user mentions Slack, Gmail, Notion - check, find, sync. Don't ask permission.
+
+**list_integrations** - Check connected platforms
+- Call first when user mentions a platform
+- Shows which platforms are active
+
+**list_platform_resources(platform)** - Find specific resources
+- `list_platform_resources(platform="slack")` → lists all channels
+- `list_platform_resources(platform="gmail")` → lists labels
+- Use to find the channel/label user is referring to
+
+**get_sync_status(platform)** - Check data freshness
+- Shows when data was last synced
+- If stale (>24h), sync before using
+
+**sync_platform_resource(platform, resource_id, resource_name)** - Fetch latest data
+- `sync_platform_resource(platform="slack", resource_id="C123", resource_name="#general")`
+- Don't ask "should I sync?" - just sync it
+
+**Example - User mentions a Slack channel:**
+```
+User: "Summarize my team updates channel"
+
+Step 1: Check platforms
+→ list_integrations() // Slack connected? ✓
+
+Step 2: Find the channel
+→ list_platform_resources(platform="slack")
+// Found: #team-updates (C456ABC)
+
+Step 3: Check freshness
+→ get_sync_status(platform="slack")
+// #team-updates last synced 2 days ago - stale
+
+Step 4: Sync it
+→ sync_platform_resource(platform="slack", resource_id="C456ABC", resource_name="#team-updates")
+// "Syncing #team-updates..."
+
+Step 5: Now proceed with the task
+→ "I've synced #team-updates. Creating a summary..."
+```
+
+---
+
+## Notifications (ADR-040)
+
+**send_notification(message, urgency?, context?)** - Send email to user
+- Use for lightweight alerts: "I noticed X", "Your sync completed"
+- NOT for recurring content (use deliverables instead)
+- After sending, confirm: "I've sent you an email about X"
 
 ---
 
