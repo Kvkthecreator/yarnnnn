@@ -1789,3 +1789,194 @@ async def update_coverage(
         }).execute()
 
     return {"success": True, "resource_id": resource_id, "coverage_state": request.coverage_state}
+
+
+# =============================================================================
+# ADR-043: User Limits & Source Selection
+# =============================================================================
+
+class UserLimitsResponse(BaseModel):
+    """User's tier limits and current usage."""
+    tier: str
+    limits: dict[str, int]
+    usage: dict[str, int]
+
+
+class SelectedSourcesRequest(BaseModel):
+    """Request to update selected sources for a platform."""
+    source_ids: list[str]
+
+
+class SelectedSourcesResponse(BaseModel):
+    """Response with updated sources."""
+    success: bool
+    selected_sources: list[dict[str, Any]]
+    message: str
+
+
+@router.get("/user/limits")
+async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
+    """
+    Get user's tier limits and current usage.
+
+    ADR-043: Returns platform resource limits based on user tier
+    and current usage counts for frontend limit enforcement.
+    """
+    from services.platform_limits import get_usage_summary
+
+    summary = get_usage_summary(auth.client, auth.user_id)
+
+    return UserLimitsResponse(
+        tier=summary["tier"],
+        limits=summary["limits"],
+        usage=summary["usage"],
+    )
+
+
+@router.put("/integrations/{provider}/sources")
+async def update_selected_sources(
+    provider: str,
+    request: SelectedSourcesRequest,
+    auth: UserClient
+) -> SelectedSourcesResponse:
+    """
+    Update selected sources for a platform.
+
+    ADR-043: Validates against user's tier limits. If over limit,
+    truncates to max allowed and returns warning.
+
+    Sources are stored in user_integrations.landscape.selected_sources.
+    """
+    from services.platform_limits import validate_sources_update
+
+    user_id = auth.user_id
+
+    # Validate against limits
+    valid, message, allowed_ids = validate_sources_update(
+        auth.client, user_id, provider, request.source_ids
+    )
+
+    # Get integration
+    integration = auth.client.table("user_integrations").select(
+        "id, landscape"
+    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+
+    if not integration.data:
+        raise HTTPException(status_code=404, detail=f"No {provider} integration found")
+
+    # Get current landscape
+    landscape = integration.data.get("landscape", {}) or {}
+    resources = landscape.get("resources", [])
+
+    # Build selected sources list from allowed IDs
+    selected_sources = []
+    resource_map = {r.get("id"): r for r in resources}
+    for source_id in allowed_ids:
+        if source_id in resource_map:
+            r = resource_map[source_id]
+            selected_sources.append({
+                "id": source_id,
+                "name": r.get("name", source_id),
+                "type": r.get("type", "unknown"),
+            })
+
+    # Update landscape with selected sources
+    landscape["selected_sources"] = selected_sources
+    auth.client.table("user_integrations").update({
+        "landscape": landscape,
+    }).eq("id", integration.data["id"]).execute()
+
+    logger.info(f"[INTEGRATIONS] User {user_id} updated {provider} sources: {len(selected_sources)} selected")
+
+    return SelectedSourcesResponse(
+        success=valid,
+        selected_sources=selected_sources,
+        message=message,
+    )
+
+
+@router.get("/integrations/{provider}/sources")
+async def get_selected_sources(
+    provider: str,
+    auth: UserClient
+) -> dict[str, Any]:
+    """
+    Get currently selected sources for a platform.
+
+    ADR-043: Returns the sources currently enabled for sync/context gathering.
+    """
+    user_id = auth.user_id
+
+    integration = auth.client.table("user_integrations").select(
+        "landscape"
+    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+
+    if not integration.data:
+        raise HTTPException(status_code=404, detail=f"No {provider} integration found")
+
+    landscape = integration.data.get("landscape", {}) or {}
+    selected = landscape.get("selected_sources", [])
+
+    return {
+        "provider": provider,
+        "selected_sources": selected,
+        "count": len(selected),
+    }
+
+
+@router.post("/integrations/{provider}/sync")
+async def trigger_platform_sync(
+    provider: str,
+    auth: UserClient,
+    background_tasks: BackgroundTasks
+) -> dict[str, Any]:
+    """
+    Trigger an on-demand sync for a platform.
+
+    ADR-043 / DECISION-001: Syncs selected sources only.
+    Runs in background, returns immediately.
+    """
+    from services.job_queue import enqueue_job
+
+    user_id = auth.user_id
+
+    # Verify integration exists
+    integration = auth.client.table("user_integrations").select(
+        "id, status, landscape"
+    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+
+    if not integration.data:
+        raise HTTPException(status_code=404, detail=f"No {provider} integration found")
+
+    if integration.data["status"] != "active":
+        raise HTTPException(status_code=400, detail=f"{provider} integration is not active")
+
+    # Get selected sources
+    landscape = integration.data.get("landscape", {}) or {}
+    selected = landscape.get("selected_sources", [])
+
+    if not selected:
+        return {
+            "success": False,
+            "message": "No sources selected. Please select sources first.",
+        }
+
+    # Enqueue sync job
+    job_id = await enqueue_job(
+        auth.client,
+        "platform_sync",
+        {
+            "user_id": user_id,
+            "provider": provider,
+            "source_ids": [s["id"] for s in selected],
+        }
+    )
+
+    logger.info(f"[INTEGRATIONS] User {user_id} triggered {provider} sync, job={job_id}")
+
+    return {
+        "success": True,
+        "job_id": job_id,
+        "message": f"Sync started for {len(selected)} {provider} sources",
+        "sources_count": len(selected),
+    }
