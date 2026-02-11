@@ -271,6 +271,9 @@ export interface IntegrationImportFilters {
 
 // ADR-019: Deliverable Types
 // ADR-029 Phase 3: Added email-specific deliverable types
+// ADR-031 Phase 6: Cross-Platform Synthesizers
+// ADR-035: Platform-First Wave 1 Types
+// ADR-044: Type Reconceptualization (context binding + temporal pattern)
 export type DeliverableType =
   // Tier 1 - Stable
   | "status_report"
@@ -289,9 +292,35 @@ export type DeliverableType =
   | "inbox_summary"
   | "reply_draft"
   | "follow_up_tracker"
-  | "thread_summary";
+  | "thread_summary"
+  // ADR-031 Phase 6: Cross-Platform Synthesizers
+  | "weekly_status"
+  | "project_brief"
+  | "cross_platform_digest"
+  | "activity_summary"
+  // ADR-035: Platform-First Wave 1 Types
+  | "slack_channel_digest"
+  | "slack_standup"
+  | "gmail_inbox_brief"
+  | "notion_page_summary";
 
 export type DeliverableTier = "stable" | "beta" | "experimental";
+
+// ADR-044: Type Classification (two-dimensional)
+export type ContextBinding = "platform_bound" | "cross_platform" | "research" | "hybrid";
+export type TemporalPattern = "reactive" | "scheduled" | "on_demand" | "emergent";
+
+export interface TypeClassification {
+  binding: ContextBinding;
+  temporal_pattern: TemporalPattern;
+  primary_platform?: "slack" | "gmail" | "notion";
+  platform_grounding?: Array<{
+    platform: "slack" | "gmail" | "notion";
+    sources: string[];
+    instruction?: string;
+  }>;
+  freshness_requirement_hours?: number;
+}
 
 // Type-specific section configurations
 export interface StatusReportSections {
