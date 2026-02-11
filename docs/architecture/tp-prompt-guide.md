@@ -13,7 +13,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 
 ---
 
-## Current Version: v4 (2026-02-11)
+## Current Version: v5 (2026-02-11)
 
 ### Key Principles
 
@@ -25,7 +25,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 | **Infer from context** | Use existing entities and memories to fill gaps |
 | **One clarifying question** | Use `Clarify` only when exploration doesn't resolve ambiguity |
 | **Confirm before creating** | Ask user, then create on confirmation |
-| **Primitives only** | All tools are primitives (no legacy tool names) |
+| **Stream is progress** | No Todo primitive - visible tool calls ARE the progress indicator |
 
 ### The "Grep Before Ask" Pattern
 
@@ -59,17 +59,16 @@ Then use `Clarify` - but only after exploring.
 1. Context injection ({context})
 2. Tone and Style - conciseness rules
 3. How You Work - text primary, tools for actions
-4. Available Tools - 9 primitives
+4. Available Tools - 8 primitives (Read, Write, Edit, List, Search, Execute, Respond, Clarify)
 5. Reference Syntax - type:identifier
 6. Guidelines - behavioral rules
 7. Domain Terms - vocabulary
-8. Explore Before Asking - List/Search before Clarify (NEW)
-9. Multi-Step Work - when to use Todo (simplified)
+8. Explore Before Asking - List/Search before Clarify
+9. Confirming Before Acting - when to confirm vs just do it
 10. Creating Entities - Write examples
-11. Checking Before Acting - List for duplicates
 ```
 
-**New in v4:** "Explore Before Asking" section - TP explores existing patterns before asking clarifying questions
+**v5 change:** Removed Todo primitive - the streaming conversation IS the progress indicator (Claude Code pattern)
 
 ### Good Response Examples
 
@@ -96,6 +95,15 @@ User: "What platforms are connected?"
 ---
 
 ## Changelog
+
+### v5 (2026-02-11)
+
+**Changes:**
+- Removed Todo primitive from TP tools
+- Streaming tool calls ARE the progress indicator (Claude Code pattern)
+- Simplified prompt: 8 primitives instead of 9
+
+**Rationale:** Claude Code doesn't have a "todo" primitive because the conversation itself is the progress tracker. Users see tool calls happening in sequence. Adding a separate Todo primitive is redundant - it's over-engineering for a problem that doesn't exist when you have streaming output.
 
 ### v4 (2026-02-11)
 

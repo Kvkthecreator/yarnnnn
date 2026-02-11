@@ -87,7 +87,9 @@ async def handle_clarify(auth: Any, input: dict) -> dict:
     }
 
 
-# All primitives
+# All primitives exposed to TP
+# Note: Todo is intentionally excluded - the conversation stream IS the progress indicator
+# (Claude Code pattern: visible tool calls are the status update)
 PRIMITIVES = [
     # Data operations
     READ_TOOL,
@@ -97,8 +99,6 @@ PRIMITIVES = [
     LIST_TOOL,
     # External operations
     EXECUTE_TOOL,
-    # Progress tracking
-    TODO_TOOL,
     # Communication
     RESPOND_TOOL,
     CLARIFY_TOOL,
