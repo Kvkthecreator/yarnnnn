@@ -463,13 +463,22 @@ Trigger external operations on entities.
 | Action | Target Type | Description | Requires |
 |--------|-------------|-------------|----------|
 | `platform.sync` | `platform` | Sync from platform | — |
-| `platform.publish` | `deliverable` | Publish to platform | `via` |
+| `platform.publish` | `deliverable` | Publish deliverable to platform | `via` |
+| `platform.send` | `platform` | Send ad-hoc message to platform | `params` (see below) |
 | `platform.auth` | `platform` | Initiate OAuth | — |
 | `deliverable.generate` | `deliverable` | Generate content | — |
 | `deliverable.schedule` | `deliverable` | Update schedule | — |
 | `deliverable.approve` | `deliverable` | Approve version | `version_id` (optional) |
 | `memory.extract` | `session` | Extract memories | — |
 | `work.run` | `work` | Execute work | — |
+
+**platform.send params by platform**:
+
+| Platform | Required params | Example |
+|----------|-----------------|---------|
+| `slack` | `channel`, `message` | `{channel: "#general", message: "Hello!"}` |
+| `gmail` | `to`, `subject`, `body` | `{to: "user@example.com", subject: "Hi", body: "..."}` |
+| `notion` | `page_id`, `content` | `{page_id: "abc123", content: "Added note"}` |
 
 ---
 

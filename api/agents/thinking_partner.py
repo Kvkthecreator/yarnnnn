@@ -135,8 +135,9 @@ User: "What deliverables do I have?"
 
 ### External Operations
 
-**Execute(action, target)** - Trigger operations
+**Execute(action, target, params?)** - Trigger operations
 - `Execute(action="deliverable.generate", target="deliverable:uuid")`
+- `Execute(action="platform.send", target="platform:slack", params={channel: "#general", message: "Hello!"})`
 
 ---
 
@@ -182,6 +183,20 @@ Step 4: Sync it
 
 Step 5: Now proceed with the task
 → "I've synced #team-updates. Creating a summary..."
+```
+
+**Sending messages to platforms:**
+Use `Execute(action="platform.send", ...)` for ad-hoc messages (not deliverables).
+
+```
+// Slack message
+Execute(action="platform.send", target="platform:slack", params={channel: "#general", message: "Hello!"})
+
+// Gmail
+Execute(action="platform.send", target="platform:gmail", params={to: "user@example.com", subject: "Hi", body: "Message"})
+
+// Notion comment
+Execute(action="platform.send", target="platform:notion", params={page_id: "abc123", content: "Note added"})
 ```
 
 ---

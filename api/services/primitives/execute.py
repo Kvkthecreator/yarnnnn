@@ -6,6 +6,7 @@ External operations on platforms and entities.
 Usage:
   Execute(action="platform.sync", target="platform:slack")
   Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
+  Execute(action="platform.send", target="platform:slack", params={channel: "#general", message: "Hello!"})
   Execute(action="deliverable.generate", target="deliverable:uuid")
 """
 
@@ -20,7 +21,8 @@ EXECUTE_TOOL = {
 
 Actions:
 - platform.sync: Pull latest from platform
-- platform.publish: Push content to platform
+- platform.publish: Push deliverable content to platform
+- platform.send: Send ad-hoc message to platform (Slack, Gmail, Notion)
 - platform.auth: Initiate OAuth connection
 - deliverable.generate: Run content generation
 - deliverable.schedule: Update schedule
@@ -30,7 +32,9 @@ Actions:
 Examples:
 - Execute(action="platform.sync", target="platform:slack")
 - Execute(action="deliverable.generate", target="deliverable:uuid-123")
-- Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")""",
+- Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
+- Execute(action="platform.send", target="platform:slack", params={channel: "#general", message: "Hello!"})
+- Execute(action="platform.send", target="platform:gmail", params={to: "user@example.com", subject: "Hi", body: "Hello!"})""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -63,9 +67,18 @@ ACTION_CATALOG = {
         "target_types": ["platform"],
     },
     "platform.publish": {
-        "description": "Publish content to platform",
+        "description": "Publish deliverable content to platform",
         "target_types": ["deliverable"],
         "requires": ["via"],
+    },
+    "platform.send": {
+        "description": "Send ad-hoc message to platform (not tied to a deliverable)",
+        "target_types": ["platform"],
+        "params_schema": {
+            "slack": {"required": ["channel", "message"]},
+            "gmail": {"required": ["to", "subject", "body"]},
+            "notion": {"required": ["page_id", "content"]},
+        },
     },
     "platform.auth": {
         "description": "Initiate platform OAuth flow",
@@ -213,6 +226,7 @@ def _get_action_handler(action: str):
     handlers = {
         "platform.sync": _handle_platform_sync,
         "platform.publish": _handle_platform_publish,
+        "platform.send": _handle_platform_send,
         "deliverable.generate": _handle_deliverable_generate,
         "deliverable.approve": _handle_deliverable_approve,
         "work.run": _handle_work_run,
@@ -360,4 +374,192 @@ async def _handle_work_run(auth, entity, ref, via, params):
         "work_id": work_id,
         "job_id": job_id,
         "message": "Work execution started",
+    }
+
+
+async def _handle_platform_send(auth, entity, ref, via, params):
+    """
+    Send ad-hoc message to platform.
+
+    Unlike platform.publish (which sends deliverable content), this sends
+    arbitrary messages directly to platforms - useful for quick comms like
+    "Hey, following up on our conversation...".
+
+    Params by platform:
+    - Slack: {channel: "#general" or "@user", message: "..."}
+    - Gmail: {to: "email@example.com", subject: "...", body: "..."}
+    - Notion: {page_id: "...", content: "..."} (creates a comment or block)
+    """
+    import logging
+    from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+    from integrations.core.tokens import get_token_manager
+
+    logger = logging.getLogger(__name__)
+
+    provider = entity.get("provider")
+    if not provider:
+        raise ValueError("Platform entity missing provider")
+
+    # Validate required params per platform
+    action_def = ACTION_CATALOG.get("platform.send", {})
+    params_schema = action_def.get("params_schema", {})
+    platform_schema = params_schema.get(provider, {})
+    required_params = platform_schema.get("required", [])
+
+    missing = [p for p in required_params if not params.get(p)]
+    if missing:
+        raise ValueError(f"platform.send to {provider} requires params: {', '.join(missing)}")
+
+    # Get integration credentials
+    integration = auth.client.table("user_integrations").select(
+        "access_token_encrypted, metadata, status"
+    ).eq("user_id", auth.user_id).eq("provider", provider).single().execute()
+
+    if not integration.data:
+        raise ValueError(f"No {provider} integration found. Connect it first.")
+
+    if integration.data.get("status") != "active":
+        raise ValueError(f"{provider} integration is not active")
+
+    # Decrypt token
+    token_manager = get_token_manager()
+    access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+    metadata = integration.data.get("metadata", {}) or {}
+
+    # Dispatch by provider
+    if provider == "slack":
+        return await _send_slack_message(auth, params, access_token, metadata, logger)
+    elif provider == "gmail":
+        return await _send_gmail_message(auth, params, access_token, metadata, logger)
+    elif provider == "notion":
+        return await _send_notion_content(auth, params, access_token, metadata, logger)
+    else:
+        raise ValueError(f"platform.send not supported for {provider}")
+
+
+async def _send_slack_message(auth, params, access_token, metadata, logger):
+    """Send a Slack message via MCP."""
+    from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+
+    if not MCP_AVAILABLE:
+        raise ValueError("MCP not available. Install: pip install mcp")
+
+    channel = params.get("channel")
+    message = params.get("message")
+    team_id = metadata.get("team_id")
+
+    if not team_id:
+        raise ValueError("Missing team_id in Slack integration metadata")
+
+    mcp = get_mcp_manager()
+
+    result = await mcp.call_tool(
+        user_id=auth.user_id,
+        provider="slack",
+        tool_name="slack_post_message",
+        arguments={"channel": channel, "text": message},
+        env={
+            "SLACK_BOT_TOKEN": access_token,
+            "SLACK_TEAM_ID": team_id
+        }
+    )
+
+    # Parse result
+    message_ts = None
+    permalink = None
+    if isinstance(result, dict):
+        message_ts = result.get("ts")
+        permalink = result.get("permalink")
+
+    logger.info(f"[PLATFORM_SEND] Sent Slack message to {channel}, ts={message_ts}")
+
+    return {
+        "status": "sent",
+        "provider": "slack",
+        "channel": channel,
+        "message_ts": message_ts,
+        "permalink": permalink,
+        "message": f"Message sent to {channel}",
+    }
+
+
+async def _send_gmail_message(auth, params, access_token, metadata, logger):
+    """Send a Gmail message via Gmail API."""
+    import os
+    from integrations.core.client import get_mcp_manager
+    from integrations.core.types import ExportStatus
+
+    to = params.get("to")
+    subject = params.get("subject")
+    body = params.get("body")
+    cc = params.get("cc")
+
+    # Gmail requires OAuth refresh flow - need refresh_token from metadata
+    refresh_token = metadata.get("refresh_token")
+    if not refresh_token:
+        raise ValueError("Missing refresh_token in Gmail integration metadata")
+
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+    if not client_id or not client_secret:
+        raise ValueError("Google OAuth credentials not configured")
+
+    mcp = get_mcp_manager()
+
+    result = await mcp.send_gmail_message(
+        user_id=auth.user_id,
+        to=to,
+        subject=subject,
+        body=body,
+        client_id=client_id,
+        client_secret=client_secret,
+        refresh_token=refresh_token,
+        cc=cc,
+    )
+
+    if result.status != ExportStatus.SUCCESS:
+        raise ValueError(result.error_message or "Failed to send email")
+
+    logger.info(f"[PLATFORM_SEND] Sent Gmail to {to}")
+
+    return {
+        "status": "sent",
+        "provider": "gmail",
+        "to": to,
+        "message_id": result.external_id,
+        "message": f"Email sent to {to}",
+    }
+
+
+async def _send_notion_content(auth, params, access_token, metadata, logger):
+    """Add content to Notion page via MCP."""
+    from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+
+    if not MCP_AVAILABLE:
+        raise ValueError("MCP not available. Install: pip install mcp")
+
+    page_id = params.get("page_id")
+    content = params.get("content")
+
+    mcp = get_mcp_manager()
+
+    # Use notion-update-page to append a comment/block
+    result = await mcp.call_tool(
+        user_id=auth.user_id,
+        provider="notion",
+        tool_name="notion-create-comment",
+        arguments={
+            "page_id": page_id,
+            "text": content,
+        },
+        env={"NOTION_TOKEN": access_token}
+    )
+
+    logger.info(f"[PLATFORM_SEND] Added Notion comment to page {page_id}")
+
+    return {
+        "status": "sent",
+        "provider": "notion",
+        "page_id": page_id,
+        "message": f"Content added to Notion page",
     }
