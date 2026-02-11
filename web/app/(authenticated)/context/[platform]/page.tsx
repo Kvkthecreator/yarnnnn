@@ -284,13 +284,16 @@ export default function PlatformDetailPage() {
     try {
       const result = await api.integrations.updateSources(platform, Array.from(selectedIds));
       if (result.success) {
-        setOriginalIds(new Set(selectedIds));
+        // Update local state with the saved sources
+        const savedIds = new Set(result.selected_sources.map(s => s.id));
+        setSelectedIds(savedIds);
+        setOriginalIds(savedIds);
       } else {
-        setError('Failed to save changes');
+        setError(result.message || 'Failed to save changes');
       }
     } catch (err) {
       console.error('Failed to save sources:', err);
-      setError('Failed to save changes');
+      setError(err instanceof Error ? err.message : 'Failed to save changes');
     } finally {
       setSaving(false);
     }
@@ -452,6 +455,16 @@ export default function PlatformDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Error message */}
+          {error && (
+            <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+              <div className="flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+                <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+              </div>
+            </div>
+          )}
 
           {/* Limit warning */}
           {atLimit && !hasChanges && (

@@ -831,8 +831,8 @@ export const api = {
     ) =>
       request<{
         success: boolean;
-        sources: string[];
-        message?: string;
+        selected_sources: Array<{ id: string; name: string; type: string }>;
+        message: string;
       }>(`/api/integrations/${provider}/sources`, {
         method: "PUT",
         body: JSON.stringify({ source_ids: sourceIds }),
