@@ -26,6 +26,7 @@ from typing import Any, Optional
 MAX_DELIVERABLES = 5        # Truncate to most recent if more
 MAX_PLATFORMS = 5           # Unlikely to exceed, but cap it
 MAX_RECENT_SESSIONS = 3     # Session summaries to include
+MAX_USER_FACTS = 10         # User-stated facts from memory
 SESSION_LOOKBACK_DAYS = 7   # Only include sessions from last N days
 CONTEXT_TOKEN_BUDGET = 2000 # Approximate target
 
@@ -44,6 +45,7 @@ async def build_session_context(user_id: str, client: Any) -> dict:
     """
     context = {
         "user_profile": await _get_user_profile(user_id, client),
+        "user_facts": await _get_user_facts(user_id, client),
         "active_deliverables": await _get_active_deliverables(user_id, client),
         "connected_platforms": await _get_connected_platforms(user_id, client),
         "recent_sessions": await _get_recent_sessions(user_id, client),
@@ -107,6 +109,52 @@ async def _get_user_profile(user_id: str, client: Any) -> dict:
         pass
 
     return profile
+
+
+async def _get_user_facts(user_id: str, client: Any) -> list:
+    """
+    Fetch user-stated facts from memory for context injection.
+
+    This is the narrow, justified use of the memory table (ADR-038).
+    Only loads facts from source_type='user_stated' or 'chat' — things
+    the user explicitly said that have no source file equivalent.
+
+    Examples:
+    - "Presenting to board next month"
+    - "Prefers bullet-point format"
+    - "Working on Q2 planning"
+
+    These are NOT searched at runtime — they're preloaded here.
+    """
+    facts = []
+
+    try:
+        # Get recent user-stated facts
+        # source_type IN ('user_stated', 'chat', 'conversation')
+        result = client.table("user_memories").select(
+            "content, created_at"
+        ).eq(
+            "user_id", user_id
+        ).in_(
+            "source_type", ["user_stated", "chat", "conversation"]
+        ).eq(
+            "is_active", True
+        ).order(
+            "created_at", desc=True
+        ).limit(MAX_USER_FACTS).execute()
+
+        if result.data:
+            for mem in result.data:
+                content = mem.get("content", "").strip()
+                if content:
+                    # Just the fact, no metadata needed
+                    facts.append(content)
+
+    except Exception:
+        # Facts are best-effort
+        pass
+
+    return facts
 
 
 async def _get_active_deliverables(user_id: str, client: Any) -> list:
@@ -292,6 +340,13 @@ def format_context_for_prompt(context: dict) -> str:
     profile = context.get("user_profile", {})
     if profile.get("name") or profile.get("role"):
         lines.append(f"**User:** {profile.get('name', 'Unknown')} ({profile.get('role', 'no role specified')})")
+
+    # User facts (from memory - user-stated things with no source file)
+    facts = context.get("user_facts", [])
+    if facts:
+        lines.append(f"\n**User Facts:**")
+        for fact in facts:
+            lines.append(f"  - {fact}")
 
     # Active deliverables
     deliverables = context.get("active_deliverables", [])

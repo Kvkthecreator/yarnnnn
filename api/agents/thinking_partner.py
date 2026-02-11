@@ -22,6 +22,7 @@ from services.anthropic import (
 )
 from services.primitives import PRIMITIVES, execute_primitive
 from services.skills import detect_skill, get_skill_prompt_addition, detect_skill_hybrid
+from services.context import build_session_context, format_context_for_prompt
 
 
 @dataclass
@@ -156,6 +157,8 @@ Format: `<type>:<identifier>`
 - Use tools to act, then summarize results briefly
 - For ambiguous requests, explore first (List/Search), then clarify if needed
 - Never introduce code that exposes secrets or sensitive data
+- When referencing platform content, note the sync date if older than 24 hours
+- If generating a deliverable from stale sources (>24h), offer to sync first
 
 ---
 
@@ -371,24 +374,30 @@ recurring deliverable through conversation.
         is_onboarding: bool = False,
         surface_content: Optional[str] = None,
         selected_domain_name: Optional[str] = None,
-        skill_prompt: Optional[str] = None
+        skill_prompt: Optional[str] = None,
+        injected_context: Optional[dict] = None,
     ) -> str:
         """Build system prompt with memory context.
 
         Args:
-            context: Memory context bundle
+            context: Memory context bundle (legacy)
             include_context: Whether to include memory context
             with_tools: Whether to include tool usage instructions
             is_onboarding: Whether user has no deliverables (enables onboarding mode)
             surface_content: ADR-023 - Content of what user is currently viewing
             selected_domain_name: ADR-034 - Name of user's selected domain context
             skill_prompt: ADR-025 - Skill-specific prompt addition to inject
+            injected_context: ADR-038 - Pre-built context from build_session_context()
         """
         base_prompt = self.SYSTEM_PROMPT_WITH_TOOLS if with_tools else self.SYSTEM_PROMPT
 
         if not include_context:
             context_text = "No context loaded for this conversation."
+        elif injected_context:
+            # ADR-038: Use pre-built context injection (preferred path)
+            context_text = format_context_for_prompt(injected_context)
         else:
+            # Legacy path: format from ContextBundle
             context_text = self._format_memories(context, selected_domain_name)
             if not context_text:
                 context_text = "No context available yet. As we chat, I'll learn more about you."
@@ -689,6 +698,14 @@ recurring deliverable through conversation.
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
 
+        # ADR-038: Build injected context (replaces most memory searches)
+        injected_context = None
+        try:
+            injected_context = await build_session_context(auth.user_id, auth.client)
+        except Exception:
+            # Context injection is best-effort; fall back to legacy path
+            pass
+
         # ADR-025 + ADR-040: Detect skill from user message (hybrid: pattern + semantic)
         active_skill, detection_method, confidence = await detect_skill_hybrid(task)
         skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
@@ -714,7 +731,8 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
             is_onboarding=is_onboarding,
             surface_content=surface_content,
             selected_domain_name=selected_domain_name,
-            skill_prompt=skill_prompt
+            skill_prompt=skill_prompt,
+            injected_context=injected_context,
         )
 
         # Build messages list - filter out empty assistant messages which cause 400 errors
