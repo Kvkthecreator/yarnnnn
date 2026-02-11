@@ -1323,9 +1323,9 @@ async def trigger_run(
     """
     Trigger an ad-hoc deliverable run.
 
-    Creates a new version and starts the gather → synthesize → stage pipeline.
+    ADR-042: Uses simplified single-call execute_deliverable_generation().
     """
-    from services.deliverable_pipeline import execute_deliverable_pipeline
+    from services.deliverable_execution import execute_deliverable_generation
 
     # Get deliverable
     result = (
@@ -1345,36 +1345,22 @@ async def trigger_run(
     if deliverable["status"] == "archived":
         raise HTTPException(status_code=400, detail="Cannot run archived deliverable")
 
-    # Get next version number
-    version_result = (
-        auth.client.table("deliverable_versions")
-        .select("version_number")
-        .eq("deliverable_id", str(deliverable_id))
-        .order("version_number", desc=True)
-        .limit(1)
-        .execute()
-    )
+    logger.info(f"[DELIVERABLE] Triggering run: {deliverable_id}")
 
-    next_version = 1
-    if version_result.data:
-        next_version = version_result.data[0]["version_number"] + 1
-
-    logger.info(f"[DELIVERABLE] Triggering run: {deliverable_id} v{next_version}")
-
-    # Execute pipeline
-    pipeline_result = await execute_deliverable_pipeline(
+    # ADR-042: Execute with simplified single-call flow
+    exec_result = await execute_deliverable_generation(
         client=auth.client,
         user_id=auth.user_id,
-        deliverable_id=str(deliverable_id),
-        version_number=next_version,
+        deliverable=deliverable,
+        trigger_context={"type": "manual"},
     )
 
     return {
-        "success": pipeline_result.get("success", False),
-        "version_id": pipeline_result.get("version_id"),
-        "version_number": next_version,
-        "status": pipeline_result.get("status"),
-        "message": pipeline_result.get("message"),
+        "success": exec_result.get("success", False),
+        "version_id": exec_result.get("version_id"),
+        "version_number": exec_result.get("version_number"),
+        "status": exec_result.get("status"),
+        "message": exec_result.get("message"),
     }
 
 

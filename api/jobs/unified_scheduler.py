@@ -297,9 +297,11 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
     """
     Process a single deliverable: generate version, send email, update schedule.
 
+    ADR-042: Uses simplified execute_deliverable_generation() instead of 3-step pipeline.
+
     Returns True if successful.
     """
-    from services.deliverable_pipeline import execute_deliverable_pipeline
+    from services.deliverable_execution import execute_deliverable_generation
 
     deliverable_id = deliverable["id"]
     user_id = deliverable["user_id"]
@@ -310,25 +312,12 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
     logger.info(f"[DELIVERABLE] Processing: {title} ({deliverable_id})")
 
     try:
-        # 1. Get next version number
-        version_result = (
-            supabase_client.table("deliverable_versions")
-            .select("version_number")
-            .eq("deliverable_id", deliverable_id)
-            .order("version_number", desc=True)
-            .limit(1)
-            .execute()
-        )
-        next_version = 1
-        if version_result.data:
-            next_version = version_result.data[0]["version_number"] + 1
-
-        # 2. Execute the pipeline
-        result = await execute_deliverable_pipeline(
+        # ADR-042: Single call replaces version creation + 3-step pipeline
+        result = await execute_deliverable_generation(
             client=supabase_client,
             user_id=user_id,
-            deliverable_id=deliverable_id,
-            version_number=next_version,
+            deliverable=deliverable,
+            trigger_context={"type": "schedule"},
         )
 
         success = result.get("success", False)

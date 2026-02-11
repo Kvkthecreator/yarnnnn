@@ -32,6 +32,7 @@ ADRs document significant architectural decisions made during development.
 | [025](ADR-025-claude-code-agentic-alignment.md) | **Claude Code Agentic Alignment** | **Proposed** | 2026-02-05 |
 | [036](ADR-036-two-layer-architecture.md) | **Two-Layer Architecture** | **Accepted** | 2026-02-10 |
 | [037](ADR-037-chat-first-surface-architecture.md) | **Chat-First Surface Architecture** | **Accepted** | 2026-02-10 |
+| [042](ADR-042-deliverable-execution-simplification.md) | **Deliverable Execution Simplification** | **Proposed** | 2026-02-11 |
 
 ## Canonical Architecture Docs
 

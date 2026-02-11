@@ -3,7 +3,7 @@
 > **Status**: Canonical
 > **Created**: 2026-02-10
 > **Updated**: 2026-02-11 (ADR-038 Phase 2)
-> **Related ADRs**: ADR-036 (Two-Layer), ADR-037 (Chat-First), ADR-038 (Filesystem-as-Context)
+> **Related ADRs**: ADR-036 (Two-Layer), ADR-037 (Chat-First), ADR-038 (Filesystem-as-Context), ADR-042 (Execution Simplification)
 > **Implementation**: `api/services/primitives/`
 
 ---
@@ -70,19 +70,30 @@ All entity references follow a consistent grammar:
 
 ### Entity Types
 
+YARNNN uses a tiered entity model. **TP-facing** entities are directly addressable by the Thinking Partner. **Background** entities are infrastructure that TP doesn't directly manipulate.
+
+#### TP-Facing Entities (6)
+
 | Type | Table | Description |
 |------|-------|-------------|
 | `deliverable` | `deliverables` | Recurring content outputs |
 | `platform` | `user_integrations` | Connected platforms (by provider name) |
-| `platform_content` | `ephemeral_context` | Imported platform data (Slack, Gmail, Notion) |
-| `memory` | `memories` | User-stated facts only (narrowed per ADR-038) |
-| `session` | `chat_sessions` | Chat sessions |
-| `domain` | `context_domains` | Emergent context domains |
 | `document` | `documents` | Uploaded documents |
 | `work` | `work_tickets` | Work execution records |
+| `session` | `chat_sessions` | Chat sessions |
 | `action` | (virtual) | Available actions for Execute |
 
-> **ADR-038 Note**: `memory` is now reserved for user-stated facts (`source_type` IN 'chat', 'user_stated', 'conversation', 'preference'). Platform imports (Slack/Gmail/Notion) are stored in `ephemeral_context` and accessed via `platform_content` entity type.
+#### Background Entities (Infrastructure)
+
+| Type | Table | Description | Notes |
+|------|-------|-------------|-------|
+| `memory` | `memories` | User-stated facts | Background cache, auto-injected into context |
+| `platform_content` | `ephemeral_context` | Imported platform data | Auto-gathered during generation |
+| `domain` | `context_domains` | Emergent context domains | Deferred per ADR-042 |
+
+> **ADR-038 Note**: `memory` is reserved for user-stated facts (`source_type` IN 'chat', 'user_stated', 'conversation', 'preference'). Platform imports (Slack/Gmail/Notion) are stored in `ephemeral_context`.
+>
+> **ADR-042 Note**: TP operates on 6 first-class entities. Memory and platform_content are background infrastructure—automatically injected into context, not directly queried by TP during normal operation.
 
 ### Entity Schemas
 
@@ -569,6 +580,12 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 ## Changelog
 
+### 2026-02-11 — ADR-042 Entity Tier Clarification
+- Clarified entity types into TP-facing (6) and background (3) tiers
+- TP-facing: deliverable, platform, document, work, session, action
+- Background: memory, platform_content, domain
+- Added ADR-042 reference for execution simplification
+
 ### 2026-02-11 — Manual Context as First-Class
 - Added "Context Sources" section documenting platforms, documents, and user-stated facts as equally-weighted
 - Search now includes `memory` scope for user-stated facts (source_type IN user_stated, chat, conversation, preference, manual)
@@ -597,4 +614,5 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 - [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
 - [ADR-037: Chat-First Surface Architecture](../adr/ADR-037-chat-first-surface-architecture.md)
 - [ADR-038: Filesystem-as-Context Architecture](../adr/ADR-038-filesystem-as-context.md)
+- [ADR-042: Deliverable Execution Simplification](../adr/ADR-042-deliverable-execution-simplification.md)
 - [Testing Environment Guide](../testing/TESTING-ENVIRONMENT.md)

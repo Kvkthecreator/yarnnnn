@@ -284,45 +284,31 @@ async def _handle_platform_publish(auth, entity, ref, via, params):
 
 
 async def _handle_deliverable_generate(auth, entity, ref, via, params):
-    """Generate deliverable content."""
-    deliverable_id = entity.get("id")
+    """
+    Generate deliverable content.
 
-    # Get next version number
-    versions = auth.client.table("deliverable_versions").select("version_number").eq(
-        "deliverable_id", deliverable_id
-    ).order("version_number", desc=True).limit(1).execute()
+    ADR-042: Simplified single-call flow replacing 3-step pipeline.
+    Inline execution - no job queue, no chained work_tickets.
+    """
+    from services.deliverable_execution import execute_deliverable_generation
 
-    next_version = (versions.data[0]["version_number"] + 1) if versions.data else 1
-
-    # Create pending version
-    from uuid import uuid4
-    from datetime import datetime, timezone
-
-    version_id = str(uuid4())
-    auth.client.table("deliverable_versions").insert({
-        "id": version_id,
-        "deliverable_id": deliverable_id,
-        "version_number": next_version,
-        "status": "generating",
-        "created_at": datetime.now(timezone.utc).isoformat(),
-    }).execute()
-
-    # Trigger generation pipeline
-    from services.job_queue import enqueue_job
-
-    job_id = await enqueue_job(
-        "deliverable_generate",
-        deliverable_id=deliverable_id,
-        version_id=version_id,
+    # Execute inline with simplified flow
+    result = await execute_deliverable_generation(
+        client=auth.client,
         user_id=auth.user_id,
+        deliverable=entity,
+        trigger_context={"type": "execute_primitive"},
     )
 
+    if not result.get("success"):
+        raise ValueError(result.get("message", "Generation failed"))
+
     return {
-        "status": "generating",
-        "version_id": version_id,
-        "version_number": next_version,
-        "job_id": job_id,
-        "message": f"Generating version {next_version}",
+        "status": result.get("status", "staged"),
+        "version_id": result.get("version_id"),
+        "version_number": result.get("version_number"),
+        "draft": result.get("draft"),
+        "message": result.get("message"),
     }
 
 

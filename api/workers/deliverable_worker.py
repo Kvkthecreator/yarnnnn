@@ -1,13 +1,14 @@
 """
 Deliverable Generation Worker
 
-Background worker for generating deliverable content.
-Called by RQ when deliverable_generate jobs are enqueued.
+ADR-042: DEPRECATED - Background worker for deliverable generation.
 
-This runs the 3-step deliverable pipeline:
-1. Gather - Pull context from sources
-2. Synthesize - Generate content
-3. Stage - Validate and mark for review
+The simplified execution flow (execute_deliverable_generation) runs inline
+in the Execute handler. This worker is kept for backwards compatibility
+with any queued jobs but should not be used for new work.
+
+For new implementations, use:
+    from services.deliverable_execution import execute_deliverable_generation
 """
 
 import asyncio
@@ -35,17 +36,14 @@ def generate_deliverable(
     """
     Background worker entry point for deliverable generation.
 
-    Args:
-        deliverable_id: Deliverable to generate
-        version_id: Version record to update
-        user_id: User ID who owns the deliverable
-        supabase_url: Supabase URL (uses env var if not provided)
-        supabase_key: Service role key (uses env var if not provided)
-
-    Returns:
-        Dict with generation result
+    ADR-042: DEPRECATED - Use execute_deliverable_generation() instead.
+    This is kept for backwards compatibility with any queued jobs.
     """
-    logger.info(f"[DELIVERABLE_WORKER] Starting generation: deliverable={deliverable_id[:8]}, version={version_id[:8]}")
+    logger.warning(
+        f"[DELIVERABLE_WORKER] DEPRECATED: Using legacy worker. "
+        f"Prefer inline execute_deliverable_generation()."
+    )
+    logger.info(f"[DELIVERABLE_WORKER] Starting: deliverable={deliverable_id[:8]}")
 
     result = asyncio.run(_generate_async(
         deliverable_id=deliverable_id,
@@ -67,7 +65,7 @@ async def _generate_async(
     supabase_key: str,
 ) -> dict:
     """
-    Async implementation of deliverable generation.
+    Async implementation using the simplified execution flow.
     """
     if not supabase_url or not supabase_key:
         logger.error("[DELIVERABLE_WORKER] Missing Supabase credentials")
@@ -79,15 +77,28 @@ async def _generate_async(
     client = create_client(supabase_url, supabase_key)
 
     try:
-        # Import the pipeline
-        from services.deliverable_pipeline import run_deliverable_pipeline
+        # Get deliverable
+        deliverable_result = (
+            client.table("deliverables")
+            .select("*")
+            .eq("id", deliverable_id)
+            .single()
+            .execute()
+        )
 
-        # Run the pipeline
-        result = await run_deliverable_pipeline(
+        if not deliverable_result.data:
+            return {"success": False, "error": "Deliverable not found"}
+
+        deliverable = deliverable_result.data
+
+        # ADR-042: Use simplified execution
+        from services.deliverable_execution import execute_deliverable_generation
+
+        result = await execute_deliverable_generation(
             client=client,
-            deliverable_id=deliverable_id,
-            version_id=version_id,
             user_id=user_id,
+            deliverable=deliverable,
+            trigger_context={"type": "background_worker"},
         )
 
         return result
@@ -98,8 +109,8 @@ async def _generate_async(
         # Update version status to failed
         try:
             client.table("deliverable_versions").update({
-                "status": "failed",
-                "error_message": str(e),
+                "status": "rejected",
+                "feedback_notes": str(e),
             }).eq("id", version_id).execute()
         except Exception:
             pass

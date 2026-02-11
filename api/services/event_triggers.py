@@ -444,7 +444,7 @@ async def execute_event_triggers(
     Returns:
         Dict with execution summary
     """
-    from services.deliverable_pipeline import execute_deliverable_pipeline
+    from services.deliverable_execution import execute_deliverable_generation
 
     executed = 0
     skipped = 0
@@ -459,25 +459,25 @@ async def execute_event_triggers(
             continue
 
         try:
-            # Get next version number
-            version_result = (
-                db_client.table("deliverable_versions")
-                .select("version_number")
-                .eq("deliverable_id", match.deliverable_id)
-                .order("version_number", desc=True)
-                .limit(1)
+            # Get full deliverable for execution
+            deliverable_result = (
+                db_client.table("deliverables")
+                .select("*")
+                .eq("id", match.deliverable_id)
+                .single()
                 .execute()
             )
-            next_version = 1
-            if version_result.data:
-                next_version = version_result.data[0]["version_number"] + 1
+            if not deliverable_result.data:
+                errors.append(f"Deliverable not found: {match.deliverable_id}")
+                continue
 
-            # Execute pipeline
-            result = await execute_deliverable_pipeline(
+            deliverable = deliverable_result.data
+
+            # ADR-042: Execute with simplified single-call flow
+            result = await execute_deliverable_generation(
                 client=db_client,
                 user_id=match.user_id,
-                deliverable_id=match.deliverable_id,
-                version_number=next_version,
+                deliverable=deliverable,
                 trigger_context={
                     "type": "event",
                     "platform": event.platform,

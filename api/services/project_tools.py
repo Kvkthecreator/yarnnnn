@@ -1771,15 +1771,15 @@ async def handle_run_deliverable(auth, input: dict) -> dict:
         Dict with run result
     """
     import logging
-    from services.deliverable_pipeline import execute_deliverable_pipeline
+    from services.deliverable_execution import execute_deliverable_generation
 
     logger = logging.getLogger(__name__)
     deliverable_id = input["deliverable_id"]
 
-    # Get deliverable
+    # Get full deliverable (ADR-042 requires full entity)
     try:
         result = auth.client.table("deliverables")\
-            .select("id, title, status, deliverable_versions(version_number)")\
+            .select("*")\
             .eq("id", deliverable_id)\
             .eq("user_id", auth.user_id)\
             .single()\
@@ -1804,35 +1804,28 @@ async def handle_run_deliverable(auth, input: dict) -> dict:
             "error": "Cannot run archived deliverable"
         }
 
-    # Calculate next version number
-    versions = deliverable.get("deliverable_versions", [])
-    next_version = 1
-    if versions:
-        max_version = max(v["version_number"] for v in versions)
-        next_version = max_version + 1
+    logger.info(f"[TP-TOOL] Triggering deliverable run: {deliverable_id}")
 
-    logger.info(f"[TP-TOOL] Triggering deliverable run: {deliverable_id} v{next_version}")
-
-    # Execute pipeline
-    pipeline_result = await execute_deliverable_pipeline(
+    # ADR-042: Execute with simplified single-call flow
+    exec_result = await execute_deliverable_generation(
         client=auth.client,
         user_id=auth.user_id,
-        deliverable_id=deliverable_id,
-        version_number=next_version,
+        deliverable=deliverable,
+        trigger_context={"type": "tp_tool"},
     )
 
-    if pipeline_result.get("success"):
+    if exec_result.get("success"):
         return {
             "success": True,
             "deliverable_id": deliverable_id,
-            "version_number": next_version,
-            "message": f"Started generating '{deliverable['title']}' v{next_version}. Check the deliverables dashboard for the result.",
-            "instruction_to_assistant": "Let the user know their deliverable is being generated. Direct them to the deliverables dashboard to review once ready."
+            "version_number": exec_result.get("version_number"),
+            "message": f"Generated '{deliverable['title']}' v{exec_result.get('version_number')}. Ready for review.",
+            "instruction_to_assistant": "Let the user know their deliverable is ready for review in the deliverables dashboard."
         }
     else:
         return {
             "success": False,
-            "error": pipeline_result.get("message", "Failed to start generation"),
+            "error": exec_result.get("message", "Failed to generate"),
         }
 
 
