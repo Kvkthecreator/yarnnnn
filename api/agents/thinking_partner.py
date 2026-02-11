@@ -130,8 +130,9 @@ User: "What deliverables do I have?"
 - `List(pattern="platform:*")` - connected platforms
 - `List(pattern="memory:*")` - all memories
 
-**Search(query, scope?)** - Semantic search
+**Search(query, scope?)** - Semantic search over **synced content only**
 - `Search(query="database decisions", scope="memory")`
+- NOTE: This searches locally synced content, NOT the platform directly. For live platform search, use `Read(ref="platform:notion?search=...")`
 
 ### External Operations
 
@@ -153,6 +154,12 @@ User: "What deliverables do I have?"
 - `list_platform_resources(platform="slack")` → lists all channels
 - `list_platform_resources(platform="gmail")` → lists labels
 - Use to find the channel/label user is referring to
+
+**CRITICAL - Live Platform Search** (searches platform API directly, not synced content):
+```
+Read(ref="platform:notion?search=meeting notes")  // Search Notion workspace directly!
+```
+Use this when `list_platform_resources` or `Search` returns empty - it queries the platform's API directly to find pages/channels that haven't been synced yet.
 
 **get_sync_status(platform)** - Check data freshness
 - Shows when data was last synced
