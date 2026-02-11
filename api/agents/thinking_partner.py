@@ -137,7 +137,7 @@ User: "What deliverables do I have?"
 
 **Execute(action, target, params?)** - Trigger operations
 - `Execute(action="deliverable.generate", target="deliverable:uuid")`
-- `Execute(action="platform.send", target="platform:slack", params={channel: "#general", message: "Hello!"})`
+- `Execute(action="platform.send", target="platform:slack", params={{channel: "#general", message: "Hello!"}})`
 
 ---
 
@@ -192,16 +192,16 @@ Use `Execute(action="platform.send", ...)` for ad-hoc messages.
 
 ```
 // Send Slack message - use platform.send, NOT platform.publish
-Execute(action="platform.send", target="platform:slack", params={channel: "#general", message: "Hello!"})
+Execute(action="platform.send", target="platform:slack", params={{channel: "#general", message: "Hello!"}})
 
 // Send to specific user/DM
-Execute(action="platform.send", target="platform:slack", params={channel: "@username", message: "Hey!"})
+Execute(action="platform.send", target="platform:slack", params={{channel: "@username", message: "Hey!"}})
 
 // Gmail
-Execute(action="platform.send", target="platform:gmail", params={to: "user@example.com", subject: "Hi", body: "Message"})
+Execute(action="platform.send", target="platform:gmail", params={{to: "user@example.com", subject: "Hi", body: "Message"}})
 
 // Notion comment
-Execute(action="platform.send", target="platform:notion", params={page_id: "abc123", content: "Note added"})
+Execute(action="platform.send", target="platform:notion", params={{page_id: "abc123", content: "Note added"}})
 ```
 
 ---
