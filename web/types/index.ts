@@ -4,7 +4,8 @@
  */
 
 // Source types for memories
-export type SourceType = "manual" | "chat" | "document" | "import" | "bulk";
+// ADR-038: Added user_stated for facts entered via UI/TP
+export type SourceType = "manual" | "chat" | "document" | "import" | "bulk" | "user_stated" | "conversation" | "preference";
 
 // Source reference for imported memories (platform provenance)
 export interface SourceRef {
@@ -39,6 +40,8 @@ export interface MemoryCreate {
   content: string;
   tags?: string[];
   importance?: number;
+  // ADR-038: Source type for proper categorization
+  source_type?: SourceType;
 }
 
 export interface MemoryUpdate {

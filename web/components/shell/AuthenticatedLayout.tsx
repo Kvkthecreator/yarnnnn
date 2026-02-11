@@ -2,22 +2,25 @@
 
 /**
  * ADR-037: Chat-First Surface Architecture
+ * ADR-039: Unified Context Surface
  *
  * Navigation model:
  * - Home (/dashboard) = Chat-first experience (TP primary)
- * - Entity pages: /integrations, /docs, /settings
+ * - Entity pages: /context, /settings
  * - Surfaces exist but are secondary to chat (invoked via TP tools)
  *
- * Key changes from ADR-023:
- * - Dashboard is home (chat), not a nav item
- * - Context browser deprecated (invisible per ADR-034)
- * - Platforms renamed to Integrations (core feature)
+ * Navigation structure (ADR-039):
+ * - Chat (home) | Deliverables | Context | Activity | Settings
+ *
+ * Key changes from ADR-037:
+ * - /integrations and /docs merged into /context
+ * - Context = unified view of platforms, documents, facts (Finder-like)
  */
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { MessageCircle, FolderOpen, ChevronDown, Settings, Link2, Calendar, Activity } from 'lucide-react';
+import { MessageCircle, ChevronDown, Settings, Calendar, Activity, Layers } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -100,12 +103,12 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-037: All navigation items are now routes (not surfaces)
+// ADR-037 + ADR-039: Navigation structure
+// Chat | Deliverables | Context | Activity | Settings
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' },
-  { id: 'integrations', label: 'Integrations', icon: Link2, path: '/integrations' },
+  { id: 'context', label: 'Context', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
-  { id: 'documents', label: 'Docs', icon: FolderOpen, path: '/docs' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
@@ -149,6 +152,7 @@ function AuthenticatedLayoutInner({
   const handleSurfaceChange = useCallback(
     (newSurface: DeskSurface, handoffMessage?: string) => {
       // ADR-037: Route-first navigation for migrated entities
+      // ADR-039: Route-first navigation with unified Context page
       switch (newSurface.type) {
         case 'deliverable-list':
           router.push('/deliverables');
@@ -157,20 +161,23 @@ function AuthenticatedLayoutInner({
           router.push(`/deliverables/${newSurface.deliverableId}`);
           return;
         case 'document-list':
-          router.push('/docs');
+          // ADR-039: Documents now live in unified Context page
+          router.push('/context?source=documents');
           return;
         case 'document-viewer':
           router.push(`/docs/${newSurface.documentId}`);
           return;
         case 'platform-list':
-          router.push('/integrations');
+          // ADR-039: Platforms now live in unified Context page
+          router.push('/context?source=platforms');
           return;
         case 'platform-detail':
-          router.push(`/integrations/${newSurface.platform}`);
+          // ADR-039: Specific platform view in Context
+          router.push(`/context?source=${newSurface.platform}`);
           return;
         case 'context-browser':
-          // Deprecated per ADR-034, just stay on current page
-          console.warn('ADR-034: context-browser is deprecated');
+          // ADR-039: Now redirects to unified Context page
+          router.push('/context');
           return;
       }
 

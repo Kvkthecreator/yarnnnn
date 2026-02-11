@@ -1,35 +1,27 @@
 'use client';
 
 /**
- * ADR-037: Integrations Page (Route-based)
+ * ADR-039: Redirect to unified Context page
  *
- * Standalone page for managing connected integrations.
- * Core feature page - connects to Slack, Notion, Gmail, etc.
+ * Legacy /integrations route now redirects to /context?source=platforms
  */
 
+import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Link2 } from 'lucide-react';
-import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
-import type { PlatformSummary } from '@/components/ui/PlatformCard';
+import { Loader2 } from 'lucide-react';
 
-export default function IntegrationsPage() {
+export default function IntegrationsRedirect() {
   const router = useRouter();
 
-  const handlePlatformClick = (platform: PlatformSummary) => {
-    router.push(`/integrations/${platform.provider}`);
-  };
+  useEffect(() => {
+    router.replace('/context?source=platforms');
+  }, [router]);
 
   return (
-    <div className="h-full overflow-auto">
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
-        <div className="flex items-center gap-3 mb-6">
-          <Link2 className="w-6 h-6" />
-          <h1 className="text-2xl font-bold">Integrations</h1>
-        </div>
-        <p className="text-muted-foreground mb-6">
-          Connect integrations to import context and export deliverables.
-        </p>
-        <PlatformCardGrid onPlatformClick={handlePlatformClick} />
+    <div className="h-full flex items-center justify-center">
+      <div className="text-center">
+        <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2 text-muted-foreground" />
+        <p className="text-sm text-muted-foreground">Redirecting to Context...</p>
       </div>
     </div>
   );

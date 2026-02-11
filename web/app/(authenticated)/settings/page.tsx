@@ -4,13 +4,11 @@ import { useState, useEffect } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import {
   Settings,
-  Trash2,
   Brain,
   AlertTriangle,
   Loader2,
   Check,
   User,
-  FolderOpen,
   CreditCard,
   BarChart3,
   MessageSquare,
@@ -36,9 +34,7 @@ import { createClient } from "@/lib/supabase/client";
 import { IntegrationImportModal } from "@/components/IntegrationImportModal";
 import { useTP } from "@/contexts/TPContext";
 
-interface MemoryStats {
-  totalMemories: number;
-}
+// ADR-039: MemoryStats removed - stats now shown in Context page
 
 interface DangerZoneStats {
   // Tier 1: Individual data types
@@ -74,7 +70,8 @@ interface Integration {
   created_at: string;
 }
 
-type SettingsTab = "memory" | "billing" | "usage" | "notifications" | "integrations" | "account";
+// ADR-039: Removed "memory" tab - facts now live in unified Context page
+type SettingsTab = "billing" | "usage" | "notifications" | "integrations" | "account";
 type DangerAction =
   // Tier 1: Selective purge
   | "chat"
@@ -95,19 +92,18 @@ export default function SettingsPage() {
   const searchParams = useSearchParams();
   const { clearMessages } = useTP();
   const tabParam = searchParams.get("tab");
+  // ADR-039: memory tab removed - redirect to Context page
   const initialTab: SettingsTab =
-    tabParam === "billing" ? "billing" :
     tabParam === "usage" ? "usage" :
     tabParam === "notifications" ? "notifications" :
     tabParam === "integrations" ? "integrations" :
     tabParam === "account" ? "account" :
-    "memory";
+    "billing";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
 
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab);
-  const [stats, setStats] = useState<MemoryStats | null>(null);
+  // ADR-039: Memory stats removed - now in Context page
   const [dangerStats, setDangerStats] = useState<DangerZoneStats | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
   const [isLoadingDangerStats, setIsLoadingDangerStats] = useState(false);
   const [isPurging, setIsPurging] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -138,23 +134,7 @@ export default function SettingsPage() {
   // State to control notification visibility (auto-dismiss)
   const [showOAuthNotification, setShowOAuthNotification] = useState(true);
 
-  // Fetch memory stats on mount
-  useEffect(() => {
-    async function fetchStats() {
-      try {
-        const memories = await api.userMemories.list();
-        setStats({
-          totalMemories: memories.length,
-        });
-      } catch (err) {
-        console.error("Failed to fetch stats:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    }
-
-    fetchStats();
-  }, []);
+  // ADR-039: Memory stats fetch removed - now in Context page
 
   // Fetch danger zone stats when account tab is active
   useEffect(() => {
@@ -398,21 +378,8 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Tabs */}
+      {/* Tabs - ADR-039: Memory tab removed, now in Context page */}
       <div className="flex gap-1 mb-8 border-b border-border overflow-x-auto">
-        <button
-          onClick={() => setActiveTab("memory")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "memory"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Brain className="w-4 h-4" />
-            Memory
-          </span>
-        </button>
         <button
           onClick={() => setActiveTab("billing")}
           className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
@@ -499,20 +466,16 @@ export default function SettingsPage() {
           </p>
 
           <div className="space-y-6">
+            {/* ADR-039: Context stats moved to /context page */}
             <div className="p-4 border border-border rounded-lg">
               <h3 className="font-medium mb-3 flex items-center gap-2">
                 <Brain className="w-4 h-4" />
                 Context
               </h3>
-              {isLoading ? (
-                <div className="flex items-center justify-center py-4">
-                  <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground">
-                  {stats?.totalMemories || 0} memories stored
-                </p>
-              )}
+              <p className="text-sm text-muted-foreground">
+                View your context (platforms, documents, facts) in the{" "}
+                <a href="/context" className="text-primary hover:underline">Context page</a>.
+              </p>
             </div>
 
             <div className="p-4 border border-border rounded-lg">
@@ -954,50 +917,7 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* Memory Tab */}
-      {activeTab === "memory" && (
-        <>
-          <section className="mb-8">
-            <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-              <Brain className="w-5 h-5" />
-              Context Overview
-            </h2>
-
-            {isLoading ? (
-              <div className="flex items-center justify-center py-8">
-                <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-              </div>
-            ) : stats ? (
-              <div className="space-y-4">
-                <div className="p-4 border border-border rounded-lg bg-muted/30">
-                  <div className="text-3xl font-bold">{stats.totalMemories}</div>
-                  <div className="text-sm text-muted-foreground">Total memories stored</div>
-                </div>
-
-                <div className="p-4 border border-border rounded-lg">
-                  <div className="flex items-center gap-3">
-                    <Brain className="w-5 h-5 text-primary" />
-                    <div>
-                      <div className="font-medium">Your Context</div>
-                      <div className="text-sm text-muted-foreground">
-                        Accumulated knowledge from your work
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <p className="text-sm text-muted-foreground">
-                  Context is automatically organized based on your deliverables.
-                  Use the Account tab to manage your data.
-                </p>
-              </div>
-            ) : (
-              <div className="text-muted-foreground">Failed to load context stats</div>
-            )}
-          </section>
-
-        </>
-      )}
+      {/* ADR-039: Memory tab removed - facts now in /context?source=facts */}
 
       {/* Account Tab - Data & Privacy */}
       {activeTab === "account" && (
