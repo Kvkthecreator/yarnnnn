@@ -2,7 +2,8 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-10
-> **Related ADRs**: ADR-036 (Two-Layer Architecture), ADR-037 (Chat-First Surface)
+> **Updated**: 2026-02-11 (ADR-038 Phase 2)
+> **Related ADRs**: ADR-036 (Two-Layer), ADR-037 (Chat-First), ADR-038 (Filesystem-as-Context)
 > **Implementation**: `api/services/primitives/`
 
 ---
@@ -13,14 +14,14 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 
 ### Design Principles
 
-1. **Minimal Surface** — 9 primitives cover all use cases
+1. **Minimal Surface** — 7 primitives cover all use cases
 2. **Universal Reference Syntax** — Consistent `type:identifier` addressing
 3. **Composable** — Primitives combine for complex operations
 4. **Self-Describing** — Results include context for further action
 
 ---
 
-## The 9 Primitives
+## The 7 Primitives
 
 | Primitive | Purpose | Input | Output |
 |-----------|---------|-------|--------|
@@ -28,11 +29,13 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 | **Write** | Create new entity | `ref`, `content` | `data`, `ref` |
 | **Edit** | Modify existing entity | `ref`, `changes` | `data`, `changes_applied` |
 | **List** | Find entities by pattern | `pattern` | `items`, `count` |
-| **Search** | Find by semantic meaning | `query`, `scope` | `results`, `count` |
+| **Search** | Find by content | `query`, `scope` | `results`, `count` |
 | **Execute** | Trigger external operation | `action`, `target` | `result` |
-| **Todo** | Track progress | `todos` | `todos` |
-| **Respond** | Send message to user | `message` | `ui_action` |
 | **Clarify** | Ask user for input | `question`, `options` | `ui_action` |
+
+> **Note**: Todo and Respond primitives were removed per ADR-038 (Filesystem-as-Context).
+> Todo will return when multi-step workflows require 30+ second operations.
+> Respond was redundant with model output.
 
 ---
 
@@ -48,7 +51,7 @@ All entity references follow a consistent grammar:
 
 | Component | Description | Example |
 |-----------|-------------|---------|
-| `type` | Entity type | `deliverable`, `memory`, `platform` |
+| `type` | Entity type | `deliverable`, `platform_content`, `platform` |
 | `identifier` | Entity ID or special | UUID, `new`, `latest`, `*` |
 | `subpath` | Nested access | `/credentials`, `/sources/0` |
 | `query` | Filter parameters | `?status=active&limit=10` |
@@ -59,12 +62,15 @@ All entity references follow a consistent grammar:
 |------|-------|-------------|
 | `deliverable` | `deliverables` | Recurring content outputs |
 | `platform` | `user_integrations` | Connected platforms (by provider name) |
-| `memory` | `memories` | Context memories |
+| `platform_content` | `ephemeral_context` | Imported platform data (Slack, Gmail, Notion) |
+| `memory` | `memories` | User-stated facts only (narrowed per ADR-038) |
 | `session` | `chat_sessions` | Chat sessions |
 | `domain` | `context_domains` | Emergent context domains |
 | `document` | `documents` | Uploaded documents |
 | `work` | `work_tickets` | Work execution records |
 | `action` | (virtual) | Available actions for Execute |
+
+> **ADR-038 Note**: `memory` is now reserved for user-stated facts (`source_type` IN 'chat', 'user_stated', 'conversation', 'preference'). Platform imports (Slack/Gmail/Notion) are stored in `ephemeral_context` and accessed via `platform_content` entity type.
 
 ### Entity Schemas
 
@@ -86,6 +92,21 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 
 **Display Priority:** `title` > `status` > `schedule.frequency`
 
+#### platform_content
+
+| Field | Type | Description | Display |
+|-------|------|-------------|---------|
+| `id` | UUID | Primary key | — |
+| `platform` | string | Source platform (slack, gmail, notion) | ✓ Badge |
+| `resource_name` | string | Channel/folder/page name | ✓ Primary |
+| `content` | string | The imported content | ✓ Truncated |
+| `content_type` | string | Type (message, email, page, etc.) | — |
+| `source_timestamp` | timestamp | When content was created on platform | — |
+| `expires_at` | timestamp | TTL for ephemeral content | — |
+| `platform_metadata` | JSONB | Platform-specific data | — |
+
+**Display Priority:** `resource_name` > `platform` > `content` (truncated)
+
 #### memory
 
 | Field | Type | Description | Display |
@@ -94,10 +115,12 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 | `content` | string | The memory content | ✓ Primary |
 | `tags` | string[] | Categorization tags | ✓ Chips |
 | `importance` | float | 0.0–1.0 retrieval weight | — |
-| `source_type` | enum | `chat`, `document`, `manual`, `import` | — |
+| `source_type` | enum | `chat`, `user_stated`, `conversation`, `preference` | — |
 | `entities` | JSONB | Extracted entities | — |
 
 **Display Priority:** `content` (truncated) > `tags`
+
+> **ADR-038 Note**: Memory is now restricted to user-stated facts only. Platform imports no longer write to this table.
 
 #### platform
 
@@ -167,8 +190,11 @@ deliverable:?status=active    # Active deliverables
 platform:slack               # Slack integration (by provider)
 platform:*/credentials       # All platforms, credentials subpath
 
-memory:*                     # All memories
-memory:?type=fact&limit=10   # Filtered memories
+platform_content:*           # All imported platform content
+platform_content:?platform=slack&limit=20  # Slack content only
+
+memory:*                     # User-stated facts (narrowed scope)
+memory:?type=fact&limit=10   # Filtered user facts
 
 action:*                     # All available actions
 action:platform.*            # Platform actions only
@@ -315,13 +341,14 @@ Find entities by pattern (structural navigation).
 
 ### Search
 
-Find entities by semantic meaning (embedding search).
+Find entities by content using text search.
 
 **Input**:
 ```json
 {
   "query": "database migration decisions",
-  "scope": "memory",
+  "scope": "platform_content",
+  "platform": "slack",
   "limit": 10
 }
 ```
@@ -332,19 +359,25 @@ Find entities by semantic meaning (embedding search).
   "success": true,
   "results": [
     {
-      "entity_type": "memory",
-      "ref": "memory:uuid-123",
+      "entity_type": "platform_content",
+      "ref": "platform:slack:uuid-123",
+      "platform": "slack",
+      "resource_name": "#engineering",
       "data": { "content": "We decided to use Supabase...", ... },
-      "score": 0.89
+      "score": 0.5
     }
   ],
   "count": 1,
   "query": "database migration decisions",
-  "scope": "memory"
+  "scope": "platform_content"
 }
 ```
 
-**Scopes**: `memory`, `deliverable`, `document`, `work`, `all`
+**Scopes**: `platform_content`, `deliverable`, `document`, `work`, `all`
+
+**Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`
+
+> **ADR-038 Note**: The `memory` scope is deprecated and auto-redirects to `platform_content` for backwards compatibility.
 
 ---
 
@@ -389,60 +422,6 @@ Trigger external operations on entities.
 
 ---
 
-### Todo
-
-Track multi-step work progress.
-
-**Input**:
-```json
-{
-  "todos": [
-    { "content": "Gather sources", "status": "completed", "activeForm": "Gathering sources" },
-    { "content": "Generate draft", "status": "in_progress", "activeForm": "Generating draft" },
-    { "content": "Review output", "status": "pending", "activeForm": "Reviewing output" }
-  ]
-}
-```
-
-**Output**:
-```json
-{
-  "success": true,
-  "todos": [...],
-  "ui_action": {
-    "type": "UPDATE_TODOS",
-    "data": { "todos": [...] }
-  }
-}
-```
-
----
-
-### Respond
-
-Send a message to the user (appears inline in chat).
-
-**Input**:
-```json
-{
-  "message": "I've created your weekly status update."
-}
-```
-
-**Output**:
-```json
-{
-  "success": true,
-  "message": "I've created your weekly status update.",
-  "ui_action": {
-    "type": "RESPOND",
-    "data": { "message": "..." }
-  }
-}
-```
-
----
-
 ### Clarify
 
 Ask the user for input before proceeding.
@@ -476,9 +455,7 @@ Primitives can return `ui_action` to trigger frontend behavior:
 
 | Type | Purpose | Data |
 |------|---------|------|
-| `RESPOND` | Display message inline | `message` |
 | `CLARIFY` | Show focused question | `question`, `options` |
-| `UPDATE_TODOS` | Update todo display | `todos` |
 
 ---
 
@@ -513,14 +490,14 @@ Common error codes:
 api/services/primitives/
 ├── __init__.py      # Module exports
 ├── refs.py          # Reference parser and resolver
-├── registry.py      # Primitive registration + Respond/Clarify
+├── registry.py      # Primitive registration + Clarify
 ├── read.py          # Read primitive
 ├── write.py         # Write primitive
 ├── edit.py          # Edit primitive
 ├── list.py          # List primitive
-├── search.py        # Search primitive (semantic)
+├── search.py        # Search primitive (text-based)
 ├── execute.py       # Execute primitive + action handlers
-└── todo.py          # Todo primitive
+└── clarify.py       # Clarify primitive
 ```
 
 ### Execution Flow
@@ -554,6 +531,14 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 ## Changelog
 
+### 2026-02-11 — ADR-038 Phase 2 (Single Storage Layer)
+- Reduced from 9 to 7 primitives: Removed Todo and Respond per ADR-038
+- Added `platform_content` entity type mapping to `ephemeral_context` table
+- Narrowed `memory` entity to user-stated facts only (source_type='chat', 'user_stated', 'conversation', 'preference')
+- Search primitive now uses `scope="platform_content"` for imported platform data
+- Legacy `memory` scope auto-redirects to `platform_content` for backwards compatibility
+- Removed dual-write to memories table from import jobs
+
 ### 2026-02-10 — Initial Implementation
 - 9 primitives: Read, Write, Edit, List, Search, Execute, Todo, Respond, Clarify
 - Reference syntax with `type:identifier[/subpath][?query]`
@@ -566,4 +551,5 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 - [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
 - [ADR-037: Chat-First Surface Architecture](../adr/ADR-037-chat-first-surface-architecture.md)
+- [ADR-038: Filesystem-as-Context Architecture](../adr/ADR-038-filesystem-as-context.md)
 - [Testing Environment Guide](../testing/TESTING-ENVIRONMENT.md)
