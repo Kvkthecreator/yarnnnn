@@ -1261,9 +1261,23 @@ LENGTH_GUIDANCE = {
 }
 
 
+def normalize_sections(sections) -> dict:
+    """Normalize sections to dict format.
+
+    Handles both:
+    - List format: ['summary', 'accomplishments'] -> {'summary': True, 'accomplishments': True}
+    - Dict format: {'summary': True, 'accomplishments': False} -> unchanged
+    """
+    if sections is None:
+        return {}
+    if isinstance(sections, list):
+        return {s: True for s in sections}
+    return sections
+
+
 def build_sections_list(deliverable_type: str, config: dict) -> str:
     """Build formatted sections list based on enabled sections in config."""
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     templates = SECTION_TEMPLATES.get(deliverable_type, {})
 
     enabled = []
@@ -2030,7 +2044,7 @@ def validate_status_report(content: str, config: dict) -> dict:
     """Validate a status report output."""
     issues = []
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     content_lower = content.lower()
@@ -2072,7 +2086,7 @@ def validate_stakeholder_update(content: str, config: dict) -> dict:
     """Validate a stakeholder update output."""
     issues = []
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     content_lower = content.lower()
@@ -2110,7 +2124,7 @@ def validate_research_brief(content: str, config: dict) -> dict:
     """Validate a research brief output."""
     issues = []
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     content_lower = content.lower()
@@ -2154,7 +2168,7 @@ def validate_meeting_summary(content: str, config: dict) -> dict:
     """Validate a meeting summary output."""
     issues = []
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     content_lower = content.lower()
@@ -2217,7 +2231,7 @@ def validate_client_proposal(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2254,7 +2268,7 @@ def validate_performance_self_assessment(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2318,7 +2332,7 @@ def validate_changelog(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2348,7 +2362,7 @@ def validate_one_on_one_prep(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2383,7 +2397,7 @@ def validate_board_update(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2431,7 +2445,7 @@ def validate_inbox_summary(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2496,7 +2510,7 @@ def validate_follow_up_tracker(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2529,7 +2543,7 @@ def validate_thread_summary(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2568,7 +2582,7 @@ def validate_slack_channel_digest(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2602,7 +2616,7 @@ def validate_slack_standup(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2637,7 +2651,7 @@ def validate_gmail_inbox_brief(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {
@@ -2673,7 +2687,7 @@ def validate_notion_page_summary(content: str, config: dict) -> dict:
     issues = []
     content_lower = content.lower()
 
-    sections = config.get("sections", {})
+    sections = normalize_sections(config.get("sections", {}))
     required_sections = [k for k, v in sections.items() if v]
 
     section_keywords = {

@@ -292,19 +292,16 @@ async def generate_draft_inline(
     ADR-042: Replaces execute_synthesize_step(). No separate work_ticket.
     """
     from services.anthropic import chat_completion
-    from services.deliverable_pipeline import build_type_prompt, validate_output
+    from services.deliverable_pipeline import (
+        build_type_prompt,
+        validate_output,
+        get_past_versions_context,
+    )
 
+    deliverable_id = deliverable.get("id")
     deliverable_type = deliverable.get("deliverable_type", "custom")
     type_config = deliverable.get("type_config", {})
     recipient_context = deliverable.get("recipient_context", {})
-
-    # Build type-specific prompt
-    prompt = build_type_prompt(
-        deliverable_type=deliverable_type,
-        config=type_config,
-        gathered_context=gathered_context,
-        deliverable=deliverable,
-    )
 
     # Format recipient context
     recipient_str = ""
@@ -313,17 +310,24 @@ async def generate_draft_inline(
         role = recipient_context.get("role", "")
         priorities = recipient_context.get("priorities", [])
         if name or role:
-            recipient_str = f"\nRECIPIENT: {name}"
+            recipient_str = f"RECIPIENT: {name}"
             if role:
                 recipient_str += f" ({role})"
             if priorities:
                 recipient_str += f"\nPRIORITIES: {', '.join(priorities)}"
 
-    # Add recipient context to prompt
-    if recipient_str:
-        prompt = prompt.replace("{recipient_context}", recipient_str)
-    else:
-        prompt = prompt.replace("{recipient_context}", "")
+    # Get past versions context for feedback patterns
+    past_versions = await get_past_versions_context(client, deliverable_id) if deliverable_id else ""
+
+    # Build type-specific prompt
+    prompt = build_type_prompt(
+        deliverable_type=deliverable_type,
+        config=type_config,
+        deliverable=deliverable,
+        gathered_context=gathered_context,
+        recipient_text=recipient_str,
+        past_versions=past_versions,
+    )
 
     # Generate draft
     system_prompt = f"""You are generating a {deliverable_type} deliverable.
@@ -375,13 +379,13 @@ async def complete_work_ticket(
     """Mark work ticket as completed."""
     now = datetime.now(timezone.utc).isoformat()
 
+    # Update ticket status (result stored in execution log instead)
     client.table("work_tickets").update({
         "status": "completed",
         "completed_at": now,
-        "result": result,
     }).eq("id", ticket_id).execute()
 
-    # Log completion
+    # Log completion with result details
     try:
         client.table("work_execution_log").insert({
             "ticket_id": ticket_id,
