@@ -42,11 +42,11 @@ export default function HowItWorksPage() {
                   <div>
                     <h3 className="text-xl font-medium mb-4">Connect your tools</h3>
                     <p className="text-white/50 leading-relaxed mb-6">
-                      Link the apps where your work already lives—Slack, Gmail, Notion.
+                      Link the apps where your work already lives—Slack, Gmail, Notion, Calendar.
                       It&apos;s a one-time sign-in. After that, yarnnn can see what you see.
                     </p>
                     <div className="border border-white/10 rounded-xl p-5 bg-white/5">
-                      <div className="grid grid-cols-3 gap-4">
+                      <div className="grid grid-cols-4 gap-4">
                         <div className="text-center">
                           <div className="text-2xl mb-2">💬</div>
                           <div className="text-white/70 text-sm">Slack</div>
@@ -61,6 +61,11 @@ export default function HowItWorksPage() {
                           <div className="text-2xl mb-2">📝</div>
                           <div className="text-white/70 text-sm">Notion</div>
                           <div className="text-white/30 text-xs">Pages and databases</div>
+                        </div>
+                        <div className="text-center">
+                          <div className="text-2xl mb-2">📅</div>
+                          <div className="text-white/70 text-sm">Calendar</div>
+                          <div className="text-white/30 text-xs">Meetings and events</div>
                         </div>
                       </div>
                     </div>
@@ -245,6 +250,10 @@ export default function HowItWorksPage() {
                 <div className="border border-white/10 rounded-xl p-4">
                   <div className="text-white/30 text-xs uppercase tracking-wider mb-2">Notion → Investors</div>
                   <div className="text-white/70 text-sm">Monthly investor updates</div>
+                </div>
+                <div className="border border-white/10 rounded-xl p-4">
+                  <div className="text-white/30 text-xs uppercase tracking-wider mb-2">Calendar → You</div>
+                  <div className="text-white/70 text-sm">Meeting prep briefs</div>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4">
                   <div className="text-white/30 text-xs uppercase tracking-wider mb-2">Multiple → Stakeholders</div>

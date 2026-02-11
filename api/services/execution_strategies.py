@@ -6,11 +6,11 @@ Determines HOW a deliverable is executed based on its type_classification.bindin
 Strategies:
 - platform_bound: Single platform gatherer → DeliverableAgent
 - cross_platform: Parallel platform gatherers → DeliverableAgent
-- research: (Future) Web researcher → ResearchSynthesizer
-- hybrid: (Future) Research + Platform → HybridSynthesizer
+- research: Web researcher (Anthropic native) → DeliverableAgent
+- hybrid: Research + Platform in parallel → DeliverableAgent
 
-Phase 1: Strategy selection and parallel fetching
-Phase 2: Tool-equipped agents (web.search, web.fetch)
+Phase 1 ✅: Strategy selection and parallel fetching
+Phase 2 ✅: Web research via Anthropic's native web_search tool
 """
 
 import asyncio
@@ -266,8 +266,9 @@ class ResearchStrategy(ExecutionStrategy):
     """
     Strategy for research deliverables.
 
-    Phase 2: Will use web.search and web.fetch tools.
-    Currently falls back to cross-platform behavior.
+    ADR-045 Phase 2: Uses Anthropic's native web_search tool via ResearcherAgent.
+    Gathers external context through web research, optionally combined with
+    platform grounding.
     """
 
     @property
@@ -280,14 +281,79 @@ class ResearchStrategy(ExecutionStrategy):
         user_id: str,
         deliverable: dict,
     ) -> GatheredContext:
-        # Phase 1: Fall back to cross-platform
-        # Phase 2: Add WebSearch/WebFetch when primitives are ready
-        logger.info("[RESEARCH] Research strategy not yet implemented, falling back to cross-platform")
+        from agents.researcher import research_topic
 
-        fallback = CrossPlatformStrategy()
-        result = await fallback.gather_context(client, user_id, deliverable)
-        result.summary["strategy"] = "research (fallback: cross_platform)"
-        result.summary["note"] = "WebSearch/WebFetch not yet implemented"
+        title = deliverable.get("title", "")
+        description = deliverable.get("description", "")
+        task = deliverable.get("task", deliverable.get("title", ""))
+        sources = deliverable.get("sources", [])
+
+        # Build research topic from deliverable
+        research_topic_str = task or title
+        if description:
+            research_topic_str += f"\n\nContext: {description}"
+
+        logger.info(f"[RESEARCH] Starting web research: {research_topic_str[:50]}...")
+
+        result = GatheredContext(content="", summary={"strategy": self.strategy_name})
+        context_parts = []
+
+        # 1. Conduct web research using Anthropic's native web_search
+        try:
+            research_result = await research_topic(
+                topic=research_topic_str,
+                max_searches=5,
+            )
+
+            if research_result.success and research_result.content:
+                context_parts.append(f"[WEB RESEARCH]\n{research_result.content}")
+                result.sources_used.extend([f"web:{url}" for url in research_result.sources[:5]])
+                result.summary["search_queries"] = research_result.search_queries
+                result.summary["web_sources_count"] = len(research_result.sources)
+                logger.info(
+                    f"[RESEARCH] Web research complete: "
+                    f"queries={len(research_result.search_queries)}, "
+                    f"sources={len(research_result.sources)}"
+                )
+            elif research_result.error:
+                result.errors.append(f"Web research failed: {research_result.error}")
+                logger.warning(f"[RESEARCH] Web research error: {research_result.error}")
+
+        except Exception as e:
+            result.errors.append(f"Web research exception: {e}")
+            logger.error(f"[RESEARCH] Web research failed: {e}")
+
+        # 2. Optional: Get platform grounding from sources (if any configured)
+        integration_sources = [s for s in sources if s.get("type") == "integration_import"]
+        if integration_sources:
+            logger.info(f"[RESEARCH] Adding platform grounding from {len(integration_sources)} sources")
+            # Use cross-platform strategy for platform sources
+            platform_strategy = CrossPlatformStrategy()
+            platform_result = await platform_strategy.gather_context(client, user_id, deliverable)
+
+            if platform_result.content and platform_result.content != "(No context available)":
+                context_parts.append(f"[PLATFORM GROUNDING]\n{platform_result.content}")
+                result.sources_used.extend(platform_result.sources_used)
+                result.items_fetched += platform_result.items_fetched
+
+        # 3. Add user memories
+        memories = await _get_user_memories(client, user_id)
+        if memories:
+            context_parts.append(f"[USER CONTEXT]\n{memories}")
+
+        # 4. Add past version feedback
+        past_context = await _get_past_versions_context(client, deliverable.get("id"))
+        if past_context:
+            context_parts.append(past_context)
+
+        result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No context available)"
+        result.summary["sources_used"] = result.sources_used
+        result.summary["items_fetched"] = result.items_fetched
+
+        logger.info(
+            f"[RESEARCH] Context gathered: web_sources={result.summary.get('web_sources_count', 0)}, "
+            f"platform_sources={len([s for s in result.sources_used if s.startswith('platform:')])}"
+        )
 
         return result
 
@@ -296,8 +362,8 @@ class HybridStrategy(ExecutionStrategy):
     """
     Strategy for hybrid deliverables.
 
-    Combines research (web) with platform grounding.
-    Phase 2: Will use web tools + platform fetch in parallel.
+    ADR-045 Phase 2: Combines web research with platform grounding in parallel.
+    Web research and platform fetching run concurrently for efficiency.
     """
 
     @property
@@ -310,13 +376,86 @@ class HybridStrategy(ExecutionStrategy):
         user_id: str,
         deliverable: dict,
     ) -> GatheredContext:
-        # Phase 1: Fall back to cross-platform
-        logger.info("[HYBRID] Hybrid strategy not yet implemented, falling back to cross-platform")
+        from agents.researcher import research_topic
 
-        fallback = CrossPlatformStrategy()
-        result = await fallback.gather_context(client, user_id, deliverable)
-        result.summary["strategy"] = "hybrid (fallback: cross_platform)"
-        result.summary["note"] = "Web research not yet implemented"
+        title = deliverable.get("title", "")
+        description = deliverable.get("description", "")
+        task = deliverable.get("task", deliverable.get("title", ""))
+
+        # Build research topic
+        research_topic_str = task or title
+        if description:
+            research_topic_str += f"\n\nContext: {description}"
+
+        logger.info(f"[HYBRID] Starting parallel web research + platform fetch: {research_topic_str[:50]}...")
+
+        result = GatheredContext(content="", summary={"strategy": self.strategy_name})
+        context_parts = []
+
+        # Run web research and platform fetching in parallel
+        async def do_web_research():
+            try:
+                return await research_topic(topic=research_topic_str, max_searches=3)
+            except Exception as e:
+                logger.error(f"[HYBRID] Web research failed: {e}")
+                return None
+
+        async def do_platform_fetch():
+            try:
+                platform_strategy = CrossPlatformStrategy()
+                return await platform_strategy.gather_context(client, user_id, deliverable)
+            except Exception as e:
+                logger.error(f"[HYBRID] Platform fetch failed: {e}")
+                return None
+
+        # Execute in parallel
+        web_result, platform_result = await asyncio.gather(
+            do_web_research(),
+            do_platform_fetch(),
+            return_exceptions=True,
+        )
+
+        # Process web research results
+        if web_result and not isinstance(web_result, Exception):
+            if web_result.success and web_result.content:
+                context_parts.append(f"[WEB RESEARCH]\n{web_result.content}")
+                result.sources_used.extend([f"web:{url}" for url in web_result.sources[:5]])
+                result.summary["search_queries"] = web_result.search_queries
+                result.summary["web_sources_count"] = len(web_result.sources)
+            elif web_result.error:
+                result.errors.append(f"Web research failed: {web_result.error}")
+        elif isinstance(web_result, Exception):
+            result.errors.append(f"Web research exception: {web_result}")
+
+        # Process platform results
+        if platform_result and not isinstance(platform_result, Exception):
+            if platform_result.content and platform_result.content != "(No context available)":
+                context_parts.append(f"[PLATFORM DATA]\n{platform_result.content}")
+                result.sources_used.extend(platform_result.sources_used)
+                result.items_fetched += platform_result.items_fetched
+                result.summary["platform_providers"] = platform_result.summary.get("providers_fetched", [])
+        elif isinstance(platform_result, Exception):
+            result.errors.append(f"Platform fetch exception: {platform_result}")
+
+        # Add user memories (already included in platform_result, but add if no platform sources)
+        if not platform_result or isinstance(platform_result, Exception):
+            memories = await _get_user_memories(client, user_id)
+            if memories:
+                context_parts.append(f"[USER CONTEXT]\n{memories}")
+
+        # Add past version feedback
+        past_context = await _get_past_versions_context(client, deliverable.get("id"))
+        if past_context:
+            context_parts.append(past_context)
+
+        result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No context available)"
+        result.summary["sources_used"] = result.sources_used
+        result.summary["items_fetched"] = result.items_fetched
+
+        logger.info(
+            f"[HYBRID] Context gathered: web_sources={result.summary.get('web_sources_count', 0)}, "
+            f"platform_sources={len([s for s in result.sources_used if s.startswith('platform:')])}"
+        )
 
         return result
 

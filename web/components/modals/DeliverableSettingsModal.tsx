@@ -30,6 +30,7 @@ import {
   Slack,
   FileCode,
   Download,
+  Calendar,
   CheckCircle2,
 } from 'lucide-react';
 import Link from 'next/link';
@@ -102,6 +103,9 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   slack_standup: 'Standup Synthesis',
   gmail_inbox_brief: 'Inbox Brief',
   notion_page_summary: 'Page Summary',
+  // ADR-046: Calendar-triggered types
+  meeting_prep: 'Meeting Prep',
+  weekly_calendar_preview: 'Week Preview',
 };
 
 // ADR-032: Governance simplified - default to draft mode (manual)
@@ -112,6 +116,8 @@ const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   notion: <FileCode className="w-4 h-4" />,
   gmail: <Mail className="w-4 h-4" />,
   download: <Download className="w-4 h-4" />,
+  google: <Calendar className="w-4 h-4" />,
+  calendar: <Calendar className="w-4 h-4" />,
 };
 
 const PLATFORM_COLORS: Record<string, string> = {
@@ -119,6 +125,8 @@ const PLATFORM_COLORS: Record<string, string> = {
   notion: 'text-gray-700',
   gmail: 'text-red-500',
   download: 'text-blue-500',
+  google: 'text-blue-500',
+  calendar: 'text-blue-500',
 };
 
 export function DeliverableSettingsModal({

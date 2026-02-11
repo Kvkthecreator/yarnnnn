@@ -101,11 +101,19 @@ const PLATFORM_CONFIG: Record<string, {
   },
   google: {
     icon: <Calendar className="w-5 h-5" />,
-    label: 'Calendar',
+    label: 'Google',
     color: 'text-blue-500',
     bgColor: 'bg-blue-50 dark:bg-blue-950/30',
     resourceIcon: <Calendar className="w-4 h-4" />,
     resourceLabel: 'Calendars',
+  },
+  calendar: {
+    icon: <Calendar className="w-5 h-5" />,
+    label: 'Calendar',
+    color: 'text-blue-500',
+    bgColor: 'bg-blue-50 dark:bg-blue-950/30',
+    resourceIcon: <Calendar className="w-4 h-4" />,
+    resourceLabel: 'Events',
   },
 };
 
@@ -176,7 +184,7 @@ export function PlatformDetailPanel({
       // Load landscape (resources), deliverables, and limits in parallel
       const [landscapeResult, deliverablesResult, limitsResult] = await Promise.all([
         api.integrations.getLandscape(
-          platform.provider as 'slack' | 'notion' | 'gmail',
+          platform.provider as 'slack' | 'notion' | 'gmail' | 'google' | 'calendar',
           refresh
         ),
         api.deliverables.list(),
@@ -193,15 +201,20 @@ export function PlatformDetailPanel({
       setDeliverables(platformDeliverables);
 
       // ADR-043: Set source limits for this provider
+      // ADR-046: Added google/calendar - uses gmail_labels as placeholder until calendar limits added
       const providerLimitMap: Record<string, keyof typeof limitsResult.limits> = {
         slack: 'slack_channels',
         gmail: 'gmail_labels',
         notion: 'notion_pages',
+        google: 'gmail_labels',
+        calendar: 'gmail_labels',
       };
       const providerUsageMap: Record<string, keyof typeof limitsResult.usage> = {
         slack: 'slack_channels',
         gmail: 'gmail_labels',
         notion: 'notion_pages',
+        google: 'gmail_labels',
+        calendar: 'gmail_labels',
       };
       const limitKey = providerLimitMap[platform.provider];
       const usageKey = providerUsageMap[platform.provider];

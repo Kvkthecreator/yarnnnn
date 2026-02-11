@@ -56,7 +56,7 @@ import type {
 // =============================================================================
 
 interface DeliverableCreateSurfaceProps {
-  initialPlatform?: 'slack' | 'gmail' | 'notion';
+  initialPlatform?: 'slack' | 'gmail' | 'notion' | 'google' | 'calendar';
 }
 
 // Destination platforms include 'download' which isn't an integration

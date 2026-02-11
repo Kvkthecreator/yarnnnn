@@ -11,7 +11,7 @@
 
 export type DeskSurface =
   // Deliverables
-  | { type: 'deliverable-create'; initialPlatform?: 'slack' | 'gmail' | 'notion' }
+  | { type: 'deliverable-create'; initialPlatform?: 'slack' | 'gmail' | 'notion' | 'google' | 'calendar' }
   | { type: 'deliverable-review'; deliverableId: string; versionId: string }
   | { type: 'deliverable-detail'; deliverableId: string }
   | { type: 'deliverable-list'; status?: 'active' | 'paused' | 'archived' }
@@ -26,7 +26,7 @@ export type DeskSurface =
   | { type: 'document-list' }
   // Platforms (ADR-033)
   | { type: 'platform-list' }
-  | { type: 'platform-detail'; platform: 'slack' | 'notion' | 'gmail' | 'google' }
+  | { type: 'platform-detail'; platform: 'slack' | 'notion' | 'gmail' | 'google' | 'calendar' }
   // Idle state
   | { type: 'idle' };
 
@@ -174,7 +174,7 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'deliverable-create':
       return {
         type: 'deliverable-create',
-        initialPlatform: data.platform as 'slack' | 'gmail' | 'notion' | undefined,
+        initialPlatform: data.platform as 'slack' | 'gmail' | 'notion' | 'google' | 'calendar' | undefined,
       };
     case 'deliverable':
       return { type: 'deliverable-detail', deliverableId: data.deliverableId as string };
@@ -226,7 +226,7 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
     case 'platform-detail':
       return {
         type: 'platform-detail',
-        platform: data.platform as 'slack' | 'notion' | 'gmail' | 'google',
+        platform: data.platform as 'slack' | 'notion' | 'gmail' | 'google' | 'calendar',
       };
 
     // Dashboard/Home
@@ -297,7 +297,7 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
       const platform = params.get('platform');
       return {
         type: 'deliverable-create',
-        initialPlatform: platform as 'slack' | 'gmail' | 'notion' | undefined,
+        initialPlatform: platform as 'slack' | 'gmail' | 'notion' | 'google' | 'calendar' | undefined,
       };
     }
     case 'deliverable-review': {
@@ -342,8 +342,8 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
       return { type: 'platform-list' };
     case 'platform-detail': {
       const platform = params.get('platform');
-      if (platform && ['slack', 'notion', 'gmail', 'google'].includes(platform)) {
-        return { type: 'platform-detail', platform: platform as 'slack' | 'notion' | 'gmail' | 'google' };
+      if (platform && ['slack', 'notion', 'gmail', 'google', 'calendar'].includes(platform)) {
+        return { type: 'platform-detail', platform: platform as 'slack' | 'notion' | 'gmail' | 'google' | 'calendar' };
       }
       break;
     }

@@ -26,7 +26,7 @@ import { api } from "@/lib/api/client";
 import { useRouter } from "next/navigation";
 import { useDesk } from "@/contexts/DeskContext";
 
-type Provider = "slack" | "notion" | "gmail";
+type Provider = "slack" | "notion" | "gmail" | "google" | "calendar";
 type CoverageState = "uncovered" | "partial" | "covered" | "stale" | "excluded";
 
 // ADR-030: Landscape resource with coverage state

@@ -331,7 +331,7 @@ Execute(action="deliverable.generate", target="deliverable:uuid")
 
 ---
 
-## Type-Aware Orchestration (ADR-045 - Phase 1 Complete)
+## Type-Aware Orchestration (ADR-045 - Phase 2 Complete)
 
 Orchestration strategy determined by `type_classification.binding`:
 
@@ -339,12 +339,12 @@ Orchestration strategy determined by `type_classification.binding`:
 |---------|----------|--------|
 | `platform_bound` | Single platform focus → DeliverableAgent | ✅ Implemented |
 | `cross_platform` | Parallel gatherers (asyncio.gather) → DeliverableAgent | ✅ Implemented |
-| `research` | Web researcher → Research synthesizer | 🔲 Phase 2 (fallback to cross_platform) |
-| `hybrid` | Research + Platform → Hybrid synthesizer | 🔲 Phase 2 (fallback to cross_platform) |
+| `research` | Web researcher (Anthropic native) → DeliverableAgent | ✅ Implemented |
+| `hybrid` | Research + Platform in parallel → DeliverableAgent | ✅ Implemented |
 
-**Phase 1 Complete**: Strategy selection and parallel fetching implemented in `execution_strategies.py`.
+**Phase 1 Complete**: Strategy selection and parallel fetching in `execution_strategies.py`.
 
-**Phase 2 Required**: WebSearch/WebFetch primitives for research and hybrid strategies.
+**Phase 2 Complete**: Web research via Anthropic's native `web_search` tool in `researcher.py`.
 
 ---
 

@@ -16,6 +16,7 @@ import {
   Slack,
   FileCode,
   Download,
+  Calendar,
   ChevronRight,
   Check,
   Loader2,
@@ -81,6 +82,22 @@ const PLATFORM_CONFIG: Record<string, {
     color: 'text-blue-500',
     formats: [
       { value: 'markdown', label: 'Markdown', description: 'Download as .md file' },
+    ],
+  },
+  google: {
+    icon: <Calendar className="w-5 h-5" />,
+    label: 'Google',
+    color: 'text-blue-500',
+    formats: [
+      { value: 'draft', label: 'Draft', description: 'Creates a draft in your Gmail' },
+    ],
+  },
+  calendar: {
+    icon: <Calendar className="w-5 h-5" />,
+    label: 'Calendar',
+    color: 'text-blue-500',
+    formats: [
+      { value: 'markdown', label: 'Download', description: 'Download as markdown file' },
     ],
   },
 };

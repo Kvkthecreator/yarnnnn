@@ -31,7 +31,7 @@ export default function LandingPage() {
 
             {/* Supporting headline */}
             <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-2xl mx-auto font-light">
-              Connect your Slack, Gmail, and Notion. yarnnn turns what&apos;s happening
+              Connect your Slack, Gmail, Notion, and Calendar. yarnnn turns what&apos;s happening
               into the updates you owe people. You just review and hit send.
             </p>
 
@@ -92,7 +92,7 @@ export default function LandingPage() {
                 <div className="text-4xl font-light text-[#1a1a1a]/20 mb-4">01</div>
                 <h3 className="text-lg font-medium mb-3 text-[#1a1a1a]">Connect your tools</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Link Slack, Gmail, or Notion—wherever your work happens.
+                  Link Slack, Gmail, Notion, or Calendar—wherever your work happens.
                   One-time sign-in, and yarnnn can see what you see.
                 </p>
               </div>
@@ -202,6 +202,15 @@ export default function LandingPage() {
               </div>
 
               <div className="glass-card-light p-6">
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">From Calendar</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Meeting prep briefs</h3>
+                <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
+                  Context on attendees, past interactions, and relevant docs—ready
+                  before your next meeting.
+                </p>
+              </div>
+
+              <div className="glass-card-light p-6">
                 <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">From multiple sources</div>
                 <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Stakeholder briefs</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
@@ -247,7 +256,7 @@ export default function LandingPage() {
                 <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-2">Recommended</div>
                 <h3 className="text-xl font-medium mb-4 text-[#1a1a1a]">Connect your tools</h3>
                 <p className="text-[#1a1a1a]/50 text-sm mb-6 leading-relaxed">
-                  Link Slack, Gmail, or Notion. yarnnn pulls fresh context automatically
+                  Link Slack, Gmail, Notion, or Calendar. yarnnn pulls fresh context automatically
                   every time—no copy-pasting, no manual updates.
                 </p>
                 <ul className="space-y-2 text-sm text-[#1a1a1a]/70">

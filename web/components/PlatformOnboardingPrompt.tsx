@@ -9,7 +9,7 @@
  */
 
 import { Loader2, CheckCircle2, ArrowRight, Settings } from "lucide-react";
-import { SlackIcon, GmailIcon, NotionIcon } from "@/components/ui/PlatformIcons";
+import { SlackIcon, GmailIcon, NotionIcon, GoogleCalendarIcon } from "@/components/ui/PlatformIcons";
 
 interface PlatformOnboardingPromptProps {
   /** Navigate to settings to connect platforms */
@@ -40,21 +40,26 @@ export function PlatformOnboardingPrompt({
       </div>
 
       {/* Platform Cards */}
-      <div className="w-full grid grid-cols-3 gap-4 mb-8">
+      <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         <PlatformCard
           icon={<SlackIcon className="w-8 h-8" />}
           name="Slack"
-          description="Learn from your conversations and communication style"
+          description="Learn from your conversations"
         />
         <PlatformCard
           icon={<GmailIcon className="w-8 h-8" />}
           name="Gmail"
-          description="Draft emails in your voice and track important threads"
+          description="Draft emails in your voice"
         />
         <PlatformCard
           icon={<NotionIcon className="w-8 h-8" />}
           name="Notion"
-          description="Import context from your docs and knowledge base"
+          description="Import from your docs"
+        />
+        <PlatformCard
+          icon={<GoogleCalendarIcon className="w-8 h-8" />}
+          name="Calendar"
+          description="Prep for upcoming meetings"
         />
       </div>
 

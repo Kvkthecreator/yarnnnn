@@ -359,19 +359,28 @@ With web search capability, add the ADR-044 research types:
 **Strategies implemented:**
 - `PlatformBoundStrategy` - Single platform focus
 - `CrossPlatformStrategy` - Parallel multi-platform fetch via `asyncio.gather`
-- `ResearchStrategy` - Fallback to cross-platform (Phase 2: add web tools)
-- `HybridStrategy` - Fallback to cross-platform (Phase 2: add web tools)
+- `ResearchStrategy` - Web research via Anthropic native tools
+- `HybridStrategy` - Parallel web research + platform fetch
 
-### Phase 2: Tool-Equipped Agents
-- [ ] Define agent tool schemas (platform.fetch, web.search, web.fetch)
-- [ ] Create tool execution handlers
-- [ ] Update SynthesizerAgent with web tools
-- [ ] Create PlatformGathererAgent
+### Phase 2: Web Research ✅ (2026-02-11)
+- [x] Create ResearcherAgent with Anthropic's native `web_search` tool
+- [x] Update ResearchStrategy to use ResearcherAgent
+- [x] Update HybridStrategy to run web research + platform fetch in parallel
+- [x] No external API needed - uses Anthropic's server-side web search
 
-### Phase 3: Research Types
+**Implementation:**
+- `api/agents/researcher.py` - ResearcherAgent using `web_search_20250305` tool
+- `api/services/execution_strategies.py` - Updated ResearchStrategy and HybridStrategy
+
+**Key design decisions:**
+- Anthropic's native `web_search` is a server-side tool (no client execution)
+- Research runs before deliverable generation (context gathering phase)
+- HybridStrategy runs web research and platform fetch concurrently via `asyncio.gather`
+
+### Phase 3: Research Types (Next)
 - [ ] Add `competitive_analysis`, `market_landscape` to type registry
-- [ ] Implement WebSearchProvider (likely using Anthropic's built-in or external API)
-- [ ] Research strategy execution
+- [ ] Add `research_brief` to deliverable_types
+- [ ] Test end-to-end research deliverable flow
 
 ### Phase 4: Subagent Orchestration (Future)
 - [ ] Task-like delegation for parallel agents
@@ -386,7 +395,7 @@ With web search capability, add the ADR-044 research types:
 |-------------|-------------------|
 | `Task(subagent_type="Explore")` | `await gather_strategy.execute(sources)` |
 | `Task(subagent_type="Plan")` | Conversation-based planning (no change) |
-| `WebSearch` tool | `web.search` tool for ResearchAgent |
+| `WebSearch` tool | Anthropic native `web_search` in ResearcherAgent |
 | `WebFetch` tool | `web.fetch` tool for ResearchAgent |
 | Parallel tool calls | `asyncio.gather` for independent sources |
 | Background execution | Existing work ticket system |

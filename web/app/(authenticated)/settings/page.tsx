@@ -123,8 +123,8 @@ export default function SettingsPage() {
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
 
-  // Import modal state (ADR-027, ADR-029)
-  const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | null>(null);
+  // Import modal state (ADR-027, ADR-029, ADR-046)
+  const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | "google" | "calendar" | null>(null);
 
   // Check for OAuth callback status
   const providerParam = searchParams.get("provider");

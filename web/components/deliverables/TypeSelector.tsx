@@ -33,6 +33,8 @@ import {
   Monitor,
   Combine,
   Microscope,
+  Calendar,
+  Clock,
 } from 'lucide-react';
 import type { DeliverableType, ContextBinding, TypeClassification } from '@/types';
 
@@ -83,7 +85,7 @@ interface PlatformTypeOption {
   label: string;
   description: string;
   icon: React.ReactNode;
-  platform: 'slack' | 'gmail' | 'notion';
+  platform: 'slack' | 'gmail' | 'notion' | 'google' | 'calendar';
 }
 
 const PLATFORM_TYPES: PlatformTypeOption[] = [
@@ -131,6 +133,21 @@ const PLATFORM_TYPES: PlatformTypeOption[] = [
     description: 'What changed in your docs',
     icon: <FileCode className="w-5 h-5" />,
     platform: 'notion',
+  },
+  // Calendar (ADR-046)
+  {
+    value: 'meeting_prep',
+    label: 'Meeting Prep',
+    description: 'Context brief for upcoming meetings',
+    icon: <Users className="w-5 h-5" />,
+    platform: 'calendar',
+  },
+  {
+    value: 'weekly_calendar_preview',
+    label: 'Week Preview',
+    description: 'Overview of your week ahead',
+    icon: <Clock className="w-5 h-5" />,
+    platform: 'calendar',
   },
 ];
 
