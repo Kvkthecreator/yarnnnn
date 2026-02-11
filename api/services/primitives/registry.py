@@ -87,9 +87,10 @@ async def handle_clarify(auth: Any, input: dict) -> dict:
     }
 
 
-# All primitives exposed to TP
-# Note: Todo is intentionally excluded - the conversation stream IS the progress indicator
-# (Claude Code pattern: visible tool calls are the status update)
+# All primitives exposed to TP (7 primitives - ADR-038)
+# Excluded:
+# - Todo: conversation stream IS the progress indicator (Claude Code pattern)
+# - Respond: TP's natural text output serves as the response
 PRIMITIVES = [
     # Data operations
     READ_TOOL,
@@ -99,8 +100,7 @@ PRIMITIVES = [
     LIST_TOOL,
     # External operations
     EXECUTE_TOOL,
-    # Communication
-    RESPOND_TOOL,
+    # Communication (Clarify only - Respond removed)
     CLARIFY_TOOL,
 ]
 

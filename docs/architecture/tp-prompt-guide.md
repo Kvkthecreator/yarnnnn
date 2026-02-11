@@ -4,6 +4,8 @@
 > **Created**: 2026-02-11
 > **Updated**: 2026-02-11
 > **Location**: `api/agents/thinking_partner.py`
+> **Primitives**: 7 (ADR-038)
+> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md)
 
 ---
 
@@ -13,7 +15,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 
 ---
 
-## Current Version: v5 (2026-02-11)
+## Current Version: v5.1 (2026-02-11)
 
 ### Key Principles
 
@@ -21,54 +23,80 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 |-----------|----------------|
 | **Conciseness** | Short answers for simple questions; thorough for complex |
 | **No preamble/postamble** | Skip "I'll help you with..." and "Let me know if..." |
+| **Context-first** | Check `{context}` injection before exploring or asking |
 | **Explore before asking** | Use List/Search to find patterns before using Clarify |
-| **Infer from context** | Use existing entities and memories to fill gaps |
-| **One clarifying question** | Use `Clarify` only when exploration doesn't resolve ambiguity |
+| **One clarifying question** | Use `Clarify` only when context + exploration don't resolve ambiguity |
 | **Confirm before creating** | Ask user, then create on confirmation |
-| **Stream is progress** | No Todo primitive - visible tool calls ARE the progress indicator |
+| **7 primitives** | Read, Write, Edit, List, Search, Execute, Clarify (no Respond, no Todo) |
+
+### The Filesystem Mental Model (ADR-038)
+
+TP treats the user's connected platforms and documents as a navigable filesystem:
+
+```
+User's workspace (the "codebase"):
+├── platform:slack       → synced Slack content (source directory)
+├── platform:notion      → synced Notion content (source directory)
+├── document:*           → uploaded files (source files)
+├── deliverable:*        → generated outputs (build artifacts)
+├── work:*               → execution records (CI logs)
+└── {context}            → user profile + summaries (CLAUDE.md equivalent)
+```
+
+TP navigates this with Read/List/Search, modifies with Write/Edit, and triggers work with Execute.
+
+### Context Injection
+
+At session start, TP receives pre-loaded context (eliminating most runtime searches):
+
+```python
+{context} = {
+    "user_profile": { name, role, preferences, timezone },
+    "active_deliverables": [ { title, frequency, recipient, next_run } ],
+    "connected_platforms": [ { provider, status, last_synced, freshness } ],
+    "recent_sessions": [ { date, summary } ]
+}
+```
+
+**Check `{context}` first** before using List/Search. The answer is often already there.
 
 ### The "Grep Before Ask" Pattern
 
 **Claude Code approach:** When facing ambiguity, Claude Code explores the codebase (Grep, Glob, Read) to find evidence before asking the user. It infers from existing patterns.
 
-**YARNNN equivalent:** TP should explore entities and memories before asking clarifying questions.
+**YARNNN equivalent:** TP should check context, then explore entities, before asking clarifying questions.
 
 ```
 User: "Create a weekly report for my team"
 
-❌ v3 behavior (ask immediately):
-→ Clarify(question="Who receives this?", options=["Manager", "Team", ...])
+✅ v5.1 behavior:
+1. Check {context} → sees existing deliverables for "Product Team"
+2. List(pattern="deliverable:?status=active") → confirms pattern
+3. "I'll create a Weekly Report for the Product Team. Sound good?"
 
-✅ v4 behavior (explore first):
-→ List(pattern="deliverable:*")           // Check existing patterns
-→ Search(query="team reports recipient")  // Check memories
-→ // Found: User usually sends reports to "Product Team"
-→ "I'll create a Weekly Report for the Product Team. Sound good?"
+Only if {context} is empty AND exploration finds nothing:
+→ Clarify(question="Who receives this?", options=[...])
 ```
 
-**When exploration doesn't help:**
-- No existing deliverables to learn from
-- No relevant memories
-- Multiple equally-valid options exist
-
-Then use `Clarify` - but only after exploring.
-
-### Prompt Structure (Streamlined)
+### Prompt Structure (7 Primitives)
 
 ```
-1. Context injection ({context})
+1. Context injection ({context}) - user profile, deliverables, platforms, sessions
 2. Tone and Style - conciseness rules
 3. How You Work - text primary, tools for actions
-4. Available Tools - 8 primitives (Read, Write, Edit, List, Search, Execute, Respond, Clarify)
+4. Available Tools - 7 primitives (Read, Write, Edit, List, Search, Execute, Clarify)
 5. Reference Syntax - type:identifier
 6. Guidelines - behavioral rules
 7. Domain Terms - vocabulary
-8. Explore Before Asking - List/Search before Clarify
+8. Explore Before Asking - context → List/Search → Clarify (last resort)
 9. Confirming Before Acting - when to confirm vs just do it
 10. Creating Entities - Write examples
 ```
 
-**v5 change:** Removed Todo primitive - the streaming conversation IS the progress indicator (Claude Code pattern)
+**v5.1 changes:**
+- Removed Respond primitive (TP's text output IS the response)
+- Removed Todo primitive (streaming tool calls ARE the progress indicator)
+- Added context injection as primary information source
 
 ### Good Response Examples
 
@@ -95,6 +123,17 @@ User: "What platforms are connected?"
 ---
 
 ## Changelog
+
+### v5.1 (2026-02-11)
+
+**Changes:**
+- Removed Respond primitive (TP's text IS the response)
+- Added context injection (`build_session_context()`)
+- Added filesystem mental model documentation (ADR-038)
+- Reduced to 7 primitives: Read, Write, Edit, List, Search, Execute, Clarify
+- Updated exploration pattern: context → List/Search → Clarify
+
+**Rationale:** ADR-038 establishes that platforms and documents are YARNNN's "filesystem". Context injection eliminates most runtime searches. Respond was redundant with TP's natural output.
 
 ### v5 (2026-02-11)
 
@@ -241,3 +280,4 @@ Example test cases:
 - [ADR-025: Claude Code Agentic Alignment](../adr/ADR-025-claude-code-agentic-alignment.md)
 - [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
 - [ADR-037: Chat-First Surface](../adr/ADR-037-chat-first-surface-architecture.md)
+- [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md)
