@@ -25,12 +25,15 @@ SEARCH_TOOL = {
 Examples:
 - Search(query="Q2 planning discussion", scope="platform_content") - search imported Slack/Gmail/Notion
 - Search(query="weekly status", scope="deliverable") - search deliverables
+- Search(query="prefers bullet points", scope="memory") - search user-stated facts
+- Search(query="competitor analysis", scope="document") - search uploaded documents
 - Search(query="competitor analysis") - search all scopes
 
 Scopes:
 - platform_content: Imported platform data (Slack messages, Gmail emails, Notion pages)
+- memory: User-stated facts and preferences (what the user has told you)
+- document: Uploaded documents (PDF, DOCX, TXT, MD)
 - deliverable: Your recurring deliverables
-- document: Uploaded documents
 - work: Work tickets
 - all: Search everything""",
     "input_schema": {
@@ -42,7 +45,7 @@ Scopes:
             },
             "scope": {
                 "type": "string",
-                "enum": ["platform_content", "deliverable", "document", "work", "all"],
+                "enum": ["platform_content", "memory", "document", "deliverable", "work", "all"],
                 "description": "What to search. Default: 'all'"
             },
             "platform": {
@@ -64,8 +67,9 @@ Scopes:
 SEARCH_FIELDS = {
     "platform_content": ["content"],
     "deliverable": ["title", "description"],
-    "document": ["name", "content"],
+    "document": ["filename"],  # documents table uses 'filename' not 'name'
     "work": ["task"],
+    "memory": ["content"],  # ADR-038: User-stated facts only
 }
 
 
@@ -100,7 +104,7 @@ async def handle_search(auth: Any, input: dict) -> dict:
     try:
         # Determine scopes to search
         if scope == "all":
-            scopes = ["platform_content", "deliverable", "document", "work"]
+            scopes = ["platform_content", "memory", "document", "deliverable", "work"]
         else:
             scopes = [scope]
 
@@ -111,6 +115,8 @@ async def handle_search(auth: Any, input: dict) -> dict:
                 results = await _search_platform_content(
                     auth, query, platform_filter, limit
                 )
+            elif entity_scope == "memory":
+                results = await _search_user_memories(auth, query, limit)
             else:
                 results = await _search_entity(auth, query, entity_scope, limit)
             all_results.extend(results)
@@ -192,6 +198,56 @@ async def _search_platform_content(
         # Log but don't fail the search
         import logging
         logging.warning(f"[SEARCH] Platform content search failed: {e}")
+        return []
+
+
+async def _search_user_memories(
+    auth: Any,
+    query: str,
+    limit: int,
+) -> list[dict]:
+    """
+    Search memories table for user-stated facts.
+
+    ADR-038: Memory table is now restricted to user-stated facts only.
+    source_type IN ('user_stated', 'chat', 'conversation', 'preference', 'manual')
+    """
+    try:
+        result = auth.client.table("memories").select(
+            "id, content, tags, importance, source_type, created_at"
+        ).eq(
+            "user_id", auth.user_id
+        ).eq(
+            "is_active", True
+        ).in_(
+            "source_type", ["user_stated", "chat", "conversation", "preference", "manual"]
+        ).ilike(
+            "content", f"%{query}%"
+        ).order(
+            "created_at", desc=True
+        ).limit(limit).execute()
+
+        if not result.data:
+            return []
+
+        return [
+            {
+                "entity_type": "memory",
+                "ref": f"memory:{item['id']}",
+                "data": {
+                    "content": item["content"],
+                    "tags": item.get("tags", []),
+                    "importance": item.get("importance", 0.5),
+                    "source_type": item.get("source_type"),
+                },
+                "score": 0.5,
+            }
+            for item in result.data
+        ]
+
+    except Exception as e:
+        import logging
+        logging.warning(f"[SEARCH] Memory search failed: {e}")
         return []
 
 

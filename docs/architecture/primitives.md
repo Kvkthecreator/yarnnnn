@@ -19,6 +19,18 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 3. **Composable** — Primitives combine for complex operations
 4. **Self-Describing** — Results include context for further action
 
+### Context Sources (First-Class)
+
+YARNNN supports three equally-weighted context sources:
+
+| Source | Storage | Entry Point | Searchable |
+|--------|---------|-------------|------------|
+| **Platforms** | `ephemeral_context` | OAuth → Import | `scope="platform_content"` |
+| **Documents** | `documents` + `chunks` | File upload | `scope="document"` |
+| **User-stated facts** | `memories` | Chat / TP Write | `scope="memory"` |
+
+Users without platform connections can still provide rich context via documents and direct statements. This is not a fallback — all three sources are first-class.
+
 ---
 
 ## The 7 Primitives
@@ -107,7 +119,7 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 
 **Display Priority:** `resource_name` > `platform` > `content` (truncated)
 
-#### memory
+#### memory (User-Stated Facts)
 
 | Field | Type | Description | Display |
 |-------|------|-------------|---------|
@@ -115,12 +127,35 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 | `content` | string | The memory content | ✓ Primary |
 | `tags` | string[] | Categorization tags | ✓ Chips |
 | `importance` | float | 0.0–1.0 retrieval weight | — |
-| `source_type` | enum | `chat`, `user_stated`, `conversation`, `preference` | — |
+| `source_type` | enum | `user_stated`, `chat`, `conversation`, `preference`, `manual` | — |
 | `entities` | JSONB | Extracted entities | — |
 
 **Display Priority:** `content` (truncated) > `tags`
 
-> **ADR-038 Note**: Memory is now restricted to user-stated facts only. Platform imports no longer write to this table.
+**How to create:**
+- TP uses `Write(ref="memory:new", content={content: "User prefers bullets"})` when user states a fact
+- User uploads document → memories extracted automatically
+- Manual entry via `create_memory_manual()` function
+
+> **ADR-038 Note**: Memory is restricted to user-stated facts only. Platform imports do NOT write here.
+
+#### document (Uploaded Files)
+
+| Field | Type | Description | Display |
+|-------|------|-------------|---------|
+| `id` | UUID | Primary key | — |
+| `filename` | string | Original filename | ✓ Primary |
+| `file_type` | string | Extension (pdf, docx, txt, md) | ✓ Badge |
+| `file_size` | int | Size in bytes | — |
+| `processing_status` | enum | `pending`, `processing`, `completed`, `failed` | ✓ Badge |
+| `word_count` | int | Extracted word count | — |
+| `page_count` | int | Page count (PDF only) | — |
+
+**Display Priority:** `filename` > `file_type` > `processing_status`
+
+**How to upload:** POST `/documents/upload` with multipart file (PDF, DOCX, TXT, MD up to 25MB)
+
+**Processing pipeline:** Upload → Extract text → Chunk → Embed → Extract memories
 
 #### platform
 
@@ -373,11 +408,14 @@ Find entities by content using text search.
 }
 ```
 
-**Scopes**: `platform_content`, `deliverable`, `document`, `work`, `all`
+**Scopes**: `platform_content`, `memory`, `document`, `deliverable`, `work`, `all`
 
 **Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`
 
-> **ADR-038 Note**: The `memory` scope is deprecated and auto-redirects to `platform_content` for backwards compatibility.
+> **Scope clarification**:
+> - `memory` searches user-stated facts (things the user has told TP directly)
+> - `document` searches uploaded files (PDF, DOCX, TXT, MD)
+> - `platform_content` searches imported platform data (Slack/Gmail/Notion)
 
 ---
 
@@ -530,6 +568,13 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 ---
 
 ## Changelog
+
+### 2026-02-11 — Manual Context as First-Class
+- Added "Context Sources" section documenting platforms, documents, and user-stated facts as equally-weighted
+- Search now includes `memory` scope for user-stated facts (source_type IN user_stated, chat, conversation, preference, manual)
+- Fixed document search field (`filename` not `name`)
+- Write primitive now uses `source_type="user_stated"` for TP-created memories
+- Added document entity schema to documentation
 
 ### 2026-02-11 — ADR-038 Phase 2 (Single Storage Layer)
 - Reduced from 9 to 7 primitives: Removed Todo and Respond per ADR-038

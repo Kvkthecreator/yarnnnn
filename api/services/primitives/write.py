@@ -59,7 +59,7 @@ DEFAULTS = {
     },
     "memory": {
         "tags": [],
-        "source_type": "conversation",  # Required field
+        "source_type": "user_stated",  # ADR-038: User-stated facts via TP
         "is_active": True,
         "importance": 0.5,
     },
