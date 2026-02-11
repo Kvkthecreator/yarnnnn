@@ -423,7 +423,7 @@ async def fail_work_ticket(
 
 
 # =============================================================================
-# Main Entry Point - ADR-042 Simplified Execution
+# Main Entry Point - ADR-042 Simplified Execution + ADR-045 Type-Aware Strategies
 # =============================================================================
 
 async def execute_deliverable_generation(
@@ -433,9 +433,10 @@ async def execute_deliverable_generation(
     trigger_context: Optional[dict] = None,
 ) -> dict:
     """
-    Execute deliverable generation with simplified single-call flow.
+    Execute deliverable generation with type-aware strategy selection.
 
-    ADR-042: Replaces execute_deliverable_pipeline().
+    ADR-042: Simplified single-call flow
+    ADR-045: Strategy selection based on type_classification.binding
 
     Args:
         client: Supabase client
@@ -446,11 +447,18 @@ async def execute_deliverable_generation(
     Returns:
         Result dict with version_id, status, draft, message
     """
+    from services.execution_strategies import get_execution_strategy
+
     deliverable_id = deliverable.get("id")
     title = deliverable.get("title", "Untitled")
     trigger_type = trigger_context.get("type", "manual") if trigger_context else "manual"
+    classification = deliverable.get("type_classification", {})
+    binding = classification.get("binding", "cross_platform")
 
-    logger.info(f"[EXEC] Starting: {title} ({deliverable_id}), trigger={trigger_type}")
+    logger.info(
+        f"[EXEC] Starting: {title} ({deliverable_id}), "
+        f"trigger={trigger_type}, binding={binding}"
+    )
 
     version = None
     ticket = None
@@ -467,10 +475,15 @@ async def execute_deliverable_generation(
         ticket = await create_work_ticket(client, user_id, deliverable_id, version_id)
         ticket_id = ticket["id"]
 
-        # 4. Gather context inline
-        gathered_context, context_summary = await gather_context_inline(
-            client, user_id, deliverable
-        )
+        # 4. ADR-045: Select and execute strategy for context gathering
+        strategy = get_execution_strategy(deliverable)
+        gathered_result = await strategy.gather_context(client, user_id, deliverable)
+
+        # Convert strategy result to legacy format for compatibility
+        gathered_context = gathered_result.content
+        context_summary = gathered_result.summary
+        context_summary["sources_used"] = gathered_result.sources_used
+        context_summary["total_items_fetched"] = gathered_result.items_fetched
 
         # 5. Log inputs for debugging
         await log_execution_inputs(client, ticket_id, deliverable, context_summary)
@@ -524,7 +537,10 @@ async def execute_deliverable_generation(
             except Exception as e:
                 logger.error(f"[EXEC] Delivery failed: {e}")
 
-        logger.info(f"[EXEC] Complete: {title}, version={next_version}, status={final_status}")
+        logger.info(
+            f"[EXEC] Complete: {title}, version={next_version}, "
+            f"status={final_status}, strategy={strategy.strategy_name}"
+        )
 
         return {
             "success": True,
@@ -534,6 +550,7 @@ async def execute_deliverable_generation(
             "draft": draft if final_status == "staged" else None,
             "message": f"Version {next_version} ready for review" if final_status == "staged" else f"Version {next_version} delivered",
             "delivery": delivery_result.model_dump() if delivery_result else None,
+            "strategy": strategy.strategy_name,  # ADR-045: Track which strategy was used
         }
 
     except Exception as e:

@@ -6,6 +6,37 @@ All notable changes to YARNNN are documented here.
 
 ## [Unreleased]
 
+### ADR-045 Phase 1: Type-Aware Execution Strategies
+
+**Date**: 2026-02-11
+
+Deliverable generation now selects execution strategy based on `type_classification.binding`.
+
+#### Strategies Implemented
+
+| Binding | Strategy | Behavior |
+|---------|----------|----------|
+| `platform_bound` | PlatformBoundStrategy | Single platform focus, sequential fetch |
+| `cross_platform` | CrossPlatformStrategy | Parallel fetch via `asyncio.gather` |
+| `research` | ResearchStrategy | Fallback to cross-platform (Phase 2: web tools) |
+| `hybrid` | HybridStrategy | Fallback to cross-platform (Phase 2: web tools) |
+
+#### Files Added/Changed
+
+- `api/services/execution_strategies.py` — **New**: Strategy classes and `get_execution_strategy()`
+- `api/services/deliverable_execution.py` — Updated to use strategy pattern
+- `docs/adr/ADR-045-deliverable-orchestration-redesign.md` — Phase 1 marked complete
+- `docs/features/work-orchestration.md` — Updated implementation status
+
+#### Execution Flow Change
+
+```
+Before: gather_context_inline() → single sequential loop
+After:  get_execution_strategy() → strategy.gather_context() → parallel/optimized fetch
+```
+
+---
+
 ### Agent Type Rename (ADR-045 Implementation)
 
 **Date**: 2026-02-11

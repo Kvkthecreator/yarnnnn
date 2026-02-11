@@ -331,18 +331,20 @@ Execute(action="deliverable.generate", target="deliverable:uuid")
 
 ---
 
-## Type-Aware Orchestration (ADR-045 - Proposed)
+## Type-Aware Orchestration (ADR-045 - Phase 1 Complete)
 
-Future: Orchestration strategy determined by `type_classification.binding`:
+Orchestration strategy determined by `type_classification.binding`:
 
-| Binding | Strategy |
-|---------|----------|
-| `platform_bound` | Single platform gatherer → Platform synthesizer |
-| `cross_platform` | Parallel gatherers → Cross-platform synthesizer |
-| `research` | Web researcher → Research synthesizer |
-| `hybrid` | Research + Platform → Hybrid synthesizer |
+| Binding | Strategy | Status |
+|---------|----------|--------|
+| `platform_bound` | Single platform focus → DeliverableAgent | ✅ Implemented |
+| `cross_platform` | Parallel gatherers (asyncio.gather) → DeliverableAgent | ✅ Implemented |
+| `research` | Web researcher → Research synthesizer | 🔲 Phase 2 (fallback to cross_platform) |
+| `hybrid` | Research + Platform → Hybrid synthesizer | 🔲 Phase 2 (fallback to cross_platform) |
 
-**Not yet implemented**: Requires WebSearch/WebFetch primitives.
+**Phase 1 Complete**: Strategy selection and parallel fetching implemented in `execution_strategies.py`.
+
+**Phase 2 Required**: WebSearch/WebFetch primitives for research and hybrid strategies.
 
 ---
 
@@ -408,7 +410,7 @@ User sees what TP is doing:
 | Work cancellation | ✅ Implemented (cancel_work tool) |
 | Timeouts | ✅ Implemented (5 min default) |
 | Cron job for scheduled work | ✅ Deployed on Render |
-| **Type-aware orchestration (ADR-045)** | 🔲 Proposed |
+| **Type-aware orchestration (ADR-045)** | ✅ Phase 1 complete |
 | TP awareness status UI | 🔲 Pending (frontend) |
 
 ---

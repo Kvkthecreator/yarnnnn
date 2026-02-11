@@ -347,15 +347,25 @@ With web search capability, add the ADR-044 research types:
 
 ## Implementation Phases
 
-### Phase 1: Type-Aware Strategy Selection
-- [ ] Add strategy dispatcher based on `type_classification.binding`
-- [ ] Keep existing agents, just route differently
-- [ ] Parallel source fetching within strategies
+### Phase 1: Type-Aware Strategy Selection ✅ (2026-02-11)
+- [x] Add strategy dispatcher based on `type_classification.binding`
+- [x] Keep existing agents (now DeliverableAgent), route via strategy
+- [x] Parallel source fetching within cross-platform strategy
+
+**Implementation:**
+- `api/services/execution_strategies.py` - Strategy classes and dispatcher
+- `api/services/deliverable_execution.py` - Updated to use `get_execution_strategy()`
+
+**Strategies implemented:**
+- `PlatformBoundStrategy` - Single platform focus
+- `CrossPlatformStrategy` - Parallel multi-platform fetch via `asyncio.gather`
+- `ResearchStrategy` - Fallback to cross-platform (Phase 2: add web tools)
+- `HybridStrategy` - Fallback to cross-platform (Phase 2: add web tools)
 
 ### Phase 2: Tool-Equipped Agents
 - [ ] Define agent tool schemas (platform.fetch, web.search, web.fetch)
 - [ ] Create tool execution handlers
-- [ ] Update ResearchAgent with web tools
+- [ ] Update SynthesizerAgent with web tools
 - [ ] Create PlatformGathererAgent
 
 ### Phase 3: Research Types
