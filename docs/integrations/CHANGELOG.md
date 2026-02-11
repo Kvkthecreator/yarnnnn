@@ -4,6 +4,24 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 
 ---
 
+## 2026-02-12
+
+### All Platforms
+
+**New Features**:
+- **`platform.search` action**: Live platform search via Execute primitive
+  - `Execute(action="platform.search", target="platform:notion", params={query: "..."})`
+  - `Execute(action="platform.search", target="platform:slack", params={query: "...", type: "channels"})`
+- Searches platform API directly (not synced content)
+
+**Architecture Clarification**:
+- TP has 7 primitives: Read, Write, Edit, Search, List, Execute, Clarify
+- MCP access is encapsulated within Execute primitive
+- `Search` searches synced content (ephemeral_context)
+- `platform.search` searches platform API directly via MCP subprocess
+
+---
+
 ## 2026-02-11
 
 ### Slack

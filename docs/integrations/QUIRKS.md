@@ -227,18 +227,22 @@ The Notion integration must have access to:
 - Comment permission (if adding comments)
 - Edit permission (if updating page content)
 
-### Searching for Pages
+### Searching for Pages (TP)
 
-Use `notion-search` to find pages before operating on them:
+Use `Execute(action="platform.search")` to find pages:
 
-```json
-{
-  "query": "meeting notes",
-  "query_type": "internal"
-}
+```
+Execute(action="platform.search", target="platform:notion", params={query: "meeting notes"})
 ```
 
-Returns page IDs and URLs that can be used with other operations.
+Returns page IDs and URLs that can be used with `platform.send`.
+
+**Alternative** (Read primitive with query param):
+```
+Read(ref="platform:notion?search=meeting notes")
+```
+
+Both call the same underlying `notion-search` MCP tool.
 
 ---
 

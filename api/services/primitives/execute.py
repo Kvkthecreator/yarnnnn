@@ -23,6 +23,7 @@ Actions:
 - platform.sync: Pull latest from platform
 - platform.publish: Push deliverable content to platform
 - platform.send: Send ad-hoc message to platform (Slack, Gmail, Notion)
+- platform.search: Search platform for resources (pages, channels, users) - LIVE query
 - platform.auth: Initiate OAuth connection
 - deliverable.generate: Run content generation
 - deliverable.schedule: Update schedule
@@ -34,7 +35,9 @@ Examples:
 - Execute(action="deliverable.generate", target="deliverable:uuid-123")
 - Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
 - Execute(action="platform.send", target="platform:slack", params={channel: "#general", message: "Hello!"})
-- Execute(action="platform.send", target="platform:gmail", params={to: "user@example.com", subject: "Hi", body: "Hello!"})""",
+- Execute(action="platform.send", target="platform:gmail", params={to: "user@example.com", subject: "Hi", body: "Hello!"})
+- Execute(action="platform.search", target="platform:notion", params={query: "meeting notes"})
+- Execute(action="platform.search", target="platform:slack", params={query: "general", type: "channels"})""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -78,6 +81,14 @@ ACTION_CATALOG = {
             "slack": {"required": ["channel", "message"]},
             "gmail": {"required": ["to", "subject", "body"]},
             "notion": {"required": ["page_id", "content"]},
+        },
+    },
+    "platform.search": {
+        "description": "Search platform for resources (pages, channels, messages)",
+        "target_types": ["platform"],
+        "params_schema": {
+            "slack": {"required": ["query"]},
+            "notion": {"required": ["query"]},
         },
     },
     "platform.auth": {
@@ -227,6 +238,7 @@ def _get_action_handler(action: str):
         "platform.sync": _handle_platform_sync,
         "platform.publish": _handle_platform_publish,
         "platform.send": _handle_platform_send,
+        "platform.search": _handle_platform_search,
         "deliverable.generate": _handle_deliverable_generate,
         "deliverable.approve": _handle_deliverable_approve,
         "work.run": _handle_work_run,
@@ -375,6 +387,184 @@ async def _handle_work_run(auth, entity, ref, via, params):
         "job_id": job_id,
         "message": "Work execution started",
     }
+
+
+async def _handle_platform_search(auth, entity, ref, via, params):
+    """
+    Search platform for resources.
+
+    Unlike Search primitive (which searches synced content), this performs
+    live queries against the platform's API.
+
+    Params by platform:
+    - Slack: {query: "search term", type: "messages"|"channels"|"users"}
+    - Notion: {query: "search term"}
+
+    Returns: List of matching resources with IDs that can be used in other operations.
+    """
+    import logging
+    from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+    from integrations.core.tokens import get_token_manager
+
+    logger = logging.getLogger(__name__)
+
+    provider = entity.get("provider")
+    if not provider:
+        raise ValueError("Platform entity missing provider")
+
+    # Validate required params per platform
+    action_def = ACTION_CATALOG.get("platform.search", {})
+    params_schema = action_def.get("params_schema", {})
+    platform_schema = params_schema.get(provider, {})
+    required_params = platform_schema.get("required", [])
+
+    missing = [p for p in required_params if not params.get(p)]
+    if missing:
+        raise ValueError(f"platform.search on {provider} requires params: {', '.join(missing)}")
+
+    # Get integration credentials
+    integration = auth.client.table("user_integrations").select(
+        "access_token_encrypted, metadata, status"
+    ).eq("user_id", auth.user_id).eq("provider", provider).single().execute()
+
+    if not integration.data:
+        raise ValueError(f"No {provider} integration found. Connect it first.")
+
+    if integration.data.get("status") != "active":
+        raise ValueError(f"{provider} integration is not active")
+
+    # Decrypt token
+    token_manager = get_token_manager()
+    access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+    metadata = integration.data.get("metadata", {}) or {}
+
+    # Dispatch by provider
+    if provider == "slack":
+        return await _search_slack(auth, params, access_token, metadata, logger)
+    elif provider == "notion":
+        return await _search_notion(auth, params, access_token, metadata, logger)
+    else:
+        raise ValueError(f"platform.search not supported for {provider}")
+
+
+async def _search_slack(auth, params, access_token, metadata, logger):
+    """Search Slack for channels, users, or messages."""
+    from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+
+    if not MCP_AVAILABLE:
+        raise ValueError("MCP not available")
+
+    query = params.get("query")
+    search_type = params.get("type", "channels")  # Default to channels
+
+    mcp = get_mcp_manager()
+    team_id = metadata.get("team_id")
+
+    if not team_id:
+        raise ValueError("Missing team_id in Slack integration metadata")
+
+    if search_type == "channels":
+        result = await mcp.call_tool(
+            user_id=auth.user_id,
+            provider="slack",
+            tool_name="slack_list_channels",
+            arguments={},
+            env={
+                "SLACK_BOT_TOKEN": access_token,
+                "SLACK_TEAM_ID": team_id
+            }
+        )
+        # Filter by query if provided
+        channels = _parse_mcp_result(result)
+        if query and isinstance(channels, list):
+            channels = [c for c in channels if query.lower() in c.get("name", "").lower()]
+        return {
+            "provider": "slack",
+            "type": "channels",
+            "query": query,
+            "results": channels[:20] if isinstance(channels, list) else channels,
+            "message": f"Found {len(channels) if isinstance(channels, list) else '?'} channels matching '{query}'"
+        }
+
+    elif search_type == "users":
+        result = await mcp.call_tool(
+            user_id=auth.user_id,
+            provider="slack",
+            tool_name="slack_get_users",
+            arguments={},
+            env={
+                "SLACK_BOT_TOKEN": access_token,
+                "SLACK_TEAM_ID": team_id
+            }
+        )
+        users = _parse_mcp_result(result)
+        if query and isinstance(users, list):
+            users = [u for u in users if query.lower() in u.get("name", "").lower()
+                     or query.lower() in u.get("real_name", "").lower()]
+        return {
+            "provider": "slack",
+            "type": "users",
+            "query": query,
+            "results": users[:20] if isinstance(users, list) else users,
+            "message": f"Found {len(users) if isinstance(users, list) else '?'} users matching '{query}'"
+        }
+
+    else:
+        raise ValueError(f"Unknown Slack search type: {search_type}. Use 'channels' or 'users'")
+
+
+async def _search_notion(auth, params, access_token, metadata, logger):
+    """Search Notion workspace for pages."""
+    from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+
+    if not MCP_AVAILABLE:
+        raise ValueError("MCP not available")
+
+    query = params.get("query")
+
+    mcp = get_mcp_manager()
+
+    result = await mcp.call_tool(
+        user_id=auth.user_id,
+        provider="notion",
+        tool_name="notion-search",
+        arguments={
+            "query": query,
+            "query_type": "internal",  # Search user's workspace
+        },
+        env={"NOTION_TOKEN": access_token}
+    )
+
+    logger.info(f"[PLATFORM_SEARCH] Notion search for '{query}'")
+
+    # Parse and format results
+    pages = _parse_mcp_result(result)
+
+    return {
+        "provider": "notion",
+        "type": "pages",
+        "query": query,
+        "results": pages,
+        "message": f"Search results for '{query}' in Notion",
+    }
+
+
+def _parse_mcp_result(result):
+    """Parse MCP CallToolResult into usable data."""
+    import json
+
+    if isinstance(result, dict):
+        return result
+
+    if hasattr(result, "content"):
+        for content_item in result.content:
+            if hasattr(content_item, "text"):
+                try:
+                    return json.loads(content_item.text)
+                except (json.JSONDecodeError, TypeError):
+                    return content_item.text
+
+    return result
 
 
 async def _handle_platform_send(auth, entity, ref, via, params):

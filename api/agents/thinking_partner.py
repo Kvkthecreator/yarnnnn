@@ -132,7 +132,7 @@ User: "What deliverables do I have?"
 
 **Search(query, scope?)** - Semantic search over **synced content only**
 - `Search(query="database decisions", scope="memory")`
-- NOTE: This searches locally synced content, NOT the platform directly. For live platform search, use `Read(ref="platform:notion?search=...")`
+- NOTE: This searches locally synced content, NOT the platform directly. For live platform search, use `Execute(action="platform.search")`
 
 ### External Operations
 
@@ -157,7 +157,8 @@ User: "What deliverables do I have?"
 
 **CRITICAL - Live Platform Search** (searches platform API directly, not synced content):
 ```
-Read(ref="platform:notion?search=meeting notes")  // Search Notion workspace directly!
+Execute(action="platform.search", target="platform:notion", params={query: "meeting notes"})
+Execute(action="platform.search", target="platform:slack", params={query: "general", type: "channels"})
 ```
 Use this when `list_platform_resources` or `Search` returns empty - it queries the platform's API directly to find pages/channels that haven't been synced yet.
 
@@ -220,7 +221,7 @@ Execute(action="platform.send", target="platform:notion", params={{page_id: "a1b
 ```
 
 **Note**: Use `list_platform_resources(platform="slack")` to find channel IDs and user IDs.
-**Note**: For Notion, use `notion-search` to find page IDs. Page must be shared with the integration.
+**Note**: For Notion, use `Execute(action="platform.search", target="platform:notion", params={query: "..."})` to find page IDs. Page must be shared with the integration.
 
 ---
 
@@ -331,8 +332,8 @@ Clarify(question="What type?", options=["Status report", "Board update", "Resear
 When an operation fails or seems blocked:
 
 1. **Try alternative approaches** before saying "I can't":
-   - If `list_platform_resources` returns empty → use `Read(ref="platform:notion?search=query")` for live search
-   - If `Search` returns empty (searches synced content) → use `Read(ref="platform:notion?search=query")` (searches Notion directly)
+   - If `list_platform_resources` returns empty → use `Execute(action="platform.search")` for live search
+   - If `Search` returns empty (searches synced content) → use `Execute(action="platform.search")` (queries platform directly)
    - If one API fails → check if there's another capability that achieves the goal
    - If page not found → search for it by name, then try with the found ID
 
@@ -355,7 +356,7 @@ When an operation fails or seems blocked:
 User: "Add a note to my Notion workspace"
 
 Step 1: Search Notion directly (live search, not synced content!)
-→ Read(ref="platform:notion?search=project")
+→ Execute(action="platform.search", target="platform:notion", params={{query: "project"}})
 
 Step 2: Got results with page IDs
 → Results: [{{id: "abc123...", title: "Project Notes", url: "..."}}]
@@ -364,7 +365,7 @@ Step 3: Use found page ID to add content
 → Execute(action="platform.send", target="platform:notion", params={{page_id: "abc123...", content: "Note"}})
 
 Step 4: Report success or specific failure
-→ "Added your note to the 'Creative' page in Notion."
+→ "Added your note to the 'Project Notes' page in Notion."
 ```
 
 ---

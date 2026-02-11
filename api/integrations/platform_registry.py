@@ -65,6 +65,16 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
                 "supported": True,
                 "tool": "slack_list_channels",
             },
+            "search_channels": {
+                "supported": True,
+                "action": "platform.search",
+                "notes": "Use Execute(action='platform.search', params={query: '...', type: 'channels'})",
+            },
+            "search_users": {
+                "supported": True,
+                "action": "platform.search",
+                "notes": "Use Execute(action='platform.search', params={query: '...', type: 'users'})",
+            },
             "read_history": {
                 "supported": True,
                 "tool": "slack_get_channel_history",
@@ -204,7 +214,8 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             "search": {
                 "supported": True,
                 "tool": "notion-search",
-                "notes": "Semantic search over workspace and connected sources",
+                "action": "platform.search",
+                "notes": "Use Execute(action='platform.search', params={query: '...'}) for live search",
             },
             "fetch_page": {
                 "supported": True,
