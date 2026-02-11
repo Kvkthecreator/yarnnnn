@@ -339,7 +339,8 @@ async def process_slack_import(
 
     if not messages:
         return {
-            "blocks_created": 0,
+            "blocks_extracted": 0,
+            "ephemeral_stored": 0,
             "items_processed": 0,
             "items_filtered": 0,
             "summary": "No messages found in channel",
@@ -524,7 +525,8 @@ async def process_notion_import(
 
     if not page_content:
         return {
-            "blocks_created": 0,
+            "blocks_extracted": 0,
+            "ephemeral_stored": 0,
             "items_processed": 0,
             "items_filtered": 0,
             "summary": "Page not found or empty",
@@ -732,7 +734,8 @@ async def process_gmail_import(
 
     if not messages:
         return {
-            "blocks_created": 0,
+            "blocks_extracted": 0,
+            "ephemeral_stored": 0,
             "items_processed": 0,
             "items_filtered": 0,
             "summary": "No messages found",
