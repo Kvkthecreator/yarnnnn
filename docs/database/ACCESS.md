@@ -101,6 +101,22 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Completed Migrations
 
+### Migration 041: ADR-040 Notifications (2026-02-11) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/041_notifications.sql
+```
+
+**Changes**:
+- Creates `notifications` table for audit logging of sent notifications
+- Creates `event_trigger_log` table for database-backed cooldown tracking
+- Adds `cleanup_old_trigger_logs()` function for retention management
+- RLS policies for user access and service role
+
+---
+
 ### Migration 039: Calendar Type Classification (2026-02-11) ✅
 
 **Status**: Applied

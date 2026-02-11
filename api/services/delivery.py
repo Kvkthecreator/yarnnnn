@@ -1,5 +1,5 @@
 """
-Delivery Service - ADR-028, ADR-031 Phase 6
+Delivery Service - ADR-028, ADR-031 Phase 6, ADR-040
 
 Governance-aware delivery orchestration for destination-first deliverables.
 
@@ -9,6 +9,7 @@ This service handles:
 3. Tracking delivery status on versions
 4. Retry logic for failed deliveries
 5. Multi-destination delivery for synthesizers (ADR-031 Phase 6)
+6. Sending notifications on delivery events (ADR-040)
 
 Governance Levels:
 - manual: User must explicitly trigger delivery (click Export button)
@@ -198,7 +199,7 @@ class DeliveryService:
                 context=context
             )
 
-            # 8. Update delivery status
+            # 8. Update delivery status and send notifications (ADR-040)
             if result.status == ExportStatus.SUCCESS:
                 self._update_delivery_status(
                     version_id,
@@ -213,11 +214,29 @@ class DeliveryService:
                     destination=destination,
                     result=result
                 )
+                # ADR-040: Send notification for semi_auto governance
+                governance = deliverable.data.get("governance", "manual")
+                if governance == "semi_auto":
+                    await self._notify_delivered(
+                        user_id=user_id,
+                        deliverable_id=deliverable.data["id"],
+                        title=title,
+                        platform=platform,
+                        target=destination.get("target"),
+                        external_url=result.external_url,
+                    )
             else:
                 self._update_delivery_status(
                     version_id,
                     "failed",
                     error=result.error_message
+                )
+                # ADR-040: Send failure notification
+                await self._notify_failed(
+                    user_id=user_id,
+                    deliverable_id=deliverable.data["id"],
+                    title=title,
+                    error=result.error_message or "Unknown error",
                 )
 
             logger.info(
@@ -330,6 +349,56 @@ class DeliveryService:
             }).execute()
         except Exception as e:
             logger.warning(f"[DELIVERY] Failed to log export: {e}")
+
+    # =========================================================================
+    # ADR-040: Notification Helpers
+    # =========================================================================
+
+    async def _notify_delivered(
+        self,
+        user_id: str,
+        deliverable_id: str,
+        title: str,
+        platform: str,
+        target: Optional[str],
+        external_url: Optional[str],
+    ) -> None:
+        """Send notification when deliverable is delivered (semi_auto governance)."""
+        try:
+            from services.notifications import notify_deliverable_delivered
+            destination_str = f"{platform}"
+            if target:
+                destination_str += f" ({target})"
+            await notify_deliverable_delivered(
+                db_client=self.client,
+                user_id=user_id,
+                deliverable_id=deliverable_id,
+                deliverable_title=title,
+                destination=destination_str,
+                external_url=external_url,
+            )
+        except Exception as e:
+            logger.warning(f"[DELIVERY] Failed to send delivery notification: {e}")
+
+    async def _notify_failed(
+        self,
+        user_id: str,
+        deliverable_id: str,
+        title: str,
+        error: str,
+    ) -> None:
+        """Send notification when delivery fails."""
+        try:
+            from services.notifications import notify_deliverable_failed
+            await notify_deliverable_failed(
+                db_client=self.client,
+                user_id=user_id,
+                deliverable_id=deliverable_id,
+                deliverable_title=title,
+                error=error,
+            )
+        except Exception as e:
+            logger.warning(f"[DELIVERY] Failed to send failure notification: {e}")
 
     # =========================================================================
     # ADR-031 Phase 6: Multi-Destination Delivery

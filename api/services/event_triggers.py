@@ -1,5 +1,5 @@
 """
-Event Trigger Service - ADR-031 Phase 4
+Event Trigger Service - ADR-031 Phase 4, ADR-040
 
 Handles event-driven deliverable triggering from platform events.
 
@@ -11,7 +11,7 @@ Supports:
 Event Flow:
 1. Platform webhook → event_triggers.handle_event()
 2. Match event to deliverables with matching trigger config
-3. Apply cooldown/throttle rules
+3. Apply cooldown/throttle rules (ADR-040: database-backed)
 4. Queue matched deliverables for processing
 
 Usage:
@@ -112,15 +112,8 @@ class TriggerMatch:
 
 
 # =============================================================================
-# Cooldown Management
+# Cooldown Management - ADR-040: Database-backed cooldown
 # =============================================================================
-
-# In-memory cooldown tracking (for MVP)
-# Production should use Redis or database
-_cooldown_cache: dict[str, datetime] = {}
-_last_cleanup: Optional[datetime] = None
-_CLEANUP_INTERVAL_MINUTES = 15  # Run opportunistic cleanup at most every 15 minutes
-
 
 def _get_cooldown_key(
     deliverable_id: str,
@@ -138,7 +131,8 @@ def _get_cooldown_key(
         return f"{deliverable_id}:global"
 
 
-def check_cooldown(
+async def check_cooldown_db(
+    db_client,
     deliverable_id: str,
     cooldown: CooldownConfig,
     event: PlatformEvent,
@@ -146,20 +140,85 @@ def check_cooldown(
     """
     Check if a deliverable is in cooldown for this event.
 
+    ADR-040: Uses database (event_trigger_log) instead of in-memory cache.
+
     Returns:
         Tuple of (is_in_cooldown, reason)
     """
-    global _last_cleanup
-
     key = _get_cooldown_key(deliverable_id, cooldown.type, event)
     now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(minutes=cooldown.duration_minutes)
 
-    # Opportunistic cleanup: run if we haven't cleaned up recently
-    if _last_cleanup is None or (now - _last_cleanup) > timedelta(minutes=_CLEANUP_INTERVAL_MINUTES):
-        cleaned = cleanup_expired_cooldowns()
-        _last_cleanup = now
-        if cleaned > 0:
-            logger.debug(f"[COOLDOWN] Opportunistic cleanup: removed {cleaned} expired entries")
+    try:
+        result = db_client.table("event_trigger_log")\
+            .select("triggered_at")\
+            .eq("cooldown_key", key)\
+            .gte("triggered_at", cutoff.isoformat())\
+            .order("triggered_at", desc=True)\
+            .limit(1)\
+            .execute()
+
+        if result.data:
+            last_trigger = datetime.fromisoformat(result.data[0]["triggered_at"].replace("Z", "+00:00"))
+            elapsed = now - last_trigger
+            remaining = timedelta(minutes=cooldown.duration_minutes) - elapsed
+            return True, f"Cooldown: {int(remaining.total_seconds() / 60)}m remaining"
+
+        return False, None
+
+    except Exception as e:
+        logger.warning(f"[COOLDOWN] Database check failed, allowing trigger: {e}")
+        return False, None
+
+
+async def record_trigger_db(
+    db_client,
+    deliverable_id: str,
+    cooldown: CooldownConfig,
+    event: PlatformEvent,
+    result: str = "executed",
+    skip_reason: Optional[str] = None,
+) -> None:
+    """
+    Record that a deliverable was triggered for cooldown tracking.
+
+    ADR-040: Logs to event_trigger_log table for audit and cooldown tracking.
+    """
+    key = _get_cooldown_key(deliverable_id, cooldown.type, event)
+
+    try:
+        db_client.table("event_trigger_log").insert({
+            "user_id": event.user_id,
+            "deliverable_id": deliverable_id,
+            "platform": event.platform,
+            "event_type": event.event_type,
+            "resource_id": event.resource_id,
+            "event_data": event.event_data,
+            "cooldown_key": key,
+            "result": result,
+            "skip_reason": skip_reason,
+        }).execute()
+    except Exception as e:
+        logger.warning(f"[COOLDOWN] Failed to log trigger: {e}")
+
+
+# Legacy in-memory functions for backward compatibility
+# These are deprecated - use check_cooldown_db and record_trigger_db
+_cooldown_cache: dict[str, datetime] = {}
+
+
+def check_cooldown(
+    deliverable_id: str,
+    cooldown: CooldownConfig,
+    event: PlatformEvent,
+) -> tuple[bool, Optional[str]]:
+    """
+    DEPRECATED: Use check_cooldown_db() for database-backed cooldown.
+
+    Legacy in-memory cooldown check for backward compatibility.
+    """
+    key = _get_cooldown_key(deliverable_id, cooldown.type, event)
+    now = datetime.now(timezone.utc)
 
     last_trigger = _cooldown_cache.get(key)
     if last_trigger:
@@ -178,15 +237,19 @@ def record_trigger(
     cooldown: CooldownConfig,
     event: PlatformEvent,
 ) -> None:
-    """Record that a deliverable was triggered for cooldown tracking."""
+    """DEPRECATED: Use record_trigger_db() for database-backed cooldown."""
     key = _get_cooldown_key(deliverable_id, cooldown.type, event)
     _cooldown_cache[key] = datetime.now(timezone.utc)
 
 
 def cleanup_expired_cooldowns() -> int:
-    """Remove expired cooldown entries. Call periodically."""
+    """
+    DEPRECATED: Cleanup is now handled by database function.
+
+    Legacy in-memory cleanup for backward compatibility.
+    """
     now = datetime.now(timezone.utc)
-    max_duration = timedelta(hours=1)  # Max cooldown window
+    max_duration = timedelta(hours=1)
 
     expired = [
         key for key, ts in _cooldown_cache.items()
@@ -258,7 +321,7 @@ async def get_deliverables_for_event(
             if not any(kw.lower() in content_lower for kw in keyword_filter):
                 continue
 
-        # Check cooldown
+        # Check cooldown (ADR-040: database-backed)
         should_skip = False
         skip_reason = None
 
@@ -269,7 +332,7 @@ async def get_deliverables_for_event(
                 duration_minutes=cooldown_config.get("duration_minutes", 5),
                 max_triggers_per_duration=cooldown_config.get("max_triggers_per_duration", 1),
             )
-            is_cooldown, reason = check_cooldown(row["id"], cooldown, event)
+            is_cooldown, reason = await check_cooldown_db(db_client, row["id"], cooldown, event)
             if is_cooldown:
                 should_skip = True
                 skip_reason = reason
@@ -490,25 +553,28 @@ async def execute_event_triggers(
             if result.get("success"):
                 executed += 1
 
-                # Record trigger for cooldown
-                deliverable = (
-                    db_client.table("deliverables")
-                    .select("trigger_config")
-                    .eq("id", match.deliverable_id)
-                    .single()
-                    .execute()
-                )
-
-                cooldown_config = deliverable.data.get("trigger_config", {}).get("cooldown")
+                # ADR-040: Record trigger to database for cooldown tracking
+                cooldown_config = deliverable.get("trigger_config", {}).get("cooldown")
                 if cooldown_config:
                     cooldown = CooldownConfig(
                         type=cooldown_config.get("type", "global"),
                         duration_minutes=cooldown_config.get("duration_minutes", 5),
                     )
-                    record_trigger(match.deliverable_id, cooldown, event)
+                    await record_trigger_db(db_client, match.deliverable_id, cooldown, event, result="executed")
 
                 logger.info(f"[EVENT_TRIGGER] ✓ Executed {match.deliverable_title}")
             else:
+                # Log failed trigger
+                cooldown_config = deliverable.get("trigger_config", {}).get("cooldown")
+                if cooldown_config:
+                    cooldown = CooldownConfig(
+                        type=cooldown_config.get("type", "global"),
+                        duration_minutes=cooldown_config.get("duration_minutes", 5),
+                    )
+                    await record_trigger_db(
+                        db_client, match.deliverable_id, cooldown, event,
+                        result="failed", skip_reason=result.get("error")
+                    )
                 errors.append(f"{match.deliverable_title}: {result.get('error')}")
 
         except Exception as e:

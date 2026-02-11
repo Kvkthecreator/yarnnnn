@@ -48,6 +48,9 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   sync_platform_resource: "Syncing data",
   get_sync_status: "Checking sync status",
 
+  // Notification tools (ADR-040)
+  send_notification: "Sending notification",
+
   // Todo tracking
   todo_write: "Updating progress",
 };

@@ -869,6 +869,51 @@ AGENTIC BEHAVIOR (ADR-039):
     }
 }
 
+# =============================================================================
+# Notification Tool (ADR-040: Proactive Notification Architecture)
+# =============================================================================
+
+SEND_NOTIFICATION_TOOL = {
+    "name": "send_notification",
+    "description": """Send a notification to the user via email.
+
+ADR-040: Use this for lightweight proactive alerts that don't need a full deliverable.
+
+WHEN TO USE:
+- Alerting about something you noticed: "I noticed 3 urgent emails from Sarah"
+- Confirming an action completed: "Your Slack sync completed"
+- Quick insights: "Your weekly activity shows increased time in meetings"
+
+WHEN NOT TO USE (create a deliverable instead):
+- Recurring content (digests, summaries)
+- Content that needs review/approval
+- Anything that should be scheduled
+
+AGENTIC BEHAVIOR:
+- If you notice something the user should know, proactively notify them
+- Don't ask "should I send a notification?" - use your judgment
+- For urgent matters, set urgency='high' which adds [Action Required] prefix""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "message": {
+                "type": "string",
+                "description": "The notification message. Keep it concise (1-2 sentences)."
+            },
+            "urgency": {
+                "type": "string",
+                "enum": ["low", "normal", "high"],
+                "description": "Priority level. 'high' adds [Action Required] prefix to email subject. Default: 'normal'"
+            },
+            "context": {
+                "type": "object",
+                "description": "Optional context. Include 'deliverable_id' or 'url' to add a CTA button to the email."
+            }
+        },
+        "required": ["message"]
+    }
+}
+
 
 # Tools available to Thinking Partner (ADR-023 Unified Tool Model)
 # All outputs are tools - including conversation itself
@@ -900,6 +945,8 @@ THINKING_PARTNER_TOOLS = [
     LIST_PLATFORM_RESOURCES_TOOL,
     SYNC_PLATFORM_RESOURCE_TOOL,
     GET_SYNC_STATUS_TOOL,
+    # Notifications (ADR-040: Proactive Notification Architecture)
+    SEND_NOTIFICATION_TOOL,
 ]
 
 
@@ -3191,6 +3238,60 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
     }
 
 
+# -----------------------------------------------------------------------------
+# Notification Handler (ADR-040: Proactive Notification Architecture)
+# -----------------------------------------------------------------------------
+
+async def handle_send_notification(auth, input: dict) -> dict:
+    """
+    Handle sending a notification to the user.
+
+    ADR-040: Notifications are lightweight alerts sent via email.
+    In-session notifications are handled directly by TP responses.
+    """
+    from services.notifications import send_notification
+
+    message = input.get("message", "")
+    if not message:
+        return {
+            "success": False,
+            "error": "Message is required"
+        }
+
+    urgency = input.get("urgency", "normal")
+    context = input.get("context")
+
+    try:
+        result = await send_notification(
+            db_client=auth.client,
+            user_id=auth.user_id,
+            message=message,
+            channel="email",
+            urgency=urgency,
+            context=context,
+            source_type="tp",
+        )
+
+        if result.status == "sent":
+            return {
+                "success": True,
+                "notification_id": result.id,
+                "message": "Notification sent via email"
+            }
+        else:
+            return {
+                "success": False,
+                "notification_id": result.id,
+                "error": result.error or "Failed to send notification"
+            }
+
+    except Exception as e:
+        return {
+            "success": False,
+            "error": str(e)
+        }
+
+
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     # Communication tools (ADR-023 Unified Tool Model)
@@ -3220,6 +3321,8 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "list_platform_resources": handle_list_platform_resources,
     "sync_platform_resource": handle_sync_platform_resource,
     "get_sync_status": handle_get_sync_status,
+    # Notification tools (ADR-040: Proactive Notification Architecture)
+    "send_notification": handle_send_notification,
     # Legacy aliases for backward compatibility (ADR-009 → ADR-017)
     "get_work_status": handle_get_work,  # Alias for get_work
     "cancel_work": handle_update_work,   # Use update_work with is_active=false

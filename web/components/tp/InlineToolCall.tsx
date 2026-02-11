@@ -24,6 +24,7 @@ import {
   Play,
   ListTodo,
   Eye,
+  Bell,
 } from 'lucide-react';
 import { MessageBlock } from '@/types/desk';
 import { cn, getToolDisplayMessage } from '@/lib/utils';
@@ -65,6 +66,8 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   create_deliverable: Plus,
   update_deliverable: Pencil,
   run_deliverable: Play,
+  // Notification tools (ADR-040)
+  send_notification: Bell,
   // Todo tracking
   todo_write: ListTodo,
 };
