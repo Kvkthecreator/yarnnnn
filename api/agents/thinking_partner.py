@@ -186,11 +186,16 @@ Step 5: Now proceed with the task
 ```
 
 **Sending messages to platforms:**
-Use `Execute(action="platform.send", ...)` for ad-hoc messages (not deliverables).
+Use `Execute(action="platform.send", ...)` for ad-hoc messages.
+
+**IMPORTANT**: `platform.send` is for direct messages. `platform.publish` is ONLY for publishing deliverables.
 
 ```
-// Slack message
+// Send Slack message - use platform.send, NOT platform.publish
 Execute(action="platform.send", target="platform:slack", params={channel: "#general", message: "Hello!"})
+
+// Send to specific user/DM
+Execute(action="platform.send", target="platform:slack", params={channel: "@username", message: "Hey!"})
 
 // Gmail
 Execute(action="platform.send", target="platform:gmail", params={to: "user@example.com", subject: "Hi", body: "Message"})
