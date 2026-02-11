@@ -42,6 +42,8 @@ import type {
   Deliverable,
   DeliverableCreate,
   DeliverableType,
+  TypeClassification,
+  ContextBinding,
   Destination,
   DataSource,
   ScheduleConfig,
@@ -61,7 +63,7 @@ interface DeliverableCreateSurfaceProps {
 type DestinationPlatform = IntegrationProvider | 'download';
 
 interface PlatformTypeDefinition {
-  id: string;
+  id: DeliverableType;
   label: string;
   description: string;
   icon: React.ReactNode;
@@ -74,6 +76,8 @@ interface PlatformTypeDefinition {
     recencyDays: number;
     maxItems: number;
   };
+  // ADR-044: Type classification
+  classification: TypeClassification;
 }
 
 interface Integration {
@@ -97,7 +101,7 @@ interface PlatformResource {
 // =============================================================================
 
 const PLATFORM_TYPES: PlatformTypeDefinition[] = [
-  // Wave 1: Internal Single-Platform
+  // Wave 1: Internal Single-Platform (ADR-044: platform_bound)
   {
     id: 'slack_channel_digest',
     label: 'Channel Digest',
@@ -109,6 +113,12 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
     wave: 1,
     enabled: true,
     defaultScope: { recencyDays: 7, maxItems: 200 },
+    classification: {
+      binding: 'platform_bound',
+      temporal_pattern: 'scheduled',
+      primary_platform: 'slack',
+      freshness_requirement_hours: 1,
+    },
   },
   {
     id: 'slack_standup',
@@ -121,6 +131,12 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
     wave: 1,
     enabled: true,
     defaultScope: { recencyDays: 1, maxItems: 100 },
+    classification: {
+      binding: 'platform_bound',
+      temporal_pattern: 'scheduled',
+      primary_platform: 'slack',
+      freshness_requirement_hours: 1,
+    },
   },
   {
     id: 'gmail_inbox_brief',
@@ -133,8 +149,14 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
     wave: 1,
     enabled: true,
     defaultScope: { recencyDays: 1, maxItems: 50 },
+    classification: {
+      binding: 'platform_bound',
+      temporal_pattern: 'scheduled',
+      primary_platform: 'gmail',
+      freshness_requirement_hours: 1,
+    },
   },
-  // Wave 2: Cross-Platform Internal
+  // Wave 2: Cross-Platform Internal (ADR-044: cross_platform)
   {
     id: 'weekly_status',
     label: 'Weekly Status',
@@ -146,9 +168,14 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
     wave: 2,
     enabled: true,
     defaultScope: { recencyDays: 7, maxItems: 300 },
+    classification: {
+      binding: 'cross_platform',
+      temporal_pattern: 'scheduled',
+      freshness_requirement_hours: 4,
+    },
   },
   {
-    id: 'meeting_prep',
+    id: 'one_on_one_prep',
     label: 'Meeting Prep',
     description: 'Context brief before important meetings',
     icon: <Users className="w-5 h-5" />,
@@ -158,9 +185,14 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
     wave: 2,
     enabled: true,
     defaultScope: { recencyDays: 14, maxItems: 100 },
+    classification: {
+      binding: 'cross_platform',
+      temporal_pattern: 'scheduled',
+      freshness_requirement_hours: 1,
+    },
   },
   {
-    id: 'decision_log',
+    id: 'research_brief',
     label: 'Decision Capture',
     description: 'Capture decisions from Slack to Notion',
     icon: <BookOpen className="w-5 h-5" />,
@@ -170,10 +202,15 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
     wave: 2,
     enabled: true,
     defaultScope: { recencyDays: 7, maxItems: 50 },
+    classification: {
+      binding: 'research',
+      temporal_pattern: 'on_demand',
+      freshness_requirement_hours: 24,
+    },
   },
   // Wave 3: External-Facing (Coming Soon)
   {
-    id: 'stakeholder_brief',
+    id: 'stakeholder_update',
     label: 'Stakeholder Brief',
     description: 'Executive summary for leadership',
     icon: <Zap className="w-5 h-5" />,
@@ -183,8 +220,13 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
     wave: 3,
     enabled: false,
     defaultScope: { recencyDays: 7, maxItems: 200 },
+    classification: {
+      binding: 'cross_platform',
+      temporal_pattern: 'scheduled',
+      freshness_requirement_hours: 4,
+    },
   },
-  // Custom escape hatch
+  // Custom escape hatch (ADR-044: hybrid)
   {
     id: 'custom',
     label: 'Custom',
@@ -196,6 +238,11 @@ const PLATFORM_TYPES: PlatformTypeDefinition[] = [
     wave: 1,
     enabled: true,
     defaultScope: { recencyDays: 7, maxItems: 200 },
+    classification: {
+      binding: 'hybrid',
+      temporal_pattern: 'scheduled',
+      freshness_requirement_hours: 4,
+    },
   },
 ];
 
@@ -351,16 +398,15 @@ export function DeliverableCreateSurface({ initialPlatform }: DeliverableCreateS
     setError(null);
 
     try {
-      // Map platform type to backend DeliverableType
-      const backendType = mapTypeToBackend(selectedType.id);
-
+      // ADR-044: Use the actual type ID (now a valid DeliverableType) and pass classification
       const createData: DeliverableCreate = {
         title: title.trim(),
-        deliverable_type: backendType,
+        deliverable_type: selectedType.id,
         destination,
         sources,
         schedule,
         governance: 'manual', // ADR-032: Default to draft mode
+        type_classification: selectedType.classification, // ADR-044
       };
 
       const deliverable = await api.deliverables.create(createData);
@@ -373,21 +419,6 @@ export function DeliverableCreateSurface({ initialPlatform }: DeliverableCreateS
     } finally {
       setCreating(false);
     }
-  };
-
-  // Map platform-first type ID to backend type
-  const mapTypeToBackend = (typeId: string): DeliverableType => {
-    const mapping: Record<string, DeliverableType> = {
-      slack_channel_digest: 'status_report',
-      slack_standup: 'meeting_summary',
-      gmail_inbox_brief: 'inbox_summary',
-      weekly_status: 'status_report',
-      meeting_prep: 'one_on_one_prep',
-      decision_log: 'research_brief',
-      stakeholder_brief: 'stakeholder_update',
-      custom: 'custom',
-    };
-    return mapping[typeId] || 'custom';
   };
 
   const handleTypeSelect = (type: PlatformTypeDefinition) => {

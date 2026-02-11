@@ -705,6 +705,8 @@ export interface DeliverableCreate {
   type_config?: TypeConfig;
   // ADR-031: Platform-native variants
   platform_variant?: PlatformVariant;
+  // ADR-044: Type classification
+  type_classification?: TypeClassification;
   project_id?: string;
   recipient_context?: RecipientContext;
   schedule: ScheduleConfig;

@@ -92,6 +92,16 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   reply_draft: 'Reply Draft',
   follow_up_tracker: 'Follow-up Tracker',
   thread_summary: 'Thread Summary',
+  // ADR-031 Phase 6: Cross-Platform Synthesizers
+  weekly_status: 'Weekly Status',
+  project_brief: 'Project Brief',
+  cross_platform_digest: 'Cross-Platform Digest',
+  activity_summary: 'Activity Summary',
+  // ADR-035/044: Platform-First Types
+  slack_channel_digest: 'Channel Digest',
+  slack_standup: 'Standup Synthesis',
+  gmail_inbox_brief: 'Inbox Brief',
+  notion_page_summary: 'Page Summary',
 };
 
 // ADR-032: Governance simplified - default to draft mode (manual)
