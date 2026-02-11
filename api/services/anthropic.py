@@ -38,6 +38,45 @@ def get_anthropic_client() -> AsyncAnthropic:
     return AsyncAnthropic(api_key=api_key)
 
 
+def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int = 200) -> str:
+    """
+    Truncate tool result to prevent context overflow.
+
+    ADR-043: Keep tool results concise for conversation history.
+    Large results (like List with 20+ items) can cause prompt overflow.
+
+    Args:
+        result: Tool result dict
+        max_items: Max items to include in lists
+        max_content_len: Max length for content strings
+
+    Returns:
+        JSON string of truncated result
+    """
+    import json
+
+    def truncate_value(v, depth=0):
+        if depth > 3:
+            return "..."
+        if isinstance(v, str):
+            if len(v) > max_content_len:
+                return v[:max_content_len] + "..."
+            return v
+        elif isinstance(v, list):
+            if len(v) > max_items:
+                truncated = [truncate_value(item, depth + 1) for item in v[:max_items]]
+                truncated.append(f"... and {len(v) - max_items} more")
+                return truncated
+            return [truncate_value(item, depth + 1) for item in v]
+        elif isinstance(v, dict):
+            return {k: truncate_value(val, depth + 1) for k, val in v.items()}
+        else:
+            return v
+
+    truncated = truncate_value(result)
+    return json.dumps(truncated)
+
+
 def _parse_response(response) -> ChatResponse:
     """Parse Anthropic response into structured ChatResponse."""
     text_parts = []
@@ -284,10 +323,13 @@ async def chat_completion_stream_with_tools(
                     }
                 )
 
+                # Truncate large results to prevent context overflow
+                # ADR-043: Keep tool results concise for conversation history
+                truncated_result = _truncate_tool_result(result)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": tool_use.id,
-                    "content": str(result) if not isinstance(result, str) else result
+                    "content": truncated_result
                 })
 
             # Add tool results to messages
