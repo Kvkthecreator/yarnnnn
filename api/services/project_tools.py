@@ -892,7 +892,11 @@ WHEN NOT TO USE (create a deliverable instead):
 AGENTIC BEHAVIOR:
 - If you notice something the user should know, proactively notify them
 - Don't ask "should I send a notification?" - use your judgment
-- For urgent matters, set urgency='high' which adds [Action Required] prefix""",
+- For urgent matters, set urgency='high' which adds [Action Required] prefix
+
+IMPORTANT: After sending, ALWAYS confirm to the user in your response what was sent.
+Example: "I've sent you an email about the 3 urgent messages from Sarah."
+The tool result includes a 'confirmation' field you can use.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -3273,10 +3277,13 @@ async def handle_send_notification(auth, input: dict) -> dict:
         )
 
         if result.status == "sent":
+            # Include confirmation message that TP should relay to user
+            confirmation = f"📧 Sent email notification: \"{message[:80]}{'...' if len(message) > 80 else ''}\""
             return {
                 "success": True,
                 "notification_id": result.id,
-                "message": "Notification sent via email"
+                "message": "Notification sent via email",
+                "confirmation": confirmation,  # TP should include this in response
             }
         else:
             return {

@@ -2,12 +2,14 @@
 Notification Service - ADR-040
 
 Lightweight notification delivery via email (Resend).
-In-session TP notifications are handled directly in the conversation stream.
+Background notifications also insert a message into the user's chat session
+for continuity when they return.
 
 This service handles:
 1. Persisting notification records for audit
 2. Sending email notifications
 3. Respecting user notification preferences
+4. Inserting chat messages for background notifications
 """
 
 from __future__ import annotations
@@ -113,6 +115,17 @@ async def send_notification(
             if result.success:
                 _update_notification_status(db_client, notification_id, "sent")
                 logger.info(f"[NOTIFICATION] Sent email to {user_email}: {message[:50]}...")
+
+                # Insert message into chat session for continuity (background notifications only)
+                # Skip if source_type is 'tp' since that means user is in active session
+                if source_type != "tp":
+                    await _insert_chat_notification(
+                        db_client=db_client,
+                        user_id=user_id,
+                        message=message,
+                        context=context,
+                    )
+
                 return NotificationResult(id=notification_id, status="sent")
             else:
                 _update_notification_status(db_client, notification_id, "failed", result.error)
@@ -151,6 +164,64 @@ def _update_notification_status(
         db_client.table("notifications").update(update).eq("id", notification_id).execute()
     except Exception as e:
         logger.warning(f"[NOTIFICATION] Failed to update status: {e}")
+
+
+async def _insert_chat_notification(
+    db_client,
+    user_id: str,
+    message: str,
+    context: Optional[dict],
+) -> None:
+    """
+    Insert a notification message into the user's chat session.
+
+    This ensures background notifications appear in chat history when user returns.
+    Uses the daily session scope so the message appears in their current/recent session.
+    """
+    try:
+        # Get or create user's daily session
+        session_result = db_client.rpc(
+            "get_or_create_chat_session",
+            {
+                "p_user_id": user_id,
+                "p_project_id": None,
+                "p_session_type": "thinking_partner",
+                "p_scope": "daily"
+            }
+        ).execute()
+
+        if not session_result.data:
+            logger.warning(f"[NOTIFICATION] Could not get session for user {user_id}")
+            return
+
+        session_id = session_result.data.get("session_id")
+        if not session_id:
+            logger.warning(f"[NOTIFICATION] No session_id in result for user {user_id}")
+            return
+
+        # Format the notification as a TP message
+        chat_message = f"📧 I sent you an email: {message}"
+
+        # Append as assistant message with notification metadata
+        db_client.rpc(
+            "append_session_message",
+            {
+                "p_session_id": session_id,
+                "p_role": "assistant",
+                "p_content": chat_message,
+                "p_metadata": {
+                    "type": "notification",
+                    "channel": "email",
+                    "context": context or {},
+                }
+            }
+        ).execute()
+
+        logger.info(f"[NOTIFICATION] Inserted chat message for user {user_id}")
+
+    except Exception as e:
+        # Non-fatal - notification was still sent, just not shown in chat
+        logger.warning(f"[NOTIFICATION] Failed to insert chat message: {e}")
 
 
 async def _send_notification_email(
