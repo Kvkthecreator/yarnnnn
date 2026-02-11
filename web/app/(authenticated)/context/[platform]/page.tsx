@@ -192,6 +192,16 @@ export default function PlatformDetailPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Import prompt state
+  const [showImportPrompt, setShowImportPrompt] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importProgress, setImportProgress] = useState<{
+    phase: string;
+    current: number;
+    total: number;
+  } | null>(null);
+  const [newlySelectedIds, setNewlySelectedIds] = useState<string[]>([]);
+
   // Data
   const [integration, setIntegration] = useState<IntegrationData | null>(null);
   const [resources, setResources] = useState<LandscapeResource[]>([]);
@@ -282,12 +292,28 @@ export default function PlatformDetailPage() {
     setError(null);
 
     try {
+      // Track which sources are newly added (not in original selection)
+      const addedIds = Array.from(selectedIds).filter(id => !originalIds.has(id));
+
       const result = await api.integrations.updateSources(platform, Array.from(selectedIds));
       if (result.success) {
         // Update local state with the saved sources
         const savedIds = new Set(result.selected_sources.map(s => s.id));
         setSelectedIds(savedIds);
         setOriginalIds(savedIds);
+
+        // Check if any newly added sources haven't been imported yet
+        // (coverage_state === 'uncovered' means no context extracted)
+        const uncoveredNewIds = addedIds.filter(id => {
+          const resource = resources.find(r => r.id === id);
+          return resource && resource.coverage_state === 'uncovered';
+        });
+
+        // Show import prompt if there are uncovered newly-selected sources
+        if (uncoveredNewIds.length > 0) {
+          setNewlySelectedIds(uncoveredNewIds);
+          setShowImportPrompt(true);
+        }
       } else {
         setError(result.message || 'Failed to save changes');
       }
@@ -301,6 +327,73 @@ export default function PlatformDetailPage() {
 
   const handleDiscardChanges = () => {
     setSelectedIds(new Set(originalIds));
+  };
+
+  const handleImportSources = async () => {
+    if (newlySelectedIds.length === 0) return;
+
+    setImporting(true);
+    setImportProgress({ phase: 'Starting...', current: 0, total: newlySelectedIds.length });
+
+    try {
+      // Import each newly selected source
+      for (let i = 0; i < newlySelectedIds.length; i++) {
+        const sourceId = newlySelectedIds[i];
+        const resource = resources.find(r => r.id === sourceId);
+
+        setImportProgress({
+          phase: `Importing ${resource?.name || sourceId}...`,
+          current: i,
+          total: newlySelectedIds.length,
+        });
+
+        // Start import job
+        const job = await api.integrations.startImport(platform, {
+          resource_id: sourceId,
+          resource_name: resource?.name,
+          scope: {
+            recency_days: 7,
+            max_items: 100,
+          },
+        });
+
+        // Poll for completion
+        let status = job.status;
+        while (status === 'pending' || status === 'fetching' || status === 'processing') {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          const updated = await api.integrations.getImportJob(job.id);
+          status = updated.status;
+        }
+      }
+
+      setImportProgress({
+        phase: 'Complete!',
+        current: newlySelectedIds.length,
+        total: newlySelectedIds.length,
+      });
+
+      // Reload data to get updated coverage states
+      await loadData();
+
+      // Hide prompt after short delay
+      setTimeout(() => {
+        setShowImportPrompt(false);
+        setImporting(false);
+        setImportProgress(null);
+        setNewlySelectedIds([]);
+      }, 1500);
+
+    } catch (err) {
+      console.error('Failed to import sources:', err);
+      setError(err instanceof Error ? err.message : 'Failed to import sources');
+      setImporting(false);
+      setImportProgress(null);
+    }
+  };
+
+  const handleSkipImport = () => {
+    setShowImportPrompt(false);
+    setNewlySelectedIds([]);
   };
 
   const handleCreateDeliverable = () => {
@@ -455,6 +548,59 @@ export default function PlatformDetailPage() {
               </div>
             )}
           </div>
+
+          {/* Import prompt - shown after saving new sources */}
+          {showImportPrompt && (
+            <div className="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+              {importing ? (
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span className="text-sm font-medium">{importProgress?.phase}</span>
+                  </div>
+                  {importProgress && importProgress.total > 1 && (
+                    <div className="w-full bg-muted rounded-full h-2">
+                      <div
+                        className="bg-primary h-2 rounded-full transition-all"
+                        style={{ width: `${(importProgress.current / importProgress.total) * 100}%` }}
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-start gap-3">
+                    <Check className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">Sources saved</p>
+                      <p className="text-sm text-muted-foreground mt-1">
+                        Import recent context from {newlySelectedIds.length === 1 ? 'this channel' : `these ${newlySelectedIds.length} channels`}?
+                        This lets TP understand your work right away.
+                      </p>
+                      <ul className="mt-2 text-xs text-muted-foreground space-y-0.5">
+                        <li>• Last 7 days of messages</li>
+                        <li>• Up to 100 items per {config.resourceLabelSingular}</li>
+                      </ul>
+                    </div>
+                  </div>
+                  <div className="flex justify-end gap-2 mt-4">
+                    <button
+                      onClick={handleSkipImport}
+                      className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Skip
+                    </button>
+                    <button
+                      onClick={handleImportSources}
+                      className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+                    >
+                      Import Now
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Error message */}
           {error && (

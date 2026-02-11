@@ -429,6 +429,53 @@ See Phase 1 - implemented together.
 - [ ] Pre-generation freshness check UI
 - [ ] "Refresh sources" before generate
 
+### Phase 5: First-Time Import for Cold Start ✅
+
+**Problem**: Users connect a platform and select channels, but TP has no context until a deliverable runs. This creates a poor cold-start experience where users expect "I connected Slack, TP should know about my work."
+
+**Solution**: After first source selection save, prompt user to import recent context.
+
+**Flow**:
+```
+1. User connects Slack → sees channel list
+2. User selects channels → clicks "Save changes"
+3. Save succeeds → show import prompt:
+   ┌─────────────────────────────────────────────────────────────┐
+   │ ✓ Sources saved                                             │
+   │                                                             │
+   │ Import recent context from these channels?                  │
+   │ This lets TP understand your work right away.               │
+   │                                                             │
+   │ • Last 7 days of messages                                   │
+   │ • From 3 selected channels                                  │
+   │ • ~30 seconds                                               │
+   │                                                             │
+   │                        [Skip]  [Import Now]                 │
+   └─────────────────────────────────────────────────────────────┘
+4. If "Import Now" → trigger import job → show progress
+5. Import completes → channels show "Synced" badge
+6. TP now has context for chat conversations
+```
+
+**When to show prompt**:
+- First time saving sources for this platform (no previous selections)
+- OR when adding new sources that have never been imported
+
+**When NOT to show**:
+- User is just removing sources
+- All selected sources already have extracted context
+- User previously dismissed the prompt (store preference)
+
+**Limits consideration**:
+- Import uses same tier limits as selection
+- If user can select 5 channels, they can import from 5 channels
+- Cost (API calls + LLM) already factored into tier pricing
+
+**Implementation**:
+- Frontend: `ImportPrompt` component shown after successful save
+- Backend: Uses existing `POST /api/integrations/{provider}/import` endpoint
+- Progress: Poll existing job status endpoint
+
 ---
 
 ## Related
