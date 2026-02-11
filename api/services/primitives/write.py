@@ -145,8 +145,12 @@ async def handle_write(auth: Any, input: dict) -> dict:
     # Entity-specific processing
     if parsed.entity_type == "deliverable":
         entity_data = _process_deliverable(entity_data)
+    elif parsed.entity_type == "memory":
+        entity_data = _process_memory(entity_data)
     elif parsed.entity_type == "work":
         entity_data = _process_work(entity_data)
+    elif parsed.entity_type == "document":
+        entity_data = _process_document(entity_data)
 
     try:
         result = auth.client.table(table).insert(entity_data).execute()
@@ -184,10 +188,13 @@ def _process_deliverable(data: dict) -> dict:
     - schedule: JSONB with {frequency, day, time, timezone}
     - deliverable_type: defaults to 'custom' in schema
     - recipient_context: JSONB with {name, role, priorities, company}
+    - type_config: JSONB with type-specific settings
 
     Flat field mappings (convenience for TP):
     - frequency, day, time, timezone -> schedule.*
-    - recipient_name, recipient_role, company -> recipient_context.*
+    - recipient_name, recipient_role, company, priorities -> recipient_context.*
+    - audience, tone, sections, detail_level, subject, format -> type_config.*
+    - email, slack_channel -> destination.*
     """
     from jobs.unified_scheduler import calculate_next_run_from_schedule
 
@@ -223,7 +230,30 @@ def _process_deliverable(data: dict) -> dict:
             recipient_context["role"] = data.pop("recipient_role")
         if "company" in data:
             recipient_context["company"] = data.pop("company")
+        if "priorities" in data:
+            recipient_context["priorities"] = data.pop("priorities")
     data["recipient_context"] = recipient_context
+
+    # Build type_config JSONB from flat fields
+    type_config = data.get("type_config", {})
+    if isinstance(type_config, dict):
+        # Type-specific configuration fields
+        for field in ["audience", "tone", "sections", "detail_level", "subject", "format"]:
+            if field in data:
+                type_config[field] = data.pop(field)
+    data["type_config"] = type_config
+
+    # Build destination JSONB from flat fields
+    destination = data.get("destination", {})
+    if isinstance(destination, dict):
+        if "email" in data:
+            destination["type"] = "email"
+            destination["email"] = data.pop("email")
+        if "slack_channel" in data:
+            destination["type"] = "slack"
+            destination["channel"] = data.pop("slack_channel")
+    if destination:
+        data["destination"] = destination
 
     # Calculate next_run_at based on schedule
     if "next_run_at" not in data:
@@ -233,11 +263,74 @@ def _process_deliverable(data: dict) -> dict:
     return data
 
 
+def _process_memory(data: dict) -> dict:
+    """Process memory-specific fields.
+
+    Flat field mappings (convenience for TP):
+    - note, fact, preference -> content (aliases)
+    - category, type, context -> added to tags
+    """
+    # Handle content aliases
+    for alias in ["note", "fact", "preference"]:
+        if alias in data and "content" not in data:
+            data["content"] = data.pop(alias)
+        elif alias in data:
+            data.pop(alias)  # Remove if content already set
+
+    # Add category/type/context to tags
+    tags = data.get("tags", [])
+    if isinstance(tags, list):
+        for field in ["category", "type", "context"]:
+            if field in data:
+                value = data.pop(field)
+                if value and value not in tags:
+                    tags.append(value)
+    data["tags"] = tags
+
+    return data
+
+
+def _process_document(data: dict) -> dict:
+    """Process document-specific fields.
+
+    Flat field mappings (convenience for TP):
+    - name, title -> filename (aliases)
+    - url -> file_url (alias)
+    """
+    # Handle filename aliases
+    for alias in ["name", "title"]:
+        if alias in data and "filename" not in data:
+            data["filename"] = data.pop(alias)
+        elif alias in data:
+            data.pop(alias)  # Remove if filename already set
+
+    # Handle file_url alias
+    if "url" in data and "file_url" not in data:
+        data["file_url"] = data.pop("url")
+    elif "url" in data:
+        data.pop("url")
+
+    return data
+
+
 def _process_work(data: dict) -> dict:
-    """Process work-specific fields."""
+    """Process work-specific fields.
+
+    Flat field mappings (convenience for TP):
+    - description, priority, deadline -> parameters.*
+    """
     # Set is_recurring based on frequency
     frequency = data.get("frequency", "once")
     data["is_recurring"] = frequency != "once"
+
+    # Move convenience fields to parameters JSONB
+    parameters = data.get("parameters", {})
+    if isinstance(parameters, dict):
+        for field in ["description", "priority", "deadline"]:
+            if field in data:
+                parameters[field] = data.pop(field)
+    if parameters:
+        data["parameters"] = parameters
 
     return data
 
