@@ -36,9 +36,17 @@ router = APIRouter()
 # =============================================================================
 
 class WorkCreate(BaseModel):
-    """Create work request."""
+    """Create work request.
+
+    ADR-045: Agent types renamed for clarity:
+    - synthesizer: Synthesizes pre-fetched context (formerly "research")
+    - deliverable: Generates deliverables (formerly "content")
+    - report: Generates standalone reports (formerly "reporting")
+
+    Legacy names still accepted for backwards compatibility.
+    """
     task: str
-    agent_type: Literal["research", "content", "reporting"]
+    agent_type: str  # synthesizer, deliverable, report (or legacy: research, content, reporting)
     parameters: Optional[dict] = None
     run_in_background: bool = False  # ADR-039: Background execution
 
@@ -171,12 +179,13 @@ async def create_ticket_async(
     Returns:
         Created ticket details
     """
-    # Validate agent type
-    valid_types = ["research", "content", "reporting"]
+    # Validate agent type (support both new and legacy names)
+    from agents.factory import LEGACY_TYPE_MAP, get_valid_agent_types
+    valid_types = get_valid_agent_types() + list(LEGACY_TYPE_MAP.keys())
     if request.agent_type not in valid_types:
         raise HTTPException(
             status_code=400,
-            detail=f"Invalid agent_type. Must be one of: {', '.join(valid_types)}"
+            detail=f"Invalid agent_type. Must be one of: {', '.join(get_valid_agent_types())}"
         )
 
     # Create ticket

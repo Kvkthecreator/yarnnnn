@@ -302,7 +302,7 @@ async def create_and_execute_work(
         client: Supabase client
         user_id: User ID
         task: Task description
-        agent_type: Agent type (research, content, reporting)
+        agent_type: Agent type (synthesizer, deliverable, report)
         parameters: Optional agent parameters
         run_in_background: If True, queue for background execution (ADR-039)
 
@@ -311,8 +311,9 @@ async def create_and_execute_work(
         For background: returns immediately with ticket_id and job_id
         For foreground: blocks until completion
     """
-    # Validate agent type
-    valid_types = ["research", "content", "reporting"]
+    # Validate agent type (support both new and legacy names for backwards compatibility)
+    from agents.factory import LEGACY_TYPE_MAP, get_valid_agent_types
+    valid_types = get_valid_agent_types() + list(LEGACY_TYPE_MAP.keys())
     if agent_type not in valid_types:
         return {
             "success": False,

@@ -3109,7 +3109,7 @@ Output a comprehensive context summary that will be used to produce the delivera
     # Note: user_id is required for RLS when project_id is NULL (ambient work)
     ticket_data = {
         "task": gather_prompt,
-        "agent_type": "research",
+        "agent_type": "synthesizer",  # ADR-045: Renamed from "research"
         "project_id": project_id,
         "user_id": user_id,  # Required for ambient work RLS policy
         "parameters": json.dumps({
@@ -3244,7 +3244,7 @@ async def execute_synthesize_step(
     # Note: user_id is required for RLS when project_id is NULL (ambient work)
     ticket_data = {
         "task": synthesize_prompt,
-        "agent_type": "content",
+        "agent_type": "deliverable",  # ADR-045: Renamed from "content"
         "project_id": project_id,
         "user_id": user_id,  # Required for ambient work RLS policy
         "parameters": json.dumps(agent_params),

@@ -101,11 +101,18 @@ export interface DocumentListResponse {
   offset: number;
 }
 
+// Agent types (ADR-045: Renamed for clarity)
+// - synthesizer: Synthesizes pre-fetched context (formerly "research")
+// - deliverable: Generates deliverables (formerly "content")
+// - report: Generates standalone reports (formerly "reporting")
+// Legacy types still supported for backwards compatibility
+export type AgentType = "synthesizer" | "deliverable" | "report" | "research" | "content" | "reporting";
+
 // Work Ticket
 export interface WorkTicket {
   id: string;
   task: string;
-  agent_type: "research" | "content" | "reporting";
+  agent_type: AgentType;
   status: "pending" | "running" | "completed" | "failed";
   parameters?: Record<string, unknown>;
   error_message?: string;
@@ -119,7 +126,7 @@ export interface WorkTicket {
 export interface Work {
   id: string;
   task: string;
-  agent_type: "research" | "content" | "reporting";
+  agent_type: AgentType;
   project_name: string;
   is_ambient: boolean;
   is_recurring: boolean;
@@ -165,7 +172,7 @@ export interface WorkDeleteResponse {
 
 export interface WorkTicketCreate {
   task: string;
-  agent_type: "research" | "content" | "reporting";
+  agent_type: AgentType;
   parameters?: Record<string, unknown>;
 }
 

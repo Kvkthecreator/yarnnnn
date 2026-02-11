@@ -6,6 +6,44 @@ All notable changes to YARNNN are documented here.
 
 ## [Unreleased]
 
+### Agent Type Rename (ADR-045 Implementation)
+
+**Date**: 2026-02-11
+
+Renamed agent types to reflect their actual function:
+
+| Old Name | New Name | Purpose |
+|----------|----------|---------|
+| `research` | `synthesizer` | Synthesizes pre-fetched context into summaries |
+| `content` | `deliverable` | Generates deliverable output (primary use case) |
+| `reporting` | `report` | Generates standalone structured reports |
+
+#### Breaking Changes
+
+- Agent files renamed: `research.py` → `synthesizer.py`, `content.py` → `deliverable.py`, `reporting.py` → `report.py`
+- New class names: `SynthesizerAgent`, `DeliverableAgent`, `ReportAgent`
+- Database migration (038) updates existing `work_tickets.agent_type` values
+
+#### Backwards Compatibility
+
+- Factory (`agents/factory.py`) maps legacy names to new names
+- API endpoints accept both old and new type names
+- TypeScript types include both for compatibility
+
+#### Files Changed
+
+- `api/agents/synthesizer.py` — New (renamed from research.py)
+- `api/agents/deliverable.py` — New (renamed from content.py)
+- `api/agents/report.py` — New (renamed from reporting.py)
+- `api/agents/factory.py` — Updated with legacy mapping
+- `api/services/deliverable_execution.py` — Uses "deliverable" agent type
+- `api/services/deliverable_pipeline.py` — Uses new agent types
+- `api/routes/work.py` — Accepts both old and new types
+- `web/types/index.ts` — Added `AgentType` with both old and new values
+- `supabase/migrations/038_agent_type_rename.sql` — Data migration
+
+---
+
 ### ADR-045: Deliverable Orchestration Redesign
 
 **Date**: 2026-02-11
@@ -14,7 +52,7 @@ First-principles redesign of how deliverable types map to execution strategies a
 
 #### Key Insights
 
-The current pipeline (ResearchAgent → ContentAgent) was designed for ADR-019's format-centric types before the platform-first shift (ADR-044). Types now have semantic meaning (binding, temporal pattern, freshness) that execution ignores.
+The current pipeline (SynthesizerAgent → DeliverableAgent) was designed for ADR-019's format-centric types before the platform-first shift (ADR-044). Types now have semantic meaning (binding, temporal pattern, freshness) that execution ignores.
 
 #### What This ADR Proposes
 

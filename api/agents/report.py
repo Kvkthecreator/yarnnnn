@@ -1,8 +1,11 @@
 """
-Reporting Agent - Structured report generation
+Report Agent - Structured report generation
 
 ADR-016: Layered Agent Architecture
 Produces ONE report via submit_output tool.
+
+This agent is used for standalone work tickets that need
+structured reports, NOT for deliverable generation.
 """
 
 from typing import Optional
@@ -14,7 +17,7 @@ from services.anthropic import chat_completion_with_tools, ChatResponse
 logger = logging.getLogger(__name__)
 
 
-REPORTING_SYSTEM_PROMPT = """You are a Reporting Agent specializing in creating structured reports and summaries.
+REPORT_SYSTEM_PROMPT = """You are a Report Agent specializing in creating structured reports and summaries.
 
 **Your Mission:**
 Transform research findings, data, and insights into polished, executive-ready reports.
@@ -45,19 +48,21 @@ Your output should be a complete report in markdown format. You decide the inter
 """
 
 
-class ReportingAgent(BaseAgent):
+class ReportAgent(BaseAgent):
     """
-    Reporting Agent for structured report generation.
+    Report Agent for structured report generation.
 
     ADR-016: Produces ONE unified output per work execution.
     Agent determines report structure within markdown content.
+
+    Used for standalone work tickets, not deliverable generation.
 
     Parameters:
     - style: "executive", "technical", "summary"
     """
 
-    AGENT_TYPE = "reporting"
-    SYSTEM_PROMPT = REPORTING_SYSTEM_PROMPT
+    AGENT_TYPE = "report"
+    SYSTEM_PROMPT = REPORT_SYSTEM_PROMPT
 
     async def execute(
         self,
@@ -81,7 +86,7 @@ class ReportingAgent(BaseAgent):
         style = params.get("style", "executive")
 
         logger.info(
-            f"[REPORTING] Starting: task='{task[:50]}...', style={style}"
+            f"[REPORT] Starting: task='{task[:50]}...', style={style}"
         )
 
         # Build system prompt with context
@@ -159,11 +164,11 @@ class ReportingAgent(BaseAgent):
             work_output = self._parse_work_output(all_tool_calls)
 
             if work_output:
-                # Add reporting-specific metadata
+                # Add report-specific metadata
                 work_output.metadata.setdefault("style", style)
 
             logger.info(
-                f"[REPORTING] Complete: output={'yes' if work_output else 'no'}"
+                f"[REPORT] Complete: output={'yes' if work_output else 'no'}"
             )
 
             # If no output was generated, treat as failure
@@ -181,7 +186,7 @@ class ReportingAgent(BaseAgent):
             )
 
         except Exception as e:
-            logger.error(f"[REPORTING] Failed: {e}", exc_info=True)
+            logger.error(f"[REPORT] Failed: {e}", exc_info=True)
             return AgentResult(
                 success=False,
                 error=str(e),

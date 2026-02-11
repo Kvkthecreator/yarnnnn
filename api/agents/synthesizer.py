@@ -1,8 +1,14 @@
 """
-Research Agent - Deep investigation and analysis
+Synthesizer Agent - Context synthesis and summarization
 
 ADR-016: Layered Agent Architecture
-Produces ONE unified research output via submit_output tool.
+ADR-045: Deliverable Orchestration Redesign
+
+Produces ONE synthesized output via submit_output tool.
+Takes pre-fetched context and synthesizes it into a coherent summary.
+
+NOTE: This agent does NOT perform active research or fetching.
+Context is gathered by the pipeline before this agent runs.
 """
 
 from typing import Optional
@@ -14,18 +20,18 @@ from services.anthropic import chat_completion_with_tools, ChatResponse
 logger = logging.getLogger(__name__)
 
 
-RESEARCH_SYSTEM_PROMPT = """You are a Research Agent specializing in investigation and analysis.
+SYNTHESIZER_SYSTEM_PROMPT = """You are a Synthesizer Agent specializing in context synthesis and summarization.
 
 **Your Mission:**
-Investigate topics using the provided context as your primary source material, synthesizing information into a comprehensive research document.
+Synthesize the provided context into a coherent, well-structured summary. The context has already been gathered from various sources - your job is to make sense of it.
 
 **Output Requirements:**
 
-You have access to the submit_output tool. Call it ONCE when your research is complete.
+You have access to the submit_output tool. Call it ONCE when your synthesis is complete.
 
-Your output should be a complete research document in markdown format. You decide the internal structure based on what the task requires. Typical structures include:
+Your output should be a complete synthesis document in markdown format. You decide the internal structure based on what the task requires. Typical structures include:
 
-- Overview → Findings → Analysis → Recommendations
+- Overview → Key Findings → Analysis → Recommendations
 - Executive Summary → Key Points → Details → Next Steps
 - Question → Evidence → Conclusions
 
@@ -36,30 +42,33 @@ Your output should be a complete research document in markdown format. You decid
 - Acknowledge gaps in available information
 - Be specific about what you found and why it matters
 
-**Research Approach:**
-1. Review provided context (user memories, project memories)
+**Synthesis Approach:**
+1. Review provided context (memories, documents, platform data)
 2. Analyze and synthesize the information
 3. Structure your findings coherently
-4. Call submit_output ONCE with your complete research document
+4. Call submit_output ONCE with your complete synthesis
 
 {context}
 """
 
 
-class ResearchAgent(BaseAgent):
+class SynthesizerAgent(BaseAgent):
     """
-    Research Agent for investigation and analysis.
+    Synthesizer Agent for context synthesis and summarization.
 
     ADR-016: Produces ONE unified output per work execution.
-    Agent determines structure within the markdown content.
+    ADR-045: Part of type-aware orchestration pipeline.
+
+    This agent synthesizes pre-fetched context into coherent summaries.
+    It does NOT perform active research or web searches.
 
     Parameters:
     - scope: "general" | "focused" | "comprehensive"
     - depth: "quick" | "standard" | "thorough"
     """
 
-    AGENT_TYPE = "research"
-    SYSTEM_PROMPT = RESEARCH_SYSTEM_PROMPT
+    AGENT_TYPE = "synthesizer"
+    SYSTEM_PROMPT = SYNTHESIZER_SYSTEM_PROMPT
 
     async def execute(
         self,
@@ -68,11 +77,11 @@ class ResearchAgent(BaseAgent):
         parameters: Optional[dict] = None
     ) -> AgentResult:
         """
-        Execute research task.
+        Execute synthesis task.
 
         Args:
-            task: Research question or topic
-            context: Context bundle with memories
+            task: Synthesis question or topic
+            context: Context bundle with pre-fetched data
             parameters:
                 - scope: "general", "focused", "comprehensive"
                 - depth: "quick", "standard", "thorough"
@@ -85,7 +94,7 @@ class ResearchAgent(BaseAgent):
         depth = params.get("depth", "standard")
 
         logger.info(
-            f"[RESEARCH] Starting: task='{task[:50]}...', "
+            f"[SYNTHESIZER] Starting: task='{task[:50]}...', "
             f"scope={scope}, depth={depth}, "
             f"memories={len(context.memories)}"
         )
@@ -93,16 +102,16 @@ class ResearchAgent(BaseAgent):
         # Build system prompt with context
         system_prompt = self._build_system_prompt(context)
 
-        # Build research prompt
-        research_prompt = self._build_research_prompt(task, scope, depth)
+        # Build synthesis prompt
+        synthesis_prompt = self._build_synthesis_prompt(task, scope, depth)
 
         # Build messages
-        messages = [{"role": "user", "content": research_prompt}]
+        messages = [{"role": "user", "content": synthesis_prompt}]
 
         try:
             # Execute with tool support - agent calls submit_output once
             all_tool_calls = []
-            max_iterations = 3  # Reduced: agent should complete in fewer turns
+            max_iterations = 3
 
             for _ in range(max_iterations):
                 response: ChatResponse = await chat_completion_with_tools(
@@ -165,12 +174,12 @@ class ResearchAgent(BaseAgent):
             work_output = self._parse_work_output(all_tool_calls)
 
             if work_output:
-                # Add research-specific metadata
+                # Add synthesis-specific metadata
                 work_output.metadata.setdefault("scope", scope)
                 work_output.metadata.setdefault("depth", depth)
 
             logger.info(
-                f"[RESEARCH] Complete: output={'yes' if work_output else 'no'}"
+                f"[SYNTHESIZER] Complete: output={'yes' if work_output else 'no'}"
             )
 
             # If no output was generated, treat as failure
@@ -188,14 +197,14 @@ class ResearchAgent(BaseAgent):
             )
 
         except Exception as e:
-            logger.error(f"[RESEARCH] Failed: {e}", exc_info=True)
+            logger.error(f"[SYNTHESIZER] Failed: {e}", exc_info=True)
             return AgentResult(
                 success=False,
                 error=str(e),
             )
 
-    def _build_research_prompt(self, task: str, scope: str, depth: str) -> str:
-        """Build the research task prompt."""
+    def _build_synthesis_prompt(self, task: str, scope: str, depth: str) -> str:
+        """Build the synthesis task prompt."""
 
         # Scope instructions
         scope_instructions = {
@@ -211,7 +220,7 @@ class ResearchAgent(BaseAgent):
             "thorough": "Comprehensive deep-dive covering multiple perspectives.",
         }.get(depth, "Provide thorough analysis with appropriate detail.")
 
-        return f"""Research task: {task}
+        return f"""Synthesis task: {task}
 
 **Parameters:**
 - Scope: {scope} - {scope_instructions}
@@ -219,9 +228,9 @@ class ResearchAgent(BaseAgent):
 
 **Instructions:**
 1. Analyze the context provided for relevant information
-2. Synthesize your findings into a coherent research document
+2. Synthesize your findings into a coherent document
 3. Structure the document appropriately (you decide the structure)
-4. Call submit_output ONCE with your complete research
+4. Call submit_output ONCE with your complete synthesis
 
 Include in your output:
 - Key findings with supporting evidence
@@ -229,4 +238,4 @@ Include in your output:
 - Recommendations where appropriate
 - Note any gaps in available information
 
-Begin your research now."""
+Begin your synthesis now."""

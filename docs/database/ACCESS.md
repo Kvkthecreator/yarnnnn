@@ -99,9 +99,26 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ---
 
-## Pending Migrations
+## Completed Migrations
 
-### Migration 037: ADR-044 Deliverable Type Classification (2026-02-11)
+### Migration 038: Agent Type Rename (2026-02-11) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/038_agent_type_rename.sql
+```
+
+**Changes**:
+- Renames `agent_type` values: research → synthesizer, content → deliverable, reporting → report
+- Updates `work_tickets` and `agent_sessions` tables
+- Adds documentation comments to columns
+
+---
+
+### Migration 037: ADR-044 Deliverable Type Classification (2026-02-11) ✅
+
+**Status**: Applied
 
 ```bash
 psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/037_deliverable_type_classification.sql

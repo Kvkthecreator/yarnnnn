@@ -1,8 +1,12 @@
 """
-Content Agent - Content creation
+Deliverable Agent - Deliverable generation and formatting
 
 ADR-016: Layered Agent Architecture
-Produces ONE content piece via submit_output tool.
+ADR-042: Simplified Deliverable Execution
+ADR-045: Deliverable Orchestration Redesign
+
+Produces ONE deliverable output via submit_output tool.
+This is the primary agent for deliverable generation.
 """
 
 from typing import Optional
@@ -14,16 +18,16 @@ from services.anthropic import chat_completion_with_tools, ChatResponse
 logger = logging.getLogger(__name__)
 
 
-CONTENT_SYSTEM_PROMPT = """You are a Content Agent specializing in creating compelling content.
+DELIVERABLE_SYSTEM_PROMPT = """You are a Deliverable Agent specializing in generating polished deliverables.
 
 **Your Mission:**
-Transform context, research, and briefs into polished content that resonates with target audiences.
+Transform context, research, and briefs into polished deliverables that resonate with target audiences.
 
 **Output Requirements:**
 
-You have access to the submit_output tool. Call it ONCE when your content is complete.
+You have access to the submit_output tool. Call it ONCE when your deliverable is complete.
 
-Your output IS the content itself. The content field should contain the actual content piece (post, article, email, etc.), not a description of it.
+Your output IS the deliverable itself. The content field should contain the actual deliverable piece (post, article, email, report, etc.), not a description of it.
 
 **Quality Standards:**
 - Platform-native voice (not generic)
@@ -37,28 +41,37 @@ Your output IS the content itself. The content field should contain the actual c
 - Twitter/X: Concise, punchy, 280 char limit
 - Blog: SEO-optimized, clear headings, 800-1500 words
 - Email: Personal, scannable, clear CTA
+- Slack Digest: Channel highlights, decisions, action items
+- Status Report: Progress metrics, blockers, next steps
 - General: Adapt to the specified format
 
 {context}
 """
 
 
-class ContentAgent(BaseAgent):
+class DeliverableAgent(BaseAgent):
     """
-    Content Agent for content creation.
+    Deliverable Agent for deliverable generation.
 
     ADR-016: Produces ONE unified output per work execution.
-    The output IS the content itself.
+    ADR-042: Primary agent for simplified deliverable execution.
+    ADR-045: Type-aware generation based on deliverable classification.
+
+    The output IS the deliverable itself.
 
     Parameters:
-    - format: "linkedin", "twitter", "blog", "email", "general"
+    - format: "linkedin", "twitter", "blog", "email", "slack_digest", "status_report", "general"
     - tone: "professional", "casual", "authoritative", "friendly"
     """
 
-    AGENT_TYPE = "content"
-    SYSTEM_PROMPT = CONTENT_SYSTEM_PROMPT
+    AGENT_TYPE = "deliverable"
+    SYSTEM_PROMPT = DELIVERABLE_SYSTEM_PROMPT
 
-    CONTENT_FORMATS = ["linkedin", "twitter", "blog", "email", "general"]
+    DELIVERABLE_FORMATS = [
+        "linkedin", "twitter", "blog", "email",
+        "slack_digest", "slack_standup", "gmail_brief",
+        "notion_summary", "status_report", "general"
+    ]
 
     async def execute(
         self,
@@ -67,39 +80,39 @@ class ContentAgent(BaseAgent):
         parameters: Optional[dict] = None
     ) -> AgentResult:
         """
-        Execute content creation task.
+        Execute deliverable generation task.
 
         Args:
-            task: Content brief or description
+            task: Deliverable brief or description
             context: Context bundle for voice/facts
             parameters:
-                - format: "linkedin", "twitter", "blog", "email", "general"
+                - format: deliverable format type
                 - tone: "professional", "casual", "authoritative", "friendly"
                 - style_context: Platform context for style selection (e.g., "slack", "notion")
                                  ADR-027 Phase 5: Used to select appropriate style profile
 
         Returns:
-            AgentResult with single work_output (the content)
+            AgentResult with single work_output (the deliverable)
         """
         params = parameters or {}
-        content_format = params.get("format", "general")
+        deliverable_format = params.get("format", "general")
         tone = params.get("tone", "professional")
         style_context = params.get("style_context")  # ADR-027 Phase 5
 
         logger.info(
-            f"[CONTENT] Starting: task='{task[:50]}...', "
-            f"format={content_format}, tone={tone}"
+            f"[DELIVERABLE] Starting: task='{task[:50]}...', "
+            f"format={deliverable_format}, tone={tone}"
             + (f", style_context={style_context}" if style_context else "")
         )
 
         # Build system prompt with context (includes style if available)
         system_prompt = self._build_system_prompt(context, style_context)
 
-        # Build content prompt
-        content_prompt = self._build_content_prompt(task, content_format, tone)
+        # Build deliverable prompt
+        deliverable_prompt = self._build_deliverable_prompt(task, deliverable_format, tone)
 
         # Build messages
-        messages = [{"role": "user", "content": content_prompt}]
+        messages = [{"role": "user", "content": deliverable_prompt}]
 
         try:
             # Execute with tool support
@@ -149,7 +162,7 @@ class ContentAgent(BaseAgent):
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": tool_use.id,
-                            "content": "Content submitted successfully.",
+                            "content": "Deliverable submitted successfully.",
                         })
                     else:
                         # Handle unexpected tools gracefully
@@ -167,15 +180,15 @@ class ContentAgent(BaseAgent):
             work_output = self._parse_work_output(all_tool_calls)
 
             if work_output:
-                # Add content-specific metadata
-                work_output.metadata.setdefault("format", content_format)
+                # Add deliverable-specific metadata
+                work_output.metadata.setdefault("format", deliverable_format)
                 work_output.metadata.setdefault("tone", tone)
                 # Calculate word count
                 word_count = len(work_output.content.split())
                 work_output.metadata.setdefault("word_count", word_count)
 
             logger.info(
-                f"[CONTENT] Complete: output={'yes' if work_output else 'no'}"
+                f"[DELIVERABLE] Complete: output={'yes' if work_output else 'no'}"
             )
 
             # If no output was generated, treat as failure
@@ -193,21 +206,21 @@ class ContentAgent(BaseAgent):
             )
 
         except Exception as e:
-            logger.error(f"[CONTENT] Failed: {e}", exc_info=True)
+            logger.error(f"[DELIVERABLE] Failed: {e}", exc_info=True)
             return AgentResult(
                 success=False,
                 error=str(e),
             )
 
-    def _build_content_prompt(self, task: str, content_format: str, tone: str) -> str:
-        """Build the content creation prompt."""
+    def _build_deliverable_prompt(self, task: str, deliverable_format: str, tone: str) -> str:
+        """Build the deliverable generation prompt."""
 
-        format_instructions = self._get_format_instructions(content_format)
+        format_instructions = self._get_format_instructions(deliverable_format)
 
-        return f"""Create content for: {task}
+        return f"""Create deliverable for: {task}
 
 **Parameters:**
-- Format: {content_format}
+- Format: {deliverable_format}
 - Tone: {tone}
 
 **Format Guidelines:**
@@ -215,15 +228,15 @@ class ContentAgent(BaseAgent):
 
 **Instructions:**
 1. Review the context provided for voice and facts
-2. Create the content following format guidelines
-3. Call submit_output ONCE with your completed content
+2. Create the deliverable following format guidelines
+3. Call submit_output ONCE with your completed deliverable
 
-The content field should contain the ACTUAL content (not a description).
+The content field should contain the ACTUAL deliverable (not a description).
 For example, if creating a LinkedIn post, the content field IS the post text.
 
-Begin creating content now."""
+Begin creating the deliverable now."""
 
-    def _get_format_instructions(self, content_format: str) -> str:
+    def _get_format_instructions(self, deliverable_format: str) -> str:
         """Get format-specific instructions."""
         instructions = {
             "linkedin": """LinkedIn Post:
@@ -253,10 +266,41 @@ Begin creating content now."""
 - Single clear CTA
 - Mobile-friendly (short paragraphs)""",
 
-            "general": """General Content:
+            "slack_digest": """Slack Channel Digest:
+- What happened while you were away
+- Highlight hot threads and active discussions
+- Surface decisions and action items
+- Note unanswered questions
+- Keep it scannable with bullet points""",
+
+            "slack_standup": """Slack Standup Summary:
+- Aggregate team updates
+- Group by: Done, Doing, Blockers
+- Highlight cross-team dependencies
+- Note who needs help""",
+
+            "gmail_brief": """Gmail Inbox Brief:
+- Prioritized inbox summary
+- Action-required items first
+- Group by sender importance
+- Highlight time-sensitive items""",
+
+            "notion_summary": """Notion Page Summary:
+- What changed in the docs
+- New content highlights
+- Recent edits and updates
+- Key information surfaced""",
+
+            "status_report": """Status Report:
+- Progress against goals
+- Key metrics and milestones
+- Blockers and risks
+- Next steps and timeline""",
+
+            "general": """General Deliverable:
 - Adapt to the task description
 - Focus on clarity and engagement
 - Include appropriate structure
 - Consider the target audience""",
         }
-        return instructions.get(content_format, instructions["general"])
+        return instructions.get(deliverable_format, instructions["general"])

@@ -127,8 +127,8 @@ EXAMPLES:
             },
             "agent_type": {
                 "type": "string",
-                "enum": ["research", "content", "reporting"],
-                "description": "Type of agent: 'research' for investigation/analysis, 'content' for writing/drafts, 'reporting' for summaries/reports"
+                "enum": ["synthesizer", "deliverable", "report", "research", "content", "reporting"],
+                "description": "Type of agent: 'synthesizer' for context synthesis (formerly 'research'), 'deliverable' for generating deliverables (formerly 'content'), 'report' for standalone reports (formerly 'reporting')"
             },
             "frequency": {
                 "type": "string",
@@ -1040,13 +1040,16 @@ async def handle_create_work(auth, input: dict) -> dict:
     run_first = input.get("run_first", True)
     user_timezone = input.get("timezone", "UTC")
 
-    # Validate agent_type
-    valid_agent_types = ["research", "content", "reporting"]
+    # Validate agent_type (support both new and legacy names)
+    from agents.factory import LEGACY_TYPE_MAP, get_valid_agent_types, normalize_agent_type
+    valid_agent_types = get_valid_agent_types() + list(LEGACY_TYPE_MAP.keys())
     if agent_type not in valid_agent_types:
         return {
             "success": False,
-            "error": f"Invalid agent_type. Must be one of: {', '.join(valid_agent_types)}"
+            "error": f"Invalid agent_type. Must be one of: {', '.join(get_valid_agent_types())}"
         }
+    # Normalize to new names for new records
+    agent_type = normalize_agent_type(agent_type)
 
     # Determine if this is recurring work
     is_recurring = frequency.lower() != "once"

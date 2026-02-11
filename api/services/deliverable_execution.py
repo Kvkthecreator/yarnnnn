@@ -95,7 +95,7 @@ async def create_work_ticket(
             "id": ticket_id,
             "user_id": user_id,
             "task": "deliverable.generate",
-            "agent_type": "content",
+            "agent_type": "deliverable",
             "status": "running",
             "deliverable_id": deliverable_id,
             "deliverable_version_id": version_id,
