@@ -19,13 +19,8 @@ import { useParams, useRouter } from 'next/navigation';
 import {
   ArrowLeft,
   Loader2,
-  RefreshCw,
-  Settings2,
   Plus,
-  CheckCircle2,
   AlertCircle,
-  Clock,
-  XCircle,
   Hash,
   Tag,
   FileText,
@@ -194,7 +189,6 @@ export default function PlatformDetailPage() {
 
   // State
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -212,27 +206,22 @@ export default function PlatformDetailPage() {
   const atLimit = selectedIds.size >= limit;
   const hasChanges = selectedIds.size !== originalIds.size ||
     !Array.from(selectedIds).every(id => originalIds.has(id));
-  const totalItems = resources.reduce((sum, r) => sum + r.items_extracted, 0);
 
   // =============================================================================
   // Data Loading
   // =============================================================================
 
-  const loadData = useCallback(async (refresh = false) => {
+  const loadData = useCallback(async () => {
     if (!isValidPlatform) return;
 
     try {
-      if (refresh) {
-        setRefreshing(true);
-      } else {
-        setLoading(true);
-      }
+      setLoading(true);
       setError(null);
 
       // Load all data in parallel
       const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult] = await Promise.all([
         api.integrations.get(platform).catch(() => null),
-        api.integrations.getLandscape(platform, refresh).catch(() => ({ resources: [] })),
+        api.integrations.getLandscape(platform).catch(() => ({ resources: [] })),
         api.integrations.getSources(platform).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
         api.deliverables.list().catch(() => []),
@@ -265,7 +254,6 @@ export default function PlatformDetailPage() {
       setError('Failed to load platform data');
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, [platform, isValidPlatform]);
 
@@ -297,8 +285,6 @@ export default function PlatformDetailPage() {
       const result = await api.integrations.updateSources(platform, Array.from(selectedIds));
       if (result.success) {
         setOriginalIds(new Set(selectedIds));
-        // Optionally refresh to get updated coverage states
-        loadData(true);
       } else {
         setError('Failed to save changes');
       }
@@ -416,70 +402,35 @@ export default function PlatformDetailPage() {
               <div className={cn('w-10 h-10 rounded-full flex items-center justify-center', config.bgColor)}>
                 <span className={config.color}>{config.icon}</span>
               </div>
-              <div>
-                <h1 className="text-lg font-semibold">{config.label}</h1>
-                {integration.workspace_name && (
-                  <p className="text-sm text-muted-foreground">{integration.workspace_name}</p>
-                )}
-              </div>
+              <h1 className="text-lg font-semibold">{config.label}</h1>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => loadData(true)}
-              disabled={refreshing}
-              className="p-2 rounded-md hover:bg-muted transition-colors disabled:opacity-50"
-              title="Refresh"
-            >
-              <RefreshCw className={cn('w-4 h-4', refreshing && 'animate-spin')} />
-            </button>
-            <button
-              onClick={() => router.push('/settings?tab=integrations')}
-              className="p-2 rounded-md hover:bg-muted transition-colors"
-              title="Settings"
-            >
-              <Settings2 className="w-4 h-4" />
-            </button>
-          </div>
+          <button
+            onClick={() => router.push('/settings?tab=integrations')}
+            className="text-sm text-muted-foreground hover:text-foreground"
+          >
+            Manage connection
+          </button>
         </div>
       </div>
 
       {/* Content */}
       <div className="p-6 space-y-8">
-        {/* Connection Status */}
-        <div className="flex items-center gap-6 text-sm">
-          <div className="flex items-center gap-2">
-            {integration.status === 'connected' ? (
-              <CheckCircle2 className="w-4 h-4 text-green-500" />
-            ) : integration.status === 'error' ? (
-              <XCircle className="w-4 h-4 text-red-500" />
-            ) : (
-              <Clock className="w-4 h-4 text-yellow-500" />
-            )}
-            <span className="capitalize">{integration.status}</span>
-          </div>
-          <div className="text-muted-foreground">
-            Connected {formatDistanceToNow(new Date(integration.created_at), { addSuffix: true })}
-          </div>
-          {totalItems > 0 && (
-            <div className="text-muted-foreground">
-              {totalItems.toLocaleString()} items synced
-            </div>
-          )}
-        </div>
-
         {/* Resources Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h2 className="text-base font-semibold">{config.resourceLabel}</h2>
-              <p className="text-sm text-muted-foreground">
-                {selectedIds.size} selected • {resources.length} available
-                {tierLimits && (
-                  <span className="ml-1">
-                    • {limit} max ({tierLimits.tier} tier)
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-semibold">{config.resourceLabel}</h2>
+                {integration.workspace_name && (
+                  <span className="text-sm text-muted-foreground">
+                    in {integration.workspace_name}
                   </span>
                 )}
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Select which {config.resourceLabel.toLowerCase()} to include as context sources.
+                {' '}{selectedIds.size} of {limit} selected ({tierLimits?.tier || 'free'} tier)
               </p>
             </div>
             {hasChanges && (
@@ -527,15 +478,9 @@ export default function PlatformDetailPage() {
 
           {resources.length === 0 ? (
             <div className="border border-dashed border-border rounded-lg p-8 text-center">
-              <p className="text-sm text-muted-foreground mb-3">
-                No {config.resourceLabel.toLowerCase()} discovered yet.
+              <p className="text-sm text-muted-foreground">
+                No {config.resourceLabel.toLowerCase()} found in this workspace.
               </p>
-              <button
-                onClick={() => loadData(true)}
-                className="text-sm text-primary hover:underline"
-              >
-                Refresh to discover
-              </button>
             </div>
           ) : (
             <div className="border border-border rounded-lg divide-y divide-border">
