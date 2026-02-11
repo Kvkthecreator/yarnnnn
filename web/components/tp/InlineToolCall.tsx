@@ -25,14 +25,15 @@ import {
   ListTodo,
   Eye,
 } from 'lucide-react';
-import { MessageBlock, TPToolResult } from '@/types/desk';
-import { cn } from '@/lib/utils';
+import { MessageBlock } from '@/types/desk';
+import { cn, getToolDisplayMessage } from '@/lib/utils';
 
 interface InlineToolCallProps {
   block: Extract<MessageBlock, { type: 'tool_call' }>;
 }
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
+  // Legacy primitive tools
   Read: Eye,
   Write: Plus,
   Edit: Pencil,
@@ -42,44 +43,46 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   Todo: ListTodo,
   Respond: FileText,
   Clarify: FileText,
+  // ADR-039: Platform operation tools
+  list_integrations: Eye,
+  list_platform_resources: List,
+  sync_platform_resource: Play,
+  get_sync_status: Eye,
+  // Work tools
+  create_work: Plus,
+  list_work: List,
+  get_work: Eye,
+  update_work: Pencil,
+  delete_work: FileText,
+  // Memory tools
+  list_memories: List,
+  create_memory: Plus,
+  update_memory: Pencil,
+  delete_memory: FileText,
+  // Deliverable tools
+  list_deliverables: List,
+  get_deliverable: Eye,
+  create_deliverable: Plus,
+  update_deliverable: Pencil,
+  run_deliverable: Play,
+  // Todo tracking
+  todo_write: ListTodo,
 };
-
-/**
- * Get a short preview of what the tool is doing
- */
-function getToolPreview(tool: string, input?: Record<string, unknown>, result?: TPToolResult): string {
-  if (result?.data?.message) {
-    return String(result.data.message).slice(0, 60);
-  }
-
-  switch (tool) {
-    case 'List':
-      return input?.ref ? String(input.ref) : 'entities';
-    case 'Read':
-      return input?.ref ? String(input.ref) : 'entity';
-    case 'Write':
-      return input?.ref ? String(input.ref).replace(':new', '') : 'entity';
-    case 'Edit':
-      return input?.ref ? String(input.ref) : 'entity';
-    case 'Search':
-      return input?.query ? `"${String(input.query).slice(0, 30)}"` : 'content';
-    case 'Execute':
-      return input?.action ? String(input.action) : 'action';
-    case 'Todo':
-      return 'progress';
-    default:
-      return '';
-  }
-}
 
 export function InlineToolCall({ block }: InlineToolCallProps) {
   const [expanded, setExpanded] = useState(block.status === 'failed');
 
   const Icon = TOOL_ICONS[block.tool] || FileText;
-  const preview = getToolPreview(block.tool, block.input, block.result);
+  // ADR-039: Use descriptive display message
+  const displayMessage = getToolDisplayMessage(block.tool, block.input);
 
   // Skip Respond/Clarify - these are handled as chat messages
-  if (block.tool === 'Respond' || block.tool === 'Clarify') {
+  if (block.tool === 'Respond' || block.tool === 'Clarify' || block.tool === 'respond' || block.tool === 'clarify') {
+    return null;
+  }
+
+  // Skip todo_write - this is shown separately in the work panel
+  if (block.tool === 'todo_write') {
     return null;
   }
 
@@ -102,13 +105,8 @@ export function InlineToolCall({ block }: InlineToolCallProps) {
 
         <Icon className="w-4 h-4 text-muted-foreground shrink-0" />
 
-        <span className="font-medium">{block.tool}</span>
-
-        {preview && (
-          <span className="text-muted-foreground truncate flex-1">
-            {preview}
-          </span>
-        )}
+        {/* ADR-039: Show descriptive message instead of raw tool name */}
+        <span className="font-medium">{displayMessage}</span>
 
         {/* Status indicator */}
         <div className="shrink-0 ml-auto">

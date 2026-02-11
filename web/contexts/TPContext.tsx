@@ -11,6 +11,7 @@ import { createClient } from '@/lib/supabase/client';
 import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, mapToolActionToSurface, DeskSurface, Todo, MessageBlock } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
+import { getToolDisplayMessage } from '@/lib/utils';
 
 // API base URL - must match the Python backend
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
@@ -97,10 +98,11 @@ export interface ClarificationRequest {
 }
 
 // Status for real-time display in TPBar
+// ADR-039: toolDisplayMessage provides Claude Code-style descriptive status
 export type TPStatus =
   | { type: 'idle' }
   | { type: 'thinking' }  // Before first tool call
-  | { type: 'tool'; toolName: string }  // Calling a tool
+  | { type: 'tool'; toolName: string; toolDisplayMessage: string }  // Calling a tool with display message
   | { type: 'streaming'; content: string }  // Streaming respond() content
   | { type: 'clarify'; question: string; options?: string[] }  // Waiting for user input
   | { type: 'complete'; message?: string };  // Done, optionally show brief confirmation
@@ -384,7 +386,12 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                 };
                 blocks.push(toolBlock);
                 pendingToolCalls.set(toolId, blocks.length - 1);
-                setStatus({ type: 'tool', toolName: event.tool_use.name });
+                // ADR-039: Use descriptive tool display message (Claude Code style)
+                const toolDisplayMessage = getToolDisplayMessage(
+                  event.tool_use.name,
+                  event.tool_use.input as Record<string, unknown>
+                );
+                setStatus({ type: 'tool', toolName: event.tool_use.name, toolDisplayMessage });
                 updateStreamingMessage();
               } else if (event.tool_result) {
                 const toolResult = event.tool_result.result || event.tool_result;

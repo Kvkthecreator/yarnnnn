@@ -232,7 +232,7 @@ export function TPDrawer() {
         {status.type === 'tool' && (
           <div className="flex items-center gap-2 text-muted-foreground text-sm">
             <Loader2 className="w-4 h-4 animate-spin" />
-            <span>{status.toolName}...</span>
+            <span>{status.toolDisplayMessage}...</span>
           </div>
         )}
         {status.type === 'streaming' && (
