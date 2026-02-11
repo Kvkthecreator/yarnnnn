@@ -65,15 +65,16 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         client_secret_env="SLACK_CLIENT_SECRET",
         authorize_url="https://slack.com/oauth/v2/authorize",
         token_url="https://slack.com/api/oauth.v2.access",
-        # ADR-027/030: Full scopes for reading and listing channels
+        # ADR-027/030/047: Full scopes for reading, listing, and DMs
         scopes=[
-            "chat:write",           # Post messages
+            "chat:write",           # Post messages to channels
             "channels:read",        # List public channels
             "channels:history",     # Read public channel messages
             "channels:join",        # Auto-join public channels (for import)
             "groups:read",          # List private channels
             "groups:history",       # Read private channel messages
             "users:read",           # Get user info
+            "im:write",             # ADR-047: Open and write to DM channels
         ],
         redirect_path="/api/integrations/slack/callback",
     ),

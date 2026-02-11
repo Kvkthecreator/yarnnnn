@@ -20,7 +20,9 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 
 **Known Issues**:
 - `@username` / `@me` / `@self` formats are NOT valid - use `"self"` or user ID (U...) instead
-- Existing Slack integrations need to reconnect to capture `authed_user_id` for "self" to work
+- Existing Slack integrations need to reconnect to:
+  - Capture `authed_user_id` for "self" resolution
+  - Get `im:write` scope for DM access
 
 **Valid Formats**:
 - `self` - DM to the user (recommended!)
@@ -32,6 +34,7 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 - Added `authed_user_id` capture in Slack OAuth callback
 - Added "self" resolution in `_send_slack_message`
 - Added auto-open DM logic for U... prefixed targets
+- Added `im:write` scope to Slack OAuth for DM channel access
 - Added platform registry (`integrations/platform_registry.py`) for validation
 - Added health check endpoint (`/integrations/{provider}/health`)
 - Updated TP documentation to clarify valid formats
