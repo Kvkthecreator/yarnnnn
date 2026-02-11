@@ -1,9 +1,9 @@
 'use client';
 
 /**
- * ADR-039: Redirect to unified Context page
+ * ADR-039: Redirect to platform detail page
  *
- * Legacy /integrations/[provider] route now redirects to /context?source=[provider]
+ * Legacy /integrations/[provider] route now redirects to /context/[provider]
  */
 
 import { useEffect, use } from 'react';
@@ -19,7 +19,7 @@ export default function IntegrationProviderRedirect({
   const router = useRouter();
 
   useEffect(() => {
-    router.replace(`/context?source=${provider}`);
+    router.replace(`/context/${provider}`);
   }, [router, provider]);
 
   return (

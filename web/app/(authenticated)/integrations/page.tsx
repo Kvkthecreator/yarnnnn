@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ADR-039: Redirect to unified Context page
+ * ADR-039: Redirect to Context page (platforms filter)
  *
  * Legacy /integrations route now redirects to /context?source=platforms
  */

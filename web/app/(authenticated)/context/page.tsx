@@ -443,7 +443,7 @@ export default function ContextPage() {
                       <PlatformSourceCard
                         key={platform.provider}
                         platform={platform}
-                        onClick={() => router.push(`/context?source=${platform.provider}`)}
+                        onClick={() => router.push(`/context/${platform.provider}`)}
                       />
                     ))}
                     {/* Add Platform Card */}
