@@ -76,6 +76,9 @@ DeliverableType = Literal[
     "slack_standup",
     "gmail_inbox_brief",
     "notion_page_summary",
+    # ADR-046: Calendar Types
+    "meeting_prep",
+    "weekly_calendar_preview",
 ]
 
 # Type tier mapping for UI display
@@ -106,6 +109,9 @@ TYPE_TIERS = {
     "slack_standup": "stable",
     "gmail_inbox_brief": "stable",
     "notion_page_summary": "stable",
+    # ADR-046: Calendar Types
+    "meeting_prep": "stable",
+    "weekly_calendar_preview": "stable",
 }
 
 # ADR-035: Wave classification for type taxonomy
