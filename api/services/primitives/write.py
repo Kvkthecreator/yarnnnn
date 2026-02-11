@@ -183,7 +183,11 @@ def _process_deliverable(data: dict) -> dict:
     Schema notes:
     - schedule: JSONB with {frequency, day, time, timezone}
     - deliverable_type: defaults to 'custom' in schema
-    - recipient_context: JSONB with {name, role, priorities}
+    - recipient_context: JSONB with {name, role, priorities, company}
+
+    Flat field mappings (convenience for TP):
+    - frequency, day, time, timezone -> schedule.*
+    - recipient_name, recipient_role, company -> recipient_context.*
     """
     from jobs.unified_scheduler import calculate_next_run_from_schedule
 
@@ -217,6 +221,8 @@ def _process_deliverable(data: dict) -> dict:
             recipient_context["name"] = data.pop("recipient_name")
         if "recipient_role" in data:
             recipient_context["role"] = data.pop("recipient_role")
+        if "company" in data:
+            recipient_context["company"] = data.pop("company")
     data["recipient_context"] = recipient_context
 
     # Calculate next_run_at based on schedule
