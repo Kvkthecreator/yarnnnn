@@ -49,6 +49,8 @@ Users without platform connections can still provide rich context via documents 
 > Todo will return when multi-step workflows require 30+ second operations.
 > Respond was redundant with model output.
 
+> **Future**: WebSearch primitive is planned for ADR-045 when research-type deliverables require external context. See "Deferred Primitives" section below.
+
 ---
 
 ## Reference Syntax
@@ -609,10 +611,85 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 ---
 
+## Deferred Primitives
+
+These primitives are documented but not yet implemented. They will be added when specific use cases require them.
+
+### WebSearch (ADR-045)
+
+Web search capability for research-type deliverables.
+
+**Trigger**: When `competitive_analysis`, `market_landscape`, or research-binding deliverables require external context.
+
+**Input**:
+```json
+{
+  "query": "competitor pricing strategies SaaS 2026",
+  "max_results": 5
+}
+```
+
+**Output**:
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "title": "SaaS Pricing Trends 2026",
+      "url": "https://...",
+      "snippet": "Key findings show...",
+      "score": 0.92
+    }
+  ],
+  "count": 5
+}
+```
+
+**Implementation considerations**:
+- Provider options: Anthropic built-in (if available), Tavily, Brave Search
+- Caching: 15-minute TTL for same query
+- Cost: Per-search API cost, may require usage limits
+
+### WebFetch (ADR-045)
+
+Fetch and extract content from a specific URL.
+
+**Trigger**: When TP or agent needs to pull content from a URL provided by user or discovered via WebSearch.
+
+**Input**:
+```json
+{
+  "url": "https://example.com/article",
+  "extract_prompt": "Extract key pricing information"
+}
+```
+
+**Output**:
+```json
+{
+  "success": true,
+  "content": "Extracted content...",
+  "title": "Page Title",
+  "url": "https://example.com/article"
+}
+```
+
+### Todo (Deferred from ADR-038)
+
+Progress tracking for multi-step operations.
+
+**Trigger**: When operations take 30+ seconds and require user-visible progress.
+
+**Status**: Deferred until needed. Current operations complete within acceptable timeframes.
+
+---
+
 ## See Also
 
 - [ADR-036: Two-Layer Architecture](../adr/ADR-036-two-layer-architecture.md)
 - [ADR-037: Chat-First Surface Architecture](../adr/ADR-037-chat-first-surface-architecture.md)
 - [ADR-038: Filesystem-as-Context Architecture](../adr/ADR-038-filesystem-as-context.md)
 - [ADR-042: Deliverable Execution Simplification](../adr/ADR-042-deliverable-execution-simplification.md)
+- [ADR-044: Deliverable Type Reconceptualization](../adr/ADR-044-deliverable-type-reconceptualization.md)
+- [ADR-045: Deliverable Orchestration Redesign](../adr/ADR-045-deliverable-orchestration-redesign.md)
 - [Testing Environment Guide](../testing/TESTING-ENVIRONMENT.md)

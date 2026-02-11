@@ -6,6 +6,102 @@ All notable changes to YARNNN are documented here.
 
 ## [Unreleased]
 
+### ADR-045: Deliverable Orchestration Redesign
+
+**Date**: 2026-02-11
+
+First-principles redesign of how deliverable types map to execution strategies and agent orchestration.
+
+#### Key Insights
+
+The current pipeline (ResearchAgent → ContentAgent) was designed for ADR-019's format-centric types before the platform-first shift (ADR-044). Types now have semantic meaning (binding, temporal pattern, freshness) that execution ignores.
+
+#### What This ADR Proposes
+
+| Binding | Orchestration Strategy |
+|---------|----------------------|
+| `platform_bound` | Single-platform gatherer → Platform-specific synthesizer |
+| `cross_platform` | Parallel platform gatherers → Cross-platform synthesizer |
+| `research` | Research agent with web search → Research synthesizer |
+| `hybrid` | Research + Platform gatherers → Hybrid synthesizer |
+
+#### New Primitives (Deferred)
+
+- **WebSearch** — Search the web for external context
+- **WebFetch** — Fetch and extract content from URLs
+
+These are documented in `primitives.md` but not implemented until research-type deliverables require them.
+
+#### New Deliverable Types (Deferred)
+
+With web search capability, enables ADR-044's research types:
+- `competitive_analysis`
+- `market_landscape`
+- `topic_deep_dive`
+- `industry_brief`
+
+#### Files
+
+- `docs/adr/ADR-045-deliverable-orchestration-redesign.md` — Full ADR
+- `docs/architecture/primitives.md` — Added "Deferred Primitives" section
+
+---
+
+### ADR-044: Deliverable Type Reconceptualization
+
+**Date**: 2026-02-11
+
+Reconceptualized deliverable types from format-centric (status_report, research_brief) to a two-dimensional classification model.
+
+#### Type Classification Model
+
+| Dimension | Values |
+|-----------|--------|
+| **Context Binding** | `platform_bound`, `cross_platform`, `research`, `hybrid` |
+| **Temporal Pattern** | `reactive`, `scheduled`, `on_demand`, `emergent` |
+
+#### New Platform-Bound Types
+
+| Type | Platform | Description |
+|------|----------|-------------|
+| `slack_channel_digest` | Slack | What happened while you were away |
+| `slack_standup` | Slack | Aggregate team standup updates |
+| `gmail_inbox_brief` | Gmail | Prioritized inbox summary |
+| `notion_page_summary` | Notion | What changed in your docs |
+
+#### Emergent Deliverable Discovery
+
+Database tables for TP to track user patterns and propose deliverables:
+- `deliverable_proposals` — Tracks suggestions made by TP
+- `user_interaction_patterns` — Tracks patterns that suggest deliverable value
+- Helper functions: `increment_interaction_pattern()`, `should_propose_deliverable()`
+
+#### Frontend Changes
+
+- `TypeSelector.tsx` — Redesigned with binding-first flow (Platform Monitor → Cross-Platform → Research → Custom)
+- `DeliverableCreateSurface.tsx` — Now passes `type_classification` when creating deliverables
+- `DeliverableSettingsModal.tsx` — Added labels for new types
+
+#### Schema Changes
+
+```sql
+-- Migration 037
+ALTER TABLE deliverables ADD COLUMN type_classification JSONB;
+CREATE TABLE deliverable_proposals (...);
+CREATE TABLE user_interaction_patterns (...);
+```
+
+#### Files Changed
+
+- `docs/adr/ADR-044-deliverable-type-reconceptualization.md` — New ADR
+- `supabase/migrations/037_deliverable_type_classification.sql` — Schema changes
+- `web/types/index.ts` — Added `TypeClassification`, `ContextBinding`, `TemporalPattern`
+- `web/components/deliverables/TypeSelector.tsx` — Binding-first selector
+- `web/components/surfaces/DeliverableCreateSurface.tsx` — Classification passthrough
+- `web/components/modals/DeliverableSettingsModal.tsx` — New type labels
+
+---
+
 ### ADR-042: Deliverable Execution Simplification
 
 **Date**: 2026-02-11
