@@ -1,6 +1,6 @@
 # ADR-047: Platform Integration Validation
 
-> **Status**: Draft
+> **Status**: Implemented (Phase 1-2 Complete)
 > **Created**: 2026-02-11
 > **Related**: ADR-026 (Integration Architecture), ADR-039 (Agentic Platform Operations), ADR-040 (Proactive Notifications)
 
@@ -202,20 +202,25 @@ Track changes to platform behaviors over time:
 
 ## Implementation Phases
 
-### Phase 1: Documentation (Immediate)
-- Create `docs/integrations/CHANGELOG.md`
-- Create `docs/integrations/QUIRKS.md` with current known issues
-- Document Slack channel_id discovery
+### Phase 1: Documentation (Immediate) ✅ COMPLETE
+- ✅ Created `docs/integrations/CHANGELOG.md`
+- ✅ Created `docs/integrations/QUIRKS.md` with current known issues
+- ✅ Documented Slack channel_id discovery
+- ✅ Documented Slack "self" and DM resolution
+- ✅ Documented Notion page_id formats and comment structure
 
-### Phase 2: Registry (Short-term)
-- Implement `PLATFORM_REGISTRY` structure
-- Add validation helpers
-- TP reads registry for guidance
+### Phase 2: Registry (Short-term) ✅ COMPLETE
+- ✅ Implemented `PLATFORM_REGISTRY` structure in `api/integrations/platform_registry.py`
+- ✅ Added validation helpers (`validate_param`, `validate_params`)
+- ✅ Added MCP parameter mapping (`map_params_to_mcp`)
+- ✅ TP reads registry for guidance (`get_tp_guidance`)
+- ✅ Added tests in `api/test_platform_registry.py`
 
-### Phase 3: Validation Endpoint (Medium-term)
-- `/api/integrations/{provider}/validate` endpoint
-- Run during OAuth callback
-- Store validation results in `user_integrations.metadata`
+### Phase 3: Validation Endpoint (Medium-term) - IN PROGRESS
+- ✅ Created `/api/integrations/{provider}/health` endpoint
+- ✅ Implemented `validate_integration()` in `api/integrations/validation.py`
+- ⏳ Run during OAuth callback (not yet integrated)
+- ⏳ Store validation results in `user_integrations.metadata`
 
 ### Phase 4: Health Monitoring (Future)
 - Periodic health checks

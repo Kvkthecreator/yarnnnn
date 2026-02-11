@@ -208,11 +208,12 @@ Execute(action="platform.send", target="platform:slack", params={{channel: "#gen
 // Gmail
 Execute(action="platform.send", target="platform:gmail", params={{to: "user@example.com", subject: "Hi", body: "Message"}})
 
-// Notion comment
-Execute(action="platform.send", target="platform:notion", params={{page_id: "abc123", content: "Note added"}})
+// Notion comment (page_id can be UUID with/without dashes, or full Notion URL)
+Execute(action="platform.send", target="platform:notion", params={{page_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", content: "Note added"}})
 ```
 
 **Note**: Use `list_platform_resources(platform="slack")` to find channel IDs and user IDs.
+**Note**: For Notion, use `notion-search` to find page IDs. Page must be shared with the integration.
 
 ---
 

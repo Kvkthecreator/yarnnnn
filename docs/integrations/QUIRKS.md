@@ -66,6 +66,15 @@ The system automatically:
 
 **Alternative**: For simple notifications, use `send_notification` (sends email).
 
+### Reconnection Required
+
+Users must reconnect Slack when:
+1. New OAuth scopes are added (e.g., `im:write` for DMs)
+2. `authed_user_id` needs to be captured (for `"self"` resolution)
+3. Token has expired or been revoked
+
+The reconnection flow captures all required metadata fresh from Slack's OAuth response.
+
 ### Common Errors
 
 | Error | Cause | Fix |
@@ -73,6 +82,21 @@ The system automatically:
 | `Missing required arguments: channel_id` | Used `channel` param | Use `channel_id` |
 | `channel_not_found` | Invalid channel format | Use `list_platform_resources` first |
 | `not_in_channel` | Bot not added to channel | Invite bot or use public channel |
+| `missing_scope` | Bot lacks required OAuth scope | User must reconnect Slack with new scopes |
+| `Cannot resolve 'self'` | `authed_user_id` not in metadata | User must reconnect Slack (captures ID during OAuth) |
+
+### Required OAuth Scopes
+
+| Scope | Purpose |
+|-------|---------|
+| `chat:write` | Send messages to channels |
+| `channels:read` | List public channels |
+| `channels:history` | Read channel history |
+| `channels:join` | Join public channels |
+| `groups:read` | List private channels |
+| `groups:history` | Read private channel history |
+| `users:read` | List workspace users |
+| `im:write` | Open and send DMs (required for `"self"` and user ID targets) |
 
 ---
 
@@ -111,29 +135,110 @@ Access token is refreshed automatically on each call.
 ## Notion
 
 ### MCP Server
-- Package: `@notionhq/notion-mcp-server`
-- Transport: stdio with `--transport stdio` flag
+- Package: `@notionhq/notion-mcp-server` (via Claude AI integration)
+- Transport: stdio
 
 ### Parameter Quirks
 
 | What you might expect | What actually works | Notes |
 |-----------------------|---------------------|-------|
-| `page_id: "abc123"` | Works | UUID format |
-| `page_id: "https://notion.so/..."` | May work | URL format supported |
+| `{page_id: "abc123", text: "Hi"}` | ❌ Does not work | Use structured `parent` and `rich_text` |
+| `{parent: {page_id: "..."}, rich_text: [...]}` | ✅ Works | Required structure for comments |
+| `page_id: "abc-123-def"` | ✅ Works | UUID with dashes |
+| `page_id: "abc123def"` | ✅ Works | UUID without dashes |
+| `page_id: "https://notion.so/..."` | ✅ Works | Full URL supported |
 
 ### Page ID Formats
 
 ```
-✅ abc123def456...  (UUID)
-✅ https://notion.so/workspace/Page-abc123  (URL)
+✅ a1b2c3d4-e5f6-7890-abcd-ef1234567890  (UUID with dashes)
+✅ a1b2c3d4e5f67890abcdef1234567890      (UUID without dashes)
+✅ https://notion.so/workspace/Page-abc123  (Full URL)
+✅ https://myspace.notion.site/Page-abc123  (Notion Sites URL)
+❌ @page-name                              (Not valid)
+❌ page-name                               (Not valid - use UUID or URL)
 ```
+
+### Adding Comments (platform.send)
+
+**Correct MCP structure for `notion-create-comment`:**
+
+```json
+{
+  "parent": {
+    "page_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  },
+  "rich_text": [
+    {
+      "type": "text",
+      "text": {
+        "content": "Your comment text here"
+      }
+    }
+  ]
+}
+```
+
+**TP usage:**
+```
+Execute(action="platform.send", target="platform:notion", params={page_id: "abc123...", content: "Note added"})
+```
+
+The system automatically transforms this into the correct MCP structure.
+
+### Creating Pages
+
+Use `notion-create-pages` with proper parent:
+
+```json
+{
+  "parent": {"page_id": "parent-page-uuid"},
+  "pages": [{
+    "properties": {"title": "New Page Title"},
+    "content": "# Section 1\nContent here"
+  }]
+}
+```
+
+### Fetching Pages First
+
+**Best practice:** Always use `notion-fetch` before updating to understand page structure:
+
+```
+notion-fetch with {id: "page-uuid-or-url"}
+```
+
+Returns Notion-flavored Markdown with the page content.
 
 ### Common Errors
 
 | Error | Cause | Fix |
 |-------|-------|-----|
-| `object_not_found` | Page doesn't exist or no access | Check integration has page access |
-| `validation_error` | Malformed page ID | Use `search_notion_pages` to find valid IDs |
+| `object_not_found` | Page doesn't exist or no access | Ensure page is shared with the integration |
+| `validation_error` | Malformed page ID or wrong structure | Use UUID format or full URL |
+| `Could not find...` | Page not shared with integration | User must share page with Notion integration |
+| `unauthorized` | Token expired or invalid | User must reconnect Notion |
+| `restricted_resource` | Commenting disabled on page | Enable comments on the Notion page |
+
+### Required Permissions
+
+The Notion integration must have access to:
+- The specific page (user must share it with the integration)
+- Comment permission (if adding comments)
+- Edit permission (if updating page content)
+
+### Searching for Pages
+
+Use `notion-search` to find pages before operating on them:
+
+```json
+{
+  "query": "meeting notes",
+  "query_type": "internal"
+}
+```
+
+Returns page IDs and URLs that can be used with other operations.
 
 ---
 

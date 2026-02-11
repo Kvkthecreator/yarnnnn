@@ -159,16 +159,23 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
         "params": {
             "page_id": {
                 "description": "Notion page ID or URL",
+                "mcp_name": "page_id",  # Used in parent object: {page_id: ...}
                 "valid_patterns": [
-                    r"^[a-f0-9-]{32,36}$",  # UUID format
+                    r"^[a-f0-9-]{32,36}$",  # UUID format (with or without dashes)
+                    r"^[a-f0-9]{32}$",      # UUID without dashes
                     r"^https://.*notion\.(so|site)/",  # Notion URL
                 ],
-                "valid_examples": ["abc123def456", "https://notion.so/workspace/Page-abc123"],
-                "resolution_tool": "search_notion_pages",
-                "error_hint": "Use page UUID or Notion URL. Call Read(ref='platform:notion') to search pages.",
+                "valid_examples": ["abc123def456", "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "https://notion.so/workspace/Page-abc123"],
+                "invalid_patterns": [
+                    r"^@",  # @mentions don't work
+                ],
+                "invalid_examples": ["@page", "page-name"],
+                "resolution_tool": "notion-search",
+                "error_hint": "Use page UUID (with or without dashes) or full Notion URL. Use notion-search to find pages.",
             },
             "content": {
-                "description": "Content to add to page",
+                "description": "Content to add to page (as comment or page content)",
+                "mcp_name": "rich_text",  # For comments, wrapped in rich_text array
                 "valid_patterns": [r".+"],
             },
         },
@@ -177,18 +184,27 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             "create_page": {
                 "supported": True,
                 "tool": "notion-create-pages",
+                "notes": "Creates new page under parent page or database",
             },
             "add_comment": {
                 "supported": True,
                 "tool": "notion-create-comment",
+                "notes": "Requires parent: {page_id: ...} and rich_text array format",
+            },
+            "update_page": {
+                "supported": True,
+                "tool": "notion-update-page",
+                "notes": "Can update properties or content with various commands",
             },
             "search": {
                 "supported": True,
                 "tool": "notion-search",
+                "notes": "Semantic search over workspace and connected sources",
             },
             "fetch_page": {
                 "supported": True,
                 "tool": "notion-fetch",
+                "notes": "Returns page content in Notion-flavored Markdown",
             },
         },
 
@@ -199,9 +215,11 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
         },
 
         "quirks": [
-            "MCP server requires --transport stdio flag",
-            "Page must be shared with the integration",
-            "Comments require commenting permission on page",
+            "notion-create-comment expects {parent: {page_id: ...}, rich_text: [{type: 'text', text: {content: ...}}]}",
+            "Page IDs work with or without dashes (UUIDv4 format)",
+            "Page must be shared with the integration to access",
+            "Comments require commenting permission on the page",
+            "Use notion-fetch first to get page structure before updating",
         ],
 
         "version": "2026-02-11",

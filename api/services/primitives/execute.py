@@ -618,8 +618,14 @@ async def _send_gmail_message(auth, params, access_token, metadata, logger):
 
 
 async def _send_notion_content(auth, params, access_token, metadata, logger):
-    """Add content to Notion page via MCP."""
+    """Add content to Notion page via MCP.
+
+    ADR-047: Notion MCP expects specific parameter structures:
+    - notion-create-comment: {parent: {page_id: ...}, rich_text: [{type: 'text', text: {content: ...}}]}
+    - Page IDs work with or without dashes (UUIDv4)
+    """
     from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+    from integrations.platform_registry import validate_param
 
     if not MCP_AVAILABLE:
         raise ValueError("MCP not available. Install: pip install mcp")
@@ -627,16 +633,36 @@ async def _send_notion_content(auth, params, access_token, metadata, logger):
     page_id = params.get("page_id")
     content = params.get("content")
 
+    if not page_id:
+        raise ValueError("Missing required parameter: page_id")
+    if not content:
+        raise ValueError("Missing required parameter: content")
+
+    # Validate page_id format
+    is_valid, error = validate_param("notion", "page_id", page_id)
+    if not is_valid:
+        raise ValueError(f"Invalid page_id format: {error}")
+
     mcp = get_mcp_manager()
 
-    # Use notion-update-page to append a comment/block
+    # ADR-047: notion-create-comment expects specific structure
+    # parent: {page_id: string} and rich_text: array of rich text objects
     result = await mcp.call_tool(
         user_id=auth.user_id,
         provider="notion",
         tool_name="notion-create-comment",
         arguments={
-            "page_id": page_id,
-            "text": content,
+            "parent": {
+                "page_id": page_id,
+            },
+            "rich_text": [
+                {
+                    "type": "text",
+                    "text": {
+                        "content": content,
+                    },
+                }
+            ],
         },
         env={"NOTION_TOKEN": access_token}
     )
@@ -647,5 +673,5 @@ async def _send_notion_content(auth, params, access_token, metadata, logger):
         "status": "sent",
         "provider": "notion",
         "page_id": page_id,
-        "message": f"Content added to Notion page",
+        "message": f"Comment added to Notion page",
     }
