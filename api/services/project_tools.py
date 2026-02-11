@@ -737,6 +737,139 @@ Returns the created deliverable. Always follow with respond() to:
 }
 
 
+# =============================================================================
+# Platform Operation Tools (ADR-039: Agentic Platform Operations)
+# =============================================================================
+# These tools enable TP to proactively interact with connected platforms,
+# similar to how Claude Code uses bash/grep. TP should try to accomplish
+# tasks rather than asking permission.
+
+LIST_INTEGRATIONS_TOOL = {
+    "name": "list_integrations",
+    "description": """List user's connected platform integrations.
+
+Use this to see what platforms are connected before attempting platform operations.
+Shows connection status, last sync time, and available capabilities.
+
+AGENTIC BEHAVIOR (ADR-039):
+- Check this first when user mentions Slack, Gmail, Notion, etc.
+- If not connected, proactively suggest connecting
+- If connected but no data synced, offer to sync""",
+    "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+    }
+}
+
+LIST_PLATFORM_RESOURCES_TOOL = {
+    "name": "list_platform_resources",
+    "description": """List available resources from a connected platform.
+
+PLATFORM-SPECIFIC RESOURCES:
+- slack: Lists channels the bot has access to
+- gmail: Lists labels/folders
+- notion: Lists pages and databases
+- calendar: Lists calendars
+
+AGENTIC BEHAVIOR (ADR-039):
+- Use this to find specific channels/labels when user mentions them
+- If user says "my daily work channel", list channels and find the match
+- If user says "emails from Sarah", check gmail connection and labels""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "platform": {
+                "type": "string",
+                "enum": ["slack", "gmail", "notion", "calendar"],
+                "description": "Which platform to list resources from"
+            },
+            "resource_type": {
+                "type": "string",
+                "enum": ["channels", "labels", "pages", "databases", "calendars"],
+                "description": "Type of resource to list. Defaults based on platform."
+            }
+        },
+        "required": ["platform"]
+    }
+}
+
+SYNC_PLATFORM_RESOURCE_TOOL = {
+    "name": "sync_platform_resource",
+    "description": """Trigger a sync/import for a specific platform resource.
+
+Creates an import job to fetch and process content from the resource.
+
+PLATFORM-SPECIFIC RESOURCES:
+- slack: Sync a channel's messages (resource_id = channel ID like 'C123ABC')
+- gmail: Sync emails from inbox or label (resource_id = 'inbox' or label ID)
+- notion: Sync a page's content (resource_id = page ID)
+
+AGENTIC BEHAVIOR (ADR-039):
+- When user needs data from a platform, proactively sync it
+- Don't ask "should I sync?" - just do it and report progress
+- After sync, inform user what was retrieved
+
+SYNC OPTIONS:
+- max_items: Maximum items to fetch (default: 100 for Slack, 50 for Gmail)
+- recency_days: Only fetch items from last N days (default: 7)""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "platform": {
+                "type": "string",
+                "enum": ["slack", "gmail", "notion"],
+                "description": "Platform to sync from"
+            },
+            "resource_id": {
+                "type": "string",
+                "description": "ID of the resource to sync (channel ID, label ID, page ID)"
+            },
+            "resource_name": {
+                "type": "string",
+                "description": "Human-readable name for the resource (e.g., '#general', 'Inbox')"
+            },
+            "max_items": {
+                "type": "integer",
+                "description": "Maximum items to fetch. Default: 100 for Slack, 50 for Gmail, 10 for Notion"
+            },
+            "recency_days": {
+                "type": "integer",
+                "description": "Only fetch items from last N days. Default: 7"
+            }
+        },
+        "required": ["platform", "resource_id"]
+    }
+}
+
+GET_SYNC_STATUS_TOOL = {
+    "name": "get_sync_status",
+    "description": """Get the sync status for a platform resource.
+
+Shows when data was last synced, how many items were imported, and current coverage.
+
+AGENTIC BEHAVIOR (ADR-039):
+- Check this before deciding whether to sync
+- If data is stale (>24h), consider re-syncing
+- Report sync status to user when relevant""",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "platform": {
+                "type": "string",
+                "enum": ["slack", "gmail", "notion", "calendar"],
+                "description": "Platform to check"
+            },
+            "resource_id": {
+                "type": "string",
+                "description": "Optional: specific resource to check. If omitted, shows all synced resources for platform."
+            }
+        },
+        "required": ["platform"]
+    }
+}
+
+
 # Tools available to Thinking Partner (ADR-023 Unified Tool Model)
 # All outputs are tools - including conversation itself
 # ADR-034: Removed project tools (list_projects, create_project, etc.)
@@ -762,6 +895,11 @@ THINKING_PARTNER_TOOLS = [
     RUN_DELIVERABLE_TOOL,
     UPDATE_DELIVERABLE_TOOL,
     CREATE_DELIVERABLE_TOOL,
+    # Platform operations (ADR-039: Agentic Platform Operations)
+    LIST_INTEGRATIONS_TOOL,
+    LIST_PLATFORM_RESOURCES_TOOL,
+    SYNC_PLATFORM_RESOURCE_TOOL,
+    GET_SYNC_STATUS_TOOL,
 ]
 
 
@@ -2660,6 +2798,399 @@ async def handle_suggest_project_for_memory(auth, input: dict) -> dict:
         }
 
 
+# =============================================================================
+# Platform Operation Handlers (ADR-039: Agentic Platform Operations)
+# =============================================================================
+
+async def handle_list_integrations(auth, input: dict) -> dict:
+    """
+    List user's connected platform integrations.
+
+    ADR-039: Shows what platforms are connected so TP can be agentic.
+
+    Returns:
+        Dict with integrations list and connection status
+    """
+    result = auth.client.table("user_integrations")\
+        .select("id, provider, status, metadata, created_at, updated_at")\
+        .eq("user_id", auth.user_id)\
+        .execute()
+
+    integrations = result.data or []
+
+    # Format for display
+    items = []
+    for i in integrations:
+        metadata = i.get("metadata") or {}
+        items.append({
+            "provider": i["provider"],
+            "status": i["status"],
+            "connected_at": i["created_at"],
+            "last_updated": i["updated_at"],
+            # Platform-specific metadata
+            "workspace_name": metadata.get("team_name") or metadata.get("workspace_name"),
+            "email": metadata.get("email"),
+        })
+
+    # Check what's available vs connected
+    available_platforms = ["slack", "gmail", "notion", "calendar"]
+    connected = {i["provider"] for i in items if i["status"] == "active"}
+    not_connected = [p for p in available_platforms if p not in connected]
+
+    return {
+        "success": True,
+        "integrations": items,
+        "connected_count": len(connected),
+        "not_connected": not_connected,
+        "message": f"{len(connected)} platform(s) connected" if connected else "No platforms connected yet"
+    }
+
+
+async def handle_list_platform_resources(auth, input: dict) -> dict:
+    """
+    List available resources from a connected platform.
+
+    ADR-039: Enables TP to find specific channels/labels/pages.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with platform and optional resource_type
+
+    Returns:
+        Dict with resources list
+    """
+    from integrations.core.client import get_mcp_manager
+    from integrations.core.tokens import get_token_manager
+    import os
+
+    platform = input["platform"]
+    resource_type = input.get("resource_type")
+
+    # Get user's integration
+    integration = auth.client.table("user_integrations")\
+        .select("id, access_token_encrypted, refresh_token_encrypted, metadata, status")\
+        .eq("user_id", auth.user_id)\
+        .eq("provider", platform)\
+        .single()\
+        .execute()
+
+    if not integration.data:
+        return {
+            "success": False,
+            "error": f"{platform.title()} is not connected. Connect it in Settings → Integrations.",
+            "action_needed": "connect_integration",
+            "platform": platform
+        }
+
+    if integration.data["status"] != "active":
+        return {
+            "success": False,
+            "error": f"{platform.title()} integration is {integration.data['status']}. Please reconnect in Settings.",
+            "action_needed": "reconnect_integration",
+            "platform": platform
+        }
+
+    token_manager = get_token_manager()
+    mcp_manager = get_mcp_manager()
+    metadata = integration.data.get("metadata") or {}
+
+    try:
+        if platform == "slack":
+            # Decrypt token
+            access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+            team_id = metadata.get("team_id")
+
+            if not team_id:
+                return {"success": False, "error": "Slack integration missing team_id"}
+
+            # List channels via MCP
+            channels = await mcp_manager.list_slack_channels(
+                user_id=auth.user_id,
+                bot_token=access_token,
+                team_id=team_id
+            )
+
+            return {
+                "success": True,
+                "platform": "slack",
+                "resources": [
+                    {
+                        "id": ch.get("id"),
+                        "name": ch.get("name"),
+                        "type": "private" if ch.get("is_private") else "public",
+                        "member_count": ch.get("num_members"),
+                    }
+                    for ch in channels[:50]  # Limit for response size
+                ],
+                "count": len(channels),
+                "message": f"Found {len(channels)} Slack channel(s)"
+            }
+
+        elif platform == "gmail":
+            # Gmail uses direct API calls
+            client_id = os.getenv("GOOGLE_CLIENT_ID")
+            client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+            if not client_id or not client_secret:
+                return {"success": False, "error": "Google OAuth not configured"}
+
+            refresh_token = token_manager.decrypt(integration.data["refresh_token_encrypted"])
+
+            labels = await mcp_manager.list_gmail_labels(
+                user_id=auth.user_id,
+                client_id=client_id,
+                client_secret=client_secret,
+                refresh_token=refresh_token
+            )
+
+            return {
+                "success": True,
+                "platform": "gmail",
+                "resources": [
+                    {
+                        "id": l.get("id"),
+                        "name": l.get("name"),
+                        "type": l.get("type", "user"),
+                    }
+                    for l in labels
+                ],
+                "count": len(labels),
+                "message": f"Found {len(labels)} Gmail label(s)"
+            }
+
+        elif platform == "notion":
+            access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+
+            # Search for pages (empty query lists recent)
+            pages = await mcp_manager.search_notion_pages(
+                user_id=auth.user_id,
+                auth_token=access_token,
+                query=None
+            )
+
+            return {
+                "success": True,
+                "platform": "notion",
+                "resources": [
+                    {
+                        "id": p.get("id"),
+                        "name": p.get("title") or p.get("properties", {}).get("title", {}).get("title", [{}])[0].get("text", {}).get("content", "Untitled"),
+                        "type": p.get("object", "page"),
+                        "url": p.get("url"),
+                    }
+                    for p in pages[:30]
+                ],
+                "count": len(pages),
+                "message": f"Found {len(pages)} Notion page(s)"
+            }
+
+        elif platform == "calendar":
+            # Calendar uses Google Calendar API similar to Gmail
+            return {
+                "success": False,
+                "error": "Calendar resource listing not yet implemented",
+                "platform": platform
+            }
+
+        else:
+            return {
+                "success": False,
+                "error": f"Unknown platform: {platform}"
+            }
+
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error(f"[PLATFORM] Failed to list {platform} resources: {e}")
+        return {
+            "success": False,
+            "error": f"Failed to list {platform} resources: {str(e)}"
+        }
+
+
+async def handle_sync_platform_resource(auth, input: dict) -> dict:
+    """
+    Trigger a sync/import for a specific platform resource.
+
+    ADR-039: Creates an import job to fetch platform content.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with platform, resource_id, optional params
+
+    Returns:
+        Dict with job creation status
+    """
+    from datetime import datetime, timezone
+
+    platform = input["platform"]
+    resource_id = input["resource_id"]
+    resource_name = input.get("resource_name", resource_id)
+    max_items = input.get("max_items")
+    recency_days = input.get("recency_days", 7)
+
+    # Verify integration is connected
+    integration = auth.client.table("user_integrations")\
+        .select("id, status")\
+        .eq("user_id", auth.user_id)\
+        .eq("provider", platform)\
+        .single()\
+        .execute()
+
+    if not integration.data:
+        return {
+            "success": False,
+            "error": f"{platform.title()} is not connected. Connect it first.",
+            "action_needed": "connect_integration",
+            "platform": platform
+        }
+
+    if integration.data["status"] != "active":
+        return {
+            "success": False,
+            "error": f"{platform.title()} integration is not active.",
+            "action_needed": "reconnect_integration"
+        }
+
+    # Set default max_items based on platform
+    if max_items is None:
+        max_items = {
+            "slack": 100,
+            "gmail": 50,
+            "notion": 10,
+        }.get(platform, 50)
+
+    # Build scope parameters
+    scope = {
+        "max_items": max_items,
+        "recency_days": recency_days,
+    }
+
+    # Create import job
+    job_data = {
+        "user_id": auth.user_id,
+        "provider": platform,
+        "resource_id": resource_id,
+        "resource_name": resource_name,
+        "status": "pending",
+        "scope": scope,
+        "config": {},
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    result = auth.client.table("integration_import_jobs").insert(job_data).execute()
+
+    if not result.data:
+        return {
+            "success": False,
+            "error": "Failed to create import job"
+        }
+
+    job = result.data[0]
+
+    return {
+        "success": True,
+        "job_id": job["id"],
+        "platform": platform,
+        "resource_id": resource_id,
+        "resource_name": resource_name,
+        "status": "pending",
+        "message": f"Started syncing {resource_name} from {platform.title()}. This runs in the background and typically completes within a few minutes.",
+        "ui_action": {
+            "type": "SYNC_STARTED",
+            "data": {
+                "job_id": job["id"],
+                "platform": platform,
+                "resource_name": resource_name,
+            }
+        }
+    }
+
+
+async def handle_get_sync_status(auth, input: dict) -> dict:
+    """
+    Get sync status for platform resources.
+
+    ADR-039: Shows what data has been synced and when.
+
+    Args:
+        auth: UserClient with authenticated Supabase client
+        input: Tool input with platform and optional resource_id
+
+    Returns:
+        Dict with sync status
+    """
+    platform = input["platform"]
+    resource_id = input.get("resource_id")
+
+    # Query coverage table
+    query = auth.client.table("integration_coverage")\
+        .select("id, resource_id, resource_name, resource_type, coverage_state, last_extracted_at, items_extracted, blocks_created, scope")\
+        .eq("user_id", auth.user_id)\
+        .eq("provider", platform)
+
+    if resource_id:
+        query = query.eq("resource_id", resource_id)
+
+    result = query.execute()
+    coverage = result.data or []
+
+    if not coverage:
+        # Check if any jobs are pending
+        jobs_result = auth.client.table("integration_import_jobs")\
+            .select("id, resource_id, resource_name, status, progress, created_at")\
+            .eq("user_id", auth.user_id)\
+            .eq("provider", platform)\
+            .in_("status", ["pending", "processing"])\
+            .execute()
+
+        pending_jobs = jobs_result.data or []
+
+        if pending_jobs:
+            return {
+                "success": True,
+                "platform": platform,
+                "synced_resources": [],
+                "pending_jobs": [
+                    {
+                        "job_id": j["id"],
+                        "resource_name": j["resource_name"],
+                        "status": j["status"],
+                        "progress": j.get("progress", 0),
+                    }
+                    for j in pending_jobs
+                ],
+                "message": f"{len(pending_jobs)} sync(s) in progress for {platform.title()}"
+            }
+
+        return {
+            "success": True,
+            "platform": platform,
+            "synced_resources": [],
+            "message": f"No {platform.title()} data synced yet. Use sync_platform_resource to sync content."
+        }
+
+    # Format coverage data
+    items = []
+    for c in coverage:
+        items.append({
+            "resource_id": c["resource_id"],
+            "resource_name": c["resource_name"],
+            "resource_type": c["resource_type"],
+            "coverage_state": c["coverage_state"],
+            "last_synced": c["last_extracted_at"],
+            "items_synced": c["items_extracted"],
+            "blocks_extracted": c["blocks_created"],
+        })
+
+    return {
+        "success": True,
+        "platform": platform,
+        "synced_resources": items,
+        "count": len(items),
+        "message": f"{len(items)} {platform.title()} resource(s) synced"
+    }
+
+
 # Registry mapping tool names to handlers
 TOOL_HANDLERS: dict[str, ToolHandler] = {
     # Communication tools (ADR-023 Unified Tool Model)
@@ -2684,6 +3215,11 @@ TOOL_HANDLERS: dict[str, ToolHandler] = {
     "run_deliverable": handle_run_deliverable,
     "update_deliverable": handle_update_deliverable,
     "create_deliverable": handle_create_deliverable,
+    # Platform operation tools (ADR-039: Agentic Platform Operations)
+    "list_integrations": handle_list_integrations,
+    "list_platform_resources": handle_list_platform_resources,
+    "sync_platform_resource": handle_sync_platform_resource,
+    "get_sync_status": handle_get_sync_status,
     # Legacy aliases for backward compatibility (ADR-009 → ADR-017)
     "get_work_status": handle_get_work,  # Alias for get_work
     "cancel_work": handle_update_work,   # Use update_work with is_active=false
