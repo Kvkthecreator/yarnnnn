@@ -19,11 +19,13 @@ import {
   FileText,
   Tag,
   Plus,
+  Settings2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import api from '@/lib/api/client';
 import type { PlatformSummary } from './PlatformCard';
+import { SourceSelectionModal } from '@/components/platforms/SourceSelectionModal';
 
 /**
  * ADR-033 Phase 2: Platform Detail Panel
@@ -139,6 +141,9 @@ export function PlatformDetailPanel({
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // ADR-043: Source selection modal state
+  const [showSourceModal, setShowSourceModal] = useState(false);
+  const [sourceLimit, setSourceLimit] = useState<{ current: number; max: number } | null>(null);
 
   const config = platform
     ? PLATFORM_CONFIG[platform.provider] || {
@@ -168,13 +173,14 @@ export function PlatformDetailPanel({
       }
       setError(null);
 
-      // Load landscape (resources) and deliverables in parallel
-      const [landscapeResult, deliverablesResult] = await Promise.all([
+      // Load landscape (resources), deliverables, and limits in parallel
+      const [landscapeResult, deliverablesResult, limitsResult] = await Promise.all([
         api.integrations.getLandscape(
           platform.provider as 'slack' | 'notion' | 'gmail',
           refresh
         ),
         api.deliverables.list(),
+        api.integrations.getLimits(),
       ]);
 
       setResources(landscapeResult.resources || []);
@@ -185,6 +191,26 @@ export function PlatformDetailPanel({
           d.destination?.platform === platform.provider
       );
       setDeliverables(platformDeliverables);
+
+      // ADR-043: Set source limits for this provider
+      const providerLimitMap: Record<string, keyof typeof limitsResult.limits> = {
+        slack: 'slack_channels',
+        gmail: 'gmail_labels',
+        notion: 'notion_pages',
+      };
+      const providerUsageMap: Record<string, keyof typeof limitsResult.usage> = {
+        slack: 'slack_channels',
+        gmail: 'gmail_labels',
+        notion: 'notion_pages',
+      };
+      const limitKey = providerLimitMap[platform.provider];
+      const usageKey = providerUsageMap[platform.provider];
+      if (limitKey && usageKey) {
+        setSourceLimit({
+          current: limitsResult.usage[usageKey],
+          max: limitsResult.limits[limitKey],
+        });
+      }
     } catch (err) {
       console.error('Failed to load platform details:', err);
       setError('Failed to load details');
@@ -301,9 +327,22 @@ export function PlatformDetailPanel({
                     {config.resourceIcon}
                     {config.resourceLabel}
                   </h3>
-                  <span className="text-xs text-muted-foreground">
-                    {resources.length} total
-                  </span>
+                  <div className="flex items-center gap-2">
+                    {/* ADR-043: Show source count with limit */}
+                    {sourceLimit && (
+                      <span className="text-xs text-muted-foreground">
+                        {sourceLimit.current}/{sourceLimit.max}
+                      </span>
+                    )}
+                    {/* ADR-043: Manage Sources button */}
+                    <button
+                      onClick={() => setShowSourceModal(true)}
+                      className="text-xs text-primary hover:text-primary/80 flex items-center gap-1 transition-colors"
+                    >
+                      <Settings2 className="w-3 h-3" />
+                      Manage
+                    </button>
+                  </div>
                 </div>
 
                 {resources.length === 0 ? (
@@ -448,6 +487,19 @@ export function PlatformDetailPanel({
           )}
         </div>
       </div>
+
+      {/* ADR-043: Source Selection Modal */}
+      {platform && (
+        <SourceSelectionModal
+          isOpen={showSourceModal}
+          onClose={() => setShowSourceModal(false)}
+          onSuccess={() => {
+            setShowSourceModal(false);
+            loadPlatformDetails(true); // Refresh after source changes
+          }}
+          provider={platform.provider as 'slack' | 'gmail' | 'notion'}
+        />
+      )}
     </>
   );
 }

@@ -784,6 +784,66 @@ export const api = {
         }>;
         total_deliverables: number;
       }>("/api/integrations/summary"),
+
+    // ADR-043: Platform Settings - Source Selection & Limits
+    // Get user's tier limits and current usage
+    getLimits: () =>
+      request<{
+        tier: "free" | "pro" | "enterprise";
+        limits: {
+          slack_channels: number;
+          gmail_labels: number;
+          notion_pages: number;
+          total_platforms: number;
+        };
+        usage: {
+          slack_channels: number;
+          gmail_labels: number;
+          notion_pages: number;
+          platforms_connected: number;
+        };
+      }>("/api/user/limits"),
+
+    // Get selected sources for a platform
+    getSources: (provider: "slack" | "gmail" | "notion") =>
+      request<{
+        sources: Array<{
+          id: string;
+          type: string;
+          name: string;
+          last_sync_at: string | null;
+          metadata?: {
+            member_count?: number;
+            message_count?: number;
+          };
+        }>;
+        limit: number;
+        can_add_more: boolean;
+      }>(`/api/integrations/${provider}/sources`),
+
+    // Update selected sources for a platform
+    updateSources: (
+      provider: "slack" | "gmail" | "notion",
+      sourceIds: string[]
+    ) =>
+      request<{
+        success: boolean;
+        sources: string[];
+        message?: string;
+      }>(`/api/integrations/${provider}/sources`, {
+        method: "PUT",
+        body: JSON.stringify({ source_ids: sourceIds }),
+      }),
+
+    // Trigger on-demand sync for a platform
+    triggerSync: (provider: "slack" | "gmail" | "notion") =>
+      request<{
+        success: boolean;
+        message: string;
+        sync_started_at?: string;
+      }>(`/api/integrations/${provider}/sync`, {
+        method: "POST",
+      }),
   },
 
   // ADR-034: Context Domains (Context v2)

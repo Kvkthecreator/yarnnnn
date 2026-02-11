@@ -352,22 +352,82 @@ function getSyncStatus(lastSyncAt: string | null): SyncStatus {
 
 ## Files to Create/Modify
 
-### New Files
+### Existing Structure (ADR-039)
+
+The frontend uses a unified Context page (`/context`) that already shows platforms.
+Platform settings should extend this pattern rather than create a new page.
+
 ```
-frontend/src/pages/settings/PlatformsPage.tsx
-frontend/src/components/platforms/PlatformCard.tsx
-frontend/src/components/platforms/SourceList.tsx
-frontend/src/components/platforms/SourceSelectionModal.tsx
-frontend/src/components/platforms/SyncStatusBadge.tsx
-frontend/src/stores/platformStore.ts
-frontend/src/api/platforms.ts
+web/app/(authenticated)/context/page.tsx  -- Existing unified context view
+web/app/(authenticated)/integrations/page.tsx  -- Redirects to /context?source=platforms
+web/app/(authenticated)/integrations/[provider]/page.tsx  -- Provider detail page
 ```
 
-### Backend (New Endpoints)
+### New/Modified Files
 ```
-api/routes/platforms.py  -- add source management endpoints
-api/services/platform_limits.py  -- limit checking logic
+web/app/(authenticated)/integrations/[provider]/page.tsx  -- Extend with source selection
+web/components/platforms/SourceSelectionModal.tsx  -- New modal component
+web/components/platforms/SyncStatusBadge.tsx  -- Sync freshness indicator
+web/lib/api/client.ts  -- Add new API methods (limits, sources)
 ```
+
+### Backend (Implemented)
+```
+api/routes/integrations.py  -- Source management endpoints added
+api/services/platform_limits.py  -- Limit checking logic (created)
+```
+
+---
+
+## Implementation Status
+
+### Phase 1: Core Platform Settings ✅
+
+**Backend (Complete)**:
+- `api/services/platform_limits.py` - Tier-based limits (Free: 5 Slack, 3 Gmail, 5 Notion)
+- `api/routes/integrations.py` - New endpoints:
+  - `GET /api/user/limits` - Returns tier limits and current usage
+  - `GET /api/integrations/{provider}/sources` - Get selected sources
+  - `PUT /api/integrations/{provider}/sources` - Update selected sources
+  - `POST /api/integrations/{provider}/sync` - Trigger on-demand sync
+
+**Frontend (Complete)**:
+- `web/lib/api/client.ts` - Added API methods:
+  - `api.integrations.getLimits()` - Fetch user tier limits
+  - `api.integrations.getSources(provider)` - Get selected sources
+  - `api.integrations.updateSources(provider, sourceIds)` - Update sources
+  - `api.integrations.triggerSync(provider)` - Trigger sync
+
+- `web/components/platforms/SourceSelectionModal.tsx`:
+  - Search/filter available sources
+  - Checkbox selection with limit enforcement
+  - Shows "X of Y" count with limit warnings
+  - Upgrade CTA when at limit
+  - Saves changes via API
+
+- `web/components/platforms/SyncStatusBadge.tsx`:
+  - `SyncStatusBadge` - Full badge with label and refresh button
+  - `SyncStatusInline` - Compact inline variant
+  - `SyncStatusDot` - Dot-only indicator
+  - States: fresh (<1h), stale (1-24h), old (>24h), never
+
+- `web/components/ui/PlatformDetailPanel.tsx`:
+  - Added "Manage" button to resources section
+  - Shows source count with limit (e.g., "3/5")
+  - Opens SourceSelectionModal on click
+  - Refreshes after source changes
+
+### Phase 2: Source Selection ✅
+See Phase 1 - implemented together.
+
+### Phase 3: Sync Status (Partial)
+- SyncStatusBadge component created
+- Not yet integrated into PlatformCard/resource lists
+
+### Phase 4: Deliverable Integration (Pending)
+- [ ] Source preview in deliverable creation
+- [ ] Pre-generation freshness check UI
+- [ ] "Refresh sources" before generate
 
 ---
 
@@ -376,3 +436,4 @@ api/services/platform_limits.py  -- limit checking logic
 - DECISION-001: Platform Sync Strategy
 - ADR-035: Platform-First Type System
 - ADR-038: Claude Code Architecture Mapping
+- ADR-039: Unified Context Surface
