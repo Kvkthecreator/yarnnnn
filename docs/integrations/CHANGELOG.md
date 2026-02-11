@@ -71,6 +71,9 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 - Updated `_send_notion_content` to use correct MCP structure
 - Added page_id validation in platform_registry.py
 - Added `notion-search` as resolution tool for finding pages
+- Added `notion-get-comments` capability for reading comments
+
+**Tested**: Successfully added comment to Notion page via MCP (2026-02-11)
 
 ---
 

@@ -191,6 +191,11 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
                 "tool": "notion-create-comment",
                 "notes": "Requires parent: {page_id: ...} and rich_text array format",
             },
+            "get_comments": {
+                "supported": True,
+                "tool": "notion-get-comments",
+                "notes": "Returns all comments on a page with author info",
+            },
             "update_page": {
                 "supported": True,
                 "tool": "notion-update-page",
