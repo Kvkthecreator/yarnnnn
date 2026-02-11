@@ -377,10 +377,12 @@ With web search capability, add the ADR-044 research types:
 - Research runs before deliverable generation (context gathering phase)
 - HybridStrategy runs web research and platform fetch concurrently via `asyncio.gather`
 
-### Phase 3: Research Types (Next)
-- [ ] Add `competitive_analysis`, `market_landscape` to type registry
-- [ ] Add `research_brief` to deliverable_types
-- [ ] Test end-to-end research deliverable flow
+### Phase 3: Additional Research Types (Future)
+- [ ] Add `competitive_analysis`, `market_landscape` to type registry (optional)
+- [x] `research_brief` already exists with `binding: "research"` ✅
+
+**Note:** `research_brief` was already defined in migration 037 with proper type classification.
+The Phase 2 work enables it to function with real web research.
 
 ### Phase 4: Subagent Orchestration (Future)
 - [ ] Task-like delegation for parallel agents
