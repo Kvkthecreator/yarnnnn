@@ -438,11 +438,27 @@ async def _handle_platform_send(auth, entity, ref, via, params):
 
 
 async def _send_slack_message(auth, params, access_token, metadata, logger):
-    """Send a Slack message via MCP."""
+    """
+    Send a Slack message via MCP.
+
+    Supports:
+    - Channel IDs (C...): Posts to channel
+    - Channel names (#...): Posts to channel
+    - User IDs (U...): Auto-opens DM and posts there
+
+    ADR-047: Auto-open DM for user IDs enables direct messaging.
+    """
+    import json
     from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+    from integrations.platform_registry import validate_params, map_params_to_mcp
 
     if not MCP_AVAILABLE:
         raise ValueError("MCP not available. Install: pip install mcp")
+
+    # Validate params using registry
+    is_valid, errors = validate_params("slack", params)
+    if not is_valid:
+        raise ValueError(f"Invalid Slack params: {'; '.join(errors)}")
 
     channel = params.get("channel")
     message = params.get("message")
@@ -453,33 +469,91 @@ async def _send_slack_message(auth, params, access_token, metadata, logger):
 
     mcp = get_mcp_manager()
 
+    # Auto-open DM if channel is a user ID (starts with U)
+    target_channel = channel
+    is_dm = False
+
+    if channel and channel.startswith("U"):
+        logger.info(f"[PLATFORM_SEND] Detected user ID {channel}, opening DM channel...")
+
+        dm_channel_id = await mcp.open_slack_dm(
+            user_id=auth.user_id,
+            slack_user_id=channel,
+            bot_token=access_token,
+            team_id=team_id,
+        )
+
+        if not dm_channel_id:
+            raise ValueError(
+                f"Could not open DM with user {channel}. "
+                f"Ensure the bot has permission to message this user."
+            )
+
+        target_channel = dm_channel_id
+        is_dm = True
+        logger.info(f"[PLATFORM_SEND] Opened DM channel {dm_channel_id} for user {channel}")
+
+    # Map params to MCP-expected names using registry
+    mcp_args = map_params_to_mcp("slack", {"channel": target_channel, "message": message})
+
     result = await mcp.call_tool(
         user_id=auth.user_id,
         provider="slack",
         tool_name="slack_post_message",
-        arguments={"channel": channel, "text": message},
+        arguments=mcp_args,
         env={
             "SLACK_BOT_TOKEN": access_token,
             "SLACK_TEAM_ID": team_id
         }
     )
 
-    # Parse result
+    # Parse MCP result - handle CallToolResult object
     message_ts = None
     permalink = None
+    error_message = None
+
     if isinstance(result, dict):
         message_ts = result.get("ts")
         permalink = result.get("permalink")
+        if "error" in result:
+            error_message = result.get("error")
+    elif hasattr(result, "content"):
+        # MCP CallToolResult - parse content
+        for content_item in result.content:
+            if hasattr(content_item, "text"):
+                try:
+                    parsed = json.loads(content_item.text)
+                    if isinstance(parsed, dict):
+                        message_ts = parsed.get("ts")
+                        permalink = parsed.get("permalink")
+                        if "error" in parsed:
+                            error_message = parsed.get("error")
+                except (json.JSONDecodeError, TypeError):
+                    # Check if raw text indicates error
+                    if "error" in content_item.text.lower():
+                        error_message = content_item.text
+            # Check for isError flag on content item
+            if hasattr(content_item, "isError") and content_item.isError:
+                error_message = getattr(content_item, "text", "MCP tool execution failed")
 
-    logger.info(f"[PLATFORM_SEND] Sent Slack message to {channel}, ts={message_ts}")
+    # Check for isError on result itself
+    if hasattr(result, "isError") and result.isError:
+        error_message = error_message or "MCP tool execution failed"
+
+    if error_message:
+        raise ValueError(f"Slack MCP error: {error_message}")
+
+    logger.info(f"[PLATFORM_SEND] Sent Slack message to {target_channel}, ts={message_ts}")
 
     return {
         "status": "sent",
         "provider": "slack",
-        "channel": channel,
+        "channel": target_channel,
+        "original_target": channel,
+        "is_dm": is_dm,
         "message_ts": message_ts,
         "permalink": permalink,
-        "message": f"Message sent to {channel}",
+        "message": f"Message sent to {channel}" + (" (DM)" if is_dm else ""),
     }
 
 

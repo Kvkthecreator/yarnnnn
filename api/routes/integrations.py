@@ -731,6 +731,91 @@ async def get_integration(
 
 
 # =============================================================================
+# Integration Health Check - ADR-047
+# =============================================================================
+
+class IntegrationHealthResponse(BaseModel):
+    """Health status of an integration."""
+    provider: str
+    status: str  # healthy, degraded, unhealthy, unknown
+    validated_at: Optional[str] = None
+    capabilities: dict[str, Any] = {}
+    quirks_discovered: list[str] = []
+    errors: list[str] = []
+    recommendations: list[str] = []
+
+
+@router.get("/integrations/{provider}/health")
+async def check_integration_health(
+    provider: str,
+    auth: UserClient,
+    validate: bool = Query(False, description="Run full validation (slower)")
+) -> IntegrationHealthResponse:
+    """
+    Check health of a platform integration.
+
+    ADR-047: Platform Integration Validation
+
+    Quick check (default): Verifies integration exists and is active
+    Full validation (validate=true): Runs capability tests
+
+    Returns:
+        Health status with capability details and recommendations
+    """
+    from integrations.validation import validate_integration
+    from integrations.platform_registry import get_platform_config
+
+    user_id = auth.user_id
+
+    # Check if integration exists
+    result = auth.client.table("user_integrations").select(
+        "id, status, metadata, updated_at"
+    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+
+    if not result.data:
+        return IntegrationHealthResponse(
+            provider=provider,
+            status="unhealthy",
+            errors=[f"No {provider} integration found. Connect it first."],
+            recommendations=[f"Go to Settings → Integrations → Connect {provider}"]
+        )
+
+    integration = result.data
+
+    if integration.get("status") != "active":
+        return IntegrationHealthResponse(
+            provider=provider,
+            status="unhealthy",
+            errors=[f"Integration status is '{integration.get('status')}', expected 'active'"],
+            recommendations=["Reconnect the integration"]
+        )
+
+    # Quick check - just verify basic status
+    if not validate:
+        config = get_platform_config(provider)
+        return IntegrationHealthResponse(
+            provider=provider,
+            status="healthy",
+            validated_at=integration.get("updated_at"),
+            quirks_discovered=config.get("quirks", []) if config else [],
+            recommendations=["Run with ?validate=true for full capability check"]
+        )
+
+    # Full validation
+    try:
+        health = await validate_integration(auth, provider)
+        return IntegrationHealthResponse(**health.to_dict())
+
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Health check failed for {provider}: {e}")
+        return IntegrationHealthResponse(
+            provider=provider,
+            status="unknown",
+            errors=[f"Validation error: {str(e)}"]
+        )
+
+
+# =============================================================================
 # Disconnect Integration
 # =============================================================================
 
