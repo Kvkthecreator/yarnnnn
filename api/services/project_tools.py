@@ -2020,6 +2020,10 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
             "format": destination_format,
         }
 
+    # ADR-044/045: Compute type_classification for strategy selection
+    from routes.deliverables import get_type_classification
+    type_classification = get_type_classification(deliverable_type)
+
     # Build deliverable data
     deliverable_data = {
         "title": title,
@@ -2028,6 +2032,7 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
         "status": "active",
         "schedule": schedule,
         "type_config": type_config,
+        "type_classification": type_classification,  # ADR-044/045
         "next_run_at": next_run.isoformat() if hasattr(next_run, 'isoformat') else str(next_run),
         # ADR-028: Destination-first
         "governance": governance,

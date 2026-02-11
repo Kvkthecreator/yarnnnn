@@ -148,6 +148,117 @@ TYPE_EXTRACTION_SIGNALS = {
 }
 
 
+# =============================================================================
+# ADR-044/045: Type Classification for Strategy Selection
+# =============================================================================
+
+def get_type_classification(deliverable_type: str) -> dict:
+    """
+    ADR-044/045: Get type_classification for a deliverable type.
+
+    This determines which execution strategy is used:
+    - platform_bound: Single platform context (PlatformBoundStrategy)
+    - cross_platform: Multi-platform synthesis (CrossPlatformStrategy)
+    - research: Web research via Anthropic tools (ResearchStrategy)
+    - hybrid: Research + platform grounding (HybridStrategy)
+
+    Returns:
+        dict with binding, temporal_pattern, and optional primary_platform
+    """
+    # Platform-bound: Slack
+    if deliverable_type in ("slack_channel_digest", "slack_standup"):
+        return {
+            "binding": "platform_bound",
+            "temporal_pattern": "scheduled",
+            "primary_platform": "slack",
+            "freshness_requirement_hours": 1,
+        }
+
+    # Platform-bound: Gmail
+    if deliverable_type in ("gmail_inbox_brief", "inbox_summary", "reply_draft",
+                            "follow_up_tracker", "thread_summary"):
+        return {
+            "binding": "platform_bound",
+            "temporal_pattern": "scheduled",
+            "primary_platform": "gmail",
+            "freshness_requirement_hours": 1,
+        }
+
+    # Platform-bound: Notion
+    if deliverable_type == "notion_page_summary":
+        return {
+            "binding": "platform_bound",
+            "temporal_pattern": "scheduled",
+            "primary_platform": "notion",
+            "freshness_requirement_hours": 4,
+        }
+
+    # Platform-bound: Calendar (ADR-046)
+    if deliverable_type == "meeting_prep":
+        return {
+            "binding": "platform_bound",
+            "temporal_pattern": "reactive",
+            "primary_platform": "calendar",
+            "freshness_requirement_hours": 1,
+        }
+    if deliverable_type == "weekly_calendar_preview":
+        return {
+            "binding": "platform_bound",
+            "temporal_pattern": "scheduled",
+            "primary_platform": "calendar",
+            "freshness_requirement_hours": 4,
+        }
+
+    # Research: Web research deliverables (ADR-045)
+    if deliverable_type == "research_brief":
+        return {
+            "binding": "research",
+            "temporal_pattern": "on_demand",
+            "freshness_requirement_hours": 24,
+        }
+
+    # Cross-platform: Multi-source synthesis
+    if deliverable_type in ("status_report", "weekly_status", "cross_platform_digest",
+                            "activity_summary", "project_brief"):
+        return {
+            "binding": "cross_platform",
+            "temporal_pattern": "scheduled",
+            "freshness_requirement_hours": 4,
+        }
+
+    # Cross-platform: Meeting-related (needs calendar + other sources)
+    if deliverable_type in ("meeting_summary", "one_on_one_prep"):
+        return {
+            "binding": "cross_platform",
+            "temporal_pattern": "scheduled",
+            "freshness_requirement_hours": 1,
+        }
+
+    # Cross-platform: Stakeholder communication
+    if deliverable_type in ("stakeholder_update", "client_proposal", "board_update",
+                            "newsletter_section"):
+        return {
+            "binding": "cross_platform",
+            "temporal_pattern": "scheduled",
+            "freshness_requirement_hours": 4,
+        }
+
+    # Cross-platform: Beta/other types
+    if deliverable_type in ("changelog", "performance_self_assessment"):
+        return {
+            "binding": "cross_platform",
+            "temporal_pattern": "scheduled",
+            "freshness_requirement_hours": 24,
+        }
+
+    # Default: cross_platform for custom and unknown types
+    return {
+        "binding": "cross_platform",
+        "temporal_pattern": "scheduled",
+        "freshness_requirement_hours": 4,
+    }
+
+
 class StatusReportSections(BaseModel):
     """Sections to include in a status report."""
     summary: bool = True
@@ -894,6 +1005,9 @@ async def create_deliverable(
     # ADR-031: Compute governance ceiling from destination
     governance_ceiling = compute_governance_ceiling(request.destination)
 
+    # ADR-044/045: Compute type_classification for strategy selection
+    type_classification = get_type_classification(request.deliverable_type)
+
     # Create deliverable
     deliverable_data = {
         "user_id": auth.user_id,
@@ -901,6 +1015,8 @@ async def create_deliverable(
         "deliverable_type": request.deliverable_type,
         "type_tier": TYPE_TIERS.get(request.deliverable_type, "stable"),
         "type_config": validated_config,
+        # ADR-044/045: Type classification for execution strategy
+        "type_classification": type_classification,
         # ADR-031: Platform-native variants
         "platform_variant": request.platform_variant,
         "description": request.description,  # Legacy, kept for backwards compat
