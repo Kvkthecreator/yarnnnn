@@ -57,7 +57,8 @@ class PlatformBoundStrategy(ExecutionStrategy):
     """
     Strategy for platform_bound deliverables.
 
-    Single platform focus (e.g., slack_channel_digest, gmail_inbox_brief).
+    Single platform focus (e.g., slack_channel_digest, gmail_inbox_brief,
+    meeting_prep, weekly_calendar_preview).
     Fetches from one platform, uses platform-specific synthesis.
     """
 

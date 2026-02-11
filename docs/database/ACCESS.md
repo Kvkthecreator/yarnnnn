@@ -101,6 +101,22 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Completed Migrations
 
+### Migration 039: Calendar Type Classification (2026-02-11) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/039_calendar_type_classification.sql
+```
+
+**Changes**:
+- Adds type_classification for `meeting_prep` and `weekly_calendar_preview` types
+- Both are `platform_bound` with `primary_platform: "calendar"`
+- `meeting_prep` is `reactive` (triggers before meetings)
+- `weekly_calendar_preview` is `scheduled`
+
+---
+
 ### Migration 038: Agent Type Rename (2026-02-11) ✅
 
 **Status**: Applied
