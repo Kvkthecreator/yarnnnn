@@ -8,7 +8,7 @@
 
 import React, { createContext, useContext, useReducer, useCallback, useRef, useState, useEffect, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, mapToolActionToSurface, DeskSurface, Todo } from '@/types/desk';
+import { TPState, TPAction, TPMessage, TPToolResult, TPImageAttachment, mapToolActionToSurface, DeskSurface, Todo, MessageBlock } from '@/types/desk';
 import { SetupConfirmData } from '@/components/modals/SetupConfirmModal';
 import { api } from '@/lib/api/client';
 
@@ -47,6 +47,20 @@ function tpReducer(state: TPState, action: TPAction): TPState {
 
     case 'CLEAR_MESSAGES':
       return { ...state, messages: [] };
+
+    // ADR-042: Update streaming message blocks in place
+    case 'UPDATE_STREAMING_MESSAGE': {
+      const messages = [...state.messages];
+      const lastIdx = messages.length - 1;
+      if (lastIdx >= 0 && messages[lastIdx].role === 'assistant') {
+        messages[lastIdx] = {
+          ...messages[lastIdx],
+          blocks: action.blocks,
+          content: action.content ?? messages[lastIdx].content,
+        };
+      }
+      return { ...state, messages };
+    }
 
     case 'SET_LOADING':
       return { ...state, isLoading: action.isLoading };
@@ -299,26 +313,41 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
           throw new Error('No response body');
         }
 
+        // ADR-042: Add empty assistant message immediately for streaming blocks
+        const assistantMessageId = crypto.randomUUID();
+        const initialAssistantMessage: TPMessage = {
+          id: assistantMessageId,
+          role: 'assistant',
+          content: '',
+          blocks: [],
+          timestamp: new Date(),
+        };
+        dispatch({ type: 'ADD_MESSAGE', message: initialAssistantMessage });
+
+        // Track state during streaming
         let assistantContent = '';
         const toolResults: TPToolResult[] = [];
+        const blocks: MessageBlock[] = [];
         const decoder = new TextDecoder();
-        let buffer = ''; // Buffer for incomplete lines
-        // Track pending navigation for handoff pattern
+        let buffer = '';
         let pendingSurface: DeskSurface | null = null;
         let pendingHandoff: string | null = null;
-        // Track if clarify was called during this stream (avoids stale closure issue)
         let clarifyWasCalled = false;
+        // Track pending tool calls by ID for updating status
+        const pendingToolCalls: Map<string, number> = new Map(); // tool_use_id -> block index
+
+        // Helper to update streaming message
+        const updateStreamingMessage = () => {
+          dispatch({ type: 'UPDATE_STREAMING_MESSAGE', blocks: [...blocks], content: assistantContent });
+        };
 
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
 
-          // Append new chunk to buffer
           buffer += decoder.decode(value, { stream: true });
-
-          // Split by newlines, keeping incomplete last line in buffer
           const lines = buffer.split('\n');
-          buffer = lines.pop() || ''; // Keep last (potentially incomplete) line
+          buffer = lines.pop() || '';
 
           for (const line of lines) {
             if (!line.startsWith('data: ')) continue;
@@ -331,106 +360,107 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               // API sends: {content}, {tool_use}, {tool_result}, {done}, {error}
               if (event.content) {
                 assistantContent += event.content;
-                // Only update streaming status periodically to reduce re-renders
-                // This improves performance by batching UI updates
+                // Update or add text block
+                const lastBlock = blocks[blocks.length - 1];
+                if (lastBlock?.type === 'text') {
+                  lastBlock.content = assistantContent;
+                } else {
+                  blocks.push({ type: 'text', content: assistantContent });
+                }
+                // Batch updates to reduce re-renders
                 if (assistantContent.length % 50 < event.content.length || event.content.includes('\n')) {
                   setStatus({ type: 'streaming', content: assistantContent });
+                  updateStreamingMessage();
                 }
               } else if (event.tool_use) {
-                // Tool is being called - show in status
-                console.log('[TP] tool_use:', event.tool_use.name);
+                // ADR-042: Add pending tool call block immediately
+                const toolId = event.tool_use.id || `tool_${Date.now()}`;
+                const toolBlock: MessageBlock = {
+                  type: 'tool_call',
+                  id: toolId,
+                  tool: event.tool_use.name,
+                  input: event.tool_use.input,
+                  status: 'pending',
+                };
+                blocks.push(toolBlock);
+                pendingToolCalls.set(toolId, blocks.length - 1);
                 setStatus({ type: 'tool', toolName: event.tool_use.name });
+                updateStreamingMessage();
               } else if (event.tool_result) {
-                // tool_result contains: { tool_use_id, name, result: { success, ..., ui_action } }
-                console.log('[TP] tool_result raw:', JSON.stringify(event.tool_result).slice(0, 500));
                 const toolResult = event.tool_result.result || event.tool_result;
-                console.log('[TP] toolResult (extracted):', JSON.stringify(toolResult).slice(0, 500));
                 const result: TPToolResult = {
                   toolName: event.tool_result.name,
                   success: toolResult.success ?? true,
                   data: toolResult,
                   uiAction: toolResult.ui_action,
                 };
-                console.log('[TP] uiAction:', result.uiAction);
                 toolResults.push(result);
 
-                // Handle different ui_action types
+                // ADR-042: Update the pending tool call block with result
+                const toolId = event.tool_result.tool_use_id;
+                const blockIdx = pendingToolCalls.get(toolId);
+                if (blockIdx !== undefined && blocks[blockIdx]?.type === 'tool_call') {
+                  const toolBlock = blocks[blockIdx] as Extract<MessageBlock, { type: 'tool_call' }>;
+                  toolBlock.status = result.success ? 'success' : 'failed';
+                  toolBlock.result = result;
+                }
+                updateStreamingMessage();
+
+                // Handle UI actions
                 if (result.uiAction) {
                   const action = result.uiAction;
-                  console.log('[TP] Processing ui_action:', action.type, action.surface);
 
                   if (action.type === 'OPEN_SURFACE' && onSurfaceChange) {
-                    // Navigation - open a surface
-                    // Don't navigate yet - wait to see if there's a follow-up RESPOND
                     const newSurface = mapToolActionToSurface(action);
-                    console.log('[TP] Mapped surface (pending):', newSurface);
-                    if (newSurface) {
-                      // Store pending navigation
-                      pendingSurface = newSurface;
-                    }
-                    // Use tool result message as assistant content (e.g., "Found 3 deliverables")
+                    if (newSurface) pendingSurface = newSurface;
                     const navMessage = result.data?.message as string;
-                    if (navMessage && !assistantContent) {
-                      assistantContent = navMessage;
-                    }
-                    // Show completion status
+                    if (navMessage && !assistantContent) assistantContent = navMessage;
                     setStatus({ type: 'complete', message: navMessage });
                   } else if (action.type === 'RESPOND') {
-                    // Conversation - the message is the response
                     const message = action.data?.message as string;
-                    console.log('[TP] RESPOND message:', message?.slice(0, 100));
                     if (message) {
                       assistantContent = message;
-                      // If we have a pending surface navigation, this is the handoff message
-                      if (pendingSurface) {
-                        pendingHandoff = message;
+                      if (pendingSurface) pendingHandoff = message;
+                      // Add text block for response
+                      const lastBlock = blocks[blocks.length - 1];
+                      if (lastBlock?.type === 'text') {
+                        lastBlock.content = message;
+                      } else {
+                        blocks.push({ type: 'text', content: message });
                       }
                       setStatus({ type: 'streaming', content: message });
+                      updateStreamingMessage();
                     }
                   } else if (action.type === 'CLARIFY') {
-                    // Clarification request - show in status bar
                     const question = action.data?.question as string || '';
                     const options = action.data?.options as string[] | undefined;
-                    console.log('[TP] CLARIFY:', question, options);
-                    clarifyWasCalled = true;  // Track locally to avoid stale closure
+                    clarifyWasCalled = true;
+                    blocks.push({ type: 'clarify', question, options });
                     setPendingClarification({ question, options });
                     setStatus({ type: 'clarify', question, options });
+                    updateStreamingMessage();
                   } else if (action.type === 'SHOW_SETUP_CONFIRM') {
-                    // Setup confirmation modal for new deliverable
-                    console.log('[TP] SHOW_SETUP_CONFIRM:', action.data);
                     const setupData = action.data as unknown as SetupConfirmData;
-                    setSetupConfirmModal({
-                      open: true,
-                      data: setupData,
-                    });
+                    setSetupConfirmModal({ open: true, data: setupData });
                     setStatus({ type: 'complete', message: 'Deliverable created' });
                   } else if (action.type === 'UPDATE_TODOS') {
-                    // ADR-025: Todo tracking for multi-step work
                     const todos = (action.data?.todos as Todo[]) || [];
-                    console.log('[TP] UPDATE_TODOS:', todos.length, 'items');
                     dispatch({ type: 'SET_TODOS', todos });
-                    // Auto-expand work panel when todos appear
                     if (todos.length > 0) {
                       dispatch({ type: 'SET_WORK_PANEL_EXPANDED', expanded: true });
                     }
                   }
-                } else {
-                  console.log('[TP] No uiAction in tool result');
                 }
               } else if (event.error) {
-                console.error('[TP] Error event:', event.error);
                 throw new Error(event.error);
-              } else if (event.done) {
-                console.log('[TP] Stream done, tools_used:', event.tools_used);
               }
             } catch (parseErr) {
-              // Log parse errors but don't crash - might be malformed server data
               console.warn('Failed to parse SSE event:', data, parseErr);
             }
           }
         }
 
-        // Process any remaining buffer content
+        // Process remaining buffer
         if (buffer.startsWith('data: ')) {
           const data = buffer.slice(6);
           if (data && data !== '[DONE]') {
@@ -438,44 +468,38 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               const event = JSON.parse(data);
               if (event.content) {
                 assistantContent += event.content;
+                const lastBlock = blocks[blocks.length - 1];
+                if (lastBlock?.type === 'text') {
+                  lastBlock.content = assistantContent;
+                }
               }
             } catch {
-              // Ignore final incomplete chunk
+              // Ignore
             }
           }
         }
 
-        // Final streaming status update with complete content
-        if (assistantContent) {
-          setStatus({ type: 'streaming', content: assistantContent });
-        }
+        // Final update
+        updateStreamingMessage();
 
-        // Execute pending surface navigation with optional handoff message
-        // This happens after all tool results are processed so we capture any follow-up respond()
+        // Execute pending surface navigation
         if (pendingSurface && onSurfaceChange) {
-          console.log('[TP] Executing navigation with handoff:', pendingHandoff?.slice(0, 50));
           onSurfaceChange(pendingSurface, pendingHandoff || undefined);
         }
 
-        // Add assistant message
-        // If no content but we have tool results, use the first tool result's message as fallback
-        // This handles cases where TP uses tools but doesn't call respond() afterward
+        // Finalize content if empty
         let finalContent = assistantContent;
         if (!finalContent && toolResults.length > 0) {
           const firstMessage = toolResults.find((r) => r.data?.message)?.data?.message as string;
-          if (firstMessage) {
-            finalContent = firstMessage;
-          }
+          if (firstMessage) finalContent = firstMessage;
         }
 
-        const assistantMessage: TPMessage = {
-          id: crypto.randomUUID(),
-          role: 'assistant',
+        // Final update with toolResults for legacy compatibility
+        dispatch({
+          type: 'UPDATE_STREAMING_MESSAGE',
+          blocks: [...blocks],
           content: finalContent,
-          toolResults: toolResults.length > 0 ? toolResults : undefined,
-          timestamp: new Date(),
-        };
-        dispatch({ type: 'ADD_MESSAGE', message: assistantMessage });
+        });
         dispatch({ type: 'SET_LOADING', isLoading: false });
 
         // Set complete status, then fade to idle (unless clarify is pending)

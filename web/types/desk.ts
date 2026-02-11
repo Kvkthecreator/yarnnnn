@@ -54,13 +54,26 @@ export interface TPImageAttachment {
   mediaType: 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
 }
 
+/**
+ * ADR-042: Streaming Process Visibility
+ * Message content blocks for inline tool display
+ */
+export type MessageBlock =
+  | { type: 'text'; content: string }
+  | { type: 'thinking'; content: string }
+  | { type: 'tool_call'; id: string; tool: string; input?: Record<string, unknown>; status: 'pending' | 'success' | 'failed'; result?: TPToolResult }
+  | { type: 'clarify'; question: string; options?: string[] };
+
 export interface TPMessage {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   /** Images attached to this message (user messages only) */
   images?: TPImageAttachment[];
+  /** Legacy: tool results shown at end of message */
   toolResults?: TPToolResult[];
+  /** ADR-042: Structured content blocks for inline display */
+  blocks?: MessageBlock[];
   timestamp: Date;
 }
 
@@ -136,6 +149,8 @@ export type TPAction =
   | { type: 'ADD_MESSAGE'; message: TPMessage }
   | { type: 'SET_MESSAGES'; messages: TPMessage[] }
   | { type: 'CLEAR_MESSAGES' }
+  // ADR-042: Update streaming message blocks in real-time
+  | { type: 'UPDATE_STREAMING_MESSAGE'; blocks: MessageBlock[]; content?: string }
   | { type: 'SET_LOADING'; isLoading: boolean }
   | { type: 'SET_ERROR'; error: string | null }
   // ADR-025: Todo tracking actions

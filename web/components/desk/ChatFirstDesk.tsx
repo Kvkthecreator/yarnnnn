@@ -31,6 +31,7 @@ import { cn } from '@/lib/utils';
 import { getTPStateIndicators } from '@/lib/tp-chips';
 import { SkillPicker } from '@/components/tp/SkillPicker';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
+import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { SurfaceRouter } from './SurfaceRouter';
 
 export function ChatFirstDesk() {
@@ -286,31 +287,26 @@ export function ChatFirstDesk() {
                   ))}
                 </div>
               )}
-              <p className="whitespace-pre-wrap">{msg.content}</p>
-              {/* Inline tool results - Claude Code style */}
-              {msg.toolResults && msg.toolResults.length > 0 && (
-                <ToolResultList results={msg.toolResults} compact />
+              {/* ADR-042: Render message blocks if available, otherwise legacy content */}
+              {msg.blocks && msg.blocks.length > 0 ? (
+                <MessageBlocks blocks={msg.blocks} />
+              ) : (
+                <>
+                  <p className="whitespace-pre-wrap">{msg.content}</p>
+                  {/* Legacy: Inline tool results - Claude Code style */}
+                  {msg.toolResults && msg.toolResults.length > 0 && (
+                    <ToolResultList results={msg.toolResults} compact />
+                  )}
+                </>
               )}
             </div>
           ))}
 
-          {/* Status indicators */}
-          {status.type === 'thinking' && (
+          {/* Status indicator - only show "Thinking" before first content */}
+          {status.type === 'thinking' && messages[messages.length - 1]?.role === 'user' && (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Loader2 className="w-4 h-4 animate-spin" />
               <span>Thinking...</span>
-            </div>
-          )}
-          {status.type === 'tool' && (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>{status.toolName}...</span>
-            </div>
-          )}
-          {status.type === 'streaming' && (
-            <div className="flex items-center gap-2 text-muted-foreground text-sm">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Typing...</span>
             </div>
           )}
 
