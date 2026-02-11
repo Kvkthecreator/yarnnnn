@@ -44,7 +44,7 @@ Use ref ending in ':new' to create. Content schema depends on entity type.""",
 
 # Required fields per entity type
 REQUIRED_FIELDS = {
-    "deliverable": ["title", "deliverable_type"],
+    "deliverable": ["title"],  # deliverable_type has default in schema
     "memory": ["content"],
     "work": ["task", "agent_type"],
     "document": ["name"],
@@ -52,11 +52,10 @@ REQUIRED_FIELDS = {
 }
 
 # Default values per entity type
+# Note: deliverable.schedule is JSONB, frequency goes inside it
 DEFAULTS = {
     "deliverable": {
         "status": "active",
-        "frequency": "weekly",
-        "governance": "manual",
     },
     "memory": {
         "tags": [],
@@ -179,16 +178,54 @@ async def handle_write(auth: Any, input: dict) -> dict:
 
 
 def _process_deliverable(data: dict) -> dict:
-    """Process deliverable-specific fields."""
-    # Calculate next_run_at based on frequency
+    """Process deliverable-specific fields.
+
+    Schema notes:
+    - schedule: JSONB with {frequency, day, time, timezone}
+    - deliverable_type: defaults to 'custom' in schema
+    - recipient_context: JSONB with {name, role, priorities}
+    """
     from services.deliverable_pipeline import calculate_next_run
 
+    # Build schedule JSONB from flat fields or existing schedule
+    schedule = data.get("schedule", {})
+    if isinstance(schedule, dict):
+        # Allow flat frequency/day/time fields to override schedule
+        if "frequency" in data and "frequency" not in schedule:
+            schedule["frequency"] = data.pop("frequency")
+        if "day" in data and "day" not in schedule:
+            schedule["day"] = data.pop("day")
+        if "time" in data and "time" not in schedule:
+            schedule["time"] = data.pop("time")
+        if "timezone" in data and "timezone" not in schedule:
+            schedule["timezone"] = data.pop("timezone")
+
+    # Apply defaults to schedule
+    if "frequency" not in schedule:
+        schedule["frequency"] = "weekly"
+    if "time" not in schedule:
+        schedule["time"] = "09:00"
+    if "timezone" not in schedule:
+        schedule["timezone"] = "UTC"
+
+    data["schedule"] = schedule
+
+    # Build recipient_context JSONB from flat fields
+    recipient_context = data.get("recipient_context", {})
+    if isinstance(recipient_context, dict):
+        if "recipient_name" in data:
+            recipient_context["name"] = data.pop("recipient_name")
+        if "recipient_role" in data:
+            recipient_context["role"] = data.pop("recipient_role")
+    data["recipient_context"] = recipient_context
+
+    # Calculate next_run_at based on schedule
     if "next_run_at" not in data:
         data["next_run_at"] = calculate_next_run(
-            frequency=data.get("frequency", "weekly"),
-            day=data.get("day"),
-            time=data.get("time", "09:00"),
-            timezone=data.get("timezone", "UTC"),
+            frequency=schedule.get("frequency", "weekly"),
+            day=schedule.get("day"),
+            time=schedule.get("time", "09:00"),
+            timezone=schedule.get("timezone", "UTC"),
         )
 
     return data
