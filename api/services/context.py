@@ -62,7 +62,7 @@ async def _get_user_profile(user_id: str, client: Any) -> dict:
 
     Sources:
     - auth.users table (email)
-    - user_memories with source_type='preference' (for learned preferences)
+    - memories with source_type='preference' (for learned preferences)
     """
     profile = {
         "name": None,
@@ -77,7 +77,7 @@ async def _get_user_profile(user_id: str, client: Any) -> dict:
         # For now, we'll get what we can from memories
 
         # Look for preference-type memories that encode user facts
-        result = client.table("user_memories").select(
+        result = client.table("memories").select(
             "content, tags"
         ).eq(
             "user_id", user_id
@@ -131,7 +131,7 @@ async def _get_user_facts(user_id: str, client: Any) -> list:
     try:
         # Get recent user-stated facts
         # source_type IN ('user_stated', 'chat', 'conversation')
-        result = client.table("user_memories").select(
+        result = client.table("memories").select(
             "content, created_at"
         ).eq(
             "user_id", user_id
