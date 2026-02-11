@@ -13,7 +13,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 
 ---
 
-## Current Version: v3 (2026-02-11)
+## Current Version: v4 (2026-02-11)
 
 ### Key Principles
 
@@ -21,10 +21,37 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 |-----------|----------------|
 | **Conciseness** | Short answers for simple questions; thorough for complex |
 | **No preamble/postamble** | Skip "I'll help you with..." and "Let me know if..." |
-| **Proactiveness balance** | Answer questions before taking action |
-| **One clarifying question** | Use `Clarify` tool with 2-4 options |
+| **Explore before asking** | Use List/Search to find patterns before using Clarify |
+| **Infer from context** | Use existing entities and memories to fill gaps |
+| **One clarifying question** | Use `Clarify` only when exploration doesn't resolve ambiguity |
 | **Confirm before creating** | Ask user, then create on confirmation |
 | **Primitives only** | All tools are primitives (no legacy tool names) |
+
+### The "Grep Before Ask" Pattern
+
+**Claude Code approach:** When facing ambiguity, Claude Code explores the codebase (Grep, Glob, Read) to find evidence before asking the user. It infers from existing patterns.
+
+**YARNNN equivalent:** TP should explore entities and memories before asking clarifying questions.
+
+```
+User: "Create a weekly report for my team"
+
+❌ v3 behavior (ask immediately):
+→ Clarify(question="Who receives this?", options=["Manager", "Team", ...])
+
+✅ v4 behavior (explore first):
+→ List(pattern="deliverable:*")           // Check existing patterns
+→ Search(query="team reports recipient")  // Check memories
+→ // Found: User usually sends reports to "Product Team"
+→ "I'll create a Weekly Report for the Product Team. Sound good?"
+```
+
+**When exploration doesn't help:**
+- No existing deliverables to learn from
+- No relevant memories
+- Multiple equally-valid options exist
+
+Then use `Clarify` - but only after exploring.
 
 ### Prompt Structure (Streamlined)
 
@@ -36,13 +63,13 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 5. Reference Syntax - type:identifier
 6. Guidelines - behavioral rules
 7. Domain Terms - vocabulary
-8. Multi-Step Work - when to use Todo (simplified)
-9. Asking for Clarification - Clarify tool usage
+8. Explore Before Asking - List/Search before Clarify (NEW)
+9. Multi-Step Work - when to use Todo (simplified)
 10. Creating Entities - Write examples
 11. Checking Before Acting - List for duplicates
 ```
 
-**Removed in v3:** Verbose plan mode, gate phases, assumption checking sections (300+ lines → 90 lines)
+**New in v4:** "Explore Before Asking" section - TP explores existing patterns before asking clarifying questions
 
 ### Good Response Examples
 
@@ -69,6 +96,22 @@ User: "What platforms are connected?"
 ---
 
 ## Changelog
+
+### v4 (2026-02-11)
+
+**Changes:**
+- Added "Explore Before Asking" principle (Claude Code pattern)
+- TP now uses List/Search to find existing patterns before Clarify
+- Infer recipient, frequency, type from existing deliverables and memories
+- Clarify is last resort, not first action
+
+**Rationale:** Claude Code doesn't ask clarifying questions about intent - it explores to find the answer. For YARNNN, this means checking existing deliverables and memories before asking "Who receives this?" or "What type?"
+
+**Pattern:**
+```
+Ambiguous request → List existing entities → Search memories → Infer → Confirm
+                                                            ↘ (if no patterns found) → Clarify
+```
 
 ### v3 (2026-02-11)
 
@@ -140,6 +183,30 @@ Creating entities (deliverables, work) without confirmation leads to:
 - User feeling loss of control
 
 Simple pattern: Check duplicates → Confirm → Create (no verbose gate phases needed)
+
+### Why Explore Before Asking? (v4)
+
+The key insight from Claude Code: **the filesystem is explorable**. When Claude Code faces ambiguity ("Where are errors handled?"), it doesn't ask - it searches.
+
+YARNNN's entity space is also explorable:
+- Existing deliverables show patterns (recipient roles, frequency preferences)
+- Memories contain facts about the user's workflow
+- Platform data reveals context
+
+**The difference:**
+| Claude Code | YARNNN |
+|-------------|--------|
+| Grep/Glob existing code | List/Search existing entities |
+| Read to understand patterns | Read memories for workflow facts |
+| Infer from evidence | Infer from user history |
+| Ask only when stuck | Clarify only when exploration fails |
+
+**When YARNNN must ask (no exploration possible):**
+- Brand new user with no history
+- Request has no patterns to match (completely novel entity type)
+- Multiple equally-valid options with no preference signal
+
+Even then, prefer inferring defaults and confirming ("I'll set this up weekly for your team - adjust if needed") over asking ("How often? Who receives it?").
 
 ---
 

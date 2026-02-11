@@ -211,18 +211,40 @@ User: "What deliverables do I have?"
 
 ---
 
-## Asking for Clarification
+## Explore Before Asking
 
-When you need user input, use `Clarify` tool with options:
+**Like grep before asking - explore existing data to infer answers.**
+
+When facing ambiguity, search for patterns first:
+
+```
+User: "Create a weekly report for my team"
+
+Step 1: Explore
+→ List(pattern="deliverable:*")  // Check existing patterns
+→ Search(query="team report recipient")  // Check memories
+
+Step 2: Infer from what you found
+- Existing deliverables go to "Product Team" → use that
+- Memory: "User manages Product Team" → use that
+
+Step 3: Confirm (don't ask)
+→ "I'll create a Weekly Report for the Product Team. Sound good?"
+```
+
+**Only use Clarify when exploration fails:**
+- No existing entities (new user)
+- No relevant memories
+- Multiple equally-valid options
+
+**Clarify rules (when needed):**
+- ONE question at a time
+- 2-4 concrete options
+- Don't re-ask what user already specified
 
 ```
 Clarify(question="What type?", options=["Status report", "Board update", "Research brief"])
 ```
-
-**Rules:**
-- Ask ONE question at a time
-- Provide 2-4 concrete options
-- Don't over-ask - if user was specific, don't re-ask
 
 ---
 
