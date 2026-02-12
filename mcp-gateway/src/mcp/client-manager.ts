@@ -1,57 +1,38 @@
 /**
  * MCP Client Manager
  *
- * Manages MCP connections for each provider.
- * Supports both:
- * - Local stdio transport (spawns subprocess) - Slack
- * - Remote HTTP transport (connects to hosted MCP) - Notion
+ * ADR-050: Manages MCP connections for Slack ONLY.
  *
- * ADR-050: Notion uses hosted MCP at mcp.notion.com because the open-source
- * @notionhq/notion-mcp-server requires internal integration tokens (ntn_...),
- * but YARNNN uses OAuth access tokens. The hosted MCP supports OAuth.
+ * Why only Slack?
+ * - Slack's @modelcontextprotocol/server-slack works with OAuth tokens
+ * - Notion's MCP servers are incompatible with OAuth (see ADR-050)
+ * - Gmail/Calendar use Direct API (no suitable MCP servers)
+ *
+ * This gateway exists because MCP servers require Node.js (npx spawns subprocess)
+ * and our Python API can't run Node.js directly on Render.
  */
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 
 // =============================================================================
 // Provider Configuration
 // =============================================================================
 
-// Local provider: spawns subprocess via stdio
-interface LocalProviderConfig {
-  type: 'local';
+interface ProviderConfig {
   command: string;
   args: string[];
 }
 
-// Remote provider: connects via HTTP to hosted MCP server
-interface RemoteProviderConfig {
-  type: 'remote';
-  url: string;
-}
-
-type ProviderConfig = LocalProviderConfig | RemoteProviderConfig;
-
+// Only Slack uses MCP Gateway
 const PROVIDERS: Record<string, ProviderConfig> = {
-  // Slack: Local stdio transport - MCP server supports OAuth tokens
   slack: {
-    type: 'local',
     command: 'npx',
     args: ['-y', '@modelcontextprotocol/server-slack'],
   },
-  // Notion: Remote HTTP transport - hosted MCP supports OAuth
-  // The open-source @notionhq/notion-mcp-server requires ntn_... tokens
-  // which are incompatible with our OAuth flow
-  notion: {
-    type: 'remote',
-    url: 'https://mcp.notion.com/mcp',
-  },
 };
 
-// Tool definitions for each provider (static, for listing)
-// These are discovered dynamically but we cache for faster responses
+// Tool definitions for listing (discovered dynamically on connect)
 const PROVIDER_TOOLS: Record<string, Array<{ name: string; description: string }>> = {
   slack: [
     { name: 'slack_post_message', description: 'Post a message to a Slack channel or DM' },
@@ -60,42 +41,18 @@ const PROVIDER_TOOLS: Record<string, Array<{ name: string; description: string }
     { name: 'slack_get_users', description: 'List all users in the workspace' },
     { name: 'slack_get_user_profile', description: 'Get a user\'s profile information' },
   ],
-  notion: [
-    // Notion hosted MCP tool names
-    { name: 'notion-search', description: 'Search for pages in the workspace' },
-    { name: 'notion-fetch', description: 'Fetch page content' },
-    { name: 'notion-create-pages', description: 'Create new pages' },
-    { name: 'notion-update-page', description: 'Update a page\'s properties' },
-    { name: 'notion-create-comment', description: 'Add a comment to a page' },
-    { name: 'notion-get-comments', description: 'Get comments from a page' },
-  ],
 };
 
 // =============================================================================
-// Session Types
+// Session Management
 // =============================================================================
 
-interface BaseSession {
+interface ActiveSession {
   client: Client;
+  transport: StdioClientTransport;
   createdAt: Date;
   discoveredTools?: string[];
 }
-
-interface LocalSession extends BaseSession {
-  type: 'local';
-  transport: StdioClientTransport;
-}
-
-interface RemoteSession extends BaseSession {
-  type: 'remote';
-  transport: StreamableHTTPClientTransport;
-}
-
-type ActiveSession = LocalSession | RemoteSession;
-
-// =============================================================================
-// Client Manager
-// =============================================================================
 
 export class MCPClientManager {
   private sessions: Map<string, ActiveSession> = new Map();
@@ -107,7 +64,7 @@ export class MCPClientManager {
   async listTools(provider: string): Promise<Array<{ name: string; description: string }>> {
     const config = PROVIDERS[provider];
     if (!config) {
-      throw new Error(`Unknown provider: ${provider}. Available: ${Object.keys(PROVIDERS).join(', ')}`);
+      throw new Error(`Unknown provider: ${provider}. Only 'slack' is supported via MCP Gateway.`);
     }
     return PROVIDER_TOOLS[provider] || [];
   }
@@ -123,7 +80,7 @@ export class MCPClientManager {
   ): Promise<unknown> {
     const config = PROVIDERS[provider];
     if (!config) {
-      throw new Error(`Unknown provider: ${provider}`);
+      throw new Error(`Unknown provider: ${provider}. Only 'slack' is supported via MCP Gateway.`);
     }
 
     // Get or create session
@@ -149,41 +106,25 @@ export class MCPClientManager {
       return this.parseResult(result);
     } catch (error) {
       console.error(`[MCP] Error calling ${provider}/${toolName}:`, error);
-      // Session might be dead, clean up and rethrow
       await this.closeSession(sessionKey);
       throw error;
     }
   }
 
   /**
-   * Create a new MCP session (local or remote)
+   * Create a new MCP session (local stdio subprocess)
    */
   private async createSession(
     provider: string,
     config: ProviderConfig,
     auth: { token: string; metadata?: Record<string, string> }
   ): Promise<ActiveSession> {
-    if (config.type === 'local') {
-      return this.createLocalSession(provider, config, auth);
-    } else {
-      return this.createRemoteSession(provider, config, auth);
-    }
-  }
-
-  /**
-   * Create local session (stdio transport - subprocess)
-   */
-  private async createLocalSession(
-    provider: string,
-    config: LocalProviderConfig,
-    auth: { token: string; metadata?: Record<string, string> }
-  ): Promise<LocalSession> {
-    console.log(`[MCP] Creating local session for ${provider}`);
+    console.log(`[MCP] Creating session for ${provider}`);
 
     // Build environment for MCP server
     const env = this.buildEnv(provider, auth);
 
-    // Create transport - StdioClientTransport manages the subprocess internally
+    // Create transport - StdioClientTransport manages subprocess
     const transport = new StdioClientTransport({
       command: config.command,
       args: config.args,
@@ -191,7 +132,7 @@ export class MCPClientManager {
       stderr: 'pipe',
     });
 
-    // Log stderr from MCP server for debugging
+    // Log stderr for debugging
     if (transport.stderr) {
       transport.stderr.on('data', (data: Buffer) => {
         console.log(`[MCP:${provider}:stderr] ${data.toString().trim()}`);
@@ -210,10 +151,9 @@ export class MCPClientManager {
     // Discover available tools
     const discoveredTools = await this.discoverTools(provider, client);
 
-    console.log(`[MCP] Local session created for ${provider}`);
+    console.log(`[MCP] Session created for ${provider}`);
 
     return {
-      type: 'local',
       client,
       transport,
       createdAt: new Date(),
@@ -222,52 +162,7 @@ export class MCPClientManager {
   }
 
   /**
-   * Create remote session (HTTP transport - hosted MCP)
-   */
-  private async createRemoteSession(
-    provider: string,
-    config: RemoteProviderConfig,
-    auth: { token: string; metadata?: Record<string, string> }
-  ): Promise<RemoteSession> {
-    console.log(`[MCP] Creating remote session for ${provider} at ${config.url}`);
-
-    // Create HTTP transport with OAuth bearer token
-    const transport = new StreamableHTTPClientTransport(
-      new URL(config.url),
-      {
-        requestInit: {
-          headers: {
-            'Authorization': `Bearer ${auth.token}`,
-          },
-        },
-      }
-    );
-
-    const client = new Client({
-      name: 'yarnnn-mcp-gateway',
-      version: '1.0.0',
-    }, {
-      capabilities: {},
-    });
-
-    await client.connect(transport);
-
-    // Discover available tools
-    const discoveredTools = await this.discoverTools(provider, client);
-
-    console.log(`[MCP] Remote session created for ${provider}`);
-
-    return {
-      type: 'remote',
-      client,
-      transport,
-      createdAt: new Date(),
-      discoveredTools,
-    };
-  }
-
-  /**
-   * Build environment variables for local MCP server
+   * Build environment variables for MCP server
    */
   private buildEnv(
     provider: string,
@@ -328,7 +223,6 @@ export class MCPClientManager {
    * Parse MCP CallToolResult into plain object
    */
   private parseResult(result: unknown): unknown {
-    // MCP SDK returns CallToolResult with content array
     if (result && typeof result === 'object' && 'content' in result) {
       const content = (result as { content: Array<{ type: string; text?: string }> }).content;
       if (Array.isArray(content)) {

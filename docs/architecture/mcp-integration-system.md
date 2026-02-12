@@ -14,30 +14,52 @@
 | Platform | Backend | Client Class | Transport | Status |
 |----------|---------|--------------|-----------|--------|
 | **Slack** | MCP Gateway | `MCPManager` | Local (stdio) | ✅ Working |
-| **Notion** | MCP Gateway | `MCPManager` | Remote (HTTP) | ✅ Working |
+| **Notion** | Direct API | `NotionAPIClient` | REST API | ✅ Working |
 | **Gmail** | Direct API | `GoogleAPIClient` | REST API | ✅ Working |
 | **Calendar** | Direct API | `GoogleAPIClient` | REST API | ✅ Working |
 
 ### Why Two Backends?
 
-- **Slack**: Uses `@modelcontextprotocol/server-slack` via local stdio transport (subprocess).
-- **Notion**: Uses Notion's hosted MCP at `mcp.notion.com/mcp` via remote HTTP transport.
-- **Gmail/Calendar**: Use Google's REST API directly from Python. No MCP server exists with the full functionality we need.
+- **Slack**: Uses `@modelcontextprotocol/server-slack` via local stdio transport (subprocess). Only platform where MCP works with OAuth tokens.
+- **Notion/Gmail/Calendar**: Use platform REST APIs directly from Python. See "MCP OAuth Compatibility" below.
 
-### Notion MCP Architecture (Resolved 2026-02-12)
+### MCP OAuth Compatibility (Learned 2026-02-12)
 
-The open-source `@notionhq/notion-mcp-server` requires **internal integration tokens** (`ntn_...`), incompatible with OAuth.
+**Key Learning**: MCP servers have varying auth models. Not all support OAuth tokens.
 
-**Solution**: Use Notion's **hosted MCP** at `mcp.notion.com/mcp` which supports OAuth bearer tokens.
+| Platform | MCP Options Tested | Result | Our Solution |
+|----------|-------------------|--------|--------------|
+| **Slack** | `@modelcontextprotocol/server-slack` | ✅ Works with OAuth | MCP Gateway |
+| **Notion** | `@notionhq/notion-mcp-server` | ❌ Requires `ntn_...` internal tokens | Direct API |
+| **Notion** | `mcp.notion.com` (hosted) | ❌ Manages own OAuth sessions | Direct API |
+| **Gmail** | No suitable MCP server | N/A | Direct API |
+| **Calendar** | No suitable MCP server | N/A | Direct API |
 
-| Transport | Server | Auth Method |
-|-----------|--------|-------------|
-| Local (stdio) | `@modelcontextprotocol/server-slack` | OAuth token via env var |
-| Remote (HTTP) | `mcp.notion.com/mcp` | OAuth bearer token in header |
+**Why Notion MCP Failed (both options):**
 
-The MCP Gateway supports both transport types via `StdioClientTransport` and `StreamableHTTPClientTransport`.
+1. **Open-source MCP** (`@notionhq/notion-mcp-server`):
+   - Requires internal integration tokens (`ntn_...`)
+   - These are created in Notion Developer Portal for private workspace integrations
+   - YARNNN uses OAuth (public integration) = incompatible
 
-See [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md) for the full architectural decision.
+2. **Hosted MCP** (`mcp.notion.com/mcp`):
+   - Designed for direct user-to-server auth (Claude Desktop, Cursor)
+   - Manages its own OAuth sessions internally
+   - Cannot accept tokens passed from intermediary platforms
+   - Error: `{"error":"invalid_token","error_description":"Invalid token format"}`
+
+**Architecture Principle: Single Implementation Path**
+
+Each platform has ONE integration path. No fallbacks or dual approaches:
+
+```
+✅ Good: Slack → MCP Gateway (only)
+✅ Good: Notion → Direct API (only)
+✅ Good: Gmail → Direct API (only)
+❌ Bad: Platform → try MCP, fallback to Direct API
+```
+
+See [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md) for the full architectural decision and learnings.
 
 ---
 
@@ -46,20 +68,24 @@ See [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md) for the full architect
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Database schema | ✅ Complete | Migration 023_integrations.sql |
-| `MCPManager` | ✅ Complete | `api/integrations/core/client.py` (Slack/Notion via gateway) |
+| `MCPManager` | ✅ Complete | `api/integrations/core/client.py` (Slack ONLY via gateway) |
+| `NotionAPIClient` | ✅ Complete | `api/integrations/core/notion_client.py` (Notion Direct API) |
 | `GoogleAPIClient` | ✅ Complete | `api/integrations/core/google_client.py` (Gmail/Calendar) |
 | `TokenManager` | ✅ Complete | `api/integrations/core/tokens.py` |
 | Types/Models | ✅ Complete | `api/integrations/core/types.py` |
 | API routes | ✅ Complete | `api/routes/integrations.py` |
-| MCP Gateway | ✅ Complete | `mcp-gateway/` - supports local + remote MCP |
+| MCP Gateway | ✅ Complete | `mcp-gateway/` - Slack only (stdio transport) |
 | OAuth flows | ✅ Complete | All four platforms |
 | Platform tools | ✅ Complete | All platforms working |
 
-### Client Separation
+### Client Separation (Clean Architecture)
+
+Each platform has ONE client. No dual-path code.
 
 ```
 api/integrations/core/
-├── client.py          # MCPManager - Slack/Notion (via MCP Gateway)
+├── client.py          # MCPManager - Slack ONLY (MCP protocol via Gateway)
+├── notion_client.py   # NotionAPIClient - Notion (Direct API to api.notion.com)
 ├── google_client.py   # GoogleAPIClient - Gmail/Calendar (Direct API)
 ├── tokens.py          # TokenManager - OAuth token management
 └── types.py           # Shared types/interfaces
@@ -69,18 +95,18 @@ api/integrations/core/
 
 The MCP Gateway runs as a separate Render service and handles MCP protocol communication:
 - URL: `yarnnn-mcp-gateway.onrender.com`
-- **Local transport (stdio)**: `@modelcontextprotocol/server-slack` - spawns subprocess
-- **Remote transport (HTTP)**: `mcp.notion.com/mcp` - connects to Notion's hosted MCP
+- **Slack ONLY**: `@modelcontextprotocol/server-slack` via stdio subprocess
+- **Why Slack only**: Only MCP server that works with OAuth tokens (see ADR-050)
 
 ### Required Environment Variables
 
 | Provider | Variables | Backend |
 |----------|-----------|---------|
 | Slack | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | MCP Gateway |
-| Notion | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | MCP Gateway |
+| Notion | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | Direct API (yarnnn-api) |
 | Gmail/Calendar | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Direct API |
 
-> **Note**: Google credentials needed on `yarnnn-api` and `unified-scheduler`. Slack/Notion credentials needed on `yarnnn-mcp-gateway`.
+> **Note**: Google and Notion credentials needed on `yarnnn-api`. Slack credentials needed on `yarnnn-mcp-gateway`.
 
 ---
 
@@ -91,7 +117,7 @@ Each platform has a default output destination so user owns the output:
 | Platform | Default Destination | Metadata Key | Backend |
 |----------|---------------------|--------------|---------|
 | Slack | User's DM to self | `authed_user_id` | MCP Gateway |
-| Notion | User's designated page | `designated_page_id` | MCP Gateway |
+| Notion | User's designated page | `designated_page_id` | Direct API |
 | Gmail | Draft to user's email | `user_email` | Direct API |
 | Calendar | User's designated calendar | `designated_calendar_id` | Direct API |
 
@@ -1448,6 +1474,19 @@ async def test_export_logs_result():
 ---
 
 ## Changelog
+
+### 2026-02-12: Notion MCP → Direct API Migration
+
+**Key Discovery**: MCP server OAuth compatibility is NOT guaranteed.
+
+- Tested both Notion MCP options - both incompatible with OAuth:
+  - `@notionhq/notion-mcp-server`: Requires `ntn_...` internal tokens
+  - `mcp.notion.com` (hosted): Manages own OAuth sessions
+- **Decision**: Notion uses Direct API (same pattern as Gmail/Calendar)
+- Created `NotionAPIClient` in `api/integrations/core/notion_client.py`
+- MCP Gateway now handles Slack ONLY
+- Added comprehensive learnings section to ADR-050
+- **Architecture Principle**: Single implementation path per platform (no fallbacks)
 
 ### 2026-02-06: Initial Architecture
 

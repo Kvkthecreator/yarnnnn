@@ -3,7 +3,7 @@ Platform Tools for Thinking Partner
 
 ADR-050: Tool definitions and handlers for platform operations.
 These tools are dynamically added to TP based on user's connected integrations.
-Tool calls are routed to the MCP Gateway (Slack, Notion) or Direct API (Gmail, Calendar).
+Tool calls are routed to MCP Gateway (Slack) or Direct API (Notion, Gmail, Calendar).
 """
 
 import logging
@@ -405,8 +405,11 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
     """
     Handle a platform tool call by routing to appropriate backend.
 
-    - Slack, Notion: Route to MCP Gateway
-    - Gmail, Calendar (Google): Route to Direct API
+    ADR-050 Routing:
+    - Slack: MCP Gateway (local stdio transport)
+    - Notion: Direct API (MCP incompatible with OAuth tokens)
+    - Gmail: Direct API
+    - Calendar: Direct API
 
     Args:
         auth: Auth context
@@ -427,15 +430,21 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
     provider = parts[1]
     tool = "_".join(parts[2:])  # Handle multi-part tool names
 
-    # ADR-046: Route Gmail/Calendar to Direct API, others to MCP Gateway
-    if provider in ("gmail", "calendar"):
+    # ADR-050: Route by provider
+    # - Slack: MCP Gateway (only platform that works with MCP + OAuth)
+    # - Everything else: Direct API
+    if provider == "slack":
+        return await _handle_mcp_tool(auth, provider, tool, tool_input)
+    elif provider == "notion":
+        return await _handle_notion_tool(auth, tool, tool_input)
+    elif provider in ("gmail", "calendar"):
         return await _handle_google_tool(auth, provider, tool, tool_input)
     else:
-        return await _handle_mcp_tool(auth, provider, tool, tool_input)
+        return {"success": False, "error": f"Unknown provider: {provider}"}
 
 
 async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict) -> dict:
-    """Handle MCP Gateway-routed tools (Slack, Notion)."""
+    """Handle MCP Gateway-routed tools (Slack only)."""
     from services.mcp_gateway import call_platform_tool, is_gateway_available
 
     # Check if gateway is available
@@ -485,13 +494,138 @@ async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict
     return result
 
 
+async def _handle_notion_tool(auth: Any, tool: str, tool_input: dict) -> dict:
+    """
+    ADR-050: Handle Notion tools via Direct API.
+
+    Why Direct API instead of MCP?
+    1. @notionhq/notion-mcp-server requires internal tokens (ntn_...), not OAuth
+    2. mcp.notion.com manages its own OAuth sessions, incompatible with pass-through
+    3. Direct API works perfectly with our OAuth access tokens
+    """
+    from integrations.core.notion_client import get_notion_client
+    from integrations.core.tokens import get_token_manager
+
+    # Get user's Notion integration
+    try:
+        result = auth.client.table("user_integrations").select(
+            "access_token_encrypted, metadata"
+        ).eq("user_id", auth.user_id).eq("provider", "notion").eq("status", "active").single().execute()
+
+        if not result.data:
+            return {
+                "success": False,
+                "error": "No active Notion integration. Connect it in Settings.",
+            }
+
+        # Decrypt access token
+        token_manager = get_token_manager()
+        access_token = token_manager.decrypt(result.data["access_token_encrypted"])
+        metadata = result.data.get("metadata") or {}
+
+    except Exception as e:
+        logger.error(f"[PLATFORM-TOOLS] Failed to get Notion credentials: {e}")
+        return {
+            "success": False,
+            "error": "Failed to get Notion credentials",
+        }
+
+    # Get Notion API client
+    notion_client = get_notion_client()
+
+    try:
+        return await _execute_notion_tool(notion_client, tool, tool_input, access_token, metadata)
+    except Exception as e:
+        logger.error(f"[PLATFORM-TOOLS] Notion API error: {e}")
+        return {
+            "success": False,
+            "error": f"Notion API error: {str(e)}",
+        }
+
+
+async def _execute_notion_tool(
+    notion_client,
+    tool: str,
+    args: dict,
+    access_token: str,
+    metadata: dict
+) -> dict:
+    """Execute Notion-specific tools via NotionAPIClient (NOT MCP)."""
+
+    if tool == "search":
+        results = await notion_client.search(
+            access_token=access_token,
+            query=args.get("query", ""),
+            page_size=10,
+        )
+
+        # Format results for readability
+        formatted = []
+        for item in results:
+            obj_type = item.get("object")
+            title = ""
+
+            # Extract title based on object type
+            if obj_type == "page":
+                props = item.get("properties", {})
+                title_prop = props.get("title") or props.get("Name") or {}
+                if "title" in title_prop:
+                    title_arr = title_prop["title"]
+                    if title_arr:
+                        title = title_arr[0].get("plain_text", "Untitled")
+            elif obj_type == "database":
+                title_arr = item.get("title", [])
+                if title_arr:
+                    title = title_arr[0].get("plain_text", "Untitled Database")
+
+            formatted.append({
+                "id": item.get("id"),
+                "type": obj_type,
+                "title": title or "Untitled",
+                "url": item.get("url"),
+            })
+
+        return {
+            "success": True,
+            "results": formatted,
+            "count": len(results),
+        }
+
+    elif tool == "create_comment":
+        page_id = args.get("page_id")
+        content = args.get("content")
+
+        if not page_id:
+            # Try to use designated page from metadata
+            page_id = metadata.get("designated_page_id")
+            if not page_id:
+                return {
+                    "success": False,
+                    "error": "No page_id provided and no designated page set",
+                }
+
+        result = await notion_client.create_comment(
+            access_token=access_token,
+            page_id=page_id,
+            content=content,
+        )
+
+        return {
+            "success": True,
+            "comment_id": result.get("id"),
+            "page_id": page_id,
+            "message": "Comment added to Notion page",
+        }
+
+    else:
+        return {"success": False, "error": f"Unknown Notion tool: {tool}"}
+
+
 async def _handle_google_tool(auth: Any, provider: str, tool: str, tool_input: dict) -> dict:
     """
     ADR-046: Handle Google tools (Gmail, Calendar) via Direct API.
 
-    Uses GoogleAPIClient - NOT MCP. The distinction matters:
-    - MCP Gateway (Node.js): Slack, Notion
-    - Google API Client (Python): Gmail, Calendar
+    Uses GoogleAPIClient - NOT MCP.
     """
     import os
     from integrations.core.google_client import get_google_client
@@ -809,31 +943,20 @@ def map_to_mcp_format(provider: str, tool: str, args: dict) -> tuple[str, dict]:
     """
     Map our tool names/args to MCP server expected format.
 
+    Only used for Slack (the only MCP-routed platform).
+    Notion uses Direct API now (ADR-050).
+
     Returns:
         (mcp_tool_name, mcp_args)
     """
     if provider == "slack":
         if tool == "send_message":
-            # Slack MCP server expects channel_id and text
             return "slack_post_message", {
                 "channel_id": args.get("channel_id"),
                 "text": args.get("text"),
             }
         elif tool == "list_channels":
             return "slack_list_channels", {}
-
-    elif provider == "notion":
-        if tool == "search":
-            # Official Notion MCP server: notion-search
-            return "notion-search", {
-                "query": args.get("query"),
-            }
-        elif tool == "create_comment":
-            # Official Notion MCP server: notion-create-comment
-            return "notion-create-comment", {
-                "page_id": args.get("page_id"),
-                "markdown": args.get("content"),
-            }
 
     # Default: pass through
     return tool, args

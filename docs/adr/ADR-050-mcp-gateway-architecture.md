@@ -18,14 +18,13 @@
 **Phase 2: Complete** ✅
 - Gmail Direct API tools: `search`, `get_thread`, `send`, `create_draft`
 - Calendar Direct API tools: `list_events`, `get_event`, `create_event`
-- Routing: MCP Gateway for Slack, Direct API for Gmail/Calendar
+- Routing: MCP Gateway for Slack ONLY, Direct API for everything else
 
-**Notion Status: Resolved** ✅
-- The open-source `@notionhq/notion-mcp-server` requires internal tokens (`ntn_...`)
-- **Solution**: Use Notion's Hosted MCP at `mcp.notion.com/mcp` instead
-- Hosted MCP supports OAuth bearer token authentication
-- Gateway now supports both local (stdio) and remote (HTTP) transports
-- See "Notion MCP Incompatibility" section below for full details
+**Notion Status: Resolved via Direct API** ✅
+- Both MCP options failed (see "Notion MCP Incompatibility" section)
+- **Final Solution**: Direct API calls to `api.notion.com`
+- New `NotionAPIClient` in `api/integrations/core/notion_client.py`
+- OAuth tokens work perfectly with Notion REST API
 
 **Prompt Versioning**: Added in `api/services/platform_tools.py:PROMPT_VERSIONS`
 
@@ -34,7 +33,7 @@
 | Platform | Default Destination | Metadata Key | Backend |
 |----------|---------------------|--------------|---------|
 | Slack | User's DM to self | `authed_user_id` | MCP Gateway |
-| Notion | User's designated page | `designated_page_id` | MCP Gateway |
+| Notion | User's designated page | `designated_page_id` | Direct API |
 | Gmail | Draft to user's email | `user_email` | Direct API |
 | Calendar | User's designated calendar | `designated_calendar_id` | Direct API |
 
@@ -46,13 +45,15 @@
 ```
 api/integrations/core/
 ├── client.py          # MCPManager - Slack ONLY (MCP protocol via Gateway)
+├── notion_client.py   # NotionAPIClient - Notion (Direct API)
 ├── google_client.py   # GoogleAPIClient - Gmail/Calendar (Direct API)
 └── tokens.py          # TokenManager - OAuth token management
 ```
 
 The client classes are intentionally separated to avoid confusion:
-- `MCPManager` handles ONLY MCP protocol (Slack only - Notion blocked, see below)
-- `GoogleAPIClient` handles ONLY Google Direct API (Gmail, Calendar)
+- `MCPManager` handles ONLY MCP protocol (Slack only - the only platform where MCP works with OAuth)
+- `NotionAPIClient` handles Notion Direct API (MCP incompatible with OAuth)
+- `GoogleAPIClient` handles Google Direct API (Gmail, Calendar)
 - No dual-path code - each platform has ONE implementation path
 
 ---
@@ -81,56 +82,54 @@ The server initialization fails silently or returns "Method not found" errors wh
 
 ### Options Evaluated
 
-1. **Switch Notion to Direct API**
-   - Like Gmail/Calendar, call Notion REST API directly from Python
-   - OAuth tokens work with Notion REST API
-   - Downside: Loses MCP abstraction, more code to maintain
+1. **Open-source MCP server** (`@notionhq/notion-mcp-server`)
+   - ❌ **Failed**: Requires internal integration tokens (`ntn_...`), not OAuth
+   - Error: "Method not found" when passing OAuth tokens
 
-2. **Use Notion's Hosted MCP** (`mcp.notion.com`) ✅ **CHOSEN**
-   - Supports OAuth authentication via bearer token
-   - Actively maintained by Notion
-   - Keeps MCP abstraction for future ecosystem benefits
-   - Uses `StreamableHTTPClientTransport` instead of `StdioClientTransport`
+2. **Notion's Hosted MCP** (`mcp.notion.com/mcp`)
+   - ❌ **Failed**: Manages its own OAuth sessions
+   - Error: `{"error":"invalid_token","error_description":"Invalid token format"}`
+   - The hosted MCP is designed for direct user-to-server auth flows (Claude Desktop, Cursor)
+   - Not designed for intermediary platforms passing OAuth tokens through
 
-3. **Require Internal Integration Tokens**
-   - Users create internal integration and paste token
-   - Breaks OAuth flow UX
-   - **Rejected**: Poor user experience
+3. **Direct API** (`api.notion.com`) ✅ **CHOSEN**
+   - OAuth tokens work perfectly with Notion REST API
+   - Same pattern as Gmail/Calendar
+   - Full control over API calls
+   - No MCP abstraction overhead
 
-### Decision: Remote MCP via Hosted Server
+4. **Require Internal Integration Tokens**
+   - ❌ **Rejected**: Poor user experience
+   - Users would need to create integration and paste token
 
-**Implemented 2026-02-12**: Use Notion's hosted MCP at `https://mcp.notion.com/mcp` with OAuth bearer token authentication.
+### Decision: Direct API (Final)
 
-This approach:
-- Maintains the MCP abstraction (strategic investment in MCP ecosystem)
-- Uses existing OAuth tokens (no UX change for users)
-- Leverages Notion's actively maintained server
-- Requires gateway to support both local (stdio) and remote (HTTP) transports
+**Implemented 2026-02-12**: Call Notion REST API directly from Python using OAuth access tokens.
 
-**Implementation:**
-```typescript
-// MCP Gateway now supports two transport types:
-const PROVIDERS = {
-  slack: {
-    type: 'local',  // StdioClientTransport - subprocess
-    command: 'npx',
-    args: ['-y', '@modelcontextprotocol/server-slack'],
-  },
-  notion: {
-    type: 'remote',  // StreamableHTTPClientTransport - HTTP
-    url: 'https://mcp.notion.com/mcp',
-  },
-};
+```python
+# api/integrations/core/notion_client.py
+class NotionAPIClient:
+    async def search(self, access_token: str, query: str) -> list[dict]:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.notion.com/v1/search",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Notion-Version": "2022-06-28",
+                },
+                json={"query": query},
+            )
+            return response.json().get("results", [])
 ```
 
-**Updated Platform Routing:**
+**Final Platform Routing:**
 
-| Platform | Backend | Transport | Reason |
-|----------|---------|-----------|--------|
-| Slack | MCP Gateway | Local (stdio) | MCP server supports OAuth |
-| Notion | MCP Gateway | Remote (HTTP) | Hosted MCP supports OAuth |
-| Gmail | Direct API | N/A | No suitable MCP server |
-| Calendar | Direct API | N/A | No suitable MCP server |
+| Platform | Backend | Reason |
+|----------|---------|--------|
+| Slack | MCP Gateway | Only MCP server that works with OAuth |
+| Notion | Direct API | MCP options incompatible with OAuth |
+| Gmail | Direct API | No suitable MCP server |
+| Calendar | Direct API | No suitable MCP server |
 
 ---
 
@@ -183,9 +182,10 @@ Both are valuable. A unified gateway can serve both.
 │  │ (stdio transport)  │     │ (subprocess management)     │ │
 │  │                    │     │                             │ │
 │  │ Exposes:           │     │ Manages:                    │ │
-│  │ - get_memories     │     │ - @mcp/server-slack         │ │
-│  │ - list_deliverables│     │ - @notionhq/notion-mcp      │ │
-│  │ - search_context   │     │ - (future integrations)     │ │
+│  │ - get_memories     │     │ - @mcp/server-slack (ONLY)  │ │
+│  │ - list_deliverables│     │                             │ │
+│  │ - search_context   │     │ (Notion/Gmail/Calendar use  │ │
+│  │                    │     │  Direct API - see ADR-050)  │ │
 │  └────────────────────┘     └─────────────────────────────┘ │
 │           ↑                            ↑                     │
 │           │                            │                     │
@@ -373,6 +373,174 @@ Single Docker container with both runtimes.
 
 **Build Command:** `npm install`
 **Start Command:** `npm start`
+
+---
+
+## Learnings for Future Integrations
+
+**Date Documented**: 2026-02-12
+
+These learnings will pay off for downstream platform integrations. When adding a new platform, evaluate using this decision tree.
+
+### Decision Tree: MCP vs Direct API
+
+```
+New Platform Integration
+         │
+         ▼
+┌────────────────────────────┐
+│ Does an MCP server exist?  │
+└────────────────────────────┘
+         │
+    ┌────┴────┐
+    No        Yes
+    │         │
+    ▼         ▼
+Direct    ┌──────────────────────────────┐
+ API      │ What auth does it require?   │
+          └──────────────────────────────┘
+                      │
+         ┌────────────┼────────────┐
+         │            │            │
+    OAuth tokens  API keys    Internal tokens
+    (our model)   (simple)    (ntn_..., etc.)
+         │            │            │
+         ▼            ▼            ▼
+    ┌─────────┐   ┌─────────┐   ┌─────────┐
+    │ Test it │   │   MCP   │   │ Direct  │
+    │  first! │   │ Gateway │   │   API   │
+    └─────────┘   └─────────┘   └─────────┘
+         │
+         ▼
+┌───────────────────────────────────┐
+│ Does passing OAuth token work?    │
+│ (Test with actual token, not key) │
+└───────────────────────────────────┘
+         │
+    ┌────┴────┐
+   Yes        No
+    │         │
+    ▼         ▼
+   MCP     Direct
+ Gateway     API
+```
+
+### Key Insight: MCP OAuth Compatibility is NOT Guaranteed
+
+**What We Learned:**
+
+1. **MCP servers have varying auth models** - Even official MCP servers may not support OAuth tokens
+2. **"OAuth app" ≠ "OAuth token compatible"** - A platform may support OAuth apps for authorization but their MCP server may expect different credential types
+3. **Hosted MCP services manage their own sessions** - Services like `mcp.notion.com` expect to handle OAuth flows themselves, not receive tokens from intermediaries
+
+**Platform-Specific Findings:**
+
+| Platform | MCP Server | OAuth Token Support | Our Solution |
+|----------|------------|---------------------|--------------|
+| **Slack** | `@modelcontextprotocol/server-slack` | ✅ Yes - works with `SLACK_BOT_TOKEN` | MCP Gateway |
+| **Notion** | `@notionhq/notion-mcp-server` | ❌ No - requires `ntn_...` internal tokens | Direct API |
+| **Notion** | `mcp.notion.com` (hosted) | ❌ No - manages own OAuth sessions | N/A |
+| **Gmail** | None suitable | N/A | Direct API |
+| **Calendar** | None suitable | N/A | Direct API |
+
+### Testing Protocol for New MCP Servers
+
+Before committing to MCP for a new platform:
+
+1. **Check the docs first** - Look for authentication requirements
+   - `ntn_...`, `sk_...`, `xoxb-...` patterns indicate specific token types
+   - "Internal integration" or "workspace token" = likely incompatible
+
+2. **Test with actual OAuth token** - Don't assume it works
+   ```bash
+   # Set env var with your OAuth token
+   PLATFORM_TOKEN="oauth_token_here" npx @platform/mcp-server
+   # Try listing tools
+   ```
+
+3. **Check error messages** - Common failure patterns:
+   - `"invalid_token"` - Wrong token format expected
+   - `"Method not found"` - Server not initializing properly
+   - Silent failure - Auth rejected before tool discovery
+
+4. **Evaluate hosted MCP endpoints** - If they exist:
+   - Are they designed for direct user auth (Claude Desktop)?
+   - Do they accept tokens passed from intermediaries?
+   - Most hosted MCPs manage their own sessions
+
+### When to Choose Direct API
+
+**Choose Direct API when:**
+- ✅ No MCP server exists
+- ✅ MCP server requires non-OAuth credentials
+- ✅ MCP server is for direct-to-user auth only
+- ✅ Platform has a simple, well-documented REST API
+- ✅ You need fine-grained control over requests/responses
+
+**Benefits of Direct API:**
+- Full control over error handling
+- No subprocess management overhead
+- Simpler debugging (just HTTP calls)
+- No dependency on third-party MCP server maintenance
+
+### Code Pattern: Adding a New Direct API Platform
+
+Follow the established pattern in `api/integrations/core/`:
+
+```python
+# api/integrations/core/{platform}_client.py
+class PlatformAPIClient:
+    """
+    Direct API client for {Platform} operations.
+
+    NOT MCP - uses {Platform}'s REST API directly with OAuth access tokens.
+    """
+
+    async def operation_name(
+        self,
+        access_token: str,
+        # platform-specific params
+    ) -> dict[str, Any]:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(
+                "https://api.{platform}.com/v1/endpoint",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    # platform-specific headers
+                },
+                json=body,
+                timeout=30.0,
+            )
+            # error handling
+            return response.json()
+```
+
+Then wire into `platform_tools.py`:
+```python
+async def _handle_{platform}_tool(auth: Any, tool: str, tool_input: dict) -> dict:
+    """ADR-050: Handle {Platform} tools via Direct API."""
+    from integrations.core.{platform}_client import get_{platform}_client
+    # implementation
+```
+
+### Architecture Principle: Single Implementation Path
+
+**Avoid dual-path implementations.** Each platform should have ONE integration path:
+
+```
+✅ Good: Slack → MCP Gateway (only)
+✅ Good: Notion → Direct API (only)
+✅ Good: Gmail → Direct API (only)
+
+❌ Bad: Platform → try MCP, fallback to Direct API
+❌ Bad: Platform → MCP for some tools, Direct for others
+```
+
+Single paths are:
+- Easier to debug
+- Easier to maintain
+- Clearer mental model
+- No "which path did it take?" confusion
 
 ---
 
