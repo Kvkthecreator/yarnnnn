@@ -3,6 +3,7 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { IntegrationHub } from "@/components/landing/IntegrationHub";
 
 export default function LandingPage() {
   return (
@@ -15,32 +16,42 @@ export default function LandingPage() {
         <LandingHeader />
 
         {/* Hero Section */}
-        <section className="flex flex-col items-center justify-center px-6 py-32 md:py-44 min-h-[80vh]">
-          <div className="max-w-4xl mx-auto text-center">
-            {/* Brand name */}
-            <div className="font-brand text-4xl md:text-5xl mb-8 text-[#1a1a1a]">
-              yarnnn
+        <section className="flex flex-col items-center justify-center px-6 py-24 md:py-32 min-h-[90vh]">
+          <div className="max-w-6xl mx-auto">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+              {/* Left side - Text content */}
+              <div className="text-center lg:text-left order-2 lg:order-1">
+                {/* Brand name */}
+                <div className="font-brand text-4xl md:text-5xl mb-6 text-[#1a1a1a]">
+                  yarnnn
+                </div>
+
+                {/* Hero headline */}
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-[#1a1a1a]/90 mb-6">
+                  The things you send every week—
+                  <br />
+                  <span className="text-[#1a1a1a]">written for you, getting better each time.</span>
+                </h1>
+
+                {/* Supporting headline */}
+                <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto lg:mx-0 font-light">
+                  Connect your Slack, Gmail, Notion, and Calendar. yarnnn turns what&apos;s happening
+                  into the updates you owe people. You just review and hit send.
+                </p>
+
+                <Link
+                  href="/auth/login"
+                  className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
+                >
+                  Start for free
+                </Link>
+              </div>
+
+              {/* Right side - Animated Integration Hub */}
+              <div className="flex justify-center lg:justify-end order-1 lg:order-2">
+                <IntegrationHub />
+              </div>
             </div>
-
-            {/* Hero headline */}
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-medium tracking-wide text-[#1a1a1a]/90 mb-6">
-              The things you send every week—
-              <br />
-              <span className="text-[#1a1a1a]">written for you, getting better each time.</span>
-            </h1>
-
-            {/* Supporting headline */}
-            <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-2xl mx-auto font-light">
-              Connect your Slack, Gmail, Notion, and Calendar. yarnnn turns what&apos;s happening
-              into the updates you owe people. You just review and hit send.
-            </p>
-
-            <Link
-              href="/auth/login"
-              className="inline-block px-8 py-4 glass-light text-[#1a1a1a] text-lg font-medium hover:bg-white/80 transition-all"
-            >
-              Start for free
-            </Link>
           </div>
         </section>
 
