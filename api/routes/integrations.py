@@ -690,6 +690,51 @@ async def get_import_job(
 
 
 # =============================================================================
+# Export History
+# NOTE: This must be before /integrations/{provider} to avoid path parameter matching
+# =============================================================================
+
+@router.get("/integrations/history")
+async def get_export_history(
+    auth: UserClient,
+    deliverable_id: Optional[str] = None,
+    limit: int = 20
+) -> dict:
+    """
+    Get export history for the user.
+    Optionally filter by deliverable.
+    """
+    user_id = auth.user_id
+
+    try:
+        query = auth.client.table("export_log").select(
+            "id, provider, status, external_url, created_at, "
+            "deliverable_version_id"
+        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit)
+
+        if deliverable_id:
+            # Filter by deliverable (need to join through versions)
+            versions = auth.client.table("deliverable_versions").select(
+                "id"
+            ).eq("deliverable_id", deliverable_id).execute()
+
+            if versions.data:
+                version_ids = [v["id"] for v in versions.data]
+                query = query.in_("deliverable_version_id", version_ids)
+
+        result = query.execute()
+
+        return {
+            "exports": result.data or [],
+            "total": len(result.data or [])
+        }
+
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to get history for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get export history")
+
+
+# =============================================================================
 # Get Specific Integration
 # =============================================================================
 
@@ -1823,50 +1868,6 @@ async def list_destinations(
         )
     else:
         raise HTTPException(status_code=400, detail=f"Unsupported provider: {provider}")
-
-
-# =============================================================================
-# Export History
-# =============================================================================
-
-@router.get("/integrations/history")
-async def get_export_history(
-    auth: UserClient,
-    deliverable_id: Optional[str] = None,
-    limit: int = 20
-) -> dict:
-    """
-    Get export history for the user.
-    Optionally filter by deliverable.
-    """
-    user_id = auth.user_id
-
-    try:
-        query = auth.client.table("export_log").select(
-            "id, provider, status, external_url, created_at, "
-            "deliverable_version_id"
-        ).eq("user_id", user_id).order("created_at", desc=True).limit(limit)
-
-        if deliverable_id:
-            # Filter by deliverable (need to join through versions)
-            versions = auth.client.table("deliverable_versions").select(
-                "id"
-            ).eq("deliverable_id", deliverable_id).execute()
-
-            if versions.data:
-                version_ids = [v["id"] for v in versions.data]
-                query = query.in_("deliverable_version_id", version_ids)
-
-        result = query.execute()
-
-        return {
-            "exports": result.data or [],
-            "total": len(result.data or [])
-        }
-
-    except Exception as e:
-        logger.error(f"[INTEGRATIONS] Failed to get history for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get export history")
 
 
 # =============================================================================
