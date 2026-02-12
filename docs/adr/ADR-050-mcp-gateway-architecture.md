@@ -23,11 +23,14 @@
 
 **Prompt Versioning**: Added in `api/services/platform_tools.py:PROMPT_VERSIONS`
 
-**Streamlined Patterns**:
-- Slack: Send to user's own DM via `authed_user_id` (personal ownership)
-- Notion: Write to user's designated page via `designated_page_id` (personal ownership)
-- Calendar: Create events on user's designated calendar via `designated_calendar_id`
-- Gmail: Prefer `create_draft` for deliverable outputs
+**Default Landing Zones** (user owns the output):
+
+| Platform | Default Destination | Metadata Key | Backend |
+|----------|---------------------|--------------|---------|
+| Slack | User's DM to self | `authed_user_id` | MCP Gateway |
+| Notion | User's designated page | `designated_page_id` | MCP Gateway |
+| Gmail | Draft to user's email | `user_email` | Direct API |
+| Calendar | User's designated calendar | `designated_calendar_id` | Direct API |
 
 **Designated Settings UI**:
 - Notion: Users set output page at `/context/notion`

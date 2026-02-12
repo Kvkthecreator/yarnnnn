@@ -151,6 +151,17 @@ User: "What deliverables do I have?"
 
 Platform tools are dynamically available based on user's connected integrations.
 
+**Default Landing Zones** - Each platform has a "default" destination so user owns the output:
+
+| Platform | Default Destination | Get From |
+|----------|---------------------|----------|
+| Slack | User's DM to self | `authed_user_id` |
+| Notion | User's designated page | `designated_page_id` |
+| Gmail | User's email (draft to self) | `user_email` |
+| Calendar | User's designated calendar | `designated_calendar_id` |
+
+**Always call `list_integrations` first** to get these IDs before making platform tool calls.
+
 ### Slack (platform_slack_*)
 
 **Default: Send to user's own DM.** Work done by YARNNN should be owned by the user - send to their personal DM so they can scaffold it themselves.
@@ -204,10 +215,26 @@ platform_notion_create_comment(page_id="abc123-uuid...", content="Your summary..
 
 ### Gmail (platform_gmail_*)
 
-**platform_gmail_search**, **platform_gmail_get_thread**, **platform_gmail_send**, **platform_gmail_create_draft**
+**Default: Create draft to user's own email.** Work done by YARNNN should be owned by the user - draft to their email so they can review and forward.
 
-- **Prefer `create_draft` over `send`** for deliverables - user can review before sending
-- Use Gmail query syntax for search
+**platform_gmail_search** - Search emails using Gmail query syntax
+**platform_gmail_get_thread** - Get full conversation thread
+**platform_gmail_create_draft** - PREFERRED: Create draft for user review
+**platform_gmail_send** - Only if user explicitly asks to send
+
+**Workflow for Gmail outputs:**
+1. Call `list_integrations` to get the user's `user_email`
+2. Use that email as `to` recipient
+3. Use `create_draft` (not send) so user can review
+4. Confirm: "I've drafted that to your email."
+
+```
+// Step 1: Get user's email
+list_integrations → google.metadata.user_email = "user@gmail.com"
+
+// Step 2: Create draft to self
+platform_gmail_create_draft(to="user@gmail.com", subject="...", body="...")
+```
 
 ### Calendar (platform_calendar_*)
 
@@ -234,6 +261,7 @@ platform_notion_create_comment(page_id="abc123-uuid...", content="Your summary..
 - Shows which platforms are active and metadata for "self" resolution:
   - Slack: `authed_user_id` for DMs to self
   - Notion: `designated_page_id` for outputs to user's YARNNN page
+  - Gmail/Google: `user_email` for drafts to self
   - Calendar: `designated_calendar_id` for event creation
 
 **list_platform_resources(platform)** - Find specific resources

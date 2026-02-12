@@ -183,15 +183,19 @@ Use Gmail query syntax:
     },
     {
         "name": "platform_gmail_send",
-        "description": """Send an email. Use for deliverable outputs when user requests email delivery.
+        "description": """Send an email.
 
-IMPORTANT: Always confirm recipient before sending. Prefer creating drafts unless explicitly asked to send.""",
+PRIMARY USE: Send to user's own email so they own the output.
+1. Call list_integrations to get user_email
+2. Use that email as the recipient
+
+IMPORTANT: Prefer create_draft over send. Only send directly if user explicitly asks.""",
         "input_schema": {
             "type": "object",
             "properties": {
                 "to": {
                     "type": "string",
-                    "description": "Recipient email address"
+                    "description": "Recipient email. Get from list_integrations user_email for self"
                 },
                 "subject": {
                     "type": "string",
@@ -215,13 +219,19 @@ IMPORTANT: Always confirm recipient before sending. Prefer creating drafts unles
     },
     {
         "name": "platform_gmail_create_draft",
-        "description": "Create an email draft for user review. PREFERRED over direct send for deliverables.",
+        "description": """Create an email draft for user review. PREFERRED for deliverables.
+
+PRIMARY USE: Draft to user's own email so they own the output.
+1. Call list_integrations to get user_email
+2. Use that email as the recipient (default to self)
+
+User can then edit/forward the draft as needed.""",
         "input_schema": {
             "type": "object",
             "properties": {
                 "to": {
                     "type": "string",
-                    "description": "Recipient email address"
+                    "description": "Recipient email. Get from list_integrations user_email for self"
                 },
                 "subject": {
                     "type": "string",

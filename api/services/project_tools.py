@@ -2900,6 +2900,9 @@ async def handle_list_integrations(auth, input: dict) -> dict:
             item["designated_calendar_id"] = metadata["designated_calendar_id"]
             if metadata.get("designated_calendar_name"):
                 item["designated_calendar_name"] = metadata["designated_calendar_name"]
+        # ADR-050: Include user_email for Gmail default recipient (send to self)
+        if i["provider"] in ("google", "gmail") and metadata.get("email"):
+            item["user_email"] = metadata["email"]
         items.append(item)
 
     # Check what's available vs connected

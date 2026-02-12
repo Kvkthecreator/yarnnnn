@@ -120,20 +120,23 @@ Platform tools are dynamically added based on user's connected integrations:
 | **Gmail** | `platform_gmail_search`, `platform_gmail_get_thread`, `platform_gmail_send`, `platform_gmail_create_draft` | Direct API |
 | **Calendar** | `platform_calendar_list_events`, `platform_calendar_get_event`, `platform_calendar_create_event` | Direct API |
 
-**Streamlined Patterns:**
+**Default Landing Zones** (ADR-050):
 
-- **Slack**: Default to user's own DM via `authed_user_id` (user owns the output)
-- **Notion**: Default to user's designated page via `designated_page_id` (user owns the output)
-- **Gmail**: Prefer `create_draft` over `send` for deliverable outputs
-- **Calendar**: Default to user's designated calendar via `designated_calendar_id`
+Each platform has a "default landing zone" so user owns the output:
+
+| Platform | Default Destination | Metadata Key | User Action |
+|----------|---------------------|--------------|-------------|
+| **Slack** | User's DM to self | `authed_user_id` | User forwards from DM |
+| **Notion** | User's designated page | `designated_page_id` | User moves from YARNNN page |
+| **Gmail** | Draft to user's email | `user_email` | User reviews & sends draft |
+| **Calendar** | User's designated calendar | `designated_calendar_id` | Events on their calendar |
 
 **Workflow for platform actions:**
-1. Call `list_integrations` to get metadata:
-   - Slack: `authed_user_id` for DMs to self
-   - Notion: `designated_page_id` for outputs to user's YARNNN page
-   - Calendar: `designated_calendar_id` for event creation
-2. Use the returned IDs in tool calls
-3. Confirm: "I've sent that to your Slack DM." or "I've added that to your YARNNN page in Notion." or "I've created the event on your calendar."
+1. Call `list_integrations` to get metadata
+2. Use the returned IDs in tool calls (default to self)
+3. Confirm with clear destination: "I've drafted that to your email." or "I've sent that to your Slack DM."
+
+**Why "default to self"?** Work done by YARNNN should be owned by the user. Sending to self lets user review, edit, and scaffold before sharing with others.
 
 ### Good Response Examples
 
@@ -170,7 +173,7 @@ User: "What platforms are connected?"
 - Notion streamlined for designated page pattern (write to `designated_page_id`)
 - Notion fixed for official MCP server (`notion-search`, `notion-create-comment`)
 - Gmail/Calendar via Direct API (not MCP) per ADR-046
-- `list_integrations` now exposes `authed_user_id` for Slack, `designated_page_id` for Notion, `designated_calendar_id` for Calendar
+- `list_integrations` now exposes landing zone IDs: `authed_user_id` (Slack), `designated_page_id` (Notion), `user_email` (Gmail), `designated_calendar_id` (Calendar)
 
 **Rationale:** ADR-050 MCP Gateway enables direct platform access. ADR-046 adds Gmail/Calendar. Streamlined patterns ensure user owns their outputs (DM to self, designated page for Notion, drafts for review).
 
