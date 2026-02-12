@@ -274,7 +274,11 @@ export default function PlatformDetailPage() {
       // Load all data in parallel
       const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult, designatedPageResult, googleSettingsResult, calendarsResult] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
-        api.integrations.getLandscape(apiProvider).catch(() => ({ resources: [] })),
+        // ADR-046: Calendar uses listGoogleCalendars instead of getLandscape
+        // Gmail labels ≠ Calendar data, so we skip getLandscape for calendar platform
+        platform === 'calendar'
+          ? Promise.resolve({ resources: [] })
+          : api.integrations.getLandscape(apiProvider).catch(() => ({ resources: [] })),
         api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
         api.deliverables.list().catch(() => []),
@@ -288,7 +292,22 @@ export default function PlatformDetailPage() {
       ]);
 
       setIntegration(integrationResult);
-      setResources(landscapeResult.resources || []);
+
+      // ADR-046: For calendar, convert calendars list to resources format
+      if (platform === 'calendar' && calendarsResult?.calendars) {
+        const calendarResources = calendarsResult.calendars.map(cal => ({
+          id: cal.id,
+          name: cal.summary,
+          resource_type: 'calendar',
+          coverage_state: 'uncovered' as const,
+          last_extracted_at: null,
+          items_extracted: 0,
+          metadata: { primary: cal.primary },
+        }));
+        setResources(calendarResources);
+      } else {
+        setResources(landscapeResult.resources || []);
+      }
 
       // ADR-050: Set designated page state for Notion
       if (platform === 'notion' && designatedPageResult) {

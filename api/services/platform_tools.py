@@ -546,12 +546,17 @@ async def _handle_google_tool(auth: Any, provider: str, tool: str, tool_input: d
     # Get Google API client (NOT MCP)
     google_client = get_google_client()
 
+    # ADR-050: Get user_email from metadata for default landing zone
+    metadata = integration.get("metadata") or {}
+    user_email = metadata.get("email")
+
     try:
         # Route to appropriate handler
         if provider == "gmail":
             return await _execute_gmail_tool(
                 google_client, tool, tool_input,
-                client_id, client_secret, refresh_token
+                client_id, client_secret, refresh_token,
+                user_email=user_email  # Pass for default fallback
             )
         elif provider == "calendar":
             return await _execute_calendar_tool(
@@ -575,9 +580,18 @@ async def _execute_gmail_tool(
     args: dict,
     client_id: str,
     client_secret: str,
-    refresh_token: str
+    refresh_token: str,
+    user_email: str = None  # ADR-050: Default landing zone fallback
 ) -> dict:
     """Execute Gmail-specific tools via GoogleAPIClient (NOT MCP)."""
+
+    # ADR-050: Auto-default 'to' field to user's email if not provided or placeholder
+    if tool in ("send", "create_draft") and user_email:
+        to_value = args.get("to", "")
+        # Detect placeholder/missing values and fall back to user's email
+        if not to_value or to_value in ("test@example.com", "example@example.com", "recipient@example.com"):
+            args = {**args, "to": user_email}
+            logger.info(f"[PLATFORM-TOOLS] Auto-defaulting 'to' to user's email: {user_email}")
 
     if tool == "search":
         messages = await google_client.list_gmail_messages(
