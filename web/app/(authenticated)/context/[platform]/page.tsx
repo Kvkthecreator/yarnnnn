@@ -37,6 +37,8 @@ import {
   Clock,
   RefreshCw,
   Zap,
+  ChevronDown,
+  ChevronRight,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -381,6 +383,11 @@ export default function PlatformDetailPage() {
   // ADR-052: Platform context from ephemeral_context table (replaces legacy recentMemories)
   const [platformContext, setPlatformContext] = useState<PlatformContextItem[]>([]);
 
+  // ADR-055: Expanded resources (for showing context within rows)
+  const [expandedResourceIds, setExpandedResourceIds] = useState<Set<string>>(new Set());
+  const [resourceContextCache, setResourceContextCache] = useState<Record<string, PlatformContextItem[]>>({});
+  const [loadingResourceContext, setLoadingResourceContext] = useState<Record<string, boolean>>({});
+
   // ADR-050: Notion designated page state
   const [designatedPage, setDesignatedPage] = useState<{
     id: string | null;
@@ -600,10 +607,12 @@ export default function PlatformDetailPage() {
           total: newlySelectedIds.length,
         });
 
-        // Start import job (ADR-046: use API provider)
+        // Start import job (ADR-046: use API provider, ADR-055: label: prefix for Gmail)
         const apiProvider = getApiProvider(platform);
+        // ADR-055: For Gmail labels, prefix with 'label:' for backend processing
+        const resourceIdForImport = platform === 'gmail' ? `label:${sourceId}` : sourceId;
         const job = await api.integrations.startImport(apiProvider, {
-          resource_id: sourceId,
+          resource_id: resourceIdForImport,
           resource_name: resource?.name,
           scope: {
             recency_days: 7,
@@ -768,6 +777,47 @@ export default function PlatformDetailPage() {
   const handleCancelEditingEmail = () => {
     setEditingEmail(false);
     setEmailInput('');
+  };
+
+  // ADR-055: Toggle resource expansion and load context
+  const handleToggleResourceExpand = async (resourceId: string) => {
+    const isCurrentlyExpanded = expandedResourceIds.has(resourceId);
+
+    if (isCurrentlyExpanded) {
+      // Collapse
+      setExpandedResourceIds(prev => {
+        const next = new Set(prev);
+        next.delete(resourceId);
+        return next;
+      });
+    } else {
+      // Expand and load context if not cached
+      setExpandedResourceIds(prev => new Set(prev).add(resourceId));
+
+      if (!resourceContextCache[resourceId]) {
+        setLoadingResourceContext(prev => ({ ...prev, [resourceId]: true }));
+        try {
+          // ADR-055: For Gmail, use label: prefix for resource_id query
+          const queryResourceId = platform === 'gmail' ? `label:${resourceId}` : resourceId;
+          const result = await api.integrations.getPlatformContext(
+            platform as "slack" | "notion" | "gmail" | "calendar",
+            { limit: 5, resourceId: queryResourceId }
+          );
+          setResourceContextCache(prev => ({
+            ...prev,
+            [resourceId]: result.items || [],
+          }));
+        } catch (err) {
+          console.error('Failed to load resource context:', err);
+          setResourceContextCache(prev => ({
+            ...prev,
+            [resourceId]: [],
+          }));
+        } finally {
+          setLoadingResourceContext(prev => ({ ...prev, [resourceId]: false }));
+        }
+      }
+    }
   };
 
   // =============================================================================
@@ -1032,6 +1082,10 @@ export default function PlatformDetailPage() {
                   onToggle={() => handleToggleSource(resource.id)}
                   disabled={!selectedIds.has(resource.id) && atLimit}
                   platform={platform}
+                  isExpanded={expandedResourceIds.has(resource.id)}
+                  onToggleExpand={() => handleToggleResourceExpand(resource.id)}
+                  contextItems={resourceContextCache[resource.id] || []}
+                  loadingContext={loadingResourceContext[resource.id] || false}
                 />
               ))}
             </div>
@@ -1412,57 +1466,7 @@ export default function PlatformDetailPage() {
           )}
         </section>
 
-        {/* ADR-052: Synced Content Section - shows actual content from ephemeral_context */}
-        <section>
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold">Recent Context from {config.label}</h2>
-            {platformContext.length > 0 && (
-              <button
-                onClick={() => router.push(`/context`)}
-                className="text-sm text-muted-foreground hover:text-foreground"
-              >
-                View all
-              </button>
-            )}
-          </div>
-
-          {platformContext.length === 0 ? (
-            <div className="border border-dashed border-border rounded-lg p-8 text-center">
-              <p className="text-sm text-muted-foreground">
-                No synced content from {config.label} yet.
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Select {config.resourceLabel.toLowerCase()} above, then import to sync content.
-              </p>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {platformContext.map((item) => (
-                <div
-                  key={item.id}
-                  className="p-3 border border-border rounded-lg text-sm"
-                >
-                  <p className="text-foreground line-clamp-2">{item.content}</p>
-                  <div className="flex items-center gap-2 mt-2">
-                    {item.resource_name && (
-                      <span className="text-xs text-muted-foreground">
-                        {item.resource_name}
-                      </span>
-                    )}
-                    {item.content_type && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
-                        {item.content_type}
-                      </span>
-                    )}
-                    <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(item.source_timestamp || item.created_at), { addSuffix: true })}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </section>
+        {/* ADR-055: Recent Context section removed - context now shown inline within resource rows */}
       </div>
     </div>
   );
@@ -1479,6 +1483,10 @@ function ResourceRow({
   onToggle,
   disabled,
   platform,
+  isExpanded,
+  onToggleExpand,
+  contextItems,
+  loadingContext,
 }: {
   resource: LandscapeResource;
   config: typeof PLATFORM_CONFIG[PlatformProvider];
@@ -1486,6 +1494,10 @@ function ResourceRow({
   onToggle: () => void;
   disabled: boolean;
   platform: PlatformProvider;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  contextItems: PlatformContextItem[];
+  loadingContext: boolean;
 }) {
   const isPrivate = resource.metadata?.is_private as boolean | undefined;
   const memberCount = resource.metadata?.member_count as number | undefined;
@@ -1499,85 +1511,70 @@ function ResourceRow({
   const isCalendar = platform === 'calendar';
   const isNotion = platform === 'notion';
 
+  // ADR-055: Has synced content?
+  const hasSyncedContent = resource.coverage_state === 'covered' || resource.coverage_state === 'partial' || resource.items_extracted > 0;
+
   return (
-    <button
-      onClick={onToggle}
-      disabled={disabled}
-      className={cn(
-        'w-full px-4 py-3 flex items-center justify-between transition-colors text-left',
-        isSelected
-          ? 'bg-primary/5'
-          : disabled
-            ? 'opacity-50 cursor-not-allowed'
-            : 'hover:bg-muted/50'
-      )}
-    >
-      <div className="flex items-center gap-3">
-        {/* Checkbox */}
-        <div
-          className={cn(
-            'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0',
-            isSelected
-              ? 'bg-primary border-primary text-primary-foreground'
-              : 'border-muted-foreground/30'
-          )}
-        >
-          {isSelected && <Check className="w-3 h-3" />}
-        </div>
+    <div className={cn(isSelected ? 'bg-primary/5' : '')}>
+      {/* Main row */}
+      <div
+        className={cn(
+          'w-full px-4 py-3 flex items-center justify-between transition-colors',
+          disabled ? 'opacity-50' : ''
+        )}
+      >
+        <div className="flex items-center gap-3 flex-1 min-w-0">
+          {/* Checkbox */}
+          <button
+            onClick={onToggle}
+            disabled={disabled}
+            className={cn(
+              'w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0',
+              isSelected
+                ? 'bg-primary border-primary text-primary-foreground'
+                : 'border-muted-foreground/30',
+              disabled && !isSelected ? 'cursor-not-allowed' : 'cursor-pointer'
+            )}
+          >
+            {isSelected && <Check className="w-3 h-3" />}
+          </button>
 
-        {/* Icon */}
-        <span className="text-muted-foreground flex-shrink-0">{config.resourceIcon}</span>
+          {/* Icon */}
+          <span className="text-muted-foreground flex-shrink-0">{config.resourceIcon}</span>
 
-        {/* Name and metadata */}
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium truncate">{resource.name}</span>
-            {isPrimary && (
-              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-                Primary
-              </span>
-            )}
-            {isDatabase && (
-              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
-                Database
-              </span>
-            )}
-            {isPrivate && (
-              <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
-            )}
-          </div>
-          {/* ADR-051: Show different info based on platform */}
-          {isCalendar ? (
-            // Calendar: No sync info, events are queried on-demand
-            <div className="text-xs text-muted-foreground">
-              Events queried on-demand
-            </div>
-          ) : isNotion ? (
-            // Notion: Show parent type and sync status
-            <div className="text-xs text-muted-foreground">
-              {parentType && (
-                <span>
-                  {parentType === 'workspace' && 'Top-level page'}
-                  {parentType === 'page' && 'Nested page'}
-                  {parentType === 'database' && 'Database item'}
+          {/* Name and metadata */}
+          <div className="min-w-0 flex-1">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium truncate">{resource.name}</span>
+              {isPrimary && (
+                <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                  Primary
                 </span>
               )}
-              {parentType && resource.items_extracted > 0 && <span> • </span>}
-              {resource.items_extracted > 0 && (
-                <span>
-                  {resource.items_extracted} items
-                  {resource.last_extracted_at && (
-                    <> synced {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
-                  )}
+              {isDatabase && (
+                <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                  Database
                 </span>
               )}
+              {isPrivate && (
+                <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
+              )}
             </div>
-          ) : (
-            // Other platforms (Slack, Gmail): Show sync status
-            (memberCount !== undefined || resource.items_extracted > 0) && (
+            {/* ADR-051: Show different info based on platform */}
+            {isCalendar ? (
               <div className="text-xs text-muted-foreground">
-                {memberCount !== undefined && <span>{memberCount.toLocaleString()} members</span>}
-                {memberCount !== undefined && resource.items_extracted > 0 && <span> • </span>}
+                Events queried on-demand
+              </div>
+            ) : isNotion ? (
+              <div className="text-xs text-muted-foreground">
+                {parentType && (
+                  <span>
+                    {parentType === 'workspace' && 'Top-level page'}
+                    {parentType === 'page' && 'Nested page'}
+                    {parentType === 'database' && 'Database item'}
+                  </span>
+                )}
+                {parentType && resource.items_extracted > 0 && <span> • </span>}
                 {resource.items_extracted > 0 && (
                   <span>
                     {resource.items_extracted} items
@@ -1587,14 +1584,83 @@ function ResourceRow({
                   </span>
                 )}
               </div>
-            )
+            ) : (
+              (memberCount !== undefined || resource.items_extracted > 0) && (
+                <div className="text-xs text-muted-foreground">
+                  {memberCount !== undefined && <span>{memberCount.toLocaleString()} members</span>}
+                  {memberCount !== undefined && resource.items_extracted > 0 && <span> • </span>}
+                  {resource.items_extracted > 0 && (
+                    <span>
+                      {resource.items_extracted} items
+                      {resource.last_extracted_at && (
+                        <> synced {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
+                      )}
+                    </span>
+                  )}
+                </div>
+              )
+            )}
+          </div>
+        </div>
+
+        {/* Right side: Coverage badge + expand button */}
+        <div className="flex items-center gap-2 shrink-0">
+          {!isCalendar && <CoverageBadge state={resource.coverage_state} />}
+          {/* ADR-055: Expand button - only show if has synced content */}
+          {hasSyncedContent && !isCalendar && (
+            <button
+              onClick={onToggleExpand}
+              className="p-1 hover:bg-muted rounded transition-colors"
+              title={isExpanded ? 'Hide context' : 'Show context'}
+            >
+              {isExpanded ? (
+                <ChevronDown className="w-4 h-4 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
+              )}
+            </button>
           )}
         </div>
       </div>
 
-      {/* Coverage badge - hidden for Calendar since it uses on-demand queries */}
-      {!isCalendar && <CoverageBadge state={resource.coverage_state} />}
-    </button>
+      {/* ADR-055: Expanded context section */}
+      {isExpanded && hasSyncedContent && !isCalendar && (
+        <div className="px-4 pb-3 pl-12">
+          {loadingContext ? (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+              <Loader2 className="w-3 h-3 animate-spin" />
+              <span>Loading context...</span>
+            </div>
+          ) : contextItems.length === 0 ? (
+            <div className="text-xs text-muted-foreground py-2">
+              No synced content found for this resource.
+            </div>
+          ) : (
+            <div className="space-y-1.5">
+              {contextItems.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-start gap-2 text-xs py-1.5 px-2 rounded bg-muted/50"
+                >
+                  <span className="text-muted-foreground shrink-0">└─</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-foreground/80 line-clamp-1">{item.content}</p>
+                    <p className="text-muted-foreground mt-0.5">
+                      {item.source_timestamp && formatDistanceToNow(new Date(item.source_timestamp), { addSuffix: true })}
+                    </p>
+                  </div>
+                </div>
+              ))}
+              {contextItems.length >= 5 && (
+                <button className="text-xs text-muted-foreground hover:text-foreground ml-6 py-1">
+                  Show more...
+                </button>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 }
 

@@ -114,7 +114,8 @@ class GoogleAPIClient:
         client_secret: str,
         refresh_token: str,
         query: Optional[str] = None,
-        max_results: int = 20
+        max_results: int = 20,
+        label_ids: Optional[list[str]] = None
     ) -> list[dict[str, Any]]:
         """
         Search/list Gmail messages.
@@ -122,6 +123,7 @@ class GoogleAPIClient:
         Args:
             query: Gmail search query (e.g., "is:unread", "from:sarah@company.com")
             max_results: Maximum messages to return
+            label_ids: Optional list of label IDs to filter by (ADR-055)
 
         Returns list of message objects with id, threadId, snippet, etc.
         """
@@ -129,9 +131,12 @@ class GoogleAPIClient:
             client_id, client_secret, refresh_token
         )
 
-        params = {"maxResults": max_results}
+        params: dict[str, Any] = {"maxResults": max_results}
         if query:
             params["q"] = query
+        if label_ids:
+            # Gmail API accepts multiple labelIds parameters
+            params["labelIds"] = label_ids
 
         async with httpx.AsyncClient() as client:
             response = await client.get(

@@ -703,6 +703,25 @@ async def process_gmail_import(
         )
         messages = thread_data.get("messages", [])
 
+    elif resource_id.startswith("label:"):
+        # ADR-055: Label-based import - sync emails from a specific label
+        label_id = resource_id.split(":", 1)[1]
+        logger.info(f"[IMPORT] Fetching Gmail messages for label: {label_id} ({resource_name})")
+
+        # Add recency filter
+        from datetime import timedelta
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=recency_days)
+        date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
+
+        messages = await google_client.list_gmail_messages(
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token,
+            query=date_filter,
+            max_results=max_items,
+            label_ids=[label_id],  # ADR-055: Filter by label
+        )
+
     else:
         # Default: list messages (inbox or query)
         # ADR-030: Build query with recency filter
@@ -817,11 +836,12 @@ async def process_gmail_import(
         current_resource=resource_name,
     )
 
-    # ADR-031: Store raw messages to ephemeral_context
+    # ADR-031/055: Store raw messages to ephemeral_context
+    # Use resource_id for proper association (especially for label: imports)
     ephemeral_stored = await store_gmail_context_batch(
         db_client=supabase_client,
         user_id=user_id,
-        label=resource_name,
+        label=resource_id,  # ADR-055: Use resource_id for proper filtering
         messages=full_messages,
     )
     logger.info(f"[IMPORT] Stored {ephemeral_stored} emails to ephemeral_context")
