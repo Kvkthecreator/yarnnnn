@@ -16,13 +16,13 @@ export default function LandingPage() {
         <LandingHeader />
 
         {/* Hero Section */}
-        <section className="flex flex-col items-center justify-center px-6 py-24 md:py-32 min-h-[90vh]">
-          <div className="max-w-6xl mx-auto">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+        <section className="flex flex-col items-center justify-center px-6 py-32 md:py-40 min-h-[80vh]">
+          <div className="max-w-6xl mx-auto w-full">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-12 lg:gap-20">
               {/* Left side - Text content */}
-              <div className="text-center lg:text-left order-2 lg:order-1">
+              <div className="text-center lg:text-left flex-1 max-w-2xl mx-auto lg:mx-0">
                 {/* Brand name */}
-                <div className="font-brand text-4xl md:text-5xl mb-6 text-[#1a1a1a]">
+                <div className="font-brand text-4xl md:text-5xl mb-8 text-[#1a1a1a]">
                   yarnnn
                 </div>
 
@@ -34,7 +34,7 @@ export default function LandingPage() {
                 </h1>
 
                 {/* Supporting headline */}
-                <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-10 max-w-xl mx-auto lg:mx-0 font-light">
+                <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
                   Connect your Slack, Gmail, Notion, and Calendar. yarnnn turns what&apos;s happening
                   into the updates you owe people. You just review and hit send.
                 </p>
@@ -47,8 +47,8 @@ export default function LandingPage() {
                 </Link>
               </div>
 
-              {/* Right side - Animated Integration Hub */}
-              <div className="flex justify-center lg:justify-end order-1 lg:order-2">
+              {/* Right side - Animated Integration Hub (hidden on mobile/tablet) */}
+              <div className="flex-shrink-0">
                 <IntegrationHub />
               </div>
             </div>
