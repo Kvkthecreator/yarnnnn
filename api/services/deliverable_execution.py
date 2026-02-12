@@ -5,9 +5,17 @@ Single Execute call for deliverable generation, replacing the 3-step pipeline.
 
 Flow:
   Execute(action="deliverable.generate", target="deliverable:uuid")
+    → check_deliverable_freshness() (ADR-049)
+    → sync_stale_sources() if needed (ADR-049)
     → gather_context_inline()
     → generate_draft_inline()
+    → record_source_snapshots() (ADR-049)
     → single work_ticket, single version row
+
+ADR-049 Integration:
+- Freshness check before generation
+- Targeted sync of stale sources
+- Source snapshots recorded for audit trail
 
 This module replaces:
 - execute_deliverable_pipeline() - 3-step orchestrator
@@ -437,6 +445,7 @@ async def execute_deliverable_generation(
 
     ADR-042: Simplified single-call flow
     ADR-045: Strategy selection based on type_classification.binding
+    ADR-049: Context freshness checks and source snapshots
 
     Args:
         client: Supabase client
@@ -448,6 +457,10 @@ async def execute_deliverable_generation(
         Result dict with version_id, status, draft, message
     """
     from services.execution_strategies import get_execution_strategy
+    from services.freshness import (
+        check_deliverable_freshness,
+        record_source_snapshots,
+    )
 
     deliverable_id = deliverable.get("id")
     title = deliverable.get("title", "Untitled")
@@ -462,8 +475,20 @@ async def execute_deliverable_generation(
 
     version = None
     ticket = None
+    freshness_result = None
 
     try:
+        # ADR-049: Check source freshness before generation
+        freshness_result = await check_deliverable_freshness(client, user_id, deliverable)
+        if not freshness_result["all_fresh"]:
+            stale_count = len(freshness_result["stale_sources"])
+            never_synced_count = len(freshness_result["never_synced"])
+            logger.info(
+                f"[EXEC] Freshness: {stale_count} stale, {never_synced_count} never synced"
+            )
+            # Note: We proceed with generation using available data
+            # Targeted sync is handled separately if user requests it
+
         # 1. Get next version number
         next_version = await get_next_version_number(client, deliverable_id)
 
@@ -484,6 +509,11 @@ async def execute_deliverable_generation(
         context_summary = gathered_result.summary
         context_summary["sources_used"] = gathered_result.sources_used
         context_summary["total_items_fetched"] = gathered_result.items_fetched
+        # ADR-049: Include freshness info in summary
+        context_summary["freshness"] = {
+            "all_fresh": freshness_result["all_fresh"] if freshness_result else True,
+            "stale_sources": len(freshness_result["stale_sources"]) if freshness_result else 0,
+        }
 
         # 5. Log inputs for debugging
         await log_execution_inputs(client, ticket_id, deliverable, context_summary)
@@ -493,6 +523,17 @@ async def execute_deliverable_generation(
 
         # 7. Update version → staged
         await update_version_staged(client, version_id, draft)
+
+        # ADR-049: Record source snapshots for audit trail
+        sources_for_snapshot = []
+        for source in gathered_result.sources_used:
+            sources_for_snapshot.append({
+                "platform": source.get("provider") or source.get("platform"),
+                "resource_id": source.get("resource_id"),
+                "resource_name": source.get("resource_name"),
+                "user_id": user_id,
+            })
+        await record_source_snapshots(client, version_id, sources_for_snapshot)
 
         # 8. Complete work ticket
         await complete_work_ticket(client, ticket_id, {

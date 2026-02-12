@@ -178,24 +178,115 @@ async def get_session_messages(
 # =============================================================================
 
 # =============================================================================
-# History Management (ADR-049: API Coherence Only)
+# History Management (ADR-049: Token-Based Budgeting)
 # =============================================================================
 # Sessions are for API coherence (tool_use blocks), not context memory.
 # Context continuity comes from deliverable state, not accumulated history.
 # Simple truncation is sufficient - no compression or summarization needed.
 
-# Token budget for history (~50k tokens, roughly 40 messages with tool calls)
-# This is conservative to leave room for system prompt + context injection
-MAX_HISTORY_MESSAGES = 40
+# Token budget for history
+# Conservative to leave room for system prompt (~8k) + context injection (~10k)
+# Opus-4.5 has 200k context, we target ~50k for history
+MAX_HISTORY_TOKENS = 50000
 
-# Approximate tokens per message (for future token-based budgeting)
-# Average message with tool calls is ~1000-1500 tokens
-# MAX_HISTORY_TOKENS = 50000  # Future: replace message count with token budget
+# Character-to-token ratio (conservative estimate)
+# Claude tokenizes ~4 chars per token on average for English text
+# Tool calls often have JSON which tokenizes more efficiently
+CHARS_PER_TOKEN = 3.5
+
+
+def estimate_message_tokens(message: dict) -> int:
+    """
+    Estimate token count for a message.
+
+    Uses conservative character-based estimation.
+    Structured content (tool_use blocks) gets additional overhead.
+    """
+    content = message.get("content", "")
+
+    if isinstance(content, str):
+        # Simple text message
+        return int(len(content) / CHARS_PER_TOKEN) + 10  # +10 for message overhead
+
+    if isinstance(content, list):
+        # Structured content (tool_use, tool_result blocks)
+        total = 20  # Base overhead for structured message
+
+        for block in content:
+            if isinstance(block, dict):
+                block_type = block.get("type", "")
+
+                if block_type == "text":
+                    total += int(len(block.get("text", "")) / CHARS_PER_TOKEN)
+                elif block_type == "tool_use":
+                    # Tool name + input JSON
+                    total += 50  # Overhead for tool_use structure
+                    input_str = str(block.get("input", {}))
+                    total += int(len(input_str) / CHARS_PER_TOKEN)
+                elif block_type == "tool_result":
+                    total += 30  # Overhead for tool_result structure
+                    result_str = str(block.get("content", ""))
+                    total += int(len(result_str) / CHARS_PER_TOKEN)
+                else:
+                    # Unknown block type
+                    total += int(len(str(block)) / CHARS_PER_TOKEN)
+
+        return total
+
+    return 50  # Fallback for unknown formats
+
+
+def truncate_history_by_tokens(
+    messages: list[dict],
+    max_tokens: int = MAX_HISTORY_TOKENS
+) -> list[dict]:
+    """
+    Truncate message history to fit within token budget.
+
+    Takes most recent messages that fit within budget.
+    Ensures history starts with a user message (Anthropic requirement).
+
+    Args:
+        messages: Full message history (oldest first)
+        max_tokens: Token budget for history
+
+    Returns:
+        Truncated list of messages (oldest first)
+    """
+    if not messages:
+        return []
+
+    # Calculate tokens for each message (in reverse order for recency priority)
+    message_tokens = []
+    for msg in reversed(messages):
+        tokens = estimate_message_tokens(msg)
+        message_tokens.append((msg, tokens))
+
+    # Select messages that fit within budget (most recent first)
+    selected = []
+    total_tokens = 0
+
+    for msg, tokens in message_tokens:
+        if total_tokens + tokens <= max_tokens:
+            selected.append(msg)
+            total_tokens += tokens
+        else:
+            break
+
+    # Reverse to restore chronological order
+    selected.reverse()
+
+    # Ensure history starts with user message (Anthropic requirement)
+    while selected and selected[0].get("role") == "assistant":
+        selected = selected[1:]
+
+    return selected
 
 
 def build_history_for_claude(
     messages: list[dict],
-    use_structured_format: bool = True
+    use_structured_format: bool = True,
+    max_tokens: int = MAX_HISTORY_TOKENS
 ) -> list[dict]:
     """
     Build conversation history in Anthropic message format.
@@ -203,21 +294,21 @@ def build_history_for_claude(
     Claude Code uses structured tool_use/tool_result blocks for better coherence.
     This function reconstructs that format from our stored tool_history metadata.
 
+    ADR-049: Uses token-based budgeting instead of message count.
+    Sessions are for API coherence only - simple truncation is sufficient.
+
     Args:
         messages: Raw session messages from database
         use_structured_format: If True, use tool_use/tool_result blocks.
                               If False, use simplified text-based format.
+        max_tokens: Token budget for history (default: MAX_HISTORY_TOKENS)
 
     Returns:
         List of messages in Anthropic API format
     """
-    # Limit history to prevent context overflow
-    # Take the most recent messages, but ensure we start with a user message
-    if len(messages) > MAX_HISTORY_MESSAGES:
-        messages = messages[-MAX_HISTORY_MESSAGES:]
-        # Ensure history starts with user message (Anthropic requirement)
-        while messages and messages[0].get("role") == "assistant":
-            messages = messages[1:]
+    # ADR-049: Token-based truncation instead of message count
+    # This handles the common case before we build the structured format
+    messages = truncate_history_by_tokens(messages, max_tokens)
 
     history = []
 

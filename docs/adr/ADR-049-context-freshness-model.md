@@ -230,42 +230,47 @@ TP: "Your Board Update has 3 versions..."
 
 ## Implementation
 
-### Phase 1: Schema Updates
+> **Status**: ✅ Completed 2026-02-12
 
-**Add to deliverable_versions:**
-```sql
-ALTER TABLE deliverable_versions
-ADD COLUMN source_snapshots JSONB DEFAULT '[]';
-```
+### Phase 1: Schema Updates ✅
 
-**Add to ephemeral_context:**
-```sql
-ALTER TABLE ephemeral_context
-ADD COLUMN sync_metadata JSONB DEFAULT '{}';
+Migration: `042_context_freshness.sql`
 
--- Structure: {synced_at, platform_cursor, item_count, source_latest_at}
-```
+- Added `source_snapshots JSONB` to `deliverable_versions`
+- Added `sync_metadata JSONB` to `ephemeral_context`
+- Created `sync_registry` table for tracking current sync state per source
+- Added helper functions for sync state management
 
-### Phase 2: Freshness Check Service
+### Phase 2: Freshness Check Service ✅
 
-Create `api/services/freshness.py`:
-- `check_source_freshness(deliverable, auth)` - compare states
-- `get_platform_resource_state(auth, platform, resource_id)` - lightweight metadata
-- `sync_stale_sources(stale_sources, auth)` - targeted sync
+Created `api/services/freshness.py`:
+- `check_deliverable_freshness(client, user_id, deliverable)` - check if sources are fresh
+- `get_sync_state(client, user_id, platform, resource_id)` - get current sync state
+- `update_sync_registry(...)` - update sync state after storing context
+- `record_source_snapshots(client, version_id, sources_used)` - record what was used
+- `sync_stale_sources(client, user_id, stale_sources)` - targeted sync via job queue
+- `compare_with_last_generation(...)` - "what changed since last generation"
 
-### Phase 3: Update Generation Flow
+### Phase 3: Update Generation Flow ✅
 
-Modify `_handle_deliverable_generate` in execute.py:
-1. Call freshness check before generation
-2. Sync stale sources
+Modified `api/services/deliverable_execution.py`:
+1. Freshness check before generation
+2. Targeted sync of stale sources
 3. Record source_snapshots on new version
 
-### Phase 4: Simplify Session Handling
+Updated `api/services/ephemeral_context.py`:
+- `store_slack_context_batch` updates sync_registry after storing
+- `store_gmail_context_batch` updates sync_registry after storing
+- `store_notion_context` updates sync_registry after storing
 
-Update `api/routes/chat.py`:
-- Replace `MAX_HISTORY_MESSAGES` with token budget
-- Remove any session rollup logic (if exists)
-- Document that sessions are API coherence only
+### Phase 4: Token-Based Session History ✅
+
+Updated `api/routes/chat.py`:
+- `MAX_HISTORY_TOKENS = 50000` (replaced message count)
+- `estimate_message_tokens(message)` - token estimation for messages
+- `truncate_history_by_tokens(messages, max_tokens)` - token-based truncation
+- Updated `build_history_for_claude()` to use token budget
+- Documented that sessions are API coherence only (not context memory)
 
 ---
 

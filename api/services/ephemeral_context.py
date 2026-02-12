@@ -1,5 +1,5 @@
 """
-Ephemeral Context Service - ADR-031 Phase 1
+Ephemeral Context Service - ADR-031 Phase 1, ADR-049 Freshness
 
 Manages time-bounded context that expires after TTL.
 This is distinct from long-term memories (user_memories table).
@@ -10,6 +10,8 @@ Ephemeral context is defined by LIFESPAN, not source:
 - Session context
 - Time-bounded user notes
 - Recent deliverable outputs
+
+ADR-049: After storing context, updates sync_registry for freshness tracking.
 
 Usage:
 - Writer: Store extracted platform data with TTL
@@ -241,6 +243,18 @@ async def store_slack_context_batch(
     result = db_client.table("ephemeral_context").insert(records).execute()
     count = len(result.data) if result.data else 0
 
+    # ADR-049: Update sync_registry after storing
+    if count > 0:
+        await _update_sync_registry_after_store(
+            db_client,
+            user_id,
+            platform="slack",
+            resource_id=channel_id,
+            resource_name=channel_name,
+            item_count=count,
+            source_latest_at=_get_latest_source_timestamp(messages),
+        )
+
     logger.info(f"[EPHEMERAL] Stored {count} Slack messages from #{channel_name}")
     return count
 
@@ -306,6 +320,18 @@ async def store_gmail_context_batch(
     result = db_client.table("ephemeral_context").insert(records).execute()
     count = len(result.data) if result.data else 0
 
+    # ADR-049: Update sync_registry after storing
+    if count > 0:
+        await _update_sync_registry_after_store(
+            db_client,
+            user_id,
+            platform="gmail",
+            resource_id=label,
+            resource_name=label,
+            item_count=count,
+            source_latest_at=_get_latest_source_timestamp(messages, platform="gmail"),
+        )
+
     logger.info(f"[EPHEMERAL] Stored {count} Gmail messages from {label}")
     return count
 
@@ -322,7 +348,7 @@ async def store_notion_context(
     Store Notion page content as ephemeral context.
     Returns ID of created entry.
     """
-    return await store_ephemeral_context(
+    entry_id = await store_ephemeral_context(
         db_client=db_client,
         user_id=user_id,
         source_type="notion",
@@ -332,6 +358,27 @@ async def store_notion_context(
         content_type="page",
         metadata=metadata,
     )
+
+    # ADR-049: Update sync_registry after storing
+    if entry_id:
+        # Extract last_edited_time from metadata if available
+        source_latest_at = None
+        if metadata:
+            edited = metadata.get("last_edited_time") or metadata.get("lastEditedTime")
+            if edited:
+                source_latest_at = _parse_datetime(edited)
+
+        await _update_sync_registry_after_store(
+            db_client,
+            user_id,
+            platform="notion",
+            resource_id=page_id,
+            resource_name=page_title,
+            item_count=1,
+            source_latest_at=source_latest_at,
+        )
+
+    return entry_id
 
 
 # =============================================================================
@@ -722,3 +769,80 @@ def _parse_datetime(value) -> Optional[datetime]:
         return datetime.fromisoformat(value)
     except (ValueError, TypeError):
         return None
+
+
+# =============================================================================
+# Sync Registry Helpers (ADR-049)
+# =============================================================================
+
+async def _update_sync_registry_after_store(
+    db_client,
+    user_id: str,
+    platform: str,
+    resource_id: str,
+    resource_name: Optional[str],
+    item_count: int,
+    source_latest_at: Optional[datetime],
+) -> None:
+    """
+    Update sync_registry after storing ephemeral context.
+
+    Called by store_*_context_batch functions to track sync state.
+    """
+    from services.freshness import update_sync_registry
+
+    await update_sync_registry(
+        client=db_client,
+        user_id=user_id,
+        platform=platform,
+        resource_id=resource_id,
+        resource_name=resource_name,
+        item_count=item_count,
+        source_latest_at=source_latest_at,
+    )
+
+
+def _get_latest_source_timestamp(messages: list[dict], platform: str = "slack") -> Optional[datetime]:
+    """
+    Extract the latest source timestamp from a batch of messages.
+
+    Args:
+        messages: List of message dicts
+        platform: Platform type to determine timestamp field
+
+    Returns:
+        Most recent timestamp, or None if no valid timestamps
+    """
+    latest = None
+
+    for msg in messages:
+        ts = None
+
+        if platform == "slack":
+            # Slack uses Unix timestamp in "ts" field
+            try:
+                ts_str = msg.get("ts", "")
+                ts = datetime.fromtimestamp(float(ts_str), tz=timezone.utc)
+            except (ValueError, TypeError):
+                pass
+
+        elif platform == "gmail":
+            # Gmail uses Date header
+            date_str = msg.get("headers", {}).get("Date") or msg.get("headers", {}).get("date", "")
+            if date_str:
+                try:
+                    from email.utils import parsedate_to_datetime
+                    ts = parsedate_to_datetime(date_str)
+                except (ValueError, TypeError):
+                    pass
+
+        elif platform == "notion":
+            # Notion uses last_edited_time
+            edited = msg.get("last_edited_time") or msg.get("lastEditedTime")
+            if edited:
+                ts = _parse_datetime(edited)
+
+        if ts and (latest is None or ts > latest):
+            latest = ts
+
+    return latest
