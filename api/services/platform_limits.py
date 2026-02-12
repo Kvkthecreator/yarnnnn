@@ -86,18 +86,29 @@ SYNC_SCHEDULES = {
 
 def get_user_tier(client, user_id: str) -> str:
     """
-    Get user's subscription tier.
+    Get user's subscription tier from workspace.
 
-    For now, returns 'free' for all users.
-    Future: Look up from user_settings or subscription table.
+    ADR-053: Looks up subscription_status from workspaces table.
+    Returns 'free', 'starter', or 'pro'.
     """
-    # TODO: Implement tier lookup when subscription system exists
-    # try:
-    #     result = client.table("user_settings").select("tier").eq("user_id", user_id).single().execute()
-    #     return result.data.get("tier", "free") if result.data else "free"
-    # except:
-    #     return "free"
-    return "free"
+    try:
+        result = client.table("workspaces")\
+            .select("subscription_status")\
+            .eq("owner_id", user_id)\
+            .single()\
+            .execute()
+
+        if result.data:
+            status = result.data.get("subscription_status", "free")
+            # Normalize status to valid tier
+            if status in ("free", "starter", "pro"):
+                return status
+            return "free"
+
+        return "free"
+
+    except Exception:
+        return "free"
 
 
 def get_limits_for_user(client, user_id: str) -> PlatformLimits:

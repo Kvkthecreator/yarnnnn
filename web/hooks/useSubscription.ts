@@ -1,8 +1,14 @@
 "use client";
 
+/**
+ * ADR-053: Subscription hook with 3-tier support (Free/Starter/Pro)
+ */
+
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api/client";
 import type { SubscriptionStatus } from "@/types";
+
+export type SubscriptionTier = "free" | "starter" | "pro";
 
 export function useSubscription() {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
@@ -26,13 +32,24 @@ export function useSubscription() {
     fetchStatus();
   }, [fetchStatus]);
 
-  const isPro = status?.status === "pro";
+  // ADR-053: Tier detection
+  const tier: SubscriptionTier = (status?.status as SubscriptionTier) || "free";
+  const isPro = tier === "pro";
+  const isStarter = tier === "starter";
+  const isPaid = tier === "pro" || tier === "starter";
 
-  const upgrade = async (billingPeriod: "monthly" | "yearly" = "monthly") => {
+  /**
+   * Upgrade to a specific tier and billing period.
+   * ADR-053: Supports both Starter ($9/mo) and Pro ($19/mo) tiers.
+   */
+  const upgrade = async (
+    tier: "starter" | "pro" = "starter",
+    billingPeriod: "monthly" | "yearly" = "monthly"
+  ) => {
     try {
       setIsLoading(true);
       setError(null);
-      const { checkout_url } = await api.subscription.createCheckout(billingPeriod);
+      const { checkout_url } = await api.subscription.createCheckout(tier, billingPeriod);
       // Redirect to Lemon Squeezy checkout
       window.location.href = checkout_url;
     } catch (err) {
@@ -57,7 +74,10 @@ export function useSubscription() {
 
   return {
     status,
+    tier,
     isPro,
+    isStarter,
+    isPaid,
     isLoading,
     error,
     upgrade,

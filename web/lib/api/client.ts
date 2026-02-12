@@ -277,13 +277,17 @@ export const api = {
   },
 
   // Subscription endpoints (Lemon Squeezy)
+  // ADR-053: Updated for 3-tier pricing (Free/Starter/Pro)
   subscription: {
     getStatus: () => request<SubscriptionStatus>("/api/subscription/status"),
 
-    createCheckout: (billingPeriod: "monthly" | "yearly" = "monthly") =>
+    createCheckout: (
+      tier: "starter" | "pro" = "starter",
+      billingPeriod: "monthly" | "yearly" = "monthly"
+    ) =>
       request<CheckoutResponse>("/api/subscription/checkout", {
         method: "POST",
-        body: JSON.stringify({ billing_period: billingPeriod }),
+        body: JSON.stringify({ tier, billing_period: billingPeriod }),
       }),
 
     getPortal: () => request<PortalResponse>("/api/subscription/portal"),

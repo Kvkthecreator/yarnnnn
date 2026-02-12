@@ -33,15 +33,46 @@ webhook_router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
 LEMONSQUEEZY_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY")
 LEMONSQUEEZY_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID")
 LEMONSQUEEZY_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET")
+
+# ADR-053: Product variant IDs for 3-tier pricing
+LEMONSQUEEZY_STARTER_MONTHLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_STARTER_MONTHLY_VARIANT_ID")
+LEMONSQUEEZY_STARTER_YEARLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_STARTER_YEARLY_VARIANT_ID")
 LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID")
 LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID")
-CHECKOUT_SUCCESS_URL = os.getenv("CHECKOUT_SUCCESS_URL", "https://yarnnn.com/dashboard?subscription=success")
+
+CHECKOUT_SUCCESS_URL = os.getenv("CHECKOUT_SUCCESS_URL", "https://yarnnn.com/settings?subscription=success")
+
+
+def get_tier_from_variant_id(variant_id: str) -> str:
+    """
+    ADR-053: Determine subscription tier from Lemon Squeezy variant ID.
+
+    Returns 'pro', 'starter', or 'free'.
+    """
+    pro_variants = {
+        LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID,
+        LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID,
+    }
+    starter_variants = {
+        LEMONSQUEEZY_STARTER_MONTHLY_VARIANT_ID,
+        LEMONSQUEEZY_STARTER_YEARLY_VARIANT_ID,
+    }
+
+    if variant_id in pro_variants:
+        return "pro"
+    elif variant_id in starter_variants:
+        return "starter"
+    else:
+        # Unknown variant - log and default to starter for safety
+        log.warning(f"Unknown variant_id: {variant_id}, defaulting to starter")
+        return "starter"
 
 
 # ============== Pydantic Models ==============
 
 class CheckoutRequest(BaseModel):
     """Request to create a checkout session."""
+    tier: Optional[str] = "starter"  # ADR-053: 'starter' or 'pro'
     billing_period: Optional[str] = "monthly"  # 'monthly' or 'yearly'
 
 
@@ -52,7 +83,7 @@ class CheckoutResponse(BaseModel):
 
 class SubscriptionStatus(BaseModel):
     """Current subscription status."""
-    status: str  # 'free', 'pro'
+    status: str  # ADR-053: 'free', 'starter', 'pro'
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
@@ -91,23 +122,34 @@ async def get_subscription_status(auth: UserClient):
 
 @router.post("/checkout", response_model=CheckoutResponse)
 async def create_checkout(request: CheckoutRequest, auth: UserClient):
-    """Create a Lemon Squeezy checkout session for the current user."""
+    """
+    Create a Lemon Squeezy checkout session for the current user.
+
+    ADR-053: Supports both Starter and Pro tiers.
+    """
     if not LEMONSQUEEZY_API_KEY:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Payment service not configured",
         )
 
-    # Select variant based on billing period
-    if request.billing_period == "yearly":
-        variant_id = LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID
-    else:
-        variant_id = LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID
+    # ADR-053: Select variant based on tier + billing period
+    tier = request.tier or "starter"
+    billing = request.billing_period or "monthly"
+
+    variant_map = {
+        ("starter", "monthly"): LEMONSQUEEZY_STARTER_MONTHLY_VARIANT_ID,
+        ("starter", "yearly"): LEMONSQUEEZY_STARTER_YEARLY_VARIANT_ID,
+        ("pro", "monthly"): LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID,
+        ("pro", "yearly"): LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID,
+    }
+
+    variant_id = variant_map.get((tier, billing))
 
     if not variant_id:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Product variant not configured",
+            detail=f"Product variant not configured for {tier}/{billing}",
         )
 
     # Get workspace ID for this user
@@ -321,7 +363,13 @@ async def handle_lemonsqueezy_webhook(request: Request):
     if event_name == "subscription_created":
         renews_at = parse_iso_date(attrs.get("renews_at"))
         status_value = attrs.get("status", "active")
-        sub_status = "pro" if status_value in ("active", "on_trial") else "free"
+        variant_id = str(attrs.get("variant_id", ""))
+
+        # ADR-053: Determine tier from variant ID
+        if status_value in ("active", "on_trial"):
+            sub_status = get_tier_from_variant_id(variant_id)
+        else:
+            sub_status = "free"
 
         client.table("workspaces").update({
             "subscription_status": sub_status,
@@ -330,12 +378,18 @@ async def handle_lemonsqueezy_webhook(request: Request):
             "lemonsqueezy_subscription_id": subscription_id,
         }).eq("id", workspace_id).execute()
 
-        log.info(f"Activated pro subscription for workspace {workspace_id}")
+        log.info(f"Activated {sub_status} subscription for workspace {workspace_id}")
 
     elif event_name == "subscription_updated":
         renews_at = parse_iso_date(attrs.get("renews_at"))
         status_value = attrs.get("status", "active")
-        sub_status = "pro" if status_value in ("active", "on_trial", "past_due") else "free"
+        variant_id = str(attrs.get("variant_id", ""))
+
+        # ADR-053: Determine tier from variant ID
+        if status_value in ("active", "on_trial", "past_due"):
+            sub_status = get_tier_from_variant_id(variant_id)
+        else:
+            sub_status = "free"
 
         client.table("workspaces").update({
             "subscription_status": sub_status,
@@ -355,14 +409,18 @@ async def handle_lemonsqueezy_webhook(request: Request):
 
     elif event_name == "subscription_resumed":
         renews_at = parse_iso_date(attrs.get("renews_at"))
+        variant_id = str(attrs.get("variant_id", ""))
+
+        # ADR-053: Determine tier from variant ID
+        sub_status = get_tier_from_variant_id(variant_id)
 
         client.table("workspaces").update({
-            "subscription_status": "pro",
+            "subscription_status": sub_status,
             "subscription_expires_at": renews_at,
             "lemonsqueezy_subscription_id": subscription_id,
         }).eq("id", workspace_id).execute()
 
-        log.info(f"Resumed subscription for workspace {workspace_id}")
+        log.info(f"Resumed {sub_status} subscription for workspace {workspace_id}")
 
     elif event_name == "subscription_payment_failed":
         log.warning(f"Payment failed for workspace {workspace_id}")
