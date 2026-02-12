@@ -1,14 +1,16 @@
 # Platform Integration Quirks
 
 > **Purpose**: Document platform-specific behaviors, gotchas, and workarounds
-> **Updated**: 2026-02-11
-> **Related**: [ADR-047: Platform Integration Validation](../adr/ADR-047-platform-integration-validation.md)
+> **Updated**: 2026-02-12
+> **Related**: [ADR-047: Platform Integration Validation](../adr/ADR-047-platform-integration-validation.md), [ADR-048: Direct MCP Access](../adr/ADR-048-direct-mcp-access.md)
 
 ---
 
 ## Overview
 
 Each platform (Slack, Gmail, Notion) has unique requirements that differ from what might seem intuitive. This guide documents known quirks to prevent debugging in production.
+
+**ADR-048**: TP now has direct access to MCP tools (`mcp__claude_ai_Slack__*`, `mcp__claude_ai_Notion__*`). The wrapper actions (`platform.send`, `platform.search`) have been removed from the Execute primitive.
 
 ---
 
@@ -40,29 +42,28 @@ Each platform (Slack, Gmail, Notion) has unique requirements that differ from wh
 ❌ general         (Missing # prefix)
 ```
 
-### Sending DMs
+### Sending DMs (ADR-048: Direct MCP)
 
-**Use `"self"` to DM the user:**
-
-```
-Execute(action="platform.send", target="platform:slack", params={channel: "self", message: "Hey!"})
-```
-
-This resolves to the user's Slack ID (stored during OAuth) and auto-opens a DM.
-
-**Or use a specific user ID** (starts with `U`):
+**Use MCP tool directly with user ID:**
 
 ```
-Execute(action="platform.send", target="platform:slack", params={channel: "U0123ABC456", message: "Hey!"})
+mcp__claude_ai_Slack__slack_send_message(channel_id="U0123ABC456", text="Hey!")
 ```
 
-The system automatically:
-1. Resolves `"self"` to the authed user's Slack ID (if used)
-2. Opens a DM channel with the user (`conversations.open`)
-3. Sends the message to that DM channel
+**For "self" (DM to the user):**
+1. Call `list_integrations` to get `authed_user_id`
+2. Use that ID in `channel_id`
+
+```
+// Step 1: Get user's Slack ID
+list_integrations() → {integrations: [{provider: "slack", authed_user_id: "U0123ABC456"}]}
+
+// Step 2: Send DM
+mcp__claude_ai_Slack__slack_send_message(channel_id="U0123ABC456", text="Hey!")
+```
 
 **How to get other users' IDs**:
-- Use `list_platform_resources(platform="slack")` - returns users with their IDs
+- Use `mcp__claude_ai_Slack__slack_search_users` or `list_platform_resources(platform="slack")`
 
 **Alternative**: For simple notifications, use `send_notification` (sends email).
 
@@ -159,9 +160,9 @@ Access token is refreshed automatically on each call.
 ❌ page-name                               (Not valid - use UUID or URL)
 ```
 
-### Adding Comments (platform.send)
+### Adding Comments (ADR-048: Direct MCP)
 
-**Correct MCP structure for `notion-create-comment`:**
+**Use `mcp__claude_ai_Notion__notion-create-comment` directly:**
 
 ```json
 {
@@ -181,10 +182,11 @@ Access token is refreshed automatically on each call.
 
 **TP usage:**
 ```
-Execute(action="platform.send", target="platform:notion", params={page_id: "abc123...", content: "Note added"})
+mcp__claude_ai_Notion__notion-create-comment(
+  parent={page_id: "abc123..."},
+  rich_text=[{type: "text", text: {content: "Note added"}}]
+)
 ```
-
-The system automatically transforms this into the correct MCP structure.
 
 ### Creating Pages
 
@@ -227,22 +229,15 @@ The Notion integration must have access to:
 - Comment permission (if adding comments)
 - Edit permission (if updating page content)
 
-### Searching for Pages (TP)
+### Searching for Pages (ADR-048: Direct MCP)
 
-Use `Execute(action="platform.search")` to find pages:
+Use `mcp__claude_ai_Notion__notion-search` directly:
 
 ```
-Execute(action="platform.search", target="platform:notion", params={query: "meeting notes"})
+mcp__claude_ai_Notion__notion-search(query="meeting notes")
 ```
 
-Returns page IDs and URLs that can be used with `platform.send`.
-
-**Alternative** (Read primitive with query param):
-```
-Read(ref="platform:notion?search=meeting notes")
-```
-
-Both call the same underlying `notion-search` MCP tool.
+Returns page IDs and URLs that can be used with other Notion MCP tools.
 
 ---
 

@@ -50,34 +50,29 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             },
         },
 
+        # ADR-048: MCP tools exposed directly to TP
         "capabilities": {
             "send_message": {
                 "supported": True,
-                "tool": "slack_post_message",
-                "notes": None,
+                "mcp_tool": "mcp__claude_ai_Slack__slack_send_message",
+                "notes": "Use channel_id param (C..., #name, U... for DM)",
             },
             "send_dm": {
                 "supported": True,
-                "tool": "slack_post_message",
-                "notes": "Requires: lookup user → open DM → use channel ID. Consider send_notification instead.",
-            },
-            "list_channels": {
-                "supported": True,
-                "tool": "slack_list_channels",
+                "mcp_tool": "mcp__claude_ai_Slack__slack_send_message",
+                "notes": "Use user ID (U...) as channel_id - auto-opens DM. For 'self', use list_integrations to get authed_user_id.",
             },
             "search_channels": {
                 "supported": True,
-                "action": "platform.search",
-                "notes": "Use Execute(action='platform.search', params={query: '...', type: 'channels'})",
+                "mcp_tool": "mcp__claude_ai_Slack__slack_search_channels",
             },
             "search_users": {
                 "supported": True,
-                "action": "platform.search",
-                "notes": "Use Execute(action='platform.search', params={query: '...', type: 'users'})",
+                "mcp_tool": "mcp__claude_ai_Slack__slack_search_users",
             },
-            "read_history": {
+            "read_channel": {
                 "supported": True,
-                "tool": "slack_get_channel_history",
+                "mcp_tool": "mcp__claude_ai_Slack__slack_read_channel",
             },
         },
 
@@ -88,8 +83,9 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
         },
 
         "quirks": [
-            "MCP server expects 'channel_id' param, not 'channel'",
-            "MCP server expects 'text' param, not 'message'",
+            "Use mcp__claude_ai_Slack__* tools directly (ADR-048)",
+            "MCP expects 'channel_id' param, not 'channel'",
+            "MCP expects 'text' param, not 'message'",
             "@username/@me/@self are NOT valid - use user ID (U...) instead",
             "User IDs (U...) auto-open DM channel before sending",
             "Bot must be invited to private channels",
@@ -190,36 +186,36 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             },
         },
 
+        # ADR-048: MCP tools exposed directly to TP
         "capabilities": {
             "create_page": {
                 "supported": True,
-                "tool": "notion-create-pages",
+                "mcp_tool": "mcp__claude_ai_Notion__notion-create-pages",
                 "notes": "Creates new page under parent page or database",
             },
             "add_comment": {
                 "supported": True,
-                "tool": "notion-create-comment",
+                "mcp_tool": "mcp__claude_ai_Notion__notion-create-comment",
                 "notes": "Requires parent: {page_id: ...} and rich_text array format",
             },
             "get_comments": {
                 "supported": True,
-                "tool": "notion-get-comments",
+                "mcp_tool": "mcp__claude_ai_Notion__notion-get-comments",
                 "notes": "Returns all comments on a page with author info",
             },
             "update_page": {
                 "supported": True,
-                "tool": "notion-update-page",
+                "mcp_tool": "mcp__claude_ai_Notion__notion-update-page",
                 "notes": "Can update properties or content with various commands",
             },
             "search": {
                 "supported": True,
-                "tool": "notion-search",
-                "action": "platform.search",
-                "notes": "Use Execute(action='platform.search', params={query: '...'}) for live search",
+                "mcp_tool": "mcp__claude_ai_Notion__notion-search",
+                "notes": "Returns page IDs for use with other Notion tools",
             },
             "fetch_page": {
                 "supported": True,
-                "tool": "notion-fetch",
+                "mcp_tool": "mcp__claude_ai_Notion__notion-fetch",
                 "notes": "Returns page content in Notion-flavored Markdown",
             },
         },
@@ -231,6 +227,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
         },
 
         "quirks": [
+            "Use mcp__claude_ai_Notion__* tools directly (ADR-048)",
             "notion-create-comment expects {parent: {page_id: ...}, rich_text: [{type: 'text', text: {content: ...}}]}",
             "Page IDs work with or without dashes (UUIDv4 format)",
             "Page must be shared with the integration to access",

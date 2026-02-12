@@ -6,19 +6,31 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 
 ## 2026-02-12
 
-### All Platforms
+### All Platforms - ADR-048: Direct MCP Access
 
-**New Features**:
-- **`platform.search` action**: Live platform search via Execute primitive
-  - `Execute(action="platform.search", target="platform:notion", params={query: "..."})`
-  - `Execute(action="platform.search", target="platform:slack", params={query: "...", type: "channels"})`
-- Searches platform API directly (not synced content)
+**Breaking Changes**:
+- **`platform.send` removed** from Execute primitive
+- **`platform.search` removed** from Execute primitive
+- TP now uses MCP tools directly (like Claude Code uses tools)
 
-**Architecture Clarification**:
+**Migration**:
+| Old Pattern | New Pattern |
+|-------------|-------------|
+| `Execute(action="platform.send", target="platform:slack", params={...})` | `mcp__claude_ai_Slack__slack_send_message(channel_id=..., text=...)` |
+| `Execute(action="platform.search", target="platform:notion", params={query: "..."})` | `mcp__claude_ai_Notion__notion-search(query="...")` |
+
+**Architecture**:
 - TP has 7 primitives: Read, Write, Edit, Search, List, Execute, Clarify
-- MCP access is encapsulated within Execute primitive
-- `Search` searches synced content (ephemeral_context)
-- `platform.search` searches platform API directly via MCP subprocess
+- Execute is for YARNNN orchestration only (deliverable.generate, platform.sync, etc.)
+- MCP tools exposed directly to TP as first-class tools
+- `Search` primitive searches synced content (ephemeral_context)
+- MCP tools search/interact with platforms directly
+
+**Files Changed**:
+- `api/services/primitives/execute.py` - Removed ~300 lines of wrapper handlers
+- `api/services/primitives/refs.py` - Removed live search functions
+- `api/agents/thinking_partner.py` - Updated system prompt for direct MCP usage
+- `api/integrations/platform_registry.py` - Updated to reference MCP tools
 
 ---
 
