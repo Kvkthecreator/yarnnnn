@@ -33,6 +33,7 @@ import { SkillPicker } from '@/components/tp/SkillPicker';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { SurfaceRouter } from './SurfaceRouter';
+import { PlatformSyncStatus } from './PlatformSyncStatus';
 
 export function ChatFirstDesk() {
   const {
@@ -246,6 +247,10 @@ export function ChatFirstDesk() {
                 I&apos;m your Thinking Partner. Tell me what recurring work you need help with,
                 or type <code className="bg-muted px-1.5 py-0.5 rounded text-xs">/</code> to see available skills.
               </p>
+
+              {/* ADR-049: Show connected platforms with sync status */}
+              <PlatformSyncStatus className="mb-6" />
+
               <div className="flex flex-wrap justify-center gap-2">
                 <button
                   onClick={() => setInput('/create ')}

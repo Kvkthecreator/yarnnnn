@@ -40,6 +40,7 @@ import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { DeliverableSettingsModal } from '@/components/modals/DeliverableSettingsModal';
 import type { Deliverable, DeliverableVersion, FeedbackSummary } from '@/types';
+import { SourceSnapshotsBadge } from '@/components/deliverables/SourceSnapshotsSummary';
 
 const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   status_report: 'Status Report',
@@ -509,6 +510,13 @@ export default function DeliverableDetailPage({
 
                     {version.feedback_notes && (
                       <p className="mt-1 text-xs text-muted-foreground truncate">"{version.feedback_notes}"</p>
+                    )}
+
+                    {/* ADR-049: Show source snapshots badge */}
+                    {version.source_snapshots && version.source_snapshots.length > 0 && (
+                      <div className="mt-1.5">
+                        <SourceSnapshotsBadge snapshots={version.source_snapshots} />
+                      </div>
                     )}
 
                     {hasContent && (

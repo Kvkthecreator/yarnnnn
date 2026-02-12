@@ -24,6 +24,7 @@ import { useDesk } from '@/contexts/DeskContext';
 import { cacheEntity } from '@/lib/entity-cache';
 import { ExportActionBar } from '@/components/desk/ExportActionBar';
 import { DraftStatusIndicator } from '@/components/ui/DraftStatusIndicator';
+import { SourceSnapshotsSummary } from '@/components/deliverables/SourceSnapshotsSummary';
 import type { DeliverableVersion, Deliverable } from '@/types';
 
 interface DeliverableReviewSurfaceProps {
@@ -269,6 +270,13 @@ export function DeliverableReviewSurface({
             {copied ? 'Copied' : 'Copy'}
           </button>
         </div>
+
+        {/* ADR-049: Source snapshots - show what data was used */}
+        {version.source_snapshots && version.source_snapshots.length > 0 && (
+          <div className="mb-4 p-3 border border-border rounded-lg bg-muted/30">
+            <SourceSnapshotsSummary snapshots={version.source_snapshots} />
+          </div>
+        )}
 
         {/* Content editor */}
         <textarea

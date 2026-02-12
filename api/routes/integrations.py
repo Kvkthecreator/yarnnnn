@@ -2460,3 +2460,73 @@ async def trigger_platform_sync(
         "message": f"Sync started for {len(selected)} {provider} sources",
         "sources_count": len(selected),
     }
+
+
+@router.get("/integrations/{provider}/sync-status")
+async def get_platform_sync_status(
+    provider: str,
+    auth: UserClient,
+) -> dict[str, Any]:
+    """
+    Get sync status for a platform.
+
+    ADR-049: Context Freshness Model
+    Returns freshness information for each synced resource.
+    """
+    from datetime import timezone
+
+    user_id = auth.user_id
+
+    # Verify integration exists
+    integration = auth.client.table("user_integrations").select(
+        "id, status"
+    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+
+    if not integration.data:
+        raise HTTPException(status_code=404, detail=f"No {provider} integration found")
+
+    # Get sync registry entries for this platform
+    sync_result = auth.client.table("sync_registry").select(
+        "resource_id, resource_name, last_synced_at, item_count, source_latest_at"
+    ).eq("user_id", user_id).eq("platform", provider).execute()
+
+    now = datetime.now(timezone.utc)
+    synced_resources = []
+    stale_count = 0
+
+    for entry in (sync_result.data or []):
+        last_synced = entry.get("last_synced_at")
+        freshness_status = "unknown"
+
+        if last_synced:
+            if isinstance(last_synced, str):
+                last_synced_dt = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
+            else:
+                last_synced_dt = last_synced
+
+            hours_since = (now - last_synced_dt).total_seconds() / 3600
+
+            if hours_since < 1:
+                freshness_status = "fresh"
+            elif hours_since < 24:
+                freshness_status = "recent"
+            else:
+                freshness_status = "stale"
+                stale_count += 1
+        else:
+            freshness_status = "unknown"
+            stale_count += 1
+
+        synced_resources.append({
+            "resource_id": entry.get("resource_id"),
+            "resource_name": entry.get("resource_name"),
+            "last_synced": last_synced,
+            "freshness_status": freshness_status,
+            "items_synced": entry.get("item_count", 0),
+        })
+
+    return {
+        "platform": provider,
+        "synced_resources": synced_resources,
+        "stale_count": stale_count,
+    }

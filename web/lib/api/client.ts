@@ -847,6 +847,31 @@ export const api = {
       }>(`/api/integrations/${provider}/sync`, {
         method: "POST",
       }),
+
+    // ADR-049: Get sync status for a platform (freshness info)
+    getSyncStatus: (provider: string) =>
+      request<{
+        platform: string;
+        synced_resources: Array<{
+          resource_id: string;
+          resource_name: string | null;
+          last_synced: string | null;
+          freshness_status: "fresh" | "recent" | "stale" | "unknown";
+          items_synced: number;
+        }>;
+        stale_count: number;
+      }>(`/api/integrations/${provider}/sync-status`),
+
+    // ADR-049: Trigger platform sync (alias for triggerSync with broader typing)
+    syncPlatform: (provider: string) =>
+      request<{
+        success: boolean;
+        job_id?: string;
+        message: string;
+        sources_count?: number;
+      }>(`/api/integrations/${provider}/sync`, {
+        method: "POST",
+      }),
   },
 
   // ADR-034: Context Domains (Context v2)
