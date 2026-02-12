@@ -7,7 +7,6 @@
 
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
-import { spawn, ChildProcess } from 'child_process';
 
 // Provider configurations
 interface ProviderConfig {
@@ -52,7 +51,6 @@ const PROVIDER_TOOLS: Record<string, Array<{ name: string; description: string }
 interface ActiveSession {
   client: Client;
   transport: StdioClientTransport;
-  process: ChildProcess;
   createdAt: Date;
 }
 
@@ -146,29 +144,12 @@ export class MCPClientManager {
   ): Promise<ActiveSession> {
     console.log(`[MCP] Creating session for ${provider}`);
 
-    // Spawn the MCP server process
-    const proc = spawn(config.command, config.args, {
-      env,
-      stdio: ['pipe', 'pipe', 'pipe'],
-    });
-
-    proc.stderr?.on('data', (data) => {
-      console.error(`[MCP:${provider}:stderr]`, data.toString());
-    });
-
-    proc.on('error', (error) => {
-      console.error(`[MCP:${provider}:error]`, error.message);
-    });
-
-    proc.on('exit', (code) => {
-      console.log(`[MCP:${provider}] Process exited with code ${code}`);
-    });
-
-    // Create transport and client
+    // Create transport - StdioClientTransport manages the subprocess internally
     const transport = new StdioClientTransport({
       command: config.command,
       args: config.args,
       env,
+      stderr: 'pipe',
     });
 
     const client = new Client({
@@ -185,7 +166,6 @@ export class MCPClientManager {
     return {
       client,
       transport,
-      process: proc,
       createdAt: new Date(),
     };
   }
@@ -205,8 +185,8 @@ export class MCPClientManager {
     if (session) {
       console.log(`[MCP] Closing session ${key}`);
       try {
+        // client.close() also closes the transport which terminates the subprocess
         await session.client.close();
-        session.process.kill();
       } catch (error) {
         console.error(`[MCP] Error closing session:`, error);
       }
