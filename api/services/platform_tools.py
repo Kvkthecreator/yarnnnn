@@ -684,6 +684,10 @@ async def _handle_google_tool(auth: Any, provider: str, tool: str, tool_input: d
     metadata = integration.get("metadata") or {}
     user_email = metadata.get("email")
 
+    # Debug logging to diagnose missing email
+    if not user_email:
+        logger.warning(f"[PLATFORM-TOOLS] No email in metadata for user {auth.user_id}. Metadata keys: {list(metadata.keys())}")
+
     try:
         # Route to appropriate handler
         if provider == "gmail":
@@ -811,7 +815,11 @@ async def _execute_gmail_tool(
 
     elif tool == "create_draft":
         # Get the actual 'to' address (may have been auto-defaulted)
-        to_address = args.get("to", user_email) or user_email
+        to_address = args.get("to") or user_email
+
+        # Warn if no recipient but still create draft (Gmail allows this)
+        if not to_address:
+            logger.warning(f"[PLATFORM-TOOLS] Creating draft without 'to' address. User may need to reconnect Google.")
 
         result = await google_client.create_gmail_draft(
             to=to_address,
@@ -824,9 +832,14 @@ async def _execute_gmail_tool(
         )
 
         if result.status.value == "success":
+            # Clear message about where draft went
+            if to_address:
+                msg = f"Draft created to {to_address} - check your Gmail drafts folder"
+            else:
+                msg = "Draft created (no recipient set) - check your Gmail drafts folder and add a recipient"
             return {
                 "success": True,
-                "message": f"Draft created to {to_address} - check your Gmail drafts folder",
+                "message": msg,
                 "to": to_address,
                 "subject": args["subject"],
             }

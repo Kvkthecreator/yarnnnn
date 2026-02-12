@@ -1479,6 +1479,7 @@ class GoogleDesignatedSettingsRequest(BaseModel):
     """Request to set designated settings for Google (Gmail/Calendar)."""
     designated_calendar_id: Optional[str] = None
     designated_calendar_name: Optional[str] = None
+    designated_email: Optional[str] = None  # ADR-051: User's email for draft recipients
 
 
 class GoogleDesignatedSettingsResponse(BaseModel):
@@ -1486,6 +1487,7 @@ class GoogleDesignatedSettingsResponse(BaseModel):
     success: bool
     designated_calendar_id: Optional[str] = None
     designated_calendar_name: Optional[str] = None
+    designated_email: Optional[str] = None  # ADR-051: User's email for draft recipients
     message: str
 
 
@@ -1522,6 +1524,7 @@ async def get_google_designated_settings(auth: UserClient) -> GoogleDesignatedSe
             success=True,
             designated_calendar_id=metadata.get("designated_calendar_id"),
             designated_calendar_name=metadata.get("designated_calendar_name"),
+            designated_email=metadata.get("email"),  # ADR-051: From OAuth or explicit setting
             message="Settings retrieved"
         )
 
@@ -1576,17 +1579,23 @@ async def set_google_designated_settings(
             metadata["designated_calendar_id"] = request.designated_calendar_id
         if request.designated_calendar_name:
             metadata["designated_calendar_name"] = request.designated_calendar_name
+        if request.designated_email:
+            metadata["email"] = request.designated_email  # ADR-051: Allow explicit email setting
 
         auth.client.table("user_integrations").update({
             "metadata": metadata
         }).eq("id", integration["id"]).execute()
 
-        logger.info(f"[INTEGRATIONS] User {user_id} set Google designated calendar: {request.designated_calendar_id}")
+        if request.designated_calendar_id:
+            logger.info(f"[INTEGRATIONS] User {user_id} set Google designated calendar: {request.designated_calendar_id}")
+        if request.designated_email:
+            logger.info(f"[INTEGRATIONS] User {user_id} set Google designated email: {request.designated_email}")
 
         return GoogleDesignatedSettingsResponse(
             success=True,
             designated_calendar_id=metadata.get("designated_calendar_id"),
             designated_calendar_name=metadata.get("designated_calendar_name"),
+            designated_email=metadata.get("email"),
             message="Settings updated"
         )
 
@@ -1622,6 +1631,7 @@ async def clear_google_designated_settings(auth: UserClient) -> GoogleDesignated
             )
 
         # Remove designated settings from metadata
+        # Note: We don't clear email here - that should remain from OAuth
         metadata = integration.get("metadata") or {}
         metadata.pop("designated_calendar_id", None)
         metadata.pop("designated_calendar_name", None)
@@ -1630,12 +1640,13 @@ async def clear_google_designated_settings(auth: UserClient) -> GoogleDesignated
             "metadata": metadata
         }).eq("id", integration["id"]).execute()
 
-        logger.info(f"[INTEGRATIONS] User {user_id} cleared Google designated settings")
+        logger.info(f"[INTEGRATIONS] User {user_id} cleared Google designated settings (email preserved)")
 
         return GoogleDesignatedSettingsResponse(
             success=True,
             designated_calendar_id=None,
             designated_calendar_name=None,
+            designated_email=metadata.get("email"),  # Preserve email
             message="Settings cleared"
         )
 
@@ -2760,10 +2771,11 @@ async def update_coverage(
 # =============================================================================
 
 class UserLimitsResponse(BaseModel):
-    """User's tier limits and current usage."""
+    """User's tier limits and current usage (ADR-053)."""
     tier: str
-    limits: dict[str, int]
+    limits: dict[str, Any]  # Includes sync_frequency (str) and counts (int)
     usage: dict[str, int]
+    next_sync: Optional[str] = None  # ISO timestamp of next scheduled sync
 
 
 class SelectedSourcesRequest(BaseModel):
@@ -2783,17 +2795,37 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     """
     Get user's tier limits and current usage.
 
-    ADR-043: Returns platform resource limits based on user tier
-    and current usage counts for frontend limit enforcement.
+    ADR-053: Returns platform resource limits based on user tier,
+    current usage counts, and next scheduled sync time.
+
+    Response includes:
+    - tier: "free" | "starter" | "pro"
+    - limits: slack_channels, gmail_labels, notion_pages, calendars,
+              total_platforms, sync_frequency, tp_conversations_per_month,
+              active_deliverables
+    - usage: Current usage counts for each resource
+    - next_sync: ISO timestamp of next scheduled platform sync
     """
     from services.platform_limits import get_usage_summary
 
-    summary = get_usage_summary(auth.client, auth.user_id)
+    # Get user's timezone from settings (default to UTC)
+    user_tz = "UTC"
+    try:
+        settings_result = auth.client.table("user_settings").select(
+            "timezone"
+        ).eq("user_id", auth.user_id).maybe_single().execute()
+        if settings_result.data:
+            user_tz = settings_result.data.get("timezone", "UTC")
+    except Exception:
+        pass
+
+    summary = get_usage_summary(auth.client, auth.user_id, user_tz)
 
     return UserLimitsResponse(
         tier=summary["tier"],
         limits=summary["limits"],
         usage=summary["usage"],
+        next_sync=summary.get("next_sync"),
     )
 
 

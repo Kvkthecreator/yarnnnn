@@ -934,26 +934,33 @@ export const api = {
         method: "DELETE",
       }),
 
-    // ADR-050: Google designated settings (Calendar)
+    // ADR-050/051: Google designated settings (Calendar + Email)
     getGoogleDesignatedSettings: () =>
       request<{
         success: boolean;
         designated_calendar_id: string | null;
         designated_calendar_name: string | null;
+        designated_email: string | null;
         message: string;
       }>("/api/integrations/google/designated-settings"),
 
-    setGoogleDesignatedSettings: (calendarId: string, calendarName?: string) =>
+    setGoogleDesignatedSettings: (options: {
+      calendarId?: string;
+      calendarName?: string;
+      email?: string;
+    }) =>
       request<{
         success: boolean;
         designated_calendar_id: string | null;
         designated_calendar_name: string | null;
+        designated_email: string | null;
         message: string;
       }>("/api/integrations/google/designated-settings", {
         method: "PUT",
         body: JSON.stringify({
-          designated_calendar_id: calendarId,
-          designated_calendar_name: calendarName,
+          designated_calendar_id: options.calendarId,
+          designated_calendar_name: options.calendarName,
+          designated_email: options.email,
         }),
       }),
 
@@ -962,6 +969,7 @@ export const api = {
         success: boolean;
         designated_calendar_id: null;
         designated_calendar_name: null;
+        designated_email: string | null; // Email preserved
         message: string;
       }>("/api/integrations/google/designated-settings", {
         method: "DELETE",

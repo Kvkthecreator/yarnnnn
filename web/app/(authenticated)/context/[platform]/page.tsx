@@ -255,6 +255,12 @@ export default function PlatformDetailPage() {
   const [savingDesignatedCalendar, setSavingDesignatedCalendar] = useState(false);
   const [availableCalendars, setAvailableCalendars] = useState<Array<{ id: string; summary: string }>>([]);
 
+  // ADR-051: Gmail designated email state (for draft recipients)
+  const [designatedEmail, setDesignatedEmail] = useState<string | null>(null);
+  const [editingEmail, setEditingEmail] = useState(false);
+  const [emailInput, setEmailInput] = useState('');
+  const [savingEmail, setSavingEmail] = useState(false);
+
   // Computed
   const limit = tierLimits?.limits[config?.limitField || 'slack_channels'] || 5;
   const atLimit = selectedIds.size >= limit;
@@ -277,6 +283,7 @@ export default function PlatformDetailPage() {
       const backendProviders = BACKEND_PROVIDER_MAP[platform];
 
       // Load all data in parallel
+      // ADR-051: Gmail also loads Google settings for designated_email
       const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, platformContextResult, designatedPageResult, googleSettingsResult, calendarsResult] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
         // ADR-046: Calendar uses listGoogleCalendars instead of getLandscape
@@ -292,8 +299,8 @@ export default function PlatformDetailPage() {
           .catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
         // ADR-050: Load designated page for Notion
         platform === 'notion' ? api.integrations.getNotionDesignatedPage().catch(() => null) : Promise.resolve(null),
-        // ADR-050: Load designated settings for Calendar
-        platform === 'calendar' ? api.integrations.getGoogleDesignatedSettings().catch(() => null) : Promise.resolve(null),
+        // ADR-050/051: Load designated settings for Calendar and Gmail (email)
+        (platform === 'calendar' || platform === 'gmail') ? api.integrations.getGoogleDesignatedSettings().catch(() => null) : Promise.resolve(null),
         // Load available calendars for Calendar platform
         platform === 'calendar' ? api.integrations.listGoogleCalendars().catch(() => ({ calendars: [] })) : Promise.resolve({ calendars: [] }),
       ]);
@@ -330,6 +337,11 @@ export default function PlatformDetailPage() {
           id: googleSettingsResult.designated_calendar_id,
           name: googleSettingsResult.designated_calendar_name,
         });
+      }
+
+      // ADR-051: Set designated email state for Gmail
+      if (platform === 'gmail' && googleSettingsResult) {
+        setDesignatedEmail(googleSettingsResult.designated_email);
       }
 
       // Set available calendars for picker
@@ -542,7 +554,10 @@ export default function PlatformDetailPage() {
   const handleSetDesignatedCalendar = async (calendarId: string, calendarName: string) => {
     setSavingDesignatedCalendar(true);
     try {
-      const result = await api.integrations.setGoogleDesignatedSettings(calendarId, calendarName);
+      const result = await api.integrations.setGoogleDesignatedSettings({
+        calendarId,
+        calendarName,
+      });
       if (result.success) {
         setDesignatedCalendar({
           id: result.designated_calendar_id,
@@ -573,6 +588,41 @@ export default function PlatformDetailPage() {
     } finally {
       setSavingDesignatedCalendar(false);
     }
+  };
+
+  // ADR-051: Gmail designated email handlers
+  const handleStartEditingEmail = () => {
+    setEmailInput(designatedEmail || '');
+    setEditingEmail(true);
+  };
+
+  const handleSaveEmail = async () => {
+    if (!emailInput.trim()) {
+      setError('Email cannot be empty');
+      return;
+    }
+    setSavingEmail(true);
+    try {
+      const result = await api.integrations.setGoogleDesignatedSettings({
+        email: emailInput.trim(),
+      });
+      if (result.success) {
+        setDesignatedEmail(result.designated_email);
+        setEditingEmail(false);
+      } else {
+        setError('Failed to save email');
+      }
+    } catch (err) {
+      console.error('Failed to save email:', err);
+      setError(err instanceof Error ? err.message : 'Failed to save email');
+    } finally {
+      setSavingEmail(false);
+    }
+  };
+
+  const handleCancelEditingEmail = () => {
+    setEditingEmail(false);
+    setEmailInput('');
   };
 
   // =============================================================================
@@ -829,8 +879,8 @@ export default function PlatformDetailPage() {
           )}
         </section>
 
-        {/* ADR-051: Output Email Section (Gmail only) */}
-        {platform === 'gmail' && integration?.metadata?.email && (
+        {/* ADR-051: Output Email Section (Gmail only) - Always show, allow editing */}
+        {platform === 'gmail' && (
           <section>
             <div className="flex items-center justify-between mb-4">
               <div>
@@ -839,24 +889,84 @@ export default function PlatformDetailPage() {
                   Output Email
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Where TP sends drafts and emails by default
+                  Your email address for draft recipients
                 </p>
               </div>
             </div>
 
-            <div className="border border-border rounded-lg p-4">
-              <div className="flex items-center gap-3">
-                <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
-                  <Mail className="w-5 h-5 text-muted-foreground" />
-                </div>
-                <div>
-                  <p className="font-medium">{integration.metadata.email}</p>
-                  <p className="text-xs text-muted-foreground">
-                    Drafts appear in your Gmail drafts folder
-                  </p>
+            {designatedEmail && !editingEmail ? (
+              <div className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
+                      <Mail className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{designatedEmail}</p>
+                      <p className="text-xs text-muted-foreground">
+                        Drafts appear in your Gmail drafts folder
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={handleStartEditingEmail}
+                    className="text-sm text-muted-foreground hover:text-foreground"
+                  >
+                    Change
+                  </button>
                 </div>
               </div>
-            </div>
+            ) : editingEmail ? (
+              <div className="border border-border rounded-lg p-4">
+                <div className="flex items-center gap-3">
+                  <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', config.bgColor)}>
+                    <Mail className="w-5 h-5 text-muted-foreground" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <input
+                      type="email"
+                      value={emailInput}
+                      onChange={(e) => setEmailInput(e.target.value)}
+                      placeholder="your@email.com"
+                      className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
+                      autoFocus
+                    />
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Enter your Gmail address
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={handleSaveEmail}
+                      disabled={savingEmail || !emailInput.trim()}
+                      className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50"
+                    >
+                      {savingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
+                    </button>
+                    <button
+                      onClick={handleCancelEditingEmail}
+                      disabled={savingEmail}
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-border rounded-lg p-6 text-center">
+                <Mail className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-3">
+                  No email set. Set your email so TP knows where to send drafts.
+                </p>
+                <button
+                  onClick={handleStartEditingEmail}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
+                >
+                  Set Email
+                </button>
+              </div>
+            )}
           </section>
         )}
 
