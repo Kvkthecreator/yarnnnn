@@ -29,6 +29,13 @@ import { useDesk } from "@/contexts/DeskContext";
 type Provider = "slack" | "notion" | "gmail" | "google" | "calendar";
 type CoverageState = "uncovered" | "partial" | "covered" | "stale" | "excluded";
 
+// ADR-046: Map frontend provider to API provider
+// Calendar uses Google OAuth, so API calls go to 'google'
+const getApiProvider = (provider: Provider): string => {
+  if (provider === "calendar") return "google";
+  return provider;
+};
+
 // ADR-030: Landscape resource with coverage state
 interface LandscapeResource {
   id: string;
@@ -374,7 +381,9 @@ export function IntegrationImportModal({
 
     try {
       // ADR-030: Use landscape endpoint for coverage data
-      const response = await api.integrations.getLandscape(provider, refresh);
+      // ADR-046: Use API provider for backend calls (calendar → google)
+      const apiProvider = getApiProvider(provider);
+      const response = await api.integrations.getLandscape(apiProvider, refresh);
       setLandscape({
         resources: response.resources,
         coverage_summary: response.coverage_summary,
@@ -450,7 +459,9 @@ export function IntegrationImportModal({
       }
 
       // ADR-030: Include scope parameters
-      const job = await api.integrations.startImport(provider, {
+      // ADR-046: Use API provider for backend calls (calendar → google)
+      const apiProvider = getApiProvider(provider);
+      const job = await api.integrations.startImport(apiProvider, {
         resource_id: resourceId,
         resource_name: resourceName,
         instructions: instructions.trim() || undefined,

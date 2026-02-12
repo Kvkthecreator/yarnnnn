@@ -43,6 +43,23 @@ import { cn } from '@/lib/utils';
 
 type PlatformProvider = 'slack' | 'gmail' | 'notion' | 'google' | 'calendar';
 
+// ADR-046: Map frontend platform names to backend provider names
+// Calendar is surfaced separately but uses the Google integration
+const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
+  slack: ['slack'],
+  gmail: ['gmail', 'google'],  // Gmail may be stored as 'google' with new OAuth
+  notion: ['notion'],
+  google: ['google', 'gmail'], // Google may be stored as 'gmail' for legacy users
+  calendar: ['google', 'gmail'], // Calendar uses Google OAuth
+};
+
+// Get the provider to use for API calls
+const getApiProvider = (platform: PlatformProvider): string => {
+  // For calendar, use 'google' for API calls since that's the OAuth provider
+  if (platform === 'calendar') return 'google';
+  return platform;
+};
+
 interface LandscapeResource {
   id: string;
   name: string;
@@ -228,11 +245,15 @@ export default function PlatformDetailPage() {
       setLoading(true);
       setError(null);
 
+      // ADR-046: Use the API provider (e.g., 'google' for calendar)
+      const apiProvider = getApiProvider(platform);
+      const backendProviders = BACKEND_PROVIDER_MAP[platform];
+
       // Load all data in parallel
       const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult] = await Promise.all([
-        api.integrations.get(platform).catch(() => null),
-        api.integrations.getLandscape(platform).catch(() => ({ resources: [] })),
-        api.integrations.getSources(platform).catch(() => ({ sources: [] })),
+        api.integrations.get(apiProvider).catch(() => null),
+        api.integrations.getLandscape(apiProvider).catch(() => ({ resources: [] })),
+        api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
         api.deliverables.list().catch(() => []),
         api.userMemories.list().catch(() => []),
@@ -247,15 +268,15 @@ export default function PlatformDetailPage() {
       setSelectedIds(currentIds);
       setOriginalIds(currentIds);
 
-      // Filter deliverables targeting this platform
+      // Filter deliverables targeting this platform (check all backend provider variants)
       const platformDeliverables = (deliverablesResult || []).filter(
-        (d: PlatformDeliverable) => d.destination?.platform === platform
+        (d: PlatformDeliverable) => backendProviders.includes(d.destination?.platform || '')
       );
       setDeliverables(platformDeliverables);
 
-      // Filter memories from this platform (most recent 10)
+      // Filter memories from this platform (check all backend provider variants, most recent 10)
       const platformMemories = (memoriesResult || [])
-        .filter((m: PlatformMemory) => m.source_ref?.platform === platform)
+        .filter((m: PlatformMemory) => backendProviders.includes(m.source_ref?.platform || ''))
         .slice(0, 10);
       setRecentMemories(platformMemories);
 
@@ -295,7 +316,9 @@ export default function PlatformDetailPage() {
       // Track which sources are newly added (not in original selection)
       const addedIds = Array.from(selectedIds).filter(id => !originalIds.has(id));
 
-      const result = await api.integrations.updateSources(platform, Array.from(selectedIds));
+      // ADR-046: Use API provider for backend calls
+      const apiProvider = getApiProvider(platform);
+      const result = await api.integrations.updateSources(apiProvider, Array.from(selectedIds));
       if (result.success) {
         // Update local state with the saved sources
         const savedIds = new Set(result.selected_sources.map(s => s.id));
@@ -347,8 +370,9 @@ export default function PlatformDetailPage() {
           total: newlySelectedIds.length,
         });
 
-        // Start import job
-        const job = await api.integrations.startImport(platform, {
+        // Start import job (ADR-046: use API provider)
+        const apiProvider = getApiProvider(platform);
+        const job = await api.integrations.startImport(apiProvider, {
           resource_id: sourceId,
           resource_name: resource?.name,
           scope: {

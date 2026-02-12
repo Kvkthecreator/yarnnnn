@@ -95,15 +95,15 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
         token_url="https://oauth2.googleapis.com/token",
         scopes=[
-            # Gmail: Read-only for context extraction
+            # Gmail: Full access for context + deliverable export
             "https://www.googleapis.com/auth/gmail.readonly",
-            # Calendar (ADR-046): Read events and attendees
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify",
+            # Calendar: Full access for context + event creation
             "https://www.googleapis.com/auth/calendar.readonly",
             "https://www.googleapis.com/auth/calendar.events.readonly",
-            # Phase 2 (future): Add send/compose for deliverable export
-            # "https://www.googleapis.com/auth/gmail.send",
-            # "https://www.googleapis.com/auth/gmail.compose",
-            # "https://www.googleapis.com/auth/gmail.modify",
+            "https://www.googleapis.com/auth/calendar.events",
         ],
         redirect_path="/api/integrations/gmail/callback",
     ),
@@ -116,11 +116,15 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
         authorize_url="https://accounts.google.com/o/oauth2/v2/auth",
         token_url="https://oauth2.googleapis.com/token",
         scopes=[
-            # Gmail: Read-only for context extraction
+            # Gmail: Full access for context + deliverable export
             "https://www.googleapis.com/auth/gmail.readonly",
-            # Calendar (ADR-046): Read events and attendees
+            "https://www.googleapis.com/auth/gmail.send",
+            "https://www.googleapis.com/auth/gmail.compose",
+            "https://www.googleapis.com/auth/gmail.modify",
+            # Calendar: Full access for context + event creation
             "https://www.googleapis.com/auth/calendar.readonly",
             "https://www.googleapis.com/auth/calendar.events.readonly",
+            "https://www.googleapis.com/auth/calendar.events",
         ],
         redirect_path="/api/integrations/google/callback",
     ),

@@ -66,6 +66,8 @@ interface PlatformConfig {
   resourceType: string;
   icon: React.ReactNode;
   colors: { bg: string; text: string };
+  // ADR-046: For Calendar, we connect via 'google' but may find integration as 'google' or 'gmail'
+  backendProviders?: string[];
 }
 
 const AVAILABLE_PLATFORMS: PlatformConfig[] = [
@@ -94,12 +96,14 @@ const AVAILABLE_PLATFORMS: PlatformConfig[] = [
     colors: { bg: 'bg-gray-100 dark:bg-gray-800', text: 'text-gray-700 dark:text-gray-300' },
   },
   {
-    provider: 'google',
+    provider: 'calendar',
     label: 'Calendar',
     description: 'Events and meetings',
     resourceType: 'events',
     icon: <Calendar className="w-5 h-5" />,
     colors: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
+    // ADR-046: Calendar is a capability of Google integration - check both providers
+    backendProviders: ['google', 'gmail'],
   },
 ];
 
@@ -476,7 +480,9 @@ export default function ContextPage() {
                       .filter((config) => {
                         if (!searchQuery) return true;
                         const q = searchQuery.toLowerCase();
-                        const connected = platforms.find(p => p.provider === config.provider);
+                        // ADR-046: Use backendProviders to find connected integration
+                        const providers = config.backendProviders || [config.provider];
+                        const connected = platforms.find(p => providers.includes(p.provider));
                         return (
                           config.label.toLowerCase().includes(q) ||
                           config.provider.toLowerCase().includes(q) ||
@@ -484,13 +490,17 @@ export default function ContextPage() {
                         );
                       })
                       .map((config) => {
-                        const connectedPlatform = platforms.find(p => p.provider === config.provider);
+                        // ADR-046: Use backendProviders to find connected integration
+                        const providers = config.backendProviders || [config.provider];
+                        const connectedPlatform = platforms.find(p => providers.includes(p.provider));
+                        // For Calendar, connect via 'google' OAuth
+                        const connectProvider = config.provider === 'calendar' ? 'google' : config.provider;
                         return (
                           <PlatformCard
                             key={config.provider}
                             config={config}
                             connectedPlatform={connectedPlatform}
-                            onConnect={() => handleConnectPlatform(config.provider)}
+                            onConnect={() => handleConnectPlatform(connectProvider)}
                             onNavigate={() => router.push(`/context/${config.provider}`)}
                           />
                         );
