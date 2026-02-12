@@ -53,8 +53,11 @@ const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
   calendar: ['google', 'gmail'], // Calendar uses Google OAuth
 };
 
+// API provider type (matches what the API client expects)
+type ApiProvider = "slack" | "notion" | "gmail" | "google" | "calendar";
+
 // Get the provider to use for API calls
-const getApiProvider = (platform: PlatformProvider): string => {
+const getApiProvider = (platform: PlatformProvider): ApiProvider => {
   // For calendar, use 'google' for API calls since that's the OAuth provider
   if (platform === 'calendar') return 'google';
   return platform;

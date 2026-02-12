@@ -31,7 +31,7 @@ type CoverageState = "uncovered" | "partial" | "covered" | "stale" | "excluded";
 
 // ADR-046: Map frontend provider to API provider
 // Calendar uses Google OAuth, so API calls go to 'google'
-const getApiProvider = (provider: Provider): string => {
+const getApiProvider = (provider: Provider): Provider => {
   if (provider === "calendar") return "google";
   return provider;
 };
