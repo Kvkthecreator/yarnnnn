@@ -239,11 +239,8 @@ async def resolve_ref(
         if ref.entity_type == "platform":
             # Platforms use provider name
             query = query.eq("provider", ref.identifier)
-
-            # Check for search query param - triggers live MCP search
-            if "search" in ref.query:
-                search_query = ref.query["search"]
-                return await _search_platform_live(auth, ref.identifier, search_query)
+            # ADR-048: Live search removed - use MCP tools directly
+            # (mcp__notion__notion-search, mcp__slack__slack_search_*, etc.)
         else:
             # Others use id
             query = query.eq("id", ref.identifier)
@@ -262,95 +259,12 @@ async def resolve_ref(
         return entity
 
 
-async def _search_platform_live(auth: Any, provider: str, search_query: str) -> dict:
-    """
-    Execute live search on a platform via MCP.
-
-    Usage: Read(ref="platform:notion?search=meeting notes")
-
-    Returns search results from the platform's native search.
-    """
-    if provider == "notion":
-        return await _search_notion_live(auth, search_query)
-    elif provider == "slack":
-        return await _search_slack_live(auth, search_query)
-    else:
-        return {
-            "error": f"Live search not supported for {provider}",
-            "results": [],
-        }
 
 
-async def _search_notion_live(auth: Any, search_query: str) -> dict:
-    """Search Notion workspace directly via MCP."""
-    try:
-        from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
-        from integrations.core.tokens import get_token_manager
-
-        if not MCP_AVAILABLE:
-            return {"error": "MCP not available", "results": []}
-
-        # Get Notion token
-        integration = auth.client.table("user_integrations").select(
-            "access_token_encrypted, status"
-        ).eq("user_id", auth.user_id).eq("provider", "notion").single().execute()
-
-        if not integration.data or integration.data.get("status") != "active":
-            return {"error": "Notion not connected", "results": []}
-
-        token_manager = get_token_manager()
-        access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
-
-        # Call notion-search via MCP
-        mcp = get_mcp_manager()
-        result = await mcp.call_tool(
-            user_id=auth.user_id,
-            provider="notion",
-            tool_name="notion-search",
-            arguments={
-                "query": search_query,
-                "query_type": "internal",
-            },
-            env={"NOTION_TOKEN": access_token}
-        )
-
-        # Parse MCP result
-        if isinstance(result, dict) and "results" in result:
-            return {
-                "provider": "notion",
-                "search_query": search_query,
-                "results": result["results"],
-                "count": len(result["results"]),
-            }
-
-        return {
-            "provider": "notion",
-            "search_query": search_query,
-            "results": [],
-            "count": 0,
-            "raw": result,
-        }
-
-    except Exception as e:
-        import logging
-        logging.error(f"[REFS] Notion live search failed: {e}")
-        return {
-            "error": str(e),
-            "provider": "notion",
-            "search_query": search_query,
-            "results": [],
-        }
-
-
-async def _search_slack_live(auth: Any, search_query: str) -> dict:
-    """Search Slack workspace directly via MCP."""
-    # TODO: Implement Slack live search when needed
-    return {
-        "error": "Slack live search not yet implemented",
-        "provider": "slack",
-        "search_query": search_query,
-        "results": [],
-    }
+# ADR-048: Live search functions removed.
+# TP should use MCP tools directly:
+#   - mcp__notion__notion-search for Notion
+#   - mcp__slack__slack_search_* for Slack
 
 
 def _extract_subpath(entity: dict, subpath: str) -> Any:
