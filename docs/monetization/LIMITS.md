@@ -1,8 +1,8 @@
 # yarnnn Platform Resource Limits
 
-> **Status**: Implemented (framework ready, not hardened)
-> **Date**: 2026-02-11
-> **Related**: ADR-043 (Platform Settings), ADR-046 (Google Calendar Integration)
+> **Status**: Revised (ADR-053)
+> **Date**: 2026-02-12
+> **Related**: ADR-043 (Platform Settings), ADR-046 (Google Calendar), ADR-053 (Platform Sync Monetization)
 
 ---
 
@@ -14,25 +14,73 @@ This document describes the resource limits that control platform usage based on
 2. **Fair Usage** - Prevent abuse and ensure equitable resource distribution
 3. **Monetization** - Create upgrade incentives aligned with value delivered
 
+**Key Insight (ADR-053)**: Platform sync is the **base monetization layer**. Sync is cheap (~$0.003/user/day), highly profitable, and directly correlates with value delivered.
+
 ---
 
 ## Tier Limits
 
-### Current Implementation
+### Revised Structure (ADR-053)
 
-| Resource | Free | Pro | Enterprise |
-|----------|------|-----|------------|
+| Resource | Free | Starter ($9/mo) | Pro ($19/mo) |
+|----------|------|-----------------|--------------|
+| **Platforms** | 2 | 4 | 4 |
+| **Slack channels** | 1 | 5 | 20 |
+| **Gmail labels** | 1 | 5 | 15 |
+| **Notion pages** | 1 | 5 | 25 |
+| **Calendars** | 1 | 3 | 10 |
+| **Sync frequency** | 2x/day | 4x/day | Hourly |
+| **TP conversations** | 20/mo | 100/mo | Unlimited |
+| **Deliverables** | 3 active | 10 active | Unlimited |
+
+### Sync Frequency Schedule
+
+| Tier | Frequency | Schedule |
+|------|-----------|----------|
+| Free | 2x/day | 8am, 6pm (user's timezone) |
+| Starter | 4x/day | Every 6 hours |
+| Pro | Hourly | Every hour |
+
+### Rationale (Revised)
+
+- **Free tier**: "1 source per platform" - enough to experience value, fast onboarding, clear upgrade path
+- **Starter tier**: Solo users who want "enough" - multiple sources per platform, $9/mo
+- **Pro tier**: Power users with multiple active projects, near real-time sync, $19/mo
+
+### Why Tighter Free Tier?
+
+1. **Reduces decision paralysis** - "Pick 1 channel" vs "Pick up to 5 channels"
+2. **Faster time-to-value** - Less config, quicker to first TP conversation
+3. **Solves cold start** - Immediate sync of 1 source = context for first chat
+4. **Clear upgrade path** - "Want more channels? Upgrade to Starter"
+
+### Counting Model
+
+**We count synced sources, not connections.**
+
+A Slack "connection" without channels provides no context. Value = synced sources.
+
+Example:
+```
+Free user:
+- Connects Slack → selects 1 channel to sync
+- Connects Gmail → selects 1 label (INBOX default)
+- Platform limit is 2 → can only use 2 of the 4 platforms
+```
+
+### Legacy Limits (Deprecated)
+
+Previous limits before ADR-053:
+
+| Resource | Old Free | Old Pro | Old Enterprise |
+|----------|----------|---------|----------------|
 | Slack channels | 5 | 20 | 100 |
 | Gmail labels | 3 | 10 | 50 |
 | Notion pages | 5 | 25 | 100 |
 | Calendar events | 3 | 10 | 50 |
 | Total platforms | 3 | 10 | 50 |
 
-### Rationale
-
-- **Free tier**: Enough to try the product meaningfully, not enough to run a business on
-- **Pro tier**: Sufficient for individual power users with multiple active projects
-- **Enterprise tier**: High limits for organizations with complex workflows
+These are superseded by the revised structure above.
 
 ---
 
@@ -47,19 +95,43 @@ class PlatformLimits:
     slack_channels: int
     gmail_labels: int
     notion_pages: int
-    calendar_events: int
+    calendars: int
     total_platforms: int
+    sync_frequency: str  # "2x_daily", "4x_daily", "hourly"
+    tp_conversations_per_month: int  # -1 for unlimited
+    active_deliverables: int  # -1 for unlimited
 
 TIER_LIMITS = {
     "free": PlatformLimits(
-        slack_channels=5,
-        gmail_labels=3,
-        notion_pages=5,
-        calendar_events=3,
-        total_platforms=3,
+        slack_channels=1,
+        gmail_labels=1,
+        notion_pages=1,
+        calendars=1,
+        total_platforms=2,
+        sync_frequency="2x_daily",
+        tp_conversations_per_month=20,
+        active_deliverables=3,
     ),
-    "pro": PlatformLimits(...),
-    "enterprise": PlatformLimits(...),
+    "starter": PlatformLimits(
+        slack_channels=5,
+        gmail_labels=5,
+        notion_pages=5,
+        calendars=3,
+        total_platforms=4,
+        sync_frequency="4x_daily",
+        tp_conversations_per_month=100,
+        active_deliverables=10,
+    ),
+    "pro": PlatformLimits(
+        slack_channels=20,
+        gmail_labels=15,
+        notion_pages=25,
+        calendars=10,
+        total_platforms=4,
+        sync_frequency="hourly",
+        tp_conversations_per_month=-1,  # unlimited
+        active_deliverables=-1,  # unlimited
+    ),
 }
 
 # Provider to limit field mapping
@@ -68,7 +140,14 @@ PROVIDER_LIMIT_MAP = {
     "gmail": "gmail_labels",
     "google": "gmail_labels",
     "notion": "notion_pages",
-    "calendar": "calendar_events",
+    "calendar": "calendars",
+}
+
+# Sync frequency schedules
+SYNC_SCHEDULES = {
+    "2x_daily": ["08:00", "18:00"],  # User's timezone
+    "4x_daily": ["00:00", "06:00", "12:00", "18:00"],
+    "hourly": None,  # Every hour
 }
 ```
 
@@ -91,18 +170,31 @@ The platform detail page (`/context/[platform]`) shows:
 2. **Inline selection**: Toggle checkboxes for each resource
 3. **Limit warning**: Visual alert when at limit
 4. **Upgrade prompt**: For free tier users who hit limits
+5. **Sync status**: Last sync time, next sync time (ADR-052)
 
 ```typescript
 interface TierLimits {
-  tier: 'free' | 'pro' | 'enterprise';
+  tier: 'free' | 'starter' | 'pro';
   limits: {
     slack_channels: number;
     gmail_labels: number;
     notion_pages: number;
-    calendar_events: number;
+    calendars: number;
     total_platforms: number;
+    sync_frequency: '2x_daily' | '4x_daily' | 'hourly';
+    tp_conversations_per_month: number;
+    active_deliverables: number;
   };
-  usage: { ... };
+  usage: {
+    slack_channels: number;
+    gmail_labels: number;
+    notion_pages: number;
+    calendars: number;
+    platforms_connected: number;
+    tp_conversations_this_month: number;
+    active_deliverables: number;
+  };
+  next_sync?: string;  // ISO timestamp
 }
 ```
 
@@ -118,19 +210,25 @@ Returns current tier, limits, and usage.
 {
   "tier": "free",
   "limits": {
-    "slack_channels": 5,
-    "gmail_labels": 3,
-    "notion_pages": 5,
-    "calendar_events": 3,
-    "total_platforms": 3
+    "slack_channels": 1,
+    "gmail_labels": 1,
+    "notion_pages": 1,
+    "calendars": 1,
+    "total_platforms": 2,
+    "sync_frequency": "2x_daily",
+    "tp_conversations_per_month": 20,
+    "active_deliverables": 3
   },
   "usage": {
-    "slack_channels": 2,
-    "gmail_labels": 1,
+    "slack_channels": 1,
+    "gmail_labels": 0,
     "notion_pages": 0,
-    "calendar_events": 0,
-    "platforms_connected": 2
-  }
+    "calendars": 0,
+    "platforms_connected": 1,
+    "tp_conversations_this_month": 5,
+    "active_deliverables": 1
+  },
+  "next_sync": "2026-02-12T18:00:00Z"
 }
 ```
 
@@ -194,29 +292,32 @@ During scheduled syncs:
 
 ## User Experience
 
-### At Limit State
+### At Limit State (Free Tier)
 
 ```
 ┌────────────────────────────────────────────────────────────┐
 │ ⚠️  Channel limit reached                                  │
 │                                                            │
-│ Your free plan allows 5 channels.                          │
-│ [✨ Upgrade to Pro] for 20 channels.                       │
+│ Your free plan allows 1 channel.                           │
+│ [✨ Upgrade to Starter] for 5 channels ($9/mo)             │
 └────────────────────────────────────────────────────────────┘
 ```
 
-### Near Limit Warning (80%)
+### Sync Frequency Indicator
 
 ```
-Using 4 of 5 channels (80%)
+#engineering
+✅ Synced • 142 messages • Last sync: 2 hours ago
+Next sync: 6:00 PM (Upgrade to Starter for 4x/day)
 ```
 
 ### Upgrade Prompt
 
 Shown inline on platform detail page, not as blocking modal:
-- Clear value proposition
+- Clear value proposition ("5 channels + 4x/day sync")
 - One-click upgrade path
 - Non-intrusive placement
+- Tiered options: Starter ($9) vs Pro ($19)
 
 ---
 
@@ -229,15 +330,23 @@ Shown inline on platform detail page, not as blocking modal:
 3. **Grace Period** - Allow temporary overage for downgrade scenarios
 4. **Usage History** - Track usage over time for analytics
 5. **Admin Override** - Manual limit adjustments for special cases
+6. **Stripe Integration** - Payment processing for Starter/Pro tiers
 
-### Potential Additional Limits
+### Now Included in Tier Limits (ADR-053)
+
+| Resource | Status |
+|----------|--------|
+| Deliverables | ✅ Included (3/10/unlimited) |
+| TP conversations/month | ✅ Included (20/100/unlimited) |
+| Sync frequency | ✅ Included (2x/4x/hourly) |
+
+### Potential Future Limits
 
 | Resource | Consideration |
 |----------|---------------|
-| Deliverables | Number of active scheduled deliverables |
-| Executions/month | Monthly quota for deliverable runs |
-| Context storage | Total stored memories/context size |
-| API calls/day | Rate limit for external platform calls |
+| Context storage | Total stored ephemeral_context size |
+| API calls/day | Rate limit for platform tool calls |
+| Deliverable executions | Monthly quota for scheduled runs |
 
 ---
 
@@ -276,18 +385,47 @@ Shown inline on platform detail page, not as blocking modal:
 
 ## Notes
 
-### Two Limit Systems
+### Consolidated Limit System (ADR-053)
 
-There are currently two separate limit systems:
+As of ADR-053, platform resource limits are the **primary monetization lever**:
 
 1. **Platform Resource Limits** (`api/services/platform_limits.py`)
-   - Slack channels, Gmail labels, Notion pages, Calendar events
-   - Enforced at source selection time
-   - Documented in this file
+   - Synced sources: Slack channels, Gmail labels, Notion pages, Calendars
+   - Sync frequency: 2x/day → 4x/day → hourly
+   - TP conversations per month
+   - Active deliverables
+   - Enforced at source selection + sync time
 
 2. **Legacy App Limits** (`web/lib/subscription/limits.ts`)
-   - Projects, memories per project, chat sessions per month, documents
-   - Frontend-only, not fully enforced
-   - May need consolidation in future
+   - Projects, memories per project - **deprecated**
+   - Should be consolidated into platform limits
 
-The platform resource limits are the primary monetization lever as they directly correlate with API usage and storage costs.
+### Cost Analysis
+
+| Tier | Sync Cost/Mo | LLM Cost/Mo (est) | Price | Margin |
+|------|--------------|-------------------|-------|--------|
+| Free | ~$0.05 | ~$0.50 | $0 | Loss leader |
+| Starter | ~$0.15 | ~$2 | $9 | ~$6.85 (76%) |
+| Pro | ~$0.50 | ~$5 | $19 | ~$13.50 (71%) |
+
+Platform sync (no LLM) is extremely profitable. LLM usage is the variable cost controlled by conversation/deliverable limits.
+
+---
+
+## Changelog
+
+### 2026-02-12: ADR-053 Revision
+
+- **Tighter free tier**: 1 source per platform (was 3-5)
+- **Added Starter tier**: $9/mo, middle ground for solo users
+- **Sync frequency as tier lever**: 2x/4x/hourly
+- **TP conversations limit**: 20/100/unlimited
+- **Deliverables limit**: 3/10/unlimited
+- **Counting model**: Synced sources, not connections
+- **Removed Enterprise**: Deferred until demand
+
+### 2026-02-11: Initial Implementation
+
+- Framework for platform resource limits
+- Free/Pro/Enterprise tiers (generous limits)
+- Backend enforcement in `platform_limits.py`
