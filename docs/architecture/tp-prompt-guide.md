@@ -2,10 +2,11 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-11
-> **Updated**: 2026-02-11
+> **Updated**: 2026-02-12
 > **Location**: `api/agents/thinking_partner.py`
 > **Primitives**: 7 (ADR-038)
-> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md)
+> **Platform Tools**: Slack, Notion, Gmail, Calendar (ADR-046, ADR-050)
+> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-050: MCP Gateway](../adr/ADR-050-mcp-gateway-architecture.md)
 
 ---
 
@@ -13,9 +14,11 @@
 
 The Thinking Partner system prompt governs how TP interacts with users. This document tracks prompt design decisions and their rationale.
 
+**Prompt Versioning**: See `api/services/platform_tools.py` for `PROMPT_VERSIONS` dict.
+
 ---
 
-## Current Version: v5.1 (2026-02-11)
+## Current Version: v5.2 (2026-02-12)
 
 ### Key Principles
 
@@ -78,25 +81,55 @@ Only if {context} is empty AND exploration finds nothing:
 → Clarify(question="Who receives this?", options=[...])
 ```
 
-### Prompt Structure (7 Primitives)
+### Prompt Structure (7 Primitives + Platform Tools)
 
 ```
 1. Context injection ({context}) - user profile, deliverables, platforms, sessions
 2. Tone and Style - conciseness rules
 3. How You Work - text primary, tools for actions
 4. Available Tools - 7 primitives (Read, Write, Edit, List, Search, Execute, Clarify)
-5. Reference Syntax - type:identifier
-6. Guidelines - behavioral rules
-7. Domain Terms - vocabulary
-8. Explore Before Asking - context → List/Search → Clarify (last resort)
-9. Confirming Before Acting - when to confirm vs just do it
-10. Creating Entities - Write examples
+5. Platform Tools - platform_slack_*, platform_notion_*, platform_gmail_*, platform_calendar_* (ADR-046, ADR-050)
+6. Reference Syntax - type:identifier
+7. Guidelines - behavioral rules
+8. Domain Terms - vocabulary
+9. Explore Before Asking - context → List/Search → Clarify (last resort)
+10. Confirming Before Acting - when to confirm vs just do it
+11. Creating Entities - Write examples
 ```
+
+**v5.2 changes:**
+- Added platform tools with prompt versioning (see `PROMPT_VERSIONS`)
+- Slack: streamlined for personal DM pattern (send to `authed_user_id`)
+- Notion: fixed MCP server v2 tool names (`search-notion`, `create-a-comment`)
+- Gmail: Direct API tools (`search`, `get_thread`, `send`, `create_draft`)
+- Calendar: Direct API tools (`list_events`, `get_event`, `create_event`)
 
 **v5.1 changes:**
 - Removed Respond primitive (TP's text output IS the response)
 - Removed Todo primitive (streaming tool calls ARE the progress indicator)
 - Added context injection as primary information source
+
+### Platform Tools (ADR-046, ADR-050)
+
+Platform tools are dynamically added based on user's connected integrations:
+
+| Provider | Tools | Backend |
+|----------|-------|---------|
+| **Slack** | `platform_slack_send_message`, `platform_slack_list_channels` | MCP Gateway |
+| **Notion** | `platform_notion_search`, `platform_notion_create_comment` | MCP Gateway |
+| **Gmail** | `platform_gmail_search`, `platform_gmail_get_thread`, `platform_gmail_send`, `platform_gmail_create_draft` | Direct API |
+| **Calendar** | `platform_calendar_list_events`, `platform_calendar_get_event`, `platform_calendar_create_event` | Direct API |
+
+**Streamlined Patterns:**
+
+- **Slack**: Default to user's own DM via `authed_user_id` (user owns the output)
+- **Gmail**: Prefer `create_draft` over `send` for deliverable outputs
+- **Notion**: Use `search-notion` to find pages, not hardcoded names
+
+**Workflow for platform actions:**
+1. Call `list_integrations` to get metadata (e.g., `authed_user_id` for Slack)
+2. Use the returned IDs in tool calls
+3. Confirm: "I've sent that to your Slack DM."
 
 ### Good Response Examples
 
@@ -123,6 +156,29 @@ User: "What platforms are connected?"
 ---
 
 ## Changelog
+
+### v5.2 (2026-02-12)
+
+**Changes:**
+- Added platform tools: `platform_slack_*`, `platform_notion_*`, `platform_gmail_*`, `platform_calendar_*`
+- Added prompt versioning (`PROMPT_VERSIONS` dict in `platform_tools.py`)
+- Slack streamlined for personal DM pattern (send to `authed_user_id`)
+- Notion fixed for MCP server v2 (`search-notion`, `create-a-comment`)
+- Gmail/Calendar via Direct API (not MCP) per ADR-046
+- `list_integrations` now exposes `authed_user_id` for Slack
+
+**Rationale:** ADR-050 MCP Gateway enables direct platform access. ADR-046 adds Gmail/Calendar. Streamlined patterns ensure user owns their outputs (DM to self, drafts for review).
+
+**Prompt Versioning:**
+```python
+PROMPT_VERSIONS = {
+    "platform_tools": {"version": "2026-02-12", "adr_refs": ["ADR-046", "ADR-050"]},
+    "slack": {"version": "2026-02-12", "adr_refs": ["ADR-050"]},
+    "notion": {"version": "2026-02-12", "adr_refs": ["ADR-050"]},
+    "gmail": {"version": "2026-02-12", "adr_refs": ["ADR-046"]},
+    "calendar": {"version": "2026-02-12", "adr_refs": ["ADR-046"]},
+}
+```
 
 ### v5.1 (2026-02-11)
 

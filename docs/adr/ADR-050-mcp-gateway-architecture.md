@@ -1,9 +1,32 @@
 # ADR-050: MCP Gateway Architecture
 
-> **Status**: Accepted
+> **Status**: Implemented
 > **Created**: 2026-02-12
+> **Updated**: 2026-02-12
 > **Deciders**: Kevin (solo founder)
-> **Related**: ADR-048 (Direct MCP Access), ADR-041 (MCP Server Exposure)
+> **Related**: ADR-048 (Direct MCP Access), ADR-041 (MCP Server Exposure), ADR-046 (Google Calendar Integration)
+
+---
+
+## Implementation Status
+
+**Phase 1: Complete** ✅
+- MCP Gateway deployed at `yarnnn-mcp-gateway.onrender.com`
+- Slack tools working via `@modelcontextprotocol/server-slack`
+- Notion tools working via `@notionhq/notion-mcp-server` v2
+- Platform tools dynamically added to TP based on user integrations
+
+**Phase 2: Complete** ✅
+- Gmail Direct API tools: `search`, `get_thread`, `send`, `create_draft`
+- Calendar Direct API tools: `list_events`, `get_event`, `create_event`
+- Routing: MCP Gateway for Slack/Notion, Direct API for Gmail/Calendar
+
+**Prompt Versioning**: Added in `api/services/platform_tools.py:PROMPT_VERSIONS`
+
+**Streamlined Patterns**:
+- Slack: Send to user's own DM via `authed_user_id` (personal ownership)
+- Gmail: Prefer `create_draft` for deliverable outputs
+- Notion: Use `search-notion` (v2 tool name), not hardcoded page names
 
 ---
 
