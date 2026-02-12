@@ -35,8 +35,8 @@ export default function LandingPage() {
 
                 {/* Supporting headline */}
                 <p className="text-lg md:text-xl text-[#1a1a1a]/50 mb-12 max-w-xl mx-auto lg:mx-0 font-light">
-                  Connect your Slack, Gmail, Notion, and Calendar. yarnnn turns what&apos;s happening
-                  into the updates you owe people. You just review and hit send.
+                  Connect your Slack, Gmail, Notion, and Calendar. Your Thinking Partner
+                  turns what&apos;s happening into the updates you owe people. You just review and hit send.
                 </p>
 
                 <Link
