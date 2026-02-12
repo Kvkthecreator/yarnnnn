@@ -1,11 +1,14 @@
 "use client";
 
+/**
+ * ADR-053: Subscription gate hook with 3-tier support.
+ */
+
 import { useMemo } from "react";
-import { useSubscription } from "./useSubscription";
+import { useSubscription, type SubscriptionTier } from "./useSubscription";
 import {
   SUBSCRIPTION_LIMITS,
   checkLimit,
-  type SubscriptionTier,
   type LimitStatus,
 } from "@/lib/subscription/limits";
 
@@ -13,10 +16,12 @@ export interface SubscriptionGate {
   // Tier info
   tier: SubscriptionTier;
   isPro: boolean;
+  isStarter: boolean;
+  isPaid: boolean;
   isLoading: boolean;
 
-  // Actions
-  upgrade: (billingPeriod?: "monthly" | "yearly") => Promise<void>;
+  // Actions - ADR-053: Updated signature for 3-tier pricing
+  upgrade: (tier?: "starter" | "pro", billingPeriod?: "monthly" | "yearly") => Promise<void>;
 
   // Helper to check any feature
   checkFeatureLimit: (
@@ -30,9 +35,7 @@ export interface SubscriptionGate {
  * Combines subscription status with current usage data.
  */
 export function useSubscriptionGate(): SubscriptionGate {
-  const { isPro, isLoading, upgrade } = useSubscription();
-
-  const tier: SubscriptionTier = isPro ? "pro" : "free";
+  const { tier, isPro, isStarter, isPaid, isLoading, upgrade } = useSubscription();
 
   // Generic limit checker
   const checkFeatureLimit = useMemo(
@@ -49,6 +52,8 @@ export function useSubscriptionGate(): SubscriptionGate {
   return {
     tier,
     isPro,
+    isStarter,
+    isPaid,
     isLoading,
     upgrade,
     checkFeatureLimit,

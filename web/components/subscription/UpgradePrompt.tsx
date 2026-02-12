@@ -70,7 +70,8 @@ export function UpgradePrompt({
 
   const handleUpgrade = async () => {
     setUpgrading(true);
-    await upgrade("monthly");
+    // ADR-053: Default to Starter tier for upgrade prompts
+    await upgrade("starter", "monthly");
   };
 
   const proFeatures = [
