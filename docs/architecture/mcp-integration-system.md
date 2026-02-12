@@ -1,6 +1,6 @@
 # MCP Integration System Architecture
 
-> **Status**: Implemented
+> **Status**: Implemented (Notion blocked - see below)
 > **Created**: 2026-02-06
 > **Updated**: 2026-02-12
 > **Related**: ADR-026 (Integration Architecture), ADR-050 (MCP Gateway Architecture)
@@ -11,17 +11,32 @@
 
 **CRITICAL DISTINCTION**: YARNNN uses TWO different backends for platform integrations:
 
-| Platform | Backend | Client Class | Protocol |
-|----------|---------|--------------|----------|
-| **Slack** | MCP Gateway | `MCPManager` | MCP (via Node.js gateway) |
-| **Notion** | MCP Gateway | `MCPManager` | MCP (via Node.js gateway) |
-| **Gmail** | Direct API | `GoogleAPIClient` | Google REST API |
-| **Calendar** | Direct API | `GoogleAPIClient` | Google REST API |
+| Platform | Backend | Client Class | Protocol | Status |
+|----------|---------|--------------|----------|--------|
+| **Slack** | MCP Gateway | `MCPManager` | MCP (via Node.js gateway) | ✅ Working |
+| **Notion** | MCP Gateway | `MCPManager` | MCP (via Node.js gateway) | ⚠️ **BLOCKED** |
+| **Gmail** | Direct API | `GoogleAPIClient` | Google REST API | ✅ Working |
+| **Calendar** | Direct API | `GoogleAPIClient` | Google REST API | ✅ Working |
 
 ### Why Two Backends?
 
-- **Slack/Notion**: Use MCP servers (`@modelcontextprotocol/server-slack`, `@notionhq/notion-mcp-server`) which require Node.js. These run in the MCP Gateway service.
+- **Slack**: Uses `@modelcontextprotocol/server-slack` which supports OAuth tokens. Runs in MCP Gateway.
 - **Gmail/Calendar**: Use Google's REST API directly from Python. No MCP server exists with the full functionality we need.
+
+### ⚠️ Notion MCP Incompatibility (2026-02-12)
+
+**The `@notionhq/notion-mcp-server` is incompatible with YARNNN's OAuth flow.**
+
+The open-source Notion MCP server requires **internal integration tokens** (`ntn_...`) from Notion's developer portal. YARNNN uses **OAuth access tokens** from the public OAuth flow. These are different authentication methods:
+
+| Auth Type | Token Format | Source |
+|-----------|--------------|--------|
+| Internal Integration | `ntn_...` | Developer Portal → Create Integration |
+| OAuth Access Token | opaque string | OAuth flow → User authorization |
+
+**Symptoms:** Tools return "Method not found" errors because the MCP server cannot authenticate.
+
+**Recommended Fix:** Switch Notion to Direct API pattern (like Gmail/Calendar). See [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md) for full analysis.
 
 See [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md) for the full architectural decision.
 
@@ -32,20 +47,20 @@ See [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md) for the full architect
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Database schema | ✅ Complete | Migration 023_integrations.sql |
-| `MCPManager` | ✅ Complete | `api/integrations/core/client.py` (Slack/Notion only) |
+| `MCPManager` | ✅ Complete | `api/integrations/core/client.py` (Slack only - Notion blocked) |
 | `GoogleAPIClient` | ✅ Complete | `api/integrations/core/google_client.py` (Gmail/Calendar) |
 | `TokenManager` | ✅ Complete | `api/integrations/core/tokens.py` |
 | Types/Models | ✅ Complete | `api/integrations/core/types.py` |
 | API routes | ✅ Complete | `api/routes/integrations.py` |
 | MCP Gateway | ✅ Complete | `mcp-gateway/` (Node.js service on Render) |
 | OAuth flows | ✅ Complete | All four platforms |
-| Platform tools | ✅ Complete | `api/services/platform_tools.py` |
+| Platform tools | ⚠️ Partial | Slack/Gmail/Calendar working. **Notion blocked.** |
 
 ### Client Separation
 
 ```
 api/integrations/core/
-├── client.py          # MCPManager - Slack/Notion ONLY (MCP protocol)
+├── client.py          # MCPManager - Slack ONLY (Notion blocked due to OAuth incompatibility)
 ├── google_client.py   # GoogleAPIClient - Gmail/Calendar (Direct API)
 ├── tokens.py          # TokenManager - OAuth token management
 └── types.py           # Shared types/interfaces
@@ -55,7 +70,8 @@ api/integrations/core/
 
 The MCP Gateway runs as a separate Render service and handles MCP protocol communication:
 - URL: `yarnnn-mcp-gateway.onrender.com`
-- Manages: `@modelcontextprotocol/server-slack`, `@notionhq/notion-mcp-server`
+- Manages: `@modelcontextprotocol/server-slack`
+- ~~`@notionhq/notion-mcp-server`~~ - **Blocked:** Requires internal integration tokens, incompatible with OAuth
 
 ### Required Environment Variables
 

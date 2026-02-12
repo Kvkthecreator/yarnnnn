@@ -13,13 +13,21 @@
 **Phase 1: Complete** ✅
 - MCP Gateway deployed at `yarnnn-mcp-gateway.onrender.com`
 - Slack tools working via `@modelcontextprotocol/server-slack`
-- Notion tools working via `@notionhq/notion-mcp-server` v2
 - Platform tools dynamically added to TP based on user integrations
 
 **Phase 2: Complete** ✅
 - Gmail Direct API tools: `search`, `get_thread`, `send`, `create_draft`
 - Calendar Direct API tools: `list_events`, `get_event`, `create_event`
-- Routing: MCP Gateway for Slack/Notion, Direct API for Gmail/Calendar
+- Routing: MCP Gateway for Slack, Direct API for Gmail/Calendar
+
+**⚠️ Notion Status: Blocked**
+- The `@notionhq/notion-mcp-server` requires **internal integration tokens** (`ntn_...`)
+- YARNNN uses **OAuth access tokens** from the public OAuth flow
+- These are incompatible authentication methods
+- **Options under evaluation:**
+  1. Switch Notion to Direct API (like Gmail/Calendar)
+  2. Use Notion's Hosted MCP at `mcp.notion.com` (supports OAuth but requires remote connection)
+- See "Notion MCP Incompatibility" section below
 
 **Prompt Versioning**: Added in `api/services/platform_tools.py:PROMPT_VERSIONS`
 
@@ -39,15 +47,68 @@
 **Client Separation** (clean architecture):
 ```
 api/integrations/core/
-├── client.py          # MCPManager - Slack/Notion ONLY (MCP protocol)
+├── client.py          # MCPManager - Slack ONLY (MCP protocol via Gateway)
 ├── google_client.py   # GoogleAPIClient - Gmail/Calendar (Direct API)
 └── tokens.py          # TokenManager - OAuth token management
 ```
 
 The client classes are intentionally separated to avoid confusion:
-- `MCPManager` handles ONLY MCP protocol (Slack, Notion)
+- `MCPManager` handles ONLY MCP protocol (Slack only - Notion blocked, see below)
 - `GoogleAPIClient` handles ONLY Google Direct API (Gmail, Calendar)
 - No dual-path code - each platform has ONE implementation path
+
+---
+
+## Notion MCP Incompatibility
+
+**Discovery Date:** 2026-02-12
+
+### The Problem
+
+The official `@notionhq/notion-mcp-server` (npm package) requires **internal integration tokens** that start with `ntn_`. These are different from OAuth access tokens:
+
+| Auth Type | Token Format | Source | Use Case |
+|-----------|--------------|--------|----------|
+| Internal Integration | `ntn_...` | Notion Developer Portal | Private integrations within a workspace |
+| OAuth Access Token | `secret_...` or opaque | OAuth flow | Public apps that users authorize |
+
+YARNNN uses OAuth for user authorization (public integration), but the MCP server expects internal integration tokens. This is a fundamental incompatibility.
+
+### Evidence
+
+From the Notion MCP documentation:
+> "NOTION_TOKEN": "ntn_****" - Your integration secret token from your integration's Configuration tab
+
+The server initialization fails silently or returns "Method not found" errors when given OAuth tokens because it cannot authenticate with the Notion API.
+
+### Options
+
+1. **Switch Notion to Direct API** (Recommended)
+   - Like Gmail/Calendar, call Notion REST API directly from Python
+   - OAuth tokens work with Notion REST API
+   - Full control over API calls
+   - Downside: More code to maintain
+
+2. **Use Notion's Hosted MCP** (`mcp.notion.com`)
+   - Supports OAuth authentication
+   - Actively maintained by Notion
+   - Downside: Requires connecting to remote MCP server (different protocol flow)
+
+3. **Require Internal Integration Tokens**
+   - Users create internal integration and paste token
+   - Breaks OAuth flow UX
+   - **Rejected**: Poor user experience
+
+### Decision (Pending)
+
+Recommend Option 1 (Direct API) to maintain consistency with Gmail/Calendar pattern. This would change the backend routing to:
+
+| Platform | Backend | Reason |
+|----------|---------|--------|
+| Slack | MCP Gateway | MCP server supports OAuth tokens |
+| Notion | Direct API | MCP server incompatible with OAuth |
+| Gmail | Direct API | No suitable MCP server |
+| Calendar | Direct API | No suitable MCP server |
 
 ---
 

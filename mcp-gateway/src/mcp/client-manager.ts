@@ -152,6 +152,13 @@ export class MCPClientManager {
       stderr: 'pipe',
     });
 
+    // Log stderr from MCP server for debugging
+    if (transport.stderr) {
+      transport.stderr.on('data', (data: Buffer) => {
+        console.log(`[MCP:${provider}:stderr] ${data.toString().trim()}`);
+      });
+    }
+
     const client = new Client({
       name: 'yarnnn-mcp-gateway',
       version: '1.0.0',
@@ -160,6 +167,16 @@ export class MCPClientManager {
     });
 
     await client.connect(transport);
+
+    // Discover available tools from the MCP server
+    console.log(`[MCP] Discovering tools for ${provider}...`);
+    try {
+      const toolsResult = await client.listTools();
+      const toolNames = toolsResult.tools.map(t => t.name);
+      console.log(`[MCP] ${provider} tools discovered: ${toolNames.join(', ')}`);
+    } catch (err) {
+      console.error(`[MCP] Failed to list tools for ${provider}:`, err);
+    }
 
     console.log(`[MCP] Session created for ${provider}`);
 
