@@ -203,18 +203,48 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
           const session = result.sessions[0];
           if (session.messages && session.messages.length > 0) {
             const messages: TPMessage[] = session.messages.map((m) => {
-              // Reconstruct tool results from metadata.tool_history
+              // ADR-042: Reconstruct blocks AND tool results from metadata.tool_history
+              // This ensures historical messages render with Claude Code-style inline tool calls
               let toolResults: TPToolResult[] | undefined;
+              let blocks: MessageBlock[] | undefined;
+
               if (m.metadata?.tool_history) {
-                toolResults = m.metadata.tool_history
-                  .filter((item) => item.type === 'tool_call' && item.name)
-                  .map((item) => ({
+                const toolItems = m.metadata.tool_history.filter(
+                  (item) => item.type === 'tool_call' && item.name
+                );
+
+                // Reconstruct legacy toolResults for backwards compatibility
+                toolResults = toolItems.map((item) => ({
+                  toolName: item.name!,
+                  success: true, // Assume success for historical
+                  data: {
+                    message: item.result_summary || 'Action completed',
+                  },
+                }));
+
+                // ADR-042: Reconstruct blocks for Claude Code-style rendering
+                // Note: Historical data only has input_summary (string), not full input object
+                blocks = toolItems.map((item, idx) => ({
+                  type: 'tool_call' as const,
+                  id: `hist_${m.id}_${idx}`,
+                  tool: item.name!,
+                  input: item.input_summary ? { summary: item.input_summary } : {},
+                  status: 'success' as const,
+                  result: {
                     toolName: item.name!,
-                    success: true, // Assume success for historical
-                    data: {
-                      message: item.result_summary || 'Action completed',
-                    },
-                  }));
+                    success: true,
+                    data: { message: item.result_summary || 'Action completed' },
+                  },
+                }));
+              }
+
+              // Build blocks array: text content + tool calls
+              const messageBlocks: MessageBlock[] = [];
+              if (m.content) {
+                messageBlocks.push({ type: 'text', content: m.content });
+              }
+              if (blocks && blocks.length > 0) {
+                messageBlocks.push(...blocks);
               }
 
               return {
@@ -223,6 +253,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                 content: m.content,
                 timestamp: new Date(m.created_at),
                 toolResults: toolResults?.length ? toolResults : undefined,
+                blocks: messageBlocks.length > 0 ? messageBlocks : undefined,
               };
             });
             dispatch({ type: 'SET_MESSAGES', messages });
