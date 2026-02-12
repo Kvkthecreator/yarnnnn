@@ -126,6 +126,15 @@ export default function SettingsPage() {
   // Import modal state (ADR-027, ADR-029, ADR-046)
   const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | "google" | "calendar" | null>(null);
 
+  // Usage metrics state
+  const [usageMetrics, setUsageMetrics] = useState<{
+    deliverables: number;
+    documents: number;
+    platforms: { connected: number; total: number };
+    facts: number;
+  } | null>(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
+
   // Check for OAuth callback status
   const providerParam = searchParams.get("provider");
   const statusParam = searchParams.get("status");
@@ -135,6 +144,13 @@ export default function SettingsPage() {
   const [showOAuthNotification, setShowOAuthNotification] = useState(true);
 
   // ADR-039: Memory stats fetch removed - now in Context page
+
+  // Fetch usage metrics when usage tab is active
+  useEffect(() => {
+    if (activeTab === "usage" && !usageMetrics) {
+      loadUsageMetrics();
+    }
+  }, [activeTab, usageMetrics]);
 
   // Fetch danger zone stats when account tab is active
   useEffect(() => {
@@ -175,6 +191,37 @@ export default function SettingsPage() {
       return () => clearTimeout(timer);
     }
   }, [providerParam, statusParam, router]);
+
+  const loadUsageMetrics = async () => {
+    setIsLoadingUsage(true);
+    try {
+      // Fetch counts from various endpoints in parallel
+      const [deliverables, documents, integrations, facts] = await Promise.all([
+        api.deliverables.list().catch(() => []),
+        api.documents.list().catch(() => ({ documents: [] })),
+        api.integrations.list().catch(() => ({ integrations: [] })),
+        api.userMemories.list().catch(() => []),
+      ]);
+
+      const activeIntegrations = (integrations.integrations || []).filter(
+        (i: { status: string }) => i.status === "active"
+      );
+
+      setUsageMetrics({
+        deliverables: Array.isArray(deliverables) ? deliverables.length : 0,
+        documents: documents.documents?.length || 0,
+        platforms: {
+          connected: activeIntegrations.length,
+          total: 4, // Slack, Gmail, Notion, Calendar
+        },
+        facts: Array.isArray(facts) ? facts.length : 0,
+      });
+    } catch (err) {
+      console.error("Failed to fetch usage metrics:", err);
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  };
 
   const loadNotificationPreferences = async () => {
     setIsLoadingNotifications(true);
@@ -462,31 +509,76 @@ export default function SettingsPage() {
             Usage Overview
           </h2>
           <p className="text-sm text-muted-foreground mb-6">
-            {isPro ? "You have unlimited usage on Pro." : "Track your usage against Free tier limits."}
+            Your current usage across yarnnn.
           </p>
 
-          <div className="space-y-6">
-            {/* ADR-039: Context stats moved to /context page */}
-            <div className="p-4 border border-border rounded-lg">
-              <h3 className="font-medium mb-3 flex items-center gap-2">
-                <Brain className="w-4 h-4" />
-                Context
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                View your context (platforms, documents, facts) in the{" "}
-                <a href="/context" className="text-primary hover:underline">Context page</a>.
-              </p>
+          {isLoadingUsage ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
+          ) : usageMetrics ? (
+            <div className="grid grid-cols-2 gap-4">
+              {/* Deliverables */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Package className="w-4 h-4 text-primary" />
+                  <h3 className="font-medium">Deliverables</h3>
+                </div>
+                <p className="text-2xl font-semibold">{usageMetrics.deliverables}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {usageMetrics.deliverables === 1 ? "Active deliverable" : "Active deliverables"}
+                </p>
+              </div>
 
-            <div className="p-4 border border-border rounded-lg">
-              <h3 className="font-medium mb-3 flex items-center gap-2">
-                <FileText className="w-4 h-4" />
-                Documents
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                {isPro ? "Unlimited document uploads" : "Document uploads included"}
-              </p>
+              {/* Platforms */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Link2 className="w-4 h-4 text-primary" />
+                  <h3 className="font-medium">Platforms</h3>
+                </div>
+                <p className="text-2xl font-semibold">
+                  {usageMetrics.platforms.connected}
+                  <span className="text-sm font-normal text-muted-foreground">
+                    /{usageMetrics.platforms.total}
+                  </span>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">Connected platforms</p>
+              </div>
+
+              {/* Documents */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <FileText className="w-4 h-4 text-primary" />
+                  <h3 className="font-medium">Documents</h3>
+                </div>
+                <p className="text-2xl font-semibold">{usageMetrics.documents}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {usageMetrics.documents === 1 ? "Uploaded document" : "Uploaded documents"}
+                </p>
+              </div>
+
+              {/* Facts */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center gap-2 mb-2">
+                  <Brain className="w-4 h-4 text-primary" />
+                  <h3 className="font-medium">Facts</h3>
+                </div>
+                <p className="text-2xl font-semibold">{usageMetrics.facts}</p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {usageMetrics.facts === 1 ? "Stored fact" : "Stored facts"}
+                </p>
+              </div>
             </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Unable to load usage data.</p>
+          )}
+
+          {/* Link to Context page */}
+          <div className="mt-6 p-4 bg-muted/30 rounded-lg">
+            <p className="text-sm text-muted-foreground">
+              Manage your context sources in the{" "}
+              <a href="/context" className="text-primary hover:underline">Context page</a>.
+            </p>
           </div>
         </section>
       )}
