@@ -91,16 +91,16 @@ interface PlatformDeliverable {
   destination?: { platform?: string };
 }
 
-interface PlatformMemory {
+// ADR-052: Platform context items from ephemeral_context table
+interface PlatformContextItem {
   id: string;
   content: string;
-  tags: string[];
-  source_ref?: {
-    platform?: string;
-    resource_id?: string;
-    resource_name?: string;
-  };
+  content_type: string | null;
+  resource_id: string;
+  resource_name: string | null;
+  source_timestamp: string | null;
   created_at: string;
+  metadata: Record<string, unknown>;
 }
 
 interface IntegrationData {
@@ -235,7 +235,8 @@ export default function PlatformDetailPage() {
   const [originalIds, setOriginalIds] = useState<Set<string>>(new Set());
   const [tierLimits, setTierLimits] = useState<TierLimits | null>(null);
   const [deliverables, setDeliverables] = useState<PlatformDeliverable[]>([]);
-  const [recentMemories, setRecentMemories] = useState<PlatformMemory[]>([]);
+  // ADR-052: Platform context from ephemeral_context table (replaces legacy recentMemories)
+  const [platformContext, setPlatformContext] = useState<PlatformContextItem[]>([]);
 
   // ADR-050: Notion designated page state
   const [designatedPage, setDesignatedPage] = useState<{
@@ -276,7 +277,7 @@ export default function PlatformDetailPage() {
       const backendProviders = BACKEND_PROVIDER_MAP[platform];
 
       // Load all data in parallel
-      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult, designatedPageResult, googleSettingsResult, calendarsResult] = await Promise.all([
+      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, platformContextResult, designatedPageResult, googleSettingsResult, calendarsResult] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
         // ADR-046: Calendar uses listGoogleCalendars instead of getLandscape
         // Gmail labels ≠ Calendar data, so we skip getLandscape for calendar platform
@@ -286,7 +287,9 @@ export default function PlatformDetailPage() {
         api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
         api.deliverables.list().catch(() => []),
-        api.userMemories.list().catch(() => []),
+        // ADR-052: Load platform context from ephemeral_context table
+        api.integrations.getPlatformContext(platform as "slack" | "notion" | "gmail" | "calendar", { limit: 10 })
+          .catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
         // ADR-050: Load designated page for Notion
         platform === 'notion' ? api.integrations.getNotionDesignatedPage().catch(() => null) : Promise.resolve(null),
         // ADR-050: Load designated settings for Calendar
@@ -347,11 +350,8 @@ export default function PlatformDetailPage() {
       );
       setDeliverables(platformDeliverables);
 
-      // Filter memories from this platform (check all backend provider variants, most recent 10)
-      const platformMemories = (memoriesResult || [])
-        .filter((m: PlatformMemory) => backendProviders.includes(m.source_ref?.platform || ''))
-        .slice(0, 10);
-      setRecentMemories(platformMemories);
+      // ADR-052: Set platform context from ephemeral_context (already filtered by platform on backend)
+      setPlatformContext(platformContextResult?.items || []);
 
     } catch (err) {
       console.error('Failed to load platform data:', err);
@@ -1143,13 +1143,13 @@ export default function PlatformDetailPage() {
           )}
         </section>
 
-        {/* Recent Context Section */}
+        {/* ADR-052: Synced Content Section - shows actual content from ephemeral_context */}
         <section>
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-base font-semibold">Recent Context from {config.label}</h2>
-            {recentMemories.length > 0 && (
+            {platformContext.length > 0 && (
               <button
-                onClick={() => router.push(`/context?source=facts`)}
+                onClick={() => router.push(`/context`)}
                 className="text-sm text-muted-foreground hover:text-foreground"
               >
                 View all
@@ -1157,31 +1157,36 @@ export default function PlatformDetailPage() {
             )}
           </div>
 
-          {recentMemories.length === 0 ? (
+          {platformContext.length === 0 ? (
             <div className="border border-dashed border-border rounded-lg p-8 text-center">
               <p className="text-sm text-muted-foreground">
-                No context extracted from {config.label} yet.
+                No synced content from {config.label} yet.
               </p>
               <p className="text-xs text-muted-foreground mt-1">
-                Select {config.resourceLabel.toLowerCase()} above, then import to build context.
+                Select {config.resourceLabel.toLowerCase()} above, then import to sync content.
               </p>
             </div>
           ) : (
             <div className="space-y-2">
-              {recentMemories.map((memory) => (
+              {platformContext.map((item) => (
                 <div
-                  key={memory.id}
+                  key={item.id}
                   className="p-3 border border-border rounded-lg text-sm"
                 >
-                  <p className="text-foreground line-clamp-2">{memory.content}</p>
+                  <p className="text-foreground line-clamp-2">{item.content}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    {memory.source_ref?.resource_name && (
+                    {item.resource_name && (
                       <span className="text-xs text-muted-foreground">
-                        {memory.source_ref.resource_name}
+                        {item.resource_name}
+                      </span>
+                    )}
+                    {item.content_type && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-muted text-muted-foreground">
+                        {item.content_type}
                       </span>
                     )}
                     <span className="text-xs text-muted-foreground">
-                      {formatDistanceToNow(new Date(memory.created_at), { addSuffix: true })}
+                      {formatDistanceToNow(new Date(item.source_timestamp || item.created_at), { addSuffix: true })}
                     </span>
                   </div>
                 </div>

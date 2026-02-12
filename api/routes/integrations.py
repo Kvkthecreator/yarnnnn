@@ -345,6 +345,27 @@ class CalendarEventsListResponse(BaseModel):
     calendar_id: str
 
 
+# ADR-052: Platform context response models
+class PlatformContextItem(BaseModel):
+    """A single synced content item from ephemeral_context."""
+    id: str
+    content: str
+    content_type: Optional[str] = None  # message, thread_parent, email, page
+    resource_id: str
+    resource_name: Optional[str] = None
+    source_timestamp: Optional[str] = None
+    created_at: str
+    metadata: dict[str, Any] = {}
+
+
+class PlatformContextResponse(BaseModel):
+    """ADR-052: Synced content from ephemeral_context for a platform."""
+    items: list[PlatformContextItem]
+    total_count: int
+    freshest_at: Optional[str] = None
+    platform: str
+
+
 # =============================================================================
 # Import Job Models
 # =============================================================================
@@ -2458,6 +2479,90 @@ async def get_landscape(
         discovered_at=discovered_at,
         resources=resources,
         coverage_summary=coverage_summary
+    )
+
+
+# =============================================================================
+# ADR-052: Platform Context (Synced Content)
+# =============================================================================
+
+@router.get("/integrations/{provider}/context")
+async def get_platform_context(
+    provider: str,
+    limit: int = Query(20, ge=1, le=100, description="Max items to return"),
+    resource_id: Optional[str] = Query(None, description="Filter by specific resource"),
+    auth: UserClient = None
+) -> PlatformContextResponse:
+    """
+    ADR-052: Get synced content from ephemeral_context for a platform.
+
+    This is the actual platform content (messages, emails, pages) that TP knows about.
+    Different from landscape (which shows available resources) and memories (user-stated facts).
+
+    Returns recent synced content, ordered by source_timestamp descending.
+    """
+    if provider not in ["gmail", "slack", "notion", "calendar"]:
+        raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
+
+    user_id = auth.user_id
+
+    # Build query
+    query = (
+        auth.client.table("ephemeral_context")
+        .select("*")
+        .eq("user_id", user_id)
+        .eq("platform", provider)
+        .gt("expires_at", datetime.utcnow().isoformat())  # Only non-expired
+        .order("source_timestamp", desc=True)
+        .limit(limit)
+    )
+
+    if resource_id:
+        query = query.eq("resource_id", resource_id)
+
+    result = query.execute()
+
+    # Get total count
+    count_query = (
+        auth.client.table("ephemeral_context")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .eq("platform", provider)
+        .gt("expires_at", datetime.utcnow().isoformat())
+    )
+    if resource_id:
+        count_query = count_query.eq("resource_id", resource_id)
+
+    count_result = count_query.execute()
+    total_count = count_result.count or 0
+
+    # Build response
+    items = []
+    freshest_at = None
+
+    for row in result.data or []:
+        source_ts = row.get("source_timestamp")
+        if source_ts and (freshest_at is None or source_ts > freshest_at):
+            freshest_at = source_ts
+
+        items.append(PlatformContextItem(
+            id=row["id"],
+            content=row["content"][:500] if row["content"] else "",  # Truncate for list view
+            content_type=row.get("content_type"),
+            resource_id=row["resource_id"],
+            resource_name=row.get("resource_name"),
+            source_timestamp=source_ts,
+            created_at=row["created_at"],
+            metadata=row.get("platform_metadata", {}),
+        ))
+
+    logger.info(f"[INTEGRATIONS] User {user_id} fetched {len(items)} context items from {provider}")
+
+    return PlatformContextResponse(
+        items=items,
+        total_count=total_count,
+        freshest_at=freshest_at,
+        platform=provider,
     )
 
 

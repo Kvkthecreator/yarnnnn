@@ -756,6 +756,37 @@ export const api = {
         };
       }>(`/api/integrations/${provider}/landscape${refresh ? "?refresh=true" : ""}`),
 
+    // ADR-052: Get synced platform content from ephemeral_context
+    getPlatformContext: (
+      provider: "slack" | "notion" | "gmail" | "calendar",
+      options?: { limit?: number; resourceId?: string }
+    ) =>
+      request<{
+        items: Array<{
+          id: string;
+          content: string;
+          content_type: string | null;
+          resource_id: string;
+          resource_name: string | null;
+          source_timestamp: string | null;
+          created_at: string;
+          metadata: Record<string, unknown>;
+        }>;
+        total_count: number;
+        freshest_at: string | null;
+        platform: string;
+      }>(
+        `/api/integrations/${provider}/context${
+          options
+            ? `?${new URLSearchParams(
+                Object.entries(options)
+                  .filter(([, v]) => v !== undefined)
+                  .map(([k, v]) => [k === "resourceId" ? "resource_id" : k, String(v)])
+              ).toString()}`
+            : ""
+        }`
+      ),
+
     // Update coverage state (mark as excluded or reset)
     updateCoverage: (
       provider: "slack" | "notion" | "gmail" | "google" | "calendar",
