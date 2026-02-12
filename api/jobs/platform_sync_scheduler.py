@@ -160,6 +160,8 @@ async def process_user_sync(supabase_client, user: dict) -> dict:
     """
     Process platform sync for a single user.
 
+    ADR-056: Fetches selected_sources for each provider and passes to worker.
+
     Args:
         supabase_client: Supabase client
         user: User dict with user_id, tier, providers
@@ -177,10 +179,21 @@ async def process_user_sync(supabase_client, user: dict) -> dict:
     results = {}
     for provider in providers:
         try:
-            # Run sync for this provider
+            # ADR-056: Fetch selected_sources from integration landscape
+            selected_sources = await _get_selected_sources(supabase_client, user_id, provider)
+
+            if not selected_sources:
+                logger.info(f"[SYNC] Skipping {provider}: no sources selected")
+                results[provider] = {"success": True, "items_synced": 0, "skipped": "no_sources_selected"}
+                continue
+
+            logger.info(f"[SYNC] {provider}: syncing {len(selected_sources)} selected sources")
+
+            # Run sync for this provider with selected sources
             result = sync_platform(
                 user_id=user_id,
                 provider=provider,
+                selected_sources=selected_sources,
                 supabase_url=os.environ.get("SUPABASE_URL"),
                 supabase_key=os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
             )
@@ -196,6 +209,38 @@ async def process_user_sync(supabase_client, user: dict) -> dict:
             results[provider] = {"success": False, "error": str(e)}
 
     return results
+
+
+async def _get_selected_sources(supabase_client, user_id: str, provider: str) -> list[str]:
+    """
+    Get selected source IDs for a user's platform integration.
+
+    ADR-056: Returns list of source IDs from integration.landscape.selected_sources
+    """
+    try:
+        result = supabase_client.table("user_integrations").select(
+            "landscape"
+        ).eq("user_id", user_id).eq("provider", provider).single().execute()
+
+        if not result.data:
+            return []
+
+        landscape = result.data.get("landscape", {}) or {}
+        selected = landscape.get("selected_sources", [])
+
+        # Extract IDs from objects if needed
+        source_ids = []
+        for s in selected:
+            if isinstance(s, dict):
+                source_ids.append(s.get("id"))
+            else:
+                source_ids.append(s)
+
+        return [sid for sid in source_ids if sid]  # Filter out None/empty
+
+    except Exception as e:
+        logger.warning(f"[SYNC] Failed to get selected sources for {provider}: {e}")
+        return []
 
 
 async def run_platform_sync_scheduler():
