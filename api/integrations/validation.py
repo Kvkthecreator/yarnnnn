@@ -318,12 +318,30 @@ async def _test_notion_read(auth: Any, result: CapabilityStatus) -> CapabilitySt
     token_manager = get_token_manager()
     access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
 
-    # Try searching pages
-    mcp = get_mcp_manager()
-    pages = await mcp.search_notion_pages(
-        user_id=auth.user_id,
-        auth_token=access_token,
+    # ADR-050: Search pages via MCP Gateway (Node.js), not Python MCP client
+    from services.mcp_gateway import call_platform_tool, is_gateway_available
+
+    if not is_gateway_available():
+        result.status = "failed"
+        result.error = "MCP Gateway not available"
+        return result
+
+    gateway_result = await call_platform_tool(
+        provider="notion",
+        tool="notion-search",
+        args={"query": ""},
+        token=access_token,
+        metadata=integration.data.get("metadata"),
     )
+
+    if not gateway_result.get("success"):
+        result.status = "failed"
+        result.error = gateway_result.get("error", "Notion search failed")
+        return result
+
+    pages = gateway_result.get("result", {}).get("results", [])
+    if not isinstance(pages, list):
+        pages = []
 
     result.status = "ok"
     result.details = {

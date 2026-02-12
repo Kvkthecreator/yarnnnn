@@ -1234,15 +1234,34 @@ async def list_notion_pages(
         token_manager = get_token_manager()
         access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
 
-        # Fetch pages via MCP
-        mcp = get_mcp_manager()
-        raw_pages = await mcp.search_notion_pages(
-            user_id=user_id,
-            auth_token=access_token,
-            query=query
+        # ADR-050: Fetch pages via MCP Gateway (Node.js), not Python MCP client
+        from services.mcp_gateway import call_platform_tool, is_gateway_available
+
+        if not is_gateway_available():
+            raise HTTPException(
+                status_code=503,
+                detail="MCP Gateway not available. Please try again later."
+            )
+
+        result = await call_platform_tool(
+            provider="notion",
+            tool="notion-search",
+            args={"query": query or ""},
+            token=access_token,
+            metadata=integration.data.get("metadata"),
         )
 
-        # Transform to response format (MCP result structure may vary)
+        if not result.get("success"):
+            raise HTTPException(
+                status_code=500,
+                detail=f"Notion search failed: {result.get('error', 'Unknown error')}"
+            )
+
+        # Transform to response format - Gateway returns results in 'result' field
+        raw_pages = result.get("result", {}).get("results", [])
+        if not isinstance(raw_pages, list):
+            raw_pages = []
+
         pages = [
             NotionPageResponse(
                 id=page.get("id", ""),
@@ -1255,7 +1274,7 @@ async def list_notion_pages(
             if page.get("object") == "page"  # Filter to pages only
         ]
 
-        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(pages)} Notion pages via MCP")
+        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(pages)} Notion pages via MCP Gateway")
 
         return NotionPagesListResponse(pages=pages)
 
@@ -2544,27 +2563,43 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
         return {"resources": resources}
 
     elif provider == "notion":
+        # ADR-050: Notion uses MCP Gateway (Node.js), not Python MCP client
+        from services.mcp_gateway import call_platform_tool, is_gateway_available
+
+        if not is_gateway_available():
+            logger.warning("[INTEGRATIONS] MCP Gateway not available for Notion landscape")
+            return {"resources": []}
+
         # Get Notion credentials
         auth_token = token_manager.decrypt(integration["access_token_encrypted"])
 
-        # Search for pages
-        pages = await mcp_manager.search_notion_pages(
-            user_id=user_id,
-            auth_token=auth_token
+        # Search for pages via MCP Gateway
+        result = await call_platform_tool(
+            provider="notion",
+            tool="notion-search",
+            args={"query": ""},  # Empty query returns all accessible pages
+            token=auth_token,
+            metadata=integration.get("metadata"),
         )
 
         resources = []
-        for page in pages:
-            resources.append({
-                "id": page.get("id"),
-                "name": _extract_notion_title(page),
-                "type": "page" if page.get("object") == "page" else "database",
-                "metadata": {
-                    "parent_type": _extract_notion_parent_type(page),
-                    "last_edited": page.get("last_edited_time"),
-                    "url": page.get("url")
-                }
-            })
+        if result.get("success"):
+            # MCP Gateway returns search results in 'result' field
+            pages = result.get("result", {}).get("results", [])
+            if isinstance(pages, list):
+                for page in pages:
+                    resources.append({
+                        "id": page.get("id"),
+                        "name": _extract_notion_title(page),
+                        "type": "page" if page.get("object") == "page" else "database",
+                        "metadata": {
+                            "parent_type": _extract_notion_parent_type(page),
+                            "last_edited": page.get("last_edited_time"),
+                            "url": page.get("url")
+                        }
+                    })
+        else:
+            logger.warning(f"[INTEGRATIONS] Notion search failed: {result.get('error')}")
 
         return {"resources": resources}
 
