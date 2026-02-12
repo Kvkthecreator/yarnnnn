@@ -211,29 +211,38 @@ These are covered by conversation/deliverable limits per tier, not sync limits.
 
 ## Implementation Plan
 
-### Phase 1: Update Limits (This ADR)
+### Phase 1: Update Limits (This ADR) ✅ Complete
 
-1. Update `LIMITS.md` with new tier structure
-2. Update `api/services/platform_limits.py` with new values
-3. Add `sync_frequency` to tier configuration
+1. ✅ Update `LIMITS.md` with new tier structure
+2. ✅ Update `api/services/platform_limits.py` with new values
+3. ✅ Add `sync_frequency` to tier configuration
+4. ✅ Add `tp_conversations_per_month` and `active_deliverables` limits
 
-### Phase 2: Onboarding Flow
+### Phase 2: Onboarding Flow ✅ Complete
 
-1. Redesign connection flow for "1 source" guided experience
-2. Implement immediate foreground sync on first connection
-3. Add "Connect another platform" prompt after first conversation
+1. ✅ Redesign connection flow for "1 source" guided experience (`PlatformOnboardingPrompt.tsx`)
+2. ✅ Import flow exists for source selection (via `/context/[platform]` pages)
+3. ✅ "Connect another platform" messaging in UI
 
-### Phase 3: Sync Scheduling
+### Phase 3: Sync Scheduling ✅ Complete
 
-1. Implement tier-based sync frequency
-2. Add "next sync" indicator to UI
-3. Background scheduler respects tier limits
+1. ✅ Implement tier-based sync frequency (`api/jobs/platform_sync_scheduler.py`)
+2. ✅ Add "next sync" indicator to UI (`SyncStatusBanner` component)
+3. ✅ Background scheduler respects tier limits (Render cron in `render.yaml`)
+4. ✅ Sync time calculations respect user timezone
 
-### Phase 4: Billing Integration
+### Phase 4: Limit Enforcement ✅ Complete
 
-1. Stripe integration for Starter/Pro tiers
-2. Upgrade/downgrade flows
-3. Grace period for downgrades (keep sources, pause sync)
+1. ✅ TP conversation limit enforced at chat endpoint (`api/routes/chat.py`)
+2. ✅ Deliverable limit enforced at creation endpoint (`api/routes/deliverables.py`)
+3. ✅ 429 responses with upgrade prompts
+
+### Phase 5: Billing Integration 🔲 Not Started
+
+1. 🔲 Stripe integration for Starter/Pro tiers
+2. 🔲 Upgrade/downgrade flows
+3. 🔲 Grace period for downgrades (keep sources, pause sync)
+4. 🔲 Tier lookup from database (currently all users = "free")
 
 ---
 

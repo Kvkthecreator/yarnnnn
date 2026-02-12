@@ -89,6 +89,9 @@ async def get_or_create_session(
     Scope behaviors:
     - conversation: Always creates new session
     - daily: Reuses today's active session
+
+    Returns:
+        Session dict with 'id' and 'is_new' (bool indicating if session was just created)
     """
     try:
         result = client.rpc(
@@ -102,10 +105,30 @@ async def get_or_create_session(
         ).execute()
 
         if result.data:
-            return result.data
+            # RPC may return is_new; if not, assume existing session
+            session = result.data
+            if "is_new" not in session:
+                session["is_new"] = False
+            return session
         raise Exception("No session returned from RPC")
     except Exception:
-        # Fallback: create session directly
+        # Fallback: check if today's session exists first (for daily scope)
+        is_new = True
+        if scope == "daily":
+            from datetime import datetime
+            today = datetime.utcnow().date().isoformat()
+            existing = client.table("chat_sessions")\
+                .select("id")\
+                .eq("user_id", user_id)\
+                .eq("session_type", session_type)\
+                .gte("created_at", today)\
+                .eq("status", "active")\
+                .limit(1)\
+                .execute()
+            if existing.data:
+                return {**existing.data[0], "is_new": False}
+
+        # Create new session
         data = {
             "user_id": user_id,
             "session_type": session_type,
@@ -113,7 +136,9 @@ async def get_or_create_session(
         }
 
         result = client.table("chat_sessions").insert(data).execute()
-        return result.data[0] if result.data else None
+        if result.data:
+            return {**result.data[0], "is_new": True}
+        return None
 
 
 async def append_message(
@@ -643,7 +668,11 @@ async def global_chat(
     Global chat with Thinking Partner.
     Uses user memories only. Session is reused daily.
     Supports tool use with streaming (ADR-007).
+
+    ADR-053: Enforces TP conversation limits based on user tier.
     """
+    from services.platform_limits import check_tp_conversation_limit
+
     # Get or create session (daily scope for global chat)
     session = await get_or_create_session(
         auth.client,
@@ -651,6 +680,21 @@ async def global_chat(
         scope="daily"
     )
     session_id = session["id"]
+    is_new_session = session.get("is_new", False)
+
+    # ADR-053: Check TP conversation limit for new sessions only
+    # Continuing an existing session doesn't count against the limit
+    if is_new_session:
+        allowed, message = check_tp_conversation_limit(auth.client, auth.user_id)
+        if not allowed:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "conversation_limit_reached",
+                    "message": message,
+                    "upgrade_url": "/settings/subscription",
+                }
+            )
 
     # Load existing messages from session and build history
     # ADR-049: Sessions are API coherence only - simple truncation, no compression

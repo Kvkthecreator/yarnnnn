@@ -268,25 +268,49 @@ Updates selected sources with limit enforcement.
 
 ## Enforcement Points
 
-### 1. Source Selection (Primary)
+### 1. Source Selection (Primary) ✅ Implemented
 
 When user selects sources to sync:
 - Frontend disables checkbox when at limit
 - Backend truncates to limit if exceeded
-- Shows "upgrade to Pro" prompt
+- Shows "upgrade to Pro/Starter" prompt
 
-### 2. Platform Connection (Secondary)
+**Files**: `api/services/platform_limits.py`, `web/app/(authenticated)/context/[platform]/page.tsx`
+
+### 2. Platform Connection (Secondary) ✅ Implemented
 
 When user connects a new platform:
 - Check `total_platforms` limit before OAuth flow
 - Block connection with upgrade prompt if at limit
 
-### 3. Sync Operations (Background)
+**Files**: `api/routes/integrations.py`
+
+### 3. Sync Operations (Background) ✅ Implemented
 
 During scheduled syncs:
 - Only sync selected sources (within limits)
 - Skip sources beyond limit
-- Log skipped sources for admin visibility
+- Tier-based frequency: Free=2x/day, Starter=4x/day, Pro=hourly
+
+**Files**: `api/jobs/platform_sync_scheduler.py`, `render.yaml` (cron)
+
+### 4. TP Conversation Limit ✅ Implemented
+
+When user starts a new chat session:
+- Check `tp_conversations_per_month` limit
+- Returns 429 error with upgrade prompt if limit reached
+- Only counts NEW sessions, not continued conversations
+
+**Files**: `api/routes/chat.py`
+
+### 5. Deliverable Limit ✅ Implemented
+
+When user creates a deliverable:
+- Check `active_deliverables` limit
+- Returns 429 error with upgrade prompt if limit reached
+- Only counts active (enabled=true) deliverables
+
+**Files**: `api/routes/deliverables.py`
 
 ---
 
@@ -321,24 +345,38 @@ Shown inline on platform detail page, not as blocking modal:
 
 ---
 
-## Future Enhancements
+## Implementation Status (ADR-053)
 
-### Not Yet Implemented
+### ✅ Fully Implemented
 
-1. **Usage Dashboard** - Show limits and usage across all resources
-2. **Overage Alerts** - Email when approaching limits
-3. **Grace Period** - Allow temporary overage for downgrade scenarios
-4. **Usage History** - Track usage over time for analytics
-5. **Admin Override** - Manual limit adjustments for special cases
-6. **Stripe Integration** - Payment processing for Starter/Pro tiers
+| Feature | Backend | Frontend | Notes |
+|---------|---------|----------|-------|
+| Source limits per platform | ✅ | ✅ | Inline selection UI with limit display |
+| Total platform limit | ✅ | ✅ | Checked at OAuth connect |
+| Sync frequency tiers | ✅ | ✅ | 2x/4x/hourly schedules |
+| Sync scheduler cron | ✅ | - | `api/jobs/platform_sync_scheduler.py` |
+| TP conversation limit | ✅ | Partial | 429 error on limit; needs frontend gate |
+| Deliverable limit | ✅ | Partial | 429 error on limit; needs frontend gate |
+| Sync status display | ✅ | ✅ | Next sync time in header |
+| Upgrade prompts | ✅ | ✅ | SyncStatusBanner component |
+
+### 🔲 Not Yet Implemented
+
+1. **Stripe Integration** - Payment processing for Starter/Pro tiers
+2. **Frontend conversation limit gate** - Show limit warning before chat
+3. **Frontend deliverable limit gate** - Show limit warning before create
+4. **Usage Dashboard** - Show limits and usage across all resources
+5. **Overage Alerts** - Email when approaching limits
+6. **Grace Period** - Allow temporary overage for downgrade scenarios
+7. **Tier lookup from DB** - Currently all users default to "free"
 
 ### Now Included in Tier Limits (ADR-053)
 
 | Resource | Status |
 |----------|--------|
-| Deliverables | ✅ Included (3/10/unlimited) |
-| TP conversations/month | ✅ Included (20/100/unlimited) |
-| Sync frequency | ✅ Included (2x/4x/hourly) |
+| Deliverables | ✅ Enforced (3/10/unlimited) |
+| TP conversations/month | ✅ Enforced (20/100/unlimited) |
+| Sync frequency | ✅ Enforced (2x/4x/hourly) |
 
 ### Potential Future Limits
 
@@ -413,6 +451,16 @@ Platform sync (no LLM) is extremely profitable. LLM usage is the variable cost c
 ---
 
 ## Changelog
+
+### 2026-02-12: ADR-053 Full Implementation
+
+- **Backend enforcement complete**: All limits enforced at API level
+- **TP conversation limit**: Returns 429 when monthly limit reached (`api/routes/chat.py`)
+- **Deliverable limit**: Returns 429 when active limit reached (`api/routes/deliverables.py`)
+- **Sync scheduler**: Tier-based cron job (`api/jobs/platform_sync_scheduler.py`)
+- **Render cron**: Platform sync runs every 5 minutes to check due syncs
+- **Frontend sync status**: SyncStatusBanner shows next sync time + upgrade prompts
+- **Onboarding update**: "1 source per platform" messaging in PlatformOnboardingPrompt
 
 ### 2026-02-12: ADR-053 Revision
 

@@ -127,3 +127,30 @@ crons:
         sync: false
       - key: NOTION_CLIENT_SECRET
         sync: false
+
+  # ADR-053: Platform Sync Scheduler
+  # Tier-based sync: Free=2x/day, Starter=4x/day, Pro=hourly
+  # Runs every 5 minutes, checks if any users are due for sync
+  - name: platform-sync
+    schedule: "*/5 * * * *"
+    command: cd api && python -m jobs.platform_sync_scheduler
+    region: singapore
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      - key: NOTION_CLIENT_ID
+        sync: false
+      - key: NOTION_CLIENT_SECRET
+        sync: false
+      - key: MCP_GATEWAY_URL
+        value: "https://yarnnn-mcp-gateway.onrender.com"

@@ -1021,7 +1021,23 @@ async def create_deliverable(
 ) -> DeliverableResponse:
     """
     Create a new recurring deliverable.
+
+    ADR-053: Enforces active deliverable limits based on user tier.
     """
+    from services.platform_limits import check_deliverable_limit
+
+    # ADR-053: Check deliverable limit before creation
+    allowed, message = check_deliverable_limit(auth.client, auth.user_id)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "deliverable_limit_reached",
+                "message": message,
+                "upgrade_url": "/settings/subscription",
+            }
+        )
+
     # Calculate next_run_at based on schedule
     next_run_at = calculate_next_run(request.schedule)
 
