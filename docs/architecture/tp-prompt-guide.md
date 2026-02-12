@@ -100,7 +100,7 @@ Only if {context} is empty AND exploration finds nothing:
 **v5.2 changes:**
 - Added platform tools with prompt versioning (see `PROMPT_VERSIONS`)
 - Slack: streamlined for personal DM pattern (send to `authed_user_id`)
-- Notion: fixed MCP server v2 tool names (`search-notion`, `create-a-comment`)
+- Notion: fixed MCP server tool names (`notion-search`, `notion-create-comment`)
 - Gmail: Direct API tools (`search`, `get_thread`, `send`, `create_draft`)
 - Calendar: Direct API tools (`list_events`, `get_event`, `create_event`)
 
@@ -168,7 +168,7 @@ User: "What platforms are connected?"
 - Added prompt versioning (`PROMPT_VERSIONS` dict in `platform_tools.py`)
 - Slack streamlined for personal DM pattern (send to `authed_user_id`)
 - Notion streamlined for designated page pattern (write to `designated_page_id`)
-- Notion fixed for MCP server v2 (`search-notion`, `create-a-comment`)
+- Notion fixed for official MCP server (`notion-search`, `notion-create-comment`)
 - Gmail/Calendar via Direct API (not MCP) per ADR-046
 - `list_integrations` now exposes `authed_user_id` for Slack, `designated_page_id` for Notion, `designated_calendar_id` for Calendar
 
