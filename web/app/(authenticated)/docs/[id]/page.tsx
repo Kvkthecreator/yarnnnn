@@ -7,20 +7,16 @@
  * This is a route (/docs/[id]) not a surface.
  */
 
-import { use } from 'react';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { Loader2, FileText, ChevronLeft, Download, Trash2, CheckCircle2, XCircle, Clock, AlertCircle } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import type { Document } from '@/types';
 
-export default function DocumentDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+export default function DocumentDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
   const router = useRouter();
   const [document, setDocument] = useState<Document | null>(null);
   const [loading, setLoading] = useState(true);

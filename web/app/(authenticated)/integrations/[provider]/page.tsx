@@ -6,16 +6,13 @@
  * Legacy /integrations/[provider] route now redirects to /context/[provider]
  */
 
-import { useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
+import { useEffect } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 
-export default function IntegrationProviderRedirect({
-  params,
-}: {
-  params: Promise<{ provider: string }>;
-}) {
-  const { provider } = use(params);
+export default function IntegrationProviderRedirect() {
+  const params = useParams<{ provider: string }>();
+  const provider = params.provider;
   const router = useRouter();
 
   useEffect(() => {

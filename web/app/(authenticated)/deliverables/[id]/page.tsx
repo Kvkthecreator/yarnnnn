@@ -7,9 +7,8 @@
  * Shows status, versions, sources, and links to review in chat.
  */
 
-import { use } from 'react';
 import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import {
   Loader2,
   Play,
@@ -71,12 +70,9 @@ const PLATFORM_CONFIG: Record<string, {
   download: { icon: Download, label: 'Download', color: 'text-blue-600' },
 };
 
-export default function DeliverableDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = use(params);
+export default function DeliverableDetailPage() {
+  const params = useParams<{ id: string }>();
+  const id = params.id;
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [running, setRunning] = useState(false);
