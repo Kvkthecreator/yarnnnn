@@ -24,7 +24,7 @@ interface Integration {
 
 interface SyncResource {
   resource_id: string;
-  resource_name: string;
+  resource_name: string | null;
   last_synced: string | null;
   freshness_status: 'fresh' | 'recent' | 'stale' | 'unknown';
   items_synced: number;
