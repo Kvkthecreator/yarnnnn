@@ -20,14 +20,12 @@
 - Calendar Direct API tools: `list_events`, `get_event`, `create_event`
 - Routing: MCP Gateway for Slack, Direct API for Gmail/Calendar
 
-**⚠️ Notion Status: Blocked**
-- The `@notionhq/notion-mcp-server` requires **internal integration tokens** (`ntn_...`)
-- YARNNN uses **OAuth access tokens** from the public OAuth flow
-- These are incompatible authentication methods
-- **Options under evaluation:**
-  1. Switch Notion to Direct API (like Gmail/Calendar)
-  2. Use Notion's Hosted MCP at `mcp.notion.com` (supports OAuth but requires remote connection)
-- See "Notion MCP Incompatibility" section below
+**Notion Status: Resolved** ✅
+- The open-source `@notionhq/notion-mcp-server` requires internal tokens (`ntn_...`)
+- **Solution**: Use Notion's Hosted MCP at `mcp.notion.com/mcp` instead
+- Hosted MCP supports OAuth bearer token authentication
+- Gateway now supports both local (stdio) and remote (HTTP) transports
+- See "Notion MCP Incompatibility" section below for full details
 
 **Prompt Versioning**: Added in `api/services/platform_tools.py:PROMPT_VERSIONS`
 
@@ -81,34 +79,58 @@ From the Notion MCP documentation:
 
 The server initialization fails silently or returns "Method not found" errors when given OAuth tokens because it cannot authenticate with the Notion API.
 
-### Options
+### Options Evaluated
 
-1. **Switch Notion to Direct API** (Recommended)
+1. **Switch Notion to Direct API**
    - Like Gmail/Calendar, call Notion REST API directly from Python
    - OAuth tokens work with Notion REST API
-   - Full control over API calls
-   - Downside: More code to maintain
+   - Downside: Loses MCP abstraction, more code to maintain
 
-2. **Use Notion's Hosted MCP** (`mcp.notion.com`)
-   - Supports OAuth authentication
+2. **Use Notion's Hosted MCP** (`mcp.notion.com`) ✅ **CHOSEN**
+   - Supports OAuth authentication via bearer token
    - Actively maintained by Notion
-   - Downside: Requires connecting to remote MCP server (different protocol flow)
+   - Keeps MCP abstraction for future ecosystem benefits
+   - Uses `StreamableHTTPClientTransport` instead of `StdioClientTransport`
 
 3. **Require Internal Integration Tokens**
    - Users create internal integration and paste token
    - Breaks OAuth flow UX
    - **Rejected**: Poor user experience
 
-### Decision (Pending)
+### Decision: Remote MCP via Hosted Server
 
-Recommend Option 1 (Direct API) to maintain consistency with Gmail/Calendar pattern. This would change the backend routing to:
+**Implemented 2026-02-12**: Use Notion's hosted MCP at `https://mcp.notion.com/mcp` with OAuth bearer token authentication.
 
-| Platform | Backend | Reason |
-|----------|---------|--------|
-| Slack | MCP Gateway | MCP server supports OAuth tokens |
-| Notion | Direct API | MCP server incompatible with OAuth |
-| Gmail | Direct API | No suitable MCP server |
-| Calendar | Direct API | No suitable MCP server |
+This approach:
+- Maintains the MCP abstraction (strategic investment in MCP ecosystem)
+- Uses existing OAuth tokens (no UX change for users)
+- Leverages Notion's actively maintained server
+- Requires gateway to support both local (stdio) and remote (HTTP) transports
+
+**Implementation:**
+```typescript
+// MCP Gateway now supports two transport types:
+const PROVIDERS = {
+  slack: {
+    type: 'local',  // StdioClientTransport - subprocess
+    command: 'npx',
+    args: ['-y', '@modelcontextprotocol/server-slack'],
+  },
+  notion: {
+    type: 'remote',  // StreamableHTTPClientTransport - HTTP
+    url: 'https://mcp.notion.com/mcp',
+  },
+};
+```
+
+**Updated Platform Routing:**
+
+| Platform | Backend | Transport | Reason |
+|----------|---------|-----------|--------|
+| Slack | MCP Gateway | Local (stdio) | MCP server supports OAuth |
+| Notion | MCP Gateway | Remote (HTTP) | Hosted MCP supports OAuth |
+| Gmail | Direct API | N/A | No suitable MCP server |
+| Calendar | Direct API | N/A | No suitable MCP server |
 
 ---
 
