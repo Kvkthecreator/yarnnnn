@@ -50,29 +50,21 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             },
         },
 
-        # ADR-048: MCP tools exposed directly to TP
+        # ADR-050: Platform tools via MCP Gateway
         "capabilities": {
             "send_message": {
                 "supported": True,
-                "mcp_tool": "mcp__claude_ai_Slack__slack_send_message",
+                "platform_tool": "platform_slack_send_message",
                 "notes": "Use channel_id param (C..., #name, U... for DM)",
             },
             "send_dm": {
                 "supported": True,
-                "mcp_tool": "mcp__claude_ai_Slack__slack_send_message",
+                "platform_tool": "platform_slack_send_message",
                 "notes": "Use user ID (U...) as channel_id - auto-opens DM. For 'self', use list_integrations to get authed_user_id.",
             },
-            "search_channels": {
+            "list_channels": {
                 "supported": True,
-                "mcp_tool": "mcp__claude_ai_Slack__slack_search_channels",
-            },
-            "search_users": {
-                "supported": True,
-                "mcp_tool": "mcp__claude_ai_Slack__slack_search_users",
-            },
-            "read_channel": {
-                "supported": True,
-                "mcp_tool": "mcp__claude_ai_Slack__slack_read_channel",
+                "platform_tool": "platform_slack_list_channels",
             },
         },
 
@@ -83,9 +75,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
         },
 
         "quirks": [
-            "Use mcp__claude_ai_Slack__* tools directly (ADR-048)",
-            "MCP expects 'channel_id' param, not 'channel'",
-            "MCP expects 'text' param, not 'message'",
+            "Use platform_slack_* tools directly (ADR-050)",
             "@username/@me/@self are NOT valid - use user ID (U...) instead",
             "User IDs (U...) auto-open DM channel before sending",
             "Bot must be invited to private channels",
@@ -186,37 +176,17 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             },
         },
 
-        # ADR-048: MCP tools exposed directly to TP
+        # ADR-050: Platform tools via MCP Gateway
         "capabilities": {
-            "create_page": {
+            "search": {
                 "supported": True,
-                "mcp_tool": "mcp__claude_ai_Notion__notion-create-pages",
-                "notes": "Creates new page under parent page or database",
+                "platform_tool": "platform_notion_search",
+                "notes": "Returns page IDs for use with other Notion tools",
             },
             "add_comment": {
                 "supported": True,
-                "mcp_tool": "mcp__claude_ai_Notion__notion-create-comment",
-                "notes": "Requires parent: {page_id: ...} and rich_text array format",
-            },
-            "get_comments": {
-                "supported": True,
-                "mcp_tool": "mcp__claude_ai_Notion__notion-get-comments",
-                "notes": "Returns all comments on a page with author info",
-            },
-            "update_page": {
-                "supported": True,
-                "mcp_tool": "mcp__claude_ai_Notion__notion-update-page",
-                "notes": "Can update properties or content with various commands",
-            },
-            "search": {
-                "supported": True,
-                "mcp_tool": "mcp__claude_ai_Notion__notion-search",
-                "notes": "Returns page IDs for use with other Notion tools",
-            },
-            "fetch_page": {
-                "supported": True,
-                "mcp_tool": "mcp__claude_ai_Notion__notion-fetch",
-                "notes": "Returns page content in Notion-flavored Markdown",
+                "platform_tool": "platform_notion_create_comment",
+                "notes": "Add comment to a page by page_id",
             },
         },
 
@@ -227,12 +197,10 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
         },
 
         "quirks": [
-            "Use mcp__claude_ai_Notion__* tools directly (ADR-048)",
-            "notion-create-comment expects {parent: {page_id: ...}, rich_text: [{type: 'text', text: {content: ...}}]}",
+            "Use platform_notion_* tools directly (ADR-050)",
             "Page IDs work with or without dashes (UUIDv4 format)",
             "Page must be shared with the integration to access",
             "Comments require commenting permission on the page",
-            "Use notion-fetch first to get page structure before updating",
         ],
 
         "version": "2026-02-11",

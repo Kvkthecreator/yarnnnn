@@ -23,6 +23,7 @@ from services.anthropic import (
 from services.primitives import PRIMITIVES, execute_primitive
 from services.skills import detect_skill, get_skill_prompt_addition, detect_skill_hybrid
 from services.context import build_session_context, format_context_for_prompt
+from services.platform_tools import get_platform_tools_for_user
 
 
 @dataclass
@@ -144,53 +145,45 @@ User: "What deliverables do I have?"
 
 ---
 
-## Platform MCP Tools (ADR-048)
+## Platform Tools (ADR-050)
 
-**You have DIRECT access to MCP tools for platform operations.** Use them like Claude Code uses bash - just do it.
+**You have DIRECT access to platform tools for connected integrations.** Use them like Claude Code uses bash - just do it.
 
-### Slack (mcp__claude_ai_Slack__*)
+Platform tools are dynamically available based on user's connected integrations.
 
-**mcp__claude_ai_Slack__slack_send_message**
-- `channel_id`: C... (channel ID), #name, U... (user ID for DM), or resolve "self" via list_integrations
+### Slack (platform_slack_*)
+
+**platform_slack_send_message**
+- `channel_id`: C... (channel ID), #channel-name, or U... (user ID for DM)
 - `text`: Message content
-- Note: @mentions like @me don't work. Use list_integrations to get authed_user_id for "self"
+- Note: Use list_integrations to get authed_user_id for sending DMs to self
 
-**mcp__claude_ai_Slack__slack_search_channels** - Find channels by name
-**mcp__claude_ai_Slack__slack_search_users** - Find users by name
-**mcp__claude_ai_Slack__slack_read_channel** - Read channel messages
+**platform_slack_list_channels** - List all channels in workspace
 
 ```
-// Send DM to user - first get their user ID
-mcp__claude_ai_Slack__slack_send_message(channel_id="U0123ABC456", text="Hey!")
+// Send DM to user
+platform_slack_send_message(channel_id="U0123ABC456", text="Hey!")
 
 // Send to Slack channel
-mcp__claude_ai_Slack__slack_send_message(channel_id="#general", text="Hello!")
+platform_slack_send_message(channel_id="#general", text="Hello!")
 ```
 
-### Notion (mcp__claude_ai_Notion__*)
+### Notion (platform_notion_*)
 
-**mcp__claude_ai_Notion__notion-search**
+**platform_notion_search**
 - `query`: Search term
-- Returns page IDs you can use with other tools
+- Returns page IDs for use with other tools
 
-**mcp__claude_ai_Notion__notion-create-comment**
-- `parent`: `{{page_id: "uuid"}}`
-- `rich_text`: `[{{type: "text", text: {{content: "..."}}}}]`
-- Page must be shared with the integration
-
-**mcp__claude_ai_Notion__notion-fetch**
-- `id`: Page UUID or URL
-- Returns page content as Markdown
+**platform_notion_create_comment**
+- `page_id`: Page UUID
+- `content`: Comment text
 
 ```
 // Search for a page
-mcp__claude_ai_Notion__notion-search(query="meeting notes")
+platform_notion_search(query="meeting notes")
 
 // Add comment to page
-mcp__claude_ai_Notion__notion-create-comment(
-  parent={{page_id: "abc123..."}},
-  rich_text=[{{type: "text", text: {{content: "Note added"}}}}]
-)
+platform_notion_create_comment(page_id="abc123...", content="Note added")
 ```
 
 ### Gmail
@@ -328,13 +321,13 @@ Clarify(question="What type?", options=["Status report", "Board update", "Resear
 When an operation fails or seems blocked:
 
 1. **Try alternative approaches** before saying "I can't":
-   - If `list_platform_resources` returns empty → use MCP search tool (mcp__claude_ai_Notion__notion-search, etc.)
-   - If `Search` returns empty (searches synced content) → use MCP tools to query platform directly
+   - If `list_platform_resources` returns empty → use platform search tool (platform_notion_search, etc.)
+   - If `Search` returns empty (searches synced content) → use platform tools to query directly
    - If one API fails → check if there's another capability that achieves the goal
    - If page not found → search for it by name, then try with the found ID
 
 2. **Re-evaluate your approach** when stuck:
-   - Did I use the right MCP tool? Check the MCP tool descriptions
+   - Did I use the right platform tool? Check the tool descriptions
    - Did I use the right parameters? Check valid formats
    - Is there a different path to the same goal?
 
@@ -351,17 +344,14 @@ When an operation fails or seems blocked:
 ```
 User: "Add a note to my Notion workspace"
 
-Step 1: Search Notion directly using MCP
-→ mcp__claude_ai_Notion__notion-search(query="project")
+Step 1: Search Notion directly
+→ platform_notion_search(query="project")
 
 Step 2: Got results with page IDs
 → Results: [{{id: "abc123...", title: "Project Notes", url: "..."}}]
 
 Step 3: Use found page ID to add comment
-→ mcp__claude_ai_Notion__notion-create-comment(
-    parent={{page_id: "abc123..."}},
-    rich_text=[{{type: "text", text: {{content: "Note"}}}}]
-  )
+→ platform_notion_create_comment(page_id="abc123...", content="Note")
 
 Step 4: Report success or specific failure
 → "Added your note to the 'Project Notes' page in Notion."
@@ -657,6 +647,17 @@ recurring deliverable through conversation.
         active_skill, detection_method, confidence = await detect_skill_hybrid(task)
         skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
 
+        # ADR-050: Get platform tools for user's connected integrations
+        platform_tools = []
+        try:
+            platform_tools = await get_platform_tools_for_user(auth)
+        except Exception:
+            # Platform tools are best-effort
+            pass
+
+        # Combine primitives with platform tools
+        tools = self.tools + platform_tools
+
         system = self._build_system_prompt(
             context, include_context,
             with_tools=True,
@@ -676,11 +677,12 @@ recurring deliverable through conversation.
         tool_executions: list[ToolExecution] = []
 
         for _ in range(max_iterations):
+            # ADR-050: Uses combined tools (primitives + platform tools)
             response: ChatResponse = await chat_completion_with_tools(
                 messages=messages,
                 system=system,
                 model=self.model,
-                tools=self.tools,
+                tools=tools,
             )
 
             if response.stop_reason == "end_turn":
@@ -845,6 +847,17 @@ recurring deliverable through conversation.
             # Context injection is best-effort; fall back to legacy path
             pass
 
+        # ADR-050: Get platform tools for user's connected integrations
+        platform_tools = []
+        try:
+            platform_tools = await get_platform_tools_for_user(auth)
+        except Exception:
+            # Platform tools are best-effort
+            pass
+
+        # Combine primitives with platform tools
+        tools = self.tools + platform_tools
+
         # ADR-025 + ADR-040: Detect skill from user message (hybrid: pattern + semantic)
         active_skill, detection_method, confidence = await detect_skill_hybrid(task)
         skill_prompt = get_skill_prompt_addition(active_skill) if active_skill else None
@@ -896,10 +909,11 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
 
         # Use the streaming with tools function
         # Force tool use with tool_choice=any - TP must use a tool for every response
+        # ADR-050: Uses combined tools (primitives + platform tools)
         async for event in chat_completion_stream_with_tools(
             messages=messages,
             system=system,
-            tools=self.tools,
+            tools=tools,
             tool_executor=tool_executor,
             model=self.model,
             tool_choice={"type": "any"},  # Force tool use on first round

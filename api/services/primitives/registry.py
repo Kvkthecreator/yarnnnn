@@ -2,6 +2,7 @@
 Primitive Registry
 
 Central registry for all primitives and their handlers.
+ADR-050: Platform tools are routed to MCP Gateway.
 """
 
 from typing import Any, Callable
@@ -13,6 +14,7 @@ from .search import SEARCH_TOOL, handle_search
 from .list import LIST_TOOL, handle_list
 from .execute import EXECUTE_TOOL, handle_execute
 from .todo import TODO_TOOL, handle_todo
+from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
 # Communication primitives (kept from legacy for respond/clarify)
@@ -123,14 +125,29 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
     """
     Execute a primitive by name.
 
+    ADR-050: Platform tools (platform_*) are routed to MCP Gateway.
+
     Args:
         auth: Auth context with user_id and client
-        name: Primitive name (e.g., "Read", "Write")
+        name: Primitive name (e.g., "Read", "Write") or platform tool (e.g., "platform_slack_send_message")
         input: Primitive input parameters
 
     Returns:
         Primitive result dict
     """
+    # ADR-050: Route platform tools to MCP Gateway
+    if is_platform_tool(name):
+        try:
+            result = await handle_platform_tool(auth, name, input)
+            return result
+        except Exception as e:
+            return {
+                "success": False,
+                "error": "platform_tool_error",
+                "message": str(e),
+                "tool": name,
+            }
+
     handler = HANDLERS.get(name)
     if not handler:
         return {
