@@ -202,8 +202,8 @@ async def chat_completion_stream(
 @dataclass
 class StreamEvent:
     """Event from streaming chat with tools."""
-    type: str  # "text", "tool_use", "tool_result", "done"
-    content: Any  # text chunk, tool use block, tool result, or None
+    type: str  # "text", "tool_use", "tool_result", "usage", "done"
+    content: Any  # text chunk, tool use block, tool result, usage dict, or None
 
 
 async def chat_completion_stream_with_tools(
@@ -241,6 +241,10 @@ async def chat_completion_stream_with_tools(
     client = get_anthropic_client()
     working_messages = list(messages)
 
+    # Track cumulative token usage across all rounds
+    total_input_tokens = 0
+    total_output_tokens = 0
+
     for round_num in range(max_tool_rounds):
         # Accumulate the full response for this round
         full_response = None
@@ -265,6 +269,20 @@ async def chat_completion_stream_with_tools(
 
             # Get final response to check for tool use
             full_response = await stream.get_final_message()
+
+        # Track token usage from this round
+        if hasattr(full_response, 'usage') and full_response.usage:
+            total_input_tokens += full_response.usage.input_tokens
+            total_output_tokens += full_response.usage.output_tokens
+            # Emit usage event after each round
+            yield StreamEvent(
+                type="usage",
+                content={
+                    "input_tokens": total_input_tokens,
+                    "output_tokens": total_output_tokens,
+                    "total_tokens": total_input_tokens + total_output_tokens,
+                }
+            )
 
         # Check if we need to handle tool use
         if full_response.stop_reason == "tool_use":

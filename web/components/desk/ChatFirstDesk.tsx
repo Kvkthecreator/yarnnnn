@@ -35,6 +35,16 @@ import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { SurfaceRouter } from './SurfaceRouter';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
 
+/**
+ * Format token count with K suffix for thousands (like Claude Code)
+ */
+function formatTokenCount(tokens: number): string {
+  if (tokens >= 1000) {
+    return `${(tokens / 1000).toFixed(1)}k`;
+  }
+  return tokens.toString();
+}
+
 export function ChatFirstDesk() {
   const {
     todos,
@@ -45,6 +55,7 @@ export function ChatFirstDesk() {
     status,
     pendingClarification,
     respondToClarification,
+    tokenUsage,
   } = useTP();
   const { surface } = useDesk();
 
@@ -295,6 +306,12 @@ export function ChatFirstDesk() {
               {/* ADR-042: Render message blocks if available, otherwise legacy content */}
               {msg.blocks && msg.blocks.length > 0 ? (
                 <MessageBlocks blocks={msg.blocks} />
+              ) : msg.role === 'assistant' && !msg.content && isLoading ? (
+                /* Show thinking indicator for empty streaming assistant message */
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  <span>Thinking...</span>
+                </div>
               ) : (
                 <>
                   <p className="whitespace-pre-wrap">{msg.content}</p>
@@ -426,10 +443,15 @@ export function ChatFirstDesk() {
                 </button>
               </div>
 
-              {/* Hint text */}
-              <p className="mt-1.5 text-[10px] text-muted-foreground/60 text-center">
-                Press Enter to send, Shift+Enter for new line
-              </p>
+              {/* Footer: hints and token usage */}
+              <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/60">
+                <span>Enter to send, Shift+Enter for new line</span>
+                {tokenUsage && (
+                  <span className="font-mono tabular-nums">
+                    {formatTokenCount(tokenUsage.totalTokens)} tokens
+                  </span>
+                )}
+              </div>
             </form>
           </div>
         </div>

@@ -97,6 +97,13 @@ export interface ClarificationRequest {
   options?: string[];
 }
 
+// Token usage tracking
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+}
+
 // Status for real-time display in TPBar
 // ADR-039: toolDisplayMessage provides Claude Code-style descriptive status
 export type TPStatus =
@@ -115,6 +122,7 @@ interface TPContextValue {
   pendingClarification: ClarificationRequest | null;
   status: TPStatus;  // Real-time status for UI
   setupConfirmModal: { open: boolean; data: SetupConfirmData | null };  // Setup confirmation modal state
+  tokenUsage: TokenUsage | null;  // Current turn's token usage
 
   // ADR-025: Todo tracking state
   todos: Todo[];
@@ -154,6 +162,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     open: false,
     data: null,
   });
+  const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
   // Track if we've loaded history
   const historyLoadedRef = useRef(false);
@@ -285,6 +294,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
       // Clear previous workflow state - todos will be recreated if TP starts a new workflow
       // This prevents stale todos from lingering when user switches topics
       dispatch({ type: 'CLEAR_WORK_STATE' });
+
+      // Reset token usage for new turn
+      setTokenUsage(null);
 
       // Add user message (with images for local display)
       const userMessage: TPMessage = {
@@ -489,6 +501,13 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     }
                   }
                 }
+              } else if (event.usage) {
+                // Track token usage from API
+                setTokenUsage({
+                  inputTokens: event.usage.input_tokens,
+                  outputTokens: event.usage.output_tokens,
+                  totalTokens: event.usage.total_tokens,
+                });
               } else if (event.error) {
                 throw new Error(event.error);
               }
@@ -628,6 +647,7 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
     pendingClarification,
     status,
     setupConfirmModal,
+    tokenUsage,
     // ADR-025: Todo tracking state
     todos: state.todos,
     activeSkill: state.activeSkill,

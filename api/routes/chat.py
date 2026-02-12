@@ -825,6 +825,9 @@ async def global_chat(
                         })
                         current_tool_use = None
                     yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
+                elif event.type == "usage":
+                    # Stream token usage to frontend
+                    yield f"data: {json.dumps({'usage': event.content})}\n\n"
                 elif event.type == "done":
                     msg = f"[TP-STREAM] Stream done, tools_used={tools_used}"
                     print(msg, flush=True)
