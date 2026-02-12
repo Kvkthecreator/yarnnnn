@@ -692,7 +692,7 @@ async def _execute_gmail_tool(
         if result.status.value == "success":
             return {
                 "success": True,
-                "message": f"Draft created in your Gmail drafts folder",
+                "message": f"Draft created to {to_address} - check your Gmail drafts folder",
                 "to": to_address,
                 "subject": args["subject"],
             }
