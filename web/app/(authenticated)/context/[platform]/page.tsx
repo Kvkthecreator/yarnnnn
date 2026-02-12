@@ -110,6 +110,10 @@ interface IntegrationData {
   workspace_name: string | null;
   created_at: string;
   last_used_at: string | null;
+  metadata?: {
+    email?: string;
+    [key: string]: unknown;
+  };
 }
 
 interface TierLimits {
@@ -818,11 +822,43 @@ export default function PlatformDetailPage() {
                   isSelected={selectedIds.has(resource.id)}
                   onToggle={() => handleToggleSource(resource.id)}
                   disabled={!selectedIds.has(resource.id) && atLimit}
+                  platform={platform}
                 />
               ))}
             </div>
           )}
         </section>
+
+        {/* ADR-051: Output Email Section (Gmail only) */}
+        {platform === 'gmail' && integration?.metadata?.email && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  Output Email
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Where TP sends drafts and emails by default
+                </p>
+              </div>
+            </div>
+
+            <div className="border border-border rounded-lg p-4">
+              <div className="flex items-center gap-3">
+                <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
+                  <Mail className="w-5 h-5 text-muted-foreground" />
+                </div>
+                <div>
+                  <p className="font-medium">{integration.metadata.email}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Drafts appear in your Gmail drafts folder
+                  </p>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ADR-050: Designated Output Page Section (Notion only) */}
         {platform === 'notion' && (
@@ -1168,15 +1204,26 @@ function ResourceRow({
   isSelected,
   onToggle,
   disabled,
+  platform,
 }: {
   resource: LandscapeResource;
   config: typeof PLATFORM_CONFIG[PlatformProvider];
   isSelected: boolean;
   onToggle: () => void;
   disabled: boolean;
+  platform: PlatformProvider;
 }) {
   const isPrivate = resource.metadata?.is_private as boolean | undefined;
   const memberCount = resource.metadata?.member_count as number | undefined;
+  const isPrimary = resource.metadata?.primary as boolean | undefined;
+
+  // ADR-051: Notion-specific metadata
+  const parentType = resource.metadata?.parent_type as string | undefined;
+  const isDatabase = resource.resource_type === 'database';
+
+  // ADR-051: Calendar uses different terminology (no "sync" - events are queried on-demand)
+  const isCalendar = platform === 'calendar';
+  const isNotion = platform === 'notion';
 
   return (
     <button
@@ -1211,14 +1258,37 @@ function ResourceRow({
         <div className="min-w-0">
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium truncate">{resource.name}</span>
+            {isPrimary && (
+              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                Primary
+              </span>
+            )}
+            {isDatabase && (
+              <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                Database
+              </span>
+            )}
             {isPrivate && (
               <Lock className="w-3 h-3 text-muted-foreground flex-shrink-0" />
             )}
           </div>
-          {(memberCount !== undefined || resource.items_extracted > 0) && (
+          {/* ADR-051: Show different info based on platform */}
+          {isCalendar ? (
+            // Calendar: No sync info, events are queried on-demand
             <div className="text-xs text-muted-foreground">
-              {memberCount !== undefined && <span>{memberCount.toLocaleString()} members</span>}
-              {memberCount !== undefined && resource.items_extracted > 0 && <span> • </span>}
+              Events queried on-demand
+            </div>
+          ) : isNotion ? (
+            // Notion: Show parent type and sync status
+            <div className="text-xs text-muted-foreground">
+              {parentType && (
+                <span>
+                  {parentType === 'workspace' && 'Top-level page'}
+                  {parentType === 'page' && 'Nested page'}
+                  {parentType === 'database' && 'Database item'}
+                </span>
+              )}
+              {parentType && resource.items_extracted > 0 && <span> • </span>}
               {resource.items_extracted > 0 && (
                 <span>
                   {resource.items_extracted} items
@@ -1228,12 +1298,28 @@ function ResourceRow({
                 </span>
               )}
             </div>
+          ) : (
+            // Other platforms (Slack, Gmail): Show sync status
+            (memberCount !== undefined || resource.items_extracted > 0) && (
+              <div className="text-xs text-muted-foreground">
+                {memberCount !== undefined && <span>{memberCount.toLocaleString()} members</span>}
+                {memberCount !== undefined && resource.items_extracted > 0 && <span> • </span>}
+                {resource.items_extracted > 0 && (
+                  <span>
+                    {resource.items_extracted} items
+                    {resource.last_extracted_at && (
+                      <> synced {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
+                    )}
+                  </span>
+                )}
+              </div>
+            )
           )}
         </div>
       </div>
 
-      {/* Coverage badge */}
-      <CoverageBadge state={resource.coverage_state} />
+      {/* Coverage badge - hidden for Calendar since it uses on-demand queries */}
+      {!isCalendar && <CoverageBadge state={resource.coverage_state} />}
     </button>
   );
 }

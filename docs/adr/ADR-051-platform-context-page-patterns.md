@@ -49,15 +49,19 @@ Each resource row displays:
 1. **Checkbox** - Selection state
 2. **Icon** - Platform-specific resource icon
 3. **Name** - Resource name (channel name, label, page title, calendar name)
-4. **Metadata** - Platform-specific details:
-   - Slack: member count
-   - Gmail: (none currently)
-   - Notion: (none currently)
-   - Calendar: primary indicator
-5. **Sync status**:
+4. **Badges** - Platform-specific indicators:
+   - Calendar: "Primary" badge for primary calendar
+   - Notion: "Database" badge for database resources
+   - Slack: Lock icon for private channels
+5. **Metadata** - Platform-specific details:
+   - Slack: member count + sync status
+   - Gmail: sync status
+   - Notion: parent type (Top-level page | Nested page | Database item) + sync status
+   - Calendar: "Events queried on-demand" (no sync concept)
+6. **Sync status** (non-Calendar):
    - Items extracted count
    - Last synced timestamp (e.g., "synced 2 hours ago")
-6. **Coverage badge**: Synced | Partial | Stale | Not synced
+7. **Coverage badge** (non-Calendar): Synced | Partial | Stale | Not synced
 
 ### Output Destinations (ADR-050)
 
@@ -111,15 +115,22 @@ This requires all platforms to be first-class context sources with consistent se
 - Supports cross-platform synthesis
 
 ### Negative
-- Calendar's time-based nature slightly hidden behind resource selection UX
-- "Sync" terminology may be confusing for Calendar (events are queried, not synced)
+- Calendar's time-based nature requires different UX (hidden sync badge, on-demand query messaging)
+
+## Implementation Status (2026-02-12)
+
+| Platform | Output Section | Resource Metadata | Sync Display | Status |
+|----------|---------------|-------------------|--------------|--------|
+| Slack | N/A | member count | Standard sync | ✅ Complete |
+| Gmail | Output Email (user's email) | - | Standard sync | ✅ Complete |
+| Notion | Output Page | parent_type, Database badge | Standard sync | ✅ Complete |
+| Calendar | Output Calendar | Primary badge | "On-demand" (no sync) | ✅ Complete |
 
 ## Future Considerations
 
-1. **Gmail labels** - May need revamp to show email-specific metadata
-2. **Notion pages** - May need hierarchy/database support
-3. **Calendar** - Consider showing upcoming events preview
-4. **All platforms** - Consider bulk import actions, refresh buttons
+1. **Gmail labels** - May want to show email count per label
+2. **Calendar** - Consider showing upcoming events preview
+3. **All platforms** - Consider bulk import actions, refresh buttons
 
 ## Related Files
 
