@@ -1,17 +1,37 @@
 'use client';
 
 /**
- * ADR-049: Platform Sync Status
+ * ADR-049 + ADR-057: Platform Sync Status with Inline Connections
  *
  * Shows connected platforms and their sync freshness on the welcome screen.
- * Helps users understand what data is available for deliverables.
+ * Now includes direct OAuth connection buttons for unconnected platforms.
+ *
+ * Key behaviors:
+ * - Connected platforms: Show sync status with item counts
+ * - Unconnected platforms: Show connect button that starts OAuth
+ * - After OAuth: Show source selection modal
  */
 
-import { useEffect, useState } from 'react';
-import { MessageSquare, Mail, FileText, RefreshCw, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import { useEffect, useState, useCallback } from 'react';
+import {
+  MessageSquare,
+  Mail,
+  FileText,
+  Calendar,
+  RefreshCw,
+  AlertCircle,
+  CheckCircle2,
+  Loader2,
+  ExternalLink,
+  Plus,
+} from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
+import { useSearchParams, useRouter } from 'next/navigation';
+import { SourceSelectionModal } from '@/components/onboarding/SourceSelectionModal';
+
+type Provider = 'slack' | 'gmail' | 'notion' | 'calendar';
 
 interface Integration {
   id: string;
@@ -41,46 +61,70 @@ const PLATFORM_CONFIG: Record<string, {
   label: string;
   color: string;
   bgColor: string;
+  connectLabel: string;
 }> = {
   slack: {
     icon: MessageSquare,
     label: 'Slack',
     color: 'text-purple-600',
     bgColor: 'bg-purple-100 dark:bg-purple-900/30',
+    connectLabel: 'channels',
   },
   gmail: {
     icon: Mail,
     label: 'Gmail',
     color: 'text-red-600',
     bgColor: 'bg-red-100 dark:bg-red-900/30',
+    connectLabel: 'inbox',
   },
   notion: {
     icon: FileText,
     label: 'Notion',
     color: 'text-gray-700 dark:text-gray-300',
     bgColor: 'bg-gray-100 dark:bg-gray-800',
+    connectLabel: 'pages',
+  },
+  calendar: {
+    icon: Calendar,
+    label: 'Calendar',
+    color: 'text-blue-600',
+    bgColor: 'bg-blue-100 dark:bg-blue-900/30',
+    connectLabel: 'schedule',
   },
 };
+
+// All available platforms in display order
+const ALL_PLATFORMS: Provider[] = ['slack', 'gmail', 'notion', 'calendar'];
 
 interface PlatformSyncStatusProps {
   className?: string;
 }
 
 export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>({});
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState<string | null>(null);
+  const [connecting, setConnecting] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadIntegrations();
-  }, []);
+  // Source selection modal state (ADR-057)
+  const [sourceModalProvider, setSourceModalProvider] = useState<Provider | null>(null);
 
-  const loadIntegrations = async () => {
+  // Check for OAuth callback
+  const providerParam = searchParams.get('provider');
+  const statusParam = searchParams.get('status');
+
+  const loadIntegrations = useCallback(async () => {
     setLoading(true);
     try {
       const data = await api.integrations.list();
-      const activeIntegrations = data.integrations.filter((i: Integration) => i.status === 'active');
+      // Include both 'active' and 'google' (which provides gmail + calendar)
+      const activeIntegrations = data.integrations.filter(
+        (i: Integration) => i.status === 'active'
+      );
       setIntegrations(activeIntegrations);
 
       // Load sync status for each platform
@@ -100,12 +144,43 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     } finally {
       setLoading(false);
     }
+  }, []);
+
+  useEffect(() => {
+    loadIntegrations();
+  }, [loadIntegrations]);
+
+  // Handle OAuth callback - show source selection modal
+  useEffect(() => {
+    if (providerParam && statusParam === 'connected') {
+      // Map 'google' provider to the appropriate modal
+      const modalProvider = providerParam === 'google' ? 'gmail' : providerParam as Provider;
+      if (ALL_PLATFORMS.includes(modalProvider)) {
+        setSourceModalProvider(modalProvider);
+        // Clean up URL params
+        const newUrl = window.location.pathname;
+        router.replace(newUrl, { scroll: false });
+      }
+    }
+  }, [providerParam, statusParam, router]);
+
+  const handleConnect = async (provider: Provider) => {
+    setConnecting(provider);
+    try {
+      // Calendar uses Google OAuth
+      const authProvider = provider === 'calendar' ? 'google' : provider;
+      const result = await api.integrations.getAuthorizationUrl(authProvider);
+      // Redirect to OAuth
+      window.location.href = result.authorization_url;
+    } catch (err) {
+      console.error(`Failed to initiate ${provider} OAuth:`, err);
+      setConnecting(null);
+    }
   };
 
   const handleSync = async (provider: string) => {
     setSyncing(provider);
     try {
-      // Trigger sync for all resources of this platform
       await api.integrations.syncPlatform(provider);
       // Refresh status after sync starts
       setTimeout(loadIntegrations, 2000);
@@ -114,6 +189,41 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     } finally {
       setSyncing(null);
     }
+  };
+
+  const handleSourceModalComplete = (selectedCount: number) => {
+    setSourceModalProvider(null);
+    // Reload integrations to show updated status
+    loadIntegrations();
+  };
+
+  const handleSourceModalClose = () => {
+    setSourceModalProvider(null);
+  };
+
+  // Check if a platform is connected
+  const isConnected = (provider: Provider): boolean => {
+    // Gmail and Calendar both use Google OAuth
+    if (provider === 'gmail' || provider === 'calendar') {
+      return integrations.some(i => i.provider === 'gmail' || i.provider === 'google');
+    }
+    return integrations.some(i => i.provider === provider);
+  };
+
+  // Get integration for a provider
+  const getIntegration = (provider: Provider): Integration | undefined => {
+    if (provider === 'gmail' || provider === 'calendar') {
+      return integrations.find(i => i.provider === 'gmail' || i.provider === 'google');
+    }
+    return integrations.find(i => i.provider === provider);
+  };
+
+  // Get sync status for a provider
+  const getSyncStatus = (provider: Provider): SyncStatus | undefined => {
+    if (provider === 'gmail' || provider === 'calendar') {
+      return syncStatuses['gmail'] || syncStatuses['google'];
+    }
+    return syncStatuses[provider];
   };
 
   if (loading) {
@@ -125,95 +235,158 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     );
   }
 
-  if (integrations.length === 0) {
-    return (
-      <div className={cn('text-center', className)}>
-        <p className="text-sm text-muted-foreground mb-2">
-          No platforms connected yet
-        </p>
-        <a
-          href="/settings/integrations"
-          className="text-sm text-primary hover:underline"
-        >
-          Connect Slack, Gmail, or Notion
-        </a>
-      </div>
-    );
-  }
+  const connectedPlatforms = ALL_PLATFORMS.filter(p => isConnected(p));
+  const unconnectedPlatforms = ALL_PLATFORMS.filter(p => !isConnected(p));
 
   return (
-    <div className={cn('max-w-md mx-auto', className)}>
-      <p className="text-xs text-muted-foreground mb-3">Connected platforms</p>
-      <div className="flex flex-wrap justify-center gap-2">
-        {integrations.map((integration) => {
-          const config = PLATFORM_CONFIG[integration.provider] || {
-            icon: FileText,
-            label: integration.provider,
-            color: 'text-gray-600',
-            bgColor: 'bg-gray-100',
-          };
-          const Icon = config.icon;
-          const status = syncStatuses[integration.provider];
-          const hasStale = status?.stale_count > 0;
-          const resourceCount = status?.synced_resources?.length || 0;
-          const isSyncing = syncing === integration.provider;
+    <>
+      <div className={cn('max-w-lg mx-auto', className)}>
+        {/* Connected Platforms */}
+        {connectedPlatforms.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs text-muted-foreground mb-2 text-center">Connected platforms</p>
+            <div className="space-y-2">
+              {connectedPlatforms.map((provider) => {
+                const config = PLATFORM_CONFIG[provider];
+                const Icon = config.icon;
+                const integration = getIntegration(provider);
+                const status = getSyncStatus(provider);
+                const hasStale = status?.stale_count ? status.stale_count > 0 : false;
+                const resourceCount = status?.synced_resources?.length || 0;
+                const isSyncing = syncing === provider;
 
-          // Find most recent sync
-          const mostRecentSync = status?.synced_resources?.reduce((latest, r) => {
-            if (!r.last_synced) return latest;
-            if (!latest) return r.last_synced;
-            return new Date(r.last_synced) > new Date(latest) ? r.last_synced : latest;
-          }, null as string | null);
+                // Find most recent sync
+                const mostRecentSync = status?.synced_resources?.reduce((latest, r) => {
+                  if (!r.last_synced) return latest;
+                  if (!latest) return r.last_synced;
+                  return new Date(r.last_synced) > new Date(latest) ? r.last_synced : latest;
+                }, null as string | null);
 
-          return (
-            <div
-              key={integration.id}
-              className={cn(
-                'flex items-center gap-2 px-3 py-2 rounded-lg',
-                config.bgColor,
-                hasStale && 'ring-1 ring-amber-400'
-              )}
-            >
-              <Icon className={cn('w-4 h-4', config.color)} />
-              <div className="text-left">
-                <span className="text-sm font-medium">{config.label}</span>
-                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                  {resourceCount > 0 ? (
-                    <>
-                      {hasStale ? (
-                        <AlertCircle className="w-3 h-3 text-amber-500" />
-                      ) : (
-                        <CheckCircle2 className="w-3 h-3 text-green-500" />
-                      )}
-                      <span>
-                        {resourceCount} source{resourceCount !== 1 ? 's' : ''}
-                        {mostRecentSync && (
-                          <span className="ml-1">
-                            · {formatDistanceToNow(new Date(mostRecentSync), { addSuffix: true })}
+                return (
+                  <div
+                    key={provider}
+                    className={cn(
+                      'flex items-center gap-3 px-4 py-3 rounded-xl border',
+                      hasStale ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20' : 'border-border bg-card'
+                    )}
+                  >
+                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
+                      <Icon className={cn('w-5 h-5', config.color)} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium">{config.label}</span>
+                        {integration?.workspace_name && (
+                          <span className="text-xs text-muted-foreground truncate">
+                            {integration.workspace_name}
                           </span>
                         )}
-                      </span>
-                    </>
-                  ) : (
-                    <span>No data synced</span>
-                  )}
-                </div>
-              </div>
-              {(hasStale || resourceCount === 0) && (
-                <button
-                  onClick={() => handleSync(integration.provider)}
-                  disabled={isSyncing}
-                  className="p-1 hover:bg-black/10 dark:hover:bg-white/10 rounded transition-colors"
-                  title="Sync now"
-                >
-                  <RefreshCw className={cn('w-3.5 h-3.5', isSyncing && 'animate-spin')} />
-                </button>
-              )}
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        {resourceCount > 0 ? (
+                          <>
+                            {hasStale ? (
+                              <AlertCircle className="w-3 h-3 text-amber-500" />
+                            ) : (
+                              <CheckCircle2 className="w-3 h-3 text-green-500" />
+                            )}
+                            <span>
+                              {resourceCount} source{resourceCount !== 1 ? 's' : ''}
+                              {mostRecentSync && (
+                                <> synced {formatDistanceToNow(new Date(mostRecentSync), { addSuffix: true })}</>
+                              )}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-amber-600">No sources selected</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {/* Add more sources */}
+                      <button
+                        onClick={() => setSourceModalProvider(provider)}
+                        className="p-1.5 hover:bg-muted rounded-md transition-colors"
+                        title={`Add ${config.connectLabel}`}
+                      >
+                        <Plus className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                      {/* Sync button if stale or no data */}
+                      {(hasStale || resourceCount === 0) && (
+                        <button
+                          onClick={() => handleSync(provider)}
+                          disabled={isSyncing}
+                          className="p-1.5 hover:bg-muted rounded-md transition-colors"
+                          title="Sync now"
+                        >
+                          <RefreshCw className={cn('w-4 h-4 text-muted-foreground', isSyncing && 'animate-spin')} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </div>
+        )}
+
+        {/* Unconnected Platforms */}
+        {unconnectedPlatforms.length > 0 && (
+          <div>
+            {connectedPlatforms.length > 0 && (
+              <p className="text-xs text-muted-foreground mb-2 text-center">Connect more</p>
+            )}
+            <div className="flex flex-wrap justify-center gap-2">
+              {unconnectedPlatforms.map((provider) => {
+                const config = PLATFORM_CONFIG[provider];
+                const Icon = config.icon;
+                const isConnecting = connecting === provider;
+
+                return (
+                  <button
+                    key={provider}
+                    onClick={() => handleConnect(provider)}
+                    disabled={isConnecting}
+                    className={cn(
+                      'flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-border',
+                      'hover:border-primary/50 hover:bg-primary/5 transition-colors',
+                      'disabled:opacity-50 disabled:cursor-not-allowed'
+                    )}
+                  >
+                    {isConnecting ? (
+                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                    ) : (
+                      <Icon className={cn('w-4 h-4', config.color)} />
+                    )}
+                    <span className="text-sm">{config.label}</span>
+                    {!isConnecting && (
+                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* No platforms at all - full onboarding prompt */}
+        {connectedPlatforms.length === 0 && (
+          <p className="text-xs text-muted-foreground text-center mt-3">
+            Free plan: 1 source per platform, syncs 2x daily
+          </p>
+        )}
       </div>
-    </div>
+
+      {/* Source Selection Modal (ADR-057) */}
+      {sourceModalProvider && (
+        <SourceSelectionModal
+          provider={sourceModalProvider}
+          isOpen={true}
+          onClose={handleSourceModalClose}
+          onComplete={handleSourceModalComplete}
+        />
+      )}
+    </>
   );
 }
 

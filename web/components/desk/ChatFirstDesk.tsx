@@ -251,15 +251,14 @@ export function ChatFirstDesk() {
         {/* Messages - Primary content area */}
         <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
           {messages.length === 0 && !isLoading && (
-            <div className="text-center py-12">
-              <MessageCircle className="w-12 h-12 text-muted-foreground/20 mx-auto mb-3" />
-              <h2 className="text-lg font-medium mb-2">Welcome to yarnnn</h2>
-              <p className="text-sm text-muted-foreground max-w-md mx-auto mb-4">
-                I&apos;m your Thinking Partner. Tell me what recurring work you need help with,
-                or type <code className="bg-muted px-1.5 py-0.5 rounded text-xs">/</code> to see available skills.
+            <div className="text-center py-8">
+              <MessageCircle className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+              <h2 className="text-lg font-medium mb-1">Welcome to yarnnn</h2>
+              <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
+                I&apos;m your Thinking Partner. Connect a platform to give me context about your work.
               </p>
 
-              {/* ADR-049: Show connected platforms with sync status */}
+              {/* ADR-049 + ADR-057: Show platforms with inline connect buttons */}
               <PlatformSyncStatus className="mb-6" />
 
               <div className="flex flex-wrap justify-center gap-2">
