@@ -69,6 +69,15 @@ interface Integration {
   workspace_name: string | null;
   last_used_at: string | null;
   created_at: string;
+  metadata?: {
+    email?: string;
+    name?: string;
+    team_id?: string;
+    team_name?: string;
+    authed_user_id?: string;
+    workspace_id?: string;
+    capabilities?: string[];
+  };
 }
 
 // ADR-039: Removed "memory" tab - facts now live in unified Context page
