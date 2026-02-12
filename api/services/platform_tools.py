@@ -227,14 +227,15 @@ def map_to_mcp_format(provider: str, tool: str, args: dict) -> tuple[str, dict]:
 
     elif provider == "notion":
         if tool == "search":
-            return "notion-search", {
+            # Official Notion MCP server v2: search-notion (not notion-search)
+            return "search-notion", {
                 "query": args.get("query"),
             }
         elif tool == "create_comment":
-            # Notion MCP expects specific structure
-            return "notion-create-comment", {
-                "parent": {"page_id": args.get("page_id")},
-                "rich_text": [{"type": "text", "text": {"content": args.get("content")}}],
+            # Official Notion MCP server v2: create-a-comment
+            return "create-a-comment", {
+                "page_id": args.get("page_id"),
+                "markdown": args.get("content"),
             }
 
     # Default: pass through
