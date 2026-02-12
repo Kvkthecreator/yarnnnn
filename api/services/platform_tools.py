@@ -353,11 +353,14 @@ Uses designated_calendar_id if set, otherwise 'primary'.""",
 ]
 
 # All platform tools by provider
+# Note: gmail and google are separate DB providers but overlap in tools.
+# Use CALENDAR_TOOLS only for google since gmail already provides GMAIL_TOOLS.
+# The get_platform_tools_for_user function deduplicates by tool name.
 PLATFORM_TOOLS_BY_PROVIDER = {
     "slack": SLACK_TOOLS,
     "notion": NOTION_TOOLS,
     "gmail": GMAIL_TOOLS,
-    "google": GMAIL_TOOLS + CALENDAR_TOOLS,  # Google integration has both
+    "google": CALENDAR_TOOLS,  # Only calendar; gmail tools come from gmail provider
 }
 
 
@@ -376,6 +379,7 @@ async def get_platform_tools_for_user(auth: Any) -> list[dict]:
         List of tool definitions for connected platforms
     """
     tools = []
+    seen_names: set[str] = set()  # Dedupe by tool name
 
     try:
         # Get user's active integrations
@@ -387,7 +391,11 @@ async def get_platform_tools_for_user(auth: Any) -> list[dict]:
 
         for provider in connected_providers:
             provider_tools = PLATFORM_TOOLS_BY_PROVIDER.get(provider, [])
-            tools.extend(provider_tools)
+            for tool in provider_tools:
+                tool_name = tool.get("name")
+                if tool_name and tool_name not in seen_names:
+                    tools.append(tool)
+                    seen_names.add(tool_name)
 
         logger.info(f"[PLATFORM-TOOLS] User has {len(tools)} platform tools from {connected_providers}")
 
