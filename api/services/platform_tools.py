@@ -218,8 +218,9 @@ def map_to_mcp_format(provider: str, tool: str, args: dict) -> tuple[str, dict]:
     """
     if provider == "slack":
         if tool == "send_message":
+            # Slack MCP server expects channel_id and text
             return "slack_post_message", {
-                "channel": args.get("channel_id"),
+                "channel_id": args.get("channel_id"),
                 "text": args.get("text"),
             }
         elif tool == "list_channels":
