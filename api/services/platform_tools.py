@@ -3,7 +3,7 @@ Platform Tools for Thinking Partner
 
 ADR-050: Tool definitions and handlers for platform operations.
 These tools are dynamically added to TP based on user's connected integrations.
-Tool calls are routed to the MCP Gateway.
+Tool calls are routed to the MCP Gateway (Slack, Notion) or Direct API (Gmail, Calendar).
 """
 
 import logging
@@ -12,6 +12,49 @@ from typing import Any
 from integrations.core.tokens import get_token_manager
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# Prompt Versioning
+# =============================================================================
+
+PROMPT_VERSIONS = {
+    "platform_tools": {
+        "version": "2026-02-12",
+        "adr_refs": ["ADR-046", "ADR-050"],
+        "changelog": "Added Gmail/Calendar direct API tools, fixed Notion MCP tool names",
+    },
+    "slack": {
+        "version": "2026-02-12",
+        "adr_refs": ["ADR-050"],
+        "changelog": "Streamlined for personal DM pattern (send to authed_user_id)",
+    },
+    "notion": {
+        "version": "2026-02-12",
+        "adr_refs": ["ADR-050"],
+        "changelog": "Fixed MCP tool names for v2 server (search-notion, create-a-comment)",
+    },
+    "gmail": {
+        "version": "2026-02-12",
+        "adr_refs": ["ADR-046"],
+        "changelog": "Added search, get_thread, send, create_draft tools via Direct API",
+    },
+    "calendar": {
+        "version": "2026-02-12",
+        "adr_refs": ["ADR-046"],
+        "changelog": "Added list_events, get_event, create_event tools via Direct API",
+    },
+}
+
+
+def get_prompt_version(component: str) -> dict:
+    """Get version info for a platform tool component."""
+    return PROMPT_VERSIONS.get(component, {})
+
+
+def get_all_prompt_versions() -> dict:
+    """Get all prompt version metadata."""
+    return PROMPT_VERSIONS.copy()
 
 
 # =============================================================================

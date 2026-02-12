@@ -81,7 +81,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             "Bot must be invited to private channels",
         ],
 
-        "version": "2026-02-11",
+        "version": "2026-02-12",
     },
 
     "gmail": {
@@ -110,23 +110,27 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             },
         },
 
+        # ADR-046: Platform tools via Direct API
         "capabilities": {
-            "send_message": {
+            "search": {
                 "supported": True,
-                "method": "send_gmail_message",
+                "platform_tool": "platform_gmail_search",
+                "notes": "Search messages with Gmail query syntax",
+            },
+            "get_thread": {
+                "supported": True,
+                "platform_tool": "platform_gmail_get_thread",
+                "notes": "Get full email thread/conversation",
+            },
+            "send": {
+                "supported": True,
+                "platform_tool": "platform_gmail_send",
+                "notes": "Send email - confirm recipient first",
             },
             "create_draft": {
                 "supported": True,
-                "method": "create_gmail_draft",
+                "platform_tool": "platform_gmail_create_draft",
                 "notes": "Preferred for review workflow",
-            },
-            "list_messages": {
-                "supported": True,
-                "method": "list_gmail_messages",
-            },
-            "read_thread": {
-                "supported": True,
-                "method": "get_gmail_thread",
             },
         },
 
@@ -138,12 +142,14 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
         },
 
         "quirks": [
+            "Use platform_gmail_* tools directly (ADR-046)",
             "Uses refresh_token flow, not direct access_token",
             "Access token refreshed automatically on each call",
             "Requires GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET env vars",
+            "Prefer create_draft over send for deliverables",
         ],
 
-        "version": "2026-02-11",
+        "version": "2026-02-12",
     },
 
     "notion": {
@@ -203,7 +209,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
             "Comments require commenting permission on the page",
         ],
 
-        "version": "2026-02-11",
+        "version": "2026-02-12",
     },
 }
 
