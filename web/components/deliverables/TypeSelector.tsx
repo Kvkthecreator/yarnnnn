@@ -241,7 +241,7 @@ interface TypeSelectorProps {
   onChange: (type: DeliverableType, classification?: TypeClassification) => void;
 }
 
-type Platform = 'slack' | 'gmail' | 'notion';
+type Platform = 'slack' | 'gmail' | 'notion' | 'calendar';
 
 export function TypeSelector({ value, onChange }: TypeSelectorProps) {
   const [selectedBinding, setSelectedBinding] = useState<ContextBinding | null>(null);
@@ -341,8 +341,8 @@ export function TypeSelector({ value, onChange }: TypeSelectorProps) {
           Which platform do you want to monitor?
         </p>
 
-        <div className="grid grid-cols-3 gap-3">
-          {(['slack', 'gmail', 'notion'] as const).map((platform) => (
+        <div className="grid grid-cols-2 gap-3">
+          {(['slack', 'gmail', 'notion', 'calendar'] as const).map((platform) => (
             <button
               key={platform}
               type="button"
@@ -356,6 +356,7 @@ export function TypeSelector({ value, onChange }: TypeSelectorProps) {
                 {platform === 'slack' && <Hash className="w-6 h-6 text-purple-500" />}
                 {platform === 'gmail' && <Mail className="w-6 h-6 text-red-500" />}
                 {platform === 'notion' && <FileCode className="w-6 h-6 text-gray-700 dark:text-gray-300" />}
+                {platform === 'calendar' && <Calendar className="w-6 h-6 text-blue-500" />}
                 <span className="text-sm font-medium capitalize">{platform}</span>
               </div>
             </button>

@@ -940,17 +940,17 @@ export default function PlatformDetailPage() {
           </section>
         )}
 
-        {/* ADR-050: Designated Calendar Section (Calendar only) */}
+        {/* ADR-050/051: Designated Calendar Section (Calendar only) - Output destination */}
         {platform === 'calendar' && (
           <section>
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h2 className="text-base font-semibold flex items-center gap-2">
                   <Target className="w-4 h-4" />
-                  Default Calendar
+                  Output Calendar
                 </h2>
                 <p className="text-sm text-muted-foreground">
-                  Where TP will create events by default
+                  Where TP creates events by default (separate from context sources above)
                 </p>
               </div>
             </div>
