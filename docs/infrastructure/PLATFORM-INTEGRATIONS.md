@@ -10,8 +10,8 @@ YARNNN integrates with four external platforms:
 |----------|---------------|-----------|----------|-------------------|-------------------|
 | Slack | slack | MCP Gateway | Yes | Yes | Yes |
 | Notion | notion | MCP Gateway | Yes | Yes | Yes |
-| Gmail | google | Direct API | No | Yes | Yes |
-| Calendar | google | Direct API | No | Yes | No (read-only) |
+| Gmail | google | Direct API | Yes | Yes | Yes |
+| Calendar | google | Direct API | Yes | Yes | Yes |
 
 ## Architecture
 
@@ -104,23 +104,28 @@ scopes = [
 ]
 ```
 
-**TP Tools**: None - Gmail is not exposed to TP as tools
+**TP Tools** (defined in [platform_tools.py](../../api/services/platform_tools.py)):
+- `platform_gmail_search` - Search messages with Gmail query syntax
+- `platform_gmail_get_thread` - Get full email thread
+- `platform_gmail_send` - Send email
+- `platform_gmail_create_draft` - Create draft for user review
 
 **Used For**:
+- **TP Tools**: Direct email search, reading threads, sending/drafting
 - **Deliverable Sources**: Fetch emails for inbox_summary, thread_summary
 - **Deliverable Export**: Send/draft emails via GmailExporter
 
 **Data Flow**:
 ```
+TP tool call → platform_tools.py → Direct Google Gmail API v1
+                              ↓
 Deliverable pipeline → _fetch_gmail_data() → Google Gmail API v1
-                    ↓
-GmailExporter → mcp_manager.send_gmail_message() → Google Gmail API v1
 ```
 
 **Why Direct API (not MCP)**:
 - No official Google MCP server
 - Token refresh handling already in Python
-- Simple read-only operations don't benefit from MCP abstraction
+- Full control over API calls and error handling
 
 ---
 
@@ -135,15 +140,20 @@ scopes = [
 ]
 ```
 
-**TP Tools**: None
+**TP Tools** (defined in [platform_tools.py](../../api/services/platform_tools.py)):
+- `platform_calendar_list_events` - List upcoming events with time filters
+- `platform_calendar_get_event` - Get event details with attendees
+- `platform_calendar_create_event` - Create new calendar events
 
 **Used For**:
+- **TP Tools**: Query calendar, create events
 - **Deliverable Sources**: Fetch events for meeting_prep, weekly_calendar_preview
 - **Cross-Platform Context**: Connect meeting attendees to Slack/Gmail history
-- **Future**: Create follow-up events from deliverables
 
 **Data Flow**:
 ```
+TP tool call → platform_tools.py → Direct Google Calendar API v3
+                              ↓
 Deliverable pipeline → _fetch_calendar_data() → Google Calendar API v3
 ```
 
@@ -225,8 +235,9 @@ async def get_valid_google_token(integration: dict) -> str:
 
 ### Direct API Route (Gmail/Calendar pattern)
 1. Add OAuth config to oauth.py
-2. Implement fetch function in [deliverable_pipeline.py](../../api/services/deliverable_pipeline.py)
-3. Add exporter if write operations needed
+2. Define TP tools in [platform_tools.py](../../api/services/platform_tools.py) with handler functions
+3. Implement fetch function in [deliverable_pipeline.py](../../api/services/deliverable_pipeline.py)
+4. Add exporter if write operations needed
 
 ---
 
