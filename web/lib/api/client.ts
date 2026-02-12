@@ -872,6 +872,36 @@ export const api = {
       }>(`/api/integrations/${provider}/sync`, {
         method: "POST",
       }),
+
+    // ADR-050: Notion designated page (streamlined output pattern)
+    getNotionDesignatedPage: () =>
+      request<{
+        success: boolean;
+        designated_page_id: string | null;
+        designated_page_name: string | null;
+        message: string;
+      }>("/api/integrations/notion/designated-page"),
+
+    setNotionDesignatedPage: (pageId: string, pageName?: string) =>
+      request<{
+        success: boolean;
+        designated_page_id: string | null;
+        designated_page_name: string | null;
+        message: string;
+      }>("/api/integrations/notion/designated-page", {
+        method: "PUT",
+        body: JSON.stringify({ page_id: pageId, page_name: pageName }),
+      }),
+
+    clearNotionDesignatedPage: () =>
+      request<{
+        success: boolean;
+        designated_page_id: null;
+        designated_page_name: null;
+        message: string;
+      }>("/api/integrations/notion/designated-page", {
+        method: "DELETE",
+      }),
   },
 
   // ADR-034: Context Domains (Context v2)

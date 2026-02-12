@@ -2890,6 +2890,11 @@ async def handle_list_integrations(auth, input: dict) -> dict:
         # ADR-050: Include authed_user_id for Slack DMs to self
         if i["provider"] == "slack" and metadata.get("authed_user_id"):
             item["authed_user_id"] = metadata["authed_user_id"]
+        # ADR-050: Include designated_page_id for Notion outputs
+        if i["provider"] == "notion" and metadata.get("designated_page_id"):
+            item["designated_page_id"] = metadata["designated_page_id"]
+            if metadata.get("designated_page_name"):
+                item["designated_page_name"] = metadata["designated_page_name"]
         items.append(item)
 
     # Check what's available vs connected

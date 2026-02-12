@@ -32,6 +32,8 @@ import {
   Check,
   AlertTriangle,
   Sparkles,
+  Target,
+  X,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -231,6 +233,14 @@ export default function PlatformDetailPage() {
   const [deliverables, setDeliverables] = useState<PlatformDeliverable[]>([]);
   const [recentMemories, setRecentMemories] = useState<PlatformMemory[]>([]);
 
+  // ADR-050: Notion designated page state
+  const [designatedPage, setDesignatedPage] = useState<{
+    id: string | null;
+    name: string | null;
+  }>({ id: null, name: null });
+  const [showPagePicker, setShowPagePicker] = useState(false);
+  const [savingDesignatedPage, setSavingDesignatedPage] = useState(false);
+
   // Computed
   const limit = tierLimits?.limits[config?.limitField || 'slack_channels'] || 5;
   const atLimit = selectedIds.size >= limit;
@@ -253,17 +263,27 @@ export default function PlatformDetailPage() {
       const backendProviders = BACKEND_PROVIDER_MAP[platform];
 
       // Load all data in parallel
-      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult] = await Promise.all([
+      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult, designatedPageResult] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
         api.integrations.getLandscape(apiProvider).catch(() => ({ resources: [] })),
         api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
         api.deliverables.list().catch(() => []),
         api.userMemories.list().catch(() => []),
+        // ADR-050: Load designated page for Notion
+        platform === 'notion' ? api.integrations.getNotionDesignatedPage().catch(() => null) : Promise.resolve(null),
       ]);
 
       setIntegration(integrationResult);
       setResources(landscapeResult.resources || []);
+
+      // ADR-050: Set designated page state for Notion
+      if (platform === 'notion' && designatedPageResult) {
+        setDesignatedPage({
+          id: designatedPageResult.designated_page_id,
+          name: designatedPageResult.designated_page_name,
+        });
+      }
       setTierLimits(limitsResult);
 
       // Set selected IDs from sources endpoint
@@ -429,6 +449,43 @@ export default function PlatformDetailPage() {
 
   const handleViewDeliverable = (id: string) => {
     router.push(`/deliverables/${id}`);
+  };
+
+  // ADR-050: Designated page handlers for Notion
+  const handleSetDesignatedPage = async (pageId: string, pageName: string) => {
+    setSavingDesignatedPage(true);
+    try {
+      const result = await api.integrations.setNotionDesignatedPage(pageId, pageName);
+      if (result.success) {
+        setDesignatedPage({
+          id: result.designated_page_id,
+          name: result.designated_page_name,
+        });
+        setShowPagePicker(false);
+      } else {
+        setError('Failed to set designated page');
+      }
+    } catch (err) {
+      console.error('Failed to set designated page:', err);
+      setError(err instanceof Error ? err.message : 'Failed to set designated page');
+    } finally {
+      setSavingDesignatedPage(false);
+    }
+  };
+
+  const handleClearDesignatedPage = async () => {
+    setSavingDesignatedPage(true);
+    try {
+      const result = await api.integrations.clearNotionDesignatedPage();
+      if (result.success) {
+        setDesignatedPage({ id: null, name: null });
+      }
+    } catch (err) {
+      console.error('Failed to clear designated page:', err);
+      setError(err instanceof Error ? err.message : 'Failed to clear designated page');
+    } finally {
+      setSavingDesignatedPage(false);
+    }
   };
 
   // =============================================================================
@@ -683,6 +740,122 @@ export default function PlatformDetailPage() {
             </div>
           )}
         </section>
+
+        {/* ADR-050: Designated Output Page Section (Notion only) */}
+        {platform === 'notion' && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  Output Page
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Where TP will write outputs by default (like a YARNNN inbox)
+                </p>
+              </div>
+            </div>
+
+            {designatedPage.id ? (
+              <div className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
+                      <FileText className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{designatedPage.name || 'Unnamed Page'}</p>
+                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                        {designatedPage.id}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowPagePicker(true)}
+                      className="text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Change
+                    </button>
+                    <button
+                      onClick={handleClearDesignatedPage}
+                      disabled={savingDesignatedPage}
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                    >
+                      {savingDesignatedPage ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-border rounded-lg p-6 text-center">
+                <Target className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-3">
+                  No output page set. Choose a Notion page where TP will add comments and outputs.
+                </p>
+                <button
+                  onClick={() => setShowPagePicker(true)}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
+                >
+                  Choose Page
+                </button>
+              </div>
+            )}
+
+            {/* Page Picker Modal */}
+            {showPagePicker && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-md max-h-[60vh] overflow-hidden">
+                  <div className="p-4 border-b border-border flex items-center justify-between">
+                    <h3 className="font-semibold">Select Output Page</h3>
+                    <button
+                      onClick={() => setShowPagePicker(false)}
+                      className="p-1 hover:bg-muted rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-4 overflow-y-auto max-h-[400px]">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Choose a page from your workspace. TP will add outputs as comments to this page.
+                    </p>
+                    {resources.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No pages found. Make sure Notion is connected and has accessible pages.
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        {resources.map((resource) => (
+                          <button
+                            key={resource.id}
+                            onClick={() => handleSetDesignatedPage(resource.id, resource.name)}
+                            disabled={savingDesignatedPage}
+                            className={cn(
+                              'w-full px-3 py-2 flex items-center gap-3 rounded-md text-left transition-colors',
+                              resource.id === designatedPage.id
+                                ? 'bg-primary/10 border border-primary'
+                                : 'hover:bg-muted border border-transparent'
+                            )}
+                          >
+                            <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm truncate">{resource.name}</span>
+                            {resource.id === designatedPage.id && (
+                              <Check className="w-4 h-4 text-primary ml-auto shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Deliverables Section */}
         <section>

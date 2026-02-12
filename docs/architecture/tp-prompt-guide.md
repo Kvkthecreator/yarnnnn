@@ -123,13 +123,15 @@ Platform tools are dynamically added based on user's connected integrations:
 **Streamlined Patterns:**
 
 - **Slack**: Default to user's own DM via `authed_user_id` (user owns the output)
+- **Notion**: Default to user's designated page via `designated_page_id` (user owns the output)
 - **Gmail**: Prefer `create_draft` over `send` for deliverable outputs
-- **Notion**: Use `search-notion` to find pages, not hardcoded names
 
 **Workflow for platform actions:**
-1. Call `list_integrations` to get metadata (e.g., `authed_user_id` for Slack)
+1. Call `list_integrations` to get metadata:
+   - Slack: `authed_user_id` for DMs to self
+   - Notion: `designated_page_id` for outputs to user's YARNNN page
 2. Use the returned IDs in tool calls
-3. Confirm: "I've sent that to your Slack DM."
+3. Confirm: "I've sent that to your Slack DM." or "I've added that to your YARNNN page in Notion."
 
 ### Good Response Examples
 
@@ -163,11 +165,12 @@ User: "What platforms are connected?"
 - Added platform tools: `platform_slack_*`, `platform_notion_*`, `platform_gmail_*`, `platform_calendar_*`
 - Added prompt versioning (`PROMPT_VERSIONS` dict in `platform_tools.py`)
 - Slack streamlined for personal DM pattern (send to `authed_user_id`)
+- Notion streamlined for designated page pattern (write to `designated_page_id`)
 - Notion fixed for MCP server v2 (`search-notion`, `create-a-comment`)
 - Gmail/Calendar via Direct API (not MCP) per ADR-046
-- `list_integrations` now exposes `authed_user_id` for Slack
+- `list_integrations` now exposes `authed_user_id` for Slack and `designated_page_id` for Notion
 
-**Rationale:** ADR-050 MCP Gateway enables direct platform access. ADR-046 adds Gmail/Calendar. Streamlined patterns ensure user owns their outputs (DM to self, drafts for review).
+**Rationale:** ADR-050 MCP Gateway enables direct platform access. ADR-046 adds Gmail/Calendar. Streamlined patterns ensure user owns their outputs (DM to self, designated page for Notion, drafts for review).
 
 **Prompt Versioning:**
 ```python

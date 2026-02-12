@@ -32,7 +32,7 @@ PROMPT_VERSIONS = {
     "notion": {
         "version": "2026-02-12",
         "adr_refs": ["ADR-050"],
-        "changelog": "Fixed MCP tool names for v2 server (search-notion, create-a-comment)",
+        "changelog": "Fixed MCP tool names for v2 server, added designated_page_id pattern",
     },
     "gmail": {
         "version": "2026-02-12",
@@ -114,13 +114,19 @@ NOTION_TOOLS = [
     },
     {
         "name": "platform_notion_create_comment",
-        "description": "Add a comment to a Notion page.",
+        "description": """Add a comment to a Notion page.
+
+PRIMARY USE: Add to user's designated page so they own the output.
+1. Call list_integrations to get designated_page_id
+2. Use that page ID as the target
+
+The user's designated_page_id is in integration metadata. Use it unless user explicitly asks for a different page.""",
         "input_schema": {
             "type": "object",
             "properties": {
                 "page_id": {
                     "type": "string",
-                    "description": "Page ID (UUID format)"
+                    "description": "Page ID (UUID). Get from list_integrations designated_page_id or search"
                 },
                 "content": {
                     "type": "string",

@@ -177,20 +177,29 @@ platform_slack_send_message(channel_id="U0123ABC456", text="Your summary...")
 
 ### Notion (platform_notion_*)
 
+**Default: Write to user's designated page.** Work done by YARNNN should be owned by the user - add to their designated page so they can scaffold it themselves.
+
 **platform_notion_search**
 - `query`: Search term
 - Returns page IDs for use with other tools
+- Only needed if user explicitly asks for a different page
 
 **platform_notion_create_comment**
-- `page_id`: Page UUID
+- `page_id`: Page UUID - get from list_integrations designated_page_id
 - `content`: Comment text
+- **Always use designated_page_id unless user explicitly asks for a different page**
+
+**Workflow for Notion actions:**
+1. Call `list_integrations` to get the user's `designated_page_id` from Notion metadata
+2. Use that ID as `page_id` to add comment to their designated page
+3. Confirm: "I've added that to your YARNNN page in Notion."
 
 ```
-// Search for a page
-platform_notion_search(query="meeting notes")
+// Step 1: Get user's designated Notion page
+list_integrations → notion.metadata.designated_page_id = "abc123-uuid..."
 
-// Add comment to page
-platform_notion_create_comment(page_id="abc123...", content="Note added")
+// Step 2: Add comment to their designated page
+platform_notion_create_comment(page_id="abc123-uuid...", content="Your summary...")
 ```
 
 ### Gmail
@@ -205,7 +214,9 @@ Gmail uses direct API, not MCP. Use `send_notification` for emails.
 
 **list_integrations** - Check connected platforms
 - Call first when user mentions a platform
-- Shows which platforms are active and authed_user_id for "self" resolution
+- Shows which platforms are active and metadata for "self" resolution:
+  - Slack: `authed_user_id` for DMs to self
+  - Notion: `designated_page_id` for outputs to user's YARNNN page
 
 **list_platform_resources(platform)** - Find specific resources
 - `list_platform_resources(platform="slack")` → lists all channels

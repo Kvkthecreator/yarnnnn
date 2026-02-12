@@ -25,8 +25,10 @@
 
 **Streamlined Patterns**:
 - Slack: Send to user's own DM via `authed_user_id` (personal ownership)
+- Notion: Write to user's designated page via `designated_page_id` (personal ownership)
 - Gmail: Prefer `create_draft` for deliverable outputs
-- Notion: Use `search-notion` (v2 tool name), not hardcoded page names
+
+**Designated Page UI**: Users set their output page at `/context/notion` - TP will default to this page for all Notion outputs.
 
 ---
 

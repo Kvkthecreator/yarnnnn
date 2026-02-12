@@ -1267,6 +1267,171 @@ async def list_notion_pages(
 
 
 # =============================================================================
+# Notion Designated Page (ADR-050 Streamlined Pattern)
+# =============================================================================
+
+class DesignatedPageRequest(BaseModel):
+    """Request to set designated output page for Notion."""
+    page_id: str
+    page_name: Optional[str] = None
+
+
+class DesignatedPageResponse(BaseModel):
+    """Response after setting designated page."""
+    success: bool
+    designated_page_id: Optional[str] = None
+    designated_page_name: Optional[str] = None
+    message: str
+
+
+@router.get("/integrations/notion/designated-page")
+async def get_notion_designated_page(auth: UserClient) -> DesignatedPageResponse:
+    """
+    Get the user's designated output page for Notion.
+
+    ADR-050: Streamlined pattern - user designates a page as their
+    "YARNNN inbox" where TP can write outputs (like Slack DM to self).
+    """
+    user_id = auth.user_id
+
+    try:
+        integration = auth.client.table("user_integrations").select(
+            "id, metadata, status"
+        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Notion integration found. Please connect first."
+            )
+
+        metadata = integration.data.get("metadata") or {}
+        designated_page_id = metadata.get("designated_page_id")
+        designated_page_name = metadata.get("designated_page_name")
+
+        if designated_page_id:
+            return DesignatedPageResponse(
+                success=True,
+                designated_page_id=designated_page_id,
+                designated_page_name=designated_page_name,
+                message="Designated page is set"
+            )
+        else:
+            return DesignatedPageResponse(
+                success=True,
+                designated_page_id=None,
+                designated_page_name=None,
+                message="No designated page set"
+            )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to get Notion designated page for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get designated page: {str(e)}")
+
+
+@router.put("/integrations/notion/designated-page")
+async def set_notion_designated_page(
+    request: DesignatedPageRequest,
+    auth: UserClient
+) -> DesignatedPageResponse:
+    """
+    Set the user's designated output page for Notion.
+
+    ADR-050: Streamlined pattern - TP will use this page as the default
+    parent for creating new pages or adding comments.
+    """
+    user_id = auth.user_id
+
+    try:
+        # Get current integration
+        integration = auth.client.table("user_integrations").select(
+            "id, metadata, status"
+        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Notion integration found. Please connect first."
+            )
+
+        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Notion integration is {integration.data['status']}. Please reconnect."
+            )
+
+        # Update metadata with designated page
+        metadata = integration.data.get("metadata") or {}
+        metadata["designated_page_id"] = request.page_id
+        if request.page_name:
+            metadata["designated_page_name"] = request.page_name
+
+        auth.client.table("user_integrations").update({
+            "metadata": metadata
+        }).eq("id", integration.data["id"]).execute()
+
+        logger.info(f"[INTEGRATIONS] User {user_id} set Notion designated page: {request.page_id}")
+
+        return DesignatedPageResponse(
+            success=True,
+            designated_page_id=request.page_id,
+            designated_page_name=request.page_name,
+            message="Designated page updated"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to set Notion designated page for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to set designated page: {str(e)}")
+
+
+@router.delete("/integrations/notion/designated-page")
+async def clear_notion_designated_page(auth: UserClient) -> DesignatedPageResponse:
+    """
+    Clear the user's designated output page for Notion.
+    """
+    user_id = auth.user_id
+
+    try:
+        integration = auth.client.table("user_integrations").select(
+            "id, metadata"
+        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+
+        if not integration.data:
+            raise HTTPException(
+                status_code=404,
+                detail="No Notion integration found."
+            )
+
+        # Remove designated page from metadata
+        metadata = integration.data.get("metadata") or {}
+        metadata.pop("designated_page_id", None)
+        metadata.pop("designated_page_name", None)
+
+        auth.client.table("user_integrations").update({
+            "metadata": metadata
+        }).eq("id", integration.data["id"]).execute()
+
+        logger.info(f"[INTEGRATIONS] User {user_id} cleared Notion designated page")
+
+        return DesignatedPageResponse(
+            success=True,
+            designated_page_id=None,
+            designated_page_name=None,
+            message="Designated page cleared"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to clear Notion designated page for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear designated page: {str(e)}")
+
+
+# =============================================================================
 # Resource Discovery - Google Calendar Events (ADR-046)
 # =============================================================================
 
