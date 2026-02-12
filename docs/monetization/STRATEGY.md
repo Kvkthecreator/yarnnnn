@@ -292,31 +292,44 @@ If user downgrades from Pro to Starter or cancels:
 
 ---
 
+## Checkout URLs
+
+Direct checkout links for manual sharing/testing:
+
+| Product | Direct Checkout URL |
+|---------|---------------------|
+| Starter Monthly | https://kvklabs.lemonsqueezy.com/checkout/buy/a4f4838a-fe39-4920-8fd9-8637b4d2767a |
+| Starter Yearly | https://kvklabs.lemonsqueezy.com/checkout/buy/4a1ae29c-e95a-4b13-a59f-512e12493ab1 |
+| Pro Monthly | (via dashboard checkout) |
+| Pro Yearly | (via dashboard checkout) |
+
+---
+
 ## Implementation Checklist
 
 ### Lemon Squeezy Setup
 
-- [ ] Create Starter Monthly product ($9/mo)
-- [ ] Create Starter Yearly product ($90/yr)
-- [ ] Verify Pro Monthly product ($19/mo)
-- [ ] Verify Pro Yearly product ($190/yr)
-- [ ] Get variant IDs for all 4 products
-- [ ] Update environment variables
+- [x] Create Starter Monthly product ($9/mo) - Variant ID: 1301254
+- [x] Create Starter Yearly product ($90/yr) - Variant ID: 1301257
+- [x] Verify Pro Monthly product ($19/mo)
+- [x] Verify Pro Yearly product ($190/yr)
+- [x] Get variant IDs for all 4 products
+- [x] Update environment variables on Render
 - [ ] Verify webhook endpoint in LS dashboard
 
 ### Backend Updates
 
 - [x] Webhook handler exists (`api/routes/subscription.py`)
-- [ ] Update checkout endpoint to accept `tier` parameter
-- [ ] Update webhook handler to detect tier from variant_id
-- [ ] Update status endpoint to return tier name
+- [x] Update checkout endpoint to accept `tier` parameter
+- [x] Update webhook handler to detect tier from variant_id (`get_tier_from_variant_id()`)
+- [x] Update status endpoint to return tier name
 
 ### Frontend Updates
 
 - [x] SubscriptionCard component exists
-- [ ] Update for 3-tier pricing display
-- [ ] Add tier selection to checkout flow
-- [ ] Update upgrade prompts to mention Starter option
+- [x] Update for 3-tier pricing display
+- [x] Add tier selection to checkout flow
+- [x] Update upgrade prompts to mention Starter option
 
 ### Testing
 
