@@ -248,57 +248,114 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
     """
     Sync Gmail messages.
 
-    ADR-055/ADR-056: Will implement label-based sync.
-    For now, logs warning that label-based sync is pending implementation.
-
-    selected_sources format: ["label:Label_123", "label:Label_456"]
+    ADR-055/ADR-056: Label-based sync - only syncs selected labels.
+    selected_sources format: ["label:Label_123", "label:Label_456"] or ["Label_123", "Label_456"]
     """
-    from integrations.providers.gmail import GmailClient
+    from integrations.core.google_client import GoogleAPIClient
+    from datetime import timedelta
+    import os
 
     settings = integration.get("settings", {})
-    access_token = integration.get("access_token")
     refresh_token = integration.get("refresh_token")
 
-    if not access_token:
-        return {"error": "Missing Gmail access token", "items_synced": 0}
+    if not refresh_token:
+        return {"error": "Missing Gmail refresh token", "items_synced": 0}
 
-    # ADR-055: TODO - Implement label-based sync
-    # For now, warn that we're falling back to broad inbox
-    if selected_sources:
-        logger.warning(f"[PLATFORM_WORKER] Gmail label-based sync not yet implemented. "
-                       f"Selected {len(selected_sources)} labels but syncing broad inbox instead.")
+    # ADR-056: If no sources selected, nothing to sync
+    if not selected_sources:
+        logger.info("[PLATFORM_WORKER] No Gmail labels selected, skipping sync")
+        return {"items_synced": 0, "labels_synced": 0, "skipped": "no_sources_selected"}
+
+    logger.info(f"[PLATFORM_WORKER] Gmail sync: {len(selected_sources)} labels selected")
+
+    google_client = GoogleAPIClient()
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        return {"error": "Missing Google OAuth credentials", "items_synced": 0}
 
     items_synced = 0
+    labels_synced = 0
 
     try:
-        gmail = GmailClient(
-            access_token=access_token,
-            refresh_token=refresh_token,
-        )
+        # ADR-055: Recency filter - last 7 days
+        cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
+        date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
 
-        # TODO ADR-055: Iterate over selected_sources (labels) and fetch per-label
-        # For now, fetch recent emails broadly
-        messages = await gmail.list_messages(max_results=50)
+        for source in selected_sources:
+            # Handle both "label:Label_123" and "Label_123" formats
+            if source.startswith("label:"):
+                label_id = source.split(":", 1)[1]
+                resource_id = source  # Keep full format for storage
+            else:
+                label_id = source
+                resource_id = f"label:{source}"
 
-        for msg in messages:
-            await _store_ephemeral_context(
-                client=client,
-                user_id=user_id,
-                source_type="gmail",
-                resource_id=msg.get("id"),
-                resource_name=msg.get("subject", "No subject"),
-                content=msg.get("snippet", ""),
-                content_type="email",
-                metadata={
-                    "from": msg.get("from"),
-                    "to": msg.get("to"),
-                    "labels": msg.get("labels", []),
-                },
-                source_timestamp=msg.get("date"),
-            )
-            items_synced += 1
+            logger.debug(f"[PLATFORM_WORKER] Syncing Gmail label: {label_id}")
 
-        return {"items_synced": items_synced}
+            try:
+                # Fetch messages for this label
+                messages = await google_client.list_gmail_messages(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    refresh_token=refresh_token,
+                    query=date_filter,
+                    max_results=50,
+                    label_ids=[label_id],
+                )
+
+                # Fetch and store full message content
+                for msg in messages[:50]:  # Cap at 50 per label
+                    msg_id = msg.get("id")
+                    if not msg_id:
+                        continue
+
+                    try:
+                        full_msg = await google_client.get_gmail_message(
+                            message_id=msg_id,
+                            client_id=client_id,
+                            client_secret=client_secret,
+                            refresh_token=refresh_token,
+                        )
+
+                        # Extract headers
+                        headers = {h["name"].lower(): h["value"] for h in full_msg.get("payload", {}).get("headers", [])}
+                        subject = headers.get("subject", "No subject")
+                        sender = headers.get("from", "")
+                        date_str = headers.get("date", "")
+
+                        await _store_ephemeral_context(
+                            client=client,
+                            user_id=user_id,
+                            source_type="gmail",
+                            resource_id=resource_id,  # ADR-055: Use label: prefix
+                            resource_name=subject,
+                            content=full_msg.get("snippet", ""),
+                            content_type="email",
+                            metadata={
+                                "message_id": msg_id,
+                                "from": sender,
+                                "label_id": label_id,
+                                "labels": full_msg.get("labelIds", []),
+                            },
+                            source_timestamp=date_str,
+                        )
+                        items_synced += 1
+
+                    except Exception as e:
+                        logger.warning(f"[PLATFORM_WORKER] Failed to fetch Gmail message {msg_id}: {e}")
+
+                labels_synced += 1
+
+            except Exception as e:
+                logger.warning(f"[PLATFORM_WORKER] Failed to sync Gmail label {label_id}: {e}")
+
+        logger.info(f"[PLATFORM_WORKER] Gmail sync complete: {labels_synced} labels, {items_synced} emails")
+        return {
+            "items_synced": items_synced,
+            "labels_synced": labels_synced,
+        }
 
     except Exception as e:
         logger.warning(f"[PLATFORM_WORKER] Gmail sync error: {e}")
@@ -309,7 +366,7 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
     """
     Sync Notion pages.
 
-    ADR-056: Only syncs pages in selected_sources list.
+    ADR-056: Directly fetches selected pages by ID (not search-then-filter).
     """
     from integrations.core.client import MCPClientManager
 
@@ -324,57 +381,67 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
         logger.info("[PLATFORM_WORKER] No Notion pages selected, skipping sync")
         return {"items_synced": 0, "pages_synced": 0, "skipped": "no_sources_selected"}
 
-    selected_set = set(selected_sources)
-    logger.info(f"[PLATFORM_WORKER] Notion sync: {len(selected_set)} pages selected")
+    logger.info(f"[PLATFORM_WORKER] Notion sync: {len(selected_sources)} pages selected")
 
     manager = MCPClientManager()
     items_synced = 0
     pages_synced = 0
-    pages_skipped = 0
+    pages_failed = 0
 
     try:
-        # Search for recent pages (we still need to fetch to get content)
-        pages = await manager.search_notion(
-            user_id=user_id,
-            notion_token=notion_token,
-            query="",  # Empty query returns recent pages
-            limit=100,  # Fetch more to increase chance of hitting selected ones
-        )
+        # ADR-056: Directly fetch each selected page by ID
+        for page_id in selected_sources:
+            try:
+                logger.debug(f"[PLATFORM_WORKER] Fetching Notion page: {page_id}")
 
-        # ADR-056: Filter to only selected pages
-        for page in pages:
-            page_id = page.get("id")
+                page_content = await manager.get_notion_page_content(
+                    user_id=user_id,
+                    page_id=page_id,
+                    auth_token=notion_token,
+                )
 
-            # Skip if not in selected sources
-            if page_id not in selected_set:
-                pages_skipped += 1
-                continue
+                if not page_content:
+                    logger.warning(f"[PLATFORM_WORKER] Notion page not found: {page_id}")
+                    pages_failed += 1
+                    continue
 
-            page_title = page.get("title", "Untitled")
-            logger.debug(f"[PLATFORM_WORKER] Syncing Notion page: {page_title} ({page_id})")
+                page_title = page_content.get("title", "Untitled")
 
-            await _store_ephemeral_context(
-                client=client,
-                user_id=user_id,
-                source_type="notion",
-                resource_id=page_id,
-                resource_name=page_title,
-                content=page.get("content", ""),
-                content_type="page",
-                metadata={
-                    "url": page.get("url"),
-                    "last_edited": page.get("last_edited_time"),
-                },
-                source_timestamp=page.get("last_edited_time"),
-            )
-            items_synced += 1
-            pages_synced += 1
+                # Extract text content from page
+                content = page_content.get("content", "")
+                if isinstance(content, list):
+                    # If content is blocks, join text
+                    content = "\n".join(
+                        block.get("text", "") if isinstance(block, dict) else str(block)
+                        for block in content
+                    )
 
-        logger.info(f"[PLATFORM_WORKER] Notion sync complete: {pages_synced} pages synced (skipped {pages_skipped})")
+                await _store_ephemeral_context(
+                    client=client,
+                    user_id=user_id,
+                    source_type="notion",
+                    resource_id=page_id,
+                    resource_name=page_title,
+                    content=content,
+                    content_type="page",
+                    metadata={
+                        "url": page_content.get("url"),
+                        "last_edited": page_content.get("last_edited_time"),
+                    },
+                    source_timestamp=page_content.get("last_edited_time"),
+                )
+                items_synced += 1
+                pages_synced += 1
+
+            except Exception as e:
+                logger.warning(f"[PLATFORM_WORKER] Failed to sync Notion page {page_id}: {e}")
+                pages_failed += 1
+
+        logger.info(f"[PLATFORM_WORKER] Notion sync complete: {pages_synced} pages synced, {pages_failed} failed")
         return {
             "items_synced": items_synced,
             "pages_synced": pages_synced,
-            "pages_skipped": pages_skipped,
+            "pages_failed": pages_failed,
         }
 
     except Exception as e:
@@ -388,24 +455,106 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
     """
     Sync Google Calendar events.
 
-    ADR-056: Placeholder - calendar sync not yet implemented.
+    ADR-056: Syncs only selected calendars (calendar IDs).
+    Fetches upcoming events for the next 7 days.
     """
-    # ADR-056: Calendar sync is defined in tier limits but not implemented yet
-    logger.warning("[PLATFORM_WORKER] Calendar sync not yet implemented")
+    from integrations.core.google_client import GoogleAPIClient
+    import os
 
+    settings = integration.get("settings", {})
+    refresh_token = integration.get("refresh_token")
+
+    if not refresh_token:
+        return {"error": "Missing Calendar refresh token", "items_synced": 0}
+
+    # ADR-056: If no sources selected, nothing to sync
     if not selected_sources:
-        return {"items_synced": 0, "skipped": "no_sources_selected"}
+        logger.info("[PLATFORM_WORKER] No calendars selected, skipping sync")
+        return {"items_synced": 0, "calendars_synced": 0, "skipped": "no_sources_selected"}
 
-    # TODO: Implement calendar sync
-    # 1. Use Google Calendar API to fetch events
-    # 2. Iterate over selected_sources (calendar IDs)
-    # 3. Store events in ephemeral_context
+    logger.info(f"[PLATFORM_WORKER] Calendar sync: {len(selected_sources)} calendars selected")
 
-    return {
-        "items_synced": 0,
-        "error": "Calendar sync not yet implemented",
-        "calendars_requested": len(selected_sources),
-    }
+    google_client = GoogleAPIClient()
+    client_id = os.environ.get("GOOGLE_CLIENT_ID")
+    client_secret = os.environ.get("GOOGLE_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        return {"error": "Missing Google OAuth credentials", "items_synced": 0}
+
+    items_synced = 0
+    calendars_synced = 0
+
+    try:
+        for calendar_id in selected_sources:
+            try:
+                logger.debug(f"[PLATFORM_WORKER] Syncing Calendar: {calendar_id}")
+
+                # Fetch events for next 7 days
+                events = await google_client.list_calendar_events(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    refresh_token=refresh_token,
+                    calendar_id=calendar_id,
+                    time_min="now",
+                    time_max="+7d",
+                    max_results=50,
+                )
+
+                for event in events:
+                    event_id = event.get("id")
+                    if not event_id:
+                        continue
+
+                    summary = event.get("summary", "No title")
+                    description = event.get("description", "")
+                    location = event.get("location", "")
+
+                    # Get start time
+                    start = event.get("start", {})
+                    start_time = start.get("dateTime") or start.get("date", "")
+
+                    # Build content from event details
+                    content_parts = [summary]
+                    if description:
+                        content_parts.append(description)
+                    if location:
+                        content_parts.append(f"Location: {location}")
+                    content = "\n".join(content_parts)
+
+                    await _store_ephemeral_context(
+                        client=client,
+                        user_id=user_id,
+                        source_type="calendar",
+                        resource_id=calendar_id,
+                        resource_name=summary,
+                        content=content,
+                        content_type="event",
+                        metadata={
+                            "event_id": event_id,
+                            "start": start_time,
+                            "end": event.get("end", {}).get("dateTime") or event.get("end", {}).get("date"),
+                            "location": location,
+                            "attendees": [a.get("email") for a in event.get("attendees", [])],
+                            "html_link": event.get("htmlLink"),
+                        },
+                        source_timestamp=start_time,
+                    )
+                    items_synced += 1
+
+                calendars_synced += 1
+
+            except Exception as e:
+                logger.warning(f"[PLATFORM_WORKER] Failed to sync calendar {calendar_id}: {e}")
+
+        logger.info(f"[PLATFORM_WORKER] Calendar sync complete: {calendars_synced} calendars, {items_synced} events")
+        return {
+            "items_synced": items_synced,
+            "calendars_synced": calendars_synced,
+        }
+
+    except Exception as e:
+        logger.warning(f"[PLATFORM_WORKER] Calendar sync error: {e}")
+        return {"error": str(e), "items_synced": items_synced}
 
 
 async def _store_ephemeral_context(
@@ -428,6 +577,7 @@ async def _store_ephemeral_context(
         "slack": 72,
         "gmail": 168,  # 1 week
         "notion": 168,
+        "calendar": 168,  # 1 week
     }.get(source_type, 72)
 
     now = datetime.now(timezone.utc)
