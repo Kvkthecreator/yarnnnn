@@ -26,9 +26,12 @@
 **Streamlined Patterns**:
 - Slack: Send to user's own DM via `authed_user_id` (personal ownership)
 - Notion: Write to user's designated page via `designated_page_id` (personal ownership)
+- Calendar: Create events on user's designated calendar via `designated_calendar_id`
 - Gmail: Prefer `create_draft` for deliverable outputs
 
-**Designated Page UI**: Users set their output page at `/context/notion` - TP will default to this page for all Notion outputs.
+**Designated Settings UI**:
+- Notion: Users set output page at `/context/notion`
+- Calendar: Users set default calendar at `/context/calendar`
 
 ---
 

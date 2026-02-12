@@ -41,8 +41,8 @@ PROMPT_VERSIONS = {
     },
     "calendar": {
         "version": "2026-02-12",
-        "adr_refs": ["ADR-046"],
-        "changelog": "Added list_events, get_event, create_event tools via Direct API",
+        "adr_refs": ["ADR-046", "ADR-050"],
+        "changelog": "Added list_events, get_event, create_event tools via Direct API, added designated_calendar_id pattern",
     },
 }
 
@@ -251,7 +251,8 @@ Time filters use relative format:
 - "now" - Current time
 - "+2h" - 2 hours from now
 - "+7d" - 7 days from now
-""",
+
+Uses designated_calendar_id if set, otherwise 'primary'.""",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -265,7 +266,7 @@ Time filters use relative format:
                 },
                 "calendar_id": {
                     "type": "string",
-                    "description": "Calendar ID (default: 'primary')"
+                    "description": "Calendar ID. Get from list_integrations designated_calendar_id, or use 'primary'"
                 },
                 "max_results": {
                     "type": "integer",
@@ -288,7 +289,7 @@ Time filters use relative format:
                 },
                 "calendar_id": {
                     "type": "string",
-                    "description": "Calendar ID (default: 'primary')"
+                    "description": "Calendar ID. Get from list_integrations designated_calendar_id, or use 'primary'"
                 }
             },
             "required": ["event_id"]
@@ -296,7 +297,13 @@ Time filters use relative format:
     },
     {
         "name": "platform_calendar_create_event",
-        "description": "Create a new calendar event.",
+        "description": """Create a new calendar event.
+
+PRIMARY USE: Create on user's designated calendar so they own the output.
+1. Call list_integrations to get designated_calendar_id
+2. Use that calendar ID as the target
+
+Uses designated_calendar_id if set, otherwise 'primary'.""",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -327,7 +334,7 @@ Time filters use relative format:
                 },
                 "calendar_id": {
                     "type": "string",
-                    "description": "Calendar ID (default: 'primary')"
+                    "description": "Calendar ID. Get from list_integrations designated_calendar_id, or use 'primary'"
                 }
             },
             "required": ["summary", "start_time", "end_time"]
@@ -841,13 +848,13 @@ def map_to_mcp_format(provider: str, tool: str, args: dict) -> tuple[str, dict]:
 
     elif provider == "notion":
         if tool == "search":
-            # Official Notion MCP server v2: search-notion (not notion-search)
-            return "search-notion", {
+            # Official Notion MCP server: notion-search
+            return "notion-search", {
                 "query": args.get("query"),
             }
         elif tool == "create_comment":
-            # Official Notion MCP server v2: create-a-comment
-            return "create-a-comment", {
+            # Official Notion MCP server: notion-create-comment
+            return "notion-create-comment", {
                 "page_id": args.get("page_id"),
                 "markdown": args.get("content"),
             }

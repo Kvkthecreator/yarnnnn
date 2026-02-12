@@ -202,21 +202,39 @@ list_integrations → notion.metadata.designated_page_id = "abc123-uuid..."
 platform_notion_create_comment(page_id="abc123-uuid...", content="Your summary...")
 ```
 
-### Gmail
+### Gmail (platform_gmail_*)
 
-Gmail uses direct API, not MCP. Use `send_notification` for emails.
+**platform_gmail_search**, **platform_gmail_get_thread**, **platform_gmail_send**, **platform_gmail_create_draft**
+
+- **Prefer `create_draft` over `send`** for deliverables - user can review before sending
+- Use Gmail query syntax for search
+
+### Calendar (platform_calendar_*)
+
+**Default: Create events on user's designated calendar.**
+
+**platform_calendar_list_events**, **platform_calendar_get_event**, **platform_calendar_create_event**
+
+- `calendar_id`: Get from list_integrations designated_calendar_id, or use 'primary'
+- **Use designated_calendar_id when creating events**
+
+**Workflow for Calendar actions:**
+1. Call `list_integrations` to get the user's `designated_calendar_id` from metadata
+2. Use that ID as `calendar_id` when creating events
+3. If no designated calendar, use 'primary'
 
 ---
 
 ## Platform Discovery Tools (ADR-039)
 
-**Be agentic with platforms.** When user mentions Slack, Gmail, Notion - check, find, sync. Don't ask permission.
+**Be agentic with platforms.** When user mentions Slack, Gmail, Notion, Calendar - check, find, sync. Don't ask permission.
 
 **list_integrations** - Check connected platforms
 - Call first when user mentions a platform
 - Shows which platforms are active and metadata for "self" resolution:
   - Slack: `authed_user_id` for DMs to self
   - Notion: `designated_page_id` for outputs to user's YARNNN page
+  - Calendar: `designated_calendar_id` for event creation
 
 **list_platform_resources(platform)** - Find specific resources
 - `list_platform_resources(platform="slack")` → lists all channels

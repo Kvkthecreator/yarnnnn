@@ -1432,6 +1432,181 @@ async def clear_notion_designated_page(auth: UserClient) -> DesignatedPageRespon
 
 
 # =============================================================================
+# Google Designated Settings (ADR-050 Streamlined Pattern)
+# =============================================================================
+
+class GoogleDesignatedSettingsRequest(BaseModel):
+    """Request to set designated settings for Google (Gmail/Calendar)."""
+    designated_calendar_id: Optional[str] = None
+    designated_calendar_name: Optional[str] = None
+
+
+class GoogleDesignatedSettingsResponse(BaseModel):
+    """Response with Google designated settings."""
+    success: bool
+    designated_calendar_id: Optional[str] = None
+    designated_calendar_name: Optional[str] = None
+    message: str
+
+
+@router.get("/integrations/google/designated-settings")
+async def get_google_designated_settings(auth: UserClient) -> GoogleDesignatedSettingsResponse:
+    """
+    Get the user's designated settings for Google (Calendar).
+
+    ADR-050: Streamlined pattern - user designates a calendar as default
+    for TP-created events (like Slack DM to self, Notion designated page).
+    """
+    user_id = auth.user_id
+
+    try:
+        # Try google first, then gmail for legacy
+        integration = None
+        for provider in ["google", "gmail"]:
+            result = auth.client.table("user_integrations").select(
+                "id, metadata, status"
+            ).eq("user_id", user_id).eq("provider", provider).single().execute()
+            if result.data:
+                integration = result.data
+                break
+
+        if not integration:
+            raise HTTPException(
+                status_code=404,
+                detail="No Google integration found. Please connect first."
+            )
+
+        metadata = integration.get("metadata") or {}
+
+        return GoogleDesignatedSettingsResponse(
+            success=True,
+            designated_calendar_id=metadata.get("designated_calendar_id"),
+            designated_calendar_name=metadata.get("designated_calendar_name"),
+            message="Settings retrieved"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to get Google designated settings for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to get settings: {str(e)}")
+
+
+@router.put("/integrations/google/designated-settings")
+async def set_google_designated_settings(
+    request: GoogleDesignatedSettingsRequest,
+    auth: UserClient
+) -> GoogleDesignatedSettingsResponse:
+    """
+    Set the user's designated settings for Google (Calendar).
+
+    ADR-050: Streamlined pattern - TP will use designated_calendar_id
+    as default for creating events.
+    """
+    user_id = auth.user_id
+
+    try:
+        # Try google first, then gmail for legacy
+        integration = None
+        provider_found = None
+        for provider in ["google", "gmail"]:
+            result = auth.client.table("user_integrations").select(
+                "id, metadata, status"
+            ).eq("user_id", user_id).eq("provider", provider).single().execute()
+            if result.data:
+                integration = result.data
+                provider_found = provider
+                break
+
+        if not integration:
+            raise HTTPException(
+                status_code=404,
+                detail="No Google integration found. Please connect first."
+            )
+
+        if integration["status"] != IntegrationStatus.ACTIVE.value:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Google integration is {integration['status']}. Please reconnect."
+            )
+
+        # Update metadata with designated settings
+        metadata = integration.get("metadata") or {}
+        if request.designated_calendar_id:
+            metadata["designated_calendar_id"] = request.designated_calendar_id
+        if request.designated_calendar_name:
+            metadata["designated_calendar_name"] = request.designated_calendar_name
+
+        auth.client.table("user_integrations").update({
+            "metadata": metadata
+        }).eq("id", integration["id"]).execute()
+
+        logger.info(f"[INTEGRATIONS] User {user_id} set Google designated calendar: {request.designated_calendar_id}")
+
+        return GoogleDesignatedSettingsResponse(
+            success=True,
+            designated_calendar_id=metadata.get("designated_calendar_id"),
+            designated_calendar_name=metadata.get("designated_calendar_name"),
+            message="Settings updated"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to set Google designated settings for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+
+
+@router.delete("/integrations/google/designated-settings")
+async def clear_google_designated_settings(auth: UserClient) -> GoogleDesignatedSettingsResponse:
+    """
+    Clear the user's designated settings for Google.
+    """
+    user_id = auth.user_id
+
+    try:
+        # Try google first, then gmail for legacy
+        integration = None
+        for provider in ["google", "gmail"]:
+            result = auth.client.table("user_integrations").select(
+                "id, metadata"
+            ).eq("user_id", user_id).eq("provider", provider).single().execute()
+            if result.data:
+                integration = result.data
+                break
+
+        if not integration:
+            raise HTTPException(
+                status_code=404,
+                detail="No Google integration found."
+            )
+
+        # Remove designated settings from metadata
+        metadata = integration.get("metadata") or {}
+        metadata.pop("designated_calendar_id", None)
+        metadata.pop("designated_calendar_name", None)
+
+        auth.client.table("user_integrations").update({
+            "metadata": metadata
+        }).eq("id", integration["id"]).execute()
+
+        logger.info(f"[INTEGRATIONS] User {user_id} cleared Google designated settings")
+
+        return GoogleDesignatedSettingsResponse(
+            success=True,
+            designated_calendar_id=None,
+            designated_calendar_name=None,
+            message="Settings cleared"
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[INTEGRATIONS] Failed to clear Google designated settings for {user_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to clear settings: {str(e)}")
+
+
+# =============================================================================
 # Resource Discovery - Google Calendar Events (ADR-046)
 # =============================================================================
 

@@ -902,6 +902,45 @@ export const api = {
       }>("/api/integrations/notion/designated-page", {
         method: "DELETE",
       }),
+
+    // ADR-050: Google designated settings (Calendar)
+    getGoogleDesignatedSettings: () =>
+      request<{
+        success: boolean;
+        designated_calendar_id: string | null;
+        designated_calendar_name: string | null;
+        message: string;
+      }>("/api/integrations/google/designated-settings"),
+
+    setGoogleDesignatedSettings: (calendarId: string, calendarName?: string) =>
+      request<{
+        success: boolean;
+        designated_calendar_id: string | null;
+        designated_calendar_name: string | null;
+        message: string;
+      }>("/api/integrations/google/designated-settings", {
+        method: "PUT",
+        body: JSON.stringify({
+          designated_calendar_id: calendarId,
+          designated_calendar_name: calendarName,
+        }),
+      }),
+
+    clearGoogleDesignatedSettings: () =>
+      request<{
+        success: boolean;
+        designated_calendar_id: null;
+        designated_calendar_name: null;
+        message: string;
+      }>("/api/integrations/google/designated-settings", {
+        method: "DELETE",
+      }),
+
+    // List Google Calendars for picker
+    listGoogleCalendars: () =>
+      request<{
+        calendars: Array<{ id: string; summary: string; primary?: boolean }>;
+      }>("/api/integrations/google/calendars"),
   },
 
   // ADR-034: Context Domains (Context v2)

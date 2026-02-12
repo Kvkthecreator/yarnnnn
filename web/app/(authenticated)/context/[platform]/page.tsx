@@ -241,6 +241,15 @@ export default function PlatformDetailPage() {
   const [showPagePicker, setShowPagePicker] = useState(false);
   const [savingDesignatedPage, setSavingDesignatedPage] = useState(false);
 
+  // ADR-050: Google/Calendar designated calendar state
+  const [designatedCalendar, setDesignatedCalendar] = useState<{
+    id: string | null;
+    name: string | null;
+  }>({ id: null, name: null });
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+  const [savingDesignatedCalendar, setSavingDesignatedCalendar] = useState(false);
+  const [availableCalendars, setAvailableCalendars] = useState<Array<{ id: string; summary: string }>>([]);
+
   // Computed
   const limit = tierLimits?.limits[config?.limitField || 'slack_channels'] || 5;
   const atLimit = selectedIds.size >= limit;
@@ -263,7 +272,7 @@ export default function PlatformDetailPage() {
       const backendProviders = BACKEND_PROVIDER_MAP[platform];
 
       // Load all data in parallel
-      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult, designatedPageResult] = await Promise.all([
+      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, memoriesResult, designatedPageResult, googleSettingsResult, calendarsResult] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
         api.integrations.getLandscape(apiProvider).catch(() => ({ resources: [] })),
         api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
@@ -272,6 +281,10 @@ export default function PlatformDetailPage() {
         api.userMemories.list().catch(() => []),
         // ADR-050: Load designated page for Notion
         platform === 'notion' ? api.integrations.getNotionDesignatedPage().catch(() => null) : Promise.resolve(null),
+        // ADR-050: Load designated settings for Calendar
+        platform === 'calendar' ? api.integrations.getGoogleDesignatedSettings().catch(() => null) : Promise.resolve(null),
+        // Load available calendars for Calendar platform
+        platform === 'calendar' ? api.integrations.listGoogleCalendars().catch(() => ({ calendars: [] })) : Promise.resolve({ calendars: [] }),
       ]);
 
       setIntegration(integrationResult);
@@ -284,6 +297,20 @@ export default function PlatformDetailPage() {
           name: designatedPageResult.designated_page_name,
         });
       }
+
+      // ADR-050: Set designated calendar state for Calendar
+      if (platform === 'calendar' && googleSettingsResult) {
+        setDesignatedCalendar({
+          id: googleSettingsResult.designated_calendar_id,
+          name: googleSettingsResult.designated_calendar_name,
+        });
+      }
+
+      // Set available calendars for picker
+      if (platform === 'calendar' && calendarsResult?.calendars) {
+        setAvailableCalendars(calendarsResult.calendars);
+      }
+
       setTierLimits(limitsResult);
 
       // Set selected IDs from sources endpoint
@@ -485,6 +512,43 @@ export default function PlatformDetailPage() {
       setError(err instanceof Error ? err.message : 'Failed to clear designated page');
     } finally {
       setSavingDesignatedPage(false);
+    }
+  };
+
+  // ADR-050: Designated calendar handlers for Google Calendar
+  const handleSetDesignatedCalendar = async (calendarId: string, calendarName: string) => {
+    setSavingDesignatedCalendar(true);
+    try {
+      const result = await api.integrations.setGoogleDesignatedSettings(calendarId, calendarName);
+      if (result.success) {
+        setDesignatedCalendar({
+          id: result.designated_calendar_id,
+          name: result.designated_calendar_name,
+        });
+        setShowCalendarPicker(false);
+      } else {
+        setError('Failed to set designated calendar');
+      }
+    } catch (err) {
+      console.error('Failed to set designated calendar:', err);
+      setError(err instanceof Error ? err.message : 'Failed to set designated calendar');
+    } finally {
+      setSavingDesignatedCalendar(false);
+    }
+  };
+
+  const handleClearDesignatedCalendar = async () => {
+    setSavingDesignatedCalendar(true);
+    try {
+      const result = await api.integrations.clearGoogleDesignatedSettings();
+      if (result.success) {
+        setDesignatedCalendar({ id: null, name: null });
+      }
+    } catch (err) {
+      console.error('Failed to clear designated calendar:', err);
+      setError(err instanceof Error ? err.message : 'Failed to clear designated calendar');
+    } finally {
+      setSavingDesignatedCalendar(false);
     }
   };
 
@@ -844,6 +908,122 @@ export default function PlatformDetailPage() {
                             <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                             <span className="text-sm truncate">{resource.name}</span>
                             {resource.id === designatedPage.id && (
+                              <Check className="w-4 h-4 text-primary ml-auto shrink-0" />
+                            )}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
+        )}
+
+        {/* ADR-050: Designated Calendar Section (Calendar only) */}
+        {platform === 'calendar' && (
+          <section>
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-semibold flex items-center gap-2">
+                  <Target className="w-4 h-4" />
+                  Default Calendar
+                </h2>
+                <p className="text-sm text-muted-foreground">
+                  Where TP will create events by default
+                </p>
+              </div>
+            </div>
+
+            {designatedCalendar.id ? (
+              <div className="border border-border rounded-lg p-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
+                      <Calendar className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{designatedCalendar.name || 'Primary Calendar'}</p>
+                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
+                        {designatedCalendar.id}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setShowCalendarPicker(true)}
+                      className="text-sm text-muted-foreground hover:text-foreground"
+                    >
+                      Change
+                    </button>
+                    <button
+                      onClick={handleClearDesignatedCalendar}
+                      disabled={savingDesignatedCalendar}
+                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
+                    >
+                      {savingDesignatedCalendar ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <X className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="border border-dashed border-border rounded-lg p-6 text-center">
+                <Target className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-3">
+                  No default calendar set. TP will use your primary calendar, or you can choose a specific one.
+                </p>
+                <button
+                  onClick={() => setShowCalendarPicker(true)}
+                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
+                >
+                  Choose Calendar
+                </button>
+              </div>
+            )}
+
+            {/* Calendar Picker Modal */}
+            {showCalendarPicker && (
+              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-md max-h-[60vh] overflow-hidden">
+                  <div className="p-4 border-b border-border flex items-center justify-between">
+                    <h3 className="font-semibold">Select Default Calendar</h3>
+                    <button
+                      onClick={() => setShowCalendarPicker(false)}
+                      className="p-1 hover:bg-muted rounded"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                  <div className="p-4 overflow-y-auto max-h-[400px]">
+                    <p className="text-sm text-muted-foreground mb-4">
+                      Choose a calendar. TP will create events here by default.
+                    </p>
+                    {availableCalendars.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-4">
+                        No calendars found. Make sure Google Calendar is connected.
+                      </p>
+                    ) : (
+                      <div className="space-y-1">
+                        {availableCalendars.map((cal) => (
+                          <button
+                            key={cal.id}
+                            onClick={() => handleSetDesignatedCalendar(cal.id, cal.summary)}
+                            disabled={savingDesignatedCalendar}
+                            className={cn(
+                              'w-full px-3 py-2 flex items-center gap-3 rounded-md text-left transition-colors',
+                              cal.id === designatedCalendar.id
+                                ? 'bg-primary/10 border border-primary'
+                                : 'hover:bg-muted border border-transparent'
+                            )}
+                          >
+                            <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
+                            <span className="text-sm truncate">{cal.summary}</span>
+                            {cal.id === designatedCalendar.id && (
                               <Check className="w-4 h-4 text-primary ml-auto shrink-0" />
                             )}
                           </button>

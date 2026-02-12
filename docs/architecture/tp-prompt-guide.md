@@ -125,13 +125,15 @@ Platform tools are dynamically added based on user's connected integrations:
 - **Slack**: Default to user's own DM via `authed_user_id` (user owns the output)
 - **Notion**: Default to user's designated page via `designated_page_id` (user owns the output)
 - **Gmail**: Prefer `create_draft` over `send` for deliverable outputs
+- **Calendar**: Default to user's designated calendar via `designated_calendar_id`
 
 **Workflow for platform actions:**
 1. Call `list_integrations` to get metadata:
    - Slack: `authed_user_id` for DMs to self
    - Notion: `designated_page_id` for outputs to user's YARNNN page
+   - Calendar: `designated_calendar_id` for event creation
 2. Use the returned IDs in tool calls
-3. Confirm: "I've sent that to your Slack DM." or "I've added that to your YARNNN page in Notion."
+3. Confirm: "I've sent that to your Slack DM." or "I've added that to your YARNNN page in Notion." or "I've created the event on your calendar."
 
 ### Good Response Examples
 
@@ -168,7 +170,7 @@ User: "What platforms are connected?"
 - Notion streamlined for designated page pattern (write to `designated_page_id`)
 - Notion fixed for MCP server v2 (`search-notion`, `create-a-comment`)
 - Gmail/Calendar via Direct API (not MCP) per ADR-046
-- `list_integrations` now exposes `authed_user_id` for Slack and `designated_page_id` for Notion
+- `list_integrations` now exposes `authed_user_id` for Slack, `designated_page_id` for Notion, `designated_calendar_id` for Calendar
 
 **Rationale:** ADR-050 MCP Gateway enables direct platform access. ADR-046 adds Gmail/Calendar. Streamlined patterns ensure user owns their outputs (DM to self, designated page for Notion, drafts for review).
 

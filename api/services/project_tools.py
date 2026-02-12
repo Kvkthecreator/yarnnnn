@@ -2895,6 +2895,11 @@ async def handle_list_integrations(auth, input: dict) -> dict:
             item["designated_page_id"] = metadata["designated_page_id"]
             if metadata.get("designated_page_name"):
                 item["designated_page_name"] = metadata["designated_page_name"]
+        # ADR-050: Include designated_calendar_id for Calendar outputs
+        if i["provider"] in ("google", "gmail") and metadata.get("designated_calendar_id"):
+            item["designated_calendar_id"] = metadata["designated_calendar_id"]
+            if metadata.get("designated_calendar_name"):
+                item["designated_calendar_name"] = metadata["designated_calendar_name"]
         items.append(item)
 
     # Check what's available vs connected
