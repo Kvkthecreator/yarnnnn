@@ -41,6 +41,35 @@ import type { Document } from '@/types';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 
 // =============================================================================
+// Helpers
+// =============================================================================
+
+// ADR-053: Format next sync time for display
+function formatNextSync(isoString: string | null | undefined): string {
+  if (!isoString) return '';
+  try {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffMs = date.getTime() - now.getTime();
+
+    if (diffMs < 0) return 'soon';
+
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffHours === 0) {
+      return `${diffMins}m`;
+    } else if (diffHours < 24) {
+      return `${diffHours}h ${diffMins}m`;
+    } else {
+      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  } catch {
+    return '';
+  }
+}
+
+// =============================================================================
 // Types
 // =============================================================================
 
@@ -145,6 +174,13 @@ export default function ContextPage() {
   const [facts, setFacts] = useState<UserFact[]>([]);
   const [uploading, setUploading] = useState(false);
 
+  // ADR-053: Sync status from tier limits
+  const [syncInfo, setSyncInfo] = useState<{
+    tier: string;
+    syncFrequency: string;
+    nextSync: string | null;
+  } | null>(null);
+
   // Fact editing
   const [editingFactId, setEditingFactId] = useState<string | null>(null);
   const [editingFactContent, setEditingFactContent] = useState('');
@@ -164,15 +200,25 @@ export default function ContextPage() {
       }
 
       // Load all data in parallel
-      const [platformsResult, docsResult, factsResult] = await Promise.all([
+      const [platformsResult, docsResult, factsResult, limitsResult] = await Promise.all([
         api.integrations.getSummary().catch(() => ({ platforms: [] })),
         api.documents.list().catch(() => ({ documents: [] })),
         api.userMemories.list().catch(() => []),
+        api.integrations.getLimits().catch(() => null),
       ]);
 
       setPlatforms(platformsResult.platforms);
       setDocuments(docsResult.documents);
       setFacts(factsResult);
+
+      // ADR-053: Store sync info for display
+      if (limitsResult) {
+        setSyncInfo({
+          tier: limitsResult.tier,
+          syncFrequency: limitsResult.limits.sync_frequency,
+          nextSync: limitsResult.next_sync,
+        });
+      }
     } catch (err) {
       console.error('Failed to load context data:', err);
     } finally {
@@ -470,11 +516,28 @@ export default function ContextPage() {
               {/* Platforms Section - Always show all available platforms */}
               {(filter === 'all' || filter === 'platforms') && (
                 <section>
-                  {filter === 'all' && (
-                    <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide mb-4">
-                      Platforms
-                    </h2>
-                  )}
+                  <div className="flex items-center justify-between mb-4">
+                    {filter === 'all' && (
+                      <h2 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
+                        Platforms
+                      </h2>
+                    )}
+                    {/* ADR-053: Sync status indicator */}
+                    {syncInfo && platforms.length > 0 && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="w-3.5 h-3.5" />
+                        <span>
+                          Syncs {syncInfo.syncFrequency === 'hourly' ? 'hourly' :
+                                 syncInfo.syncFrequency === '4x_daily' ? '4x daily' : '2x daily'}
+                        </span>
+                        {syncInfo.nextSync && (
+                          <span className="text-muted-foreground/70">
+                            • Next: {formatNextSync(syncInfo.nextSync)}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {AVAILABLE_PLATFORMS
                       .filter((config) => {

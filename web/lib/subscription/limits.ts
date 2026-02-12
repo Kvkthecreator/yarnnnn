@@ -1,14 +1,29 @@
 /**
  * Subscription tier limits and feature flags
+ *
+ * NOTE (ADR-053): Platform resource limits (Slack channels, Gmail labels, etc.)
+ * are defined in api/services/platform_limits.py and fetched via API.
+ * This file contains legacy app-level limits that should be consolidated.
+ *
+ * For platform sync monetization, see:
+ * - docs/monetization/LIMITS.md
+ * - docs/adr/ADR-053-platform-sync-monetization.md
  */
 
 export const SUBSCRIPTION_LIMITS = {
   free: {
     projects: 1,
     memoriesPerProject: 50,
-    chatSessionsPerMonth: 5,
+    chatSessionsPerMonth: 20, // ADR-053: Aligned with tp_conversations_per_month
     scheduledAgents: 0,
     documents: 10,
+  },
+  starter: {
+    projects: 3,
+    memoriesPerProject: 200,
+    chatSessionsPerMonth: 100, // ADR-053: Aligned with tp_conversations_per_month
+    scheduledAgents: 10, // ADR-053: Aligned with active_deliverables
+    documents: 50,
   },
   pro: {
     projects: Infinity,

@@ -34,6 +34,9 @@ import {
   Sparkles,
   Target,
   X,
+  Clock,
+  RefreshCw,
+  Zap,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -116,27 +119,37 @@ interface IntegrationData {
   };
 }
 
+// ADR-053: Updated tier limits with sync frequency and new tier
 interface TierLimits {
-  tier: 'free' | 'pro' | 'enterprise';
+  tier: 'free' | 'starter' | 'pro';
   limits: {
     slack_channels: number;
     gmail_labels: number;
     notion_pages: number;
-    calendar_events: number;
+    calendars: number;
     total_platforms: number;
+    sync_frequency: '2x_daily' | '4x_daily' | 'hourly';
+    tp_conversations_per_month: number;
+    active_deliverables: number;
   };
   usage: {
     slack_channels: number;
     gmail_labels: number;
     notion_pages: number;
-    calendar_events: number;
+    calendars: number;
     platforms_connected: number;
+    tp_conversations_this_month: number;
+    active_deliverables: number;
   };
+  next_sync?: string | null;
 }
 
 // =============================================================================
 // Platform Configuration
 // =============================================================================
+
+// ADR-053: Only numeric limit fields for resource counting
+type NumericLimitField = 'slack_channels' | 'gmail_labels' | 'notion_pages' | 'calendars' | 'total_platforms';
 
 const PLATFORM_CONFIG: Record<PlatformProvider, {
   icon: React.ReactNode;
@@ -146,7 +159,7 @@ const PLATFORM_CONFIG: Record<PlatformProvider, {
   resourceIcon: React.ReactNode;
   resourceLabel: string;
   resourceLabelSingular: string;
-  limitField: keyof TierLimits['limits'];
+  limitField: NumericLimitField;
 }> = {
   slack: {
     icon: <Slack className="w-6 h-6" />,
@@ -196,9 +209,139 @@ const PLATFORM_CONFIG: Record<PlatformProvider, {
     resourceIcon: <Calendar className="w-4 h-4" />,
     resourceLabel: 'Calendars',
     resourceLabelSingular: 'calendar',
-    limitField: 'calendar_events',
+    limitField: 'calendars', // ADR-053: Renamed from calendar_events
   },
 };
+
+// =============================================================================
+// ADR-053: Sync Status Banner Component
+// =============================================================================
+
+const SYNC_FREQUENCY_LABELS: Record<string, { label: string; description: string; icon: React.ReactNode }> = {
+  '2x_daily': {
+    label: '2x daily',
+    description: 'Syncs at 8am and 6pm in your timezone',
+    icon: <Clock className="w-4 h-4" />,
+  },
+  '4x_daily': {
+    label: '4x daily',
+    description: 'Syncs every 6 hours',
+    icon: <RefreshCw className="w-4 h-4" />,
+  },
+  'hourly': {
+    label: 'Hourly',
+    description: 'Syncs every hour for near real-time context',
+    icon: <Zap className="w-4 h-4" />,
+  },
+};
+
+function SyncStatusBanner({
+  tier,
+  syncFrequency,
+  nextSync,
+  selectedCount,
+}: {
+  tier: string;
+  syncFrequency: string;
+  nextSync?: string | null;
+  selectedCount: number;
+}) {
+  const frequencyInfo = SYNC_FREQUENCY_LABELS[syncFrequency] || SYNC_FREQUENCY_LABELS['2x_daily'];
+
+  // Format next sync time
+  const formatNextSync = (isoString: string | null | undefined) => {
+    if (!isoString) return null;
+    try {
+      const date = new Date(isoString);
+      const now = new Date();
+      const diffMs = date.getTime() - now.getTime();
+
+      if (diffMs < 0) return 'Soon';
+
+      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+      if (diffHours === 0) {
+        return `in ${diffMins} min`;
+      } else if (diffHours < 24) {
+        return `in ${diffHours}h ${diffMins}m`;
+      } else {
+        return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch {
+      return null;
+    }
+  };
+
+  const nextSyncFormatted = formatNextSync(nextSync);
+
+  // Don't show if no sources selected
+  if (selectedCount === 0) {
+    return (
+      <div className="p-4 bg-muted/50 border border-border rounded-lg">
+        <div className="flex items-start gap-3">
+          <Clock className="w-5 h-5 text-muted-foreground mt-0.5" />
+          <div>
+            <p className="text-sm font-medium">No sources selected</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Select sources below to start syncing context. Your {tier} plan syncs {frequencyInfo.label.toLowerCase()}.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-4 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-800 rounded-lg">
+      <div className="flex items-start justify-between gap-4">
+        <div className="flex items-start gap-3">
+          <div className="w-8 h-8 rounded-full bg-green-100 dark:bg-green-900/50 flex items-center justify-center">
+            <Check className="w-4 h-4 text-green-600 dark:text-green-400" />
+          </div>
+          <div>
+            <p className="text-sm font-medium text-green-800 dark:text-green-200">
+              {selectedCount} source{selectedCount !== 1 ? 's' : ''} syncing
+            </p>
+            <p className="text-sm text-green-700 dark:text-green-300 mt-1">
+              {frequencyInfo.description}
+            </p>
+          </div>
+        </div>
+        <div className="text-right shrink-0">
+          <div className="flex items-center gap-1.5 text-sm text-green-700 dark:text-green-300">
+            {frequencyInfo.icon}
+            <span className="font-medium">{frequencyInfo.label}</span>
+          </div>
+          {nextSyncFormatted && (
+            <p className="text-xs text-green-600 dark:text-green-400 mt-1">
+              Next sync {nextSyncFormatted}
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Upgrade prompt for free tier */}
+      {tier === 'free' && (
+        <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
+          <p className="text-xs text-green-700 dark:text-green-300">
+            <Sparkles className="w-3 h-3 inline mr-1" />
+            Upgrade to <span className="font-medium">Starter</span> for 4x/day sync or{' '}
+            <span className="font-medium">Pro</span> for hourly sync
+          </p>
+        </div>
+      )}
+      {tier === 'starter' && (
+        <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
+          <p className="text-xs text-green-700 dark:text-green-300">
+            <Zap className="w-3 h-3 inline mr-1" />
+            Upgrade to <span className="font-medium">Pro</span> for hourly sync
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // =============================================================================
 // Main Component
@@ -262,7 +405,9 @@ export default function PlatformDetailPage() {
   const [savingEmail, setSavingEmail] = useState(false);
 
   // Computed
-  const limit = tierLimits?.limits[config?.limitField || 'slack_channels'] || 5;
+  // ADR-053: Cast to number since we only use numeric limit fields for resources
+  const limitField = config?.limitField || 'slack_channels';
+  const limit = (tierLimits?.limits[limitField] as number) || 5;
   const atLimit = selectedIds.size >= limit;
   const hasChanges = selectedIds.size !== originalIds.size ||
     !Array.from(selectedIds).every(id => originalIds.has(id));
@@ -733,6 +878,16 @@ export default function PlatformDetailPage() {
 
       {/* Content */}
       <div className="p-6 space-y-8">
+        {/* ADR-053: Sync Status Banner - communicates sync timing clearly */}
+        {tierLimits && (
+          <SyncStatusBanner
+            tier={tierLimits.tier}
+            syncFrequency={tierLimits.limits.sync_frequency}
+            nextSync={tierLimits.next_sync}
+            selectedCount={selectedIds.size}
+          />
+        )}
+
         {/* Resources Section */}
         <section>
           <div className="flex items-center justify-between mb-4">
@@ -793,14 +948,18 @@ export default function PlatformDetailPage() {
                   <div className="flex items-start gap-3">
                     <Check className="w-5 h-5 text-green-500 mt-0.5 shrink-0" />
                     <div className="flex-1">
-                      <p className="text-sm font-medium">Sources saved</p>
+                      <p className="text-sm font-medium">Sources saved successfully</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        Import recent context from {newlySelectedIds.length === 1 ? 'this channel' : `these ${newlySelectedIds.length} channels`}?
-                        This lets TP understand your work right away.
+                        Import recent context from {newlySelectedIds.length === 1 ? 'this source' : `these ${newlySelectedIds.length} sources`}?
+                        This gives TP immediate context without waiting for the next scheduled sync.
                       </p>
                       <ul className="mt-2 text-xs text-muted-foreground space-y-0.5">
-                        <li>• Last 7 days of messages</li>
-                        <li>• Up to 100 items per {config.resourceLabelSingular}</li>
+                        <li>• <strong>Import now</strong>: Get context immediately (last 7 days)</li>
+                        <li>• <strong>Skip</strong>: Wait for next scheduled sync ({
+                          tierLimits?.limits.sync_frequency === 'hourly' ? 'within 1 hour' :
+                          tierLimits?.limits.sync_frequency === '4x_daily' ? 'within 6 hours' :
+                          'at 8am or 6pm'
+                        })</li>
                       </ul>
                     </div>
                   </div>
@@ -809,7 +968,7 @@ export default function PlatformDetailPage() {
                       onClick={handleSkipImport}
                       className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
                     >
-                      Skip
+                      Wait for sync
                     </button>
                     <button
                       onClick={handleImportSources}

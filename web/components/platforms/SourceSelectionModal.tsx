@@ -43,7 +43,8 @@ const PROVIDER_CONFIG: Record<
     resourceLabel: string;
     resourceLabelPlural: string;
     icon: React.ReactNode;
-    limitField: "slack_channels" | "gmail_labels" | "notion_pages" | "calendar_events";
+    // ADR-053: Updated to use 'calendars' instead of 'calendar_events'
+    limitField: "slack_channels" | "gmail_labels" | "notion_pages" | "calendars";
   }
 > = {
   slack: {
@@ -79,7 +80,7 @@ const PROVIDER_CONFIG: Record<
     resourceLabel: "Calendar",
     resourceLabelPlural: "Calendars",
     icon: <Calendar className="w-4 h-4" />,
-    limitField: "calendar_events",
+    limitField: "calendars", // ADR-053: Renamed from calendar_events
   },
 };
 

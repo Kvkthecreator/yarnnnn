@@ -1,14 +1,16 @@
 "use client";
 
 /**
- * ADR-033: Platform-First Onboarding Prompt
+ * ADR-033 + ADR-053: Platform-First Onboarding Prompt
  *
- * Replaces the legacy WelcomePrompt with a platform-centric approach.
- * Guides users to connect their tools (Slack, Gmail, Notion) as the
- * primary way to build context with YARNNN.
+ * ADR-033: Platform-centric approach to building context.
+ * ADR-053: Guides to "1 source per platform" for fast onboarding.
+ *
+ * Key insight: Less choice = faster time-to-value.
+ * "Pick 1 channel" is easier than "pick up to 5 channels".
  */
 
-import { Loader2, CheckCircle2, ArrowRight, Settings } from "lucide-react";
+import { Loader2, CheckCircle2, ArrowRight, Settings, Clock, Zap } from "lucide-react";
 import { SlackIcon, GmailIcon, NotionIcon, GoogleCalendarIcon } from "@/components/ui/PlatformIcons";
 
 interface PlatformOnboardingPromptProps {
@@ -34,33 +36,42 @@ export function PlatformOnboardingPrompt({
           Welcome to YARNNN
         </h2>
         <p className="text-muted-foreground">
-          Connect your tools and I&apos;ll learn your context automatically.
-          No manual uploads needed.
+          Connect one platform to get started. Pick your most important channel, inbox, or workspace.
         </p>
       </div>
 
-      {/* Platform Cards */}
-      <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      {/* ADR-053: Simplified platform cards with "pick one" messaging */}
+      <div className="w-full grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         <PlatformCard
           icon={<SlackIcon className="w-8 h-8" />}
           name="Slack"
-          description="Learn from your conversations"
+          description="1 channel to start"
         />
         <PlatformCard
           icon={<GmailIcon className="w-8 h-8" />}
           name="Gmail"
-          description="Draft emails in your voice"
+          description="Your inbox"
         />
         <PlatformCard
           icon={<NotionIcon className="w-8 h-8" />}
           name="Notion"
-          description="Import from your docs"
+          description="1 workspace page"
         />
         <PlatformCard
           icon={<GoogleCalendarIcon className="w-8 h-8" />}
           name="Calendar"
-          description="Prep for upcoming meetings"
+          description="Your schedule"
         />
+      </div>
+
+      {/* ADR-053: Sync timing info */}
+      <div className="w-full max-w-sm mb-6 p-3 bg-muted/50 rounded-lg">
+        <div className="flex items-start gap-2 text-sm text-muted-foreground">
+          <Clock className="w-4 h-4 mt-0.5 shrink-0" />
+          <span>
+            Free plan syncs 2x daily. Upgrade anytime for more frequent updates.
+          </span>
+        </div>
       </div>
 
       {/* CTAs */}
@@ -69,7 +80,7 @@ export function PlatformOnboardingPrompt({
           onClick={onConnectPlatforms}
           className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors font-medium"
         >
-          <Settings className="w-4 h-4" />
+          <Zap className="w-4 h-4" />
           Connect Your First Platform
           <ArrowRight className="w-4 h-4" />
         </button>

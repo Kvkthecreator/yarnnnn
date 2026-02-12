@@ -817,25 +817,31 @@ export const api = {
         total_deliverables: number;
       }>("/api/integrations/summary"),
 
-    // ADR-043: Platform Settings - Source Selection & Limits
-    // Get user's tier limits and current usage
+    // ADR-053: Platform Sync Monetization - Source Selection & Limits
+    // Get user's tier limits, current usage, and next sync time
     getLimits: () =>
       request<{
-        tier: "free" | "pro" | "enterprise";
+        tier: "free" | "starter" | "pro";
         limits: {
           slack_channels: number;
           gmail_labels: number;
           notion_pages: number;
-          calendar_events: number;
+          calendars: number;
           total_platforms: number;
+          sync_frequency: "2x_daily" | "4x_daily" | "hourly";
+          tp_conversations_per_month: number; // -1 for unlimited
+          active_deliverables: number; // -1 for unlimited
         };
         usage: {
           slack_channels: number;
           gmail_labels: number;
           notion_pages: number;
-          calendar_events: number;
+          calendars: number;
           platforms_connected: number;
+          tp_conversations_this_month: number;
+          active_deliverables: number;
         };
+        next_sync: string | null; // ISO timestamp
       }>("/api/user/limits"),
 
     // Get selected sources for a platform

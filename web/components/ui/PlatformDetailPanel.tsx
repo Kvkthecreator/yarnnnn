@@ -200,21 +200,23 @@ export function PlatformDetailPanel({
       );
       setDeliverables(platformDeliverables);
 
-      // ADR-043: Set source limits for this provider
-      // ADR-046: Added google/calendar - uses gmail_labels as placeholder until calendar limits added
-      const providerLimitMap: Record<string, keyof typeof limitsResult.limits> = {
+      // ADR-053: Set source limits for this provider
+      // Only use numeric limit fields (excludes sync_frequency)
+      type NumericLimitKey = 'slack_channels' | 'gmail_labels' | 'notion_pages' | 'calendars' | 'total_platforms';
+      const providerLimitMap: Record<string, NumericLimitKey> = {
         slack: 'slack_channels',
         gmail: 'gmail_labels',
         notion: 'notion_pages',
         google: 'gmail_labels',
-        calendar: 'gmail_labels',
+        calendar: 'calendars',
       };
-      const providerUsageMap: Record<string, keyof typeof limitsResult.usage> = {
+      type NumericUsageKey = 'slack_channels' | 'gmail_labels' | 'notion_pages' | 'calendars' | 'platforms_connected';
+      const providerUsageMap: Record<string, NumericUsageKey> = {
         slack: 'slack_channels',
         gmail: 'gmail_labels',
         notion: 'notion_pages',
         google: 'gmail_labels',
-        calendar: 'gmail_labels',
+        calendar: 'calendars',
       };
       const limitKey = providerLimitMap[platform.provider];
       const usageKey = providerUsageMap[platform.provider];
