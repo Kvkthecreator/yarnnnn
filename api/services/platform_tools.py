@@ -21,20 +21,19 @@ logger = logging.getLogger(__name__)
 SLACK_TOOLS = [
     {
         "name": "platform_slack_send_message",
-        "description": """Send a message to a Slack channel or DM.
+        "description": """Send a message to a Slack DM (direct message to self).
 
-Use channel_id formats:
-- Channel ID: C0123ABC456
-- Channel name: #general
-- User ID for DM: U0123ABC456
+PRIMARY USE: Send to user's own DM so they own the output.
+1. Call list_integrations to get authed_user_id
+2. Use that user ID as channel_id
 
-For DMs to yourself, use list_integrations to get your authed_user_id.""",
+The user's authed_user_id is in integration metadata. Always send to self unless explicitly asked for a channel.""",
         "input_schema": {
             "type": "object",
             "properties": {
                 "channel_id": {
                     "type": "string",
-                    "description": "Channel ID, #channel-name, or user ID for DM"
+                    "description": "User ID for DM (U...). Get from list_integrations authed_user_id"
                 },
                 "text": {
                     "type": "string",
@@ -46,7 +45,7 @@ For DMs to yourself, use list_integrations to get your authed_user_id.""",
     },
     {
         "name": "platform_slack_list_channels",
-        "description": "List all channels in the Slack workspace. Use to find channel IDs.",
+        "description": "List channels in the Slack workspace. Only needed if user explicitly asks to post to a channel.",
         "input_schema": {
             "type": "object",
             "properties": {},

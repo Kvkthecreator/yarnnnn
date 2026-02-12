@@ -2878,7 +2878,7 @@ async def handle_list_integrations(auth, input: dict) -> dict:
     items = []
     for i in integrations:
         metadata = i.get("metadata") or {}
-        items.append({
+        item = {
             "provider": i["provider"],
             "status": i["status"],
             "connected_at": i["created_at"],
@@ -2886,7 +2886,11 @@ async def handle_list_integrations(auth, input: dict) -> dict:
             # Platform-specific metadata
             "workspace_name": metadata.get("team_name") or metadata.get("workspace_name"),
             "email": metadata.get("email"),
-        })
+        }
+        # ADR-050: Include authed_user_id for Slack DMs to self
+        if i["provider"] == "slack" and metadata.get("authed_user_id"):
+            item["authed_user_id"] = metadata["authed_user_id"]
+        items.append(item)
 
     # Check what's available vs connected
     available_platforms = ["slack", "gmail", "notion", "calendar"]

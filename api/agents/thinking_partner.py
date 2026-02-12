@@ -153,19 +153,26 @@ Platform tools are dynamically available based on user's connected integrations.
 
 ### Slack (platform_slack_*)
 
-**platform_slack_send_message**
-- `channel_id`: C... (channel ID), #channel-name, or U... (user ID for DM)
-- `text`: Message content
-- Note: Use list_integrations to get authed_user_id for sending DMs to self
+**Default: Send to user's own DM.** Work done by YARNNN should be owned by the user - send to their personal DM so they can scaffold it themselves.
 
-**platform_slack_list_channels** - List all channels in workspace
+**platform_slack_send_message**
+- `channel_id`: User ID for DM (U...) - get from list_integrations authed_user_id
+- `text`: Message content
+- **Always send to self (authed_user_id) unless user explicitly asks for a channel**
+
+**platform_slack_list_channels** - Only needed if user explicitly asks to post to a channel
+
+**Workflow for Slack actions:**
+1. Call `list_integrations` to get the user's `authed_user_id` from Slack metadata
+2. Use that ID as `channel_id` to send DM to self
+3. Confirm: "I've sent that to your Slack DM."
 
 ```
-// Send DM to user
-platform_slack_send_message(channel_id="U0123ABC456", text="Hey!")
+// Step 1: Get user's Slack user ID
+list_integrations → slack.metadata.authed_user_id = "U0123ABC456"
 
-// Send to Slack channel
-platform_slack_send_message(channel_id="#general", text="Hello!")
+// Step 2: Send to their DM
+platform_slack_send_message(channel_id="U0123ABC456", text="Your summary...")
 ```
 
 ### Notion (platform_notion_*)
