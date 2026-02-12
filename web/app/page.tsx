@@ -48,7 +48,7 @@ export default function LandingPage() {
               </div>
 
               {/* Right side - Animated Integration Hub (hidden on mobile/tablet) */}
-              <div className="flex-shrink-0">
+              <div className="flex-shrink-0 pb-16">
                 <IntegrationHub />
               </div>
             </div>

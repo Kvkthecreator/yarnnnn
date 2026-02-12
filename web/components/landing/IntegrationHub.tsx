@@ -72,16 +72,13 @@ export function IntegrationHub() {
   return (
     // Hidden on mobile/tablet, only show on lg+ screens
     <div className="hidden lg:block relative w-[380px] h-[380px]">
-      {/* Animated background rings */}
-      <div className="absolute inset-0">
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[280px] h-[280px] rounded-full border border-[#1a1a1a]/10 animate-[ping_4s_ease-in-out_infinite]"
-          style={{ animationDuration: '4s' }}
-        />
-        <div
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] h-[320px] rounded-full border border-[#1a1a1a]/5"
-        />
-      </div>
+      {/* Animated background rings - centered */}
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[240px] h-[240px] rounded-full border border-[#1a1a1a]/8"
+      />
+      <div
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[320px] h-[320px] rounded-full border border-[#1a1a1a]/5"
+      />
 
       {/* Connection lines (SVG) */}
       <svg className="absolute inset-0 w-full h-full" viewBox="0 0 380 380">
@@ -153,8 +150,8 @@ export function IntegrationHub() {
         </div>
       </div>
 
-      {/* Status text */}
-      <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap">
+      {/* Status text - positioned below the main visualization */}
+      <div className="absolute -bottom-12 left-1/2 -translate-x-1/2 whitespace-nowrap">
         <div className="px-4 py-2 rounded-full bg-white/80 backdrop-blur-sm border border-[#1a1a1a]/5 shadow-sm">
           <span className="text-sm text-[#1a1a1a]/60">
             Pulling from{" "}
