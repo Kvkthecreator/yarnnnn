@@ -39,14 +39,13 @@ const PROVIDER_TOOLS: Record<string, Array<{ name: string; description: string }
     { name: 'slack_get_user_profile', description: 'Get a user\'s profile information' },
   ],
   notion: [
-    // Official @notionhq/notion-mcp-server v2 tool names
-    { name: 'search-notion', description: 'Search for pages in the workspace' },
-    { name: 'retrieve-page', description: 'Get page metadata' },
-    { name: 'get-page-content', description: 'Fetch a page\'s content' },
-    { name: 'create-a-page', description: 'Create new pages' },
-    { name: 'create-a-comment', description: 'Add a comment to a page' },
-    { name: 'update-a-page', description: 'Update a page\'s properties' },
-    { name: 'append-page-content', description: 'Append content to a page' },
+    // Official @notionhq/notion-mcp-server tool names (notion-prefixed)
+    { name: 'notion-search', description: 'Search for pages in the workspace' },
+    { name: 'notion-fetch', description: 'Fetch page content' },
+    { name: 'notion-create-pages', description: 'Create new pages' },
+    { name: 'notion-update-page', description: 'Update a page\'s properties' },
+    { name: 'notion-create-comment', description: 'Add a comment to a page' },
+    { name: 'notion-get-comments', description: 'Get comments from a page' },
   ],
 };
 
