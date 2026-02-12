@@ -24,6 +24,7 @@ import {
   Package,
   Database,
   Briefcase,
+  Calendar,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
@@ -931,7 +932,8 @@ export default function SettingsPage() {
 
               {/* Gmail Integration (ADR-029) */}
               {(() => {
-                const gmailIntegration = integrations.find(i => i.provider === "gmail");
+                // ADR-046: Check both 'gmail' and 'google' providers for Gmail
+                const gmailIntegration = integrations.find(i => i.provider === "gmail" || i.provider === "google");
                 return (
                   <div className="p-4 border border-border rounded-lg">
                     <div className="flex items-center justify-between">
@@ -963,11 +965,11 @@ export default function SettingsPage() {
                               Import Context
                             </button>
                             <button
-                              onClick={() => handleDisconnectIntegration("gmail")}
-                              disabled={disconnectingProvider === "gmail"}
+                              onClick={() => handleDisconnectIntegration(gmailIntegration.provider)}
+                              disabled={disconnectingProvider === gmailIntegration.provider}
                               className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
                             >
-                              {disconnectingProvider === "gmail" ? (
+                              {disconnectingProvider === gmailIntegration.provider ? (
                                 <Loader2 className="w-4 h-4 animate-spin" />
                               ) : (
                                 "Disconnect"
@@ -976,11 +978,69 @@ export default function SettingsPage() {
                           </>
                         ) : (
                           <button
-                            onClick={() => handleConnectIntegration("gmail")}
-                            disabled={connectingProvider === "gmail"}
+                            onClick={() => handleConnectIntegration("google")}
+                            disabled={connectingProvider === "google"}
                             className="px-4 py-2 bg-red-500 text-white rounded-md text-sm font-medium hover:bg-red-600 flex items-center gap-2"
                           >
-                            {connectingProvider === "gmail" ? (
+                            {connectingProvider === "google" ? (
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            ) : (
+                              <>
+                                <ExternalLink className="w-4 h-4" />
+                                Connect
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Calendar Integration (ADR-046) - Uses same Google OAuth as Gmail */}
+              {(() => {
+                // ADR-046: Calendar uses the same Google integration as Gmail
+                const googleIntegration = integrations.find(i => i.provider === "gmail" || i.provider === "google");
+                return (
+                  <div className="p-4 border border-border rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-blue-500 rounded-lg flex items-center justify-center">
+                          <Calendar className="w-6 h-6 text-white" />
+                        </div>
+                        <div>
+                          <div className="font-medium">Calendar</div>
+                          <div className="text-sm text-muted-foreground">
+                            {googleIntegration
+                              ? `Connected via ${googleIntegration.workspace_name || "Google account"}`
+                              : "Meeting prep, schedule context"
+                            }
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {googleIntegration ? (
+                          <>
+                            <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1">
+                              <Check className="w-4 h-4" />
+                              Connected
+                            </span>
+                            <button
+                              onClick={() => setImportModalProvider("calendar")}
+                              className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
+                            >
+                              Import Context
+                            </button>
+                            {/* No separate disconnect - uses same Google OAuth as Gmail */}
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => handleConnectIntegration("google")}
+                            disabled={connectingProvider === "google"}
+                            className="px-4 py-2 bg-blue-500 text-white rounded-md text-sm font-medium hover:bg-blue-600 flex items-center gap-2"
+                          >
+                            {connectingProvider === "google" ? (
                               <Loader2 className="w-4 h-4 animate-spin" />
                             ) : (
                               <>
@@ -1001,7 +1061,10 @@ export default function SettingsPage() {
                 <p>
                   <strong>How it works:</strong> After connecting, you can export deliverables or import context
                   from your connected services. Use &quot;Import Context&quot; to bring in decisions, action items,
-                  and project details from Slack channels, Notion pages, or Gmail conversations.
+                  and project details from Slack channels, Notion pages, Gmail conversations, or Calendar events.
+                </p>
+                <p className="mt-2 text-xs">
+                  <strong>Note:</strong> Gmail and Calendar share the same Google connection.
                 </p>
               </div>
             </div>
