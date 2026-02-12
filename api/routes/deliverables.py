@@ -933,6 +933,17 @@ class SourceFetchSummary(BaseModel):
     time_range_end: Optional[str] = None
 
 
+class SourceSnapshot(BaseModel):
+    """ADR-049: Snapshot of source state at generation time."""
+    platform: str
+    resource_id: str
+    resource_name: Optional[str] = None
+    synced_at: str
+    platform_cursor: Optional[str] = None
+    item_count: Optional[int] = None
+    source_latest_at: Optional[str] = None
+
+
 class VersionResponse(BaseModel):
     """Deliverable version response."""
     id: str
@@ -954,6 +965,8 @@ class VersionResponse(BaseModel):
     delivered_at: Optional[str] = None
     # ADR-030: Source fetch summary
     source_fetch_summary: Optional[SourceFetchSummary] = None
+    # ADR-049: Source snapshots for freshness tracking
+    source_snapshots: Optional[list[SourceSnapshot]] = None
 
 
 class VersionUpdate(BaseModel):
@@ -975,6 +988,25 @@ def _parse_source_fetch_summary(summary_dict: Optional[dict]) -> Optional[Source
         time_range_start=summary_dict.get("time_range_start"),
         time_range_end=summary_dict.get("time_range_end"),
     )
+
+
+def _parse_source_snapshots(snapshots_list: Optional[list]) -> Optional[list[SourceSnapshot]]:
+    """Parse raw source_snapshots list from DB into typed response (ADR-049)."""
+    if not snapshots_list:
+        return None
+    return [
+        SourceSnapshot(
+            platform=s.get("platform", ""),
+            resource_id=s.get("resource_id", ""),
+            resource_name=s.get("resource_name"),
+            synced_at=s.get("synced_at", ""),
+            platform_cursor=s.get("platform_cursor"),
+            item_count=s.get("item_count"),
+            source_latest_at=s.get("source_latest_at"),
+        )
+        for s in snapshots_list
+        if isinstance(s, dict)
+    ]
 
 
 # =============================================================================
@@ -1647,6 +1679,8 @@ async def list_versions(
             approved_at=v.get("approved_at"),
             # ADR-030: Source fetch summary
             source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
+            # ADR-049: Source snapshots for freshness tracking
+            source_snapshots=_parse_source_snapshots(v.get("source_snapshots")),
         )
         for v in versions
     ]
@@ -1707,6 +1741,8 @@ async def get_version(
         delivered_at=v.get("delivered_at"),
         # ADR-030: Source fetch summary
         source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
+        # ADR-049: Source snapshots for freshness tracking
+        source_snapshots=_parse_source_snapshots(v.get("source_snapshots")),
     )
 
 

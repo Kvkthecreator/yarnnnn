@@ -750,6 +750,17 @@ export interface DeliverableUpdate {
   template_structure?: TemplateStructure;
 }
 
+// ADR-049: Source snapshot for tracking what data was used at generation time
+export interface SourceSnapshot {
+  platform: string;
+  resource_id: string;
+  resource_name?: string;
+  synced_at: string;
+  platform_cursor?: string;
+  item_count?: number;
+  source_latest_at?: string;
+}
+
 export interface DeliverableVersion {
   id: string;
   deliverable_id: string;
@@ -775,6 +786,8 @@ export interface DeliverableVersion {
   delivery_error?: string;
   // ADR-032: Platform-centric draft delivery
   delivery_mode?: 'draft' | 'direct';
+  // ADR-049: Source snapshots for freshness tracking
+  source_snapshots?: SourceSnapshot[];
 }
 
 // ADR-018: Feedback summary for learned preferences

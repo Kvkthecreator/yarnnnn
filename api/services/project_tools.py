@@ -844,14 +844,19 @@ SYNC OPTIONS:
 
 GET_SYNC_STATUS_TOOL = {
     "name": "get_sync_status",
-    "description": """Get the sync status for a platform resource.
+    "description": """Get the sync status and freshness for platform resources.
 
-Shows when data was last synced, how many items were imported, and current coverage.
+Shows when data was last synced, item counts, and freshness status.
 
-AGENTIC BEHAVIOR (ADR-039):
+Returns freshness_status for each resource:
+- "fresh": synced < 1 hour ago
+- "recent": synced 1-24 hours ago
+- "stale": synced > 24 hours ago (consider re-syncing)
+
+AGENTIC BEHAVIOR (ADR-039, ADR-049):
 - Check this before deciding whether to sync
-- If data is stale (>24h), consider re-syncing
-- Report sync status to user when relevant""",
+- If freshness_status is "stale", re-sync before using data
+- Report sync freshness to user when relevant""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -3162,30 +3167,51 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
     Get sync status for platform resources.
 
     ADR-039: Shows what data has been synced and when.
+    ADR-049: Also queries sync_registry for freshness tracking.
 
     Args:
         auth: UserClient with authenticated Supabase client
         input: Tool input with platform and optional resource_id
 
     Returns:
-        Dict with sync status
+        Dict with sync status including freshness info
     """
+    from datetime import datetime, timezone
+
     platform = input["platform"]
     resource_id = input.get("resource_id")
 
-    # Query coverage table
-    query = auth.client.table("integration_coverage")\
+    # ADR-049: Query sync_registry for freshness data (primary source)
+    registry_query = auth.client.table("sync_registry")\
+        .select("resource_id, resource_name, last_synced_at, item_count, source_latest_at")\
+        .eq("user_id", auth.user_id)\
+        .eq("platform", platform)
+
+    if resource_id:
+        registry_query = registry_query.eq("resource_id", resource_id)
+
+    registry_result = registry_query.execute()
+    registry_data = registry_result.data or []
+
+    # Also query legacy coverage table for backward compatibility
+    coverage_query = auth.client.table("integration_coverage")\
         .select("id, resource_id, resource_name, resource_type, coverage_state, last_extracted_at, items_extracted, blocks_created, scope")\
         .eq("user_id", auth.user_id)\
         .eq("provider", platform)
 
     if resource_id:
-        query = query.eq("resource_id", resource_id)
+        coverage_query = coverage_query.eq("resource_id", resource_id)
 
-    result = query.execute()
-    coverage = result.data or []
+    coverage_result = coverage_query.execute()
+    coverage = coverage_result.data or []
 
-    if not coverage:
+    # Merge data: prefer sync_registry, fall back to coverage
+    registry_by_id = {r["resource_id"]: r for r in registry_data}
+    coverage_by_id = {c["resource_id"]: c for c in coverage}
+
+    all_resource_ids = set(registry_by_id.keys()) | set(coverage_by_id.keys())
+
+    if not all_resource_ids:
         # Check if any jobs are pending
         jobs_result = auth.client.table("integration_import_jobs")\
             .select("id, resource_id, resource_name, status, progress, created_at")\
@@ -3220,25 +3246,62 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
             "message": f"No {platform.title()} data synced yet. Use sync_platform_resource to sync content."
         }
 
-    # Format coverage data
+    # Format merged data with freshness indicators
+    now = datetime.now(timezone.utc)
     items = []
-    for c in coverage:
+
+    for rid in all_resource_ids:
+        reg = registry_by_id.get(rid, {})
+        cov = coverage_by_id.get(rid, {})
+
+        # Prefer sync_registry timestamp, fall back to coverage
+        last_synced = reg.get("last_synced_at") or cov.get("last_extracted_at")
+
+        # Calculate freshness
+        freshness_status = "unknown"
+        hours_since_sync = None
+        if last_synced:
+            try:
+                if isinstance(last_synced, str):
+                    last_synced_dt = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
+                else:
+                    last_synced_dt = last_synced
+                hours_since_sync = (now - last_synced_dt).total_seconds() / 3600
+
+                if hours_since_sync < 1:
+                    freshness_status = "fresh"
+                elif hours_since_sync < 24:
+                    freshness_status = "recent"
+                else:
+                    freshness_status = "stale"
+            except (ValueError, TypeError):
+                pass
+
         items.append({
-            "resource_id": c["resource_id"],
-            "resource_name": c["resource_name"],
-            "resource_type": c["resource_type"],
-            "coverage_state": c["coverage_state"],
-            "last_synced": c["last_extracted_at"],
-            "items_synced": c["items_extracted"],
-            "blocks_extracted": c["blocks_created"],
+            "resource_id": rid,
+            "resource_name": reg.get("resource_name") or cov.get("resource_name"),
+            "resource_type": cov.get("resource_type"),
+            "last_synced": last_synced,
+            "items_synced": reg.get("item_count") or cov.get("items_extracted", 0),
+            "source_latest_at": reg.get("source_latest_at"),
+            # ADR-049: Freshness info
+            "freshness_status": freshness_status,
+            "hours_since_sync": round(hours_since_sync, 1) if hours_since_sync else None,
         })
+
+    # Sort by freshness (stale first, so user sees what needs attention)
+    freshness_order = {"stale": 0, "recent": 1, "fresh": 2, "unknown": 3}
+    items.sort(key=lambda x: freshness_order.get(x["freshness_status"], 3))
+
+    stale_count = sum(1 for i in items if i["freshness_status"] == "stale")
 
     return {
         "success": True,
         "platform": platform,
         "synced_resources": items,
         "count": len(items),
-        "message": f"{len(items)} {platform.title()} resource(s) synced"
+        "stale_count": stale_count,
+        "message": f"{len(items)} {platform.title()} resource(s) synced" + (f" ({stale_count} stale)" if stale_count else "")
     }
 
 
