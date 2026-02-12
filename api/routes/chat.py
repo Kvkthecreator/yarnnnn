@@ -5,6 +5,13 @@ ADR-005: Unified memory with embeddings
 ADR-006: Session and message architecture
 ADR-007: Tool use for TP authority (unified streaming + tools)
 ADR-034: Domain-based context scoping
+ADR-049: Context freshness model - sessions are API coherence only
+
+Session Philosophy (ADR-049):
+- Sessions are for API coherence (tool_use/tool_result blocks), not context memory
+- Context continuity comes from deliverable state and platform freshness, not history
+- Simple truncation (token budget), no compression or summarization needed
+- If user needs prior context, TP reads deliverable state fresh via Read primitive
 
 Endpoints:
 - POST /chat - Global chat with streaming + tools
@@ -170,9 +177,20 @@ async def get_session_messages(
 # History Building (Claude Code Alignment)
 # =============================================================================
 
-# Maximum messages to include in history to prevent context overflow
-# This is ~15 conversation turns (user + assistant pairs)
-MAX_HISTORY_MESSAGES = 30
+# =============================================================================
+# History Management (ADR-049: API Coherence Only)
+# =============================================================================
+# Sessions are for API coherence (tool_use blocks), not context memory.
+# Context continuity comes from deliverable state, not accumulated history.
+# Simple truncation is sufficient - no compression or summarization needed.
+
+# Token budget for history (~50k tokens, roughly 40 messages with tool calls)
+# This is conservative to leave room for system prompt + context injection
+MAX_HISTORY_MESSAGES = 40
+
+# Approximate tokens per message (for future token-based budgeting)
+# Average message with tool calls is ~1000-1500 tokens
+# MAX_HISTORY_TOKENS = 50000  # Future: replace message count with token budget
 
 
 def build_history_for_claude(
@@ -544,8 +562,8 @@ async def global_chat(
     session_id = session["id"]
 
     # Load existing messages from session and build history
+    # ADR-049: Sessions are API coherence only - simple truncation, no compression
     # Using simple text format for robustness - structured format had ID mismatch issues
-    # Limited to MAX_HISTORY_MESSAGES to prevent context overflow
     existing_messages = await get_session_messages(auth.client, session_id)
     history = build_history_for_claude(existing_messages, use_structured_format=False)
     logger.info(f"[TP] Loaded {len(existing_messages)} messages, built {len(history)} history entries")
