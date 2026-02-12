@@ -183,19 +183,15 @@ Use Gmail query syntax:
     },
     {
         "name": "platform_gmail_send",
-        "description": """Send an email.
+        "description": """Send an email. Prefer create_draft unless user explicitly asks to send.
 
-PRIMARY USE: Send to user's own email so they own the output.
-1. Call list_integrations to get user_email
-2. Use that email as the recipient
-
-IMPORTANT: Prefer create_draft over send. Only send directly if user explicitly asks.""",
+Defaults to user's own email if 'to' is omitted.""",
         "input_schema": {
             "type": "object",
             "properties": {
                 "to": {
                     "type": "string",
-                    "description": "Recipient email. Get from list_integrations user_email for self"
+                    "description": "Recipient email (optional - defaults to user's own email)"
                 },
                 "subject": {
                     "type": "string",
@@ -214,24 +210,20 @@ IMPORTANT: Prefer create_draft over send. Only send directly if user explicitly 
                     "description": "Thread ID to reply to (optional)"
                 }
             },
-            "required": ["to", "subject", "body"]
+            "required": ["subject", "body"]
         }
     },
     {
         "name": "platform_gmail_create_draft",
         "description": """Create an email draft for user review. PREFERRED for deliverables.
 
-PRIMARY USE: Draft to user's own email so they own the output.
-1. Call list_integrations to get user_email
-2. Use that email as the recipient (default to self)
-
-User can then edit/forward the draft as needed.""",
+Defaults to user's own email if 'to' is omitted. User can then edit/forward the draft.""",
         "input_schema": {
             "type": "object",
             "properties": {
                 "to": {
                     "type": "string",
-                    "description": "Recipient email. Get from list_integrations user_email for self"
+                    "description": "Recipient email (optional - defaults to user's own email)"
                 },
                 "subject": {
                     "type": "string",
@@ -246,7 +238,7 @@ User can then edit/forward the draft as needed.""",
                     "description": "CC recipients (optional, comma-separated)"
                 }
             },
-            "required": ["to", "subject", "body"]
+            "required": ["subject", "body"]
         }
     },
 ]
@@ -656,8 +648,11 @@ async def _execute_gmail_tool(
         }
 
     elif tool == "send":
+        # Get the actual 'to' address (may have been auto-defaulted)
+        to_address = args.get("to", user_email) or user_email
+
         result = await google_client.send_gmail_message(
-            to=args["to"],
+            to=to_address,
             subject=args["subject"],
             body=args["body"],
             client_id=client_id,
@@ -667,15 +662,25 @@ async def _execute_gmail_tool(
             thread_id=args.get("thread_id"),
         )
 
-        return {
-            "success": result.status.value == "success",
-            "message_id": result.external_id,
-            "error": result.error_message,
-        }
+        if result.status.value == "success":
+            return {
+                "success": True,
+                "message": f"Email sent to {to_address}",
+                "to": to_address,
+                "subject": args["subject"],
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.error_message,
+            }
 
     elif tool == "create_draft":
+        # Get the actual 'to' address (may have been auto-defaulted)
+        to_address = args.get("to", user_email) or user_email
+
         result = await google_client.create_gmail_draft(
-            to=args["to"],
+            to=to_address,
             subject=args["subject"],
             body=args["body"],
             client_id=client_id,
@@ -684,11 +689,18 @@ async def _execute_gmail_tool(
             cc=args.get("cc"),
         )
 
-        return {
-            "success": result.status.value == "success",
-            "draft_id": result.external_id,
-            "error": result.error_message,
-        }
+        if result.status.value == "success":
+            return {
+                "success": True,
+                "message": f"Draft created in your Gmail drafts folder",
+                "to": to_address,
+                "subject": args["subject"],
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.error_message,
+            }
 
     else:
         return {"success": False, "error": f"Unknown Gmail tool: {tool}"}
