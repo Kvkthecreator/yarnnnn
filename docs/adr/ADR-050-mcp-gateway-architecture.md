@@ -36,6 +36,19 @@
 - Notion: Users set output page at `/context/notion`
 - Calendar: Users set default calendar at `/context/calendar`
 
+**Client Separation** (clean architecture):
+```
+api/integrations/core/
+├── client.py          # MCPManager - Slack/Notion ONLY (MCP protocol)
+├── google_client.py   # GoogleAPIClient - Gmail/Calendar (Direct API)
+└── tokens.py          # TokenManager - OAuth token management
+```
+
+The client classes are intentionally separated to avoid confusion:
+- `MCPManager` handles ONLY MCP protocol (Slack, Notion)
+- `GoogleAPIClient` handles ONLY Google Direct API (Gmail, Calendar)
+- No dual-path code - each platform has ONE implementation path
+
 ---
 
 ## Context

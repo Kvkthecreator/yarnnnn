@@ -185,6 +185,7 @@ async def fetch_integration_source_data(
     import os
     from datetime import timedelta
     from integrations.core.client import MCPClientManager
+    from integrations.core.google_client import get_google_client
     from integrations.core.token_manager import TokenManager
 
     provider = source.get("provider")
@@ -306,12 +307,13 @@ async def fetch_integration_source_data(
 
     integration = integration_result.data
     token_manager = TokenManager()
-    mcp_manager = MCPClientManager()
+    mcp_manager = MCPClientManager()  # For Slack/Notion (MCP protocol)
+    google_client = get_google_client()  # For Gmail/Calendar (Direct API)
 
     try:
         if provider == "gmail":
             result = await _fetch_gmail_data(
-                mcp_manager, token_manager, integration, user_id,
+                google_client, token_manager, integration, user_id,
                 source_query, enhanced_filters, max_items
             )
         elif provider == "slack":
@@ -430,7 +432,7 @@ def _update_source_run(
 
 
 async def _fetch_gmail_data(
-    mcp_manager,
+    google_client,
     token_manager,
     integration: dict,
     user_id: str,
@@ -438,7 +440,7 @@ async def _fetch_gmail_data(
     filters: dict,
     max_items: int = 30,
 ) -> SourceFetchResult:
-    """Fetch Gmail messages and format as context."""
+    """Fetch Gmail messages and format as context. Uses GoogleAPIClient (NOT MCP)."""
     import os
 
     client_id = os.getenv("GOOGLE_CLIENT_ID")
@@ -476,10 +478,9 @@ async def _fetch_gmail_data(
 
     query = " ".join(query_parts) if query_parts else None
 
-    # Fetch messages
+    # Fetch messages via GoogleAPIClient (NOT MCP)
     fetch_limit = min(max_items, 50)  # Cap at 50 for performance
-    messages = await mcp_manager.list_gmail_messages(
-        user_id=user_id,
+    messages = await google_client.list_gmail_messages(
         client_id=client_id,
         client_secret=client_secret,
         refresh_token=refresh_token,
@@ -502,8 +503,7 @@ async def _fetch_gmail_data(
         msg_id = msg.get("id")
         if msg_id:
             try:
-                full_msg = await mcp_manager.get_gmail_message(
-                    user_id=user_id,
+                full_msg = await google_client.get_gmail_message(
                     message_id=msg_id,
                     client_id=client_id,
                     client_secret=client_secret,

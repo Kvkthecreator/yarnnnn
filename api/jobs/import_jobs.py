@@ -644,12 +644,14 @@ async def process_gmail_import(
     supabase_client,
     job: dict,
     integration: dict,
-    mcp_manager,
+    google_client,  # GoogleAPIClient, NOT MCP
     agent,
     token_manager,
 ) -> dict:
     """
     Process a Gmail import job (ADR-029).
+
+    Uses GoogleAPIClient for Gmail API calls (NOT MCP protocol).
 
     Supports importing:
     - inbox: Recent messages from inbox
@@ -693,8 +695,7 @@ async def process_gmail_import(
         thread_id = resource_id.split(":", 1)[1]
         logger.info(f"[IMPORT] Fetching Gmail thread: {thread_id}")
 
-        thread_data = await mcp_manager.get_gmail_thread(
-            user_id=user_id,
+        thread_data = await google_client.get_gmail_thread(
             thread_id=thread_id,
             client_id=client_id,
             client_secret=client_secret,
@@ -723,8 +724,7 @@ async def process_gmail_import(
 
         logger.info(f"[IMPORT] Fetching Gmail messages: {query} (max: {max_items})")
 
-        messages = await mcp_manager.list_gmail_messages(
-            user_id=user_id,
+        messages = await google_client.list_gmail_messages(
             client_id=client_id,
             client_secret=client_secret,
             refresh_token=refresh_token,
@@ -764,8 +764,7 @@ async def process_gmail_import(
         msg_id = msg.get("id")
         if msg_id:
             try:
-                full_msg = await mcp_manager.get_gmail_message(
-                    user_id=user_id,
+                full_msg = await google_client.get_gmail_message(
                     message_id=msg_id,
                     client_id=client_id,
                     client_secret=client_secret,
@@ -897,6 +896,7 @@ async def process_import_job(supabase_client, job: dict) -> bool:
     Returns True if successful.
     """
     from integrations.core.client import get_mcp_manager
+    from integrations.core.google_client import get_google_client
     from integrations.core.tokens import get_token_manager
     from agents.integration.context_import import ContextImportAgent
 
@@ -920,7 +920,8 @@ async def process_import_job(supabase_client, job: dict) -> bool:
             raise ValueError(f"{provider} integration is {integration.get('status')}, not active")
 
         # Initialize managers
-        mcp_manager = get_mcp_manager()
+        mcp_manager = get_mcp_manager()  # For Slack/Notion (MCP protocol)
+        google_client = get_google_client()  # For Gmail/Calendar (Direct API)
         token_manager = get_token_manager()
         agent = ContextImportAgent()
 
@@ -934,9 +935,9 @@ async def process_import_job(supabase_client, job: dict) -> bool:
                 supabase_client, job, integration, mcp_manager, agent, token_manager
             )
         elif provider == "gmail":
-            # ADR-029: Gmail import support
+            # ADR-029: Gmail import support (uses Direct API, not MCP)
             result = await process_gmail_import(
-                supabase_client, job, integration, mcp_manager, agent, token_manager
+                supabase_client, job, integration, google_client, agent, token_manager
             )
         else:
             raise ValueError(f"Unsupported provider: {provider}")

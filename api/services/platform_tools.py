@@ -489,10 +489,12 @@ async def _handle_google_tool(auth: Any, provider: str, tool: str, tool_input: d
     """
     ADR-046: Handle Google tools (Gmail, Calendar) via Direct API.
 
-    Uses the existing implementations in integrations/core/client.py.
+    Uses GoogleAPIClient - NOT MCP. The distinction matters:
+    - MCP Gateway (Node.js): Slack, Notion
+    - Google API Client (Python): Gmail, Calendar
     """
     import os
-    from integrations.core.client import MCPManager
+    from integrations.core.google_client import get_google_client
 
     # Get Google OAuth credentials
     client_id = os.getenv("GOOGLE_CLIENT_ID")
@@ -541,19 +543,19 @@ async def _handle_google_tool(auth: Any, provider: str, tool: str, tool_input: d
             "error": "Failed to get Google credentials",
         }
 
-    # Create MCP manager for API calls
-    mcp_manager = MCPManager()
+    # Get Google API client (NOT MCP)
+    google_client = get_google_client()
 
     try:
         # Route to appropriate handler
         if provider == "gmail":
             return await _execute_gmail_tool(
-                mcp_manager, auth.user_id, tool, tool_input,
+                google_client, tool, tool_input,
                 client_id, client_secret, refresh_token
             )
         elif provider == "calendar":
             return await _execute_calendar_tool(
-                auth.user_id, tool, tool_input,
+                google_client, tool, tool_input,
                 client_id, client_secret, refresh_token
             )
         else:
@@ -568,19 +570,17 @@ async def _handle_google_tool(auth: Any, provider: str, tool: str, tool_input: d
 
 
 async def _execute_gmail_tool(
-    mcp_manager,
-    user_id: str,
+    google_client,
     tool: str,
     args: dict,
     client_id: str,
     client_secret: str,
     refresh_token: str
 ) -> dict:
-    """Execute Gmail-specific tools."""
+    """Execute Gmail-specific tools via GoogleAPIClient (NOT MCP)."""
 
     if tool == "search":
-        messages = await mcp_manager.list_gmail_messages(
-            user_id=user_id,
+        messages = await google_client.list_gmail_messages(
             client_id=client_id,
             client_secret=client_secret,
             refresh_token=refresh_token,
@@ -591,7 +591,6 @@ async def _execute_gmail_tool(
         # Format results
         results = []
         for msg in messages[:20]:  # Cap display at 20
-            # Get basic info from message
             results.append({
                 "id": msg.get("id"),
                 "thread_id": msg.get("threadId"),
@@ -605,8 +604,7 @@ async def _execute_gmail_tool(
         }
 
     elif tool == "get_thread":
-        thread = await mcp_manager.get_gmail_thread(
-            user_id=user_id,
+        thread = await google_client.get_gmail_thread(
             thread_id=args["thread_id"],
             client_id=client_id,
             client_secret=client_secret,
@@ -636,8 +634,7 @@ async def _execute_gmail_tool(
         }
 
     elif tool == "send":
-        result = await mcp_manager.send_gmail_message(
-            user_id=user_id,
+        result = await google_client.send_gmail_message(
             to=args["to"],
             subject=args["subject"],
             body=args["body"],
@@ -655,8 +652,7 @@ async def _execute_gmail_tool(
         }
 
     elif tool == "create_draft":
-        result = await mcp_manager.create_gmail_draft(
-            user_id=user_id,
+        result = await google_client.create_gmail_draft(
             to=args["to"],
             subject=args["subject"],
             body=args["body"],
@@ -677,73 +673,26 @@ async def _execute_gmail_tool(
 
 
 async def _execute_calendar_tool(
-    user_id: str,
+    google_client,
     tool: str,
     args: dict,
     client_id: str,
     client_secret: str,
     refresh_token: str
 ) -> dict:
-    """Execute Calendar-specific tools."""
-    import httpx
-    from datetime import datetime, timedelta
+    """Execute Calendar-specific tools via GoogleAPIClient (NOT MCP)."""
 
-    # Get fresh access token
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "client_id": client_id,
-                "client_secret": client_secret,
-                "refresh_token": refresh_token,
-                "grant_type": "refresh_token",
-            }
-        )
-
-        if token_response.status_code != 200:
-            return {"success": False, "error": f"Token refresh failed: {token_response.text}"}
-
-        access_token = token_response.json().get("access_token")
-
+    try:
         if tool == "list_events":
-            # Parse time filters
-            def parse_time(val: str, default_offset_days: int = 0) -> str:
-                if not val:
-                    return (datetime.utcnow() + timedelta(days=default_offset_days)).isoformat() + "Z"
-                if val == "now":
-                    return datetime.utcnow().isoformat() + "Z"
-                if val.startswith("+"):
-                    val = val[1:]
-                    if val.endswith("h"):
-                        delta = timedelta(hours=int(val[:-1]))
-                    elif val.endswith("d"):
-                        delta = timedelta(days=int(val[:-1]))
-                    else:
-                        delta = timedelta(days=int(val))
-                    return (datetime.utcnow() + delta).isoformat() + "Z"
-                return val
-
-            time_min = parse_time(args.get("time_min", "now"), 0)
-            time_max = parse_time(args.get("time_max", "+7d"), 7)
-            calendar_id = args.get("calendar_id", "primary")
-            max_results = min(args.get("max_results", 25), 100)
-
-            response = await client.get(
-                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={
-                    "timeMin": time_min,
-                    "timeMax": time_max,
-                    "maxResults": max_results,
-                    "singleEvents": "true",
-                    "orderBy": "startTime",
-                }
+            events = await google_client.list_calendar_events(
+                client_id=client_id,
+                client_secret=client_secret,
+                refresh_token=refresh_token,
+                calendar_id=args.get("calendar_id", "primary"),
+                time_min=args.get("time_min"),
+                time_max=args.get("time_max"),
+                max_results=args.get("max_results", 25),
             )
-
-            if response.status_code != 200:
-                return {"success": False, "error": f"Calendar API error: {response.text}"}
-
-            events = response.json().get("items", [])
 
             # Format events
             formatted = []
@@ -765,18 +714,13 @@ async def _execute_calendar_tool(
             }
 
         elif tool == "get_event":
-            calendar_id = args.get("calendar_id", "primary")
-            event_id = args["event_id"]
-
-            response = await client.get(
-                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
+            event = await google_client.get_calendar_event(
+                event_id=args["event_id"],
+                client_id=client_id,
+                client_secret=client_secret,
+                refresh_token=refresh_token,
+                calendar_id=args.get("calendar_id", "primary"),
             )
-
-            if response.status_code != 200:
-                return {"success": False, "error": f"Calendar API error: {response.text}"}
-
-            event = response.json()
 
             return {
                 "success": True,
@@ -800,34 +744,18 @@ async def _execute_calendar_tool(
             }
 
         elif tool == "create_event":
-            calendar_id = args.get("calendar_id", "primary")
-
-            event_body = {
-                "summary": args["summary"],
-                "start": {"dateTime": args["start_time"], "timeZone": "UTC"},
-                "end": {"dateTime": args["end_time"], "timeZone": "UTC"},
-            }
-
-            if args.get("description"):
-                event_body["description"] = args["description"]
-            if args.get("location"):
-                event_body["location"] = args["location"]
-            if args.get("attendees"):
-                event_body["attendees"] = [{"email": e} for e in args["attendees"]]
-
-            response = await client.post(
-                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json",
-                },
-                json=event_body,
+            created = await google_client.create_calendar_event(
+                summary=args["summary"],
+                start_time=args["start_time"],
+                end_time=args["end_time"],
+                client_id=client_id,
+                client_secret=client_secret,
+                refresh_token=refresh_token,
+                calendar_id=args.get("calendar_id", "primary"),
+                description=args.get("description"),
+                location=args.get("location"),
+                attendees=args.get("attendees"),
             )
-
-            if response.status_code not in (200, 201):
-                return {"success": False, "error": f"Calendar API error: {response.text}"}
-
-            created = response.json()
 
             return {
                 "success": True,
@@ -837,6 +765,10 @@ async def _execute_calendar_tool(
 
         else:
             return {"success": False, "error": f"Unknown Calendar tool: {tool}"}
+
+    except Exception as e:
+        logger.error(f"[PLATFORM-TOOLS] Calendar API error: {e}")
+        return {"success": False, "error": str(e)}
 
 
 def map_to_mcp_format(provider: str, tool: str, args: dict) -> tuple[str, dict]:

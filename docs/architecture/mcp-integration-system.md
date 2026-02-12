@@ -1,9 +1,29 @@
 # MCP Integration System Architecture
 
-> **Status**: Implementation Started
+> **Status**: Implemented
 > **Created**: 2026-02-06
-> **Updated**: 2026-02-06
-> **Related**: ADR-026 (Integration Architecture)
+> **Updated**: 2026-02-12
+> **Related**: ADR-026 (Integration Architecture), ADR-050 (MCP Gateway Architecture)
+
+---
+
+## Architecture Overview
+
+**CRITICAL DISTINCTION**: YARNNN uses TWO different backends for platform integrations:
+
+| Platform | Backend | Client Class | Protocol |
+|----------|---------|--------------|----------|
+| **Slack** | MCP Gateway | `MCPManager` | MCP (via Node.js gateway) |
+| **Notion** | MCP Gateway | `MCPManager` | MCP (via Node.js gateway) |
+| **Gmail** | Direct API | `GoogleAPIClient` | Google REST API |
+| **Calendar** | Direct API | `GoogleAPIClient` | Google REST API |
+
+### Why Two Backends?
+
+- **Slack/Notion**: Use MCP servers (`@modelcontextprotocol/server-slack`, `@notionhq/notion-mcp-server`) which require Node.js. These run in the MCP Gateway service.
+- **Gmail/Calendar**: Use Google's REST API directly from Python. No MCP server exists with the full functionality we need.
+
+See [ADR-050](../adr/ADR-050-mcp-gateway-architecture.md) for the full architectural decision.
 
 ---
 
@@ -12,33 +32,57 @@
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Database schema | ✅ Complete | Migration 023_integrations.sql |
-| `MCPClientManager` | ✅ Complete | `api/integrations/core/client.py` |
+| `MCPManager` | ✅ Complete | `api/integrations/core/client.py` (Slack/Notion only) |
+| `GoogleAPIClient` | ✅ Complete | `api/integrations/core/google_client.py` (Gmail/Calendar) |
 | `TokenManager` | ✅ Complete | `api/integrations/core/tokens.py` |
 | Types/Models | ✅ Complete | `api/integrations/core/types.py` |
 | API routes | ✅ Complete | `api/routes/integrations.py` |
-| OAuth flows | ⏳ Pending | Need Slack/Notion app setup |
-| Provider implementations | ⏳ Pending | Slack, Notion providers |
-| Frontend components | ⏳ Pending | Settings tab, export bar |
+| MCP Gateway | ✅ Complete | `mcp-gateway/` (Node.js service on Render) |
+| OAuth flows | ✅ Complete | All four platforms |
+| Platform tools | ✅ Complete | `api/services/platform_tools.py` |
 
-### Validated Technical Details
+### Client Separation
 
-- **MCP SDK**: Official `mcp` package (v1.x, PyPI)
-- **Transport**: Stdio subprocess (standard pattern)
-- **Server commands**:
-  - Slack: `npx @modelcontextprotocol/server-slack`
-  - Notion: `npx @notionhq/notion-mcp-server --transport stdio`
-  - Gmail: `npx @shinzolabs/gmail-mcp` (ADR-029)
-- **Render**: Node.js/npx confirmed available
+```
+api/integrations/core/
+├── client.py          # MCPManager - Slack/Notion ONLY (MCP protocol)
+├── google_client.py   # GoogleAPIClient - Gmail/Calendar (Direct API)
+├── tokens.py          # TokenManager - OAuth token management
+└── types.py           # Shared types/interfaces
+```
+
+### MCP Gateway (Node.js Service)
+
+The MCP Gateway runs as a separate Render service and handles MCP protocol communication:
+- URL: `yarnnn-mcp-gateway.onrender.com`
+- Manages: `@modelcontextprotocol/server-slack`, `@notionhq/notion-mcp-server`
 
 ### Required Environment Variables
 
-| Provider | Variables |
-|----------|-----------|
-| Slack | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` |
-| Notion | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` |
-| Gmail | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` |
+| Provider | Variables | Backend |
+|----------|-----------|---------|
+| Slack | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | MCP Gateway |
+| Notion | `NOTION_CLIENT_ID`, `NOTION_CLIENT_SECRET` | MCP Gateway |
+| Gmail/Calendar | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Direct API |
 
-> **Note**: These must be set on both `yarnnn-api` and `unified-scheduler` services in Render.
+> **Note**: Google credentials needed on `yarnnn-api` and `unified-scheduler`. Slack/Notion credentials needed on `yarnnn-mcp-gateway`.
+
+---
+
+## Default Landing Zones
+
+Each platform has a default output destination so user owns the output:
+
+| Platform | Default Destination | Metadata Key | Backend |
+|----------|---------------------|--------------|---------|
+| Slack | User's DM to self | `authed_user_id` | MCP Gateway |
+| Notion | User's designated page | `designated_page_id` | MCP Gateway |
+| Gmail | Draft to user's email | `user_email` | Direct API |
+| Calendar | User's designated calendar | `designated_calendar_id` | Direct API |
+
+**Designated Settings UI**:
+- Notion: Users set output page at `/context/notion`
+- Calendar: Users set default calendar at `/context/calendar`
 
 ---
 

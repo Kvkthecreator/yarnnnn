@@ -2454,9 +2454,13 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
     }
     """
     token_manager = get_token_manager()
-    mcp_manager = get_mcp_manager()
+    mcp_manager = get_mcp_manager()  # For Slack/Notion (MCP protocol)
 
     if provider in ("gmail", "google"):
+        # Gmail/Calendar use GoogleAPIClient (NOT MCP)
+        from integrations.core.google_client import get_google_client
+        google_client = get_google_client()
+
         # Get Google credentials (OAUTH_CONFIGS values are OAuthConfig objects, not dicts)
         google_config = OAUTH_CONFIGS.get("google") or OAUTH_CONFIGS["gmail"]
         client_id = google_config.client_id
@@ -2465,9 +2469,8 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
 
         resources = []
 
-        # List Gmail labels
-        labels = await mcp_manager.list_gmail_labels(
-            user_id=user_id,
+        # List Gmail labels via GoogleAPIClient
+        labels = await google_client.list_gmail_labels(
             client_id=client_id,
             client_secret=client_secret,
             refresh_token=refresh_token

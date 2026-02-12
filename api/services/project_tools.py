@@ -2964,7 +2964,7 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
         }
 
     token_manager = get_token_manager()
-    mcp_manager = get_mcp_manager()
+    mcp_manager = get_mcp_manager()  # For Slack/Notion (MCP protocol)
     metadata = integration.data.get("metadata") or {}
 
     try:
@@ -3000,7 +3000,10 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
             }
 
         elif platform == "gmail":
-            # Gmail uses direct API calls
+            # Gmail uses GoogleAPIClient (NOT MCP)
+            from integrations.core.google_client import get_google_client
+            google_client = get_google_client()
+
             client_id = os.getenv("GOOGLE_CLIENT_ID")
             client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
 
@@ -3009,8 +3012,7 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
 
             refresh_token = token_manager.decrypt(integration.data["refresh_token_encrypted"])
 
-            labels = await mcp_manager.list_gmail_labels(
-                user_id=auth.user_id,
+            labels = await google_client.list_gmail_labels(
                 client_id=client_id,
                 client_secret=client_secret,
                 refresh_token=refresh_token
