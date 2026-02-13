@@ -771,7 +771,7 @@ async def get_integration(
 
     try:
         result = auth.client.table("platform_connections").select(
-            "id, platform, status, metadata, last_used_at, created_at"
+            "id, platform, status, metadata, last_synced_at, created_at"
         ).eq("user_id", user_id).eq("platform", provider).execute()
 
         if not result.data:
@@ -785,7 +785,7 @@ async def get_integration(
             provider=row["platform"],  # ADR-058: DB column is 'platform'
             status=row["status"],
             workspace_name=metadata.get("workspace_name"),
-            last_used_at=row.get("last_used_at"),
+            last_used_at=row.get("last_synced_at"),  # ADR-058: column renamed
             created_at=row["created_at"]
         )
 
@@ -1056,10 +1056,10 @@ async def export_to_provider(
         }
         auth.client.table("export_log").insert(log_entry).execute()
 
-        # 6. Update last_used_at for auth integrations
+        # 6. Update last_synced_at for auth integrations (ADR-058: column renamed)
         if integration_id:
             auth.client.table("platform_connections").update({
-                "last_used_at": datetime.utcnow().isoformat()
+                "updated_at": datetime.utcnow().isoformat()
             }).eq("id", integration_id).execute()
 
         logger.info(f"[INTEGRATIONS] User {user_id} exported to {provider}: {result.status.value}")
