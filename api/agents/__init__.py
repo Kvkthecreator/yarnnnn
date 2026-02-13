@@ -9,7 +9,7 @@ ADR-045: Agent types renamed for clarity:
 """
 
 from .base import BaseAgent, AgentResult, ContextBundle, Memory, WorkOutput
-from .factory import create_agent, get_valid_agent_types, normalize_agent_type
+from .factory import create_agent, get_valid_agent_types
 
 __all__ = [
     "BaseAgent",
@@ -19,5 +19,4 @@ __all__ = [
     "WorkOutput",
     "create_agent",
     "get_valid_agent_types",
-    "normalize_agent_type",
 ]

@@ -727,7 +727,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
 
             return (
               <button
-                key={platform.id}
+                key={platform.provider}
                 onClick={() => onNavigate(platform.provider)}
                 className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-left hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
               >
