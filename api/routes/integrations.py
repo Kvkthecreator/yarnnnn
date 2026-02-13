@@ -2438,17 +2438,9 @@ async def get_landscape(
         # Discover landscape from provider
         landscape_data = await _discover_landscape(provider, user_id, integration.data)
 
-        # Auto-select all discovered resources if no selection exists yet
-        # This allows sync workers to start immediately; tier limits enforced at sync time
-        if not landscape_data.get("selected_sources"):
-            landscape_data["selected_sources"] = [
-                {
-                    "resource_id": r.get("id"),
-                    "resource_name": r.get("name"),
-                }
-                for r in landscape_data.get("resources", [])
-            ]
-            logger.info(f"[INTEGRATIONS] Auto-selected {len(landscape_data['selected_sources'])} sources for {provider}")
+        # Note: We do NOT auto-select sources here.
+        # User must explicitly select sources in the modal, gated by tier limits.
+        # This builds trust by showing the landscape, then letting user choose what to sync.
 
         # Store landscape snapshot
         auth.client.table("platform_connections").update({

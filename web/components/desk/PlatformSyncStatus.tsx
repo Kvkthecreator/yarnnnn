@@ -165,20 +165,19 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     loadIntegrations();
   }, [loadIntegrations]);
 
-  // Handle OAuth callback - trigger landscape discovery (auto-selects sources)
+  // Handle OAuth callback - open source selection modal for explicit user selection
   useEffect(() => {
     if (providerParam && statusParam === 'connected') {
       // Map 'google' provider to the appropriate platform
       const platform = providerParam === 'google' ? 'gmail' : providerParam;
 
-      // Trigger landscape discovery which auto-selects all sources
-      // Sync workers will respect tier limits
+      // Open source selection modal for user to explicitly choose sources
+      // This builds trust by showing the landscape, then letting user select what to sync
+      // Selection is gated by tier limits (free = 1 per platform)
       if (ALL_PLATFORMS.includes(platform as Provider)) {
-        api.integrations.getLandscape(platform as Provider, true).then(() => {
-          // Reload integrations to show updated status
-          loadIntegrations();
-        }).catch(err => {
-          console.error(`Failed to discover ${platform} landscape:`, err);
+        // Reload integrations first to reflect the new connection
+        loadIntegrations().then(() => {
+          setSourceModalProvider(platform as Provider);
         });
       }
 
