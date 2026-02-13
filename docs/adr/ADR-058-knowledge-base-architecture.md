@@ -735,6 +735,45 @@ SELECT DISTINCT user_id FROM platform_connections;
 
 ---
 
+## Implementation Status
+
+> **Completed**: 2026-02-13
+
+### Phase 1-5: Schema & Migration ✅
+
+All schema changes and migrations applied:
+
+| Migration | Status | Description |
+|-----------|--------|-------------|
+| 043 | ✅ Applied | Create new schema tables |
+| 044 | ✅ Applied | Data migration from old tables |
+| 045 | ✅ Applied | Drop old tables, cleanup |
+| 046 | ✅ Applied | Restore integration_import_jobs |
+| 047 | ✅ Applied | Fix memory RPCs for knowledge_entries |
+| 048 | ✅ Applied | Fix domain RPCs for knowledge_domains.sources |
+
+### Backend Updates ✅
+
+- All routes updated to use new table names (`platform_connections`, `filesystem_items`, `knowledge_domains`, `knowledge_entries`)
+- All RPC functions updated to use new schema
+- Legacy code and backwards compatibility shims removed
+- TP working memory injection verified against new schema
+
+### Frontend Updates ✅
+
+- `DomainSource.platform` type updated (was `provider`)
+- Context page uses correct API endpoints
+- Deliverable source selection verified
+- Platform detail pages verified
+
+### Remaining Work
+
+- **Inference Engine**: Not yet implemented (profile/style inference from filesystem)
+- **Knowledge extraction from conversations**: Not yet implemented
+- **User override UI**: Basic editing available, full override pattern pending
+
+---
+
 ## Open Questions (Deferred)
 
 1. **Knowledge export** — Should users be able to download as Markdown files?
