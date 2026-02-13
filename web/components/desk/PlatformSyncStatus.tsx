@@ -165,19 +165,28 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     loadIntegrations();
   }, [loadIntegrations]);
 
-  // Handle OAuth callback - show source selection modal
+  // Handle OAuth callback - trigger landscape discovery (auto-selects sources)
   useEffect(() => {
     if (providerParam && statusParam === 'connected') {
-      // Map 'google' provider to the appropriate modal
-      const modalProvider = providerParam === 'google' ? 'gmail' : providerParam as Provider;
-      if (ALL_PLATFORMS.includes(modalProvider)) {
-        setSourceModalProvider(modalProvider);
-        // Clean up URL params
-        const newUrl = window.location.pathname;
-        router.replace(newUrl, { scroll: false });
+      // Map 'google' provider to the appropriate platform
+      const platform = providerParam === 'google' ? 'gmail' : providerParam;
+
+      // Trigger landscape discovery which auto-selects all sources
+      // Sync workers will respect tier limits
+      if (ALL_PLATFORMS.includes(platform as Provider)) {
+        api.integrations.getLandscape(platform as Provider, true).then(() => {
+          // Reload integrations to show updated status
+          loadIntegrations();
+        }).catch(err => {
+          console.error(`Failed to discover ${platform} landscape:`, err);
+        });
       }
+
+      // Clean up URL params
+      const newUrl = window.location.pathname;
+      router.replace(newUrl, { scroll: false });
     }
-  }, [providerParam, statusParam, router]);
+  }, [providerParam, statusParam, router, loadIntegrations]);
 
   const handleConnect = async (provider: Provider) => {
     setConnecting(provider);
