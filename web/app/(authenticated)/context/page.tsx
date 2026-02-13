@@ -1131,8 +1131,8 @@ export default function ContextPage() {
 
         {/* Content Area */}
         <main className="flex-1 p-6 overflow-auto">
-          {/* Show welcome prompt if empty state, otherwise show section content */}
-          {showEmptyState ? (
+          {/* Show welcome prompt only on profile section when empty, otherwise show section content */}
+          {showEmptyState && activeSection === 'profile' ? (
             <div className="h-full flex items-center justify-center">
               <div className="max-w-md text-center">
                 <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
