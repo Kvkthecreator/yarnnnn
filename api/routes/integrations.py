@@ -2298,6 +2298,8 @@ async def oauth_callback(
         ).eq("platform", provider).execute()
 
         if existing.data:
+            user_id = token_data["user_id"]
+
             # Update existing - clear landscape to force rediscovery from new workspace
             service_client.table("platform_connections").update({
                 "credentials_encrypted": token_data["credentials_encrypted"],
@@ -2311,7 +2313,26 @@ async def oauth_callback(
                 "landscape_discovered_at": None,
             }).eq("id", existing.data[0]["id"]).execute()
 
-            logger.info(f"[INTEGRATIONS] Updated {provider} for user {token_data['user_id']}")
+            # Purge stale data from old workspace (ADR-058 tables)
+            # Delete filesystem_items from this platform
+            service_client.table("filesystem_items").delete().eq(
+                "user_id", user_id
+            ).eq("platform", provider).execute()
+
+            # Delete sync_registry entries for this platform
+            service_client.table("sync_registry").delete().eq(
+                "user_id", user_id
+            ).eq("platform", provider).execute()
+
+            # Delete knowledge_entries sourced from this platform
+            # (source_ref contains platform info for inferred entries)
+            service_client.table("knowledge_entries").delete().eq(
+                "user_id", user_id
+            ).eq("source", "inferred").filter(
+                "source_ref->>platform", "eq", provider
+            ).execute()
+
+            logger.info(f"[INTEGRATIONS] Updated {provider} for user {user_id}, purged old workspace data")
         else:
             # Insert new
             service_client.table("platform_connections").insert({
