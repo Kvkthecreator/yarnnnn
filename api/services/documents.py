@@ -197,7 +197,7 @@ async def process_document(
     """
     try:
         # Update status to processing
-        db_client.table("documents").update({
+        db_client.table("filesystem_documents").update({
             "processing_status": "processing"
         }).eq("id", document_id).execute()
 
@@ -205,7 +205,7 @@ async def process_document(
         text, unit_count = await extract_text(file_content, file_type)
 
         if not text or len(text) < 50:
-            db_client.table("documents").update({
+            db_client.table("filesystem_documents").update({
                 "processing_status": "failed",
                 "error_message": "No text could be extracted from document"
             }).eq("id", document_id).execute()
@@ -218,7 +218,7 @@ async def process_document(
         chunks = semantic_chunk(text)
 
         if not chunks:
-            db_client.table("documents").update({
+            db_client.table("filesystem_documents").update({
                 "processing_status": "failed",
                 "error_message": "Failed to chunk document"
             }).eq("id", document_id).execute()
@@ -247,7 +247,7 @@ async def process_document(
                 chunk_record["embedding"] = embeddings[i]
 
             try:
-                db_client.table("chunks").insert(chunk_record).execute()
+                db_client.table("filesystem_chunks").insert(chunk_record).execute()
                 chunks_inserted += 1
             except Exception as e:
                 print(f"Failed to insert chunk {i}: {e}")
@@ -270,12 +270,12 @@ async def process_document(
 
                     record = {
                         "user_id": user_id,
-                        "project_id": mem_project_id,
+                        "domain_id": mem_project_id,  # project_id → domain_id
                         "content": mem["content"],
                         "tags": mem["tags"],
-                        "entities": mem["entities"],
                         "importance": mem["importance"],
-                        "source_type": "document",
+                        "source": "document",  # ADR-058
+                        "entry_type": "fact",
                         "source_ref": {
                             "document_id": document_id,
                             "chunk_index": chunk["chunk_index"]
@@ -285,14 +285,14 @@ async def process_document(
                     if embedding:
                         record["embedding"] = embedding
 
-                    db_client.table("memories").insert(record).execute()
+                    db_client.table("knowledge_entries").insert(record).execute()
                     memories_inserted += 1
 
             except Exception as e:
                 print(f"Memory extraction from chunk failed: {e}")
 
         # 6. Update document status
-        db_client.table("documents").update({
+        db_client.table("filesystem_documents").update({
             "processing_status": "completed",
             "processed_at": datetime.utcnow().isoformat(),
             "page_count": unit_count if file_type == "pdf" else None,
@@ -309,7 +309,7 @@ async def process_document(
 
     except Exception as e:
         # Update status to failed
-        db_client.table("documents").update({
+        db_client.table("filesystem_documents").update({
             "processing_status": "failed",
             "error_message": str(e)
         }).eq("id", document_id).execute()

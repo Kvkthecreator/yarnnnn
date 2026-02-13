@@ -9,10 +9,10 @@ ADR-056: Per-Source Sync Implementation
 - Respects tier limits via selected_sources list
 - Enables monetization based on source count
 
-This refreshes the ephemeral_context for a provider by:
+This refreshes the filesystem_items for a provider by:
 1. Filtering to selected sources only
 2. Fetching recent content per source
-3. Storing in ephemeral_context table with TTL
+3. Storing in filesystem_items table with TTL
 """
 
 import asyncio
@@ -209,9 +209,9 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                 limit=50,
             )
 
-            # Store in ephemeral_context
+            # Store in filesystem_items
             for msg in messages:
-                await _store_ephemeral_context(
+                await _store_filesystem_items(
                     client=client,
                     user_id=user_id,
                     source_type="slack",
@@ -325,7 +325,7 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                         sender = headers.get("from", "")
                         date_str = headers.get("date", "")
 
-                        await _store_ephemeral_context(
+                        await _store_filesystem_items(
                             client=client,
                             user_id=user_id,
                             source_type="gmail",
@@ -416,7 +416,7 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
                         for block in content
                     )
 
-                await _store_ephemeral_context(
+                await _store_filesystem_items(
                     client=client,
                     user_id=user_id,
                     source_type="notion",
@@ -521,7 +521,7 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
                         content_parts.append(f"Location: {location}")
                     content = "\n".join(content_parts)
 
-                    await _store_ephemeral_context(
+                    await _store_filesystem_items(
                         client=client,
                         user_id=user_id,
                         source_type="calendar",
@@ -557,7 +557,7 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
         return {"error": str(e), "items_synced": items_synced}
 
 
-async def _store_ephemeral_context(
+async def _store_filesystem_items(
     client,
     user_id: str,
     source_type: str,
@@ -568,7 +568,7 @@ async def _store_ephemeral_context(
     metadata: dict,
     source_timestamp: Optional[str] = None,
 ) -> None:
-    """Store item in ephemeral_context table with TTL."""
+    """Store item in filesystem_items table with TTL."""
     from datetime import timedelta
     from uuid import uuid4
 
@@ -585,7 +585,7 @@ async def _store_ephemeral_context(
 
     try:
         # Upsert to avoid duplicates
-        client.table("ephemeral_context").upsert({
+        client.table("filesystem_items").upsert({
             "id": str(uuid4()),
             "user_id": user_id,
             "platform": source_type,

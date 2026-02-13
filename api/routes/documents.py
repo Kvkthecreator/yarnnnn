@@ -165,7 +165,7 @@ async def upload_document(
     }
 
     try:
-        auth.client.table("documents").insert(doc_record).execute()
+        auth.client.table("filesystem_documents").insert(doc_record).execute()
     except Exception as e:
         # Clean up storage if DB insert fails
         try:
@@ -220,7 +220,7 @@ async def list_documents(
         limit: Max results (default 50)
         offset: Pagination offset
     """
-    query = auth.client.table("documents").select("*").eq("user_id", auth.user_id)
+    query = auth.client.table("filesystem_documents").select("*").eq("user_id", auth.user_id)
 
     if project_id:
         query = query.eq("project_id", project_id)
@@ -304,7 +304,7 @@ async def download_document(auth: UserClient, document_id: str):
     Returns a URL that expires in 1 hour.
     """
     # Get document to verify ownership and get storage path
-    doc = auth.client.table("documents")\
+    doc = auth.client.table("filesystem_documents")\
         .select("storage_path, filename")\
         .eq("id", document_id)\
         .eq("user_id", auth.user_id)\
@@ -347,7 +347,7 @@ async def delete_document(auth: UserClient, document_id: str):
     - Memories are NOT deleted (they persist as extracted knowledge)
     """
     # Get document to verify ownership and get storage path
-    doc = auth.client.table("documents")\
+    doc = auth.client.table("filesystem_documents")\
         .select("storage_path")\
         .eq("id", document_id)\
         .eq("user_id", auth.user_id)\
@@ -367,6 +367,6 @@ async def delete_document(auth: UserClient, document_id: str):
             print(f"Warning: Failed to delete storage file: {e}")
 
     # Delete document record (chunks cascade via FK)
-    auth.client.table("documents").delete().eq("id", document_id).execute()
+    auth.client.table("filesystem_documents").delete().eq("id", document_id).execute()
 
     return {"success": True, "message": "Document deleted"}

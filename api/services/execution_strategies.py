@@ -513,12 +513,12 @@ def _parse_last_run_at(last_run_at) -> Optional[datetime]:
 async def _get_user_memories(client, user_id: str) -> str:
     """Get relevant user memories for context."""
     try:
+        # ADR-058: Get knowledge entries
         result = (
-            client.table("memories")
-            .select("content, tags")
+            client.table("knowledge_entries")
+            .select("content, tags, entry_type")
             .eq("user_id", user_id)
             .eq("is_active", True)
-            .in_("source_type", ["user_stated", "chat", "conversation", "preference"])
             .order("importance", desc=True)
             .limit(20)
             .execute()
@@ -565,7 +565,7 @@ async def _fetch_other_source(client, source: dict) -> str:
         if doc_id:
             try:
                 result = (
-                    client.table("documents")
+                    client.table("filesystem_documents")
                     .select("filename, extracted_text")
                     .eq("id", doc_id)
                     .single()

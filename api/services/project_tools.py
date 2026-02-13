@@ -2260,7 +2260,7 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     try:
         # ADR-034: Count memories from default domain (user's portable context)
         # Domain-scoped memories will be available via domain inference after sources are configured
-        user_mem_result = auth.client.table("memories")\
+        user_mem_result = auth.client.table("knowledge_entries")\
             .select("id, content", count="exact")\
             .eq("user_id", auth.user_id)\
             .eq("is_active", True)\
@@ -2272,7 +2272,7 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
             sample_memories = [m["content"][:100] for m in user_mem_result.data[:3]]
 
         # Count user documents
-        doc_result = auth.client.table("documents")\
+        doc_result = auth.client.table("filesystem_documents")\
             .select("id", count="exact")\
             .eq("user_id", auth.user_id)\
             .execute()
@@ -2418,7 +2418,7 @@ async def handle_list_memories(auth, input: dict) -> dict:
 
     # Build query - filter is_active=true since schema uses soft delete
     # ADR-034: Projects removed, memories are user-scoped (domain_id replaces project_id)
-    query = auth.client.table("memories")\
+    query = auth.client.table("knowledge_entries")\
         .select("id, content, tags, domain_id, created_at, updated_at")\
         .eq("user_id", auth.user_id)\
         .eq("is_active", True)\
@@ -2478,13 +2478,14 @@ async def handle_create_memory(auth, input: dict) -> dict:
     tags = input.get("tags", [])
     project_id = input.get("project_id")
 
-    # Build memory data
-    # Note: source_type is required by schema (006_unified_memory.sql)
+    # Build knowledge entry data
+    # ADR-058: knowledge_entries schema
     memory_data = {
         "content": content,
         "tags": tags,
         "user_id": auth.user_id,
-        "source_type": "manual",  # Created via TP tool
+        "source": "user_stated",  # Created via TP tool
+        "entry_type": "fact",  # Default type
     }
 
     # Get project name for attribution if project_id provided
@@ -2503,7 +2504,7 @@ async def handle_create_memory(auth, input: dict) -> dict:
             pass
 
     # Create memory
-    result = auth.client.table("memories").insert(memory_data).execute()
+    result = auth.client.table("knowledge_entries").insert(memory_data).execute()
 
     if not result.data:
         return {
@@ -2574,7 +2575,7 @@ async def handle_update_memory(auth, input: dict) -> dict:
     updates["updated_at"] = datetime.utcnow().isoformat()
 
     # Apply update
-    result = auth.client.table("memories")\
+    result = auth.client.table("knowledge_entries")\
         .update(updates)\
         .eq("id", memory_id)\
         .eq("user_id", auth.user_id)\
@@ -2614,7 +2615,7 @@ async def handle_delete_memory(auth, input: dict) -> dict:
 
     # Verify ownership and get content preview (only active memories)
     try:
-        memory_result = auth.client.table("memories")\
+        memory_result = auth.client.table("knowledge_entries")\
             .select("id, content")\
             .eq("id", memory_id)\
             .eq("user_id", auth.user_id)\
@@ -2636,7 +2637,7 @@ async def handle_delete_memory(auth, input: dict) -> dict:
     content_preview = memory_result.data["content"][:50] + "..." if len(memory_result.data["content"]) > 50 else memory_result.data["content"]
 
     # Soft delete memory (schema uses is_active pattern)
-    auth.client.table("memories")\
+    auth.client.table("knowledge_entries")\
         .update({"is_active": False})\
         .eq("id", memory_id)\
         .execute()
@@ -2736,7 +2737,7 @@ async def handle_suggest_project_for_memory(auth, input: dict) -> dict:
 
         # Check for project-specific context in the project's memories
         try:
-            project_memories = auth.client.table("memories")\
+            project_memories = auth.client.table("knowledge_entries")\
                 .select("content")\
                 .eq("project_id", project["id"])\
                 .eq("is_active", True)\

@@ -3760,7 +3760,7 @@ async def save_as_memory(
         "tags": tags or [],
     }
 
-    result = client.table("memories").insert(memory_data).execute()
+    result = client.table("knowledge_entries").insert(memory_data).execute()
 
     if result.data:
         return result.data[0]["id"]

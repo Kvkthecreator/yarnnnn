@@ -8,7 +8,7 @@ Usage:
   Search(query="weekly report", scope="deliverable")
 
 NOTE: 'memory' scope removed per ADR-038. Platform content now lives in
-ephemeral_context table. Use scope="platform_content" to search imported
+filesystem_items table. Use scope="platform_content" to search imported
 Slack/Gmail/Notion content.
 """
 
@@ -149,16 +149,16 @@ async def _search_platform_content(
     limit: int,
 ) -> list[dict]:
     """
-    Search ephemeral_context table for platform content.
+    Search filesystem_items table for platform content.
 
     ADR-038: This replaces the old memory scope. Platform content
-    (Slack messages, Gmail emails, Notion pages) lives in ephemeral_context.
+    (Slack messages, Gmail emails, Notion pages) lives in filesystem_items.
     """
     try:
-        # Build query on ephemeral_context
-        q = auth.client.table("ephemeral_context").select(
+        # Build query on filesystem_items
+        q = auth.client.table("filesystem_items").select(
             "id, platform, resource_id, resource_name, content, content_type, "
-            "platform_metadata, source_timestamp, created_at, expires_at"
+            "metadata, source_timestamp, synced_at, expires_at"
         ).eq(
             "user_id", auth.user_id
         ).gt(
@@ -187,7 +187,7 @@ async def _search_platform_content(
                 "data": {
                     "content": item["content"][:500] + "..." if len(item.get("content", "")) > 500 else item.get("content", ""),
                     "source_timestamp": item.get("source_timestamp"),
-                    "metadata": item.get("platform_metadata", {}),
+                    "metadata": item.get("metadata", {}),
                 },
                 "score": 0.5,  # Text search doesn't have similarity score
             }
@@ -207,20 +207,18 @@ async def _search_user_memories(
     limit: int,
 ) -> list[dict]:
     """
-    Search memories table for user-stated facts.
+    Search knowledge_entries table for user knowledge.
 
-    ADR-038: Memory table is now restricted to user-stated facts only.
-    source_type IN ('user_stated', 'chat', 'conversation', 'preference', 'manual')
+    ADR-058: Knowledge entries are user-stated facts, preferences, decisions.
+    source IN ('user_stated', 'conversation', 'document', 'inferred')
     """
     try:
-        result = auth.client.table("memories").select(
-            "id, content, tags, importance, source_type, created_at"
+        result = auth.client.table("knowledge_entries").select(
+            "id, content, tags, importance, source, entry_type, created_at"
         ).eq(
             "user_id", auth.user_id
         ).eq(
             "is_active", True
-        ).in_(
-            "source_type", ["user_stated", "chat", "conversation", "preference", "manual"]
         ).ilike(
             "content", f"%{query}%"
         ).order(
@@ -238,7 +236,8 @@ async def _search_user_memories(
                     "content": item["content"],
                     "tags": item.get("tags", []),
                     "importance": item.get("importance", 0.5),
-                    "source_type": item.get("source_type"),
+                    "source": item.get("source"),
+                    "entry_type": item.get("entry_type"),
                 },
                 "score": 0.5,
             }

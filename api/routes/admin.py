@@ -110,14 +110,14 @@ async def get_overview_stats(admin: AdminAuth):
         projects_7d = projects_7d_result.count or 0
 
         # Total memories (active only)
-        memories_result = client.table("memories")\
+        memories_result = client.table("knowledge_entries")\
             .select("id", count="exact")\
             .eq("is_active", True)\
             .execute()
         total_memories = memories_result.count or 0
 
         # Memories in last 7 days
-        memories_7d_result = client.table("memories")\
+        memories_7d_result = client.table("knowledge_entries")\
             .select("id", count="exact")\
             .eq("is_active", True)\
             .gte("created_at", seven_days_ago)\
@@ -125,7 +125,7 @@ async def get_overview_stats(admin: AdminAuth):
         memories_7d = memories_7d_result.count or 0
 
         # Total documents
-        documents_result = client.table("documents").select("id", count="exact").execute()
+        documents_result = client.table("filesystem_documents").select("id", count="exact").execute()
         total_documents = documents_result.count or 0
 
         # Total chat sessions
@@ -186,7 +186,7 @@ async def list_users(admin: AdminAuth):
                 project_count = projects.count or 0
 
             # Get memory count
-            memories = client.table("memories")\
+            memories = client.table("knowledge_entries")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
                 .eq("is_active", True)\
@@ -232,7 +232,7 @@ async def get_memory_stats(admin: AdminAuth):
         # By source type
         by_source = {}
         for source in ["chat", "document", "manual", "import"]:
-            result = client.table("memories")\
+            result = client.table("knowledge_entries")\
                 .select("id", count="exact")\
                 .eq("source_type", source)\
                 .eq("is_active", True)\
@@ -241,13 +241,13 @@ async def get_memory_stats(admin: AdminAuth):
 
         # By scope (user vs project)
         # Get total active memories first
-        total_result = client.table("memories")\
+        total_result = client.table("knowledge_entries")\
             .select("id", count="exact")\
             .eq("is_active", True)\
             .execute()
         total_active_memories = total_result.count or 0
 
-        user_scoped = client.table("memories")\
+        user_scoped = client.table("knowledge_entries")\
             .select("id", count="exact")\
             .is_("project_id", "null")\
             .eq("is_active", True)\
@@ -263,7 +263,7 @@ async def get_memory_stats(admin: AdminAuth):
         }
 
         # Average importance
-        all_memories = client.table("memories")\
+        all_memories = client.table("knowledge_entries")\
             .select("importance")\
             .eq("is_active", True)\
             .execute()
@@ -275,13 +275,13 @@ async def get_memory_stats(admin: AdminAuth):
                 avg_importance = sum(importances) / len(importances)
 
         # Total active
-        total_active = client.table("memories")\
+        total_active = client.table("knowledge_entries")\
             .select("id", count="exact")\
             .eq("is_active", True)\
             .execute()
 
         # Total soft-deleted
-        total_deleted = client.table("memories")\
+        total_deleted = client.table("knowledge_entries")\
             .select("id", count="exact")\
             .eq("is_active", False)\
             .execute()
@@ -307,14 +307,14 @@ async def get_document_stats(admin: AdminAuth):
         # By processing status
         by_status = {}
         for status in ["pending", "processing", "completed", "failed"]:
-            result = client.table("documents")\
+            result = client.table("filesystem_documents")\
                 .select("id", count="exact")\
                 .eq("processing_status", status)\
                 .execute()
             by_status[status] = result.count or 0
 
         # Total storage (sum of file_size)
-        all_docs = client.table("documents")\
+        all_docs = client.table("filesystem_documents")\
             .select("file_size")\
             .execute()
 
@@ -323,7 +323,7 @@ async def get_document_stats(admin: AdminAuth):
             total_storage_bytes = sum(d.get("file_size", 0) or 0 for d in all_docs.data)
 
         # Total chunks
-        chunks_result = client.table("chunks")\
+        chunks_result = client.table("filesystem_chunks")\
             .select("id", count="exact")\
             .execute()
         total_chunks = chunks_result.count or 0
@@ -433,7 +433,7 @@ async def export_users_excel(admin: AdminAuth):
                 project_count = projects.count or 0
 
             # Get memory count
-            memories = client.table("memories")\
+            memories = client.table("knowledge_entries")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
                 .eq("is_active", True)\
@@ -574,14 +574,14 @@ async def export_full_report(admin: AdminAuth):
         total_projects = projects_result.count or 0
 
         # Memories
-        memories_result = client.table("memories")\
+        memories_result = client.table("knowledge_entries")\
             .select("id, created_at", count="exact")\
             .eq("is_active", True)\
             .execute()
         total_memories = memories_result.count or 0
 
         # Documents
-        docs_result = client.table("documents")\
+        docs_result = client.table("filesystem_documents")\
             .select("id, file_size, processing_status", count="exact")\
             .execute()
         total_documents = docs_result.count or 0
@@ -621,7 +621,7 @@ async def export_full_report(admin: AdminAuth):
                 project_count = projects.count or 0
 
             # Memory count
-            memories = client.table("memories")\
+            memories = client.table("knowledge_entries")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
                 .eq("is_active", True)\

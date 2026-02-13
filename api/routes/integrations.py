@@ -347,7 +347,7 @@ class CalendarEventsListResponse(BaseModel):
 
 # ADR-052: Platform context response models
 class PlatformContextItem(BaseModel):
-    """A single synced content item from ephemeral_context."""
+    """A single synced content item from filesystem_items."""
     id: str
     content: str
     content_type: Optional[str] = None  # message, thread_parent, email, page
@@ -359,7 +359,7 @@ class PlatformContextItem(BaseModel):
 
 
 class PlatformContextResponse(BaseModel):
-    """ADR-052: Synced content from ephemeral_context for a platform."""
+    """ADR-052: Synced content from filesystem_items for a platform."""
     items: list[PlatformContextItem]
     total_count: int
     freshest_at: Optional[str] = None
@@ -399,7 +399,7 @@ class StartImportRequest(BaseModel):
 class ImportJobResultResponse(BaseModel):
     """Result details for a completed import job."""
     blocks_extracted: int = 0  # ADR-038: renamed from blocks_created (no longer stored to memories)
-    ephemeral_stored: int = 0  # ADR-038: items stored to ephemeral_context
+    ephemeral_stored: int = 0  # ADR-038: items stored to filesystem_items
     items_processed: int = 0
     items_filtered: int = 0
     summary: Optional[str] = None
@@ -575,10 +575,10 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             ).execute()
             deliverable_count = deliverables_result.count or 0
 
-            # Count recent activity from ephemeral_context (last 7 days)
+            # Count recent activity from filesystem_items (last 7 days)
             from datetime import timedelta
             seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-            activity_result = auth.client.table("ephemeral_context").select(
+            activity_result = auth.client.table("filesystem_items").select(
                 "id", count="exact"
             ).eq("user_id", user_id).eq(
                 "platform", provider
@@ -2505,7 +2505,7 @@ async def get_platform_context(
     auth: UserClient = None
 ) -> PlatformContextResponse:
     """
-    ADR-052: Get synced content from ephemeral_context for a platform.
+    ADR-052: Get synced content from filesystem_items for a platform.
 
     This is the actual platform content (messages, emails, pages) that TP knows about.
     Different from landscape (which shows available resources) and memories (user-stated facts).
@@ -2519,7 +2519,7 @@ async def get_platform_context(
 
     # Build query
     query = (
-        auth.client.table("ephemeral_context")
+        auth.client.table("filesystem_items")
         .select("*")
         .eq("user_id", user_id)
         .eq("platform", provider)
@@ -2535,7 +2535,7 @@ async def get_platform_context(
 
     # Get total count
     count_query = (
-        auth.client.table("ephemeral_context")
+        auth.client.table("filesystem_items")
         .select("id", count="exact")
         .eq("user_id", user_id)
         .eq("platform", provider)
@@ -2564,7 +2564,7 @@ async def get_platform_context(
             resource_name=row.get("resource_name"),
             source_timestamp=source_ts,
             created_at=row["created_at"],
-            metadata=row.get("platform_metadata", {}),
+            metadata=row.get("metadata", {}),
         ))
 
     logger.info(f"[INTEGRATIONS] User {user_id} fetched {len(items)} context items from {provider}")

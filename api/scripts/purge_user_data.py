@@ -102,10 +102,10 @@ def purge_user_data(email: str, dry_run: bool = False):
     # 3. Delete memories
     print(f"\n🗑️  {action} memories...")
     if not dry_run:
-        result = client.table("memories").delete().eq("user_id", user_id).execute()
+        result = client.table("knowledge_entries").delete().eq("user_id", user_id).execute()
         print(f"   Deleted {len(result.data or [])} memories")
     else:
-        memories = client.table("memories").select("id").eq("user_id", user_id).execute()
+        memories = client.table("knowledge_entries").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(memories.data or [])} memories")
 
     # 4. Delete work_outputs and work_tickets
@@ -130,10 +130,10 @@ def purge_user_data(email: str, dry_run: bool = False):
     # 5. Delete context_domains
     print(f"\n🗑️  {action} context_domains...")
     if not dry_run:
-        result = client.table("context_domains").delete().eq("user_id", user_id).execute()
+        result = client.table("knowledge_domains").delete().eq("user_id", user_id).execute()
         print(f"   Deleted {len(result.data or [])} context domains")
     else:
-        domains = client.table("context_domains").select("id").eq("user_id", user_id).execute()
+        domains = client.table("knowledge_domains").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(domains.data or [])} context domains")
 
     print(f"\n{'🔍 DRY RUN COMPLETE' if dry_run else '✅ PURGE COMPLETE'}")

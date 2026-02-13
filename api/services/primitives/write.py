@@ -59,7 +59,8 @@ DEFAULTS = {
     },
     "memory": {
         "tags": [],
-        "source_type": "user_stated",  # ADR-038: User-stated facts via TP
+        "source": "user_stated",  # ADR-058: User-stated facts via TP
+        "entry_type": "fact",  # Default type
         "is_active": True,
         "importance": 0.5,
     },

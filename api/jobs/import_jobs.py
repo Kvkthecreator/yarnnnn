@@ -60,7 +60,7 @@ async def store_style_memory(
             "tags": ["style", profile.platform, profile.context],
         }
 
-        supabase_client.table("memories").insert(memory_data).execute()
+        supabase_client.table("knowledge_entries").insert(memory_data).execute()
 
         logger.info(
             f"[STYLE] Stored {profile.platform} style profile for user "

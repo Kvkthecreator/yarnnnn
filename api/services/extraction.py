@@ -237,7 +237,7 @@ async def extract_from_conversation(
             return {"user_memories_inserted": 0, "project_memories_inserted": 0}
 
         # Get existing memories for deduplication
-        existing_query = db_client.table("memories")\
+        existing_query = db_client.table("knowledge_entries")\
             .select("content")\
             .eq("user_id", user_id)\
             .eq("is_active", True)
@@ -282,15 +282,22 @@ async def extract_from_conversation(
                 print(f"Failed to generate embedding: {e}")
                 embedding = None
 
-            # Build record
+            # Build record - ADR-058: knowledge_entries schema
+            # Map source_type to new source column values
+            source_map = {
+                "chat": "conversation",
+                "import": "document",
+                "bulk": "document",
+                "manual": "user_stated",
+            }
             record = {
                 "user_id": user_id,
                 "domain_id": mem_domain_id,
                 "content": mem["content"],
                 "tags": mem["tags"],
-                "entities": mem["entities"],
                 "importance": mem["importance"],
-                "source_type": source_type,
+                "source": source_map.get(source_type, "conversation"),
+                "entry_type": "fact",  # Default type
                 "source_ref": {"session_id": source_ref} if source_ref else None,
             }
 
@@ -300,7 +307,7 @@ async def extract_from_conversation(
 
             # Insert
             try:
-                db_client.table("memories").insert(record).execute()
+                db_client.table("knowledge_entries").insert(record).execute()
                 existing_hashes.add(mem_hash)
 
                 if mem_domain_id == default_domain_id:
@@ -345,7 +352,7 @@ async def extract_from_bulk_text(
             return 0
 
         # Get existing for deduplication
-        existing = db_client.table("memories")\
+        existing = db_client.table("knowledge_entries")\
             .select("content")\
             .eq("user_id", user_id)\
             .eq("is_active", True)\
@@ -369,21 +376,22 @@ async def extract_from_bulk_text(
                 print(f"Failed to generate embedding: {e}")
                 embedding = None
 
+            # ADR-058: knowledge_entries schema
             record = {
                 "user_id": user_id,
-                "project_id": mem_project_id,
+                "domain_id": mem_project_id,  # project_id → domain_id
                 "content": mem["content"],
                 "tags": mem["tags"],
-                "entities": mem["entities"],
                 "importance": mem["importance"],
-                "source_type": "bulk",
+                "source": "document",  # bulk → document
+                "entry_type": "fact",
             }
 
             if embedding:
                 record["embedding"] = embedding
 
             try:
-                db_client.table("memories").insert(record).execute()
+                db_client.table("knowledge_entries").insert(record).execute()
                 existing_hashes.add(mem_hash)
                 inserted += 1
             except Exception as e:
@@ -427,18 +435,19 @@ async def create_memory_manual(
         print(f"Failed to generate embedding: {e}")
         embedding = None
 
+    # ADR-058: knowledge_entries schema
     record = {
         "user_id": user_id,
-        "domain_id": domain_id,  # ADR-034: Use domain_id instead of project_id
+        "domain_id": domain_id,
         "content": content,
         "tags": tags or [],
-        "entities": {},
         "importance": importance,
-        "source_type": "manual",
+        "source": "user_stated",  # manual → user_stated
+        "entry_type": "fact",
     }
 
     if embedding:
         record["embedding"] = embedding
 
-    result = db_client.table("memories").insert(record).execute()
+    result = db_client.table("knowledge_entries").insert(record).execute()
     return result.data[0] if result.data else None

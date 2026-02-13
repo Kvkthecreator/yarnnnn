@@ -155,11 +155,11 @@ def parse_ref(ref: str) -> EntityRef:
 TABLE_MAP = {
     "deliverable": "deliverables",
     "platform": "platform_connections",
-    "platform_content": "ephemeral_context",  # ADR-038
-    "memory": "memories",  # Narrowed to user-stated facts
+    "platform_content": "filesystem_items",  # ADR-058
+    "memory": "knowledge_entries",  # ADR-058: User-stated facts
     "session": "chat_sessions",
-    "domain": "context_domains",
-    "document": "documents",
+    "domain": "knowledge_domains",  # ADR-058
+    "document": "filesystem_documents",  # ADR-058
     "work": "work_tickets",
 }
 

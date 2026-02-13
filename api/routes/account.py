@@ -169,11 +169,11 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         chat_sessions_count = sessions.count or 0
 
         # Count memories
-        memories = auth.client.table("memories").select("id", count="exact").eq("user_id", user_id).execute()
+        memories = auth.client.table("knowledge_entries").select("id", count="exact").eq("user_id", user_id).execute()
         memories_count = memories.count or 0
 
         # Count documents
-        documents = auth.client.table("documents").select("id", count="exact").eq("user_id", user_id).execute()
+        documents = auth.client.table("filesystem_documents").select("id", count="exact").eq("user_id", user_id).execute()
         documents_count = documents.count or 0
 
         # Count work tickets
@@ -270,7 +270,7 @@ async def clear_all_memories(auth: UserClient) -> OperationResult:
     user_id = auth.user_id
 
     try:
-        result = auth.client.table("memories").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("knowledge_entries").delete().eq("user_id", user_id).execute()
         deleted_count = len(result.data or [])
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all memories: {deleted_count}")
@@ -294,7 +294,7 @@ async def clear_all_documents(auth: UserClient) -> OperationResult:
     user_id = auth.user_id
 
     try:
-        result = auth.client.table("documents").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted_count = len(result.data or [])
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all documents: {deleted_count}")
@@ -392,11 +392,11 @@ async def clear_all_context(auth: UserClient) -> OperationResult:
         deleted["chat_sessions"] = len(result.data or [])
 
         # Delete memories
-        result = auth.client.table("memories").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("knowledge_entries").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
         # Delete documents (chunks cascade)
-        result = auth.client.table("documents").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all context: {deleted}")
@@ -544,11 +544,11 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         deleted["chat_sessions"] = len(result.data or [])
 
         # 5. Delete memories
-        result = auth.client.table("memories").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("knowledge_entries").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
         # 6. Delete documents
-        result = auth.client.table("documents").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
         # 7. Delete integration data
@@ -632,11 +632,11 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         deleted["chat_sessions"] = len(result.data or [])
 
         # 5. Delete memories
-        result = auth.client.table("memories").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("knowledge_entries").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
         # 6. Delete documents
-        result = auth.client.table("documents").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
         # 7. Delete integration data

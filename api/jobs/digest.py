@@ -205,7 +205,7 @@ async def generate_digest_content(
         content.top_outputs = outputs_result.data or []
 
     # Count new memories
-    memories_result = supabase_client.table("memories").select(
+    memories_result = supabase_client.table("knowledge_entries").select(
         "id", count="exact"
     ).eq("user_id", user_id).gte(
         "created_at", week_ago.isoformat()

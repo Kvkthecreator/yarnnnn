@@ -283,7 +283,7 @@ async def reconcile_domains(
     client = get_service_client()
 
     # Get existing domains and their sources
-    existing_domains = client.table("context_domains").select(
+    existing_domains = client.table("knowledge_domains").select(
         "id, name, name_source, is_default"
     ).eq("user_id", user_id).execute()
 
@@ -359,7 +359,7 @@ async def apply_domain_changes(
     # Create new domains
     for computed in reconciliation.domains_to_create:
         # Create domain
-        domain_result = client.table("context_domains").insert({
+        domain_result = client.table("knowledge_domains").insert({
             "user_id": user_id,
             "name": computed.suggested_name,
             "name_source": "auto",
@@ -455,7 +455,7 @@ async def apply_domain_changes(
     # Merge domains
     for domain_ids_to_merge, computed in reconciliation.domains_to_merge:
         # Pick the domain to keep (prefer user-named)
-        domains_info = client.table("context_domains").select(
+        domains_info = client.table("knowledge_domains").select(
             "id, name, name_source"
         ).in_("id", domain_ids_to_merge).execute()
 
@@ -480,12 +480,12 @@ async def apply_domain_changes(
                 }).eq("domain_id", domain_id).execute()
 
                 # Update memories
-                client.table("memories").update({
+                client.table("knowledge_entries").update({
                     "domain_id": keep_domain_id
                 }).eq("domain_id", domain_id).execute()
 
                 # Delete merged domain
-                client.table("context_domains").delete().eq("id", domain_id).execute()
+                client.table("knowledge_domains").delete().eq("id", domain_id).execute()
 
         # Add any new sources from computed
         current_sources = client.table("domain_sources").select(
@@ -641,7 +641,7 @@ async def get_active_domain_for_context(
                 return domain_id
 
     # Priority 3: Only one domain
-    domains = client.table("context_domains").select("id").eq(
+    domains = client.table("knowledge_domains").select("id").eq(
         "user_id", user_id
     ).eq("is_default", False).execute()
 

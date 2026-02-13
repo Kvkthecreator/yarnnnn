@@ -90,7 +90,7 @@ async def get_onboarding_state(auth: UserClient):
 
     try:
         # Count user memories
-        memory_result = auth.client.table("memories")\
+        memory_result = auth.client.table("knowledge_entries")\
             .select("id", count="exact")\
             .eq("user_id", auth.user_id)\
             .eq("is_active", True)\
@@ -98,7 +98,7 @@ async def get_onboarding_state(auth: UserClient):
         memory_count = memory_result.count or 0
 
         # Count documents
-        doc_result = auth.client.table("documents")\
+        doc_result = auth.client.table("filesystem_documents")\
             .select("id", count="exact")\
             .eq("user_id", auth.user_id)\
             .execute()
@@ -145,7 +145,7 @@ async def list_user_memories(auth: UserClient):
     Returns items sorted by importance (highest first).
     """
     try:
-        result = auth.client.table("memories")\
+        result = auth.client.table("knowledge_entries")\
             .select("*")\
             .eq("user_id", auth.user_id)\
             .eq("is_active", True)\
@@ -231,7 +231,7 @@ async def update_memory(memory_id: UUID, update: MemoryUpdate, auth: UserClient)
 
         update_data["updated_at"] = datetime.utcnow().isoformat()
 
-        result = auth.client.table("memories")\
+        result = auth.client.table("knowledge_entries")\
             .update(update_data)\
             .eq("id", str(memory_id))\
             .eq("user_id", auth.user_id)\
@@ -254,7 +254,7 @@ async def update_memory(memory_id: UUID, update: MemoryUpdate, auth: UserClient)
 async def delete_memory(memory_id: UUID, auth: UserClient):
     """Soft-delete a memory (sets is_active=false)."""
     try:
-        result = auth.client.table("memories")\
+        result = auth.client.table("knowledge_entries")\
             .update({
                 "is_active": False,
                 "updated_at": datetime.utcnow().isoformat()

@@ -722,7 +722,7 @@ async def global_chat(
             if domain_result.data:
                 active_domain_id = UUID(domain_result.data)
                 # Get domain name
-                domain_name_result = auth.client.table("context_domains")\
+                domain_name_result = auth.client.table("knowledge_domains")\
                     .select("name")\
                     .eq("id", str(active_domain_id))\
                     .single()\
@@ -736,7 +736,7 @@ async def global_chat(
     # Fallback: check if user has only one domain (use it implicitly)
     if not active_domain_id:
         try:
-            domains_result = auth.client.table("context_domains")\
+            domains_result = auth.client.table("knowledge_domains")\
                 .select("id, name")\
                 .eq("user_id", auth.user_id)\
                 .eq("is_default", False)\

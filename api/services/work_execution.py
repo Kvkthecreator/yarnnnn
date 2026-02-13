@@ -57,7 +57,7 @@ async def load_context_for_work(
     try:
         # Load user memories
         user_result = (
-            client.table("memories")
+            client.table("knowledge_entries")
             .select("*")
             .eq("user_id", user_id)
             .eq("is_active", True)

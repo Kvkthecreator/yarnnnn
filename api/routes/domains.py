@@ -149,7 +149,7 @@ async def get_active_domain(
 
             if result.data:
                 # Get domain details
-                domain_result = auth.client.table("context_domains")\
+                domain_result = auth.client.table("knowledge_domains")\
                     .select("id, name, is_default")\
                     .eq("id", result.data)\
                     .single()\
@@ -166,7 +166,7 @@ async def get_active_domain(
                     }
 
         # Priority 2: Single domain (auto-select)
-        domains_result = auth.client.table("context_domains")\
+        domains_result = auth.client.table("knowledge_domains")\
             .select("id, name, is_default")\
             .eq("user_id", auth.user_id)\
             .eq("is_default", False)\
@@ -200,7 +200,7 @@ async def get_domain(domain_id: UUID, auth: UserClient):
     """
     try:
         # Get domain
-        domain_result = auth.client.table("context_domains")\
+        domain_result = auth.client.table("knowledge_domains")\
             .select("*")\
             .eq("id", str(domain_id))\
             .eq("user_id", auth.user_id)\
@@ -225,7 +225,7 @@ async def get_domain(domain_id: UUID, auth: UserClient):
             .execute()
 
         # Get memory count
-        memories_result = auth.client.table("memories")\
+        memories_result = auth.client.table("knowledge_entries")\
             .select("id", count="exact")\
             .eq("domain_id", str(domain_id))\
             .eq("is_active", True)\
@@ -259,7 +259,7 @@ async def update_domain(domain_id: UUID, request: DomainUpdateRequest, auth: Use
     """
     try:
         # Verify ownership
-        check_result = auth.client.table("context_domains")\
+        check_result = auth.client.table("knowledge_domains")\
             .select("id")\
             .eq("id", str(domain_id))\
             .eq("user_id", auth.user_id)\
@@ -270,7 +270,7 @@ async def update_domain(domain_id: UUID, request: DomainUpdateRequest, auth: Use
             raise HTTPException(status_code=404, detail="Domain not found")
 
         # Update name
-        result = auth.client.table("context_domains")\
+        result = auth.client.table("knowledge_domains")\
             .update({
                 "name": request.name,
                 "name_source": "user"  # Mark as user-named
@@ -325,7 +325,7 @@ async def list_domain_memories(domain_id: UUID, auth: UserClient):
     """
     try:
         # Verify domain ownership
-        domain_result = auth.client.table("context_domains")\
+        domain_result = auth.client.table("knowledge_domains")\
             .select("id, is_default")\
             .eq("id", str(domain_id))\
             .eq("user_id", auth.user_id)\
@@ -339,7 +339,7 @@ async def list_domain_memories(domain_id: UUID, auth: UserClient):
 
         if is_default:
             # Default domain: get user-scoped memories (domain_id is null or matches)
-            result = auth.client.table("memories")\
+            result = auth.client.table("knowledge_entries")\
                 .select("*")\
                 .eq("user_id", auth.user_id)\
                 .eq("is_active", True)\
@@ -348,7 +348,7 @@ async def list_domain_memories(domain_id: UUID, auth: UserClient):
                 .execute()
         else:
             # Non-default domain: get domain-scoped memories
-            result = auth.client.table("memories")\
+            result = auth.client.table("knowledge_entries")\
                 .select("*")\
                 .eq("domain_id", str(domain_id))\
                 .eq("is_active", True)\
@@ -374,7 +374,7 @@ async def create_domain_memory(domain_id: UUID, memory: MemoryCreate, auth: User
     """
     try:
         # Verify domain ownership
-        domain_result = auth.client.table("context_domains")\
+        domain_result = auth.client.table("knowledge_domains")\
             .select("id, is_default")\
             .eq("id", str(domain_id))\
             .eq("user_id", auth.user_id)\

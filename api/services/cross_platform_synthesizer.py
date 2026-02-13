@@ -244,10 +244,10 @@ async def suggest_project_resources(
     since = now - timedelta(days=30)
 
     result = (
-        db_client.table("ephemeral_context")
+        db_client.table("filesystem_items")
         .select("platform, resource_id, resource_name")
         .eq("user_id", user_id)
-        .gt("created_at", since.isoformat())
+        .gt("synced_at", since.isoformat())
         .gt("expires_at", now.isoformat())
         .execute()
     )
@@ -358,7 +358,7 @@ async def assemble_cross_platform_context(
     for resource in resources:
         # Query ephemeral context for this resource
         result = (
-            db_client.table("ephemeral_context")
+            db_client.table("filesystem_items")
             .select("*")
             .eq("user_id", user_id)
             .eq("platform", resource.platform)
@@ -383,7 +383,7 @@ async def assemble_cross_platform_context(
                 content=content_text,
                 content_type=row.get("content_type", "message"),
                 source_timestamp=_parse_datetime(row.get("source_timestamp")) or now,
-                platform_metadata=row.get("platform_metadata") or {},
+                platform_metadata=row.get("metadata") or {},
                 content_hash=content_hash,
             )
             items_for_resource.append(item)

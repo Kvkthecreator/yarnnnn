@@ -216,7 +216,7 @@ async def gather_context_inline(
             if doc_id:
                 try:
                     doc_result = (
-                        client.table("documents")
+                        client.table("filesystem_documents")
                         .select("filename, extracted_text")
                         .eq("id", doc_id)
                         .single()
@@ -255,15 +255,14 @@ async def gather_context_inline(
 
 
 async def _get_relevant_memories(client, user_id: str, deliverable: dict) -> str:
-    """Get relevant user memories for context."""
+    """Get relevant user knowledge for context."""
     try:
-        # Get user-stated facts (ADR-038: source_type restrictions)
+        # Get user knowledge entries (ADR-058)
         result = (
-            client.table("memories")
-            .select("content, tags")
+            client.table("knowledge_entries")
+            .select("content, tags, entry_type")
             .eq("user_id", user_id)
             .eq("is_active", True)
-            .in_("source_type", ["user_stated", "chat", "conversation", "preference"])
             .order("importance", desc=True)
             .limit(20)
             .execute()
