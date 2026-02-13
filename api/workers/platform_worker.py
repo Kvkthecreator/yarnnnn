@@ -139,6 +139,13 @@ async def _sync_platform_async(
             "last_synced_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", integration["id"]).execute()
 
+        # ADR-058: Trigger profile inference after successful sync
+        try:
+            from services.profile_inference import trigger_profile_inference_after_sync
+            await trigger_profile_inference_after_sync(user_id, provider, client)
+        except Exception as e:
+            logger.warning(f"[PLATFORM_WORKER] Profile inference failed (non-critical): {e}")
+
         return {
             "success": True,
             "provider": provider,

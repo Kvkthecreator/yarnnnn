@@ -766,11 +766,25 @@ All schema changes and migrations applied:
 - Deliverable source selection verified
 - Platform detail pages verified
 
-### Remaining Work
+### Inference Engine ✅
 
-- **Inference Engine**: Not yet implemented (profile/style inference from filesystem)
-- **Knowledge extraction from conversations**: Not yet implemented
-- **User override UI**: Basic editing available, full override pattern pending
+- `api/services/profile_inference.py` - Infers user profile from filesystem content
+- Triggered automatically after platform sync
+- Uses Claude Haiku for LLM-based extraction
+- 24-hour cooldown to avoid redundant processing
+
+### Conversation Extraction ✅
+
+- `api/services/extraction.py` - Already integrated in chat.py
+- Fires as background task after each TP conversation
+- Extracts facts, preferences, decisions to `knowledge_entries`
+
+### User Override UI ✅
+
+- Profile editing in `/context?section=profile`
+- Style preferences editing in `/context?section=styles`
+- `stated_*` fields take precedence over `inferred_*` fields
+- Visual indicator shows "custom" vs "inferred" values
 
 ---
 

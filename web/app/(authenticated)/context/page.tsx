@@ -409,9 +409,33 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
 interface StylesSectionProps {
   styles: Style[];
   loading: boolean;
+  onUpdate?: (platform: string, data: { tone?: string; verbosity?: string }) => Promise<void>;
 }
 
-function StylesSection({ styles, loading }: StylesSectionProps) {
+function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
+  const [editingPlatform, setEditingPlatform] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<{ tone?: string; verbosity?: string }>({});
+  const [saving, setSaving] = useState(false);
+
+  const handleEdit = (style: Style) => {
+    setEditingPlatform(style.platform);
+    setEditForm({
+      tone: style.stated_preferences?.tone as string || style.tone || '',
+      verbosity: style.stated_preferences?.verbosity as string || style.verbosity || '',
+    });
+  };
+
+  const handleSave = async () => {
+    if (!editingPlatform || !onUpdate) return;
+    setSaving(true);
+    try {
+      await onUpdate(editingPlatform, editForm);
+      setEditingPlatform(null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -425,6 +449,10 @@ function StylesSection({ styles, loading }: StylesSectionProps) {
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Communication Styles</h2>
       </div>
+
+      <p className="text-sm text-gray-500 dark:text-gray-400">
+        These styles are inferred from your messages. Override them to control how TP generates content for you.
+      </p>
 
       {styles.length === 0 ? (
         <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 text-center">
@@ -441,47 +469,117 @@ function StylesSection({ styles, loading }: StylesSectionProps) {
               icon: <Database className="w-4 h-4" />,
               colors: { bg: 'bg-gray-100', text: 'text-gray-600' },
             };
+            const isEditing = editingPlatform === style.platform;
+            const hasOverride = style.stated_preferences && Object.keys(style.stated_preferences).length > 0;
 
             return (
               <div
                 key={style.platform}
                 className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4"
               >
-                <div className="flex items-center gap-2 mb-3">
-                  <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
-                    {config.icon}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
+                      {config.icon}
+                    </div>
+                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                      {config.label}
+                    </span>
+                    {hasOverride && (
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                        custom
+                      </span>
+                    )}
                   </div>
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
-                    {config.label}
-                  </span>
+                  {!isEditing && onUpdate && (
+                    <button
+                      onClick={() => handleEdit(style)}
+                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                    >
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  )}
                 </div>
 
-                <div className="space-y-2 text-sm">
-                  {style.tone && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 dark:text-gray-400">Tone</span>
-                      <span className="text-gray-900 dark:text-gray-100 capitalize">{style.tone}</span>
+                {isEditing ? (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tone</label>
+                      <select
+                        value={editForm.tone || ''}
+                        onChange={(e) => setEditForm({ ...editForm, tone: e.target.value })}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                      >
+                        <option value="">Auto (inferred)</option>
+                        <option value="casual">Casual</option>
+                        <option value="formal">Formal</option>
+                        <option value="professional">Professional</option>
+                        <option value="friendly">Friendly</option>
+                      </select>
                     </div>
-                  )}
-                  {style.verbosity && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-500 dark:text-gray-400">Verbosity</span>
-                      <span className="text-gray-900 dark:text-gray-100 capitalize">{style.verbosity}</span>
+                    <div>
+                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Verbosity</label>
+                      <select
+                        value={editForm.verbosity || ''}
+                        onChange={(e) => setEditForm({ ...editForm, verbosity: e.target.value })}
+                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                      >
+                        <option value="">Auto (inferred)</option>
+                        <option value="minimal">Minimal</option>
+                        <option value="moderate">Moderate</option>
+                        <option value="detailed">Detailed</option>
+                      </select>
                     </div>
-                  )}
-                  <div className="flex justify-between">
-                    <span className="text-gray-500 dark:text-gray-400">Samples</span>
-                    <span className="text-gray-900 dark:text-gray-100">{style.sample_count}</span>
+                    <div className="flex gap-2 pt-2">
+                      <button
+                        onClick={() => setEditingPlatform(null)}
+                        className="flex-1 px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={handleSave}
+                        disabled={saving}
+                        className="flex-1 px-2 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+                      >
+                        {saving ? 'Saving...' : 'Save'}
+                      </button>
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  <>
+                    <div className="space-y-2 text-sm">
+                      {(style.tone || (style.stated_preferences?.tone as string | undefined)) && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-gray-400">Tone</span>
+                          <span className="text-gray-900 dark:text-gray-100 capitalize">
+                            {String((style.stated_preferences?.tone as string | undefined) || style.tone)}
+                          </span>
+                        </div>
+                      )}
+                      {(style.verbosity || (style.stated_preferences?.verbosity as string | undefined)) && (
+                        <div className="flex justify-between">
+                          <span className="text-gray-500 dark:text-gray-400">Verbosity</span>
+                          <span className="text-gray-900 dark:text-gray-100 capitalize">
+                            {String((style.stated_preferences?.verbosity as string | undefined) || style.verbosity)}
+                          </span>
+                        </div>
+                      )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-500 dark:text-gray-400">Samples</span>
+                        <span className="text-gray-900 dark:text-gray-100">{style.sample_count}</span>
+                      </div>
+                    </div>
 
-                {style.sample_excerpts && style.sample_excerpts.length > 0 && (
-                  <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                    <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Example:</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-400 italic line-clamp-2">
-                      &ldquo;{style.sample_excerpts[0]}&rdquo;
-                    </p>
-                  </div>
+                    {style.sample_excerpts && style.sample_excerpts.length > 0 && (
+                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Example:</p>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 italic line-clamp-2">
+                          &ldquo;{style.sample_excerpts[0]}&rdquo;
+                        </p>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             );
@@ -1024,6 +1122,17 @@ export default function ContextPage() {
     setProfile(result);
   };
 
+  // Style update handler (ADR-058: user override)
+  const handleStyleUpdate = async (platform: string, data: { tone?: string; verbosity?: string }) => {
+    const result = await api.styles.update(platform, data);
+    // Update the styles array with the new values
+    setStyles(styles.map((s) =>
+      s.platform === platform
+        ? { ...s, stated_preferences: result.stated_preferences }
+        : s
+    ));
+  };
+
   // Entry delete handler
   const handleDeleteEntry = async (id: string) => {
     await api.memories.delete(id);
@@ -1125,6 +1234,7 @@ export default function ContextPage() {
             <StylesSection
               styles={styles}
               loading={false}
+              onUpdate={handleStyleUpdate}
             />
           )}
 
