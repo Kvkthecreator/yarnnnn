@@ -228,7 +228,7 @@ async def list_documents(
     if status:
         query = query.eq("processing_status", status)
 
-    query = query.order("created_at", desc=True).range(offset, offset + limit - 1)
+    query = query.order("uploaded_at", desc=True).range(offset, offset + limit - 1)
 
     result = query.execute()
 
@@ -245,7 +245,7 @@ async def list_documents(
                 error_message=d.get("error_message"),
                 page_count=d.get("page_count"),
                 word_count=d.get("word_count"),
-                created_at=d["created_at"],
+                created_at=d.get("uploaded_at"),  # ADR-058: uploaded_at replaces created_at
             )
             for d in (result.data or [])
         ],
