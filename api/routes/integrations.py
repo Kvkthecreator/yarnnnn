@@ -2417,7 +2417,7 @@ async def get_landscape(
 
     # Get sync records for this provider (ADR-058)
     sync_result = auth.client.table("sync_registry").select(
-        "resource_id, resource_name, last_synced_at, item_count, sync_metadata"
+        "resource_id, resource_name, last_synced_at, item_count"
     ).eq("user_id", user_id).eq("platform", provider).execute()
 
     sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
