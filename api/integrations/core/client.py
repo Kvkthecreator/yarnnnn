@@ -84,6 +84,7 @@ class MCPClientManager:
         self._sessions: dict[str, "ClientSession"] = {}
         self._exit_stacks: dict[str, AsyncExitStack] = {}
         self._locks: dict[str, asyncio.Lock] = {}
+        self._session_envs: dict[str, dict[str, str]] = {}  # Track env vars per session
 
     def _get_lock(self, key: str) -> asyncio.Lock:
         """Get or create a lock for a session key."""
@@ -145,8 +146,25 @@ class MCPClientManager:
 
         # Use lock to prevent race conditions when creating sessions
         async with self._get_lock(key):
+            # Check if session exists AND env vars match (token might have changed)
             if key in self._sessions:
-                return self._sessions[key]
+                # Verify tokens match - if not, close old session and create new one
+                stored_env = self._session_envs.get(key, {})
+                env_changed = any(env.get(k) != stored_env.get(k) for k in env.keys())
+                if not env_changed:
+                    return self._sessions[key]
+                else:
+                    # Token changed (e.g., workspace reconnection) - close old session
+                    logger.info(f"[MCP] Credentials changed for {key}, recreating session")
+                    if key in self._exit_stacks:
+                        try:
+                            await self._exit_stacks[key].aclose()
+                        except Exception as e:
+                            logger.warning(f"[MCP] Error closing old session {key}: {e}")
+                        del self._exit_stacks[key]
+                    del self._sessions[key]
+                    if key in self._session_envs:
+                        del self._session_envs[key]
 
             # Get server command
             cmd = SERVER_COMMANDS.get(provider)
@@ -203,6 +221,7 @@ class MCPClientManager:
                     logger.warning(f"[MCP] Could not list tools for {provider}: {e}")
 
                 self._sessions[key] = session
+                self._session_envs[key] = env.copy()  # Track env for credential change detection
                 logger.info(f"[MCP] Session created for {key}")
 
                 return session
@@ -878,6 +897,8 @@ class MCPClientManager:
                     logger.warning(f"[MCP] Error closing session {key}: {e}")
                 del self._exit_stacks[key]
                 del self._sessions[key]
+                if key in self._session_envs:
+                    del self._session_envs[key]
 
     async def close_all(self):
         """Close all active sessions."""
@@ -889,6 +910,7 @@ class MCPClientManager:
                 logger.warning(f"[MCP] Error closing session {key}: {e}")
         self._sessions.clear()
         self._exit_stacks.clear()
+        self._session_envs.clear()
         logger.info(f"[MCP] Closed {len(keys)} sessions")
 
 
