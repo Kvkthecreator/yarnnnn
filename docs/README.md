@@ -2,13 +2,14 @@
 
 **The source of truth for YARNNN development.**
 
-## Current Architecture (as of 2026-02-10)
+## Current Architecture (as of 2026-02-13)
 
 > **Active ADRs:**
+> - [ADR-058: Knowledge Base Architecture](adr/ADR-058-knowledge-base-architecture.md) — Two-layer context model (Filesystem + Knowledge)
 > - [ADR-036: Two-Layer Architecture](adr/ADR-036-two-layer-architecture.md) — Foundational framework (Interaction + Infrastructure)
 > - [ADR-037: Chat-First Surface Architecture](adr/ADR-037-chat-first-surface-architecture.md) — Frontend manifestation (Chat = Home)
 >
-> The system follows a **Two-Layer Architecture**: Chat-first interaction layer (emergent, fluid) backed by structured infrastructure (primitives, scheduling, context).
+> The system follows a **Two-Layer Architecture**: Chat-first interaction layer backed by structured infrastructure. Context is organized as **Filesystem** (raw synced data) + **Knowledge** (inferred narrative), with Working Memory injected into TP's prompt.
 
 ## Quick Links
 
@@ -16,6 +17,7 @@
 |----------|---------|
 | [ESSENCE.md](ESSENCE.md) | Core product spec - domain model, agents, data flow |
 | [architecture/primitives.md](architecture/primitives.md) | **Canonical** — Universal TP primitives specification |
+| [ADR-058](adr/ADR-058-knowledge-base-architecture.md) | **Current** — Knowledge Base Architecture (Filesystem + Knowledge) |
 | [ADR-036](adr/ADR-036-two-layer-architecture.md) | **Current** — Two-Layer Architecture framework |
 | [ADR-037](adr/ADR-037-chat-first-surface-architecture.md) | **Current** — Chat-First Surface Architecture |
 | [database/ACCESS.md](database/ACCESS.md) | Database connection strings and credentials |
@@ -87,10 +89,11 @@ See [adr/README.md](adr/README.md) for template.
 | Component | Status | Doc |
 |-----------|--------|-----|
 | Domain Model | Defined | [ESSENCE.md](ESSENCE.md) |
-| Database Schema | 8 tables, RLS complete | [database/](database/) |
-| API Routes | Scaffolded, context routes implemented | - |
-| Agents | Stubs only | - |
-| Frontend | Scaffolded | - |
+| Database Schema | ADR-058 schema (Filesystem + Knowledge tables) | [database/](database/) |
+| Context System | Filesystem + Knowledge + Working Memory | [ADR-058](adr/ADR-058-knowledge-base-architecture.md) |
+| API Routes | Complete (integrations, context, deliverables, chat) | - |
+| Agents | ThinkingPartner, Synthesizer, Deliverable, Report | - |
+| Frontend | Chat-first with surfaces, Context page | - |
 
 ## Related Repos (Reference Only)
 

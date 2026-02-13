@@ -6,6 +6,84 @@ All notable changes to YARNNN are documented here.
 
 ## [Unreleased]
 
+### ADR-058: Knowledge Base Architecture
+
+**Date**: 2026-02-13
+
+Major architectural refactor introducing the two-layer context model: Filesystem + Knowledge.
+
+#### Terminology Changes
+
+| Old Term | New Term | Definition |
+|----------|----------|------------|
+| `ephemeral_context` | `filesystem_items` | Synced platform content |
+| `memories` | `knowledge_entries` | Facts, preferences, decisions |
+| `user_integrations` | `platform_connections` | OAuth connections |
+| `context_domains` | `knowledge_domains` | Work context groupings |
+| `documents` | `filesystem_documents` | Uploaded files |
+| `chunks` | `filesystem_chunks` | Document segments |
+
+#### New Tables
+
+- `knowledge_profile` — User profile with inferred + stated fields
+- `knowledge_styles` — Platform-specific communication styles
+- `sync_registry` — Sync state tracking per resource
+
+#### New Services
+
+- `api/services/working_memory.py` — Builds TP system prompt context
+- `api/services/profile_inference.py` — Infers user profile from filesystem
+
+#### Schema Migrations Applied
+
+| Migration | Description |
+|-----------|-------------|
+| 043 | Create new schema tables |
+| 044 | Data migration from old tables |
+| 045 | Drop old tables, cleanup |
+| 046 | Restore integration_import_jobs |
+| 047 | Fix memory RPCs for knowledge_entries |
+| 048 | Fix domain RPCs for knowledge_domains.sources |
+
+#### Key Features
+
+1. **Working Memory** — TP receives structured knowledge in system prompt (~2,500 tokens)
+2. **Profile Inference** — Automatic inference from filesystem content after sync
+3. **User Overrides** — `stated_*` fields take precedence over `inferred_*`
+4. **Conversation Extraction** — Facts/preferences extracted to knowledge_entries after chat
+
+#### Frontend Changes
+
+- Context page (`/context`) reorganized around Knowledge sections
+- Profile and styles editing with visual "custom" vs "inferred" indicators
+- Document upload entry point added to welcome screen (onboarding)
+
+---
+
+### ADR-056: Per-Source Sync Implementation
+
+**Date**: 2026-02-13
+
+Implemented selective syncing per source across all platforms.
+
+#### Files Changed
+
+- `api/services/gmail_sync.py` — Per-label sync support
+- `api/services/slack_sync.py` — Per-channel sync support
+- `api/services/notion_sync.py` — Per-page sync support
+- `api/routes/integrations.py` — Updated for `landscape.selected_sources`
+- `api/workers/platform_worker.py` — Per-source sync validation
+
+---
+
+### ADR-055: Gmail Label-Based Sync
+
+**Date**: 2026-02-12
+
+Gmail sync now uses label-based filtering instead of full inbox sync.
+
+---
+
 ### ADR-045 Phase 1: Type-Aware Execution Strategies
 
 **Date**: 2026-02-11

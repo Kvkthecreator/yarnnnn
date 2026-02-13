@@ -2,8 +2,8 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-10
-> **Updated**: 2026-02-11 (ADR-038 Phase 2)
-> **Related ADRs**: ADR-036 (Two-Layer), ADR-037 (Chat-First), ADR-038 (Filesystem-as-Context), ADR-042 (Execution Simplification)
+> **Updated**: 2026-02-13 (ADR-058 Knowledge Base Architecture)
+> **Related ADRs**: ADR-058 (Knowledge Base), ADR-036 (Two-Layer), ADR-037 (Chat-First), ADR-038 (Filesystem-as-Context), ADR-042 (Execution Simplification)
 > **Implementation**: `api/services/primitives/`
 
 ---
@@ -19,17 +19,24 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 3. **Composable** — Primitives combine for complex operations
 4. **Self-Describing** — Results include context for further action
 
-### Context Sources (First-Class)
+### Context Architecture (ADR-058)
 
-YARNNN supports three equally-weighted context sources:
+YARNNN uses a two-layer context model:
+
+| Layer | Tables | Purpose |
+|-------|--------|---------|
+| **Filesystem** | `filesystem_items`, `filesystem_documents`, `filesystem_chunks` | Raw synced data (source of truth) |
+| **Knowledge** | `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries` | Inferred narrative about user |
+
+**Context Sources** (all first-class):
 
 | Source | Storage | Entry Point | Searchable |
 |--------|---------|-------------|------------|
-| **Platforms** | `ephemeral_context` | OAuth → Import | `scope="platform_content"` |
-| **Documents** | `documents` + `chunks` | File upload | `scope="document"` |
-| **User-stated facts** | `memories` | Chat / TP Write | `scope="memory"` |
+| **Platforms** | `filesystem_items` | OAuth → Sync | `scope="platform_content"` |
+| **Documents** | `filesystem_documents` + `filesystem_chunks` | File upload | `scope="document"` |
+| **Knowledge** | `knowledge_entries` | Inference + Chat | `scope="knowledge"` |
 
-Users without platform connections can still provide rich context via documents and direct statements. This is not a fallback — all three sources are first-class.
+Users without platform connections can still provide rich context via documents and direct statements. Knowledge is inferred from filesystem content, not manually curated.
 
 ---
 

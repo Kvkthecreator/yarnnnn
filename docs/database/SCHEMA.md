@@ -1,406 +1,401 @@
 # Database Schema
 
 **Supabase Project**: `noxgqcwynkzqabljjyon`
-**Architecture**: ADR-005 Unified Memory, ADR-006 Sessions, ADR-008 Documents, ADR-017 Unified Work Model
+**Architecture**: ADR-058 Knowledge Base Architecture (Filesystem + Knowledge)
 **Extensions**: pgvector (for embeddings)
-**Migration Status**: ADR-017 approved, implementation pending
+**Last Updated**: 2026-02-13
 
 ---
 
-## Entity Relationship
+## Entity Relationship (ADR-058)
 
 ```
-user      1──n memories         (unified memory: user + project scoped)
-user      1──n chat_sessions    (TP conversations)
-user      1──n documents        (uploaded files)
-user      1──n work             (direct ownership for RLS)
+user      1──n platform_connections    (OAuth connections to platforms)
+user      1──n filesystem_items        (synced platform content)
+user      1──n filesystem_documents    (uploaded files)
+user      1──1 knowledge_profile       (inferred + stated profile)
+user      1──n knowledge_styles        (per-platform communication styles)
+user      1──n knowledge_domains       (work context groupings)
+user      1──n knowledge_entries       (facts, preferences, decisions)
+user      1──n chat_sessions           (TP conversations)
+user      1──n deliverables            (scheduled outputs)
 
-project   1──n memories         (project-scoped memories)
-project   1──n chat_sessions    (project-scoped conversations)
-project   1──n documents        (project-scoped documents)
-project   0──n work             (optional: project_id nullable for ambient work)
-
-document  1──n chunks           (semantic segments with embeddings)
-chat_session 1──n session_messages (conversation turns)
-work      1──n work_outputs     (ADR-017: one output per execution, multiple for recurring)
+filesystem_documents 1──n filesystem_chunks  (document segments)
+chat_sessions 1──n session_messages          (conversation turns)
+deliverables 1──n deliverable_versions       (generated outputs)
 ```
 
-> **See also:** [WORK_DATA_MODEL.md](./WORK_DATA_MODEL.md) for detailed work system concepts.
-> **Note:** ADR-017 renames `work_tickets` → `work` and moves status to `work_outputs`. Migration pending.
+---
+
+## ADR-058 Two-Layer Model
+
+### Layer 1: Filesystem (Raw Data)
+
+The source of truth — synced platform content and uploaded documents.
+
+| Table | Purpose |
+|-------|---------|
+| `platform_connections` | OAuth connections to external platforms |
+| `filesystem_items` | Synced messages, emails, pages, events |
+| `filesystem_documents` | Uploaded PDF, DOCX, TXT, MD files |
+| `filesystem_chunks` | Document segments with embeddings |
+| `sync_registry` | Per-resource sync state tracking |
+
+### Layer 2: Knowledge (Inferred Narrative)
+
+Derived from filesystem — what TP knows about the user.
+
+| Table | Purpose |
+|-------|---------|
+| `knowledge_profile` | Who the user is (name, role, company, timezone) |
+| `knowledge_styles` | How they communicate per platform |
+| `knowledge_domains` | What they're working on (work contexts) |
+| `knowledge_entries` | Facts, preferences, decisions, instructions |
 
 ---
 
-## Core Tables
+## Filesystem Tables
 
-### 1. memories
+### 1. platform_connections
 
-Unified memory storage (ADR-005). Replaces the previous `user_context` and `blocks` tables.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK, auto-generated |
-| user_id | UUID | FK → auth.users, required |
-| project_id | UUID | FK → projects, **NULL = user-scoped** |
-| content | TEXT | The actual memory content |
-| embedding | vector(1536) | For semantic retrieval |
-| tags | TEXT[] | Emergent tags, LLM-extracted or user-added |
-| entities | JSONB | `{people: [], companies: [], concepts: []}` |
-| importance | FLOAT | 0-1, retrieval priority |
-| source_type | TEXT | `chat`, `document`, `manual`, `import` |
-| source_ref | JSONB | `{session_id, chunk_id, document_id, etc.}` |
-| is_active | BOOLEAN | Soft-delete flag (default true) |
-| created_at | TIMESTAMPTZ | Auto |
-| updated_at | TIMESTAMPTZ | Auto |
-
-**Scope Logic:**
-- `project_id IS NULL` → User-scoped (portable across all projects)
-- `project_id IS NOT NULL` → Project-scoped (isolated to specific work)
-
-**RLS:** Users can only manage their own memories.
-
----
-
-### 2. chat_sessions
-
-Thinking Partner conversation containers (ADR-006).
+OAuth connections to external platforms (replaces `user_integrations`).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
-| user_id | UUID | FK → auth.users, direct ownership |
-| project_id | UUID | FK → projects, **nullable** (NULL = global/orchestration chat) |
-| session_type | TEXT | Default: `thinking_partner` |
-| status | TEXT | `active`, `completed`, `archived` |
-| started_at | TIMESTAMPTZ | Session start |
-| ended_at | TIMESTAMPTZ | Session end |
-| context_metadata | JSONB | `{memories_count, context_type, model}` |
+| user_id | UUID | FK → auth.users |
+| platform | TEXT | 'slack', 'gmail', 'notion', 'calendar' |
+| status | TEXT | 'active', 'disconnected', 'error' |
+| credentials_encrypted | TEXT | Encrypted OAuth tokens |
+| metadata | JSONB | Workspace name, user info |
+| settings | JSONB | User preferences for this connection |
+| landscape | JSONB | Available resources + selected sources |
+| last_synced_at | TIMESTAMPTZ | Last successful sync |
 | created_at | TIMESTAMPTZ | Auto |
-| updated_at | TIMESTAMPTZ | Auto (trigger) |
+| updated_at | TIMESTAMPTZ | Auto |
 
-**Session Reuse:** Daily scope - one active session per user/project/day.
-
-**RLS:** Users own their chat sessions.
-
-**RPCs:**
-- `get_or_create_chat_session(user_id, project_id, session_type, scope)` - Daily reuse logic
-- `append_session_message(session_id, role, content, metadata)` - Auto sequence numbers
+**Unique constraint**: `(user_id, platform)`
 
 ---
 
-### 3. session_messages
+### 2. filesystem_items
 
-Individual conversation turns within a chat session (ADR-006).
+Synced platform content — the "filesystem" (replaces `ephemeral_context`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users |
+| platform | TEXT | Source platform |
+| resource_id | TEXT | Channel ID, label, page ID |
+| resource_name | TEXT | Human-readable resource name |
+| item_id | TEXT | Unique item identifier from platform |
+| content | TEXT | Message/email/page content |
+| content_type | TEXT | 'message', 'email', 'page', 'event' |
+| author | TEXT | Who authored this content |
+| is_user_authored | BOOLEAN | True if user wrote this (for style inference) |
+| source_timestamp | TIMESTAMPTZ | When created on platform |
+| metadata | JSONB | Platform-specific metadata |
+| sync_batch_id | UUID | Batch identifier |
+| synced_at | TIMESTAMPTZ | When synced |
+| expires_at | TIMESTAMPTZ | TTL for cleanup |
+
+**Unique constraint**: `(user_id, platform, resource_id, item_id)`
+
+---
+
+### 3. filesystem_documents
+
+Uploaded files (replaces `documents`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users |
+| filename | TEXT | Original filename |
+| file_type | TEXT | 'pdf', 'docx', 'txt', 'md' |
+| file_size | INTEGER | Bytes |
+| storage_path | TEXT | Supabase Storage path |
+| processing_status | TEXT | 'pending', 'processing', 'completed', 'failed' |
+| page_count | INTEGER | For PDFs |
+| word_count | INTEGER | Approximate |
+| error_message | TEXT | On failure |
+| uploaded_at | TIMESTAMPTZ | Auto |
+| processed_at | TIMESTAMPTZ | When processing completed |
+
+---
+
+### 4. filesystem_chunks
+
+Document segments for retrieval (replaces `chunks`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| document_id | UUID | FK → filesystem_documents |
+| content | TEXT | Chunk text (~400 tokens) |
+| chunk_index | INTEGER | 0-based order |
+| page_number | INTEGER | For PDFs |
+| embedding | vector(1536) | For semantic search |
+| token_count | INTEGER | Actual token count |
+| metadata | JSONB | Section title, heading level |
+| created_at | TIMESTAMPTZ | Auto |
+
+---
+
+### 5. sync_registry
+
+Per-resource sync state tracking.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users |
+| platform | TEXT | Platform name |
+| resource_id | TEXT | Channel/label/page ID |
+| resource_name | TEXT | Human-readable name |
+| last_synced_at | TIMESTAMPTZ | Last sync time |
+| platform_cursor | TEXT | Platform-specific pagination cursor |
+| item_count | INTEGER | Items synced for this resource |
+
+**Unique constraint**: `(user_id, platform, resource_id)`
+
+---
+
+## Knowledge Tables
+
+### 6. knowledge_profile
+
+User profile with inferred + stated fields.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users, UNIQUE |
+| inferred_name | TEXT | From email signatures, etc. |
+| inferred_role | TEXT | Job title/role |
+| inferred_company | TEXT | Company name |
+| inferred_timezone | TEXT | From calendar patterns |
+| inferred_summary | TEXT | Brief bio/description |
+| stated_name | TEXT | User override (takes precedence) |
+| stated_role | TEXT | User override |
+| stated_company | TEXT | User override |
+| stated_timezone | TEXT | User override |
+| stated_summary | TEXT | User override |
+| last_inferred_at | TIMESTAMPTZ | Last inference run |
+| inference_sources | JSONB | What was used for inference |
+| inference_confidence | FLOAT | Confidence score |
+| created_at | TIMESTAMPTZ | Auto |
+| updated_at | TIMESTAMPTZ | Auto |
+
+**Key pattern**: `get_name() = stated_name OR inferred_name`
+
+---
+
+### 7. knowledge_styles
+
+Platform-specific communication styles.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users |
+| platform | TEXT | 'slack', 'email', 'notion' |
+| tone | TEXT | 'casual', 'formal', 'mixed' |
+| verbosity | TEXT | 'minimal', 'moderate', 'detailed' |
+| formatting | JSONB | {uses_emoji, uses_bullets, avg_length} |
+| vocabulary_notes | TEXT | "Uses technical jargon" |
+| sample_excerpts | TEXT[] | Actual examples of user's writing |
+| stated_preferences | JSONB | User overrides |
+| sample_count | INTEGER | Messages analyzed |
+| last_inferred_at | TIMESTAMPTZ | Last inference run |
+| inference_sources | JSONB | Source tracking |
+
+**Unique constraint**: `(user_id, platform)`
+
+---
+
+### 8. knowledge_domains
+
+Work context groupings (replaces `context_domains`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users |
+| name | TEXT | Domain name |
+| name_source | TEXT | 'inferred' or 'user' |
+| summary | TEXT | Inferred narrative |
+| key_facts | TEXT[] | Important facts |
+| key_people | JSONB | [{name, role, notes}] |
+| key_decisions | TEXT[] | Important decisions |
+| sources | JSONB | [{platform, resource_id, resource_name}] |
+| is_default | BOOLEAN | Default domain flag |
+| is_active | BOOLEAN | Active flag |
+| last_inferred_at | TIMESTAMPTZ | Last inference run |
+| inference_confidence | FLOAT | Confidence score |
+| created_at | TIMESTAMPTZ | Auto |
+| updated_at | TIMESTAMPTZ | Auto |
+
+---
+
+### 9. knowledge_entries
+
+Facts, preferences, decisions, instructions (replaces `memories`).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users |
+| domain_id | UUID | FK → knowledge_domains (nullable) |
+| content | TEXT | The knowledge content |
+| entry_type | TEXT | 'preference', 'fact', 'decision', 'instruction' |
+| source | TEXT | 'inferred', 'user_stated', 'document', 'conversation' |
+| source_ref | JSONB | {table, id} for traceability |
+| confidence | FLOAT | For inferred entries |
+| inference_sources | JSONB | Source tracking |
+| tags | TEXT[] | Emergent tags |
+| importance | FLOAT | 0-1, retrieval priority |
+| embedding | vector(1536) | For semantic search |
+| is_active | BOOLEAN | Soft-delete flag |
+| created_at | TIMESTAMPTZ | Auto |
+| updated_at | TIMESTAMPTZ | Auto |
+
+---
+
+## Session Tables
+
+### 10. chat_sessions
+
+TP conversation containers (minimal changes).
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users |
+| domain_id | UUID | FK → knowledge_domains (nullable) |
+| status | TEXT | 'active', 'completed', 'archived' |
+| summary | TEXT | Optional session summary |
+| created_at | TIMESTAMPTZ | Auto |
+| updated_at | TIMESTAMPTZ | Auto |
+
+---
+
+### 11. session_messages
+
+Conversation turns within a session.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
 | session_id | UUID | FK → chat_sessions |
-| role | TEXT | `user`, `assistant`, `system` |
+| role | TEXT | 'user', 'assistant', 'system' |
 | content | TEXT | Message content |
-| sequence_number | INTEGER | Order within session (unique per session) |
-| metadata | JSONB | `{tokens, latency_ms, model}` |
+| sequence_number | INTEGER | Order within session |
+| metadata | JSONB | {tokens, latency_ms, model} |
+| knowledge_extracted | BOOLEAN | Extraction tracking |
+| knowledge_extracted_at | TIMESTAMPTZ | When extracted |
 | created_at | TIMESTAMPTZ | Auto |
-
-**RLS:** Users can access messages in their sessions.
 
 ---
 
-### 4. documents
+## Deliverable Tables
 
-Uploaded files (PDF, DOCX, etc). Parsed into chunks (ADR-008).
+### 12. deliverables
+
+Scheduled outputs.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
-| user_id | UUID | FK → auth.users, direct ownership |
-| project_id | UUID | FK → projects, **nullable** (user-scoped if NULL) |
-| filename | TEXT | Required |
-| file_url | TEXT | Supabase Storage URL |
-| storage_path | TEXT | Bucket path: `{user_id}/{doc_id}/original.{ext}` |
-| file_type | TEXT | `pdf`, `docx`, `txt`, `md` |
-| file_size | INTEGER | Bytes |
-| processing_status | TEXT | `pending`, `processing`, `completed`, `failed` |
-| processed_at | TIMESTAMPTZ | When processing completed |
-| error_message | TEXT | On failure |
-| page_count | INTEGER | For PDFs |
-| word_count | INTEGER | Approximate |
-| created_at | TIMESTAMPTZ | Auto |
-
-**RLS:** Users can manage their own documents (via user_id).
-
-**Storage:** `documents` bucket with user-folder RLS.
-
----
-
-### 5. chunks
-
-Document segments for retrieval. Intermediate layer between raw documents and derived memories.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| document_id | UUID | FK → documents |
-| content | TEXT | Chunk text (~400 tokens) |
-| embedding | vector(1536) | For semantic retrieval |
-| chunk_index | INTEGER | 0-based order in document |
-| page_number | INTEGER | For PDFs |
-| metadata | JSONB | `{section_title, heading_level, etc.}` |
-| token_count | INTEGER | Actual token count |
-| created_at | TIMESTAMPTZ | Auto |
-
-**RLS:** Users can access chunks from their documents (via `documents.user_id`).
-
----
-
-### 6. workspaces
-
-Multi-tenancy root. One per user/org.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| name | TEXT | Required |
-| owner_id | UUID | FK → auth.users |
-| owner_email | TEXT | For admin queries |
-| subscription_status | TEXT | `free`, `pro` (default: free) |
-| subscription_expires_at | TIMESTAMPTZ | Billing period end |
-| lemonsqueezy_customer_id | TEXT | LS customer ID for portal |
-| lemonsqueezy_subscription_id | TEXT | LS subscription ID |
-| created_at | TIMESTAMPTZ | Auto |
-| updated_at | TIMESTAMPTZ | Auto (trigger) |
-
-**RLS:** Owner can manage own workspaces.
-
----
-
-### 7. projects
-
-User's work container.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| name | TEXT | Required |
-| description | TEXT | Optional |
-| workspace_id | UUID | FK → workspaces |
-| created_at | TIMESTAMPTZ | Auto |
-| updated_at | TIMESTAMPTZ | Auto (trigger) |
-
-**RLS:** Users can manage projects in their workspaces.
-
----
-
-### 8. work (ADR-017)
-
-> **Migration pending**: Currently `work_tickets`, will be renamed to `work` per ADR-017.
-
-Unified work model. Single table for all work—one-time and recurring.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| task | TEXT | Work description |
-| agent_type | TEXT | `research`, `content`, `reporting` |
-| parameters | JSONB | Agent-specific params |
-| project_id | UUID | FK → projects, **nullable** (NULL = ambient work) |
-| user_id | UUID | FK → auth.users, direct ownership |
+| user_id | UUID | FK → auth.users |
+| domain_id | UUID | FK → knowledge_domains (nullable) |
+| title | TEXT | Deliverable name |
+| deliverable_type | TEXT | Type identifier |
+| status | TEXT | 'active', 'paused', 'archived' |
+| sources | JSONB | [{platform, resource_id, resource_name}] |
+| schedule | JSONB | {frequency, time, timezone} |
+| recipient_context | JSONB | Delivery configuration |
+| template | JSONB | Template settings |
+| type_classification | JSONB | {binding, temporal_pattern} |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto |
-| frequency | TEXT | `"once"` or schedule (`"daily at 9am"`) |
-| frequency_cron | TEXT | Parsed cron expression (NULL for "once") |
-| timezone | TEXT | User's timezone (default UTC) |
-| is_active | BOOLEAN | Will run on schedule |
-| next_run_at | TIMESTAMPTZ | Next scheduled execution (NULL for one-time) |
-| last_run_at | TIMESTAMPTZ | Last execution time |
-
-**Key Concepts (ADR-017):**
-- `frequency="once"`: One-time work, executed immediately
-- `frequency="daily at 9am"`: Recurring work, cron job handles future executions
-- `is_active`: Controls whether recurring work continues running
-- Status moved to `work_outputs` (not on work record)
-
-**RLS:** Users can manage their own work (via user_id).
+| next_run_at | TIMESTAMPTZ | Next scheduled run |
 
 ---
 
-### 9. work_outputs (ADR-016, ADR-017)
+### 13. deliverable_versions
 
-Agent deliverables. One output per execution (unified output model).
+Generated outputs.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
-| work_id | UUID | FK → work (renamed from ticket_id) |
-| user_id | UUID | FK → auth.users, for RLS |
-| run_number | INTEGER | 1, 2, 3... for recurring work |
-| title | TEXT | Output name |
-| output_type | TEXT | `text`, `file` |
-| content | TEXT | Markdown body for text outputs |
-| metadata | JSONB | Agent-specific: `{scope, depth, format, tone, etc.}` |
-| file_url | TEXT | For file outputs |
-| file_format | TEXT | `pdf`, `pptx`, `docx`, etc |
-| status | TEXT | `pending`, `running`, `completed`, `failed` |
-| started_at | TIMESTAMPTZ | Execution start |
-| completed_at | TIMESTAMPTZ | Execution end |
-| error_message | TEXT | On failure |
-| created_at | TIMESTAMPTZ | Auto |
-
-**ADR-017 Note:** Status lives on outputs, not work. Each execution produces exactly ONE output.
-
-**RLS:** Users can view and create outputs for their work (via user_id).
+| deliverable_id | UUID | FK → deliverables |
+| content | TEXT | Generated content |
+| version_number | INTEGER | Sequence number |
+| status | TEXT | 'draft', 'approved', 'published' |
+| source_snapshots | JSONB | Context used at generation |
+| generated_at | TIMESTAMPTZ | Auto |
+| approved_at | TIMESTAMPTZ | When approved |
+| published_at | TIMESTAMPTZ | When published |
 
 ---
 
-### 10. subscription_events
+## Working Memory
 
-Audit log for Lemon Squeezy webhook events.
+The Working Memory is built at request time from Knowledge tables:
 
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| workspace_id | UUID | FK → workspaces |
-| event_type | TEXT | e.g., `subscription_created`, `subscription_updated` |
-| event_source | TEXT | Default: `lemonsqueezy` |
-| ls_subscription_id | TEXT | Lemon Squeezy subscription ID |
-| ls_customer_id | TEXT | Lemon Squeezy customer ID |
-| payload | JSONB | Full webhook payload |
-| created_at | TIMESTAMPTZ | Auto |
+```python
+working_memory = {
+    "profile": knowledge_profile,      # WHO
+    "styles": knowledge_styles[],      # HOW
+    "domains": knowledge_domains[],    # WHAT
+    "entries": knowledge_entries[],    # KNOWN
+    "platforms": platform_connections[], # STATUS
+    "deliverables": deliverables[],    # WORK
+    "recent_sessions": chat_sessions[], # HISTORY
+}
+```
 
-**RLS:** Users can view their own subscription events.
-
----
-
-### 11. scheduled_messages (Future - proactive features)
-
-For scheduled/recurring message delivery.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| workspace_id | UUID | FK → workspaces |
-| scheduled_for | TIMESTAMPTZ | When to send |
-| message_type | TEXT | Type of message |
-| subject | TEXT | Email subject |
-| content | JSONB | Message content |
-| recipient_email | TEXT | Delivery target |
-| status | TEXT | `pending`, `sent`, `failed` |
-| sent_at | TIMESTAMPTZ | When actually sent |
-| failure_reason | TEXT | On failure |
-| created_at | TIMESTAMPTZ | Auto |
-
-**RLS:** Users can view their workspace messages.
-
----
-
-### 12. email_delivery_log (Future - proactive features)
-
-Audit log for email delivery.
-
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| scheduled_message_id | UUID | FK → scheduled_messages |
-| recipient | TEXT | Email address |
-| subject | TEXT | Email subject |
-| provider | TEXT | Default: `resend` |
-| provider_message_id | TEXT | Provider's message ID |
-| status | TEXT | Delivery status |
-| status_updated_at | TIMESTAMPTZ | Last status update |
-| created_at | TIMESTAMPTZ | Auto |
-
-**RLS:** Users can view logs for their messages.
-
----
-
-## Legacy Tables
-
-### agent_sessions (Deprecated)
-
-Originally for work ticket execution logs. Superseded by `chat_sessions` for TP conversations. May be repurposed for work agent execution logs when ADR-009 is implemented.
+This is injected into TP's system prompt (~2,500 tokens).
 
 ---
 
 ## Migrations
 
-| File | Description | Status |
-|------|-------------|--------|
-| `001_initial_schema.sql` | Base tables | Applied |
-| `002_fix_rls_policies.sql` | RLS fixes | Applied |
-| `003_scheduling_tables.sql` | Scheduling tables (scheduled_messages, email_delivery_log) | Applied |
-| `004_extend_blocks_for_extraction.sql` | Block extensions (superseded) | Applied |
-| `005_user_context_layer.sql` | User context layer (superseded) | Applied |
-| `006_unified_memory.sql` | ADR-005 unified memory | Applied |
-| `007_search_memories_rpc.sql` | Semantic search RPCs | Applied |
-| `008_chat_sessions.sql` | ADR-006 sessions | Applied |
-| `009_document_pipeline.sql` | ADR-008 document storage | Applied |
-| `010_subscription_fields.sql` | Lemon Squeezy subscription fields | Applied |
-| `011_fix_chunks_rls.sql` | Fix chunks RLS for user-scoped docs | Applied |
-| `012_work_scheduling.sql` | ADR-009 Phase 3: Schedule templates | Applied |
-| `013_fix_work_tickets_rls.sql` | Work tickets RLS fixes | Applied |
-| `014_ambient_work.sql` | ADR-015: Ambient work (project_id nullable) | Applied |
-| `015_fix_work_outputs_rls.sql` | Work outputs RLS fixes | Applied |
-| `016_work_output_metadata.sql` | ADR-016: Metadata JSONB column | Applied |
-| `017_unified_work_model.sql` | ADR-017: Unified work model | Pending |
+| Migration | Description | Status |
+|-----------|-------------|--------|
+| 001-042 | Legacy migrations | Applied |
+| 043 | ADR-058: Create new schema tables | Applied |
+| 044 | ADR-058: Data migration from old tables | Applied |
+| 045 | ADR-058: Drop old tables, cleanup | Applied |
+| 046 | Restore integration_import_jobs | Applied |
+| 047 | Fix memory RPCs for knowledge_entries | Applied |
+| 048 | Fix domain RPCs for knowledge_domains.sources | Applied |
 
 ---
 
 ## Key Design Decisions
 
-### ADR-005: Unified Memory
-1. Single `memories` table instead of separate user_context + blocks
-2. Scope via nullable FK: `project_id IS NULL` = user-scoped, else project-scoped
-3. Embeddings first-class: vector(1536) column with ivfflat index
-4. Emergent structure: Tags and entities extracted by LLM, not enum categories
-5. Soft-delete: `is_active` flag instead of hard delete
+### ADR-058: Knowledge Base Architecture
 
-### ADR-006: Session Architecture
-1. Normalized `chat_sessions` + `session_messages` tables
-2. Direct `user_id` on sessions (not via project chain)
-3. Daily session reuse via `get_or_create_chat_session` RPC
-4. Global chat: `project_id IS NULL` on session
+1. **Two-layer model**: Filesystem (source of truth) + Knowledge (derived narrative)
+2. **Inference-driven**: Knowledge is inferred from filesystem, not manually curated
+3. **User overrides**: `stated_*` fields take precedence over `inferred_*`
+4. **Working memory**: Compact knowledge injected into TP prompt (~2,500 tokens)
+5. **Transparent**: Users can see and edit what TP knows
 
-### ADR-008: Document Pipeline
-1. Three-tier: documents → chunks → memories
-2. Direct `user_id` on documents (RLS via ownership)
-3. Processing status tracking for async pipeline
+### Terminology Alignment
 
----
-
-## Retrieval Patterns
-
-### Semantic Search (Primary)
-
-```sql
--- Find memories similar to a query
-SELECT *,
-       (1 - (embedding <=> $query_embedding)) * 0.7 + importance * 0.3 AS relevance
-FROM memories
-WHERE user_id = $user_id
-  AND is_active = true
-  AND (project_id IS NULL OR project_id = $project_id)
-  AND embedding IS NOT NULL
-ORDER BY relevance DESC
-LIMIT 20;
-```
-
-### Session History
-
-```sql
--- Get messages for a session
-SELECT * FROM session_messages
-WHERE session_id = $session_id
-ORDER BY sequence_number;
-```
-
-### Document Chunk Retrieval
-
-```sql
--- Find relevant chunks from a document
-SELECT * FROM chunks
-WHERE document_id = $document_id
-ORDER BY (1 - (embedding <=> $query_embedding)) DESC
-LIMIT 5;
-```
+| Old Term | New Term |
+|----------|----------|
+| `ephemeral_context` | `filesystem_items` |
+| `memories` | `knowledge_entries` |
+| `user_integrations` | `platform_connections` |
+| `context_domains` | `knowledge_domains` |
+| `documents` | `filesystem_documents` |
+| `chunks` | `filesystem_chunks` |
 
 ---
 
