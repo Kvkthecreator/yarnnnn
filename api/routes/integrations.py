@@ -2298,7 +2298,7 @@ async def oauth_callback(
         ).eq("platform", provider).execute()
 
         if existing.data:
-            # Update existing
+            # Update existing - clear landscape to force rediscovery from new workspace
             service_client.table("platform_connections").update({
                 "credentials_encrypted": token_data["credentials_encrypted"],
                 "refresh_token_encrypted": token_data.get("refresh_token_encrypted"),
@@ -2306,6 +2306,9 @@ async def oauth_callback(
                 "status": token_data["status"],
                 "last_error": None,
                 "updated_at": datetime.utcnow().isoformat(),
+                # Clear old landscape data so it's refetched from new workspace
+                "landscape": None,
+                "landscape_discovered_at": None,
             }).eq("id", existing.data[0]["id"]).execute()
 
             logger.info(f"[INTEGRATIONS] Updated {provider} for user {token_data['user_id']}")
