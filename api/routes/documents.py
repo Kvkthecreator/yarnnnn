@@ -152,15 +152,14 @@ async def upload_document(
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
     # Create document record
+    # ADR-058: filesystem_documents doesn't have project_id or file_url columns
     doc_record = {
         "id": document_id,
         "user_id": auth.user_id,
-        "project_id": project_id,
         "filename": file.filename or f"document.{file_type}",
         "file_type": file_type,
         "file_size": len(content),
         "storage_path": storage_path,
-        "file_url": f"{get_supabase_url()}/storage/v1/object/documents/{storage_path}",
         "processing_status": "pending",
     }
 

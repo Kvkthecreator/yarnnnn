@@ -125,12 +125,12 @@ async def recover_stale_processing_jobs(supabase_client, stale_minutes: int = 10
     job_ids = [job["id"] for job in stale_jobs]
 
     for job_id in job_ids:
+        # ADR-058: integration_import_jobs doesn't have updated_at column
         supabase_client.table("integration_import_jobs").update({
             "status": "pending",
             "started_at": None,
             "progress": 0,
             "error_message": "Job was stuck in processing - retrying",
-            "updated_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", job_id).execute()
 
         logger.info(f"[IMPORT] Recovered stale job {job_id}")
@@ -160,9 +160,9 @@ async def update_job_status(
     error: Optional[str] = None
 ):
     """Update import job status and result."""
+    # ADR-058: integration_import_jobs doesn't have updated_at column
     update_data = {
         "status": status,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
     }
 
     if status == "processing":
@@ -199,6 +199,8 @@ async def update_job_progress(
         items_completed: Items completed so far
         current_resource: Name of current resource being processed
     """
+    # ADR-058: integration_import_jobs doesn't have updated_at column
+    # Store timestamp in progress_details JSONB instead
     progress_details = {
         "phase": phase,
         "items_total": items_total,
@@ -210,7 +212,6 @@ async def update_job_progress(
     supabase_client.table("integration_import_jobs").update({
         "progress": min(max(progress, 0), 100),
         "progress_details": progress_details,
-        "updated_at": datetime.now(timezone.utc).isoformat(),
     }).eq("id", job_id).execute()
 
 
