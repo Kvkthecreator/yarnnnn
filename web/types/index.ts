@@ -884,7 +884,7 @@ export interface ContextDomainSummary {
 }
 
 export interface DomainSource {
-  provider: string;
+  platform: string;  // ADR-058: Changed from 'provider' to 'platform'
   resource_id: string;
   resource_name?: string;
 }
