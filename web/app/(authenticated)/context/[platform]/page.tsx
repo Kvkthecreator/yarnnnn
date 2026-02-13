@@ -96,7 +96,7 @@ interface PlatformDeliverable {
   destination?: { platform?: string };
 }
 
-// ADR-052: Platform context items from ephemeral_context table
+// ADR-058: Platform context items from filesystem_items table
 interface PlatformContextItem {
   id: string;
   content: string;
@@ -380,7 +380,7 @@ export default function PlatformDetailPage() {
   const [originalIds, setOriginalIds] = useState<Set<string>>(new Set());
   const [tierLimits, setTierLimits] = useState<TierLimits | null>(null);
   const [deliverables, setDeliverables] = useState<PlatformDeliverable[]>([]);
-  // ADR-052: Platform context from ephemeral_context table (replaces legacy recentMemories)
+  // ADR-058: Platform context from filesystem_items table
   const [platformContext, setPlatformContext] = useState<PlatformContextItem[]>([]);
 
   // ADR-055: Expanded resources (for showing context within rows)
@@ -446,7 +446,7 @@ export default function PlatformDetailPage() {
         api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
         api.deliverables.list().catch(() => []),
-        // ADR-052: Load platform context from ephemeral_context table
+        // ADR-058: Load platform context from filesystem_items table
         api.integrations.getPlatformContext(platform as "slack" | "notion" | "gmail" | "calendar", { limit: 10 })
           .catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
         // ADR-050: Load designated page for Notion
@@ -514,7 +514,7 @@ export default function PlatformDetailPage() {
       );
       setDeliverables(platformDeliverables);
 
-      // ADR-052: Set platform context from ephemeral_context (already filtered by platform on backend)
+      // ADR-058: Set platform context from filesystem_items
       setPlatformContext(platformContextResult?.items || []);
 
     } catch (err) {

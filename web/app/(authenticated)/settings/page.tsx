@@ -48,7 +48,7 @@ interface DangerZoneStats {
   deliverable_versions: number;
   work_outputs: number;
   // Integrations
-  user_integrations: number;
+  platform_connections: number;
   integration_import_jobs: number;
   export_logs: number;
   // Hierarchy
@@ -1267,12 +1267,12 @@ export default function SettingsPage() {
                           Clear Integrations
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Disconnect {dangerStats.user_integrations} integrations, clear import/export history
+                          Disconnect {dangerStats.platform_connections} integrations, clear import/export history
                         </div>
                       </div>
                       <button
                         onClick={() => initiateDangerAction("integrations")}
-                        disabled={dangerStats.user_integrations === 0}
+                        disabled={dangerStats.platform_connections === 0}
                         className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Disconnect
@@ -1422,7 +1422,7 @@ export default function SettingsPage() {
                     Are you sure you want to <strong>clear all integrations</strong>? This will:
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
-                    <li>Disconnect {dangerStats?.user_integrations} connected services</li>
+                    <li>Disconnect {dangerStats?.platform_connections} connected services</li>
                     <li>Delete OAuth tokens (you&apos;ll need to reconnect)</li>
                     <li>Clear {dangerStats?.integration_import_jobs} import jobs</li>
                     <li>Clear {dangerStats?.export_logs} export logs</li>
@@ -1442,7 +1442,7 @@ export default function SettingsPage() {
                     <li>{dangerStats?.memories} memories</li>
                     <li>{dangerStats?.documents} documents</li>
                     <li>{dangerStats?.work_tickets} work tickets</li>
-                    <li>{dangerStats?.user_integrations} integrations</li>
+                    <li>{dangerStats?.platform_connections} integrations</li>
                   </ul>
                   <p className="mt-2 text-sm">Your account will remain active with a fresh workspace.</p>
                 </>

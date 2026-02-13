@@ -38,7 +38,7 @@ class DangerZoneStats(BaseModel):
     work_outputs: int
 
     # Integrations
-    user_integrations: int
+    platform_connections: int
     integration_import_jobs: int
     export_logs: int
 
@@ -222,7 +222,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             work_outputs=work_outputs_count,
             deliverables=deliverables_count,
             deliverable_versions=versions_count,
-            user_integrations=integrations_count,
+            platform_connections=integrations_count,
             integration_import_jobs=import_jobs_count,
             export_logs=export_logs_count,
             workspaces=workspaces_count,
@@ -447,13 +447,13 @@ async def clear_all_integrations(auth: UserClient) -> OperationResult:
 
         # Delete user integrations (OAuth tokens)
         result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
-        deleted["user_integrations"] = len(result.data or [])
+        deleted["platform_connections"] = len(result.data or [])
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all integrations: {deleted}")
 
         return OperationResult(
             success=True,
-            message=f"Disconnected {deleted['user_integrations']} integrations and cleared history",
+            message=f"Disconnected {deleted['platform_connections']} integrations and cleared history",
             deleted=deleted
         )
     except Exception as e:
@@ -571,7 +571,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         deleted["export_preferences"] = prefs_deleted
 
         result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
-        deleted["user_integrations"] = len(result.data or [])
+        deleted["platform_connections"] = len(result.data or [])
 
         # 8. Delete workspaces
         for wid in workspace_ids:
@@ -659,7 +659,7 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         deleted["export_preferences"] = prefs_deleted
 
         result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
-        deleted["user_integrations"] = len(result.data or [])
+        deleted["platform_connections"] = len(result.data or [])
 
         # 8. Delete workspaces (don't recreate)
         for wid in workspace_ids:
