@@ -140,6 +140,33 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 - This table is still needed for tracking sync/import operations
 - **Helper functions**: `get_effective_profile()`, `get_or_create_default_domain()`, `get_knowledge_entries_by_importance()`
 
+### Migration 047: Fix Memory RPCs (2026-02-13) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/047_fix_memory_rpcs.sql
+```
+
+**Changes**:
+- Updates `search_memories()` RPC to use `knowledge_entries` table (was referencing dropped `memories` table)
+- Updates `get_memories_by_importance()` RPC to use `knowledge_entries` table
+- Domain-scoped search with default domain always accessible
+- Returns compatible schema for TP working memory injection
+
+### Migration 048: Fix Domain RPCs (2026-02-13) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/048_fix_domain_rpcs.sql
+```
+
+**Changes**:
+- Updates `get_user_domains_summary()` to use `knowledge_domains.sources` JSONB (was referencing dropped `domain_sources` table)
+- Updates `get_deliverable_domain()` to compute domain associations dynamically from sources overlap (was referencing dropped `deliverable_domains` table)
+- Drops `get_domain_sources()` function (no longer needed)
+
 ---
 
 ### Migration 041: ADR-040 Notifications (2026-02-11) ✅
