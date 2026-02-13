@@ -321,17 +321,18 @@ async def get_profile(auth: UserClient):
     ADR-058: Returns effective profile (stated values take precedence over inferred).
     """
     try:
+        # Use limit(1) instead of maybe_single() to avoid 406 errors
         result = auth.client.table("knowledge_profile")\
             .select("*")\
             .eq("user_id", auth.user_id)\
-            .maybe_single()\
+            .limit(1)\
             .execute()
 
-        if not result.data:
+        if not result.data or len(result.data) == 0:
             # Return empty profile if none exists
             return ProfileResponse()
 
-        row = result.data
+        row = result.data[0]  # Get first row from list
 
         # Build effective profile with source indicators
         def get_effective(stated_key: str, inferred_key: str):
@@ -396,14 +397,14 @@ async def update_profile(update: ProfileUpdate, auth: UserClient):
 
         update_data["updated_at"] = datetime.utcnow().isoformat()
 
-        # Check if profile exists
+        # Check if profile exists (use limit(1) to avoid 406 errors)
         existing = auth.client.table("knowledge_profile")\
             .select("id")\
             .eq("user_id", auth.user_id)\
-            .maybe_single()\
+            .limit(1)\
             .execute()
 
-        if existing.data:
+        if existing.data and len(existing.data) > 0:
             # Update existing
             auth.client.table("knowledge_profile")\
                 .update(update_data)\

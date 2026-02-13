@@ -576,13 +576,14 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             deliverable_count = deliverables_result.count or 0
 
             # Count recent activity from filesystem_items (last 7 days)
+            # ADR-058: filesystem_items uses synced_at, not created_at
             from datetime import timedelta
             seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
             activity_result = auth.client.table("filesystem_items").select(
                 "id", count="exact"
             ).eq("user_id", user_id).eq(
                 "platform", provider
-            ).gte("created_at", seven_days_ago).execute()
+            ).gte("synced_at", seven_days_ago).execute()
             activity_7d = activity_result.count or 0
 
             platforms.append(PlatformSummary(
@@ -1918,7 +1919,7 @@ async def start_slack_import(
             "provider": "slack",
             "resource_id": request.resource_id,
             "resource_name": resource_name,
-            "project_id": request.project_id,
+            # project_id removed - ADR-058: column no longer exists in table
             "instructions": request.instructions,
             "config": config_dict if config_dict else None,
             "scope": scope_dict,  # ADR-030
@@ -2036,7 +2037,7 @@ async def start_gmail_import(
             "provider": "gmail",
             "resource_id": resource_id,
             "resource_name": resource_name,
-            "project_id": request.project_id,
+            # project_id removed - ADR-058: column no longer exists in table
             "instructions": request.instructions,
             "config": config_dict if config_dict else None,
             "scope": scope_dict,  # ADR-030
@@ -2135,7 +2136,7 @@ async def start_notion_import(
             "provider": "notion",
             "resource_id": request.resource_id,
             "resource_name": resource_name,
-            "project_id": request.project_id,
+            # project_id removed - ADR-058: column no longer exists in table
             "instructions": request.instructions,
             "config": config_dict if config_dict else None,
             "scope": scope_dict,  # ADR-030
