@@ -121,12 +121,12 @@ def get_source_count(client, user_id: str, provider: str) -> int:
     """
     Count selected sources for a provider.
 
-    Sources are stored in platform_connections.config.selected_sources.
+    ADR-058: Sources are stored in platform_connections.landscape.selected_sources.
     """
     try:
         result = (
             client.table("platform_connections")
-            .select("config")
+            .select("landscape")
             .eq("user_id", user_id)
             .eq("platform", provider)
             .eq("status", "connected")
@@ -138,8 +138,8 @@ def get_source_count(client, user_id: str, provider: str) -> int:
 
         total = 0
         for platform in result.data:
-            config = platform.get("config", {}) or {}
-            sources = config.get("selected_sources", [])
+            landscape = platform.get("landscape", {}) or {}
+            sources = landscape.get("selected_sources", [])
             total += len(sources) if isinstance(sources, list) else 0
 
         return total
