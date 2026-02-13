@@ -988,7 +988,7 @@ export default function ContextPage() {
         api.profile.get().catch(() => ({})),
         api.styles.list().catch(() => ({ styles: [] })),
         api.domains.list().catch(() => []),
-        api.user.memories().catch(() => []),
+        api.userMemories.list().catch(() => []),
         api.integrations.getSummary().catch(() => ({ platforms: [] })),
         api.documents.list().catch(() => ({ documents: [] })),
       ]);
