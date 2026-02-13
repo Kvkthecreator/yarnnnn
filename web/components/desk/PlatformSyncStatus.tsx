@@ -10,9 +10,10 @@
  * - Connected platforms: Show sync status with item counts
  * - Unconnected platforms: Show connect button that starts OAuth
  * - After OAuth: Show source selection modal
+ * - Document upload: Alternative entry point for users without platforms
  */
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef } from 'react';
 import {
   MessageSquare,
   Mail,
@@ -24,12 +25,15 @@ import {
   Loader2,
   ExternalLink,
   Plus,
+  Upload,
+  File,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { SourceSelectionModal } from '@/components/onboarding/SourceSelectionModal';
+import { useDocuments, UploadProgress } from '@/hooks/useDocuments';
 
 type Provider = 'slack' | 'gmail' | 'notion' | 'calendar';
 
@@ -100,6 +104,15 @@ interface PlatformSyncStatusProps {
   className?: string;
 }
 
+// Allowed document types (matching backend)
+const ALLOWED_DOC_TYPES = ['.pdf', '.docx', '.txt', '.md'];
+const ALLOWED_MIME_TYPES = [
+  'application/pdf',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+  'text/markdown',
+];
+
 export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -112,6 +125,10 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
 
   // Source selection modal state (ADR-057)
   const [sourceModalProvider, setSourceModalProvider] = useState<Provider | null>(null);
+
+  // Document upload state
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { documents, upload: uploadDocument, uploadProgress } = useDocuments();
 
   // Check for OAuth callback
   const providerParam = searchParams.get('provider');
@@ -368,6 +385,69 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
             </div>
           </div>
         )}
+
+        {/* Document Upload Section */}
+        <div className="mt-4 pt-4 border-t border-border/50">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept={ALLOWED_DOC_TYPES.join(',')}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                // Validate file type
+                const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+                if (ALLOWED_DOC_TYPES.includes(ext) || ALLOWED_MIME_TYPES.includes(file.type)) {
+                  uploadDocument(file);
+                }
+              }
+              // Reset input
+              if (fileInputRef.current) {
+                fileInputRef.current.value = '';
+              }
+            }}
+            className="hidden"
+          />
+
+          {/* Upload progress indicator */}
+          {uploadProgress && (
+            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 text-sm">
+              {uploadProgress.status === 'uploading' || uploadProgress.status === 'processing' ? (
+                <Loader2 className="w-4 h-4 animate-spin text-primary" />
+              ) : uploadProgress.status === 'completed' ? (
+                <CheckCircle2 className="w-4 h-4 text-green-500" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-red-500" />
+              )}
+              <span className="truncate flex-1">{uploadProgress.filename}</span>
+              <span className="text-xs text-muted-foreground capitalize">{uploadProgress.status}</span>
+            </div>
+          )}
+
+          {/* Show uploaded documents count if any */}
+          {documents.length > 0 && (
+            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 text-sm">
+              <File className="w-4 h-4 text-muted-foreground" />
+              <span>{documents.length} document{documents.length !== 1 ? 's' : ''} uploaded</span>
+              <CheckCircle2 className="w-3 h-3 text-green-500 ml-auto" />
+            </div>
+          )}
+
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploadProgress?.status === 'uploading' || uploadProgress?.status === 'processing'}
+            className={cn(
+              'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl',
+              'border border-dashed border-border text-sm',
+              'hover:border-primary/50 hover:bg-primary/5 transition-colors',
+              'disabled:opacity-50 disabled:cursor-not-allowed'
+            )}
+          >
+            <Upload className="w-4 h-4 text-muted-foreground" />
+            <span>Upload documents</span>
+            <span className="text-xs text-muted-foreground">(PDF, DOCX, TXT, MD)</span>
+          </button>
+        </div>
 
         {/* No platforms at all - full onboarding prompt */}
         {connectedPlatforms.length === 0 && (
