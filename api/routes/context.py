@@ -1,25 +1,29 @@
 """
-Context routes - Memory management
+Context routes - Knowledge Base Management (ADR-058)
 
-ADR-005: Unified memory with embeddings
+ADR-058: Knowledge Base Architecture
 ADR-034: Context v2 - Domain-based scoping
 
-User-scoped endpoints:
-- GET /user/memories - List user-scoped memories
-- POST /user/memories - Create user memory manually
-- POST /user/memories/import - Bulk import text (user-scoped)
+Knowledge endpoints:
+- GET /profile - Get user's knowledge profile
+- PATCH /profile - Update user's stated profile fields
+- GET /styles - Get user's communication styles
+- PATCH /styles/{platform} - Update style preferences
+
+Entry (Memory) endpoints:
+- GET /user/memories - List user-scoped knowledge entries
+- POST /user/memories - Create knowledge entry manually
+- POST /user/memories/import - Bulk import text
 - GET /user/onboarding-state - Get onboarding state
+- PATCH /memories/:id - Update entry
+- DELETE /memories/:id - Soft-delete entry
 
-Memory management:
-- PATCH /memories/:id - Update memory
-- DELETE /memories/:id - Soft-delete memory
-
-For domain-scoped memories, use /api/domains/{domain_id}/memories
+For domain-scoped entries, use /api/domains/{domain_id}/memories
 """
 
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
 from uuid import UUID
 from datetime import datetime
 
@@ -273,4 +277,306 @@ async def delete_memory(memory_id: UUID, auth: UserClient):
     except Exception as e:
         if "violates row-level security" in str(e):
             raise HTTPException(status_code=403, detail="Access denied")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ADR-058: Knowledge Profile Endpoints
+# =============================================================================
+
+class ProfileResponse(BaseModel):
+    """User's knowledge profile (inferred + stated)."""
+    id: Optional[UUID] = None
+    # Effective values (stated takes precedence over inferred)
+    name: Optional[str] = None
+    role: Optional[str] = None
+    company: Optional[str] = None
+    timezone: Optional[str] = None
+    summary: Optional[str] = None
+    # Source indicators
+    name_source: Optional[str] = None  # 'stated' or 'inferred'
+    role_source: Optional[str] = None
+    company_source: Optional[str] = None
+    timezone_source: Optional[str] = None
+    summary_source: Optional[str] = None
+    # Inference metadata
+    last_inferred_at: Optional[datetime] = None
+    inference_confidence: Optional[float] = None
+
+
+class ProfileUpdate(BaseModel):
+    """Update user's stated profile fields."""
+    name: Optional[str] = None
+    role: Optional[str] = None
+    company: Optional[str] = None
+    timezone: Optional[str] = None
+    summary: Optional[str] = None
+
+
+@router.get("/profile", response_model=ProfileResponse)
+async def get_profile(auth: UserClient):
+    """
+    Get user's knowledge profile.
+
+    ADR-058: Returns effective profile (stated values take precedence over inferred).
+    """
+    try:
+        result = auth.client.table("knowledge_profile")\
+            .select("*")\
+            .eq("user_id", auth.user_id)\
+            .maybe_single()\
+            .execute()
+
+        if not result.data:
+            # Return empty profile if none exists
+            return ProfileResponse()
+
+        row = result.data
+
+        # Build effective profile with source indicators
+        def get_effective(stated_key: str, inferred_key: str):
+            stated = row.get(stated_key)
+            inferred = row.get(inferred_key)
+            if stated:
+                return stated, "stated"
+            elif inferred:
+                return inferred, "inferred"
+            return None, None
+
+        name, name_src = get_effective("stated_name", "inferred_name")
+        role, role_src = get_effective("stated_role", "inferred_role")
+        company, company_src = get_effective("stated_company", "inferred_company")
+        timezone, tz_src = get_effective("stated_timezone", "inferred_timezone")
+        summary, summary_src = get_effective("stated_summary", "inferred_summary")
+
+        return ProfileResponse(
+            id=row.get("id"),
+            name=name,
+            role=role,
+            company=company,
+            timezone=timezone,
+            summary=summary,
+            name_source=name_src,
+            role_source=role_src,
+            company_source=company_src,
+            timezone_source=tz_src,
+            summary_source=summary_src,
+            last_inferred_at=row.get("last_inferred_at"),
+            inference_confidence=row.get("inference_confidence"),
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/profile", response_model=ProfileResponse)
+async def update_profile(update: ProfileUpdate, auth: UserClient):
+    """
+    Update user's stated profile fields.
+
+    ADR-058: Stated values take precedence over inferred values.
+    """
+    try:
+        # Build update data (only include non-None fields)
+        update_data = {}
+        if update.name is not None:
+            update_data["stated_name"] = update.name if update.name else None
+        if update.role is not None:
+            update_data["stated_role"] = update.role if update.role else None
+        if update.company is not None:
+            update_data["stated_company"] = update.company if update.company else None
+        if update.timezone is not None:
+            update_data["stated_timezone"] = update.timezone if update.timezone else None
+        if update.summary is not None:
+            update_data["stated_summary"] = update.summary if update.summary else None
+
+        if not update_data:
+            # No fields to update, just return current profile
+            return await get_profile(auth)
+
+        update_data["updated_at"] = datetime.utcnow().isoformat()
+
+        # Check if profile exists
+        existing = auth.client.table("knowledge_profile")\
+            .select("id")\
+            .eq("user_id", auth.user_id)\
+            .maybe_single()\
+            .execute()
+
+        if existing.data:
+            # Update existing
+            auth.client.table("knowledge_profile")\
+                .update(update_data)\
+                .eq("user_id", auth.user_id)\
+                .execute()
+        else:
+            # Create new profile
+            update_data["user_id"] = auth.user_id
+            auth.client.table("knowledge_profile")\
+                .insert(update_data)\
+                .execute()
+
+        # Return updated profile
+        return await get_profile(auth)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# =============================================================================
+# ADR-058: Knowledge Styles Endpoints
+# =============================================================================
+
+class StyleResponse(BaseModel):
+    """Communication style for a platform."""
+    id: Optional[UUID] = None
+    platform: str
+    tone: Optional[str] = None  # 'casual', 'formal', 'mixed'
+    verbosity: Optional[str] = None  # 'minimal', 'moderate', 'detailed'
+    formatting: Optional[dict] = None  # {uses_emoji, uses_bullets, etc.}
+    vocabulary_notes: Optional[str] = None
+    sample_excerpts: Optional[list[str]] = None
+    stated_preferences: Optional[dict] = None
+    sample_count: int = 0
+    last_inferred_at: Optional[datetime] = None
+
+
+class StylesListResponse(BaseModel):
+    """List of all user styles."""
+    styles: list[StyleResponse]
+
+
+class StyleUpdate(BaseModel):
+    """Update style preferences for a platform."""
+    tone: Optional[str] = None
+    verbosity: Optional[str] = None
+    stated_preferences: Optional[dict] = None
+
+
+@router.get("/styles", response_model=StylesListResponse)
+async def get_styles(auth: UserClient):
+    """
+    Get user's communication styles for all platforms.
+
+    ADR-058: Styles are inferred from user-authored content in filesystem_items.
+    """
+    try:
+        result = auth.client.table("knowledge_styles")\
+            .select("*")\
+            .eq("user_id", auth.user_id)\
+            .order("platform")\
+            .execute()
+
+        styles = []
+        for row in result.data or []:
+            styles.append(StyleResponse(
+                id=row.get("id"),
+                platform=row.get("platform"),
+                tone=row.get("tone"),
+                verbosity=row.get("verbosity"),
+                formatting=row.get("formatting"),
+                vocabulary_notes=row.get("vocabulary_notes"),
+                sample_excerpts=row.get("sample_excerpts"),
+                stated_preferences=row.get("stated_preferences"),
+                sample_count=row.get("sample_count", 0),
+                last_inferred_at=row.get("last_inferred_at"),
+            ))
+
+        return StylesListResponse(styles=styles)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/styles/{platform}", response_model=StyleResponse)
+async def get_style(platform: str, auth: UserClient):
+    """
+    Get user's communication style for a specific platform.
+    """
+    try:
+        result = auth.client.table("knowledge_styles")\
+            .select("*")\
+            .eq("user_id", auth.user_id)\
+            .eq("platform", platform)\
+            .maybe_single()\
+            .execute()
+
+        if not result.data:
+            # Return empty style for platform
+            return StyleResponse(platform=platform)
+
+        row = result.data
+        return StyleResponse(
+            id=row.get("id"),
+            platform=row.get("platform"),
+            tone=row.get("tone"),
+            verbosity=row.get("verbosity"),
+            formatting=row.get("formatting"),
+            vocabulary_notes=row.get("vocabulary_notes"),
+            sample_excerpts=row.get("sample_excerpts"),
+            stated_preferences=row.get("stated_preferences"),
+            sample_count=row.get("sample_count", 0),
+            last_inferred_at=row.get("last_inferred_at"),
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.patch("/styles/{platform}", response_model=StyleResponse)
+async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
+    """
+    Update user's stated style preferences for a platform.
+
+    ADR-058: Stated preferences override inferred styles when generating content.
+    """
+    try:
+        # Build update data
+        update_data = {"updated_at": datetime.utcnow().isoformat()}
+
+        if update.tone is not None:
+            # Store in stated_preferences
+            update_data.setdefault("stated_preferences", {})
+            if isinstance(update_data["stated_preferences"], dict):
+                update_data["stated_preferences"]["tone"] = update.tone
+
+        if update.verbosity is not None:
+            update_data.setdefault("stated_preferences", {})
+            if isinstance(update_data["stated_preferences"], dict):
+                update_data["stated_preferences"]["verbosity"] = update.verbosity
+
+        if update.stated_preferences is not None:
+            update_data["stated_preferences"] = update.stated_preferences
+
+        # Check if style exists
+        existing = auth.client.table("knowledge_styles")\
+            .select("id, stated_preferences")\
+            .eq("user_id", auth.user_id)\
+            .eq("platform", platform)\
+            .maybe_single()\
+            .execute()
+
+        if existing.data:
+            # Merge stated_preferences if needed
+            if "stated_preferences" in update_data and existing.data.get("stated_preferences"):
+                merged = {**existing.data["stated_preferences"], **update_data["stated_preferences"]}
+                update_data["stated_preferences"] = merged
+
+            auth.client.table("knowledge_styles")\
+                .update(update_data)\
+                .eq("user_id", auth.user_id)\
+                .eq("platform", platform)\
+                .execute()
+        else:
+            # Create new style record
+            update_data["user_id"] = auth.user_id
+            update_data["platform"] = platform
+            auth.client.table("knowledge_styles")\
+                .insert(update_data)\
+                .execute()
+
+        # Return updated style
+        return await get_style(platform, auth)
+
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

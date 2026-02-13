@@ -141,7 +141,7 @@ export const api = {
       }),
   },
 
-  // Memory management
+  // Memory/Entries management
   memories: {
     update: (memoryId: string, data: MemoryUpdate) =>
       request<Memory>(`/api/context/memories/${memoryId}`, {
@@ -151,6 +151,96 @@ export const api = {
     delete: (memoryId: string) =>
       request<DeleteResponse>(`/api/context/memories/${memoryId}`, {
         method: "DELETE",
+      }),
+  },
+
+  // ADR-058: Knowledge Profile
+  profile: {
+    get: () =>
+      request<{
+        id?: string;
+        name?: string;
+        role?: string;
+        company?: string;
+        timezone?: string;
+        summary?: string;
+        name_source?: string;
+        role_source?: string;
+        company_source?: string;
+        timezone_source?: string;
+        summary_source?: string;
+        last_inferred_at?: string;
+        inference_confidence?: number;
+      }>("/api/context/profile"),
+    update: (data: {
+      name?: string;
+      role?: string;
+      company?: string;
+      timezone?: string;
+      summary?: string;
+    }) =>
+      request<{
+        id?: string;
+        name?: string;
+        role?: string;
+        company?: string;
+        timezone?: string;
+        summary?: string;
+        name_source?: string;
+        role_source?: string;
+        company_source?: string;
+        timezone_source?: string;
+        summary_source?: string;
+      }>("/api/context/profile", {
+        method: "PATCH",
+        body: JSON.stringify(data),
+      }),
+  },
+
+  // ADR-058: Knowledge Styles
+  styles: {
+    list: () =>
+      request<{
+        styles: Array<{
+          id?: string;
+          platform: string;
+          tone?: string;
+          verbosity?: string;
+          formatting?: Record<string, unknown>;
+          vocabulary_notes?: string;
+          sample_excerpts?: string[];
+          stated_preferences?: Record<string, unknown>;
+          sample_count: number;
+          last_inferred_at?: string;
+        }>;
+      }>("/api/context/styles"),
+    get: (platform: string) =>
+      request<{
+        id?: string;
+        platform: string;
+        tone?: string;
+        verbosity?: string;
+        formatting?: Record<string, unknown>;
+        vocabulary_notes?: string;
+        sample_excerpts?: string[];
+        stated_preferences?: Record<string, unknown>;
+        sample_count: number;
+        last_inferred_at?: string;
+      }>(`/api/context/styles/${platform}`),
+    update: (platform: string, data: {
+      tone?: string;
+      verbosity?: string;
+      stated_preferences?: Record<string, unknown>;
+    }) =>
+      request<{
+        id?: string;
+        platform: string;
+        tone?: string;
+        verbosity?: string;
+        stated_preferences?: Record<string, unknown>;
+      }>(`/api/context/styles/${platform}`, {
+        method: "PATCH",
+        body: JSON.stringify(data),
       }),
   },
 
