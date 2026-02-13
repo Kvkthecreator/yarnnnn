@@ -848,7 +848,7 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
                   {doc.filename}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {doc.file_type?.toUpperCase()} · {formatDistanceToNow(new Date(doc.uploaded_at), { addSuffix: true })}
+                  {doc.file_type?.toUpperCase()} · {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
                 </p>
               </div>
               <div className="flex items-center gap-2">
