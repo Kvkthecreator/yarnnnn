@@ -121,14 +121,14 @@ def get_source_count(client, user_id: str, provider: str) -> int:
     """
     Count selected sources for a provider.
 
-    Sources are stored in platforms.config.selected_sources.
+    Sources are stored in platform_connections.config.selected_sources.
     """
     try:
         result = (
-            client.table("platforms")
+            client.table("platform_connections")
             .select("config")
             .eq("user_id", user_id)
-            .eq("provider", provider)
+            .eq("platform", provider)
             .eq("status", "connected")
             .execute()
         )
@@ -152,7 +152,7 @@ def get_platform_count(client, user_id: str) -> int:
     """Count connected platforms for a user."""
     try:
         result = (
-            client.table("platforms")
+            client.table("platform_connections")
             .select("id")
             .eq("user_id", user_id)
             .eq("status", "connected")

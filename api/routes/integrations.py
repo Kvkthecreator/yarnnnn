@@ -2454,26 +2454,29 @@ async def get_landscape(
         landscape_data = integration.data.get("landscape", {})
         discovered_at = integration.data.get("landscape_discovered_at")
 
-    # Get coverage records for this provider
-    coverage_result = auth.client.table("integration_coverage").select(
-        "*"
+    # Get sync records for this provider (ADR-058)
+    sync_result = auth.client.table("sync_registry").select(
+        "resource_id, resource_name, last_synced_at, item_count, sync_metadata"
     ).eq("user_id", user_id).eq("platform", provider).execute()
 
-    coverage_by_id = {c["resource_id"]: c for c in (coverage_result.data or [])}
+    sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
 
-    # Build resource list with coverage
+    # Build resource list with sync status
     resources = []
     for resource in landscape_data.get("resources", []):
         resource_id = resource.get("id")
-        coverage = coverage_by_id.get(resource_id, {})
+        sync_data = sync_by_id.get(resource_id, {})
+
+        # Determine coverage state from sync data
+        coverage_state = "synced" if sync_data.get("last_synced_at") else "uncovered"
 
         resources.append(LandscapeResourceResponse(
             id=resource_id,
             name=resource.get("name", "Unknown"),
             resource_type=resource.get("type", "unknown"),
-            coverage_state=coverage.get("coverage_state", "uncovered"),
-            last_extracted_at=coverage.get("last_extracted_at"),
-            items_extracted=coverage.get("items_extracted", 0),
+            coverage_state=coverage_state,
+            last_extracted_at=sync_data.get("last_synced_at"),
+            items_extracted=sync_data.get("item_count", 0),
             metadata=resource.get("metadata", {})
         ))
 
@@ -2730,10 +2733,10 @@ async def update_coverage(
     auth: UserClient = None
 ) -> dict[str, Any]:
     """
-    Update coverage state for a resource.
+    Update sync state for a resource.
 
-    ADR-030: Allows users to mark resources as excluded (not relevant)
-    or reset them to uncovered.
+    ADR-058: Allows users to mark resources as excluded (not relevant)
+    or reset them to uncovered. Uses sync_registry.sync_metadata.
     """
     if request.coverage_state not in ["excluded", "uncovered"]:
         raise HTTPException(
@@ -2743,24 +2746,25 @@ async def update_coverage(
 
     user_id = auth.user_id
 
-    # Check if coverage record exists
-    existing = auth.client.table("integration_coverage").select("id").eq(
+    # Check if sync record exists
+    existing = auth.client.table("sync_registry").select("id, sync_metadata").eq(
         "user_id", user_id
     ).eq("platform", provider).eq("resource_id", resource_id).execute()
 
     if existing.data:
-        # Update
-        auth.client.table("integration_coverage").update({
-            "coverage_state": request.coverage_state,
-            "updated_at": datetime.utcnow().isoformat()
+        # Update existing record's metadata
+        metadata = existing.data[0].get("sync_metadata", {}) or {}
+        metadata["excluded"] = request.coverage_state == "excluded"
+        auth.client.table("sync_registry").update({
+            "sync_metadata": metadata,
         }).eq("id", existing.data[0]["id"]).execute()
     else:
-        # Insert
-        auth.client.table("integration_coverage").insert({
+        # Insert new record with exclusion state
+        auth.client.table("sync_registry").insert({
             "user_id": user_id,
-            "provider": provider,
+            "platform": provider,
             "resource_id": resource_id,
-            "coverage_state": request.coverage_state
+            "sync_metadata": {"excluded": request.coverage_state == "excluded"}
         }).execute()
 
     return {"success": True, "resource_id": resource_id, "coverage_state": request.coverage_state}

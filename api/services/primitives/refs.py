@@ -1,5 +1,5 @@
 """
-Reference Parsing and Resolution (ADR-038 Phase 2)
+Reference Parsing and Resolution (ADR-058 Knowledge Base Architecture)
 
 Grammar: <type>:<identifier>[/<subpath>][?<query>]
 
@@ -8,22 +8,22 @@ Examples:
   deliverable:latest            # Most recent
   platform:slack                # By provider name
   platform:slack/credentials    # Sub-entity
-  platform_content:*            # All platform content (ephemeral_context)
+  platform_content:*            # All platform content (filesystem_items)
   session:current               # Special reference
 
 Entity types:
   - deliverable: Content deliverables
   - platform: Connected platforms (platform_connections)
-  - platform_content: Imported platform data (filesystem_items) - ADR-058
-  - memory: User-stated facts only (source_type='chat', 'user_stated')
+  - platform_content: Imported platform data (filesystem_items)
+  - memory: Knowledge entries (user facts, preferences)
   - session: Chat sessions
-  - domain: Context domains
-  - document: Uploaded documents
+  - domain: Knowledge domains
+  - document: Uploaded documents (filesystem_documents)
   - work: Work execution records
   - action: Executable actions (for discovery)
 
-NOTE: Per ADR-038, 'memory' is narrowed to user-stated facts only.
-      Platform content (Slack/Gmail/Notion imports) lives in ephemeral_context.
+NOTE: Per ADR-058, 'memory' maps to knowledge_entries.
+      Platform content (Slack/Gmail/Notion imports) lives in filesystem_items.
 
 Special identifiers:
   - new: For Write operations (create)
@@ -72,8 +72,8 @@ class EntityRef:
 ENTITY_TYPES = {
     "deliverable",
     "platform",
-    "platform_content",  # ADR-038: ephemeral_context
-    "memory",  # Narrowed to user-stated facts only
+    "platform_content",  # ADR-058: filesystem_items
+    "memory",  # ADR-058: knowledge_entries
     "session",
     "domain",
     "document",

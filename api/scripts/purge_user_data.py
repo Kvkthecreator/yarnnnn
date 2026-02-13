@@ -10,10 +10,10 @@ This will:
 1. Delete all deliverable_versions for user's deliverables
 2. Delete all deliverables
 3. Delete all chat_sessions (and cascade to session_messages)
-4. Delete all memories
+4. Delete all knowledge_entries (ADR-058)
 5. Delete all work_outputs for user's work_tickets
 6. Delete all work_tickets
-7. Delete all context_domains
+7. Delete all knowledge_domains (ADR-058)
 
 WARNING: This is destructive and cannot be undone!
 """
@@ -127,8 +127,8 @@ def purge_user_data(email: str, dry_run: bool = False):
     else:
         print(f"   Would delete {len(ticket_ids)} work tickets")
 
-    # 5. Delete context_domains
-    print(f"\n🗑️  {action} context_domains...")
+    # 5. Delete knowledge_domains (ADR-058)
+    print(f"\n🗑️  {action} knowledge_domains...")
     if not dry_run:
         result = client.table("knowledge_domains").delete().eq("user_id", user_id).execute()
         print(f"   Deleted {len(result.data or [])} context domains")

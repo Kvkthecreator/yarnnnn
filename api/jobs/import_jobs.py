@@ -1,20 +1,18 @@
 """
 YARNNN v5 - Integration Import Jobs
 
-Processes context import jobs for Slack/Notion integrations.
+Processes context import jobs for Slack/Gmail/Notion integrations.
 Integrated into unified_scheduler.py to run every 5 minutes.
 
 Flow:
-1. Query pending import jobs
-2. Fetch user's integration credentials
-3. Fetch data via MCP (Slack channels, Notion pages)
-4. Run ContextImportAgent to extract structured blocks
-5. Optionally run StyleLearningAgent to extract communication style (Phase 5)
-6. Store results in memories table with domain_id (ADR-034: Emergent Context Domains)
-7. Update job status
+1. Query pending import jobs from integration_import_jobs table
+2. Fetch user's platform credentials from platform_connections
+3. Fetch data via MCP (Slack channels, Gmail labels, Notion pages)
+4. Store results in filesystem_items (ADR-058 Knowledge Base Architecture)
+5. Update sync_registry with sync status
+6. Update job status
 
-See ADR-027: Integration Read Architecture
-See ADR-034: Emergent Context Domains
+See ADR-058: Knowledge Base Architecture
 """
 
 from __future__ import annotations
@@ -216,6 +214,45 @@ async def update_job_progress(
     }).eq("id", job_id).execute()
 
 
+async def update_sync_registry(
+    supabase_client,
+    user_id: str,
+    platform: str,
+    resource_id: str,
+    resource_name: str,
+    item_count: int,
+    sync_metadata: dict = None,
+) -> None:
+    """
+    ADR-058: Update sync registry for a resource after sync/extraction.
+
+    Upserts sync_registry record with sync results.
+    Replaces the old integration_coverage table.
+    """
+    try:
+        sync_data = {
+            "user_id": user_id,
+            "platform": platform,
+            "resource_id": resource_id,
+            "resource_name": resource_name,
+            "last_synced_at": datetime.now(timezone.utc).isoformat(),
+            "item_count": item_count,
+            "sync_metadata": sync_metadata or {},
+        }
+
+        # Upsert using ON CONFLICT
+        supabase_client.table("sync_registry").upsert(
+            sync_data,
+            on_conflict="user_id,platform,resource_id"
+        ).execute()
+
+        logger.info(f"[SYNC] Updated registry {platform}/{resource_id}: {item_count} items")
+
+    except Exception as e:
+        logger.warning(f"[SYNC] Failed to update sync registry: {e}")
+
+
+# Backwards compatibility alias
 async def update_coverage_state(
     supabase_client,
     user_id: str,
@@ -225,59 +262,23 @@ async def update_coverage_state(
     coverage_state: str,
     scope: dict,
     items_extracted: int,
-    blocks_created: int,  # Number of context blocks identified (stored in ephemeral_context per ADR-038)
+    blocks_created: int,
 ) -> None:
-    """
-    ADR-030: Update coverage state for a resource after extraction.
-
-    Upserts integration_coverage record with extraction results.
-    Note: blocks_created tracks blocks extracted, which are now stored
-    in ephemeral_context (not memories) per ADR-038.
-    """
-    try:
-        # Check if exists
-        existing = (
-            supabase_client.table("integration_coverage")
-            .select("id")
-            .eq("user_id", user_id)
-            .eq("provider", provider)
-            .eq("resource_id", resource_id)
-            .execute()
-        )
-
-        coverage_data = {
-            "coverage_state": coverage_state,
-            "scope": scope,
-            "last_extracted_at": datetime.now(timezone.utc).isoformat(),
-            "items_extracted": items_extracted,
-            "blocks_created": blocks_created,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-        }
-
-        if existing.data:
-            supabase_client.table("integration_coverage").update(coverage_data).eq(
-                "id", existing.data[0]["id"]
-            ).execute()
-        else:
-            coverage_data.update({
-                "user_id": user_id,
-                "provider": provider,
-                "resource_id": resource_id,
-                "resource_name": resource_name,
-                "resource_type": "label" if provider == "gmail" else "channel" if provider == "slack" else "page",
-            })
-            supabase_client.table("integration_coverage").insert(coverage_data).execute()
-
-        logger.info(f"[COVERAGE] Updated {provider}/{resource_id} -> {coverage_state}")
-
-    except Exception as e:
-        logger.warning(f"[COVERAGE] Failed to update coverage state: {e}")
+    """DEPRECATED: Use update_sync_registry instead."""
+    await update_sync_registry(
+        supabase_client=supabase_client,
+        user_id=user_id,
+        platform=provider,
+        resource_id=resource_id,
+        resource_name=resource_name,
+        item_count=items_extracted,
+        sync_metadata={"scope": scope, "blocks_created": blocks_created, "legacy_state": coverage_state},
+    )
 
 
-# NOTE: store_memory_blocks() removed per ADR-038 Phase 2
-# Platform content now stored ONLY in ephemeral_context table.
-# The memories table is reserved for user-stated facts (source_type='chat', 'user_stated').
-# See: ADR-038-filesystem-as-context.md
+# NOTE: Platform content stored in filesystem_items table (ADR-058).
+# Knowledge entries (knowledge_entries) are reserved for user-stated facts and inferred preferences.
+# See: ADR-058-knowledge-base-architecture.md
 
 
 async def process_slack_import(
@@ -972,7 +973,7 @@ async def process_import_job(supabase_client, job: dict) -> bool:
 
         logger.info(
             f"[IMPORT] ✓ Completed job {job_id}: "
-            f"{result.get('ephemeral_stored', 0)} items stored to ephemeral_context, "
+            f"{result.get('ephemeral_stored', 0)} items stored to filesystem_items, "
             f"{result.get('blocks_extracted', 0)} blocks extracted"
         )
         return True

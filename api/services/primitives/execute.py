@@ -65,7 +65,7 @@ Examples:
 # ADR-048: platform.send and platform.search removed - use MCP tools directly
 ACTION_CATALOG = {
     "platform.sync": {
-        "description": "Sync latest content from platform into ephemeral_context",
+        "description": "Sync latest content from platform into filesystem_items",
         "target_types": ["platform"],
     },
     "platform.publish": {
@@ -232,7 +232,7 @@ def _get_action_handler(action: str):
 
 
 async def _handle_platform_sync(auth, entity, ref, via, params):
-    """Sync latest from platform into ephemeral_context."""
+    """Sync latest from platform into filesystem_items."""
     provider = entity.get("provider")
 
     # Trigger sync job

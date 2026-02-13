@@ -429,9 +429,9 @@ async def clear_all_integrations(auth: UserClient) -> OperationResult:
         result = auth.client.table("integration_import_jobs").delete().eq("user_id", user_id).execute()
         deleted["integration_import_jobs"] = len(result.data or [])
 
-        # Delete coverage records
-        result = auth.client.table("integration_coverage").delete().eq("user_id", user_id).execute()
-        deleted["integration_coverage"] = len(result.data or [])
+        # Delete sync registry records
+        result = auth.client.table("sync_registry").delete().eq("user_id", user_id).execute()
+        deleted["sync_registry"] = len(result.data or [])
 
         # Delete sync configs
         result = auth.client.table("integration_sync_config").delete().eq("user_id", user_id).execute()
@@ -558,8 +558,8 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         result = auth.client.table("integration_import_jobs").delete().eq("user_id", user_id).execute()
         deleted["integration_import_jobs"] = len(result.data or [])
 
-        result = auth.client.table("integration_coverage").delete().eq("user_id", user_id).execute()
-        deleted["integration_coverage"] = len(result.data or [])
+        result = auth.client.table("sync_registry").delete().eq("user_id", user_id).execute()
+        deleted["sync_registry"] = len(result.data or [])
 
         result = auth.client.table("integration_sync_config").delete().eq("user_id", user_id).execute()
         deleted["integration_sync_config"] = len(result.data or [])
@@ -646,8 +646,8 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         result = auth.client.table("integration_import_jobs").delete().eq("user_id", user_id).execute()
         deleted["integration_import_jobs"] = len(result.data or [])
 
-        result = auth.client.table("integration_coverage").delete().eq("user_id", user_id).execute()
-        deleted["integration_coverage"] = len(result.data or [])
+        result = auth.client.table("sync_registry").delete().eq("user_id", user_id).execute()
+        deleted["sync_registry"] = len(result.data or [])
 
         result = auth.client.table("integration_sync_config").delete().eq("user_id", user_id).execute()
         deleted["integration_sync_config"] = len(result.data or [])

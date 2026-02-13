@@ -3201,9 +3201,9 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
     platform = input["platform"]
     resource_id = input.get("resource_id")
 
-    # ADR-049: Query sync_registry for freshness data (primary source)
+    # ADR-058: Query sync_registry for sync status
     registry_query = auth.client.table("sync_registry")\
-        .select("resource_id, resource_name, last_synced_at, item_count, source_latest_at")\
+        .select("resource_id, resource_name, last_synced_at, item_count, source_latest_at, sync_metadata")\
         .eq("user_id", auth.user_id)\
         .eq("platform", platform)
 
@@ -3213,23 +3213,8 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
     registry_result = registry_query.execute()
     registry_data = registry_result.data or []
 
-    # Also query legacy coverage table for backward compatibility
-    coverage_query = auth.client.table("integration_coverage")\
-        .select("id, resource_id, resource_name, resource_type, coverage_state, last_extracted_at, items_extracted, blocks_created, scope")\
-        .eq("user_id", auth.user_id)\
-        .eq("platform", platform)
-
-    if resource_id:
-        coverage_query = coverage_query.eq("resource_id", resource_id)
-
-    coverage_result = coverage_query.execute()
-    coverage = coverage_result.data or []
-
-    # Merge data: prefer sync_registry, fall back to coverage
     registry_by_id = {r["resource_id"]: r for r in registry_data}
-    coverage_by_id = {c["resource_id"]: c for c in coverage}
-
-    all_resource_ids = set(registry_by_id.keys()) | set(coverage_by_id.keys())
+    all_resource_ids = set(registry_by_id.keys())
 
     if not all_resource_ids:
         # Check if any jobs are pending
@@ -3272,10 +3257,8 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
 
     for rid in all_resource_ids:
         reg = registry_by_id.get(rid, {})
-        cov = coverage_by_id.get(rid, {})
-
-        # Prefer sync_registry timestamp, fall back to coverage
-        last_synced = reg.get("last_synced_at") or cov.get("last_extracted_at")
+        last_synced = reg.get("last_synced_at")
+        metadata = reg.get("sync_metadata") or {}
 
         # Calculate freshness
         freshness_status = "unknown"
@@ -3299,12 +3282,11 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
 
         items.append({
             "resource_id": rid,
-            "resource_name": reg.get("resource_name") or cov.get("resource_name"),
-            "resource_type": cov.get("resource_type"),
+            "resource_name": reg.get("resource_name"),
+            "resource_type": metadata.get("resource_type"),
             "last_synced": last_synced,
-            "items_synced": reg.get("item_count") or cov.get("items_extracted", 0),
+            "items_synced": reg.get("item_count", 0),
             "source_latest_at": reg.get("source_latest_at"),
-            # ADR-049: Freshness info
             "freshness_status": freshness_status,
             "hours_since_sync": round(hours_since_sync, 1) if hours_since_sync else None,
         })

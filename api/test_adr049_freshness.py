@@ -328,7 +328,6 @@ if __name__ == "__main__":
     test_sync_registry_update()
     test_source_snapshot_recording()
     test_sync_status_endpoint()
-    test_ephemeral_context_updates_sync_registry()
     test_deliverable_execution_freshness_check()
 
     print("\n" + "=" * 60)
