@@ -19,7 +19,6 @@ import {
   Mail,
   FileText,
   Calendar,
-  RefreshCw,
   AlertCircle,
   CheckCircle2,
   Loader2,
@@ -120,7 +119,6 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>({});
   const [loading, setLoading] = useState(true);
-  const [syncing, setSyncing] = useState<string | null>(null);
   const [connecting, setConnecting] = useState<string | null>(null);
 
   // Source selection modal state (ADR-057)
@@ -195,19 +193,6 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     }
   };
 
-  const handleSync = async (provider: string) => {
-    setSyncing(provider);
-    try {
-      await api.integrations.syncPlatform(provider);
-      // Refresh status after sync starts
-      setTimeout(loadIntegrations, 2000);
-    } catch (err) {
-      console.error(`Failed to sync ${provider}:`, err);
-    } finally {
-      setSyncing(null);
-    }
-  };
-
   const handleSourceModalComplete = (selectedCount: number) => {
     setSourceModalProvider(null);
     // Reload integrations to show updated status
@@ -270,7 +255,6 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
                 const status = getSyncStatus(provider);
                 const hasStale = status?.stale_count ? status.stale_count > 0 : false;
                 const resourceCount = status?.synced_resources?.length || 0;
-                const isSyncing = syncing === provider;
 
                 // Find most recent sync
                 const mostRecentSync = status?.synced_resources?.reduce((latest, r) => {
@@ -319,27 +303,14 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
                         )}
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      {/* Add more sources */}
-                      <button
-                        onClick={() => setSourceModalProvider(provider)}
-                        className="p-1.5 hover:bg-muted rounded-md transition-colors"
-                        title={`Add ${config.connectLabel}`}
-                      >
-                        <Plus className="w-4 h-4 text-muted-foreground" />
-                      </button>
-                      {/* Sync button if stale or no data */}
-                      {(hasStale || resourceCount === 0) && (
-                        <button
-                          onClick={() => handleSync(provider)}
-                          disabled={isSyncing}
-                          className="p-1.5 hover:bg-muted rounded-md transition-colors"
-                          title="Sync now"
-                        >
-                          <RefreshCw className={cn('w-4 h-4 text-muted-foreground', isSyncing && 'animate-spin')} />
-                        </button>
-                      )}
-                    </div>
+                    {/* Add more sources */}
+                    <button
+                      onClick={() => setSourceModalProvider(provider)}
+                      className="p-1.5 hover:bg-muted rounded-md transition-colors"
+                      title={`Add ${config.connectLabel}`}
+                    >
+                      <Plus className="w-4 h-4 text-muted-foreground" />
+                    </button>
                   </div>
                 );
               })}
