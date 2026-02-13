@@ -269,9 +269,9 @@ class DeliveryService:
 
         try:
             # Get user's integration
-            integration = self.client.table("user_integrations").select(
-                "access_token_encrypted, refresh_token_encrypted, metadata, status"
-            ).eq("user_id", user_id).eq("provider", platform).single().execute()
+            integration = self.client.table("platform_connections").select(
+                "credentials_encrypted, refresh_token_encrypted, metadata, status"
+            ).eq("user_id", user_id).eq("platform", platform).single().execute()
 
             if not integration.data:
                 return None
@@ -281,7 +281,7 @@ class DeliveryService:
 
             # Decrypt token
             access_token = self.token_manager.decrypt(
-                integration.data["access_token_encrypted"]
+                integration.data["credentials_encrypted"]
             )
 
             refresh_token = None

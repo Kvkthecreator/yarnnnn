@@ -1,21 +1,17 @@
 """
-Ephemeral Context Service - ADR-031 Phase 1, ADR-049 Freshness
+Filesystem Service - ADR-058 Knowledge Base Architecture
 
-Manages time-bounded context that expires after TTL.
-This is distinct from long-term memories (user_memories table).
+Manages platform-synced content (filesystem_items) and documents.
+This is the "raw data" layer - synced content from platforms.
 
-Ephemeral context is defined by LIFESPAN, not source:
-- Platform imports (Slack, Gmail, Notion)
-- Calendar/schedule events
-- Session context
-- Time-bounded user notes
-- Recent deliverable outputs
-
-ADR-049: After storing context, updates sync_registry for freshness tracking.
+ADR-058 Terminology:
+- filesystem_items: Synced platform content (was ephemeral_context)
+- filesystem_documents: Uploaded files (was documents)
+- filesystem_chunks: Document chunks (was chunks)
 
 Usage:
-- Writer: Store extracted platform data with TTL
-- Reader: Fetch fresh context for deliverable generation
+- Writer: Store synced platform data with TTL
+- Reader: Fetch content for deliverable generation or knowledge inference
 - Cleanup: Delete expired entries (run periodically)
 """
 
@@ -34,21 +30,26 @@ logger = logging.getLogger(__name__)
 # Types
 # =============================================================================
 
-SourceType = Literal["slack", "gmail", "notion", "calendar", "session", "user_note", "deliverable"]
+PlatformType = Literal["slack", "gmail", "notion", "calendar"]
 
 
 @dataclass
-class EphemeralContextItem:
-    """A single ephemeral context entry."""
+class FilesystemItem:
+    """A single filesystem item (synced platform content)."""
     id: str
-    source_type: SourceType  # Column is "platform" but semantically "source_type"
+    platform: PlatformType
     resource_id: str
     resource_name: Optional[str]
+    item_id: str
     content: str
-    content_type: Optional[str]  # message, thread_summary, page_update, event, note
-    metadata: dict  # Source-specific metadata
+    content_type: Optional[str]  # message, thread_summary, page_update, event, email
+    title: Optional[str]
+    author: Optional[str]
+    author_id: Optional[str]
+    is_user_authored: bool
+    metadata: dict
     source_timestamp: Optional[datetime]
-    created_at: datetime
+    synced_at: datetime
     expires_at: datetime
 
 
@@ -104,15 +105,12 @@ DEFAULT_TTL_HOURS = {
     "gmail": 336,      # 14 days - emails have longer relevance
     "notion": 720,     # 30 days - docs change less frequently
     "calendar": 24,    # 1 day - events are immediately relevant then stale
-    "session": 4,      # 4 hours - session context is short-lived
-    "user_note": 168,  # 7 days - time-bounded notes
-    "deliverable": 72, # 3 days - recent outputs for reference
 }
 
 
-def get_ttl(source_type: SourceType, custom_hours: Optional[int] = None) -> timedelta:
-    """Get TTL for a source type."""
-    hours = custom_hours or DEFAULT_TTL_HOURS.get(source_type, 168)
+def get_ttl(platform: PlatformType, custom_hours: Optional[int] = None) -> timedelta:
+    """Get TTL for a platform type."""
+    hours = custom_hours or DEFAULT_TTL_HOURS.get(platform, 168)
     return timedelta(hours=hours)
 
 
@@ -120,30 +118,40 @@ def get_ttl(source_type: SourceType, custom_hours: Optional[int] = None) -> time
 # Writer Functions
 # =============================================================================
 
-async def store_ephemeral_context(
+async def store_filesystem_item(
     db_client,
     user_id: str,
-    source_type: SourceType,
+    platform: PlatformType,
     resource_id: str,
+    item_id: str,
     content: str,
     content_type: Optional[str] = None,
     resource_name: Optional[str] = None,
+    title: Optional[str] = None,
+    author: Optional[str] = None,
+    author_id: Optional[str] = None,
+    is_user_authored: bool = False,
     metadata: Optional[dict] = None,
     source_timestamp: Optional[datetime] = None,
     ttl_hours: Optional[int] = None,
 ) -> str:
     """
-    Store a single ephemeral context entry.
+    Store a single filesystem item.
 
     Args:
         db_client: Supabase client
         user_id: User UUID
-        source_type: Source category (slack, gmail, calendar, etc.)
-        resource_id: Identifier within source (channel_id, label, page_id)
-        content: The actual context content
-        content_type: Type of content (message, thread_summary, etc.)
+        platform: Platform type (slack, gmail, notion, calendar)
+        resource_id: Identifier within platform (channel_id, label, page_id)
+        item_id: Unique identifier for the item within resource
+        content: The actual content
+        content_type: Type of content (message, thread_summary, email, page)
         resource_name: Human-readable name (channel name, page title)
-        metadata: Source-specific metadata (thread_ts, reactions, etc.)
+        title: Item title (email subject, page title)
+        author: Author name
+        author_id: Author ID on platform
+        is_user_authored: Whether this was written by the user
+        metadata: Platform-specific metadata
         source_timestamp: When it happened at source
         ttl_hours: Custom TTL override
 
@@ -151,39 +159,50 @@ async def store_ephemeral_context(
         ID of created entry
     """
     now = datetime.now(timezone.utc)
-    expires_at = now + get_ttl(source_type, ttl_hours)
+    expires_at = now + get_ttl(platform, ttl_hours)
 
     record = {
         "user_id": user_id,
-        "platform": source_type,  # Column named "platform" but stores source_type
+        "platform": platform,
         "resource_id": resource_id,
         "resource_name": resource_name,
+        "item_id": item_id,
         "content": content,
         "content_type": content_type,
-        "platform_metadata": metadata or {},
+        "title": title,
+        "author": author,
+        "author_id": author_id,
+        "is_user_authored": is_user_authored,
         "source_timestamp": source_timestamp.isoformat() if source_timestamp else None,
+        "synced_at": now.isoformat(),
         "expires_at": expires_at.isoformat(),
+        "metadata": metadata or {},
+        "sync_metadata": {},
     }
 
-    result = db_client.table("ephemeral_context").insert(record).execute()
+    result = db_client.table("filesystem_items").upsert(
+        record,
+        on_conflict="user_id,platform,resource_id,item_id"
+    ).execute()
 
     if result.data:
-        logger.debug(f"[EPHEMERAL] Stored {source_type}/{resource_id}: {content[:50]}...")
+        logger.debug(f"[FILESYSTEM] Stored {platform}/{resource_id}/{item_id}: {content[:50]}...")
         return result.data[0]["id"]
 
-    raise ValueError("Failed to store ephemeral context")
+    raise ValueError("Failed to store filesystem item")
 
 
-async def store_slack_context_batch(
+async def store_slack_items_batch(
     db_client,
     user_id: str,
     channel_id: str,
     channel_name: str,
     messages: list[dict],
+    user_slack_id: Optional[str] = None,
     signals: Optional[PlatformSemanticSignals] = None,
 ) -> int:
     """
-    Store Slack messages as ephemeral context.
+    Store Slack messages as filesystem items.
 
     Enriches each message with platform-semantic signals.
     Returns count of entries stored.
@@ -202,15 +221,15 @@ async def store_slack_context_batch(
 
         # Extract message timestamp
         source_ts = None
+        ts = msg.get("ts", "")
         try:
-            ts = msg.get("ts", "")
             source_ts = datetime.fromtimestamp(float(ts), tz=timezone.utc)
         except (ValueError, TypeError):
             pass
 
         # Build metadata with platform-semantic signals
         metadata = {
-            "ts": msg.get("ts"),
+            "ts": ts,
             "user": msg.get("user"),
             "thread_ts": msg.get("thread_ts"),
             "reply_count": msg.get("reply_count", 0),
@@ -225,25 +244,38 @@ async def store_slack_context_batch(
         if msg.get("thread_ts") and msg.get("thread_ts") != msg.get("ts"):
             content_type = "thread_reply"
 
+        # Determine if user-authored
+        is_user_authored = user_slack_id and msg.get("user") == user_slack_id
+
         records.append({
             "user_id": user_id,
             "platform": "slack",
             "resource_id": channel_id,
             "resource_name": channel_name,
+            "item_id": ts,  # Use timestamp as item_id
             "content": msg.get("text", ""),
             "content_type": content_type,
-            "platform_metadata": metadata,
+            "title": None,
+            "author": msg.get("user"),
+            "author_id": msg.get("user"),
+            "is_user_authored": is_user_authored,
             "source_timestamp": source_ts.isoformat() if source_ts else None,
+            "synced_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),
+            "metadata": metadata,
+            "sync_metadata": {},
         })
 
     if not records:
         return 0
 
-    result = db_client.table("ephemeral_context").insert(records).execute()
+    result = db_client.table("filesystem_items").upsert(
+        records,
+        on_conflict="user_id,platform,resource_id,item_id"
+    ).execute()
     count = len(result.data) if result.data else 0
 
-    # ADR-049: Update sync_registry after storing
+    # Update sync_registry after storing
     if count > 0:
         await _update_sync_registry_after_store(
             db_client,
@@ -252,21 +284,22 @@ async def store_slack_context_batch(
             resource_id=channel_id,
             resource_name=channel_name,
             item_count=count,
-            source_latest_at=_get_latest_source_timestamp(messages),
+            source_latest_at=_get_latest_source_timestamp(messages, platform="slack"),
         )
 
-    logger.info(f"[EPHEMERAL] Stored {count} Slack messages from #{channel_name}")
+    logger.info(f"[FILESYSTEM] Stored {count} Slack messages from #{channel_name}")
     return count
 
 
-async def store_gmail_context_batch(
+async def store_gmail_items_batch(
     db_client,
     user_id: str,
     label: str,
     messages: list[dict],
+    user_email: Optional[str] = None,
 ) -> int:
     """
-    Store Gmail messages as ephemeral context.
+    Store Gmail messages as filesystem items.
     Returns count of entries stored.
     """
     if not messages:
@@ -294,10 +327,18 @@ async def store_gmail_context_batch(
         body = msg.get("body", msg.get("snippet", ""))
         content = f"Subject: {subject}\n\n{body}" if subject else body
 
+        # Get sender info
+        from_header = headers.get("From", headers.get("from", ""))
+
+        # Determine if user-authored (sent by user)
+        is_user_authored = False
+        if user_email and from_header:
+            is_user_authored = user_email.lower() in from_header.lower()
+
         metadata = {
             "message_id": msg.get("id"),
             "thread_id": msg.get("threadId"),
-            "from": headers.get("From", headers.get("from")),
+            "from": from_header,
             "to": headers.get("To", headers.get("to")),
             "labels": msg.get("labelIds", []),
         }
@@ -307,20 +348,30 @@ async def store_gmail_context_batch(
             "platform": "gmail",
             "resource_id": label,
             "resource_name": label,
+            "item_id": msg.get("id", ""),
             "content": content[:10000],  # Truncate very long emails
             "content_type": "email",
-            "platform_metadata": metadata,
+            "title": subject,
+            "author": from_header,
+            "author_id": None,
+            "is_user_authored": is_user_authored,
             "source_timestamp": source_ts.isoformat() if source_ts else None,
+            "synced_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),
+            "metadata": metadata,
+            "sync_metadata": {},
         })
 
     if not records:
         return 0
 
-    result = db_client.table("ephemeral_context").insert(records).execute()
+    result = db_client.table("filesystem_items").upsert(
+        records,
+        on_conflict="user_id,platform,resource_id,item_id"
+    ).execute()
     count = len(result.data) if result.data else 0
 
-    # ADR-049: Update sync_registry after storing
+    # Update sync_registry after storing
     if count > 0:
         await _update_sync_registry_after_store(
             db_client,
@@ -332,36 +383,39 @@ async def store_gmail_context_batch(
             source_latest_at=_get_latest_source_timestamp(messages, platform="gmail"),
         )
 
-    logger.info(f"[EPHEMERAL] Stored {count} Gmail messages from {label}")
+    logger.info(f"[FILESYSTEM] Stored {count} Gmail messages from {label}")
     return count
 
 
-async def store_notion_context(
+async def store_notion_item(
     db_client,
     user_id: str,
     page_id: str,
     page_title: str,
     content: str,
     metadata: Optional[dict] = None,
+    is_user_authored: bool = False,
 ) -> str:
     """
-    Store Notion page content as ephemeral context.
+    Store Notion page content as filesystem item.
     Returns ID of created entry.
     """
-    entry_id = await store_ephemeral_context(
+    entry_id = await store_filesystem_item(
         db_client=db_client,
         user_id=user_id,
-        source_type="notion",
+        platform="notion",
         resource_id=page_id,
+        item_id=page_id,  # Page ID is also the item ID
         resource_name=page_title,
         content=content,
         content_type="page",
+        title=page_title,
+        is_user_authored=is_user_authored,
         metadata=metadata,
     )
 
-    # ADR-049: Update sync_registry after storing
+    # Update sync_registry after storing
     if entry_id:
-        # Extract last_edited_time from metadata if available
         source_latest_at = None
         if metadata:
             edited = metadata.get("last_edited_time") or metadata.get("lastEditedTime")
@@ -385,38 +439,40 @@ async def store_notion_context(
 # Reader Functions
 # =============================================================================
 
-async def get_ephemeral_context(
+async def get_filesystem_items(
     db_client,
     user_id: str,
-    source_types: Optional[list[SourceType]] = None,
+    platforms: Optional[list[PlatformType]] = None,
     resource_ids: Optional[list[str]] = None,
     limit: int = 100,
     include_expired: bool = False,
-) -> list[EphemeralContextItem]:
+    user_authored_only: bool = False,
+) -> list[FilesystemItem]:
     """
-    Fetch ephemeral context for a user.
+    Fetch filesystem items for a user.
 
     Args:
         db_client: Supabase client
         user_id: User UUID
-        source_types: Filter by source types (None = all)
+        platforms: Filter by platforms (None = all)
         resource_ids: Filter by resource IDs (None = all)
         limit: Max items to return
         include_expired: Include expired items (for debugging)
+        user_authored_only: Only return user-authored items (for style inference)
 
     Returns:
-        List of EphemeralContextItem
+        List of FilesystemItem
     """
     query = (
-        db_client.table("ephemeral_context")
+        db_client.table("filesystem_items")
         .select("*")
         .eq("user_id", user_id)
         .order("source_timestamp", desc=True)
         .limit(limit)
     )
 
-    if source_types:
-        query = query.in_("platform", source_types)
+    if platforms:
+        query = query.in_("platform", platforms)
 
     if resource_ids:
         query = query.in_("resource_id", resource_ids)
@@ -425,34 +481,42 @@ async def get_ephemeral_context(
         now = datetime.now(timezone.utc).isoformat()
         query = query.gt("expires_at", now)
 
+    if user_authored_only:
+        query = query.eq("is_user_authored", True)
+
     result = query.execute()
 
     items = []
     for row in result.data or []:
-        items.append(EphemeralContextItem(
+        items.append(FilesystemItem(
             id=row["id"],
-            source_type=row["platform"],
+            platform=row["platform"],
             resource_id=row["resource_id"],
             resource_name=row.get("resource_name"),
+            item_id=row["item_id"],
             content=row["content"],
             content_type=row.get("content_type"),
-            metadata=row.get("platform_metadata", {}),
+            title=row.get("title"),
+            author=row.get("author"),
+            author_id=row.get("author_id"),
+            is_user_authored=row.get("is_user_authored", False),
+            metadata=row.get("metadata", {}),
             source_timestamp=_parse_datetime(row.get("source_timestamp")),
-            created_at=_parse_datetime(row["created_at"]),
+            synced_at=_parse_datetime(row["synced_at"]),
             expires_at=_parse_datetime(row["expires_at"]),
         ))
 
     return items
 
 
-async def get_context_for_deliverable(
+async def get_items_for_deliverable(
     db_client,
     user_id: str,
     deliverable_sources: list[dict],
     limit_per_source: int = 50,
-) -> list[EphemeralContextItem]:
+) -> list[FilesystemItem]:
     """
-    Fetch ephemeral context relevant to a deliverable's sources.
+    Fetch filesystem items relevant to a deliverable's sources.
 
     Args:
         db_client: Supabase client
@@ -462,7 +526,7 @@ async def get_context_for_deliverable(
         limit_per_source: Max items per source
 
     Returns:
-        Combined list of EphemeralContextItem, sorted by recency
+        Combined list of FilesystemItem, sorted by recency
     """
     all_items = []
 
@@ -473,10 +537,10 @@ async def get_context_for_deliverable(
         if not provider or not resource_id:
             continue
 
-        items = await get_ephemeral_context(
+        items = await get_filesystem_items(
             db_client=db_client,
             user_id=user_id,
-            source_types=[provider],
+            platforms=[provider],
             resource_ids=[resource_id],
             limit=limit_per_source,
         )
@@ -485,26 +549,26 @@ async def get_context_for_deliverable(
 
     # Sort by source_timestamp (most recent first)
     all_items.sort(
-        key=lambda x: x.source_timestamp or x.created_at,
+        key=lambda x: x.source_timestamp or x.synced_at,
         reverse=True,
     )
 
     return all_items
 
 
-async def get_context_summary_for_generation(
+async def get_items_summary_for_generation(
     db_client,
     user_id: str,
     deliverable_sources: list[dict],
     max_items: int = 100,
 ) -> str:
     """
-    Get ephemeral context formatted for LLM generation prompt.
+    Get filesystem items formatted for LLM generation prompt.
 
     Returns a formatted string ready to include in generation context.
     Includes provenance (source, timestamps) and freshness indicators.
     """
-    items = await get_context_for_deliverable(
+    items = await get_items_for_deliverable(
         db_client=db_client,
         user_id=user_id,
         deliverable_sources=deliverable_sources,
@@ -519,7 +583,7 @@ async def get_context_summary_for_generation(
     # Group by source
     by_source = {}
     for item in items:
-        key = f"{item.source_type}:{item.resource_name or item.resource_id}"
+        key = f"{item.platform}:{item.resource_name or item.resource_id}"
         if key not in by_source:
             by_source[key] = []
         by_source[key].append(item)
@@ -527,15 +591,11 @@ async def get_context_summary_for_generation(
     # Format for prompt with clear provenance
     sections = []
     for source_key, source_items in by_source.items():
-        source_type, source_name = source_key.split(":", 1)
+        platform, source_name = source_key.split(":", 1)
 
         # Calculate freshness for this source
         newest = max(
-            (i.source_timestamp or i.created_at for i in source_items),
-            default=now
-        )
-        oldest = min(
-            (i.source_timestamp or i.created_at for i in source_items),
+            (i.source_timestamp or i.synced_at for i in source_items),
             default=now
         )
 
@@ -549,7 +609,7 @@ async def get_context_summary_for_generation(
             freshness = "just now"
 
         # Section header with provenance
-        header = f"## {source_type.title()}: {source_name}"
+        header = f"## {platform.title()}: {source_name}"
         header += f"\n_({len(source_items)} items, most recent: {freshness})_"
 
         section_lines = [header]
@@ -560,10 +620,10 @@ async def get_context_summary_for_generation(
             if item.source_timestamp:
                 ts_str = f"[{item.source_timestamp.strftime('%m/%d %H:%M')}] "
 
-            # Add user if available (for Slack)
-            user_str = ""
-            if item.metadata.get("user"):
-                user_str = f"<{item.metadata['user']}> "
+            # Add author if available
+            author_str = ""
+            if item.author:
+                author_str = f"<{item.author}> "
 
             # Add metadata signals if present
             signals_str = ""
@@ -571,21 +631,21 @@ async def get_context_summary_for_generation(
                 signals = item.metadata["signals"]
                 signal_markers = []
                 if signals.get("has_unanswered_question"):
-                    signal_markers.append("❓ UNANSWERED")
+                    signal_markers.append("UNANSWERED")
                 if signals.get("is_stalled_thread"):
-                    signal_markers.append("⏳ STALLED")
+                    signal_markers.append("STALLED")
                 if signals.get("is_urgent") or signals.get("mentions_blocker"):
-                    signal_markers.append("🚨 URGENT")
+                    signal_markers.append("URGENT")
                 if signals.get("thread_reply_count", 0) > 5:
-                    signal_markers.append(f"🔥 HOT ({signals['thread_reply_count']} replies)")
+                    signal_markers.append(f"HOT ({signals['thread_reply_count']} replies)")
                 if signals.get("is_decision"):
-                    signal_markers.append("📋 DECISION")
+                    signal_markers.append("DECISION")
                 if signal_markers:
                     signals_str = " [" + ", ".join(signal_markers) + "]"
 
             # Build line
             content = item.content[:500] if len(item.content) > 500 else item.content
-            section_lines.append(f"{ts_str}{user_str}{content}{signals_str}")
+            section_lines.append(f"{ts_str}{author_str}{content}{signals_str}")
 
         sections.append("\n".join(section_lines))
 
@@ -596,9 +656,9 @@ async def get_context_summary_for_generation(
 # Cleanup Functions
 # =============================================================================
 
-async def cleanup_expired_context(db_client) -> int:
+async def cleanup_expired_items(db_client) -> int:
     """
-    Delete expired ephemeral context entries.
+    Delete expired filesystem items.
     Should be run periodically (e.g., hourly).
 
     Returns count of deleted entries.
@@ -607,7 +667,7 @@ async def cleanup_expired_context(db_client) -> int:
 
     # First count
     count_result = (
-        db_client.table("ephemeral_context")
+        db_client.table("filesystem_items")
         .select("id", count="exact")
         .lt("expires_at", now)
         .execute()
@@ -624,7 +684,7 @@ async def cleanup_expired_context(db_client) -> int:
 
     while deleted < count:
         result = (
-            db_client.table("ephemeral_context")
+            db_client.table("filesystem_items")
             .delete()
             .lt("expires_at", now)
             .limit(batch_size)
@@ -637,24 +697,24 @@ async def cleanup_expired_context(db_client) -> int:
         if batch_deleted == 0:
             break
 
-    logger.info(f"[EPHEMERAL] Cleaned up {deleted} expired entries")
+    logger.info(f"[FILESYSTEM] Cleaned up {deleted} expired items")
     return deleted
 
 
 # =============================================================================
-# Freshness Check (ADR-031 Phase 3)
+# Freshness Check
 # =============================================================================
 
-async def has_fresh_context_since(
+async def has_fresh_items_since(
     db_client,
     user_id: str,
     deliverable_sources: list[dict],
     since: datetime,
 ) -> tuple[bool, int]:
     """
-    Check if there's new ephemeral context since a given time.
+    Check if there's new filesystem items since a given time.
 
-    Used by scheduler to skip deliverable generation if no new context.
+    Used by scheduler to skip deliverable generation if no new content.
 
     Args:
         db_client: Supabase client
@@ -663,7 +723,7 @@ async def has_fresh_context_since(
         since: Timestamp to check against (usually last_run_at)
 
     Returns:
-        Tuple of (has_fresh_context, count_of_new_items)
+        Tuple of (has_fresh_items, count_of_new_items)
     """
     if not deliverable_sources:
         return False, 0
@@ -679,21 +739,18 @@ async def has_fresh_context_since(
     if not source_filters:
         return False, 0
 
-    # Query for items created after 'since'
-    # We check created_at (when we stored it) rather than source_timestamp
-    # because we want to catch imports that happened after last run
     now = datetime.now(timezone.utc)
     total_new = 0
 
     for provider, resource_id in source_filters:
         result = (
-            db_client.table("ephemeral_context")
+            db_client.table("filesystem_items")
             .select("id", count="exact")
             .eq("user_id", user_id)
             .eq("platform", provider)
             .eq("resource_id", resource_id)
-            .gt("created_at", since.isoformat())
-            .gt("expires_at", now.isoformat())  # Only non-expired
+            .gt("synced_at", since.isoformat())
+            .gt("expires_at", now.isoformat())
             .execute()
         )
 
@@ -701,23 +758,23 @@ async def has_fresh_context_since(
         total_new += count
 
     has_fresh = total_new > 0
-    logger.debug(f"[EPHEMERAL] Fresh context check: {total_new} new items since {since.isoformat()}")
+    logger.debug(f"[FILESYSTEM] Fresh items check: {total_new} new items since {since.isoformat()}")
 
     return has_fresh, total_new
 
 
-async def get_latest_context_timestamp(
+async def get_latest_item_timestamp(
     db_client,
     user_id: str,
     deliverable_sources: list[dict],
 ) -> Optional[datetime]:
     """
-    Get the timestamp of the most recent ephemeral context for given sources.
+    Get the timestamp of the most recent filesystem item for given sources.
 
     Useful for understanding data freshness before generation.
 
     Returns:
-        Most recent created_at timestamp, or None if no context
+        Most recent synced_at timestamp, or None if no items
     """
     if not deliverable_sources:
         return None
@@ -733,23 +790,57 @@ async def get_latest_context_timestamp(
             continue
 
         result = (
-            db_client.table("ephemeral_context")
-            .select("created_at")
+            db_client.table("filesystem_items")
+            .select("synced_at")
             .eq("user_id", user_id)
             .eq("platform", provider)
             .eq("resource_id", resource_id)
             .gt("expires_at", now.isoformat())
-            .order("created_at", desc=True)
+            .order("synced_at", desc=True)
             .limit(1)
             .execute()
         )
 
         if result.data:
-            ts = _parse_datetime(result.data[0]["created_at"])
+            ts = _parse_datetime(result.data[0]["synced_at"])
             if ts and (latest is None or ts > latest):
                 latest = ts
 
     return latest
+
+
+# =============================================================================
+# User-Authored Content (for Style Inference)
+# =============================================================================
+
+async def get_user_authored_items(
+    db_client,
+    user_id: str,
+    platform: Optional[PlatformType] = None,
+    limit: int = 100,
+) -> list[FilesystemItem]:
+    """
+    Get items authored by the user for style inference.
+
+    This is used by the inference engine to analyze the user's
+    writing style across platforms.
+
+    Args:
+        db_client: Supabase client
+        user_id: User UUID
+        platform: Optional platform filter
+        limit: Max items to return
+
+    Returns:
+        List of user-authored FilesystemItem
+    """
+    return await get_filesystem_items(
+        db_client=db_client,
+        user_id=user_id,
+        platforms=[platform] if platform else None,
+        limit=limit,
+        user_authored_only=True,
+    )
 
 
 # =============================================================================
@@ -772,7 +863,7 @@ def _parse_datetime(value) -> Optional[datetime]:
 
 
 # =============================================================================
-# Sync Registry Helpers (ADR-049)
+# Sync Registry Helpers
 # =============================================================================
 
 async def _update_sync_registry_after_store(
@@ -785,9 +876,9 @@ async def _update_sync_registry_after_store(
     source_latest_at: Optional[datetime],
 ) -> None:
     """
-    Update sync_registry after storing ephemeral context.
+    Update sync_registry after storing filesystem items.
 
-    Called by store_*_context_batch functions to track sync state.
+    Called by store_*_items functions to track sync state.
     """
     from services.freshness import update_sync_registry
 
@@ -846,3 +937,54 @@ def _get_latest_source_timestamp(messages: list[dict], platform: str = "slack") 
             latest = ts
 
     return latest
+
+
+# =============================================================================
+# Backwards Compatibility Aliases (TEMPORARY - will be removed)
+# =============================================================================
+
+# These exist only for the migration period. Remove after all callers are updated.
+# DO NOT use these in new code.
+
+EphemeralContextItem = FilesystemItem
+SourceType = PlatformType
+
+async def store_ephemeral_context(*args, **kwargs):
+    """DEPRECATED: Use store_filesystem_item instead."""
+    logger.warning("store_ephemeral_context is deprecated. Use store_filesystem_item.")
+    return await store_filesystem_item(*args, **kwargs)
+
+async def store_slack_context_batch(*args, **kwargs):
+    """DEPRECATED: Use store_slack_items_batch instead."""
+    logger.warning("store_slack_context_batch is deprecated. Use store_slack_items_batch.")
+    return await store_slack_items_batch(*args, **kwargs)
+
+async def store_gmail_context_batch(*args, **kwargs):
+    """DEPRECATED: Use store_gmail_items_batch instead."""
+    logger.warning("store_gmail_context_batch is deprecated. Use store_gmail_items_batch.")
+    return await store_gmail_items_batch(*args, **kwargs)
+
+async def store_notion_context(*args, **kwargs):
+    """DEPRECATED: Use store_notion_item instead."""
+    logger.warning("store_notion_context is deprecated. Use store_notion_item.")
+    return await store_notion_item(*args, **kwargs)
+
+async def get_ephemeral_context(*args, **kwargs):
+    """DEPRECATED: Use get_filesystem_items instead."""
+    logger.warning("get_ephemeral_context is deprecated. Use get_filesystem_items.")
+    return await get_filesystem_items(*args, **kwargs)
+
+async def get_context_for_deliverable(*args, **kwargs):
+    """DEPRECATED: Use get_items_for_deliverable instead."""
+    logger.warning("get_context_for_deliverable is deprecated. Use get_items_for_deliverable.")
+    return await get_items_for_deliverable(*args, **kwargs)
+
+async def cleanup_expired_context(*args, **kwargs):
+    """DEPRECATED: Use cleanup_expired_items instead."""
+    logger.warning("cleanup_expired_context is deprecated. Use cleanup_expired_items.")
+    return await cleanup_expired_items(*args, **kwargs)
+
+async def has_fresh_context_since(*args, **kwargs):
+    """DEPRECATED: Use has_fresh_items_since instead."""
+    logger.warning("has_fresh_context_since is deprecated. Use has_fresh_items_since.")
+    return await has_fresh_items_since(*args, **kwargs)

@@ -2867,8 +2867,8 @@ async def handle_list_integrations(auth, input: dict) -> dict:
     Returns:
         Dict with integrations list and connection status
     """
-    result = auth.client.table("user_integrations")\
-        .select("id, provider, status, metadata, created_at, updated_at")\
+    result = auth.client.table("platform_connections")\
+        .select("id, platform, status, metadata, created_at, updated_at")\
         .eq("user_id", auth.user_id)\
         .execute()
 
@@ -2879,7 +2879,7 @@ async def handle_list_integrations(auth, input: dict) -> dict:
     for i in integrations:
         metadata = i.get("metadata") or {}
         item = {
-            "provider": i["provider"],
+            "platform": i["platform"],
             "status": i["status"],
             "connected_at": i["created_at"],
             "last_updated": i["updated_at"],
@@ -2888,26 +2888,26 @@ async def handle_list_integrations(auth, input: dict) -> dict:
             "email": metadata.get("email"),
         }
         # ADR-050: Include authed_user_id for Slack DMs to self
-        if i["provider"] == "slack" and metadata.get("authed_user_id"):
+        if i["platform"] == "slack" and metadata.get("authed_user_id"):
             item["authed_user_id"] = metadata["authed_user_id"]
         # ADR-050: Include designated_page_id for Notion outputs
-        if i["provider"] == "notion" and metadata.get("designated_page_id"):
+        if i["platform"] == "notion" and metadata.get("designated_page_id"):
             item["designated_page_id"] = metadata["designated_page_id"]
             if metadata.get("designated_page_name"):
                 item["designated_page_name"] = metadata["designated_page_name"]
         # ADR-050: Include designated_calendar_id for Calendar outputs
-        if i["provider"] in ("google", "gmail") and metadata.get("designated_calendar_id"):
+        if i["platform"] in ("google", "gmail") and metadata.get("designated_calendar_id"):
             item["designated_calendar_id"] = metadata["designated_calendar_id"]
             if metadata.get("designated_calendar_name"):
                 item["designated_calendar_name"] = metadata["designated_calendar_name"]
         # ADR-050: Include user_email for Gmail default recipient (send to self)
-        if i["provider"] in ("google", "gmail") and metadata.get("email"):
+        if i["platform"] in ("google", "gmail") and metadata.get("email"):
             item["user_email"] = metadata["email"]
         items.append(item)
 
     # Check what's available vs connected
     available_platforms = ["slack", "gmail", "notion", "calendar"]
-    connected = {i["provider"] for i in items if i["status"] == "active"}
+    connected = {i["platform"] for i in items if i["status"] == "active"}
     not_connected = [p for p in available_platforms if p not in connected]
 
     return {
@@ -2940,10 +2940,10 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
     resource_type = input.get("resource_type")
 
     # Get user's integration
-    integration = auth.client.table("user_integrations")\
-        .select("id, access_token_encrypted, refresh_token_encrypted, metadata, status")\
+    integration = auth.client.table("platform_connections")\
+        .select("id, credentials_encrypted, refresh_token_encrypted, metadata, status")\
         .eq("user_id", auth.user_id)\
-        .eq("provider", platform)\
+        .eq("platform", platform)\
         .single()\
         .execute()
 
@@ -2970,7 +2970,7 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
     try:
         if platform == "slack":
             # Decrypt token
-            access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+            access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
             team_id = metadata.get("team_id")
 
             if not team_id:
@@ -3034,7 +3034,7 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
             }
 
         elif platform == "notion":
-            access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+            access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
 
             # Search for pages (empty query lists recent)
             pages = await mcp_manager.search_notion_pages(
@@ -3104,10 +3104,10 @@ async def handle_sync_platform_resource(auth, input: dict) -> dict:
     recency_days = input.get("recency_days", 7)
 
     # Verify integration is connected
-    integration = auth.client.table("user_integrations")\
+    integration = auth.client.table("platform_connections")\
         .select("id, status")\
         .eq("user_id", auth.user_id)\
-        .eq("provider", platform)\
+        .eq("platform", platform)\
         .single()\
         .execute()
 
@@ -3216,7 +3216,7 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
     coverage_query = auth.client.table("integration_coverage")\
         .select("id, resource_id, resource_name, resource_type, coverage_state, last_extracted_at, items_extracted, blocks_created, scope")\
         .eq("user_id", auth.user_id)\
-        .eq("provider", platform)
+        .eq("platform", platform)
 
     if resource_id:
         coverage_query = coverage_query.eq("resource_id", resource_id)
@@ -3235,7 +3235,7 @@ async def handle_get_sync_status(auth, input: dict) -> dict:
         jobs_result = auth.client.table("integration_import_jobs")\
             .select("id, resource_id, resource_name, status, progress, created_at")\
             .eq("user_id", auth.user_id)\
-            .eq("provider", platform)\
+            .eq("platform", platform)\
             .in_("status", ["pending", "processing"])\
             .execute()
 

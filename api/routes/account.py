@@ -199,7 +199,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             versions_count += versions.count or 0
 
         # Count integrations
-        integrations = auth.client.table("user_integrations").select("id", count="exact").eq("user_id", user_id).execute()
+        integrations = auth.client.table("platform_connections").select("id", count="exact").eq("user_id", user_id).execute()
         integrations_count = integrations.count or 0
 
         # Count import jobs
@@ -446,7 +446,7 @@ async def clear_all_integrations(auth: UserClient) -> OperationResult:
         deleted["export_preferences"] = prefs_deleted
 
         # Delete user integrations (OAuth tokens)
-        result = auth.client.table("user_integrations").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
         deleted["user_integrations"] = len(result.data or [])
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all integrations: {deleted}")
@@ -570,7 +570,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
             prefs_deleted += len(result.data or [])
         deleted["export_preferences"] = prefs_deleted
 
-        result = auth.client.table("user_integrations").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
         deleted["user_integrations"] = len(result.data or [])
 
         # 8. Delete workspaces
@@ -658,7 +658,7 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
             prefs_deleted += len(result.data or [])
         deleted["export_preferences"] = prefs_deleted
 
-        result = auth.client.table("user_integrations").delete().eq("user_id", user_id).execute()
+        result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
         deleted["user_integrations"] = len(result.data or [])
 
         # 8. Delete workspaces (don't recreate)

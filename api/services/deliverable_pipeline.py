@@ -289,10 +289,10 @@ async def fetch_integration_source_data(
 
     # Get user's integration
     integration_result = (
-        client.table("user_integrations")
-        .select("id, access_token_encrypted, refresh_token_encrypted, metadata, status")
+        client.table("platform_connections")
+        .select("id, credentials_encrypted, refresh_token_encrypted, metadata, status")
         .eq("user_id", user_id)
-        .eq("provider", provider)
+        .eq("platform", provider)
         .eq("status", "active")
         .single()
         .execute()
@@ -332,17 +332,17 @@ async def fetch_integration_source_data(
             # For calendar sources, use the google integration
             if provider == "calendar":
                 # Look for google integration instead
-                calendar_integration_result = client.table("user_integrations").select(
-                    "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
-                ).eq("user_id", user_id).eq("provider", "google").eq(
+                calendar_integration_result = client.table("platform_connections").select(
+                    "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
+                ).eq("user_id", user_id).eq("platform", "google").eq(
                     "status", "active"
                 ).single().execute()
 
                 if not calendar_integration_result.data:
                     # Try legacy gmail provider
-                    calendar_integration_result = client.table("user_integrations").select(
-                        "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
-                    ).eq("user_id", user_id).eq("provider", "gmail").eq(
+                    calendar_integration_result = client.table("platform_connections").select(
+                        "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
+                    ).eq("user_id", user_id).eq("platform", "gmail").eq(
                         "status", "active"
                     ).single().execute()
 
@@ -542,7 +542,7 @@ async def _fetch_slack_data(
     max_items: int = 50,
 ) -> SourceFetchResult:
     """Fetch Slack messages and format as context."""
-    access_token = token_manager.decrypt(integration["access_token_encrypted"])
+    access_token = token_manager.decrypt(integration["credentials_encrypted"])
     metadata = integration.get("metadata", {}) or {}
     team_id = metadata.get("team_id")
 
@@ -597,7 +597,7 @@ async def _fetch_notion_data(
     max_items: int = 10,
 ) -> SourceFetchResult:
     """Fetch Notion page content and format as context."""
-    access_token = token_manager.decrypt(integration["access_token_encrypted"])
+    access_token = token_manager.decrypt(integration["credentials_encrypted"])
 
     if not access_token:
         return SourceFetchResult(error="Missing Notion access token")
@@ -3404,22 +3404,22 @@ async def execute_gather_step(
     if integration_data_sections:
         integration_context = "\n\n## Integration Data (Fetched)\n\n" + "\n\n".join(integration_data_sections)
 
-    # ADR-031: Fetch ephemeral context for this deliverable's sources
-    ephemeral_context_text = ""
+    # ADR-058: Fetch filesystem items for this deliverable's sources
+    filesystem_context_text = ""
     try:
-        from services.ephemeral_context import get_context_summary_for_generation
+        from services.filesystem import get_items_summary_for_generation
 
-        ephemeral_summary = await get_context_summary_for_generation(
+        filesystem_summary = await get_items_summary_for_generation(
             db_client=client,
             user_id=user_id,
             deliverable_sources=sources,
             max_items=100,
         )
-        if ephemeral_summary:
-            ephemeral_context_text = f"\n\n## Recent Platform Context (Ephemeral)\n\n{ephemeral_summary}"
-            logger.info(f"[GATHER] Included ephemeral context ({len(ephemeral_summary)} chars)")
+        if filesystem_summary:
+            filesystem_context_text = f"\n\n## Recent Platform Content\n\n{filesystem_summary}"
+            logger.info(f"[GATHER] Included filesystem items ({len(filesystem_summary)} chars)")
     except Exception as e:
-        logger.warning(f"[GATHER] Failed to fetch ephemeral context (non-fatal): {e}")
+        logger.warning(f"[GATHER] Failed to fetch filesystem items (non-fatal): {e}")
 
     gather_prompt = f"""Gather the latest context and information for producing: {title}
 
@@ -3428,11 +3428,11 @@ Description: {deliverable.get('description', 'No description provided')}
 Configured sources:
 {sources_text}
 {integration_context}
-{ephemeral_context_text}
+{filesystem_context_text}
 
 Your task:
 1. Review and synthesize any available information from the sources
-2. Pay special attention to signals in the ephemeral context (hot threads, unanswered questions, stalled items)
+2. Pay special attention to signals in the filesystem content (hot threads, unanswered questions, stalled items)
 3. Identify key updates, changes, or new data since the last delivery
 4. Note any gaps or missing information that might be needed
 5. Summarize the gathered context in a structured format

@@ -92,9 +92,9 @@ async def _sync_platform_async(
 
     try:
         # Get user's integration for this provider
-        result = client.table("user_integrations").select("*").eq(
+        result = client.table("platform_connections").select("*").eq(
             "user_id", user_id
-        ).eq("provider", provider).single().execute()
+        ).eq("platform", provider).single().execute()
 
         if not result.data:
             return {
@@ -135,7 +135,7 @@ async def _sync_platform_async(
             }
 
         # Update last_synced_at
-        client.table("user_integrations").update({
+        client.table("platform_connections").update({
             "last_synced_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", integration["id"]).execute()
 

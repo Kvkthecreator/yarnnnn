@@ -430,7 +430,7 @@ async def handle_gmail_push(request: Request, background_tasks: BackgroundTasks)
     log.info(f"[GMAIL_PUSH] Notification for {email_address}, historyId={history_id}")
 
     # Look up YARNNN user from email
-    # In production, this would query user_integrations table
+    # In production, this would query platform_connections table
     user_id = await _lookup_user_from_gmail(email_address)
 
     if user_id:
@@ -447,7 +447,7 @@ async def _lookup_user_from_gmail(email_address: str) -> Optional[str]:
     """
     Look up YARNNN user ID from Gmail email address.
 
-    Uses the user_integrations table to find the user.
+    Uses the platform_connections table to find the user.
     """
     from supabase import create_client
 
@@ -461,9 +461,9 @@ async def _lookup_user_from_gmail(email_address: str) -> Optional[str]:
         supabase = create_client(supabase_url, supabase_key)
 
         result = (
-            supabase.table("user_integrations")
+            supabase.table("platform_connections")
             .select("user_id, metadata")
-            .eq("provider", "gmail")
+            .eq("platform", "gmail")
             .eq("status", "connected")
             .execute()
         )

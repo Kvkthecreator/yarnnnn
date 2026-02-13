@@ -147,9 +147,9 @@ async def _test_auth(auth: Any, provider: str, config: dict) -> CapabilityStatus
 
     try:
         # Check integration exists and is active
-        integration = auth.client.table("user_integrations").select(
+        integration = auth.client.table("platform_connections").select(
             "status, metadata"
-        ).eq("user_id", auth.user_id).eq("provider", provider).single().execute()
+        ).eq("user_id", auth.user_id).eq("platform", provider).single().execute()
 
         if not integration.data:
             result.status = "failed"
@@ -214,9 +214,9 @@ async def _test_slack_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
     from integrations.core.tokens import get_token_manager
 
     # Get credentials
-    integration = auth.client.table("user_integrations").select(
-        "access_token_encrypted, metadata"
-    ).eq("user_id", auth.user_id).eq("provider", "slack").single().execute()
+    integration = auth.client.table("platform_connections").select(
+        "credentials_encrypted, metadata"
+    ).eq("user_id", auth.user_id).eq("platform", "slack").single().execute()
 
     if not integration.data:
         result.status = "failed"
@@ -224,7 +224,7 @@ async def _test_slack_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
         return result
 
     token_manager = get_token_manager()
-    access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+    access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
     team_id = integration.data.get("metadata", {}).get("team_id")
 
     if not team_id:
@@ -256,9 +256,9 @@ async def _test_gmail_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
     from integrations.core.tokens import get_token_manager
 
     # Get credentials
-    integration = auth.client.table("user_integrations").select(
-        "access_token_encrypted, metadata"
-    ).eq("user_id", auth.user_id).eq("provider", "gmail").single().execute()
+    integration = auth.client.table("platform_connections").select(
+        "credentials_encrypted, metadata"
+    ).eq("user_id", auth.user_id).eq("platform", "gmail").single().execute()
 
     if not integration.data:
         result.status = "failed"
@@ -306,9 +306,9 @@ async def _test_notion_read(auth: Any, result: CapabilityStatus) -> CapabilitySt
     from integrations.core.tokens import get_token_manager
 
     # Get credentials
-    integration = auth.client.table("user_integrations").select(
-        "access_token_encrypted"
-    ).eq("user_id", auth.user_id).eq("provider", "notion").single().execute()
+    integration = auth.client.table("platform_connections").select(
+        "credentials_encrypted"
+    ).eq("user_id", auth.user_id).eq("platform", "notion").single().execute()
 
     if not integration.data:
         result.status = "failed"
@@ -316,7 +316,7 @@ async def _test_notion_read(auth: Any, result: CapabilityStatus) -> CapabilitySt
         return result
 
     token_manager = get_token_manager()
-    access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+    access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
 
     # ADR-050: Search pages via MCP Gateway (Node.js), not Python MCP client
     from services.mcp_gateway import call_platform_tool, is_gateway_available

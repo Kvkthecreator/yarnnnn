@@ -22,7 +22,7 @@ from services.anthropic import (
 )
 from services.primitives import PRIMITIVES, execute_primitive
 from services.skills import detect_skill, get_skill_prompt_addition, detect_skill_hybrid
-from services.context import build_session_context, format_context_for_prompt
+from services.working_memory import build_working_memory, format_for_prompt
 from services.platform_tools import get_platform_tools_for_user
 
 
@@ -580,15 +580,15 @@ recurring deliverable through conversation.
             surface_content: ADR-023 - Content of what user is currently viewing
             selected_domain_name: ADR-034 - Name of user's selected domain context
             skill_prompt: ADR-025 - Skill-specific prompt addition to inject
-            injected_context: ADR-038 - Pre-built context from build_session_context()
+            injected_context: ADR-058 - Pre-built working memory from build_working_memory()
         """
         base_prompt = self.SYSTEM_PROMPT_WITH_TOOLS if with_tools else self.SYSTEM_PROMPT
 
         if not include_context:
             context_text = "No context loaded for this conversation."
         elif injected_context:
-            # ADR-038: Use pre-built context injection (preferred path)
-            context_text = format_context_for_prompt(injected_context)
+            # ADR-058: Use pre-built working memory (preferred path)
+            context_text = format_for_prompt(injected_context)
         else:
             # Legacy path: format from ContextBundle
             context_text = self._format_memories(context, selected_domain_name)
@@ -903,12 +903,12 @@ recurring deliverable through conversation.
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
 
-        # ADR-038: Build injected context (replaces most memory searches)
+        # ADR-058: Build working memory (replaces most memory searches)
         injected_context = None
         try:
-            injected_context = await build_session_context(auth.user_id, auth.client)
+            injected_context = await build_working_memory(auth.user_id, auth.client)
         except Exception:
-            # Context injection is best-effort; fall back to legacy path
+            # Working memory is best-effort; fall back to legacy path
             pass
 
         # ADR-050: Get platform tools for user's connected integrations

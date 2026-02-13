@@ -218,9 +218,9 @@ async def _get_selected_sources(supabase_client, user_id: str, provider: str) ->
     ADR-056: Returns list of source IDs from integration.landscape.selected_sources
     """
     try:
-        result = supabase_client.table("user_integrations").select(
+        result = supabase_client.table("platform_connections").select(
             "landscape"
-        ).eq("user_id", user_id).eq("provider", provider).single().execute()
+        ).eq("user_id", user_id).eq("platform", provider).single().execute()
 
         if not result.data:
             return []

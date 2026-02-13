@@ -479,7 +479,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
     user_id = auth.user_id
 
     try:
-        result = auth.client.table("user_integrations").select(
+        result = auth.client.table("platform_connections").select(
             "id, provider, status, metadata, last_used_at, created_at"
         ).eq("user_id", user_id).execute()
 
@@ -488,7 +488,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
             metadata = row.get("metadata", {}) or {}
             integrations.append(IntegrationResponse(
                 id=row["id"],
-                provider=row["provider"],
+                provider=row["platform"],  # DB column is 'platform', API uses 'provider'
                 status=row["status"],
                 workspace_name=metadata.get("workspace_name"),
                 last_used_at=row.get("last_used_at"),
@@ -545,7 +545,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
 
     try:
         # Get all integrations
-        integrations_result = auth.client.table("user_integrations").select(
+        integrations_result = auth.client.table("platform_connections").select(
             "id, provider, status, metadata, landscape, created_at"
         ).eq("user_id", user_id).execute()
 
@@ -554,7 +554,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
 
         platforms = []
         for integration in integrations_result.data:
-            provider = integration["provider"]
+            provider = integration["platform"]  # DB column is 'platform'
             metadata = integration.get("metadata", {}) or {}
             landscape = integration.get("landscape", {}) or {}
             resources = landscape.get("resources", [])
@@ -639,7 +639,7 @@ async def list_import_jobs(
         if status:
             query = query.eq("status", status)
         if provider:
-            query = query.eq("provider", provider)
+            query = query.eq("platform", provider)
 
         result = query.execute()
 
@@ -770,9 +770,9 @@ async def get_integration(
     user_id = auth.user_id
 
     try:
-        result = auth.client.table("user_integrations").select(
+        result = auth.client.table("platform_connections").select(
             "id, provider, status, metadata, last_used_at, created_at"
-        ).eq("user_id", user_id).eq("provider", provider).execute()
+        ).eq("user_id", user_id).eq("platform", provider).execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
@@ -782,7 +782,7 @@ async def get_integration(
 
         return IntegrationResponse(
             id=row["id"],
-            provider=row["provider"],
+            provider=row["platform"],  # DB column is 'platform', API uses 'provider'
             status=row["status"],
             workspace_name=metadata.get("workspace_name"),
             last_used_at=row.get("last_used_at"),
@@ -834,9 +834,9 @@ async def check_integration_health(
     user_id = auth.user_id
 
     # Check if integration exists
-    result = auth.client.table("user_integrations").select(
+    result = auth.client.table("platform_connections").select(
         "id, status, metadata, updated_at"
-    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).single().execute()
 
     if not result.data:
         return IntegrationHealthResponse(
@@ -898,9 +898,9 @@ async def disconnect_integration(
 
     try:
         # Delete integration (cascade will handle export preferences)
-        result = auth.client.table("user_integrations").delete().eq(
+        result = auth.client.table("platform_connections").delete().eq(
             "user_id", user_id
-        ).eq("provider", provider).execute()
+        ).eq("platform", provider).execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
@@ -961,9 +961,9 @@ async def export_to_provider(
                     detail="Integration service unavailable (MCP not installed)"
                 )
 
-            integration = auth.client.table("user_integrations").select(
-                "id, access_token_encrypted, refresh_token_encrypted, metadata, status"
-            ).eq("user_id", user_id).eq("provider", provider).single().execute()
+            integration = auth.client.table("platform_connections").select(
+                "id, credentials_encrypted, refresh_token_encrypted, metadata, status"
+            ).eq("user_id", user_id).eq("platform", provider).single().execute()
 
             if not integration.data:
                 raise HTTPException(
@@ -981,7 +981,7 @@ async def export_to_provider(
             token_manager = get_token_manager()
 
             # Decrypt tokens
-            access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+            access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
             refresh_token = token_manager.decrypt(integration.data["refresh_token_encrypted"]) if integration.data.get("refresh_token_encrypted") else None
 
             # Build metadata, adding refresh_token for Gmail (ADR-029)
@@ -1058,7 +1058,7 @@ async def export_to_provider(
 
         # 6. Update last_used_at for auth integrations
         if integration_id:
-            auth.client.table("user_integrations").update({
+            auth.client.table("platform_connections").update({
                 "last_used_at": datetime.utcnow().isoformat()
             }).eq("id", integration_id).execute()
 
@@ -1153,9 +1153,9 @@ async def list_slack_channels(
 
     try:
         # Get user's Slack integration
-        integration = auth.client.table("user_integrations").select(
-            "id, access_token_encrypted, status"
-        ).eq("user_id", user_id).eq("provider", "slack").single().execute()
+        integration = auth.client.table("platform_connections").select(
+            "id, credentials_encrypted, status"
+        ).eq("user_id", user_id).eq("platform", "slack").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1170,9 +1170,9 @@ async def list_slack_channels(
             )
 
         # Get integration metadata for team_id
-        integration_full = auth.client.table("user_integrations").select(
+        integration_full = auth.client.table("platform_connections").select(
             "metadata"
-        ).eq("user_id", user_id).eq("provider", "slack").single().execute()
+        ).eq("user_id", user_id).eq("platform", "slack").single().execute()
 
         metadata = integration_full.data.get("metadata", {}) or {}
         team_id = metadata.get("team_id")
@@ -1181,7 +1181,7 @@ async def list_slack_channels(
 
         # Decrypt access token
         token_manager = get_token_manager()
-        access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+        access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
 
         # Fetch channels via MCP
         mcp = get_mcp_manager()
@@ -1235,9 +1235,9 @@ async def list_notion_pages(
 
     try:
         # Get user's Notion integration
-        integration = auth.client.table("user_integrations").select(
-            "id, access_token_encrypted, status"
-        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+        integration = auth.client.table("platform_connections").select(
+            "id, credentials_encrypted, status"
+        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1253,7 +1253,7 @@ async def list_notion_pages(
 
         # Decrypt access token
         token_manager = get_token_manager()
-        access_token = token_manager.decrypt(integration.data["access_token_encrypted"])
+        access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
 
         # ADR-050: Fetch pages via MCP Gateway (Node.js), not Python MCP client
         from services.mcp_gateway import call_platform_tool, is_gateway_available
@@ -1335,9 +1335,9 @@ async def get_notion_designated_page(auth: UserClient) -> DesignatedPageResponse
     user_id = auth.user_id
 
     try:
-        integration = auth.client.table("user_integrations").select(
+        integration = auth.client.table("platform_connections").select(
             "id, metadata, status"
-        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1386,9 +1386,9 @@ async def set_notion_designated_page(
 
     try:
         # Get current integration
-        integration = auth.client.table("user_integrations").select(
+        integration = auth.client.table("platform_connections").select(
             "id, metadata, status"
-        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1408,7 +1408,7 @@ async def set_notion_designated_page(
         if request.page_name:
             metadata["designated_page_name"] = request.page_name
 
-        auth.client.table("user_integrations").update({
+        auth.client.table("platform_connections").update({
             "metadata": metadata
         }).eq("id", integration.data["id"]).execute()
 
@@ -1436,9 +1436,9 @@ async def clear_notion_designated_page(auth: UserClient) -> DesignatedPageRespon
     user_id = auth.user_id
 
     try:
-        integration = auth.client.table("user_integrations").select(
+        integration = auth.client.table("platform_connections").select(
             "id, metadata"
-        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1451,7 +1451,7 @@ async def clear_notion_designated_page(auth: UserClient) -> DesignatedPageRespon
         metadata.pop("designated_page_id", None)
         metadata.pop("designated_page_name", None)
 
-        auth.client.table("user_integrations").update({
+        auth.client.table("platform_connections").update({
             "metadata": metadata
         }).eq("id", integration.data["id"]).execute()
 
@@ -1505,9 +1505,9 @@ async def get_google_designated_settings(auth: UserClient) -> GoogleDesignatedSe
         # Try google first, then gmail for legacy
         integration = None
         for provider in ["google", "gmail"]:
-            result = auth.client.table("user_integrations").select(
+            result = auth.client.table("platform_connections").select(
                 "id, metadata, status"
-            ).eq("user_id", user_id).eq("provider", provider).single().execute()
+            ).eq("user_id", user_id).eq("platform", provider).single().execute()
             if result.data:
                 integration = result.data
                 break
@@ -1553,9 +1553,9 @@ async def set_google_designated_settings(
         integration = None
         provider_found = None
         for provider in ["google", "gmail"]:
-            result = auth.client.table("user_integrations").select(
+            result = auth.client.table("platform_connections").select(
                 "id, metadata, status"
-            ).eq("user_id", user_id).eq("provider", provider).single().execute()
+            ).eq("user_id", user_id).eq("platform", provider).single().execute()
             if result.data:
                 integration = result.data
                 provider_found = provider
@@ -1582,7 +1582,7 @@ async def set_google_designated_settings(
         if request.designated_email:
             metadata["email"] = request.designated_email  # ADR-051: Allow explicit email setting
 
-        auth.client.table("user_integrations").update({
+        auth.client.table("platform_connections").update({
             "metadata": metadata
         }).eq("id", integration["id"]).execute()
 
@@ -1617,9 +1617,9 @@ async def clear_google_designated_settings(auth: UserClient) -> GoogleDesignated
         # Try google first, then gmail for legacy
         integration = None
         for provider in ["google", "gmail"]:
-            result = auth.client.table("user_integrations").select(
+            result = auth.client.table("platform_connections").select(
                 "id, metadata"
-            ).eq("user_id", user_id).eq("provider", provider).single().execute()
+            ).eq("user_id", user_id).eq("platform", provider).single().execute()
             if result.data:
                 integration = result.data
                 break
@@ -1636,7 +1636,7 @@ async def clear_google_designated_settings(auth: UserClient) -> GoogleDesignated
         metadata.pop("designated_calendar_id", None)
         metadata.pop("designated_calendar_name", None)
 
-        auth.client.table("user_integrations").update({
+        auth.client.table("platform_connections").update({
             "metadata": metadata
         }).eq("id", integration["id"]).execute()
 
@@ -1682,15 +1682,15 @@ async def list_google_calendars(
 
     try:
         # Get user's Google integration (try google first, then gmail for legacy)
-        integration = auth.client.table("user_integrations").select(
-            "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
-        ).eq("user_id", user_id).eq("provider", "google").single().execute()
+        integration = auth.client.table("platform_connections").select(
+            "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
+        ).eq("user_id", user_id).eq("platform", "google").single().execute()
 
         if not integration.data:
             # Try legacy gmail provider
-            integration = auth.client.table("user_integrations").select(
-                "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
-            ).eq("user_id", user_id).eq("provider", "gmail").single().execute()
+            integration = auth.client.table("platform_connections").select(
+                "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
+            ).eq("user_id", user_id).eq("platform", "gmail").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1779,15 +1779,15 @@ async def list_google_calendar_events(
 
     try:
         # Get user's Google integration (try google first, then gmail for legacy)
-        integration = auth.client.table("user_integrations").select(
-            "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
-        ).eq("user_id", user_id).eq("provider", "google").single().execute()
+        integration = auth.client.table("platform_connections").select(
+            "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
+        ).eq("user_id", user_id).eq("platform", "google").single().execute()
 
         if not integration.data:
             # Try legacy gmail provider
-            integration = auth.client.table("user_integrations").select(
-                "id, access_token_encrypted, refresh_token_encrypted, status, metadata"
-            ).eq("user_id", user_id).eq("provider", "gmail").single().execute()
+            integration = auth.client.table("platform_connections").select(
+                "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
+            ).eq("user_id", user_id).eq("platform", "gmail").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1913,9 +1913,9 @@ async def start_slack_import(
 
     try:
         # Get user's Slack integration
-        integration = auth.client.table("user_integrations").select(
-            "id, access_token_encrypted, status"
-        ).eq("user_id", user_id).eq("provider", "slack").single().execute()
+        integration = auth.client.table("platform_connections").select(
+            "id, credentials_encrypted, status"
+        ).eq("user_id", user_id).eq("platform", "slack").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -2025,9 +2025,9 @@ async def start_gmail_import(
 
     try:
         # Get user's Gmail integration
-        integration = auth.client.table("user_integrations").select(
+        integration = auth.client.table("platform_connections").select(
             "id, refresh_token_encrypted, status"
-        ).eq("user_id", user_id).eq("provider", "gmail").single().execute()
+        ).eq("user_id", user_id).eq("platform", "gmail").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -2133,9 +2133,9 @@ async def start_notion_import(
 
     try:
         # Get user's Notion integration
-        integration = auth.client.table("user_integrations").select(
-            "id, access_token_encrypted, status"
-        ).eq("user_id", user_id).eq("provider", "notion").single().execute()
+        integration = auth.client.table("platform_connections").select(
+            "id, credentials_encrypted, status"
+        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
 
         if not integration.data:
             raise HTTPException(
@@ -2332,14 +2332,14 @@ async def oauth_callback(
         service_client = get_service_client()
 
         # Upsert integration (update if exists, insert if not)
-        existing = service_client.table("user_integrations").select("id").eq(
+        existing = service_client.table("platform_connections").select("id").eq(
             "user_id", token_data["user_id"]
-        ).eq("provider", provider).execute()
+        ).eq("platform", provider).execute()
 
         if existing.data:
             # Update existing
-            service_client.table("user_integrations").update({
-                "access_token_encrypted": token_data["access_token_encrypted"],
+            service_client.table("platform_connections").update({
+                "credentials_encrypted": token_data["credentials_encrypted"],
                 "refresh_token_encrypted": token_data.get("refresh_token_encrypted"),
                 "metadata": token_data["metadata"],
                 "status": token_data["status"],
@@ -2350,10 +2350,10 @@ async def oauth_callback(
             logger.info(f"[INTEGRATIONS] Updated {provider} for user {token_data['user_id']}")
         else:
             # Insert new
-            service_client.table("user_integrations").insert({
+            service_client.table("platform_connections").insert({
                 "user_id": token_data["user_id"],
                 "provider": provider,
-                "access_token_encrypted": token_data["access_token_encrypted"],
+                "credentials_encrypted": token_data["credentials_encrypted"],
                 "refresh_token_encrypted": token_data.get("refresh_token_encrypted"),
                 "metadata": token_data["metadata"],
                 "status": token_data["status"],
@@ -2426,9 +2426,9 @@ async def get_landscape(
     user_id = auth.user_id
 
     # Get integration
-    integration = auth.client.table("user_integrations").select(
-        "id, access_token_encrypted, refresh_token_encrypted, metadata, landscape, landscape_discovered_at"
-    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+    integration = auth.client.table("platform_connections").select(
+        "id, credentials_encrypted, refresh_token_encrypted, metadata, landscape, landscape_discovered_at"
+    ).eq("user_id", user_id).eq("platform", provider).single().execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
@@ -2444,7 +2444,7 @@ async def get_landscape(
         landscape_data = await _discover_landscape(provider, user_id, integration.data)
 
         # Store landscape snapshot
-        auth.client.table("user_integrations").update({
+        auth.client.table("platform_connections").update({
             "landscape": landscape_data,
             "landscape_discovered_at": datetime.utcnow().isoformat()
         }).eq("id", integration.data["id"]).execute()
@@ -2457,7 +2457,7 @@ async def get_landscape(
     # Get coverage records for this provider
     coverage_result = auth.client.table("integration_coverage").select(
         "*"
-    ).eq("user_id", user_id).eq("provider", provider).execute()
+    ).eq("user_id", user_id).eq("platform", provider).execute()
 
     coverage_by_id = {c["resource_id"]: c for c in (coverage_result.data or [])}
 
@@ -2652,7 +2652,7 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
 
     elif provider == "slack":
         # Get Slack credentials
-        bot_token = token_manager.decrypt(integration["access_token_encrypted"])
+        bot_token = token_manager.decrypt(integration["credentials_encrypted"])
         team_id = integration.get("metadata", {}).get("team_id", "")
 
         # List channels
@@ -2687,7 +2687,7 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
             return {"resources": []}
 
         # Get Notion credentials
-        auth_token = token_manager.decrypt(integration["access_token_encrypted"])
+        auth_token = token_manager.decrypt(integration["credentials_encrypted"])
 
         # Search for pages via MCP Gateway
         result = await call_platform_tool(
@@ -2746,7 +2746,7 @@ async def update_coverage(
     # Check if coverage record exists
     existing = auth.client.table("integration_coverage").select("id").eq(
         "user_id", user_id
-    ).eq("provider", provider).eq("resource_id", resource_id).execute()
+    ).eq("platform", provider).eq("resource_id", resource_id).execute()
 
     if existing.data:
         # Update
@@ -2841,7 +2841,7 @@ async def update_selected_sources(
     ADR-043: Validates against user's tier limits. If over limit,
     truncates to max allowed and returns warning.
 
-    Sources are stored in user_integrations.landscape.selected_sources.
+    Sources are stored in platform_connections.landscape.selected_sources.
     """
     from services.platform_limits import validate_sources_update
 
@@ -2853,9 +2853,9 @@ async def update_selected_sources(
     )
 
     # Get integration
-    integration = auth.client.table("user_integrations").select(
+    integration = auth.client.table("platform_connections").select(
         "id, landscape"
-    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).single().execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
@@ -2878,7 +2878,7 @@ async def update_selected_sources(
 
     # Update landscape with selected sources
     landscape["selected_sources"] = selected_sources
-    auth.client.table("user_integrations").update({
+    auth.client.table("platform_connections").update({
         "landscape": landscape,
     }).eq("id", integration.data["id"]).execute()
 
@@ -2903,9 +2903,9 @@ async def get_selected_sources(
     """
     user_id = auth.user_id
 
-    integration = auth.client.table("user_integrations").select(
+    integration = auth.client.table("platform_connections").select(
         "landscape"
-    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).single().execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
@@ -2937,9 +2937,9 @@ async def trigger_platform_sync(
     user_id = auth.user_id
 
     # Verify integration exists
-    integration = auth.client.table("user_integrations").select(
+    integration = auth.client.table("platform_connections").select(
         "id, status, landscape"
-    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).single().execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
@@ -2994,9 +2994,9 @@ async def get_platform_sync_status(
     user_id = auth.user_id
 
     # Verify integration exists
-    integration = auth.client.table("user_integrations").select(
+    integration = auth.client.table("platform_connections").select(
         "id, status"
-    ).eq("user_id", user_id).eq("provider", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).single().execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")

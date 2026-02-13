@@ -101,6 +101,47 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Completed Migrations
 
+### Migration 043-045: ADR-058 Knowledge Base Architecture (2026-02-13) ✅
+
+**Status**: Applied
+
+```bash
+# Run in sequence:
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/043_knowledge_base_architecture.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/044_knowledge_base_data_migration.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/045_knowledge_base_cleanup.sql
+```
+
+**Changes**:
+- **Terminology alignment** per ADR-058:
+  - `user_integrations` → `platform_connections`
+  - `ephemeral_context` → `filesystem_items`
+  - `documents` → `filesystem_documents`
+  - `chunks` → `filesystem_chunks`
+  - `context_domains` → `knowledge_domains`
+  - `memories` (user facts) → `knowledge_entries`
+- **New Knowledge tables**:
+  - `knowledge_profile` - User profile (inferred + stated)
+  - `knowledge_styles` - Per-platform communication styles
+  - `knowledge_domains` - Work domains
+  - `knowledge_entries` - Preferences, facts, decisions
+- **Dropped tables**: `user_integrations`, `ephemeral_context`, `documents`, `chunks`, `context_domains`, `domain_sources`, `domain_style_profiles`, `deliverable_domains`, `memories`, `integration_coverage`
+
+### Migration 046: Restore import_jobs (2026-02-13) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/046_restore_import_jobs.sql
+```
+
+**Changes**:
+- Restores `integration_import_jobs` table (was accidentally dropped in 045)
+- This table is still needed for tracking sync/import operations
+- **Helper functions**: `get_effective_profile()`, `get_or_create_default_domain()`, `get_knowledge_entries_by_importance()`
+
+---
+
 ### Migration 041: ADR-040 Notifications (2026-02-11) ✅
 
 **Status**: Applied

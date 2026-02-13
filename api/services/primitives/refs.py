@@ -13,8 +13,8 @@ Examples:
 
 Entity types:
   - deliverable: Content deliverables
-  - platform: Connected platforms (user_integrations)
-  - platform_content: Imported platform data (ephemeral_context) - ADR-038
+  - platform: Connected platforms (platform_connections)
+  - platform_content: Imported platform data (filesystem_items) - ADR-058
   - memory: User-stated facts only (source_type='chat', 'user_stated')
   - session: Chat sessions
   - domain: Context domains
@@ -154,7 +154,7 @@ def parse_ref(ref: str) -> EntityRef:
 # Table mappings for entity types
 TABLE_MAP = {
     "deliverable": "deliverables",
-    "platform": "user_integrations",
+    "platform": "platform_connections",
     "platform_content": "ephemeral_context",  # ADR-038
     "memory": "memories",  # Narrowed to user-stated facts
     "session": "chat_sessions",
@@ -237,8 +237,8 @@ async def resolve_ref(
         # Specific identifier - could be UUID or name
         # Try UUID first, then name-based lookup
         if ref.entity_type == "platform":
-            # Platforms use provider name
-            query = query.eq("provider", ref.identifier)
+            # Platforms use platform name
+            query = query.eq("platform", ref.identifier)
             # ADR-048: Live search removed - use MCP tools directly
             # (mcp__notion__notion-search, mcp__slack__slack_search_*, etc.)
         else:

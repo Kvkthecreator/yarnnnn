@@ -143,10 +143,10 @@ async def recover_stale_processing_jobs(supabase_client, stale_minutes: int = 10
 async def get_user_integration(supabase_client, user_id: str, provider: str) -> Optional[dict]:
     """Get user's integration credentials for a provider."""
     result = (
-        supabase_client.table("user_integrations")
-        .select("id, access_token_encrypted, refresh_token_encrypted, metadata, status")
+        supabase_client.table("platform_connections")
+        .select("id, credentials_encrypted, refresh_token_encrypted, metadata, status")
         .eq("user_id", user_id)
-        .eq("provider", provider)
+        .eq("platform", provider)
         .single()
         .execute()
     )
@@ -291,7 +291,7 @@ async def process_slack_import(
     """Process a Slack channel import job."""
     from agents.integration.style_learning import StyleLearningAgent
     from agents.integration.platform_semantics import extract_slack_channel_signals
-    from services.ephemeral_context import store_slack_context_batch
+    from services.filesystem import store_slack_items_batch
 
     user_id = job["user_id"]
     metadata = integration.get("metadata", {}) or {}
@@ -310,7 +310,7 @@ async def process_slack_import(
     max_items = scope.get("max_items", 200)
 
     # Decrypt access token
-    access_token = token_manager.decrypt(integration["access_token_encrypted"])
+    access_token = token_manager.decrypt(integration["credentials_encrypted"])
     team_id = metadata.get("team_id")
 
     if not team_id:
@@ -387,18 +387,18 @@ async def process_slack_import(
         current_resource=resource_name,
     )
 
-    # 4. ADR-031: Store raw messages to ephemeral_context (with signals)
-    ephemeral_stored = await store_slack_context_batch(
+    # 4. ADR-058: Store raw messages to filesystem_items (with signals)
+    items_stored = await store_slack_items_batch(
         db_client=supabase_client,
         user_id=user_id,
         channel_id=resource_id,
         channel_name=resource_name,
         messages=messages,
     )
-    logger.info(f"[IMPORT] Stored {ephemeral_stored} messages to ephemeral_context")
+    logger.info(f"[IMPORT] Stored {items_stored} messages to filesystem_items")
 
-    # ADR-038: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in ephemeral_context only
+    # ADR-058: Extracted blocks count tracked but NOT stored to memories
+    # Platform content lives in filesystem_items only
     blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
@@ -485,7 +485,7 @@ async def process_notion_import(
 ) -> dict:
     """Process a Notion page import job."""
     from agents.integration.style_learning import StyleLearningAgent
-    from services.ephemeral_context import store_notion_context
+    from services.filesystem import store_notion_item
 
     user_id = job["user_id"]
 
@@ -502,7 +502,7 @@ async def process_notion_import(
     max_pages = scope.get("max_pages", 10)
 
     # Decrypt access token
-    access_token = token_manager.decrypt(integration["access_token_encrypted"])
+    access_token = token_manager.decrypt(integration["credentials_encrypted"])
 
     # ADR-030: Update progress - fetching phase
     await update_job_progress(
@@ -564,8 +564,8 @@ async def process_notion_import(
         current_resource=resource_name,
     )
 
-    # ADR-031: Store page content to ephemeral_context
-    ephemeral_id = await store_notion_context(
+    # ADR-058: Store page content to filesystem_items
+    item_id = await store_notion_item(
         db_client=supabase_client,
         user_id=user_id,
         page_id=resource_id,
@@ -576,10 +576,10 @@ async def process_notion_import(
             "child_pages": len(page_content.get("child_pages", [])),
         },
     )
-    logger.info(f"[IMPORT] Stored Notion page to ephemeral_context: {ephemeral_id}")
+    logger.info(f"[IMPORT] Stored Notion page to filesystem_items: {item_id}")
 
-    # ADR-038: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in ephemeral_context only
+    # ADR-058: Extracted blocks count tracked but NOT stored to memories
+    # Platform content lives in filesystem_items only
     blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
@@ -660,7 +660,7 @@ async def process_gmail_import(
     """
     import os
     from agents.integration.style_learning import StyleLearningAgent
-    from services.ephemeral_context import store_gmail_context_batch
+    from services.filesystem import store_gmail_items_batch
 
     user_id = job["user_id"]
     metadata = integration.get("metadata", {}) or {}
@@ -836,18 +836,18 @@ async def process_gmail_import(
         current_resource=resource_name,
     )
 
-    # ADR-031/055: Store raw messages to ephemeral_context
+    # ADR-058: Store raw messages to filesystem_items
     # Use resource_id for proper association (especially for label: imports)
-    ephemeral_stored = await store_gmail_context_batch(
+    items_stored = await store_gmail_items_batch(
         db_client=supabase_client,
         user_id=user_id,
         label=resource_id,  # ADR-055: Use resource_id for proper filtering
         messages=full_messages,
     )
-    logger.info(f"[IMPORT] Stored {ephemeral_stored} emails to ephemeral_context")
+    logger.info(f"[IMPORT] Stored {items_stored} emails to filesystem_items")
 
-    # ADR-038: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in ephemeral_context only
+    # ADR-058: Extracted blocks count tracked but NOT stored to memories
+    # Platform content lives in filesystem_items only
     blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete

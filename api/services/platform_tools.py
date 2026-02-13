@@ -375,11 +375,11 @@ async def get_platform_tools_for_user(auth: Any) -> list[dict]:
 
     try:
         # Get user's active integrations
-        result = auth.client.table("user_integrations").select(
-            "provider, status"
+        result = auth.client.table("platform_connections").select(
+            "platform, status"
         ).eq("user_id", auth.user_id).eq("status", "active").execute()
 
-        connected_providers = [i["provider"] for i in (result.data or [])]
+        connected_providers = [i["platform"] for i in (result.data or [])]
 
         for provider in connected_providers:
             provider_tools = PLATFORM_TOOLS_BY_PROVIDER.get(provider, [])
@@ -457,9 +457,9 @@ async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict
 
     # Get user's integration credentials
     try:
-        integration = auth.client.table("user_integrations").select(
-            "access_token_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("provider", provider).eq("status", "active").single().execute()
+        integration = auth.client.table("platform_connections").select(
+            "credentials_encrypted, metadata"
+        ).eq("user_id", auth.user_id).eq("platform", provider).eq("status", "active").single().execute()
 
         if not integration.data:
             return {
@@ -469,7 +469,7 @@ async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict
 
         # Decrypt token
         token_manager = get_token_manager()
-        token = token_manager.decrypt(integration.data["access_token_encrypted"])
+        token = token_manager.decrypt(integration.data["credentials_encrypted"])
         metadata = integration.data.get("metadata") or {}
 
     except Exception as e:
@@ -508,9 +508,9 @@ async def _handle_notion_tool(auth: Any, tool: str, tool_input: dict) -> dict:
 
     # Get user's Notion integration
     try:
-        result = auth.client.table("user_integrations").select(
-            "access_token_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("provider", "notion").eq("status", "active").single().execute()
+        result = auth.client.table("platform_connections").select(
+            "credentials_encrypted, metadata"
+        ).eq("user_id", auth.user_id).eq("platform", "notion").eq("status", "active").single().execute()
 
         if not result.data:
             return {
@@ -520,7 +520,7 @@ async def _handle_notion_tool(auth: Any, tool: str, tool_input: dict) -> dict:
 
         # Decrypt access token
         token_manager = get_token_manager()
-        access_token = token_manager.decrypt(result.data["access_token_encrypted"])
+        access_token = token_manager.decrypt(result.data["credentials_encrypted"])
         metadata = result.data.get("metadata") or {}
 
     except Exception as e:
@@ -644,9 +644,9 @@ async def _handle_google_tool(auth: Any, provider: str, tool: str, tool_input: d
     try:
         integration = None
         for p in ["google", "gmail"]:
-            result = auth.client.table("user_integrations").select(
-                "access_token_encrypted, refresh_token_encrypted, metadata"
-            ).eq("user_id", auth.user_id).eq("provider", p).eq("status", "active").execute()
+            result = auth.client.table("platform_connections").select(
+                "credentials_encrypted, refresh_token_encrypted, metadata"
+            ).eq("user_id", auth.user_id).eq("platform", p).eq("status", "active").execute()
 
             if result.data:
                 integration = result.data[0]

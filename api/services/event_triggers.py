@@ -463,14 +463,14 @@ async def _lookup_user_from_slack(
     """
     Look up YARNNN user ID from Slack team/channel.
 
-    Uses the user_integrations table to find the user.
+    Uses the platform_connections table to find the user.
     """
     try:
         # Query integrations with matching team_id in metadata
         result = (
-            db_client.table("user_integrations")
+            db_client.table("platform_connections")
             .select("user_id, metadata")
-            .eq("provider", "slack")
+            .eq("platform", "slack")
             .eq("status", "connected")
             .execute()
         )

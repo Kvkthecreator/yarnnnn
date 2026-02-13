@@ -284,8 +284,8 @@ async def exchange_code_for_token(
 
             return {
                 "user_id": user_id,
-                "provider": provider,
-                "access_token_encrypted": token_manager.encrypt(data["access_token"]),
+                "platform": provider,
+                "credentials_encrypted": token_manager.encrypt(data["access_token"]),
                 "refresh_token_encrypted": None,  # Slack doesn't use refresh tokens
                 "metadata": {
                     "team_id": data.get("team", {}).get("id"),
@@ -325,8 +325,8 @@ async def exchange_code_for_token(
             token_manager = get_token_manager()
             return {
                 "user_id": user_id,
-                "provider": provider,
-                "access_token_encrypted": token_manager.encrypt(data["access_token"]),
+                "platform": provider,
+                "credentials_encrypted": token_manager.encrypt(data["access_token"]),
                 "refresh_token_encrypted": None,  # Notion tokens don't expire
                 "metadata": {
                     "workspace_id": data.get("workspace_id"),
@@ -377,8 +377,8 @@ async def exchange_code_for_token(
 
             return {
                 "user_id": user_id,
-                "provider": provider,
-                "access_token_encrypted": token_manager.encrypt(data["access_token"]),
+                "platform": provider,
+                "credentials_encrypted": token_manager.encrypt(data["access_token"]),
                 "refresh_token_encrypted": token_manager.encrypt(data["refresh_token"]) if data.get("refresh_token") else None,
                 "metadata": {
                     "email": user_info.get("email"),

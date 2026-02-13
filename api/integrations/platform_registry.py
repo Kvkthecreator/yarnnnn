@@ -70,7 +70,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
 
         "auth": {
             "type": "oauth",
-            "token_field": "access_token_encrypted",
+            "token_field": "credentials_encrypted",
             "metadata_required": ["team_id"],
         },
 
@@ -136,7 +136,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
 
         "auth": {
             "type": "oauth_refresh",
-            "token_field": "access_token_encrypted",
+            "token_field": "credentials_encrypted",
             "metadata_required": ["refresh_token"],
             "env_required": ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
         },
@@ -198,7 +198,7 @@ PLATFORM_REGISTRY: dict[str, dict[str, Any]] = {
 
         "auth": {
             "type": "oauth",
-            "token_field": "access_token_encrypted",
+            "token_field": "credentials_encrypted",
             "env_name": "NOTION_TOKEN",
         },
 

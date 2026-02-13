@@ -250,33 +250,33 @@ def test_sync_status_endpoint():
     print("✅ sync_status_endpoint: PASSED")
 
 
-def test_ephemeral_context_updates_sync_registry():
-    """Test that ephemeral_context functions update sync_registry."""
-    print("\nTesting ephemeral_context sync_registry updates...")
+def test_filesystem_updates_sync_registry():
+    """Test that filesystem functions update sync_registry."""
+    print("\nTesting filesystem sync_registry updates...")
 
-    from services.ephemeral_context import store_slack_context_batch
+    from services.filesystem import store_slack_items_batch
     import inspect
 
-    source = inspect.getsource(store_slack_context_batch)
+    source = inspect.getsource(store_slack_items_batch)
 
     # Should call sync registry update helper
     assert "_update_sync_registry_after_store" in source or "update_sync_registry" in source, \
         "Should update sync_registry after storing"
-    print("  ✓ store_slack_context_batch updates sync_registry")
+    print("  ✓ store_slack_items_batch updates sync_registry")
 
-    from services.ephemeral_context import store_gmail_context_batch
-    source = inspect.getsource(store_gmail_context_batch)
+    from services.filesystem import store_gmail_items_batch
+    source = inspect.getsource(store_gmail_items_batch)
     assert "_update_sync_registry_after_store" in source or "update_sync_registry" in source, \
         "Gmail should update sync_registry"
-    print("  ✓ store_gmail_context_batch updates sync_registry")
+    print("  ✓ store_gmail_items_batch updates sync_registry")
 
-    from services.ephemeral_context import store_notion_context
-    source = inspect.getsource(store_notion_context)
+    from services.filesystem import store_notion_item
+    source = inspect.getsource(store_notion_item)
     assert "_update_sync_registry_after_store" in source or "update_sync_registry" in source, \
         "Notion should update sync_registry"
-    print("  ✓ store_notion_context updates sync_registry")
+    print("  ✓ store_notion_item updates sync_registry")
 
-    print("✅ ephemeral_context_updates_sync_registry: PASSED")
+    print("✅ filesystem_updates_sync_registry: PASSED")
 
 
 def test_deliverable_execution_freshness_check():
