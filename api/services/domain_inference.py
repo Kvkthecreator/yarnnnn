@@ -274,6 +274,8 @@ async def reconcile_domains(
     """
     Reconcile computed domains with existing domains in database.
 
+    ADR-058: Uses knowledge_domains.sources JSONB instead of domain_sources table.
+
     Handles:
     - Creating new domains
     - Updating existing domains (source changes)
@@ -282,23 +284,25 @@ async def reconcile_domains(
     """
     client = get_service_client()
 
-    # Get existing domains and their sources
+    # Get existing domains with their sources (ADR-058: sources is JSONB column)
     existing_domains = client.table("knowledge_domains").select(
-        "id, name, name_source, is_default"
-    ).eq("user_id", user_id).execute()
+        "id, name, name_source, is_default, sources"
+    ).eq("user_id", user_id).eq("is_active", True).execute()
 
-    existing_domain_sources = client.table("domain_sources").select(
-        "domain_id, provider, resource_id"
-    ).execute()
-
-    # Build source -> domain_id mapping
+    # Build source -> domain_id mapping from JSONB sources column
     source_to_existing_domain: dict[tuple[str, str], str] = {}
     domain_id_to_sources: dict[str, set[tuple[str, str]]] = defaultdict(set)
 
-    for ds in existing_domain_sources.data:
-        key = (ds["provider"], ds["resource_id"])
-        source_to_existing_domain[key] = ds["domain_id"]
-        domain_id_to_sources[ds["domain_id"]].add(key)
+    for domain in (existing_domains.data or []):
+        domain_id = domain["id"]
+        sources = domain.get("sources", []) or []
+        for s in sources:
+            # Handle both 'platform' and 'provider' keys for compatibility
+            provider = s.get("platform") or s.get("provider", "")
+            resource_id = s.get("resource_id", "")
+            key = (provider, resource_id)
+            source_to_existing_domain[key] = domain_id
+            domain_id_to_sources[domain_id].add(key)
 
     result = DomainReconciliation()
     matched_existing_domain_ids: set[str] = set()
@@ -358,97 +362,43 @@ async def apply_domain_changes(
 
     # Create new domains
     for computed in reconciliation.domains_to_create:
-        # Create domain
-        domain_result = client.table("knowledge_domains").insert({
-            "user_id": user_id,
-            "name": computed.suggested_name,
-            "name_source": "auto",
-            "is_default": False
-        }).execute()
-
-        domain_id = domain_result.data[0]["id"]
-
-        # Add sources
-        source_records = [
+        # ADR-058: Store sources directly in knowledge_domains.sources JSONB
+        sources_jsonb = [
             {
-                "domain_id": domain_id,
-                "provider": s.provider,
+                "platform": s.provider,
                 "resource_id": s.resource_id,
                 "resource_name": s.resource_name,
-                "mapping_source": "inferred"
             }
             for s in computed.sources
         ]
-        if source_records:
-            client.table("domain_sources").insert(source_records).execute()
 
-        # Link deliverables
-        deliverable_links = [
-            {"deliverable_id": d_id, "domain_id": domain_id}
-            for d_id in computed.deliverable_ids
-        ]
-        if deliverable_links:
-            client.table("deliverable_domains").upsert(
-                deliverable_links,
-                on_conflict="deliverable_id"
-            ).execute()
+        # Create domain with sources embedded
+        domain_result = client.table("knowledge_domains").insert({
+            "user_id": user_id,
+            "name": computed.suggested_name,
+            "name_source": "inferred",
+            "is_default": False,
+            "sources": sources_jsonb,
+        }).execute()
 
         created_count += 1
         logger.info(f"Created domain '{computed.suggested_name}' with {len(computed.sources)} sources")
 
     # Update existing domains
     for domain_id, computed in reconciliation.domains_to_update:
-        # Get current sources
-        current_sources = client.table("domain_sources").select(
-            "id, provider, resource_id"
-        ).eq("domain_id", domain_id).execute()
-
-        current_source_keys = {
-            (s["provider"], s["resource_id"]) for s in current_sources.data
-        }
-        computed_source_keys = {
-            (s.provider, s.resource_id) for s in computed.sources
-        }
-
-        # Add new sources
-        sources_to_add = computed_source_keys - current_source_keys
-        if sources_to_add:
-            source_records = [
-                {
-                    "domain_id": domain_id,
-                    "provider": s.provider,
-                    "resource_id": s.resource_id,
-                    "resource_name": s.resource_name,
-                    "mapping_source": "inferred"
-                }
-                for s in computed.sources
-                if (s.provider, s.resource_id) in sources_to_add
-            ]
-            client.table("domain_sources").insert(source_records).execute()
-
-        # Remove old sources (only if inferred, not manual)
-        sources_to_remove = current_source_keys - computed_source_keys
-        if sources_to_remove:
-            for s in current_sources.data:
-                if (s["provider"], s["resource_id"]) in sources_to_remove:
-                    # Check if it was manually added
-                    source_detail = client.table("domain_sources").select(
-                        "mapping_source"
-                    ).eq("id", s["id"]).single().execute()
-
-                    if source_detail.data.get("mapping_source") != "manual":
-                        client.table("domain_sources").delete().eq("id", s["id"]).execute()
-
-        # Update deliverable links
-        deliverable_links = [
-            {"deliverable_id": d_id, "domain_id": domain_id}
-            for d_id in computed.deliverable_ids
+        # ADR-058: Update sources JSONB directly in knowledge_domains
+        sources_jsonb = [
+            {
+                "platform": s.provider,
+                "resource_id": s.resource_id,
+                "resource_name": s.resource_name,
+            }
+            for s in computed.sources
         ]
-        if deliverable_links:
-            client.table("deliverable_domains").upsert(
-                deliverable_links,
-                on_conflict="deliverable_id"
-            ).execute()
+
+        client.table("knowledge_domains").update({
+            "sources": sources_jsonb,
+        }).eq("id", domain_id).execute()
 
         updated_count += 1
 
@@ -466,20 +416,10 @@ async def apply_domain_changes(
                 keep_domain_id = d["id"]
                 break
 
-        # Move all sources to kept domain
+        # Move all memories to kept domain and delete merged domains
         for domain_id in domain_ids_to_merge:
             if domain_id != keep_domain_id:
-                # Update sources to point to kept domain
-                client.table("domain_sources").update({
-                    "domain_id": keep_domain_id
-                }).eq("domain_id", domain_id).execute()
-
-                # Update deliverable links
-                client.table("deliverable_domains").update({
-                    "domain_id": keep_domain_id
-                }).eq("domain_id", domain_id).execute()
-
-                # Update memories
+                # Update memories to point to kept domain
                 client.table("knowledge_entries").update({
                     "domain_id": keep_domain_id
                 }).eq("domain_id", domain_id).execute()
@@ -487,29 +427,19 @@ async def apply_domain_changes(
                 # Delete merged domain
                 client.table("knowledge_domains").delete().eq("id", domain_id).execute()
 
-        # Add any new sources from computed
-        current_sources = client.table("domain_sources").select(
-            "provider, resource_id"
-        ).eq("domain_id", keep_domain_id).execute()
-
-        current_source_keys = {
-            (s["provider"], s["resource_id"]) for s in current_sources.data
-        }
-
-        sources_to_add = [
+        # ADR-058: Update kept domain with merged sources
+        sources_jsonb = [
             {
-                "domain_id": keep_domain_id,
-                "provider": s.provider,
+                "platform": s.provider,
                 "resource_id": s.resource_id,
                 "resource_name": s.resource_name,
-                "mapping_source": "inferred"
             }
             for s in computed.sources
-            if (s.provider, s.resource_id) not in current_source_keys
         ]
 
-        if sources_to_add:
-            client.table("domain_sources").insert(sources_to_add).execute()
+        client.table("knowledge_domains").update({
+            "sources": sources_jsonb,
+        }).eq("id", keep_domain_id).execute()
 
         merged_count += len(domain_ids_to_merge) - 1
         logger.info(f"Merged {len(domain_ids_to_merge)} domains into one")

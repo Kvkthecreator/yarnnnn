@@ -212,17 +212,8 @@ async def get_domain(domain_id: UUID, auth: UserClient):
 
         domain = domain_result.data
 
-        # Get sources
-        sources_result = auth.client.table("domain_sources")\
-            .select("provider, resource_id, resource_name")\
-            .eq("domain_id", str(domain_id))\
-            .execute()
-
-        # Get deliverable IDs
-        deliverables_result = auth.client.table("deliverable_domains")\
-            .select("deliverable_id")\
-            .eq("domain_id", str(domain_id))\
-            .execute()
+        # ADR-058: Sources are now stored directly in knowledge_domains.sources JSONB
+        sources = domain.get("sources", []) or []
 
         # Get memory count
         memories_result = auth.client.table("knowledge_entries")\
@@ -231,13 +222,37 @@ async def get_domain(domain_id: UUID, auth: UserClient):
             .eq("is_active", True)\
             .execute()
 
+        # Compute deliverable associations from deliverables.sources overlap
+        # (deliverable_domains table was dropped in ADR-058)
+        deliverable_ids = []
+        if sources:
+            # Get deliverables whose sources overlap with this domain's sources
+            deliverables_result = auth.client.table("deliverables")\
+                .select("id, sources")\
+                .eq("user_id", auth.user_id)\
+                .eq("status", "active")\
+                .execute()
+
+            domain_source_keys = {
+                f"{s.get('platform', s.get('provider'))}:{s.get('resource_id')}"
+                for s in sources
+            }
+
+            for d in (deliverables_result.data or []):
+                d_sources = d.get("sources", []) or []
+                for ds in d_sources:
+                    key = f"{ds.get('provider')}:{ds.get('resource_id')}"
+                    if key in domain_source_keys:
+                        deliverable_ids.append(d["id"])
+                        break
+
         return DomainDetail(
             id=domain["id"],
             name=domain["name"],
             name_source=domain["name_source"],
             is_default=domain["is_default"],
-            sources=sources_result.data or [],
-            deliverable_ids=[d["deliverable_id"] for d in deliverables_result.data or []],
+            sources=sources,
+            deliverable_ids=deliverable_ids,
             memory_count=memories_result.count or 0,
             created_at=domain["created_at"],
             updated_at=domain["updated_at"]
