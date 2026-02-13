@@ -969,76 +969,6 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
 }
 
 // =============================================================================
-// Empty State
-// =============================================================================
-
-function EmptyState({ onConnectPlatforms, onUploadDocs, onAddKnowledge }: {
-  onConnectPlatforms: () => void;
-  onUploadDocs: () => void;
-  onAddKnowledge: () => void;
-}) {
-  return (
-    <div className="flex-1 flex items-center justify-center p-8">
-      <div className="max-w-xl text-center">
-        <h2 className="text-2xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
-          Your context is empty
-        </h2>
-        <p className="text-gray-600 dark:text-gray-400 mb-8">
-          TP works best when it knows about your work. Add context from any of these sources:
-        </p>
-
-        <div className="grid grid-cols-3 gap-4">
-          <button
-            onClick={onConnectPlatforms}
-            className="p-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
-          >
-            <Database className="w-8 h-8 mx-auto text-blue-500 mb-3" />
-            <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-              Connect Platforms
-            </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Slack, Gmail, Notion
-            </p>
-          </button>
-
-          <button
-            onClick={onUploadDocs}
-            className="p-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
-          >
-            <FileText className="w-8 h-8 mx-auto text-green-500 mb-3" />
-            <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-              Upload Documents
-            </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              PDFs, docs, notes
-            </p>
-          </button>
-
-          <button
-            onClick={onAddKnowledge}
-            className="p-6 bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
-          >
-            <BookOpen className="w-8 h-8 mx-auto text-purple-500 mb-3" />
-            <h3 className="font-medium text-gray-900 dark:text-gray-100 mb-1">
-              Add Knowledge
-            </h3>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Tell TP about you directly
-            </p>
-          </button>
-        </div>
-
-        <p className="mt-8 text-sm text-gray-500 dark:text-gray-400">
-          Connect platforms to auto-learn your style and context.
-          <br />
-          Or add knowledge directly — TP will remember it.
-        </p>
-      </div>
-    </div>
-  );
-}
-
-// =============================================================================
 // Main Component
 // =============================================================================
 
@@ -1161,6 +1091,7 @@ export default function ContextPage() {
 
   // Check if user has any context
   const hasContext = counts.platforms > 0 || counts.documents > 0 || counts.entries > 0;
+  const showEmptyState = !hasContext && !profile.name;
 
   if (loading) {
     return (
@@ -1170,29 +1101,7 @@ export default function ContextPage() {
     );
   }
 
-  // Show empty state if no context
-  if (!hasContext && !profile.name) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-        <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4">
-          <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Context</h1>
-        </div>
-        <EmptyState
-          onConnectPlatforms={() => handleSectionChange('platforms')}
-          onUploadDocs={() => fileInputRef.current?.click()}
-          onAddKnowledge={() => handleSectionChange('entries')}
-        />
-        <input
-          ref={fileInputRef}
-          type="file"
-          className="hidden"
-          accept=".pdf,.doc,.docx,.txt,.md"
-          onChange={handleFileUpload}
-        />
-      </div>
-    );
-  }
-
+  // Always show sidebar, with empty state in content area when no data
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
       {/* Header */}
@@ -1222,53 +1131,83 @@ export default function ContextPage() {
 
         {/* Content Area */}
         <main className="flex-1 p-6 overflow-auto">
-          {activeSection === 'profile' && (
-            <ProfileSection
-              profile={profile}
-              loading={false}
-              onUpdate={handleProfileUpdate}
-            />
-          )}
+          {/* Show welcome prompt if empty state, otherwise show section content */}
+          {showEmptyState ? (
+            <div className="h-full flex items-center justify-center">
+              <div className="max-w-md text-center">
+                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                  Get started with context
+                </h2>
+                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                  TP works best when it knows about your work. Use the sidebar to add context.
+                </p>
+                <div className="flex flex-col gap-3">
+                  <button
+                    onClick={() => handleSectionChange('platforms')}
+                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                  >
+                    Connect a platform
+                  </button>
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg text-sm"
+                  >
+                    Upload a document
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <>
+              {activeSection === 'profile' && (
+                <ProfileSection
+                  profile={profile}
+                  loading={false}
+                  onUpdate={handleProfileUpdate}
+                />
+              )}
 
-          {activeSection === 'styles' && (
-            <StylesSection
-              styles={styles}
-              loading={false}
-              onUpdate={handleStyleUpdate}
-            />
-          )}
+              {activeSection === 'styles' && (
+                <StylesSection
+                  styles={styles}
+                  loading={false}
+                  onUpdate={handleStyleUpdate}
+                />
+              )}
 
-          {activeSection === 'domains' && (
-            <DomainsSection
-              domains={domains}
-              loading={false}
-              onNavigate={(id) => router.push(`/domains/${id}`)}
-            />
-          )}
+              {activeSection === 'domains' && (
+                <DomainsSection
+                  domains={domains}
+                  loading={false}
+                  onNavigate={(id) => router.push(`/domains/${id}`)}
+                />
+              )}
 
-          {activeSection === 'entries' && (
-            <EntriesSection
-              entries={entries}
-              loading={false}
-              onAdd={() => router.push('/chat?action=add-knowledge')}
-              onDelete={handleDeleteEntry}
-            />
-          )}
+              {activeSection === 'entries' && (
+                <EntriesSection
+                  entries={entries}
+                  loading={false}
+                  onAdd={() => router.push('/chat?action=add-knowledge')}
+                  onDelete={handleDeleteEntry}
+                />
+              )}
 
-          {activeSection === 'platforms' && (
-            <PlatformsSection
-              platforms={platforms}
-              loading={false}
-              onNavigate={(platform) => router.push(`/context/${platform}`)}
-            />
-          )}
+              {activeSection === 'platforms' && (
+                <PlatformsSection
+                  platforms={platforms}
+                  loading={false}
+                  onNavigate={(platform) => router.push(`/context/${platform}`)}
+                />
+              )}
 
-          {activeSection === 'documents' && (
-            <DocumentsSection
-              documents={documents}
-              loading={false}
-              onUpload={() => fileInputRef.current?.click()}
-            />
+              {activeSection === 'documents' && (
+                <DocumentsSection
+                  documents={documents}
+                  loading={false}
+                  onUpload={() => fileInputRef.current?.click()}
+                />
+              )}
+            </>
           )}
         </main>
       </div>
