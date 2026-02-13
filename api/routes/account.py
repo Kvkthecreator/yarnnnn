@@ -462,48 +462,6 @@ async def clear_all_integrations(auth: UserClient) -> OperationResult:
 
 
 # =============================================================================
-# Tier 2: Legacy endpoint (kept for backward compatibility)
-# =============================================================================
-
-@router.delete("/account/deliverables")
-async def delete_all_deliverables(auth: UserClient) -> OperationResult:
-    """
-    Delete all deliverables and their versions for the current user.
-    Returns user to onboarding/cold-start state.
-    """
-    user_id = auth.user_id
-
-    try:
-        # Get deliverable IDs first
-        deliverables = auth.client.table("deliverables").select("id").eq("user_id", user_id).execute()
-        deliverable_ids = [d["id"] for d in (deliverables.data or [])]
-
-        # Delete versions first (they reference deliverables)
-        versions_deleted = 0
-        for did in deliverable_ids:
-            result = auth.client.table("deliverable_versions").delete().eq("deliverable_id", did).execute()
-            versions_deleted += len(result.data or [])
-
-        # Delete deliverables
-        result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
-        deliverables_deleted = len(result.data or [])
-
-        logger.info(f"[ACCOUNT] User {user_id} deleted all deliverables: {deliverables_deleted} deliverables, {versions_deleted} versions")
-
-        return OperationResult(
-            success=True,
-            message=f"Deleted {deliverables_deleted} deliverables and {versions_deleted} versions",
-            deleted={
-                "deliverables": deliverables_deleted,
-                "deliverable_versions": versions_deleted
-            }
-        )
-    except Exception as e:
-        logger.error(f"[ACCOUNT] Failed to delete deliverables for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to delete deliverables")
-
-
-# =============================================================================
 # Tier 3: Full Actions (High Impact)
 # =============================================================================
 

@@ -1080,55 +1080,16 @@ async def export_to_provider(
 
 def _normalize_destination(provider: str, destination: dict[str, Any]) -> dict[str, Any]:
     """
-    Normalize legacy destination format to new ADR-028 format.
+    Validate and normalize destination format (ADR-028).
 
-    Supports both:
-    - Legacy: { "channel_id": "C123" } or { "page_id": "..." }
-    - New: { "platform": "slack", "target": "C123", "format": "message" }
+    Expected format: { "platform": "slack", "target": "C123", "format": "message" }
     """
-    # If already in new format, return as-is
-    if "platform" in destination and "target" in destination:
-        return destination
+    if "platform" not in destination or "target" not in destination:
+        raise ValueError("Destination must include 'platform' and 'target' fields")
 
-    # Convert legacy format
-    if provider == "slack":
-        return {
-            "platform": "slack",
-            "target": destination.get("channel_id") or destination.get("target"),
-            "format": destination.get("format", "message"),
-            "options": destination.get("options", {})
-        }
-    elif provider == "notion":
-        return {
-            "platform": "notion",
-            "target": destination.get("page_id") or destination.get("target"),
-            "format": destination.get("format", "page"),
-            "options": destination.get("options", {})
-        }
-    elif provider == "download":
-        return {
-            "platform": "download",
-            "target": None,
-            "format": destination.get("format", "markdown"),
-            "options": {}
-        }
-    elif provider == "gmail":
-        # ADR-029: Gmail destination normalization
-        return {
-            "platform": "gmail",
-            "target": destination.get("to") or destination.get("recipient") or destination.get("target"),
-            "format": destination.get("format", "send"),  # send, draft, reply
-            "options": {
-                "cc": destination.get("cc"),
-                "subject": destination.get("subject"),
-                "thread_id": destination.get("thread_id"),
-            }
-        }
-
-    # Unknown provider, pass through
     return {
-        "platform": provider,
-        "target": destination.get("target"),
+        "platform": destination["platform"],
+        "target": destination["target"],
         "format": destination.get("format", "default"),
         "options": destination.get("options", {})
     }

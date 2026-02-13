@@ -465,36 +465,3 @@ def format_for_prompt(working_memory: dict) -> str:
             lines.append(f"- {s.get('date')}: {s.get('summary')}")
 
     return "\n".join(lines)
-
-
-# =============================================================================
-# Backwards Compatibility (TEMPORARY - will be removed)
-# =============================================================================
-
-# Alias for migration period. Remove after all callers are updated.
-
-async def build_session_context(user_id: str, client: Any) -> dict:
-    """DEPRECATED: Use build_working_memory instead."""
-    import logging
-    logging.getLogger(__name__).warning(
-        "build_session_context is deprecated. Use build_working_memory."
-    )
-    return await build_working_memory(user_id, client)
-
-
-def format_context_for_prompt(context: dict) -> str:
-    """DEPRECATED: Use format_for_prompt instead."""
-    import logging
-    logging.getLogger(__name__).warning(
-        "format_context_for_prompt is deprecated. Use format_for_prompt."
-    )
-    return format_for_prompt(context)
-
-
-def estimate_context_tokens(context: dict) -> int:
-    """DEPRECATED: Use estimate_working_memory_tokens instead."""
-    import logging
-    logging.getLogger(__name__).warning(
-        "estimate_context_tokens is deprecated. Use estimate_working_memory_tokens."
-    )
-    return estimate_working_memory_tokens(context)
