@@ -480,7 +480,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
 
     try:
         result = auth.client.table("platform_connections").select(
-            "id, platform, status, metadata, last_used_at, created_at"
+            "id, platform, status, metadata, last_synced_at, created_at"
         ).eq("user_id", user_id).execute()
 
         integrations = []
@@ -491,7 +491,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
                 provider=row["platform"],  # ADR-058: DB column is 'platform'
                 status=row["status"],
                 workspace_name=metadata.get("workspace_name"),
-                last_used_at=row.get("last_used_at"),
+                last_used_at=row.get("last_synced_at"),  # ADR-058: column renamed
                 created_at=row["created_at"]
             ))
 
