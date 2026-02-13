@@ -755,8 +755,8 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
                   </div>
                 </div>
                 <div className="mt-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
-                  <span>{platform.source_count || 0} sources</span>
-                  <span>{platform.item_count || 0} items</span>
+                  <span>{platform.resource_count || 0} {platform.resource_type || 'sources'}</span>
+                  <span>{platform.activity_7d || 0} items (7d)</span>
                 </div>
               </button>
             );
