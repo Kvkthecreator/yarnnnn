@@ -463,7 +463,7 @@ export const api = {
         deliverable_versions: number;
         work_outputs: number;
         // Integrations
-        user_integrations: number;
+        platform_connections: number;
         integration_import_jobs: number;
         export_logs: number;
         // Hierarchy
@@ -760,7 +760,7 @@ export const api = {
         };
       }>(`/api/integrations/${provider}/landscape${refresh ? "?refresh=true" : ""}`),
 
-    // ADR-052: Get synced platform content from ephemeral_context
+    // ADR-058: Get synced platform content from filesystem_items
     getPlatformContext: (
       provider: "slack" | "notion" | "gmail" | "calendar",
       options?: { limit?: number; resourceId?: string }

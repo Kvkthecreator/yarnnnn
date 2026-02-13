@@ -480,7 +480,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
 
     try:
         result = auth.client.table("platform_connections").select(
-            "id, provider, status, metadata, last_used_at, created_at"
+            "id, platform, status, metadata, last_used_at, created_at"
         ).eq("user_id", user_id).execute()
 
         integrations = []
@@ -488,7 +488,7 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
             metadata = row.get("metadata", {}) or {}
             integrations.append(IntegrationResponse(
                 id=row["id"],
-                provider=row["platform"],  # DB column is 'platform', API uses 'provider'
+                provider=row["platform"],  # ADR-058: DB column is 'platform'
                 status=row["status"],
                 workspace_name=metadata.get("workspace_name"),
                 last_used_at=row.get("last_used_at"),
@@ -546,7 +546,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
     try:
         # Get all integrations
         integrations_result = auth.client.table("platform_connections").select(
-            "id, provider, status, metadata, landscape, created_at"
+            "id, platform, status, metadata, landscape, created_at"
         ).eq("user_id", user_id).execute()
 
         if not integrations_result.data:
@@ -554,7 +554,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
 
         platforms = []
         for integration in integrations_result.data:
-            provider = integration["platform"]  # DB column is 'platform'
+            provider = integration["platform"]  # ADR-058: DB column is 'platform'
             metadata = integration.get("metadata", {}) or {}
             landscape = integration.get("landscape", {}) or {}
             resources = landscape.get("resources", [])
@@ -771,7 +771,7 @@ async def get_integration(
 
     try:
         result = auth.client.table("platform_connections").select(
-            "id, provider, status, metadata, last_used_at, created_at"
+            "id, platform, status, metadata, last_used_at, created_at"
         ).eq("user_id", user_id).eq("platform", provider).execute()
 
         if not result.data:
@@ -782,7 +782,7 @@ async def get_integration(
 
         return IntegrationResponse(
             id=row["id"],
-            provider=row["platform"],  # DB column is 'platform', API uses 'provider'
+            provider=row["platform"],  # ADR-058: DB column is 'platform'
             status=row["status"],
             workspace_name=metadata.get("workspace_name"),
             last_used_at=row.get("last_used_at"),
@@ -2352,7 +2352,7 @@ async def oauth_callback(
             # Insert new
             service_client.table("platform_connections").insert({
                 "user_id": token_data["user_id"],
-                "provider": provider,
+                "platform": provider,  # ADR-058: column is 'platform', not 'provider'
                 "credentials_encrypted": token_data["credentials_encrypted"],
                 "refresh_token_encrypted": token_data.get("refresh_token_encrypted"),
                 "metadata": token_data["metadata"],
