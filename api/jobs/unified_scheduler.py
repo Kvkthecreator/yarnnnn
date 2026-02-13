@@ -252,7 +252,7 @@ async def should_skip_deliverable(
     Returns:
         Tuple of (should_skip, reason)
     """
-    from services.ephemeral_context import has_fresh_context_since
+    from services.filesystem import has_fresh_items_since
 
     sources = deliverable.get("sources", [])
     if not sources:
@@ -273,9 +273,9 @@ async def should_skip_deliverable(
     except (ValueError, TypeError):
         return False, ""
 
-    # Check for fresh context
+    # Check for fresh filesystem items
     try:
-        has_fresh, count = await has_fresh_context_since(
+        has_fresh, count = await has_fresh_items_since(
             db_client=supabase_client,
             user_id=deliverable["user_id"],
             deliverable_sources=sources,
@@ -283,7 +283,7 @@ async def should_skip_deliverable(
         )
 
         if not has_fresh:
-            return True, "No new context since last run"
+            return True, "No new items since last run"
 
         return False, ""
 
@@ -725,15 +725,15 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     # ADR-031: Cleanup Expired Ephemeral Context (hourly)
     # -------------------------------------------------------------------------
-    ephemeral_cleaned = 0
+    filesystem_cleaned = 0
     if now.minute < 5:  # Only run cleanup in first 5 minutes of each hour
         try:
-            from services.ephemeral_context import cleanup_expired_context
-            ephemeral_cleaned = await cleanup_expired_context(supabase)
-            if ephemeral_cleaned > 0:
-                logger.info(f"[EPHEMERAL] Cleaned up {ephemeral_cleaned} expired entries")
+            from services.filesystem import cleanup_expired_items
+            filesystem_cleaned = await cleanup_expired_items(supabase)
+            if filesystem_cleaned > 0:
+                logger.info(f"[FILESYSTEM] Cleaned up {filesystem_cleaned} expired items")
         except Exception as e:
-            logger.warning(f"[EPHEMERAL] Cleanup failed (non-fatal): {e}")
+            logger.warning(f"[FILESYSTEM] Cleanup failed (non-fatal): {e}")
 
     # -------------------------------------------------------------------------
     # ADR-031 Phase 4: Cleanup Expired Event Trigger Cooldowns (hourly)
@@ -751,22 +751,29 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     # Process Integration Import Jobs (ADR-027)
     # -------------------------------------------------------------------------
-    # First, recover any stale processing jobs (safety net for crashed processes)
-    recovered_count = await recover_stale_processing_jobs(supabase, stale_minutes=10)
-    if recovered_count > 0:
-        logger.info(f"[IMPORT] Recovered {recovered_count} stale job(s)")
-
-    import_jobs = await get_pending_import_jobs(supabase)
-    import_count = len(import_jobs)
-    logger.info(f"[IMPORT] Found {import_count} pending import job(s)")
-
+    import_count = 0
     import_success = 0
-    for job in import_jobs:
-        try:
-            if await process_import_job(supabase, job):
-                import_success += 1
-        except Exception as e:
-            logger.error(f"[IMPORT] Unexpected error for job {job.get('id')}: {e}")
+
+    try:
+        # First, recover any stale processing jobs (safety net for crashed processes)
+        recovered_count = await recover_stale_processing_jobs(supabase, stale_minutes=10)
+        if recovered_count > 0:
+            logger.info(f"[IMPORT] Recovered {recovered_count} stale job(s)")
+
+        import_jobs = await get_pending_import_jobs(supabase)
+        import_count = len(import_jobs)
+        logger.info(f"[IMPORT] Found {import_count} pending import job(s)")
+
+        for job in import_jobs:
+            try:
+                if await process_import_job(supabase, job):
+                    import_success += 1
+            except Exception as e:
+                logger.error(f"[IMPORT] Unexpected error for job {job.get('id')}: {e}")
+    except Exception as e:
+        # Handle schema cache miss or table not found errors gracefully
+        # PGRST205 = table not found in schema cache (needs cache refresh in Supabase)
+        logger.warning(f"[IMPORT] Import jobs processing skipped: {e}")
 
     # -------------------------------------------------------------------------
     # Summary
