@@ -2332,6 +2332,16 @@ async def oauth_callback(
                 "source_ref->>platform", "eq", provider
             ).execute()
 
+            # Invalidate MCP session so it gets recreated with new credentials
+            # This is critical when switching workspaces (e.g., different Slack team)
+            try:
+                mcp_manager = get_mcp_manager()
+                import asyncio
+                asyncio.create_task(mcp_manager.close_session(user_id, provider))
+                logger.info(f"[INTEGRATIONS] Invalidated MCP session for {user_id}:{provider}")
+            except Exception as e:
+                logger.warning(f"[INTEGRATIONS] Could not invalidate MCP session: {e}")
+
             logger.info(f"[INTEGRATIONS] Updated {provider} for user {user_id}, purged old workspace data")
         else:
             # Insert new
