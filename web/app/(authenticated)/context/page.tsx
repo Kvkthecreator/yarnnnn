@@ -157,7 +157,7 @@ function Sidebar({ activeSection, onSectionChange, counts }: SidebarProps) {
   let currentGroup = '';
 
   return (
-    <nav className="w-48 flex-shrink-0 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/50">
+    <nav className="w-48 flex-shrink-0 border-r border-border bg-muted/50">
       <div className="p-4 space-y-1">
         {navItems.map((item) => {
           const showGroupHeader = item.group && item.group !== currentGroup;
@@ -166,7 +166,7 @@ function Sidebar({ activeSection, onSectionChange, counts }: SidebarProps) {
           return (
             <div key={item.section}>
               {showGroupHeader && (
-                <div className="text-xs font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider px-3 pt-4 pb-2">
+                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-4 pb-2">
                   {item.group}
                 </div>
               )}
@@ -175,8 +175,8 @@ function Sidebar({ activeSection, onSectionChange, counts }: SidebarProps) {
                 className={cn(
                   "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
                   activeSection === item.section
-                    ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                    : "text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800"
+                    ? "bg-primary/10 text-primary"
+                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
                 )}
               >
                 <span className="flex items-center gap-2">
@@ -184,7 +184,7 @@ function Sidebar({ activeSection, onSectionChange, counts }: SidebarProps) {
                   {item.label}
                 </span>
                 {item.count !== undefined && item.count > 0 && (
-                  <span className="text-xs bg-gray-200 dark:bg-gray-700 px-1.5 py-0.5 rounded">
+                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
                     {item.count}
                   </span>
                 )}
@@ -195,10 +195,10 @@ function Sidebar({ activeSection, onSectionChange, counts }: SidebarProps) {
       </div>
 
       {/* Actions */}
-      <div className="p-4 border-t border-gray-200 dark:border-gray-700">
+      <div className="p-4 border-t border-border">
         <button
           onClick={() => onSectionChange('entries')}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium transition-colors"
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-colors"
         >
           <Plus className="w-4 h-4" />
           Add Knowledge
@@ -246,7 +246,7 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -256,11 +256,11 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Profile</h2>
+        <h2 className="text-lg font-semibold text-foreground">Profile</h2>
         {!editing && (
           <button
             onClick={() => setEditing(true)}
-            className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+            className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
           >
             <Edit2 className="w-4 h-4" />
             Edit
@@ -269,107 +269,107 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
       </div>
 
       {!hasProfile && !editing ? (
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 text-center">
-          <User className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <User className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground mb-4">
             No profile information yet. Add details about yourself so TP can personalize responses.
           </p>
           <button
             onClick={() => setEditing(true)}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
           >
             Set Up Profile
           </button>
         </div>
       ) : editing ? (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+        <div className="bg-card rounded-lg border border-border p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Name
               </label>
               <input
                 type="text"
                 value={formData.name || ''}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
                 placeholder="Your name"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Role
               </label>
               <input
                 type="text"
                 value={formData.role || ''}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
                 placeholder="e.g., Product Manager"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Company
               </label>
               <input
                 type="text"
                 value={formData.company || ''}
                 onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
                 placeholder="Company name"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              <label className="block text-sm font-medium text-foreground mb-1">
                 Timezone
               </label>
               <input
                 type="text"
                 value={formData.timezone || ''}
                 onChange={(e) => setFormData({ ...formData, timezone: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
                 placeholder="e.g., America/New_York"
               />
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+            <label className="block text-sm font-medium text-foreground mb-1">
               Summary
             </label>
             <textarea
               value={formData.summary || ''}
               onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
               rows={3}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+              className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground"
               placeholder="Brief description of your work..."
             />
           </div>
           <div className="flex justify-end gap-3">
             <button
               onClick={() => setEditing(false)}
-              className="px-4 py-2 text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+              className="px-4 py-2 text-muted-foreground hover:text-foreground"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+              className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium disabled:opacity-50"
             >
               {saving ? 'Saving...' : 'Save'}
             </button>
           </div>
         </div>
       ) : (
-        <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6">
+        <div className="bg-card rounded-lg border border-border p-6">
           <div className="flex items-start gap-4">
             <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center text-white text-xl font-semibold">
               {profile.name?.charAt(0)?.toUpperCase() || '?'}
             </div>
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">
+                <h3 className="text-xl font-semibold text-foreground">
                   {profile.name || 'Anonymous'}
                 </h3>
                 {profile.name_source === 'inferred' && (
@@ -379,18 +379,18 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
                 )}
               </div>
               {profile.role && (
-                <p className="text-gray-600 dark:text-gray-400">
+                <p className="text-muted-foreground">
                   {profile.role}
                   {profile.company && ` at ${profile.company}`}
                 </p>
               )}
               {profile.summary && (
-                <p className="mt-2 text-gray-600 dark:text-gray-400 text-sm">
+                <p className="mt-2 text-muted-foreground text-sm">
                   {profile.summary}
                 </p>
               )}
               {profile.timezone && (
-                <p className="mt-2 text-xs text-gray-500 dark:text-gray-500">
+                <p className="mt-2 text-xs text-muted-foreground">
                   Timezone: {profile.timezone}
                 </p>
               )}
@@ -439,7 +439,7 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -447,17 +447,17 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Communication Styles</h2>
+        <h2 className="text-lg font-semibold text-foreground">Communication Styles</h2>
       </div>
 
-      <p className="text-sm text-gray-500 dark:text-gray-400">
+      <p className="text-sm text-muted-foreground">
         These styles are inferred from your messages. Override them to control how TP generates content for you.
       </p>
 
       {styles.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 text-center">
-          <Palette className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p className="text-gray-600 dark:text-gray-400">
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <Palette className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground">
             No styles inferred yet. Connect platforms and sync content to learn your communication patterns.
           </p>
         </div>
@@ -475,18 +475,18 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
             return (
               <div
                 key={style.platform}
-                className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4"
+                className="bg-card rounded-lg border border-border p-4"
               >
                 <div className="flex items-center justify-between mb-3">
                   <div className="flex items-center gap-2">
                     <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
                       {config.icon}
                     </div>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
+                    <span className="font-medium text-foreground">
                       {config.label}
                     </span>
                     {hasOverride && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
                         custom
                       </span>
                     )}
@@ -494,7 +494,7 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
                   {!isEditing && onUpdate && (
                     <button
                       onClick={() => handleEdit(style)}
-                      className="text-xs text-blue-600 hover:text-blue-700 dark:text-blue-400"
+                      className="text-xs text-primary hover:text-primary/80"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
@@ -504,11 +504,11 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
                 {isEditing ? (
                   <div className="space-y-3">
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Tone</label>
+                      <label className="block text-xs text-muted-foreground mb-1">Tone</label>
                       <select
                         value={editForm.tone || ''}
                         onChange={(e) => setEditForm({ ...editForm, tone: e.target.value })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
                       >
                         <option value="">Auto (inferred)</option>
                         <option value="casual">Casual</option>
@@ -518,11 +518,11 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
                       </select>
                     </div>
                     <div>
-                      <label className="block text-xs text-gray-500 dark:text-gray-400 mb-1">Verbosity</label>
+                      <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
                       <select
                         value={editForm.verbosity || ''}
                         onChange={(e) => setEditForm({ ...editForm, verbosity: e.target.value })}
-                        className="w-full px-2 py-1.5 text-sm border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-900 text-gray-900 dark:text-gray-100"
+                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
                       >
                         <option value="">Auto (inferred)</option>
                         <option value="minimal">Minimal</option>
@@ -533,14 +533,14 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
                     <div className="flex gap-2 pt-2">
                       <button
                         onClick={() => setEditingPlatform(null)}
-                        className="flex-1 px-2 py-1.5 text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+                        className="flex-1 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
                       >
                         Cancel
                       </button>
                       <button
                         onClick={handleSave}
                         disabled={saving}
-                        className="flex-1 px-2 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white rounded disabled:opacity-50"
+                        className="flex-1 px-2 py-1.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground rounded disabled:opacity-50"
                       >
                         {saving ? 'Saving...' : 'Save'}
                       </button>
@@ -551,30 +551,30 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
                     <div className="space-y-2 text-sm">
                       {(style.tone || (style.stated_preferences?.tone as string | undefined)) && (
                         <div className="flex justify-between">
-                          <span className="text-gray-500 dark:text-gray-400">Tone</span>
-                          <span className="text-gray-900 dark:text-gray-100 capitalize">
+                          <span className="text-muted-foreground">Tone</span>
+                          <span className="text-foreground capitalize">
                             {String((style.stated_preferences?.tone as string | undefined) || style.tone)}
                           </span>
                         </div>
                       )}
                       {(style.verbosity || (style.stated_preferences?.verbosity as string | undefined)) && (
                         <div className="flex justify-between">
-                          <span className="text-gray-500 dark:text-gray-400">Verbosity</span>
-                          <span className="text-gray-900 dark:text-gray-100 capitalize">
+                          <span className="text-muted-foreground">Verbosity</span>
+                          <span className="text-foreground capitalize">
                             {String((style.stated_preferences?.verbosity as string | undefined) || style.verbosity)}
                           </span>
                         </div>
                       )}
                       <div className="flex justify-between">
-                        <span className="text-gray-500 dark:text-gray-400">Samples</span>
-                        <span className="text-gray-900 dark:text-gray-100">{style.sample_count}</span>
+                        <span className="text-muted-foreground">Samples</span>
+                        <span className="text-foreground">{style.sample_count}</span>
                       </div>
                     </div>
 
                     {style.sample_excerpts && style.sample_excerpts.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-100 dark:border-gray-700">
-                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Example:</p>
-                        <p className="text-xs text-gray-600 dark:text-gray-400 italic line-clamp-2">
+                      <div className="mt-3 pt-3 border-t border-border">
+                        <p className="text-xs text-muted-foreground mb-1">Example:</p>
+                        <p className="text-xs text-muted-foreground italic line-clamp-2">
                           &ldquo;{style.sample_excerpts[0]}&rdquo;
                         </p>
                       </div>
@@ -604,7 +604,7 @@ function DomainsSection({ domains, loading, onNavigate }: DomainsSectionProps) {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -612,13 +612,13 @@ function DomainsSection({ domains, loading, onNavigate }: DomainsSectionProps) {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Work Domains</h2>
+        <h2 className="text-lg font-semibold text-foreground">Work Domains</h2>
       </div>
 
       {domains.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 text-center">
-          <FolderKanban className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p className="text-gray-600 dark:text-gray-400">
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <FolderKanban className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground">
             No domains yet. Domains are automatically created when you group platform sources.
           </p>
         </div>
@@ -628,29 +628,29 @@ function DomainsSection({ domains, loading, onNavigate }: DomainsSectionProps) {
             <button
               key={domain.id}
               onClick={() => onNavigate(domain.id)}
-              className="w-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-left hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+              className="w-full bg-card rounded-lg border border-border p-4 text-left hover:border-primary/50 transition-colors"
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <FolderKanban className="w-5 h-5 text-blue-500" />
-                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                  <FolderKanban className="w-5 h-5 text-primary" />
+                  <span className="font-medium text-foreground">
                     {domain.name}
                   </span>
                   {domain.is_default && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300">
+                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                       default
                     </span>
                   )}
                 </div>
-                <ChevronRight className="w-4 h-4 text-gray-400" />
+                <ChevronRight className="w-4 h-4 text-muted-foreground" />
               </div>
               {domain.summary && (
-                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400 line-clamp-2">
+                <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
                   {domain.summary}
                 </p>
               )}
               {domain.sources && domain.sources.length > 0 && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                   <span>{domain.sources.length} source{domain.sources.length !== 1 ? 's' : ''}</span>
                 </div>
               )}
@@ -688,7 +688,7 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -703,10 +703,10 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Knowledge Entries</h2>
+        <h2 className="text-lg font-semibold text-foreground">Knowledge Entries</h2>
         <button
           onClick={onAdd}
-          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+          className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
         >
           <Plus className="w-4 h-4" />
           Add Entry
@@ -714,14 +714,14 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
       </div>
 
       {entries.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 text-center">
-          <BookOpen className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <BookOpen className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground mb-4">
             No knowledge entries yet. Add facts, preferences, and decisions for TP to remember.
           </p>
           <button
             onClick={onAdd}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
           >
             Add Your First Entry
           </button>
@@ -731,24 +731,24 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
           {entries.map((entry) => (
             <div
               key={entry.id}
-              className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-start gap-3"
+              className="bg-card rounded-lg border border-border p-4 flex items-start gap-3"
             >
               <div className="flex-1">
                 <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium text-gray-500 dark:text-gray-400">
+                  <span className="text-xs font-medium text-muted-foreground">
                     {entryTypeLabel[entry.entry_type] || entry.entry_type}
                   </span>
-                  <span className="text-xs text-gray-400 dark:text-gray-500">
+                  <span className="text-xs text-muted-foreground">
                     · {entry.source}
                   </span>
                 </div>
-                <p className="text-gray-900 dark:text-gray-100">{entry.content}</p>
+                <p className="text-foreground">{entry.content}</p>
                 {entry.tags.length > 0 && (
                   <div className="mt-2 flex flex-wrap gap-1">
                     {entry.tags.map((tag) => (
                       <span
                         key={tag}
-                        className="text-xs px-2 py-0.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400"
+                        className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
                       >
                         {tag}
                       </span>
@@ -759,7 +759,7 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
               <button
                 onClick={() => handleDelete(entry.id)}
                 disabled={deletingId === entry.id}
-                className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                className="p-1 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 transition-colors"
               >
                 {deletingId === entry.id ? (
                   <Loader2 className="w-4 h-4 animate-spin" />
@@ -791,7 +791,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -804,13 +804,13 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Connected Platforms</h2>
+        <h2 className="text-lg font-semibold text-foreground">Connected Platforms</h2>
       </div>
 
       {connectedPlatforms.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 text-center">
-          <Database className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <Database className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground mb-4">
             No platforms connected yet. Connect Slack, Gmail, Notion, or Calendar to auto-learn your context.
           </p>
         </div>
@@ -827,7 +827,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
               <button
                 key={platform.provider}
                 onClick={() => onNavigate(platform.provider)}
-                className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 text-left hover:border-blue-300 dark:hover:border-blue-600 transition-colors"
+                className="bg-card rounded-lg border border-border p-4 text-left hover:border-primary/50 transition-colors"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
@@ -835,11 +835,11 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
                       {config.icon}
                     </div>
                     <div>
-                      <span className="font-medium text-gray-900 dark:text-gray-100">
+                      <span className="font-medium text-foreground">
                         {config.label}
                       </span>
                       {platform.workspace_name && (
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p className="text-xs text-muted-foreground">
                           {platform.workspace_name}
                         </p>
                       )}
@@ -849,10 +849,10 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
                     {platform.status === 'connected' && (
                       <CheckCircle2 className="w-4 h-4 text-green-500" />
                     )}
-                    <ChevronRight className="w-4 h-4 text-gray-400" />
+                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
                   <span>{platform.resource_count || 0} {platform.resource_type || 'sources'}</span>
                   <span>{platform.activity_7d || 0} items (7d)</span>
                 </div>
@@ -863,8 +863,8 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
       )}
 
       {availablePlatforms.length > 0 && (
-        <div className="pt-4 border-t border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-3">
+        <div className="pt-4 border-t border-border">
+          <h3 className="text-sm font-medium text-foreground mb-3">
             Connect more platforms
           </h3>
           <div className="flex flex-wrap gap-2">
@@ -874,7 +874,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
                 <button
                   key={platform}
                   onClick={() => router.push(`/context/${platform}`)}
-                  className="flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600 transition-colors"
+                  className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors"
                 >
                   {config.icon}
                   {config.label}
@@ -902,7 +902,7 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-gray-400" />
+        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -910,10 +910,10 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">Uploaded Documents</h2>
+        <h2 className="text-lg font-semibold text-foreground">Uploaded Documents</h2>
         <button
           onClick={onUpload}
-          className="flex items-center gap-1.5 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400"
+          className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
         >
           <Upload className="w-4 h-4" />
           Upload
@@ -921,14 +921,14 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
       </div>
 
       {documents.length === 0 ? (
-        <div className="bg-gray-50 dark:bg-gray-800/50 rounded-lg p-6 text-center">
-          <FileText className="w-12 h-12 mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-          <p className="text-gray-600 dark:text-gray-400 mb-4">
+        <div className="bg-muted/50 rounded-lg p-6 text-center">
+          <FileText className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
+          <p className="text-muted-foreground mb-4">
             No documents uploaded yet. Upload PDFs, docs, or notes to add context.
           </p>
           <button
             onClick={onUpload}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+            className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
           >
             Upload Document
           </button>
@@ -938,14 +938,14 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
           {documents.map((doc) => (
             <div
               key={doc.id}
-              className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 flex items-center gap-3"
+              className="bg-card rounded-lg border border-border p-4 flex items-center gap-3"
             >
-              <FileText className="w-8 h-8 text-blue-500" />
+              <FileText className="w-8 h-8 text-primary" />
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-gray-900 dark:text-gray-100 truncate">
+                <p className="font-medium text-foreground truncate">
                   {doc.filename}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
+                <p className="text-xs text-muted-foreground">
                   {doc.file_type?.toUpperCase()} · {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
                 </p>
               </div>
@@ -954,7 +954,7 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
                   <CheckCircle2 className="w-4 h-4 text-green-500" />
                 )}
                 {doc.processing_status === 'processing' && (
-                  <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
                 )}
                 {doc.processing_status === 'failed' && (
                   <XCircle className="w-4 h-4 text-red-500" />
@@ -1096,24 +1096,24 @@ export default function ContextPage() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-gray-400" />
+        <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   // Always show sidebar, with empty state in content area when no data
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex flex-col">
+    <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <div className="border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-6 py-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-gray-900 dark:text-gray-100">Context</h1>
+      <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
+        <h1 className="text-xl font-semibold text-foreground">Context</h1>
         <button
           onClick={() => {
             setRefreshing(true);
             loadData().finally(() => setRefreshing(false));
           }}
           disabled={refreshing}
-          className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200"
+          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
         >
           <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
           Refresh
@@ -1135,22 +1135,22 @@ export default function ContextPage() {
           {showEmptyState && activeSection === 'profile' ? (
             <div className="h-full flex items-center justify-center">
               <div className="max-w-md text-center">
-                <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-2">
+                <h2 className="text-xl font-semibold text-foreground mb-2">
                   Get started with context
                 </h2>
-                <p className="text-gray-600 dark:text-gray-400 mb-6">
+                <p className="text-muted-foreground mb-6">
                   TP works best when it knows about your work. Use the sidebar to add context.
                 </p>
                 <div className="flex flex-col gap-3">
                   <button
                     onClick={() => handleSectionChange('platforms')}
-                    className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-medium"
+                    className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
                   >
                     Connect a platform
                   </button>
                   <button
                     onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg text-sm"
+                    className="px-4 py-2 border border-border text-foreground hover:bg-muted rounded-lg text-sm"
                   >
                     Upload a document
                   </button>
