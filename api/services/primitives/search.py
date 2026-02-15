@@ -117,6 +117,9 @@ async def handle_search(auth: Any, input: dict) -> dict:
                 )
             elif entity_scope == "memory":
                 results = await _search_user_memories(auth, query, limit)
+            elif entity_scope == "document":
+                # Documents need special handling - search chunks for content
+                results = await _search_document_content(auth, query, limit)
             else:
                 results = await _search_entity(auth, query, entity_scope, limit)
             all_results.extend(results)
@@ -248,6 +251,104 @@ async def _search_user_memories(
         import logging
         logging.warning(f"[SEARCH] Memory search failed: {e}")
         return []
+
+
+async def _search_document_content(
+    auth: Any,
+    query: str,
+    limit: int,
+) -> list[dict]:
+    """
+    Search uploaded documents by their content.
+
+    ADR-058: Documents are stored in filesystem_documents, but their
+    actual content is chunked and stored in filesystem_chunks for retrieval.
+    We search chunks and return the parent document info.
+    """
+    import logging
+
+    try:
+        # First, get user's documents to scope the search
+        user_docs_result = auth.client.table("filesystem_documents").select(
+            "id"
+        ).eq(
+            "user_id", auth.user_id
+        ).eq(
+            "processing_status", "completed"
+        ).execute()
+
+        if not user_docs_result.data:
+            # No documents, try filename fallback
+            return await _search_entity(auth, query, "document", limit)
+
+        user_doc_ids = [doc["id"] for doc in user_docs_result.data]
+
+        # Search document chunks for the query, filtered to user's documents
+        chunk_result = auth.client.table("filesystem_chunks").select(
+            "id, document_id, content, chunk_index, page_number"
+        ).in_(
+            "document_id", user_doc_ids
+        ).ilike(
+            "content", f"%{query}%"
+        ).limit(limit * 2).execute()  # Get more chunks to dedupe by document
+
+        if not chunk_result.data:
+            # Fallback: search document filenames as well
+            return await _search_entity(auth, query, "document", limit)
+
+        # Get unique document IDs from chunks
+        matched_doc_ids = list(set(chunk["document_id"] for chunk in chunk_result.data))
+
+        # Fetch the full document info
+        doc_result = auth.client.table("filesystem_documents").select(
+            "id, filename, file_type, file_size, page_count, word_count, "
+            "processing_status, uploaded_at"
+        ).eq(
+            "user_id", auth.user_id
+        ).in_(
+            "id", matched_doc_ids
+        ).execute()
+
+        if not doc_result.data:
+            return []
+
+        # Build results with matched content snippets
+        doc_map = {doc["id"]: doc for doc in doc_result.data}
+        results = []
+        seen_docs = set()
+
+        for chunk in chunk_result.data:
+            doc_id = chunk["document_id"]
+            if doc_id in seen_docs or doc_id not in doc_map:
+                continue
+            seen_docs.add(doc_id)
+
+            doc = doc_map[doc_id]
+            content_snippet = chunk["content"][:500] + "..." if len(chunk.get("content", "")) > 500 else chunk.get("content", "")
+
+            results.append({
+                "entity_type": "document",
+                "ref": f"document:{doc_id}",
+                "data": {
+                    "filename": doc.get("filename"),
+                    "file_type": doc.get("file_type"),
+                    "page_count": doc.get("page_count"),
+                    "word_count": doc.get("word_count"),
+                    "matched_content": content_snippet,
+                    "matched_page": chunk.get("page_number"),
+                },
+                "score": 0.5,
+            })
+
+            if len(results) >= limit:
+                break
+
+        return results
+
+    except Exception as e:
+        logging.warning(f"[SEARCH] Document content search failed: {e}")
+        # Fallback to filename search
+        return await _search_entity(auth, query, "document", limit)
 
 
 async def _search_entity(
