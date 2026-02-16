@@ -776,19 +776,97 @@ async def run_unified_scheduler():
         logger.warning(f"[IMPORT] Import jobs processing skipped: {e}")
 
     # -------------------------------------------------------------------------
+    # ADR-060/061: Conversation Analysis Phase (daily)
+    # Detects patterns in user conversations, creates suggested deliverables
+    # -------------------------------------------------------------------------
+    analysis_users = 0
+    analysis_suggestions = 0
+    # Run once per day at 6 AM UTC (when hour == 6 and minute < 5)
+    if now.hour == 6 and now.minute < 5:
+        try:
+            from services.conversation_analysis import (
+                get_recent_sessions,
+                get_user_deliverables,
+                get_user_knowledge,
+                analyze_conversation_patterns,
+                create_suggested_deliverable,
+            )
+
+            # Get users with recent activity
+            active_users_result = supabase.rpc(
+                "get_active_users_for_analysis",
+                {"days_back": 7}
+            ).execute()
+
+            # Fallback if function doesn't exist
+            if not active_users_result.data:
+                # Query users with recent sessions directly
+                since = (now - timedelta(days=7)).isoformat()
+                active_users_result = (
+                    supabase.table("chat_sessions")
+                    .select("user_id")
+                    .gte("started_at", since)
+                    .execute()
+                )
+                # Deduplicate
+                user_ids = list(set(s["user_id"] for s in (active_users_result.data or [])))
+            else:
+                user_ids = [u["user_id"] for u in active_users_result.data]
+
+            logger.info(f"[ANALYSIS] Found {len(user_ids)} users with recent activity")
+
+            for user_id in user_ids:
+                try:
+                    sessions = await get_recent_sessions(supabase, user_id, days=7)
+                    if len(sessions) < 3:  # Need minimum activity
+                        continue
+
+                    existing = await get_user_deliverables(supabase, user_id)
+                    knowledge = await get_user_knowledge(supabase, user_id)
+
+                    suggestions = await analyze_conversation_patterns(
+                        supabase, user_id, sessions, existing, knowledge
+                    )
+
+                    for suggestion in suggestions:
+                        if suggestion.confidence >= 0.50:
+                            result = await create_suggested_deliverable(
+                                supabase, user_id, suggestion
+                            )
+                            if result:
+                                analysis_suggestions += 1
+
+                    analysis_users += 1
+
+                except Exception as e:
+                    logger.warning(f"[ANALYSIS] Error for user {user_id}: {e}")
+
+            if analysis_users > 0 or analysis_suggestions > 0:
+                logger.info(
+                    f"[ANALYSIS] Processed {analysis_users} users, "
+                    f"created {analysis_suggestions} suggestions"
+                )
+
+        except Exception as e:
+            logger.warning(f"[ANALYSIS] Analysis phase skipped: {e}")
+
+    # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
     deliverable_summary = f"{deliverable_success}/{len(deliverables)}"
     if deliverable_skipped > 0:
         deliverable_summary += f" ({deliverable_skipped} skipped)"
 
-    logger.info(
-        f"Completed: "
-        f"deliverables={deliverable_summary}, "
-        f"work={work_success}/{len(work_items)}, "
-        f"digests={digest_success}/{digest_count}, "
-        f"imports={import_success}/{import_count}"
-    )
+    summary_parts = [
+        f"deliverables={deliverable_summary}",
+        f"work={work_success}/{len(work_items)}",
+        f"digests={digest_success}/{digest_count}",
+        f"imports={import_success}/{import_count}",
+    ]
+    if analysis_users > 0 or analysis_suggestions > 0:
+        summary_parts.append(f"analysis={analysis_suggestions} suggestions from {analysis_users} users")
+
+    logger.info(f"Completed: {', '.join(summary_parts)}")
 
 
 if __name__ == "__main__":

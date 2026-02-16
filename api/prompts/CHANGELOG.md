@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.16.6] - Work Boundary (ADR-061)
+
+### Changed
+- `api/agents/tp_prompts/behaviors.py`: Added "Work Boundary (ADR-061)" section
+- **Behavior**: TP now has explicit guidance on Path A vs Path B responsibilities
+  - DO: Answer questions, execute one-time actions, create deliverables when asked
+  - DON'T: Generate deliverable content inline, suggest automations mid-conversation
+- **Impact**:
+  - TP stays conversational and responsive (Path A)
+  - Deliverable content generation happens in orchestrator (Path B)
+  - Pattern detection runs in background, not in conversation
+
+### Architectural Note
+- Part of ADR-061 Two-Path Architecture implementation
+- TP creates deliverable configurations; orchestrator generates content on schedule
+
+---
+
 ## [2026.02.16.5] - WebSearch primitive for TP (ADR-045)
 
 ### Added

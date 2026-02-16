@@ -300,11 +300,11 @@ This separation keeps conversations focused and reduces interruption.
 - [ ] Enhance `/deliverables` page with Suggested section (deferred - needs full CRUD revamp)
 - [ ] Track dismissals for future learning
 
-### Phase 2: Conversation Analysis Service (ADR-061)
-- [ ] Create `analyze_conversation_patterns()` service function (not a separate agent)
-- [ ] Add to `unified_scheduler.py` as Analysis Phase (daily trigger)
-- [ ] Implement pattern detection logic with structured LLM output
-- [ ] Create suggested deliverables with metadata
+### Phase 2: Conversation Analysis Service (ADR-061) ✅ (2026-02-16)
+- [x] Create `analyze_conversation_patterns()` service function (`api/services/conversation_analysis.py`)
+- [x] Add to `unified_scheduler.py` as Analysis Phase (daily at 6 AM UTC)
+- [x] Implement pattern detection logic with structured LLM output
+- [x] Create suggested deliverables with metadata
 
 **Note**: Per ADR-061, conversation analysis is implemented as a service function
 within the Backend Orchestrator's Analysis Phase, not as a separate agent class.
