@@ -1957,6 +1957,7 @@ async def list_suggested_versions(
             version_id=v["version_id"],
             deliverable_id=v["deliverable_id"],
             deliverable_title=v["deliverable_title"],
+            deliverable_type=v.get("deliverable_type"),
             analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
             created_at=v["created_at"],
         )

@@ -55,6 +55,7 @@ RETURNS TABLE (
     version_id UUID,
     deliverable_id UUID,
     deliverable_title TEXT,
+    deliverable_type TEXT,
     analyst_metadata JSONB,
     created_at TIMESTAMPTZ
 )
@@ -68,6 +69,7 @@ BEGIN
         dv.id as version_id,
         dv.deliverable_id,
         d.title as deliverable_title,
+        d.deliverable_type,
         dv.analyst_metadata,
         dv.created_at
     FROM deliverable_versions dv
