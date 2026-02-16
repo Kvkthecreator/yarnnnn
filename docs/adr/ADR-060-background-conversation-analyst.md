@@ -3,7 +3,7 @@
 **Date**: 2026-02-16
 **Status**: Proposed
 **Supersedes**: None
-**Relates to**: ADR-045 (Deliverable Orchestration), ADR-049 (Context Freshness), ADR-057 (Onboarding)
+**Relates to**: ADR-045 (Deliverable Orchestration), ADR-049 (Context Freshness), ADR-057 (Onboarding), ADR-061 (Two-Path Architecture)
 
 ---
 
@@ -88,9 +88,9 @@ YARNNN should mirror this: TP for conversation, background systems for work orch
 │           │                                                     │
 │           ▼                                                     │
 │  ┌──────────────────┐                                           │
-│  │ Conversation     │ ← Analyzes recent conversations           │
-│  │ Analyst Agent    │   Detects: patterns, recurring needs,     │
-│  │                  │   implicit deliverable requests           │
+│  │ Analysis Phase   │ ← Service function (not separate agent)   │
+│  │ (ADR-061)        │   analyze_conversation_patterns()         │
+│  │                  │   Detects: patterns, recurring needs      │
 │  └────────┬─────────┘                                           │
 │           │                                                     │
 │           │ confidence > 60%                                    │
@@ -300,11 +300,15 @@ This separation keeps conversations focused and reduces interruption.
 - [ ] Enhance `/deliverables` page with Suggested section (deferred - needs full CRUD revamp)
 - [ ] Track dismissals for future learning
 
-### Phase 2: Conversation Analyst Agent
-- [ ] Create `ConversationAnalystAgent` class
-- [ ] Add to `unified_scheduler.py` (daily trigger)
-- [ ] Implement pattern detection logic
+### Phase 2: Conversation Analysis Service (ADR-061)
+- [ ] Create `analyze_conversation_patterns()` service function (not a separate agent)
+- [ ] Add to `unified_scheduler.py` as Analysis Phase (daily trigger)
+- [ ] Implement pattern detection logic with structured LLM output
 - [ ] Create suggested deliverables with metadata
+
+**Note**: Per ADR-061, conversation analysis is implemented as a service function
+within the Backend Orchestrator's Analysis Phase, not as a separate agent class.
+This aligns with the Two-Path Architecture (TP real-time, Orchestrator async).
 
 ### Phase 3: Notification Layer
 - [ ] Add in-app badge for new suggestions
@@ -381,3 +385,4 @@ Onboarding flow unchanged:
 - **ADR-049**: Context Freshness Model (no history compression philosophy)
 - **ADR-057**: Streamlined Onboarding (new user flow)
 - **ADR-058**: Knowledge Base Architecture (user preferences storage)
+- **ADR-061**: Two-Path Architecture (consolidates TP + Orchestrator model)
