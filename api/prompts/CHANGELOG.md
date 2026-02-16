@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.16.4] - Modular prompt architecture (ADR-059)
+
+### Changed
+- `api/agents/thinking_partner.py`: Removed ~450 lines of embedded prompts, now imports from `tp_prompts/`
+- Created `api/agents/tp_prompts/` directory with modular prompt files:
+  - `base.py`: Core identity and style
+  - `behaviors.py`: Search→Read→Act, verification, resilience patterns
+  - `tools.py`: Tool documentation (Read, Write, Search, etc.)
+  - `platforms.py`: Platform-specific tools (Slack, Notion, Gmail, Calendar)
+  - `onboarding.py`: New user onboarding context
+  - `__init__.py`: `build_system_prompt()` function to compose prompts
+- **Behavior**: No behavioral change - same prompts, just modularized
+- **Impact**:
+  - Easier to maintain and update individual prompt sections
+  - Clear separation of concerns (base identity vs tools vs platforms)
+  - Simpler diffs when changing specific prompt sections
+
+### Added
+- `api/agents/tp_prompts/behaviors.py`: Now includes "Verify After Acting" section for Gap #5
+
+---
+
 ## [2026.02.16.3] - Claude Code architectural alignment
 
 ### Changed
