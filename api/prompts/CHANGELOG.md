@@ -6,6 +6,44 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.16.8] - Suggestion Notification Layer (ADR-060 Phase 3)
+
+### Added
+- `api/services/notifications.py`: Added `notify_suggestion_created()` function
+- `supabase/migrations/052_suggestion_notification_preference.sql`: New preference column
+- `api/routes/account.py`: Added `email_suggestion_created` preference
+
+### Changed
+- `api/jobs/unified_scheduler.py`: Analysis phase now sends notifications for created suggestions
+- `api/services/notifications.py`: Added "suggestion" source type with proper preference mapping
+- **Behavior**: Users receive email when Conversation Analyst creates suggestions
+- **Impact**:
+  - Users notified about new suggestions (respects preferences)
+  - Suggestion notifications can be toggled in account settings
+  - Chat session shows notification message for continuity
+
+---
+
+## [2026.02.16.7] - Admin Analysis Endpoints + Suggested Deliverables UI (ADR-060/061)
+
+### Added
+- `api/routes/admin.py`: Added `/trigger-analysis/{user_id}` and `/trigger-analysis-all` endpoints
+- `web/app/(authenticated)/deliverables/page.tsx`: Added Suggested Deliverables section
+
+### Changed
+- **Behavior**: Admin can manually trigger conversation analysis for testing
+- **Impact**:
+  - Manual testing of ADR-060 Background Conversation Analyst without waiting for daily cron
+  - Users see suggested deliverables at top of /deliverables page
+  - Enable/dismiss actions for analyst-detected patterns
+
+### UI Changes
+- Purple-themed suggestion cards with confidence scores
+- One-click enable or dismiss buttons
+- Detection reason shown for transparency
+
+---
+
 ## [2026.02.16.6] - Work Boundary (ADR-061)
 
 ### Changed

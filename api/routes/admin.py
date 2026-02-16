@@ -8,6 +8,8 @@ Endpoints:
 - GET /document-stats - Document pipeline statistics
 - GET /chat-stats - Chat engagement metrics
 - GET /export/users - Export users data as Excel
+- POST /trigger-analysis/{user_id} - Manually trigger conversation analysis (ADR-060)
+- POST /trigger-analysis-all - Trigger analysis for all active users
 """
 
 from io import BytesIO
@@ -813,3 +815,148 @@ async def export_full_report(admin: AdminAuth):
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to export report: {str(e)}")
+
+
+# --- Analysis Endpoints (ADR-060) ---
+
+class AnalysisResult(BaseModel):
+    """Result of running conversation analysis."""
+    user_id: str
+    sessions_analyzed: int
+    suggestions_created: int
+    suggestions: list[dict] = []
+
+
+@router.post("/trigger-analysis/{user_id}", response_model=AnalysisResult)
+async def trigger_analysis_for_user(user_id: str, admin: AdminAuth):
+    """
+    Manually trigger conversation analysis for a specific user.
+
+    Creates suggested deliverables based on detected conversation patterns.
+    Useful for testing the analysis pipeline without waiting for daily cron.
+    """
+    from services.conversation_analysis import (
+        get_recent_sessions,
+        get_user_deliverables,
+        get_user_knowledge,
+        analyze_conversation_patterns,
+        create_suggested_deliverable,
+    )
+
+    try:
+        client = admin.client
+
+        # Get recent sessions
+        sessions = await get_recent_sessions(client, user_id, days=7)
+        if not sessions:
+            return AnalysisResult(
+                user_id=user_id,
+                sessions_analyzed=0,
+                suggestions_created=0,
+                suggestions=[],
+            )
+
+        # Get existing deliverables and knowledge
+        existing = await get_user_deliverables(client, user_id)
+        knowledge = await get_user_knowledge(client, user_id)
+
+        # Run analysis
+        suggestions = await analyze_conversation_patterns(
+            client, user_id, sessions, existing, knowledge
+        )
+
+        # Create suggestions that meet threshold
+        created_suggestions = []
+        for suggestion in suggestions:
+            if suggestion.confidence >= 0.50:
+                deliverable_id = await create_suggested_deliverable(
+                    client, user_id, suggestion
+                )
+                if deliverable_id:
+                    created_suggestions.append({
+                        "id": deliverable_id,
+                        "title": suggestion.title,
+                        "type": suggestion.deliverable_type,
+                        "confidence": suggestion.confidence,
+                        "reason": suggestion.detection_reason,
+                    })
+
+        return AnalysisResult(
+            user_id=user_id,
+            sessions_analyzed=len(sessions),
+            suggestions_created=len(created_suggestions),
+            suggestions=created_suggestions,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Analysis failed for user {user_id}: {str(e)}"
+        )
+
+
+class BulkAnalysisResult(BaseModel):
+    """Result of running analysis for all users."""
+    users_processed: int
+    total_suggestions_created: int
+    results: list[AnalysisResult] = []
+
+
+@router.post("/trigger-analysis-all", response_model=BulkAnalysisResult)
+async def trigger_analysis_all_users(admin: AdminAuth):
+    """
+    Trigger conversation analysis for all users with recent activity.
+
+    Processes users who have had chat sessions in the last 7 days.
+    Creates suggested deliverables based on detected patterns.
+    """
+    from services.conversation_analysis import run_analysis_for_user
+
+    try:
+        client = admin.client
+        seven_days_ago = get_date_threshold(7)
+
+        # Get users with recent sessions
+        sessions_result = (
+            client.table("chat_sessions")
+            .select("user_id")
+            .gte("created_at", seven_days_ago)
+            .execute()
+        )
+
+        # Get unique user IDs
+        user_ids = list(set(s["user_id"] for s in (sessions_result.data or [])))
+
+        results = []
+        total_created = 0
+
+        for user_id in user_ids:
+            try:
+                created = await run_analysis_for_user(client, user_id)
+                total_created += created
+                results.append(AnalysisResult(
+                    user_id=user_id,
+                    sessions_analyzed=-1,  # Not tracked in run_analysis_for_user
+                    suggestions_created=created,
+                    suggestions=[],
+                ))
+            except Exception as e:
+                # Log but continue with other users
+                results.append(AnalysisResult(
+                    user_id=user_id,
+                    sessions_analyzed=0,
+                    suggestions_created=0,
+                    suggestions=[{"error": str(e)}],
+                ))
+
+        return BulkAnalysisResult(
+            users_processed=len(user_ids),
+            total_suggestions_created=total_created,
+            results=results,
+        )
+
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Bulk analysis failed: {str(e)}"
+        )

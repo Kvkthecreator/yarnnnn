@@ -37,7 +37,7 @@ async def send_notification(
     channel: Literal["email", "in_app"] = "email",
     urgency: Literal["low", "normal", "high"] = "normal",
     context: Optional[dict] = None,
-    source_type: Literal["system", "monitor", "tp", "deliverable", "event_trigger"] = "system",
+    source_type: Literal["system", "monitor", "tp", "deliverable", "event_trigger", "suggestion"] = "system",
     source_id: Optional[str] = None,
 ) -> NotificationResult:
     """
@@ -90,6 +90,7 @@ async def send_notification(
                 "tp": "deliverable_ready",
                 "event_trigger": "deliverable_ready",
                 "monitor": "deliverable_ready",
+                "suggestion": "suggestion_created",  # ADR-060
             }
             pref_type = pref_type_map.get(source_type, "deliverable_ready")
 
@@ -404,4 +405,43 @@ async def notify_event_triggered(
         context={"deliverable_id": deliverable_id, "platform": platform, "event_type": event_type},
         source_type="event_trigger",
         source_id=deliverable_id,
+    )
+
+
+# =============================================================================
+# ADR-060: Suggested Deliverable Notifications
+# =============================================================================
+
+async def notify_suggestion_created(
+    db_client,
+    user_id: str,
+    suggestion_count: int,
+    titles: list[str],
+) -> NotificationResult:
+    """
+    Send notification when new deliverable suggestions are created.
+
+    ADR-060: Background Conversation Analyst creates suggestions from patterns.
+    Users receive a summary notification to review in /deliverables.
+    """
+    import os
+    app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+
+    if suggestion_count == 1:
+        message = f'I noticed a pattern in your conversations and suggested a new deliverable: "{titles[0]}". Review it in your deliverables.'
+    else:
+        titles_str = ", ".join(f'"{t}"' for t in titles[:3])
+        if len(titles) > 3:
+            titles_str += f" and {len(titles) - 3} more"
+        message = f"I noticed {suggestion_count} patterns in your conversations and suggested new deliverables: {titles_str}. Review them in your deliverables."
+
+    return await send_notification(
+        db_client=db_client,
+        user_id=user_id,
+        message=message,
+        channel="email",
+        urgency="low",
+        context={"url": f"{app_url}/deliverables", "suggestion_count": suggestion_count},
+        source_type="suggestion",  # ADR-060: Uses email_suggestion_created preference
+        source_id=None,
     )

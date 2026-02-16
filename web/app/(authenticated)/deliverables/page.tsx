@@ -2,12 +2,13 @@
 
 /**
  * ADR-037: Deliverables Page (Route-based)
+ * ADR-060: Includes suggested deliverables from Conversation Analyst
  *
  * Standalone page for listing and managing recurring deliverables.
  * Core feature page - list, filter, and navigate to deliverable details.
  */
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -21,11 +22,14 @@ import {
   Mail,
   FileCode,
   MessageSquare,
+  Sparkles,
+  Check,
+  X,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { PlatformFilter, type PlatformFilterValue } from '@/components/ui/PlatformFilter';
-import type { Deliverable, DeliverableStatus } from '@/types';
+import type { Deliverable, DeliverableStatus, SuggestedVersion } from '@/types';
 
 export default function DeliverablesPage() {
   const router = useRouter();
@@ -34,8 +38,14 @@ export default function DeliverablesPage() {
   const [currentFilter, setCurrentFilter] = useState<DeliverableStatus | 'all'>('all');
   const [platformFilter, setPlatformFilter] = useState<PlatformFilterValue>('all');
 
+  // ADR-060: Suggested deliverables from Conversation Analyst
+  const [suggestions, setSuggestions] = useState<SuggestedVersion[]>([]);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(true);
+  const [actioningId, setActioningId] = useState<string | null>(null);
+
   useEffect(() => {
     loadDeliverables();
+    loadSuggestions();
   }, [currentFilter]);
 
   const loadDeliverables = async () => {
@@ -50,6 +60,44 @@ export default function DeliverablesPage() {
       setLoading(false);
     }
   };
+
+  const loadSuggestions = async () => {
+    setLoadingSuggestions(true);
+    try {
+      const data = await api.deliverables.listSuggested();
+      setSuggestions(data);
+    } catch (err) {
+      console.error('Failed to load suggestions:', err);
+    } finally {
+      setLoadingSuggestions(false);
+    }
+  };
+
+  const handleEnableSuggestion = useCallback(async (suggestion: SuggestedVersion) => {
+    setActioningId(suggestion.version_id);
+    try {
+      await api.deliverables.enableSuggested(suggestion.deliverable_id, suggestion.version_id);
+      // Remove from suggestions and refresh deliverables
+      setSuggestions((prev) => prev.filter((s) => s.version_id !== suggestion.version_id));
+      loadDeliverables();
+    } catch (err) {
+      console.error('Failed to enable suggestion:', err);
+    } finally {
+      setActioningId(null);
+    }
+  }, []);
+
+  const handleDismissSuggestion = useCallback(async (suggestion: SuggestedVersion) => {
+    setActioningId(suggestion.version_id);
+    try {
+      await api.deliverables.dismissSuggested(suggestion.deliverable_id, suggestion.version_id);
+      setSuggestions((prev) => prev.filter((s) => s.version_id !== suggestion.version_id));
+    } catch (err) {
+      console.error('Failed to dismiss suggestion:', err);
+    } finally {
+      setActioningId(null);
+    }
+  }, []);
 
   const getStatusIcon = (status: DeliverableStatus) => {
     switch (status) {
@@ -206,6 +254,84 @@ export default function DeliverablesPage() {
               availablePlatforms={availablePlatforms}
               counts={platformCounts}
             />
+          </div>
+        )}
+
+        {/* ADR-060: Suggested Deliverables */}
+        {!loadingSuggestions && suggestions.length > 0 && (
+          <div className="mb-6 p-4 border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-950/30 rounded-lg">
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+              <span className="text-sm font-medium text-purple-900 dark:text-purple-100">
+                Suggested for you
+              </span>
+              <span className="text-xs text-purple-600 dark:text-purple-400">
+                Based on your recent conversations
+              </span>
+            </div>
+            <div className="space-y-2">
+              {suggestions.map((suggestion) => (
+                <div
+                  key={suggestion.version_id}
+                  className="flex items-center justify-between p-3 bg-white dark:bg-gray-900 border border-purple-100 dark:border-purple-800 rounded-md"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{suggestion.deliverable_title}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      {suggestion.deliverable_type && (
+                        <span className="capitalize">
+                          {suggestion.deliverable_type.replace(/_/g, ' ')}
+                        </span>
+                      )}
+                      {suggestion.analyst_metadata?.confidence && (
+                        <>
+                          <span>·</span>
+                          <span>
+                            {Math.round(suggestion.analyst_metadata.confidence * 100)}% confidence
+                          </span>
+                        </>
+                      )}
+                      {suggestion.analyst_metadata?.detection_reason && (
+                        <>
+                          <span>·</span>
+                          <span className="truncate max-w-[200px]">
+                            {suggestion.analyst_metadata.detection_reason}
+                          </span>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1 ml-3">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleEnableSuggestion(suggestion);
+                      }}
+                      disabled={actioningId === suggestion.version_id}
+                      className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-950/30 rounded-md transition-colors disabled:opacity-50"
+                      title="Enable this deliverable"
+                    >
+                      {actioningId === suggestion.version_id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Check className="w-4 h-4" />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDismissSuggestion(suggestion);
+                      }}
+                      disabled={actioningId === suggestion.version_id}
+                      className="p-1.5 text-muted-foreground hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 rounded-md transition-colors disabled:opacity-50"
+                      title="Dismiss suggestion"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

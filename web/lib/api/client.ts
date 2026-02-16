@@ -540,6 +540,7 @@ export const api = {
         email_deliverable_failed: boolean;
         email_work_complete: boolean;
         email_weekly_digest: boolean;
+        email_suggestion_created: boolean; // ADR-060
       }>("/api/account/notification-preferences"),
 
     updateNotificationPreferences: (data: {
@@ -547,12 +548,14 @@ export const api = {
       email_deliverable_failed?: boolean;
       email_work_complete?: boolean;
       email_weekly_digest?: boolean;
+      email_suggestion_created?: boolean; // ADR-060
     }) =>
       request<{
         email_deliverable_ready: boolean;
         email_deliverable_failed: boolean;
         email_work_complete: boolean;
         email_weekly_digest: boolean;
+        email_suggestion_created: boolean; // ADR-060
       }>("/api/account/notification-preferences", {
         method: "PATCH",
         body: JSON.stringify(data),

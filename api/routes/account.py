@@ -59,6 +59,7 @@ class NotificationPreferences(BaseModel):
     email_deliverable_failed: bool = True
     email_work_complete: bool = True
     email_weekly_digest: bool = True
+    email_suggestion_created: bool = True  # ADR-060
 
 
 class NotificationPreferencesUpdate(BaseModel):
@@ -67,6 +68,7 @@ class NotificationPreferencesUpdate(BaseModel):
     email_deliverable_failed: Optional[bool] = None
     email_work_complete: Optional[bool] = None
     email_weekly_digest: Optional[bool] = None
+    email_suggestion_created: Optional[bool] = None  # ADR-060
 
 
 # =============================================================================
@@ -91,6 +93,7 @@ async def get_notification_preferences(auth: UserClient) -> NotificationPreferen
                 email_deliverable_failed=prefs.get("email_deliverable_failed", True),
                 email_work_complete=prefs.get("email_work_complete", True),
                 email_weekly_digest=prefs.get("email_weekly_digest", True),
+                email_suggestion_created=prefs.get("email_suggestion_created", True),  # ADR-060
             )
 
         # Return defaults if no preferences set
@@ -137,6 +140,7 @@ async def update_notification_preferences(
                 "email_deliverable_failed": True,
                 "email_work_complete": True,
                 "email_weekly_digest": True,
+                "email_suggestion_created": True,  # ADR-060
                 **update_data
             }
             result = auth.client.table("user_notification_preferences").insert(insert_data).execute()
