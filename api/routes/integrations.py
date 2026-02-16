@@ -2468,7 +2468,7 @@ async def get_landscape(
         sync_data = sync_by_id.get(resource_id, {})
 
         # Determine coverage state from sync data
-        coverage_state = "synced" if sync_data.get("last_synced_at") else "uncovered"
+        coverage_state = "covered" if sync_data.get("last_synced_at") else "uncovered"
 
         resources.append(LandscapeResourceResponse(
             id=resource_id,
