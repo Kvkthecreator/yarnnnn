@@ -260,6 +260,10 @@ async def resolve_ref(
         if ref.entity_type == "document":
             entity = await _enrich_document_with_content(client, entity)
 
+        # Special handling for platforms: include sync status from sync_registry
+        if ref.entity_type == "platform":
+            entity = await _enrich_platform_with_sync_status(client, auth.user_id, entity)
+
         return entity
 
 
@@ -318,6 +322,70 @@ async def _enrich_document_with_content(client: Any, doc: dict) -> dict:
     return doc
 
 
+async def _enrich_platform_with_sync_status(client: Any, user_id: str, platform: dict) -> dict:
+    """
+    Enrich a platform connection with sync status from sync_registry.
+
+    The platform_connections table stores connection metadata and landscape
+    (available resources), but sync status (last_synced_at, item_count) is
+    tracked separately in sync_registry. This function merges them so TP
+    sees the complete picture.
+    """
+    platform_name = platform.get("platform")
+    if not platform_name:
+        return platform
+
+    try:
+        # Get sync records for this platform
+        sync_result = client.table("sync_registry").select(
+            "resource_id, resource_name, last_synced_at, item_count, source_latest_at"
+        ).eq("user_id", user_id).eq("platform", platform_name).execute()
+
+        sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
+
+        # Calculate total synced items across all resources
+        total_synced_items = sum(s.get("item_count", 0) for s in (sync_result.data or []))
+        last_synced_at = None
+        if sync_result.data:
+            synced_times = [s["last_synced_at"] for s in sync_result.data if s.get("last_synced_at")]
+            if synced_times:
+                last_synced_at = max(synced_times)
+
+        # Add sync summary to platform
+        platform["sync_status"] = {
+            "total_items_synced": total_synced_items,
+            "last_synced_at": last_synced_at,
+            "synced_resources_count": len([s for s in sync_result.data or [] if s.get("last_synced_at")]),
+        }
+
+        # Enrich landscape resources with sync data
+        landscape = platform.get("landscape", {}) or {}
+        resources = landscape.get("resources", [])
+
+        if resources:
+            for resource in resources:
+                resource_id = resource.get("id")
+                sync_data = sync_by_id.get(resource_id, {})
+
+                if sync_data:
+                    resource["last_synced_at"] = sync_data.get("last_synced_at")
+                    resource["item_count"] = sync_data.get("item_count", 0)
+                    resource["source_latest_at"] = sync_data.get("source_latest_at")
+                    resource["coverage_state"] = "covered"
+                else:
+                    resource["coverage_state"] = "uncovered"
+                    resource["item_count"] = 0
+
+            landscape["resources"] = resources
+            platform["landscape"] = landscape
+
+    except Exception as e:
+        import logging
+        logging.warning(f"[REFS] Failed to enrich platform with sync status: {e}")
+        # Return platform without enrichment rather than failing
+        platform["sync_status"] = {"error": str(e)}
+
+    return platform
 
 
 # ADR-048: Live search functions removed.
