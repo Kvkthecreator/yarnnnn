@@ -136,6 +136,37 @@ When TP does `Execute(action="platform.publish", target="platform:slack")`, it w
 | 8 | Add `platform_content` scope to Search | ✅ Done (Phase 2) |
 | 9 | Redirect legacy `memory` scope to `platform_content` | ✅ Done (Phase 2) |
 | 10 | Update refs.py with platform_content entity type | ✅ Done (Phase 2) |
+| 11 | Add entity enrichment for complete data resolution | ✅ Done (Phase 3) |
+
+### Phase 3: Entity Enrichment Pattern (2026-02-16)
+
+**Problem:** TP primitives queried single tables directly, missing auxiliary data stored in related tables. For example, `platform_connections` stores connection metadata but `sync_registry` stores per-resource sync status. TP reported "Never synced" while the Context page showed "87 items synced" because the Context page merged both tables.
+
+**Solution:** Introduced the **entity enrichment pattern** in `refs.py`. When resolving entity references, base table data is enriched with auxiliary table data:
+
+```
+Base Table                    Auxiliary Table              Enriched Entity
+──────────                    ───────────────              ───────────────
+platform_connections          sync_registry                platform + sync_status
+filesystem_items              filesystem_chunks            item + content_preview
+deliverables                  deliverable_versions         deliverable + latest_version
+```
+
+**Implementation in refs.py:**
+
+```python
+async def resolve_ref(client, auth, ref):
+    # Resolve from base table
+    entity = await _resolve_from_base_table(client, ref)
+
+    # Enrich with auxiliary data
+    if ref.entity_type == "platform":
+        entity = await _enrich_platform_with_sync_status(client, auth.user_id, entity)
+
+    return entity
+```
+
+**Key principle:** Any view (TP, Context page, API) that renders an entity should see the same complete data. Enrichment happens at the resolution layer, not at each consumer.
 
 ---
 

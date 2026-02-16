@@ -779,6 +779,26 @@ All schema changes and migrations applied:
 - Fires as background task after each TP conversation
 - Extracts facts, preferences, decisions to `knowledge_entries`
 
+### Entity Enrichment Pattern ✅
+
+TP primitives resolve entity references via `api/services/primitives/refs.py`. Some entities require **enrichment** from auxiliary tables to provide complete data:
+
+| Entity Type | Base Table | Enrichment Source | Function |
+|------------|------------|-------------------|----------|
+| `document` | `filesystem_documents` | `filesystem_chunks` (content) | `_enrich_document_with_content()` |
+| `platform` | `platform_connections` | `sync_registry` (sync status) | `_enrich_platform_with_sync_status()` |
+
+**Why enrichment matters**: Base tables store metadata, but related data (content, sync status) lives in auxiliary tables. Without enrichment, TP would see incomplete data (e.g., "Last sync: Never" when `sync_registry` has the actual sync timestamp).
+
+**Consistency requirement**: If a UI page (e.g., Context page at `/context/[platform]`) shows data by querying multiple tables, TP primitives must use the same enrichment pattern to avoid data mismatches.
+
+**Adding new enrichments**: Follow the pattern in `resolve_ref()`:
+```python
+# In resolve_ref() after base query:
+if ref.entity_type == "your_type":
+    entity = await _enrich_your_type_with_data(client, auth.user_id, entity)
+```
+
 ### User Override UI ✅
 
 - Profile editing in `/context?section=profile`
