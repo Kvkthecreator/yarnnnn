@@ -364,5 +364,39 @@ async def chat_completion_stream_with_tools(
             yield StreamEvent(type="done", content=None)
             return
 
-    # Reached max rounds
+    # Reached max rounds - generate a final text response
+    # This prevents silent failure when tools are exhausted
+    logger.warning(f"[ANTHROPIC] Reached max_tool_rounds ({max_tool_rounds}), generating summary")
+
+    # Make one final call without tools to force a text response
+    try:
+        final_response = await client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=system + "\n\n[SYSTEM: You've used several tools. Now provide a brief summary response to the user based on what you found. Do not request any more tools.]",
+            messages=working_messages,
+            # No tools - force text response
+        )
+
+        if final_response.content:
+            for block in final_response.content:
+                if block.type == "text":
+                    yield StreamEvent(type="text", content=block.text)
+
+        # Track final usage
+        if hasattr(final_response, 'usage') and final_response.usage:
+            total_input_tokens += final_response.usage.input_tokens
+            total_output_tokens += final_response.usage.output_tokens
+            yield StreamEvent(
+                type="usage",
+                content={
+                    "input_tokens": total_input_tokens,
+                    "output_tokens": total_output_tokens,
+                    "total_tokens": total_input_tokens + total_output_tokens,
+                }
+            )
+    except Exception as e:
+        logger.error(f"[ANTHROPIC] Failed to generate final response: {e}")
+        yield StreamEvent(type="text", content="I've gathered some information but encountered a limit. Let me know if you'd like me to continue.")
+
     yield StreamEvent(type="done", content=None)

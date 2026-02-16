@@ -20,7 +20,7 @@ from .refs import TABLE_MAP
 
 SEARCH_TOOL = {
     "name": "Search",
-    "description": """Find entities by content using text search.
+    "description": """Find entities by content using text search. Returns refs for use with Read.
 
 Examples:
 - Search(query="Q2 planning discussion", scope="platform_content") - search imported Slack/Gmail/Notion
@@ -29,10 +29,16 @@ Examples:
 - Search(query="competitor analysis", scope="document") - search uploaded documents
 - Search(query="competitor analysis") - search all scopes
 
+Results include a `ref` field (e.g., "document:abc123-uuid"). Use this ref with Read() to get full content.
+
+Workflow for documents:
+1. Search(query="topic", scope="document") → returns matches with `ref` and snippet
+2. Read(ref="document:<UUID>") → returns full document content
+
 Scopes:
 - platform_content: Imported platform data (Slack messages, Gmail emails, Notion pages)
 - memory: User-stated facts and preferences (what the user has told you)
-- document: Uploaded documents (PDF, DOCX, TXT, MD)
+- document: Uploaded documents (PDF, DOCX, TXT, MD) - searches actual content, not just filenames
 - deliverable: Your recurring deliverables
 - work: Work tickets
 - all: Search everything""",

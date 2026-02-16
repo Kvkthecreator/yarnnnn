@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.16.2] - Document reading and tool exhaustion fixes
+
+### Changed
+- `api/services/primitives/refs.py`: Added `_enrich_document_with_content()` to fetch chunks when reading documents
+- `api/services/primitives/read.py`: Updated tool description to emphasize UUID refs from Search results
+- `api/services/primitives/search.py`: Updated tool description to clarify ref workflow
+- `api/services/anthropic.py`: Added final text response when max_tool_rounds exhausted
+- **Behavior**:
+  - Read(ref="document:UUID") now returns full document content, not just metadata
+  - Tool descriptions explicitly guide TP to use refs from Search results
+  - When tool rounds exhaust, TP now generates a summary instead of silent failure
+- **Impact**:
+  - TP can now read and summarize uploaded documents
+  - No more silent failures when TP uses many tools
+  - Clearer workflow: Search → get ref → Read with ref
+
+---
+
 ## [2026.02.16.1] - Document content search fix
 
 ### Changed

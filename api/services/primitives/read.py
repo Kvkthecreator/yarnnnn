@@ -16,22 +16,30 @@ from .refs import parse_ref, resolve_ref
 
 READ_TOOL = {
     "name": "Read",
-    "description": """Retrieve any entity by reference.
+    "description": """Retrieve any entity by reference. Returns full content.
+
+IMPORTANT: Use the exact `ref` value returned by Search or List. The ref contains a UUID, not a filename.
 
 Examples:
+- Read(ref="document:abc12345-def6-7890-ghij-klmnopqrstuv") - document by UUID from Search results
 - Read(ref="deliverable:latest") - most recent deliverable
-- Read(ref="platform:twitter") - Twitter platform config
+- Read(ref="platform:slack") - platform by provider name
 - Read(ref="memory:uuid-123") - specific memory
-- Read(refs=["deliverable:uuid-1", "deliverable:uuid-2"]) - batch read
 
-Reference format: <type>:<identifier>[/<subpath>][?<query>]
-Types: deliverable, platform, memory, session, domain, document, work""",
+For documents: Returns full content from all pages, not just metadata.
+
+Reference format: <type>:<UUID>
+Types: deliverable, platform, memory, session, domain, document, work
+
+Workflow:
+1. Search(query="...", scope="document") → returns results with `ref` field
+2. Read(ref="document:<UUID from search>") → returns full document content""",
     "input_schema": {
         "type": "object",
         "properties": {
             "ref": {
                 "type": "string",
-                "description": "Entity reference (e.g., 'deliverable:uuid-123')"
+                "description": "Entity reference from Search/List results (e.g., 'document:abc12345-uuid'). Must use UUID, not filename."
             },
             "refs": {
                 "type": "array",
@@ -159,5 +167,13 @@ def _format_read_message(parsed, data) -> str:
         task = data.get("task", "")[:50]
         status = data.get("status", "unknown")
         return f"Work: {task}... ({status})"
+
+    elif parsed.entity_type == "document":
+        filename = data.get("filename", "Unknown")
+        page_count = data.get("page_count", 0)
+        word_count = data.get("word_count", 0)
+        has_content = bool(data.get("content"))
+        content_note = "with content" if has_content else "metadata only"
+        return f"Document: {filename} ({page_count} pages, {word_count} words, {content_note})"
 
     return f"Retrieved {parsed.entity_type}"
