@@ -817,7 +817,7 @@ export default function SettingsPage() {
                           <div className="font-medium">Slack</div>
                           <div className="text-sm text-muted-foreground">
                             {slackIntegration
-                              ? `Connected to ${slackIntegration.workspace_name || "workspace"}`
+                              ? "Team collaboration and context"
                               : "Post deliverables to Slack channels"
                             }
                           </div>
@@ -831,21 +831,10 @@ export default function SettingsPage() {
                               Connected
                             </span>
                             <button
-                              onClick={() => setImportModalProvider("slack")}
+                              onClick={() => router.push("/context/slack")}
                               className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                             >
-                              Import Context
-                            </button>
-                            <button
-                              onClick={() => handleDisconnectIntegration("slack")}
-                              disabled={disconnectingProvider === "slack"}
-                              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
-                            >
-                              {disconnectingProvider === "slack" ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                "Disconnect"
-                              )}
+                              Manage
                             </button>
                           </>
                         ) : (
@@ -886,7 +875,7 @@ export default function SettingsPage() {
                           <div className="font-medium">Notion</div>
                           <div className="text-sm text-muted-foreground">
                             {notionIntegration
-                              ? `Connected to ${notionIntegration.workspace_name || "workspace"}`
+                              ? "Knowledge base and context"
                               : "Export deliverables to Notion pages"
                             }
                           </div>
@@ -900,21 +889,10 @@ export default function SettingsPage() {
                               Connected
                             </span>
                             <button
-                              onClick={() => setImportModalProvider("notion")}
+                              onClick={() => router.push("/context/notion")}
                               className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                             >
-                              Import Context
-                            </button>
-                            <button
-                              onClick={() => handleDisconnectIntegration("notion")}
-                              disabled={disconnectingProvider === "notion"}
-                              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
-                            >
-                              {disconnectingProvider === "notion" ? (
-                                <Loader2 className="w-4 h-4 animate-spin" />
-                              ) : (
-                                "Disconnect"
-                              )}
+                              Manage
                             </button>
                           </>
                         ) : (
@@ -959,7 +937,7 @@ export default function SettingsPage() {
                           <div className="font-medium">Google</div>
                           <div className="text-sm text-muted-foreground">
                             {googleIntegration
-                              ? `Connected as ${googleIntegration.metadata?.email || googleIntegration.workspace_name || "your account"}`
+                              ? "Gmail and Calendar access"
                               : "Gmail and Calendar access"
                             }
                           </div>
@@ -1013,10 +991,10 @@ export default function SettingsPage() {
                             <span className="text-sm font-medium">Gmail</span>
                           </div>
                           <button
-                            onClick={() => setImportModalProvider("gmail")}
+                            onClick={() => router.push("/context/gmail")}
                             className="px-2 py-1 text-xs text-primary border border-primary/30 rounded hover:bg-primary/10 transition-colors"
                           >
-                            Import
+                            Manage
                           </button>
                         </div>
 
@@ -1027,10 +1005,10 @@ export default function SettingsPage() {
                             <span className="text-sm font-medium">Calendar</span>
                           </div>
                           <button
-                            onClick={() => setImportModalProvider("calendar")}
+                            onClick={() => router.push("/context/calendar")}
                             className="px-2 py-1 text-xs text-primary border border-primary/30 rounded hover:bg-primary/10 transition-colors"
                           >
-                            Import
+                            Manage
                           </button>
                         </div>
                       </div>

@@ -43,6 +43,7 @@ import {
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
 
 // =============================================================================
 // Types
@@ -410,6 +411,9 @@ export default function PlatformDetailPage() {
   const [editingEmail, setEditingEmail] = useState(false);
   const [emailInput, setEmailInput] = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
+
+  // Connection details modal state
+  const [showConnectionModal, setShowConnectionModal] = useState(false);
 
   // Computed
   // ADR-053: Cast to number since we only use numeric limit fields for resources
@@ -779,6 +783,11 @@ export default function PlatformDetailPage() {
     setEmailInput('');
   };
 
+  const handleConnectionDisconnect = () => {
+    // Redirect to context page after disconnect
+    router.push('/context');
+  };
+
   // ADR-055: Toggle resource expansion and load context
   const handleToggleResourceExpand = async (resourceId: string) => {
     const isCurrentlyExpanded = expandedResourceIds.has(resourceId);
@@ -918,10 +927,10 @@ export default function PlatformDetailPage() {
             </div>
           </div>
           <button
-            onClick={() => router.push('/settings?tab=integrations')}
+            onClick={() => setShowConnectionModal(true)}
             className="text-sm text-muted-foreground hover:text-foreground"
           >
-            Manage connection
+            Connection details
           </button>
         </div>
       </div>
@@ -1468,6 +1477,23 @@ export default function PlatformDetailPage() {
 
         {/* ADR-055: Recent Context section removed - context now shown inline within resource rows */}
       </div>
+
+      {/* Connection Details Modal */}
+      {integration && (
+        <ConnectionDetailsModal
+          isOpen={showConnectionModal}
+          onClose={() => setShowConnectionModal(false)}
+          integration={integration}
+          platformLabel={config.label}
+          platformIcon={config.icon}
+          onDisconnect={handleConnectionDisconnect}
+          tierInfo={tierLimits ? {
+            tier: tierLimits.tier,
+            sync_frequency: tierLimits.limits.sync_frequency,
+            next_sync: tierLimits.next_sync,
+          } : undefined}
+        />
+      )}
     </div>
   );
 }
