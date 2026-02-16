@@ -1631,7 +1631,7 @@ function ResourceRow({
 
         {/* Right side: Coverage badge + expand button */}
         <div className="flex items-center gap-2 shrink-0">
-          {!isCalendar && <CoverageBadge state={resource.coverage_state} />}
+          {!isCalendar && <CoverageBadge state={resource.coverage_state} itemsExtracted={resource.items_extracted} />}
           {/* ADR-055: Expand button - only show if has synced content */}
           {hasSyncedContent && !isCalendar && (
             <button
@@ -1690,7 +1690,7 @@ function ResourceRow({
   );
 }
 
-function CoverageBadge({ state }: { state: string }) {
+function CoverageBadge({ state, itemsExtracted }: { state: string; itemsExtracted?: number }) {
   const stateConfig: Record<string, { color: string; bg: string; label: string }> = {
     covered: { color: 'text-green-700 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', label: 'Synced' },
     partial: { color: 'text-yellow-700 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', label: 'Partial' },
@@ -1698,7 +1698,10 @@ function CoverageBadge({ state }: { state: string }) {
     uncovered: { color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-800', label: 'Not synced' },
     excluded: { color: 'text-gray-500 dark:text-gray-500', bg: 'bg-gray-50 dark:bg-gray-900', label: 'Excluded' },
   };
-  const { color, bg, label } = stateConfig[state] || stateConfig.uncovered;
+
+  // If state is uncovered but items were extracted, treat as synced
+  const effectiveState = (state === 'uncovered' && itemsExtracted && itemsExtracted > 0) ? 'covered' : state;
+  const { color, bg, label } = stateConfig[effectiveState] || stateConfig.uncovered;
 
   return (
     <span className={cn('px-2 py-0.5 rounded text-xs font-medium', color, bg)}>
