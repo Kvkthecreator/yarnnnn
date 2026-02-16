@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.16.5] - WebSearch primitive for TP (ADR-045)
+
+### Added
+- `api/services/primitives/web_search.py`: New WebSearch primitive using Anthropic's native `web_search_20250305` tool
+- `api/services/primitives/registry.py`: Added WebSearch to primitives list and handlers
+- `api/agents/tp_prompts/tools.py`: Added Web Operations section with WebSearch documentation
+
+### Changed
+- **Behavior**: TP can now search the web for external information (news, docs, research, competitors)
+- **Impact**:
+  - TP has access to current information beyond user's synced data
+  - Clear distinction: WebSearch for external info, Search for user's data
+  - Aligns TP capabilities with Claude Code's WebSearch tool
+
+---
+
 ## [2026.02.16.4] - Modular prompt architecture (ADR-059)
 
 ### Changed

@@ -4,6 +4,7 @@ Tool Documentation - Core YARNNN primitives.
 Includes:
 - Data Operations (Read, Write, Edit, List, Search)
 - External Operations (Execute)
+- Web Operations (WebSearch)
 - Reference Syntax
 """
 
@@ -41,6 +42,23 @@ TOOLS_SECTION = """---
 - `Execute(action="deliverable.approve", target="deliverable:uuid")` - approve pending version
 - `Execute(action="platform.sync", target="platform:slack")` - sync platform data
 - `Execute(action="platform.publish", target="deliverable:uuid", via="platform:slack")` - publish deliverable
+
+### Web Operations
+
+**WebSearch(query, context?, max_results?)** - Search the web for external information
+- `WebSearch(query="latest React 19 features")` - current technical info
+- `WebSearch(query="Acme Corp funding", context="competitor research")` - with context
+- `WebSearch(query="kubernetes best practices 2026", max_results=3)` - limit results
+
+**When to use WebSearch vs Search:**
+- **WebSearch**: External/internet info (news, docs, research, competitors)
+- **Search**: User's own data (Slack messages, Gmail, uploaded documents, memories)
+
+WebSearch is ideal for:
+- Current events or news
+- Latest documentation or release notes
+- Competitor/market research
+- Technical information not in user's synced data
 
 ---
 

@@ -14,6 +14,7 @@ from .search import SEARCH_TOOL, handle_search
 from .list import LIST_TOOL, handle_list
 from .execute import EXECUTE_TOOL, handle_execute
 from .todo import TODO_TOOL, handle_todo
+from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
@@ -89,7 +90,7 @@ async def handle_clarify(auth: Any, input: dict) -> dict:
     }
 
 
-# All primitives exposed to TP (7 primitives - ADR-038)
+# All primitives exposed to TP (8 primitives - ADR-038 + ADR-045)
 # Excluded:
 # - Todo: conversation stream IS the progress indicator (Claude Code pattern)
 # - Respond: TP's natural text output serves as the response
@@ -102,6 +103,8 @@ PRIMITIVES = [
     LIST_TOOL,
     # External operations
     EXECUTE_TOOL,
+    # Web operations (ADR-045)
+    WEB_SEARCH_PRIMITIVE,
     # Communication (Clarify only - Respond removed)
     CLARIFY_TOOL,
 ]
@@ -116,6 +119,7 @@ HANDLERS: dict[str, Callable] = {
     "List": handle_list,
     "Execute": handle_execute,
     "Todo": handle_todo,
+    "WebSearch": handle_web_search,
     "Respond": handle_respond,
     "Clarify": handle_clarify,
 }
