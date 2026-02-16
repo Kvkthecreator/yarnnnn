@@ -105,6 +105,26 @@ You MUST:
 - `filesystem_documents` / `filesystem_chunks`
 - `knowledge_domains` / `knowledge_entries`
 - `knowledge_profile` / `knowledge_styles`
+- `sync_registry` - per-resource sync status tracking
+
+### Entity Enrichment Pattern (refs.py)
+
+TP primitives resolve entity references via `api/services/primitives/refs.py`. Some entities require **enrichment** from auxiliary tables to provide complete data:
+
+| Entity Type | Base Table | Enrichment Source | Function |
+|------------|------------|-------------------|----------|
+| `document` | `filesystem_documents` | `filesystem_chunks` (content) | `_enrich_document_with_content()` |
+| `platform` | `platform_connections` | `sync_registry` (sync status) | `_enrich_platform_with_sync_status()` |
+
+**Why enrichment matters**: Base tables store metadata, but related data (content, sync status) lives in auxiliary tables. Without enrichment, TP sees incomplete data (e.g., "Last sync: Never" when data exists).
+
+**Adding new enrichments**: Follow the pattern in `resolve_ref()`:
+```python
+if ref.entity_type == "your_type":
+    entity = await _enrich_your_type_with_data(client, auth.user_id, entity)
+```
+
+**Consistency requirement**: If a UI page (e.g., Context page) shows data by joining tables, TP primitives must use the same enrichment pattern to avoid data mismatches.
 
 ### ADR-057: Streamlined Onboarding
 
@@ -140,6 +160,8 @@ You MUST:
 2. **Tool loop exhaustion**: TP hits `max_tool_rounds=5` without text response if tools return empty
 3. **PGRST205 errors**: PostgREST schema cache needs refresh after table changes
 4. **OAuth provider vs platform**: Google OAuth provides both `gmail` and `calendar` capabilities
+5. **FastAPI route ordering**: Static routes (e.g., `/suggested`) must be defined BEFORE parameterized routes (e.g., `/{deliverable_id}`) or the static path gets matched as a parameter, causing 422 validation errors
+6. **Data source mismatch**: If UI shows data from joined tables but TP queries base table only, add enrichment in `refs.py` (see Entity Enrichment Pattern above)
 
 ---
 
