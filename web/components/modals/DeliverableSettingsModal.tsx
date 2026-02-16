@@ -57,6 +57,7 @@ interface DeliverableSettingsModalProps {
   open: boolean;
   onClose: () => void;
   onSaved: (updated: Deliverable) => void;
+  onArchived?: () => void;
 }
 
 const FREQUENCY_OPTIONS: { value: ScheduleFrequency; label: string }[] = [
@@ -134,8 +135,11 @@ export function DeliverableSettingsModal({
   open,
   onClose,
   onSaved,
+  onArchived,
 }: DeliverableSettingsModalProps) {
   const [saving, setSaving] = useState(false);
+  const [archiving, setArchiving] = useState(false);
+  const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form state
@@ -215,6 +219,23 @@ export function DeliverableSettingsModal({
       setError('Failed to save changes. Please try again.');
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleArchive = async () => {
+    setArchiving(true);
+    setError(null);
+
+    try {
+      await api.deliverables.delete(deliverable.id);
+      onArchived?.();
+      onClose();
+    } catch (err) {
+      console.error('Failed to archive deliverable:', err);
+      setError('Failed to archive. Please try again.');
+    } finally {
+      setArchiving(false);
+      setShowArchiveConfirm(false);
     }
   };
 
@@ -752,6 +773,44 @@ export function DeliverableSettingsModal({
               />
             </div>
           </details>
+
+          {/* ============================================ */}
+          {/* DANGER ZONE: Archive */}
+          {/* ============================================ */}
+          <div className="pt-4 mt-4 border-t border-border">
+            {!showArchiveConfirm ? (
+              <button
+                onClick={() => setShowArchiveConfirm(true)}
+                className="text-sm text-red-600 hover:text-red-700 flex items-center gap-1.5"
+              >
+                <Trash2 className="w-4 h-4" />
+                Archive this deliverable
+              </button>
+            ) : (
+              <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-md">
+                <p className="text-sm text-red-800 dark:text-red-200 mb-3">
+                  Are you sure? This will stop all scheduled runs. You can't undo this.
+                </p>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={handleArchive}
+                    disabled={archiving}
+                    className="px-3 py-1.5 text-sm bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    {archiving && <Loader2 className="w-3 h-3 animate-spin" />}
+                    Yes, archive it
+                  </button>
+                  <button
+                    onClick={() => setShowArchiveConfirm(false)}
+                    disabled={archiving}
+                    className="px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Footer */}

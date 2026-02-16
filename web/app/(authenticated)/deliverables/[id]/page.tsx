@@ -541,6 +541,7 @@ export default function DeliverableDetailPage() {
         open={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onSaved={handleSettingsSaved}
+        onArchived={() => router.push('/deliverables')}
       />
     </div>
   );
