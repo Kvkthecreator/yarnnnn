@@ -282,7 +282,7 @@ class ResearchStrategy(ExecutionStrategy):
         user_id: str,
         deliverable: dict,
     ) -> GatheredContext:
-        from agents.researcher import research_topic
+        from services.web_research import research_topic
 
         title = deliverable.get("title", "")
         description = deliverable.get("description", "")
@@ -377,7 +377,7 @@ class HybridStrategy(ExecutionStrategy):
         user_id: str,
         deliverable: dict,
     ) -> GatheredContext:
-        from agents.researcher import research_topic
+        from services.web_research import research_topic
 
         title = deliverable.get("title", "")
         description = deliverable.get("description", "")
