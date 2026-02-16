@@ -944,12 +944,20 @@ class SourceSnapshot(BaseModel):
     source_latest_at: Optional[str] = None
 
 
+class AnalystMetadata(BaseModel):
+    """ADR-060: Metadata from Conversation Analyst for suggested versions."""
+    confidence: float = 0.0  # 0.0 - 1.0
+    detected_pattern: Optional[str] = None  # e.g., "weekly_status_to_board"
+    source_sessions: Optional[list[str]] = None  # Session UUIDs that triggered detection
+    detection_reason: Optional[str] = None  # Human-readable explanation
+
+
 class VersionResponse(BaseModel):
     """Deliverable version response."""
     id: str
     deliverable_id: str
     version_number: int
-    status: str  # generating, staged, reviewing, approved, rejected
+    status: str  # generating, staged, reviewing, approved, rejected, suggested
     draft_content: Optional[str] = None
     final_content: Optional[str] = None
     edit_distance_score: Optional[float] = None
@@ -967,11 +975,16 @@ class VersionResponse(BaseModel):
     source_fetch_summary: Optional[SourceFetchSummary] = None
     # ADR-049: Source snapshots for freshness tracking
     source_snapshots: Optional[list[SourceSnapshot]] = None
+    # ADR-060: Analyst metadata for suggested versions
+    analyst_metadata: Optional[AnalystMetadata] = None
 
 
 class VersionUpdate(BaseModel):
-    """Update version request (for approval/rejection/editing)."""
-    status: Optional[Literal["reviewing", "approved", "rejected"]] = None
+    """Update version request (for approval/rejection/editing).
+
+    ADR-060: 'staged' status can be set to promote a 'suggested' version.
+    """
+    status: Optional[Literal["staged", "reviewing", "approved", "rejected"]] = None
     final_content: Optional[str] = None
     feedback_notes: Optional[str] = None
 
@@ -1007,6 +1020,18 @@ def _parse_source_snapshots(snapshots_list: Optional[list]) -> Optional[list[Sou
         for s in snapshots_list
         if isinstance(s, dict)
     ]
+
+
+def _parse_analyst_metadata(metadata_dict: Optional[dict]) -> Optional[AnalystMetadata]:
+    """Parse raw analyst_metadata dict from DB into typed response (ADR-060)."""
+    if not metadata_dict:
+        return None
+    return AnalystMetadata(
+        confidence=metadata_dict.get("confidence", 0.0),
+        detected_pattern=metadata_dict.get("detected_pattern"),
+        source_sessions=metadata_dict.get("source_sessions"),
+        detection_reason=metadata_dict.get("detection_reason"),
+    )
 
 
 # =============================================================================
@@ -1697,6 +1722,8 @@ async def list_versions(
             source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
             # ADR-049: Source snapshots for freshness tracking
             source_snapshots=_parse_source_snapshots(v.get("source_snapshots")),
+            # ADR-060: Analyst metadata for suggested versions
+            analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
         )
         for v in versions
     ]
@@ -1759,6 +1786,8 @@ async def get_version(
         source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
         # ADR-049: Source snapshots for freshness tracking
         source_snapshots=_parse_source_snapshots(v.get("source_snapshots")),
+        # ADR-060: Analyst metadata for suggested versions
+        analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
     )
 
 
@@ -1884,7 +1913,183 @@ async def update_version(
         delivery_external_id=v.get("delivery_external_id"),
         delivery_external_url=v.get("delivery_external_url"),
         delivered_at=v.get("delivered_at"),
+        # ADR-060: Analyst metadata
+        analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
     )
+
+
+# =============================================================================
+# ADR-060: Suggested Versions Routes
+# =============================================================================
+
+
+class SuggestedVersionResponse(BaseModel):
+    """Suggested version with parent deliverable info for list view."""
+    version_id: str
+    deliverable_id: str
+    deliverable_title: str
+    deliverable_type: Optional[str] = None
+    analyst_metadata: Optional[AnalystMetadata] = None
+    created_at: str
+
+
+@router.get("/suggested")
+async def list_suggested_versions(
+    auth: UserClient,
+    limit: int = 20,
+) -> list[SuggestedVersionResponse]:
+    """
+    List all suggested versions across all user's deliverables.
+
+    ADR-060: Returns versions created by the Background Conversation Analyst
+    that the user can enable, edit, or dismiss.
+    """
+    result = auth.client.rpc(
+        "get_suggested_deliverable_versions",
+        {"p_user_id": auth.user_id}
+    ).execute()
+
+    if not result.data:
+        return []
+
+    return [
+        SuggestedVersionResponse(
+            version_id=v["version_id"],
+            deliverable_id=v["deliverable_id"],
+            deliverable_title=v["deliverable_title"],
+            analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
+            created_at=v["created_at"],
+        )
+        for v in result.data[:limit]
+    ]
+
+
+@router.post("/{deliverable_id}/versions/{version_id}/enable")
+async def enable_suggested_version(
+    deliverable_id: UUID,
+    version_id: UUID,
+    auth: UserClient,
+) -> VersionResponse:
+    """
+    Enable a suggested version by promoting it to 'staged' status.
+
+    ADR-060: This is the primary action for accepting analyst suggestions.
+    """
+    # Verify ownership
+    check = (
+        auth.client.table("deliverables")
+        .select("id")
+        .eq("id", str(deliverable_id))
+        .eq("user_id", auth.user_id)
+        .single()
+        .execute()
+    )
+
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Deliverable not found")
+
+    # Get version and verify it's in 'suggested' status
+    version_result = (
+        auth.client.table("deliverable_versions")
+        .select("*")
+        .eq("id", str(version_id))
+        .eq("deliverable_id", str(deliverable_id))
+        .single()
+        .execute()
+    )
+
+    if not version_result.data:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    v = version_result.data
+
+    if v["status"] != "suggested":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Version is in '{v['status']}' status, not 'suggested'"
+        )
+
+    # Promote to staged
+    from datetime import datetime, timezone
+
+    update_result = (
+        auth.client.table("deliverable_versions")
+        .update({
+            "status": "staged",
+            "staged_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", str(version_id))
+        .execute()
+    )
+
+    if not update_result.data:
+        raise HTTPException(status_code=500, detail="Failed to enable version")
+
+    v = update_result.data[0]
+
+    return VersionResponse(
+        id=v["id"],
+        deliverable_id=v["deliverable_id"],
+        version_number=v["version_number"],
+        status=v["status"],
+        draft_content=v.get("draft_content"),
+        final_content=v.get("final_content"),
+        created_at=v["created_at"],
+        staged_at=v.get("staged_at"),
+        analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
+    )
+
+
+@router.delete("/{deliverable_id}/versions/{version_id}/dismiss")
+async def dismiss_suggested_version(
+    deliverable_id: UUID,
+    version_id: UUID,
+    auth: UserClient,
+) -> dict:
+    """
+    Dismiss a suggested version (delete it).
+
+    ADR-060: User doesn't want this suggestion. We delete the version
+    and can optionally log this for future learning.
+    """
+    # Verify ownership
+    check = (
+        auth.client.table("deliverables")
+        .select("id")
+        .eq("id", str(deliverable_id))
+        .eq("user_id", auth.user_id)
+        .single()
+        .execute()
+    )
+
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Deliverable not found")
+
+    # Get version and verify it's in 'suggested' status
+    version_result = (
+        auth.client.table("deliverable_versions")
+        .select("id, status")
+        .eq("id", str(version_id))
+        .eq("deliverable_id", str(deliverable_id))
+        .single()
+        .execute()
+    )
+
+    if not version_result.data:
+        raise HTTPException(status_code=404, detail="Version not found")
+
+    if version_result.data["status"] != "suggested":
+        raise HTTPException(
+            status_code=400,
+            detail="Can only dismiss versions in 'suggested' status"
+        )
+
+    # Delete the suggested version
+    auth.client.table("deliverable_versions").delete().eq(
+        "id", str(version_id)
+    ).execute()
+
+    return {"success": True, "message": "Suggestion dismissed"}
 
 
 # =============================================================================

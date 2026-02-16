@@ -291,10 +291,13 @@ This separation keeps conversations focused and reduces interruption.
 
 ## Implementation Phases
 
-### Phase 1: Schema + UI Foundation
-- [ ] Add `status: "suggested"` migration
-- [ ] Enhance `/deliverables` page with Suggested section
-- [ ] Add enable/edit/dismiss actions
+### Phase 1: Schema + API Foundation ✅ (2026-02-16)
+- [x] Add `status: "suggested"` migration (`051_suggested_deliverable_status.sql`)
+- [x] Add `analyst_metadata` column to `deliverable_versions`
+- [x] API endpoints: `GET /deliverables/suggested`, `POST .../enable`, `DELETE .../dismiss`
+- [x] Frontend types: `SuggestedVersion`, `AnalystMetadata`, updated `VersionStatus`
+- [x] API client methods: `listSuggested`, `enableSuggested`, `dismissSuggested`
+- [ ] Enhance `/deliverables` page with Suggested section (deferred - needs full CRUD revamp)
 - [ ] Track dismissals for future learning
 
 ### Phase 2: Conversation Analyst Agent

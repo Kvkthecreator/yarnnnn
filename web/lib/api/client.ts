@@ -34,6 +34,7 @@ import type {
   DeliverableVersion,
   VersionUpdate,
   DeliverableRunResponse,
+  SuggestedVersion,
   // ADR-034: Context Domains
   ContextDomainSummary,
   ContextDomainDetail,
@@ -509,6 +510,24 @@ export const api = {
           method: "PATCH",
           body: JSON.stringify(data),
         }
+      ),
+
+    // ADR-060: Suggested versions from Conversation Analyst
+    listSuggested: () =>
+      request<SuggestedVersion[]>("/api/deliverables/suggested"),
+
+    // Enable a suggested version (promote to staged)
+    enableSuggested: (deliverableId: string, versionId: string) =>
+      request<DeliverableVersion>(
+        `/api/deliverables/${deliverableId}/versions/${versionId}/enable`,
+        { method: "POST" }
+      ),
+
+    // Dismiss a suggested version
+    dismissSuggested: (deliverableId: string, versionId: string) =>
+      request<{ success: boolean; message: string }>(
+        `/api/deliverables/${deliverableId}/versions/${versionId}/dismiss`,
+        { method: "DELETE" }
       ),
   },
 
