@@ -1021,12 +1021,12 @@ export default function ContextPage() {
         api.documents.list().catch(() => ({ documents: [] })),
       ]);
 
-      setProfile(profileResult);
-      setStyles(stylesResult.styles || []);
-      setDomains(domainsResult as Domain[]);
-      setEntries(entriesResult as Entry[]);
-      setPlatforms(platformsResult.platforms || []);
-      setDocuments(documentsResult.documents || []);
+      setProfile(profileResult || {});
+      setStyles(stylesResult?.styles || []);
+      setDomains(Array.isArray(domainsResult) ? domainsResult : []);
+      setEntries(Array.isArray(entriesResult) ? entriesResult as Entry[] : []);
+      setPlatforms(platformsResult?.platforms || []);
+      setDocuments(documentsResult?.documents || []);
     } catch (err) {
       console.error('Failed to load context data:', err);
     } finally {
