@@ -213,7 +213,7 @@ async def chat_completion_stream_with_tools(
     tool_executor: Any,  # Callable[[str, dict], Awaitable[dict]]
     model: str = "claude-sonnet-4-20250514",
     max_tokens: int = 4096,
-    max_tool_rounds: int = 5,
+    max_tool_rounds: int = 15,  # Safety net only; model should decide when done
     tool_choice: Optional[dict] = None,
 ) -> AsyncGenerator[StreamEvent, None]:
     """

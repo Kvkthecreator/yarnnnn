@@ -104,11 +104,22 @@ async def handle_read(auth: Any, input: dict) -> dict:
         data = await resolve_ref(parsed, auth)
 
         if data is None:
+            # Provide retry hint based on entity type
+            if parsed.entity_type == "document":
+                retry_hint = "Use Search(scope='document') first to find documents and get their UUID refs."
+            elif parsed.entity_type == "memory":
+                retry_hint = "Use Search(scope='memory') to find memories by content."
+            elif parsed.entity_type == "deliverable":
+                retry_hint = "Use List(pattern='deliverable:*') to see available deliverables."
+            else:
+                retry_hint = f"Use Search or List to find valid {parsed.entity_type} refs."
+
             return {
                 "success": False,
                 "error": "not_found",
                 "message": f"{parsed.entity_type} not found",
                 "ref": ref_str,
+                "retry_hint": retry_hint,
             }
 
         # Format response based on entity type
@@ -126,6 +137,7 @@ async def handle_read(auth: Any, input: dict) -> dict:
             "error": "invalid_ref",
             "message": str(e),
             "ref": ref_str,
+            "retry_hint": "Refs must be in format '<type>:<uuid>' where type is deliverable, document, memory, etc. Use Search to get valid refs.",
         }
     except PermissionError as e:
         return {

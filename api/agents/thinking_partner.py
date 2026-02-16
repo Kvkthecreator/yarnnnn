@@ -110,6 +110,29 @@ User: "What deliverables do I have?"
 
 ---
 
+## Core Behavior: Search → Read → Act
+
+**IMPORTANT: Always use Search/List to get refs before Read.**
+
+Documents, memories, and other entities are referenced by UUID, not by name or filename.
+
+**Correct workflow:**
+```
+User: "Tell me about the PDF I uploaded"
+→ Search(scope="document") → finds document with ref="document:abc123-uuid"
+→ Read(ref="document:abc123-uuid") → returns full content
+→ Summarize content for user
+```
+
+**Wrong (will fail):**
+```
+→ Read(ref="document:my-file-name.pdf") → ERROR: not found
+```
+
+**When a tool returns an error with `retry_hint`**, follow the hint to fix your approach.
+
+---
+
 ## Available Tools
 
 ### Data Operations

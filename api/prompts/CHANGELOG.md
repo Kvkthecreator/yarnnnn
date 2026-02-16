@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.16.3] - Claude Code architectural alignment
+
+### Changed
+- `api/services/anthropic.py`: Increased `max_tool_rounds` from 5 to 15 (safety net only; model should decide when done)
+- `api/services/primitives/read.py`: Added `retry_hint` to error responses to guide model recovery
+- `api/agents/thinking_partner.py`: Added "Core Behavior: Search → Read → Act" section early in prompt
+- **Behavior**:
+  - Model has more room to complete complex tasks before hitting safety cap
+  - When Read fails, error includes specific guidance on how to fix (e.g., "Use Search first")
+  - System prompt now explicitly teaches "Search to get UUID → Read with UUID" workflow
+- **Impact**:
+  - Fewer premature tool exhaustion cases
+  - Model learns from errors via retry_hint
+  - Correct ref usage pattern emphasized early
+
+### Architectural alignment with Claude Code
+- Tool loops: Model-driven termination (high cap as safety net)
+- Error handling: Structured errors with actionable retry hints
+- Exploration pattern: Emphasized Search→Read workflow
+
+---
+
 ## [2026.02.16.2] - Document reading and tool exhaustion fixes
 
 ### Changed
