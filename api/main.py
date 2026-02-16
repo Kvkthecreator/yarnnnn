@@ -42,9 +42,8 @@ app.add_middleware(
         "https://www.yarnnn.com",
         "https://yarnnnn.vercel.app",
         "https://www.yarnnnn.vercel.app",
-        "https://yarnnnn-git-main-yarnnns-projects.vercel.app",  # Production Vercel deployment
     ],
-    allow_origin_regex=r"https://yarnnnn-.*\.vercel\.app",  # Vercel preview URLs
+    allow_origin_regex=r"https://yarnnnn-.*\.vercel\.app",  # Vercel preview URLs (includes git branch deployments)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

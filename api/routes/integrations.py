@@ -354,7 +354,7 @@ class PlatformContextItem(BaseModel):
     resource_id: str
     resource_name: Optional[str] = None
     source_timestamp: Optional[str] = None
-    created_at: str
+    synced_at: str  # ADR-058: filesystem_items uses synced_at
     metadata: dict[str, Any] = {}
 
 
@@ -2566,7 +2566,7 @@ async def get_platform_context(
             resource_id=row["resource_id"],
             resource_name=row.get("resource_name"),
             source_timestamp=source_ts,
-            created_at=row["created_at"],
+            synced_at=row["synced_at"],  # ADR-058: Use synced_at instead of created_at
             metadata=row.get("metadata", {}),
         ))
 

@@ -885,7 +885,7 @@ export const api = {
           resource_id: string;
           resource_name: string | null;
           source_timestamp: string | null;
-          created_at: string;
+          synced_at: string;  // ADR-058: filesystem_items uses synced_at
           metadata: Record<string, unknown>;
         }>;
         total_count: number;
