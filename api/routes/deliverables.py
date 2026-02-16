@@ -1279,6 +1279,55 @@ async def list_deliverables(
     return responses
 
 
+# =============================================================================
+# ADR-060: Suggested Versions Routes
+# IMPORTANT: This route MUST be defined BEFORE /{deliverable_id} routes
+# to prevent "/suggested" from being matched as a UUID parameter
+# =============================================================================
+
+
+class SuggestedVersionResponse(BaseModel):
+    """Suggested version with parent deliverable info for list view."""
+    version_id: str
+    deliverable_id: str
+    deliverable_title: str
+    deliverable_type: Optional[str] = None
+    analyst_metadata: Optional[AnalystMetadata] = None
+    created_at: str
+
+
+@router.get("/suggested")
+async def list_suggested_versions(
+    auth: UserClient,
+    limit: int = 20,
+) -> list[SuggestedVersionResponse]:
+    """
+    List all suggested versions across all user's deliverables.
+
+    ADR-060: Returns versions created by the Background Conversation Analyst
+    that the user can enable, edit, or dismiss.
+    """
+    result = auth.client.rpc(
+        "get_suggested_deliverable_versions",
+        {"p_user_id": auth.user_id}
+    ).execute()
+
+    if not result.data:
+        return []
+
+    return [
+        SuggestedVersionResponse(
+            version_id=str(v["version_id"]),
+            deliverable_id=str(v["deliverable_id"]),
+            deliverable_title=v["deliverable_title"],
+            deliverable_type=v.get("deliverable_type"),
+            analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
+            created_at=str(v["created_at"]),
+        )
+        for v in result.data[:limit]
+    ]
+
+
 @router.get("/{deliverable_id}")
 async def get_deliverable(
     deliverable_id: UUID,
@@ -1916,53 +1965,6 @@ async def update_version(
         # ADR-060: Analyst metadata
         analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
     )
-
-
-# =============================================================================
-# ADR-060: Suggested Versions Routes
-# =============================================================================
-
-
-class SuggestedVersionResponse(BaseModel):
-    """Suggested version with parent deliverable info for list view."""
-    version_id: str
-    deliverable_id: str
-    deliverable_title: str
-    deliverable_type: Optional[str] = None
-    analyst_metadata: Optional[AnalystMetadata] = None
-    created_at: str
-
-
-@router.get("/suggested")
-async def list_suggested_versions(
-    auth: UserClient,
-    limit: int = 20,
-) -> list[SuggestedVersionResponse]:
-    """
-    List all suggested versions across all user's deliverables.
-
-    ADR-060: Returns versions created by the Background Conversation Analyst
-    that the user can enable, edit, or dismiss.
-    """
-    result = auth.client.rpc(
-        "get_suggested_deliverable_versions",
-        {"p_user_id": auth.user_id}
-    ).execute()
-
-    if not result.data:
-        return []
-
-    return [
-        SuggestedVersionResponse(
-            version_id=v["version_id"],
-            deliverable_id=v["deliverable_id"],
-            deliverable_title=v["deliverable_title"],
-            deliverable_type=v.get("deliverable_type"),
-            analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
-            created_at=v["created_at"],
-        )
-        for v in result.data[:limit]
-    ]
 
 
 @router.post("/{deliverable_id}/versions/{version_id}/enable")

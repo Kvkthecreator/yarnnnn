@@ -111,6 +111,8 @@ async def main():
 
     try:
         suggestions = await analyze_conversation_patterns(
+            client=supabase,
+            user_id=user_id,
             sessions=sessions,
             existing_deliverables=deliverables,
             user_knowledge=knowledge,
