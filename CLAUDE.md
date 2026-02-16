@@ -10,6 +10,24 @@ YARNNN is a context-aware AI work platform. The core product is **Thinking Partn
 
 ## Core Execution Disciplines
 
+### 0. Before Proposing Architectural Changes
+
+**ALWAYS check existing ADRs first** before suggesting new patterns or comparing against external systems:
+
+```bash
+# Search for existing decisions on a topic
+ls docs/adr/ | grep -i "<topic>"
+# Or search ADR content
+grep -r "<keyword>" docs/adr/
+```
+
+Key ADRs that define YARNNN's philosophy (not just implementation):
+- **ADR-049**: Context freshness model - explains why NO history compression/summarization
+- **ADR-034**: Domain-scoped context - why memories are scoped, not global
+- **ADR-058**: Knowledge base architecture - current schema decisions
+
+If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
+
 ### 1. Documentation Alongside Code
 
 When refactoring or implementing features:

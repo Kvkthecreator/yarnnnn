@@ -853,7 +853,7 @@ export const api = {
     // ADR-058: Get synced platform content from filesystem_items
     getPlatformContext: (
       provider: "slack" | "notion" | "gmail" | "calendar",
-      options?: { limit?: number; resourceId?: string }
+      options?: { limit?: number; resourceId?: string; offset?: number }
     ) =>
       request<{
         items: Array<{

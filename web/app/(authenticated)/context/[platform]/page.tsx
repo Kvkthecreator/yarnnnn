@@ -388,6 +388,8 @@ export default function PlatformDetailPage() {
   const [expandedResourceIds, setExpandedResourceIds] = useState<Set<string>>(new Set());
   const [resourceContextCache, setResourceContextCache] = useState<Record<string, PlatformContextItem[]>>({});
   const [loadingResourceContext, setLoadingResourceContext] = useState<Record<string, boolean>>({});
+  const [resourceContextTotalCount, setResourceContextTotalCount] = useState<Record<string, number>>({});
+  const [loadingMoreContext, setLoadingMoreContext] = useState<Record<string, boolean>>({});
 
   // ADR-050: Notion designated page state
   const [designatedPage, setDesignatedPage] = useState<{
@@ -810,11 +812,15 @@ export default function PlatformDetailPage() {
           const queryResourceId = platform === 'gmail' ? `label:${resourceId}` : resourceId;
           const result = await api.integrations.getPlatformContext(
             platform as "slack" | "notion" | "gmail" | "calendar",
-            { limit: 5, resourceId: queryResourceId }
+            { limit: 10, resourceId: queryResourceId }
           );
           setResourceContextCache(prev => ({
             ...prev,
             [resourceId]: result.items || [],
+          }));
+          setResourceContextTotalCount(prev => ({
+            ...prev,
+            [resourceId]: result.total_count || 0,
           }));
         } catch (err) {
           console.error('Failed to load resource context:', err);
@@ -822,10 +828,37 @@ export default function PlatformDetailPage() {
             ...prev,
             [resourceId]: [],
           }));
+          setResourceContextTotalCount(prev => ({
+            ...prev,
+            [resourceId]: 0,
+          }));
         } finally {
           setLoadingResourceContext(prev => ({ ...prev, [resourceId]: false }));
         }
       }
+    }
+  };
+
+  // Load more context items for a resource
+  const handleLoadMoreContext = async (resourceId: string) => {
+    const currentItems = resourceContextCache[resourceId] || [];
+    setLoadingMoreContext(prev => ({ ...prev, [resourceId]: true }));
+
+    try {
+      const queryResourceId = platform === 'gmail' ? `label:${resourceId}` : resourceId;
+      const result = await api.integrations.getPlatformContext(
+        platform as "slack" | "notion" | "gmail" | "calendar",
+        { limit: 10, resourceId: queryResourceId, offset: currentItems.length }
+      );
+
+      setResourceContextCache(prev => ({
+        ...prev,
+        [resourceId]: [...currentItems, ...(result.items || [])],
+      }));
+    } catch (err) {
+      console.error('Failed to load more context:', err);
+    } finally {
+      setLoadingMoreContext(prev => ({ ...prev, [resourceId]: false }));
     }
   };
 
@@ -1095,6 +1128,9 @@ export default function PlatformDetailPage() {
                   onToggleExpand={() => handleToggleResourceExpand(resource.id)}
                   contextItems={resourceContextCache[resource.id] || []}
                   loadingContext={loadingResourceContext[resource.id] || false}
+                  totalCount={resourceContextTotalCount[resource.id] || 0}
+                  loadingMore={loadingMoreContext[resource.id] || false}
+                  onLoadMore={() => handleLoadMoreContext(resource.id)}
                 />
               ))}
             </div>
@@ -1513,6 +1549,9 @@ function ResourceRow({
   onToggleExpand,
   contextItems,
   loadingContext,
+  totalCount,
+  loadingMore,
+  onLoadMore,
 }: {
   resource: LandscapeResource;
   config: typeof PLATFORM_CONFIG[PlatformProvider];
@@ -1524,6 +1563,9 @@ function ResourceRow({
   onToggleExpand: () => void;
   contextItems: PlatformContextItem[];
   loadingContext: boolean;
+  totalCount: number;
+  loadingMore: boolean;
+  onLoadMore: () => void;
 }) {
   const isPrivate = resource.metadata?.is_private as boolean | undefined;
   const memberCount = resource.metadata?.member_count as number | undefined;
@@ -1670,17 +1712,37 @@ function ResourceRow({
                 >
                   <span className="text-muted-foreground shrink-0">└─</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-foreground/80 line-clamp-1">{item.content}</p>
+                    <p className="text-foreground/80 line-clamp-2">{item.content}</p>
                     <p className="text-muted-foreground mt-0.5">
                       {item.source_timestamp && formatDistanceToNow(new Date(item.source_timestamp), { addSuffix: true })}
                     </p>
                   </div>
                 </div>
               ))}
-              {contextItems.length >= 5 && (
-                <button className="text-xs text-muted-foreground hover:text-foreground ml-6 py-1">
-                  Show more...
-                </button>
+
+              {/* Load More / Count Display */}
+              {contextItems.length > 0 && (
+                <div className="flex items-center justify-between ml-6 pt-2">
+                  <span className="text-xs text-muted-foreground">
+                    Showing {contextItems.length} of {totalCount} items
+                  </span>
+                  {contextItems.length < totalCount && (
+                    <button
+                      onClick={onLoadMore}
+                      disabled={loadingMore}
+                      className="text-xs text-primary hover:text-primary/80 disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {loadingMore ? (
+                        <>
+                          <Loader2 className="w-3 h-3 animate-spin" />
+                          Loading...
+                        </>
+                      ) : (
+                        <>Load more</>
+                      )}
+                    </button>
+                  )}
+                </div>
               )}
             </div>
           )}
