@@ -18,6 +18,9 @@ COMMENT ON COLUMN user_notification_preferences.email_suggestion_created IS
 -- 2. UPDATE HELPER FUNCTION
 -- =============================================================================
 
+-- Drop existing function first (return type changed)
+DROP FUNCTION IF EXISTS get_notification_preferences(UUID);
+
 CREATE OR REPLACE FUNCTION get_notification_preferences(p_user_id UUID)
 RETURNS TABLE (
     email_deliverable_ready BOOLEAN,

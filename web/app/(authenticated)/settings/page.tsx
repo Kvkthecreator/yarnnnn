@@ -25,6 +25,7 @@ import {
   Database,
   Briefcase,
   Calendar,
+  Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
@@ -60,6 +61,7 @@ interface NotificationPreferences {
   email_deliverable_failed: boolean;
   email_work_complete: boolean;
   email_weekly_digest: boolean;
+  email_suggestion_created: boolean; // ADR-060
 }
 
 interface Integration {
@@ -716,6 +718,34 @@ export default function SettingsPage() {
                     <span
                       className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
                         notificationPrefs.email_weekly_digest ? "translate-x-6" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </div>
+
+              {/* ADR-060: Suggested Deliverables */}
+              <div className="p-4 border border-border rounded-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <Sparkles className="w-5 h-5 text-muted-foreground" />
+                    <div>
+                      <div className="font-medium">Suggested Deliverables</div>
+                      <div className="text-sm text-muted-foreground">
+                        Get notified when new deliverables are suggested based on your conversations
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleNotificationToggle("email_suggestion_created", !notificationPrefs.email_suggestion_created)}
+                    disabled={isSavingNotifications}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
+                      notificationPrefs.email_suggestion_created ? "bg-primary" : "bg-muted"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                        notificationPrefs.email_suggestion_created ? "translate-x-6" : "translate-x-1"
                       }`}
                     />
                   </button>
