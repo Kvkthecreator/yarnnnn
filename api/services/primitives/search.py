@@ -189,7 +189,7 @@ async def _search_platform_content(
         return [
             {
                 "entity_type": "platform_content",
-                "ref": f"platform:{item['platform']}:{item['id']}",
+                "ref": f"platform_content:{item['id']}",  # Use platform_content:uuid format
                 "platform": item["platform"],
                 "resource_name": item.get("resource_name"),
                 "content_type": item.get("content_type"),
