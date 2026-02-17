@@ -406,11 +406,15 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
               if (event.content) {
                 assistantContent += event.content;
                 // Update or add text block
+                // Key fix: only update the LAST text block if it's the most recent block
+                // If a tool_call block is more recent, create a NEW text block
                 const lastBlock = blocks[blocks.length - 1];
                 if (lastBlock?.type === 'text') {
-                  lastBlock.content = assistantContent;
+                  // Continue appending to existing text block
+                  lastBlock.content += event.content;
                 } else {
-                  blocks.push({ type: 'text', content: assistantContent });
+                  // After a tool_call, start a fresh text block
+                  blocks.push({ type: 'text', content: event.content });
                 }
                 // Batch updates to reduce re-renders
                 if (assistantContent.length % 50 < event.content.length || event.content.includes('\n')) {
@@ -471,13 +475,9 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
                     if (message) {
                       assistantContent = message;
                       if (pendingSurface) pendingHandoff = message;
-                      // Add text block for response
-                      const lastBlock = blocks[blocks.length - 1];
-                      if (lastBlock?.type === 'text') {
-                        lastBlock.content = message;
-                      } else {
-                        blocks.push({ type: 'text', content: message });
-                      }
+                      // Add text block for response - always create new block after tool
+                      // This ensures tool results don't get mixed with subsequent text
+                      blocks.push({ type: 'text', content: message });
                       setStatus({ type: 'streaming', content: message });
                       updateStreamingMessage();
                     }

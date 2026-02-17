@@ -13,11 +13,22 @@ export interface ToolResultData {
   data: Record<string, unknown>;
 }
 
+// A segment is either text or a tool indicator (Claude Code style)
+export interface MessageSegment {
+  type: "text" | "tool";
+  content?: string; // For text segments
+  toolName?: string; // For tool segments
+  success?: boolean; // For tool segments (undefined = still running)
+  error?: string; // For failed tools
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
-  // Tool results associated with this message (for inline cards)
+  // Tool results associated with this message (for inline cards) - legacy
   toolResults?: ToolResultData[];
+  // New: Interleaved segments for Claude Code-style display
+  segments?: MessageSegment[];
 }
 
 interface ToolUseEvent {
@@ -210,8 +221,40 @@ export function useChat({
         const currentToolsUsed: string[] = [];
         const currentToolResults: ToolResultData[] = [];
 
+        // Claude Code-style segments: interleave text and tool status
+        const segments: MessageSegment[] = [];
+        let currentTextSegment = ""; // Text accumulated since last tool
+        let pendingToolName: string | null = null; // Tool currently executing
+
         // Add empty assistant message that we'll update
-        setMessages((prev) => [...prev, { role: "assistant", content: "", toolResults: [] }]);
+        setMessages((prev) => [...prev, { role: "assistant", content: "", toolResults: [], segments: [] }]);
+
+        // Helper to update the message with current state
+        const updateMessage = () => {
+          // Build segments array with current text at the end
+          const displaySegments: MessageSegment[] = [...segments];
+
+          // Add pending tool if one is running
+          if (pendingToolName) {
+            displaySegments.push({ type: "tool", toolName: pendingToolName, success: undefined });
+          }
+
+          // Add current text segment if non-empty
+          if (currentTextSegment.trim()) {
+            displaySegments.push({ type: "text", content: currentTextSegment });
+          }
+
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            newMessages[newMessages.length - 1] = {
+              role: "assistant",
+              content: assistantContent, // Keep full content for compatibility
+              toolResults: [...currentToolResults],
+              segments: displaySegments,
+            };
+            return newMessages;
+          });
+        };
 
         while (true) {
           const { done, value } = await reader.read();
@@ -231,16 +274,8 @@ export function useChat({
 
                 if (data.content) {
                   assistantContent += data.content;
-                  // Update the last message (assistant)
-                  setMessages((prev) => {
-                    const newMessages = [...prev];
-                    newMessages[newMessages.length - 1] = {
-                      role: "assistant",
-                      content: assistantContent,
-                      toolResults: [...currentToolResults],
-                    };
-                    return newMessages;
-                  });
+                  currentTextSegment += data.content;
+                  updateMessage();
                 }
 
                 // Handle tool use event (ADR-007)
@@ -249,6 +284,16 @@ export function useChat({
                   currentToolsUsed.push(toolEvent.name);
                   setToolsUsed([...currentToolsUsed]);
                   onToolUse?.(toolEvent);
+
+                  // Finalize current text segment before tool
+                  if (currentTextSegment.trim()) {
+                    segments.push({ type: "text", content: currentTextSegment });
+                    currentTextSegment = "";
+                  }
+
+                  // Mark tool as pending (running)
+                  pendingToolName = toolEvent.name;
+                  updateMessage();
                 }
 
                 // Handle tool result event (ADR-007)
@@ -258,23 +303,24 @@ export function useChat({
                   onToolResult?.(resultEvent);
 
                   // ADR-020: Collect tool results for inline display
-                  const result = resultEvent.result as { success?: boolean; ui_action?: TPUIAction };
+                  const result = resultEvent.result as { success?: boolean; ui_action?: TPUIAction; error?: string; message?: string };
                   currentToolResults.push({
                     toolName: resultEvent.name,
                     success: result?.success ?? true,
                     data: resultEvent.result,
                   });
 
-                  // Update message with tool results
-                  setMessages((prev) => {
-                    const newMessages = [...prev];
-                    newMessages[newMessages.length - 1] = {
-                      role: "assistant",
-                      content: assistantContent,
-                      toolResults: [...currentToolResults],
-                    };
-                    return newMessages;
+                  // Finalize the tool segment with result
+                  const errorMsg = !result?.success ? (result?.error || result?.message || "failed") : undefined;
+                  segments.push({
+                    type: "tool",
+                    toolName: resultEvent.name,
+                    success: result?.success ?? true,
+                    error: typeof errorMsg === 'string' ? errorMsg : undefined,
                   });
+                  pendingToolName = null;
+
+                  updateMessage();
 
                   // ADR-013: Check for UI action in tool result
                   if (result?.ui_action) {
@@ -284,7 +330,13 @@ export function useChat({
                 }
 
                 if (data.done) {
-                  // Stream complete
+                  // Stream complete - finalize any remaining text
+                  if (currentTextSegment.trim()) {
+                    segments.push({ type: "text", content: currentTextSegment });
+                    currentTextSegment = "";
+                  }
+                  updateMessage();
+
                   if (data.tools_used?.length > 0) {
                     setToolsUsed(data.tools_used);
                   }

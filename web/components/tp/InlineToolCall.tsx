@@ -72,7 +72,15 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   todo_write: ListTodo,
 };
 
-export function InlineToolCall({ block }: InlineToolCallProps) {
+interface InlineToolCallOptions {
+  /**
+   * If true, renders as Claude Code-style single line: [Using X...] done
+   * If false, renders as expandable card (legacy)
+   */
+  compact?: boolean;
+}
+
+export function InlineToolCall({ block, compact = true }: InlineToolCallProps & InlineToolCallOptions) {
   const [expanded, setExpanded] = useState(block.status === 'failed');
 
   const Icon = TOOL_ICONS[block.tool] || FileText;
@@ -89,6 +97,47 @@ export function InlineToolCall({ block }: InlineToolCallProps) {
     return null;
   }
 
+  // Claude Code-style compact display: [Using X...] done
+  if (compact) {
+    const isRunning = block.status === 'pending';
+    const errorMsg = block.result?.data?.error as string | undefined;
+
+    return (
+      <div
+        className={cn(
+          'inline-flex items-center gap-1.5 text-xs font-mono py-0.5 my-0.5',
+          isRunning && 'text-muted-foreground',
+          block.status === 'success' && 'text-muted-foreground',
+          block.status === 'failed' && 'text-destructive'
+        )}
+      >
+        <span className="text-muted-foreground/60">[</span>
+        {isRunning && (
+          <>
+            <Loader2 className="w-3 h-3 animate-spin" />
+            <span>Using {displayMessage}...</span>
+          </>
+        )}
+        {block.status === 'success' && (
+          <>
+            <span>Using {displayMessage}...</span>
+            <CheckCircle2 className="w-3 h-3 text-green-500" />
+            <span className="text-green-600">done</span>
+          </>
+        )}
+        {block.status === 'failed' && (
+          <>
+            <span>Using {displayMessage}...</span>
+            <XCircle className="w-3 h-3" />
+            <span>{errorMsg ? `failed: ${errorMsg.slice(0, 40)}${errorMsg.length > 40 ? '...' : ''}` : 'failed'}</span>
+          </>
+        )}
+        <span className="text-muted-foreground/60">]</span>
+      </div>
+    );
+  }
+
+  // Legacy expandable card display
   return (
     <div className={cn(
       'rounded-lg border text-sm overflow-hidden my-1.5 transition-all',
@@ -173,8 +222,10 @@ export function ThinkingBlock({ content }: { content: string }) {
 
 /**
  * Render all blocks in a message
+ *
+ * @param compact - If true, tool calls render as Claude Code-style single line indicators
  */
-export function MessageBlocks({ blocks }: { blocks: MessageBlock[] }) {
+export function MessageBlocks({ blocks, compact = true }: { blocks: MessageBlock[]; compact?: boolean }) {
   return (
     <div className="space-y-1">
       {blocks.map((block, i) => {
@@ -186,7 +237,7 @@ export function MessageBlocks({ blocks }: { blocks: MessageBlock[] }) {
           case 'thinking':
             return <ThinkingBlock key={i} content={block.content} />;
           case 'tool_call':
-            return <InlineToolCall key={i} block={block} />;
+            return <InlineToolCall key={i} block={block} compact={compact} />;
           case 'clarify':
             // Clarify is handled separately in the chat UI
             return null;
