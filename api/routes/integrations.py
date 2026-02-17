@@ -65,13 +65,13 @@ async def _process_import_job_background(job_id: str, job_data: dict):
         # Fetch the full job record
         result = service_client.table("integration_import_jobs").select("*").eq(
             "id", job_id
-        ).single().execute()
+        ).limit(1).execute()
 
         if not result.data:
             logger.error(f"[IMPORT_BG] Job {job_id} not found")
             return
 
-        job = result.data
+        job = result.data[0]
 
         # Process the job
         logger.info(f"[IMPORT_BG] Starting background processing for job {job_id}")
@@ -682,12 +682,12 @@ async def get_import_job(
     try:
         result = auth.client.table("integration_import_jobs").select(
             "*"
-        ).eq("id", job_id).eq("user_id", user_id).single().execute()
+        ).eq("id", job_id).eq("user_id", user_id).limit(1).execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail="Import job not found")
 
-        job = result.data
+        job = result.data[0]
 
         return ImportJobResponse(
             id=job["id"],
@@ -837,7 +837,7 @@ async def check_integration_health(
     # Check if integration exists
     result = auth.client.table("platform_connections").select(
         "id, status, metadata, updated_at"
-    ).eq("user_id", user_id).eq("platform", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
 
     if not result.data:
         return IntegrationHealthResponse(
@@ -847,7 +847,7 @@ async def check_integration_health(
             recommendations=[f"Go to Settings → Integrations → Connect {provider}"]
         )
 
-    integration = result.data
+    integration = result.data[0]
 
     if integration.get("status") != "active":
         return IntegrationHealthResponse(
@@ -964,7 +964,7 @@ async def export_to_provider(
 
             integration = auth.client.table("platform_connections").select(
                 "id, credentials_encrypted, refresh_token_encrypted, metadata, status"
-            ).eq("user_id", user_id).eq("platform", provider).single().execute()
+            ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
 
             if not integration.data:
                 raise HTTPException(
@@ -972,21 +972,21 @@ async def export_to_provider(
                     detail=f"No {provider} integration found. Please connect first."
                 )
 
-            if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+            if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"{provider} integration is {integration.data['status']}. Please reconnect."
+                    detail=f"{provider} integration is {integration.data[0]['status']}. Please reconnect."
                 )
 
-            integration_id = integration.data["id"]
+            integration_id = integration.data[0]["id"]
             token_manager = get_token_manager()
 
             # Decrypt tokens
-            access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
-            refresh_token = token_manager.decrypt(integration.data["refresh_token_encrypted"]) if integration.data.get("refresh_token_encrypted") else None
+            access_token = token_manager.decrypt(integration.data[0]["credentials_encrypted"])
+            refresh_token = token_manager.decrypt(integration.data[0]["refresh_token_encrypted"]) if integration.data[0].get("refresh_token_encrypted") else None
 
             # Build metadata, adding refresh_token for Gmail (ADR-029)
-            metadata = integration.data.get("metadata", {}) or {}
+            metadata = integration.data[0].get("metadata", {}) or {}
             if provider == "gmail" and refresh_token:
                 metadata["refresh_token"] = refresh_token
 
@@ -1007,7 +1007,7 @@ async def export_to_provider(
         # 2. Get deliverable version content
         version = auth.client.table("deliverable_versions").select(
             "id, final_content, draft_content, deliverable_id"
-        ).eq("id", request.deliverable_version_id).single().execute()
+        ).eq("id", request.deliverable_version_id).limit(1).execute()
 
         if not version.data:
             raise HTTPException(status_code=404, detail="Deliverable version not found")
@@ -1015,10 +1015,10 @@ async def export_to_provider(
         # Get deliverable title
         deliverable = auth.client.table("deliverables").select(
             "title"
-        ).eq("id", version.data["deliverable_id"]).single().execute()
+        ).eq("id", version.data[0]["deliverable_id"]).limit(1).execute()
 
-        content = version.data.get("final_content") or version.data.get("draft_content", "")
-        title = deliverable.data["title"] if deliverable.data else "YARNNN Export"
+        content = version.data[0].get("final_content") or version.data[0].get("draft_content", "")
+        title = deliverable.data[0]["title"] if deliverable.data else "YARNNN Export"
 
         # 3. Normalize destination format for exporters
         # Support both legacy format (channel_id, page_id) and new format (target)
@@ -1038,7 +1038,7 @@ async def export_to_provider(
             title=title,
             metadata={
                 "deliverable_version_id": request.deliverable_version_id,
-                "deliverable_id": version.data["deliverable_id"]
+                "deliverable_id": version.data[0]["deliverable_id"]
             },
             context=context
         )
@@ -1117,7 +1117,7 @@ async def list_slack_channels(
         # Get user's Slack integration
         integration = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, status"
-        ).eq("user_id", user_id).eq("platform", "slack").single().execute()
+        ).eq("user_id", user_id).eq("platform", "slack").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1125,25 +1125,25 @@ async def list_slack_channels(
                 detail="No Slack integration found. Please connect first."
             )
 
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=400,
-                detail=f"Slack integration is {integration.data['status']}. Please reconnect."
+                detail=f"Slack integration is {integration.data[0]['status']}. Please reconnect."
             )
 
         # Get integration metadata for team_id
         integration_full = auth.client.table("platform_connections").select(
             "metadata"
-        ).eq("user_id", user_id).eq("platform", "slack").single().execute()
+        ).eq("user_id", user_id).eq("platform", "slack").limit(1).execute()
 
-        metadata = integration_full.data.get("metadata", {}) or {}
+        metadata = integration_full.data[0].get("metadata", {}) or {}
         team_id = metadata.get("team_id")
         if not team_id:
             raise HTTPException(status_code=400, detail="Slack integration missing team_id")
 
         # Decrypt access token
         token_manager = get_token_manager()
-        access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
+        access_token = token_manager.decrypt(integration.data[0]["credentials_encrypted"])
 
         # Fetch channels via MCP
         mcp = get_mcp_manager()
@@ -1199,7 +1199,7 @@ async def list_notion_pages(
         # Get user's Notion integration
         integration = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, status"
-        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
+        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1207,15 +1207,15 @@ async def list_notion_pages(
                 detail="No Notion integration found. Please connect first."
             )
 
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=400,
-                detail=f"Notion integration is {integration.data['status']}. Please reconnect."
+                detail=f"Notion integration is {integration.data[0]['status']}. Please reconnect."
             )
 
         # Decrypt access token
         token_manager = get_token_manager()
-        access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
+        access_token = token_manager.decrypt(integration.data[0]["credentials_encrypted"])
 
         # ADR-050: Fetch pages via MCP Gateway (Node.js), not Python MCP client
         from services.mcp_gateway import call_platform_tool, is_gateway_available
@@ -1231,7 +1231,7 @@ async def list_notion_pages(
             tool="notion-search",
             args={"query": query or ""},
             token=access_token,
-            metadata=integration.data.get("metadata"),
+            metadata=integration.data[0].get("metadata"),
         )
 
         if not result.get("success"):
@@ -1299,7 +1299,7 @@ async def get_notion_designated_page(auth: UserClient) -> DesignatedPageResponse
     try:
         integration = auth.client.table("platform_connections").select(
             "id, metadata, status"
-        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
+        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1307,7 +1307,7 @@ async def get_notion_designated_page(auth: UserClient) -> DesignatedPageResponse
                 detail="No Notion integration found. Please connect first."
             )
 
-        metadata = integration.data.get("metadata") or {}
+        metadata = integration.data[0].get("metadata") or {}
         designated_page_id = metadata.get("designated_page_id")
         designated_page_name = metadata.get("designated_page_name")
 
@@ -1350,7 +1350,7 @@ async def set_notion_designated_page(
         # Get current integration
         integration = auth.client.table("platform_connections").select(
             "id, metadata, status"
-        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
+        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1358,21 +1358,21 @@ async def set_notion_designated_page(
                 detail="No Notion integration found. Please connect first."
             )
 
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=400,
-                detail=f"Notion integration is {integration.data['status']}. Please reconnect."
+                detail=f"Notion integration is {integration.data[0]['status']}. Please reconnect."
             )
 
         # Update metadata with designated page
-        metadata = integration.data.get("metadata") or {}
+        metadata = integration.data[0].get("metadata") or {}
         metadata["designated_page_id"] = request.page_id
         if request.page_name:
             metadata["designated_page_name"] = request.page_name
 
         auth.client.table("platform_connections").update({
             "metadata": metadata
-        }).eq("id", integration.data["id"]).execute()
+        }).eq("id", integration.data[0]["id"]).execute()
 
         logger.info(f"[INTEGRATIONS] User {user_id} set Notion designated page: {request.page_id}")
 
@@ -1400,7 +1400,7 @@ async def clear_notion_designated_page(auth: UserClient) -> DesignatedPageRespon
     try:
         integration = auth.client.table("platform_connections").select(
             "id, metadata"
-        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
+        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1409,13 +1409,13 @@ async def clear_notion_designated_page(auth: UserClient) -> DesignatedPageRespon
             )
 
         # Remove designated page from metadata
-        metadata = integration.data.get("metadata") or {}
+        metadata = integration.data[0].get("metadata") or {}
         metadata.pop("designated_page_id", None)
         metadata.pop("designated_page_name", None)
 
         auth.client.table("platform_connections").update({
             "metadata": metadata
-        }).eq("id", integration.data["id"]).execute()
+        }).eq("id", integration.data[0]["id"]).execute()
 
         logger.info(f"[INTEGRATIONS] User {user_id} cleared Notion designated page")
 
@@ -1469,9 +1469,9 @@ async def get_google_designated_settings(auth: UserClient) -> GoogleDesignatedSe
         for provider in ["google", "gmail"]:
             result = auth.client.table("platform_connections").select(
                 "id, metadata, status"
-            ).eq("user_id", user_id).eq("platform", provider).single().execute()
+            ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
             if result.data:
-                integration = result.data
+                integration = result.data[0]
                 break
 
         if not integration:
@@ -1517,9 +1517,9 @@ async def set_google_designated_settings(
         for provider in ["google", "gmail"]:
             result = auth.client.table("platform_connections").select(
                 "id, metadata, status"
-            ).eq("user_id", user_id).eq("platform", provider).single().execute()
+            ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
             if result.data:
-                integration = result.data
+                integration = result.data[0]
                 provider_found = provider
                 break
 
@@ -1581,9 +1581,9 @@ async def clear_google_designated_settings(auth: UserClient) -> GoogleDesignated
         for provider in ["google", "gmail"]:
             result = auth.client.table("platform_connections").select(
                 "id, metadata"
-            ).eq("user_id", user_id).eq("platform", provider).single().execute()
+            ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
             if result.data:
-                integration = result.data
+                integration = result.data[0]
                 break
 
         if not integration:
@@ -1646,13 +1646,13 @@ async def list_google_calendars(
         # Get user's Google integration (try google first, then gmail for legacy)
         integration = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
-        ).eq("user_id", user_id).eq("platform", "google").single().execute()
+        ).eq("user_id", user_id).eq("platform", "google").limit(1).execute()
 
         if not integration.data:
             # Try legacy gmail provider
             integration = auth.client.table("platform_connections").select(
                 "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
-            ).eq("user_id", user_id).eq("platform", "gmail").single().execute()
+            ).eq("user_id", user_id).eq("platform", "gmail").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1660,14 +1660,14 @@ async def list_google_calendars(
                 detail="No Google integration found. Please connect first."
             )
 
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=400,
-                detail=f"Google integration is {integration.data['status']}. Please reconnect."
+                detail=f"Google integration is {integration.data[0]['status']}. Please reconnect."
             )
 
         # Check capabilities
-        metadata = integration.data.get("metadata", {}) or {}
+        metadata = integration.data[0].get("metadata", {}) or {}
         capabilities = metadata.get("capabilities", [])
         if capabilities and "calendar" not in capabilities:
             raise HTTPException(
@@ -1677,7 +1677,7 @@ async def list_google_calendars(
 
         # Get credentials
         token_manager = get_token_manager()
-        refresh_token_encrypted = integration.data.get("refresh_token_encrypted")
+        refresh_token_encrypted = integration.data[0].get("refresh_token_encrypted")
         if not refresh_token_encrypted:
             raise HTTPException(
                 status_code=400,
@@ -1743,13 +1743,13 @@ async def list_google_calendar_events(
         # Get user's Google integration (try google first, then gmail for legacy)
         integration = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
-        ).eq("user_id", user_id).eq("platform", "google").single().execute()
+        ).eq("user_id", user_id).eq("platform", "google").limit(1).execute()
 
         if not integration.data:
             # Try legacy gmail provider
             integration = auth.client.table("platform_connections").select(
                 "id, credentials_encrypted, refresh_token_encrypted, status, metadata"
-            ).eq("user_id", user_id).eq("platform", "gmail").single().execute()
+            ).eq("user_id", user_id).eq("platform", "gmail").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1757,14 +1757,14 @@ async def list_google_calendar_events(
                 detail="No Google integration found. Please connect first."
             )
 
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=400,
-                detail=f"Google integration is {integration.data['status']}. Please reconnect."
+                detail=f"Google integration is {integration.data[0]['status']}. Please reconnect."
             )
 
         # Check capabilities
-        metadata = integration.data.get("metadata", {}) or {}
+        metadata = integration.data[0].get("metadata", {}) or {}
         capabilities = metadata.get("capabilities", [])
         if capabilities and "calendar" not in capabilities:
             raise HTTPException(
@@ -1774,7 +1774,7 @@ async def list_google_calendar_events(
 
         # Get credentials
         token_manager = get_token_manager()
-        refresh_token_encrypted = integration.data.get("refresh_token_encrypted")
+        refresh_token_encrypted = integration.data[0].get("refresh_token_encrypted")
         if not refresh_token_encrypted:
             raise HTTPException(
                 status_code=400,
@@ -1877,7 +1877,7 @@ async def start_slack_import(
         # Get user's Slack integration
         integration = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, status"
-        ).eq("user_id", user_id).eq("platform", "slack").single().execute()
+        ).eq("user_id", user_id).eq("platform", "slack").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1885,10 +1885,10 @@ async def start_slack_import(
                 detail="No Slack integration found. Please connect first."
             )
 
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=400,
-                detail=f"Slack integration is {integration.data['status']}. Please reconnect."
+                detail=f"Slack integration is {integration.data[0]['status']}. Please reconnect."
             )
 
         # Use resource_name if provided, otherwise use resource_id as fallback
@@ -1989,7 +1989,7 @@ async def start_gmail_import(
         # Get user's Gmail integration
         integration = auth.client.table("platform_connections").select(
             "id, refresh_token_encrypted, status"
-        ).eq("user_id", user_id).eq("platform", "gmail").single().execute()
+        ).eq("user_id", user_id).eq("platform", "gmail").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -1997,10 +1997,10 @@ async def start_gmail_import(
                 detail="No Gmail integration found. Please connect first."
             )
 
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=400,
-                detail=f"Gmail integration is {integration.data['status']}. Please reconnect."
+                detail=f"Gmail integration is {integration.data[0]['status']}. Please reconnect."
             )
 
         # Parse resource name for display
@@ -2097,7 +2097,7 @@ async def start_notion_import(
         # Get user's Notion integration
         integration = auth.client.table("platform_connections").select(
             "id, credentials_encrypted, status"
-        ).eq("user_id", user_id).eq("platform", "notion").single().execute()
+        ).eq("user_id", user_id).eq("platform", "notion").limit(1).execute()
 
         if not integration.data:
             raise HTTPException(
@@ -2105,10 +2105,10 @@ async def start_notion_import(
                 detail="No Notion integration found. Please connect first."
             )
 
-        if integration.data["status"] != IntegrationStatus.ACTIVE.value:
+        if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
             raise HTTPException(
                 status_code=400,
-                detail=f"Notion integration is {integration.data['status']}. Please reconnect."
+                detail=f"Notion integration is {integration.data[0]['status']}. Please reconnect."
             )
 
         # Use resource_name if provided, otherwise use resource_id as fallback
@@ -2424,20 +2424,20 @@ async def get_landscape(
     # Get integration
     integration = auth.client.table("platform_connections").select(
         "id, credentials_encrypted, refresh_token_encrypted, metadata, landscape, landscape_discovered_at"
-    ).eq("user_id", user_id).eq("platform", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
     # Check if we need to discover
     # ADR-030: Also trigger discovery if landscape is empty or has no resources
-    landscape = integration.data.get("landscape")
+    landscape = integration.data[0].get("landscape")
     is_empty_landscape = not landscape or not landscape.get("resources")
     needs_discovery = refresh or is_empty_landscape
 
     if needs_discovery:
         # Discover landscape from provider
-        landscape_data = await _discover_landscape(provider, user_id, integration.data)
+        landscape_data = await _discover_landscape(provider, user_id, integration.data[0])
 
         # Note: We do NOT auto-select sources here.
         # User must explicitly select sources in the modal, gated by tier limits.
@@ -2447,12 +2447,12 @@ async def get_landscape(
         auth.client.table("platform_connections").update({
             "landscape": landscape_data,
             "landscape_discovered_at": datetime.utcnow().isoformat()
-        }).eq("id", integration.data["id"]).execute()
+        }).eq("id", integration.data[0]["id"]).execute()
 
         discovered_at = datetime.utcnow()
     else:
-        landscape_data = integration.data.get("landscape", {})
-        discovered_at = integration.data.get("landscape_discovered_at")
+        landscape_data = integration.data[0].get("landscape", {})
+        discovered_at = integration.data[0].get("landscape_discovered_at")
 
     # Get sync records for this provider (ADR-058)
     sync_result = auth.client.table("sync_registry").select(
@@ -2859,13 +2859,13 @@ async def update_selected_sources(
     # Get integration
     integration = auth.client.table("platform_connections").select(
         "id, landscape"
-    ).eq("user_id", user_id).eq("platform", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
     # Get current landscape
-    landscape = integration.data.get("landscape", {}) or {}
+    landscape = integration.data[0].get("landscape", {}) or {}
     resources = landscape.get("resources", [])
 
     # Build selected sources list from allowed IDs
@@ -2884,7 +2884,7 @@ async def update_selected_sources(
     landscape["selected_sources"] = selected_sources
     auth.client.table("platform_connections").update({
         "landscape": landscape,
-    }).eq("id", integration.data["id"]).execute()
+    }).eq("id", integration.data[0]["id"]).execute()
 
     logger.info(f"[INTEGRATIONS] User {user_id} updated {provider} sources: {len(selected_sources)} selected")
 
@@ -2909,12 +2909,12 @@ async def get_selected_sources(
 
     integration = auth.client.table("platform_connections").select(
         "landscape"
-    ).eq("user_id", user_id).eq("platform", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
-    landscape = integration.data.get("landscape", {}) or {}
+    landscape = integration.data[0].get("landscape", {}) or {}
     selected = landscape.get("selected_sources", [])
 
     return {
@@ -2943,16 +2943,16 @@ async def trigger_platform_sync(
     # Verify integration exists
     integration = auth.client.table("platform_connections").select(
         "id, status, landscape"
-    ).eq("user_id", user_id).eq("platform", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
-    if integration.data["status"] != "active":
+    if integration.data[0]["status"] != "active":
         raise HTTPException(status_code=400, detail=f"{provider} integration is not active")
 
     # Get selected sources
-    landscape = integration.data.get("landscape", {}) or {}
+    landscape = integration.data[0].get("landscape", {}) or {}
     selected = landscape.get("selected_sources", [])
 
     if not selected:
@@ -3000,7 +3000,7 @@ async def get_platform_sync_status(
     # Verify integration exists
     integration = auth.client.table("platform_connections").select(
         "id, status"
-    ).eq("user_id", user_id).eq("platform", provider).single().execute()
+    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")

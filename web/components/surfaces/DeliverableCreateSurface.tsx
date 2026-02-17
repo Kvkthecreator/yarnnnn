@@ -57,6 +57,7 @@ import type {
 
 interface DeliverableCreateSurfaceProps {
   initialPlatform?: 'slack' | 'gmail' | 'notion' | 'google' | 'calendar';
+  onBack?: () => void;
 }
 
 // Destination platforms include 'download' which isn't an integration
@@ -309,7 +310,7 @@ const PLATFORM_ICONS: Record<string, React.ReactNode> = {
 // Main Component
 // =============================================================================
 
-export function DeliverableCreateSurface({ initialPlatform }: DeliverableCreateSurfaceProps) {
+export function DeliverableCreateSurface({ initialPlatform, onBack }: DeliverableCreateSurfaceProps) {
   const router = useRouter();
   const { setSurface } = useDesk();
 
@@ -416,7 +417,11 @@ export function DeliverableCreateSurface({ initialPlatform }: DeliverableCreateS
   }, [initialPlatform, selectedType]);
 
   const handleBack = () => {
-    setSurface({ type: 'idle' });
+    if (onBack) {
+      onBack();
+    } else {
+      setSurface({ type: 'idle' });
+    }
   };
 
   const canCreate = useCallback(() => {

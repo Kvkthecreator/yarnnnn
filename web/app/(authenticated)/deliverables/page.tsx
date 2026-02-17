@@ -197,8 +197,7 @@ export default function DeliverablesPage() {
   };
 
   const handleCreateNew = () => {
-    // Navigate to dashboard where chat can help create
-    router.push('/dashboard');
+    router.push('/deliverables/new');
   };
 
   return (
