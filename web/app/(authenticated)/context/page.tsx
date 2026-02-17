@@ -16,24 +16,21 @@ import {
   Loader2,
   Upload,
   Plus,
-  Search,
   RefreshCw,
   User,
   Palette,
   FolderKanban,
   BookOpen,
-  Database,
   FileText,
   Slack,
   Mail,
   FileCode,
   Calendar,
+  Database,
   Edit2,
   Trash2,
   ChevronRight,
-  Info,
   CheckCircle2,
-  Clock,
   XCircle,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
@@ -129,173 +126,10 @@ const PLATFORM_CONFIG: Record<string, {
 };
 
 // =============================================================================
-// Sidebar Navigation
+// Platform list for PlatformsSection
 // =============================================================================
 
 const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
-
-interface SidebarProps {
-  activeSection: Section;
-  onSectionChange: (section: Section) => void;
-  counts: {
-    styles: number;
-    domains: number;
-    entries: number;
-    platforms: number;
-    documents: number;
-  };
-  platforms: PlatformSummary[];
-}
-
-function Sidebar({ activeSection, onSectionChange, counts, platforms }: SidebarProps) {
-  const router = useRouter();
-  const knowledgeItems: Array<{ section: Section; label: string; icon: React.ReactNode; count?: number }> = [
-    { section: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
-    { section: 'styles', label: 'Styles', icon: <Palette className="w-4 h-4" />, count: counts.styles },
-    { section: 'domains', label: 'Domains', icon: <FolderKanban className="w-4 h-4" />, count: counts.domains },
-    { section: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" />, count: counts.entries },
-  ];
-
-  // Build per-platform status from loaded platforms data
-  const platformStatus: Record<string, PlatformSummary | undefined> = {};
-  for (const p of platforms) {
-    // calendar may come back as 'google' from backend
-    const key = p.provider === 'google' ? 'calendar' : p.provider;
-    platformStatus[key] = p;
-  }
-
-  const isPlatformSection = activeSection.startsWith('platform_') || activeSection === 'platforms';
-
-  return (
-    <nav className="w-48 flex-shrink-0 border-r border-border bg-muted/50 flex flex-col">
-      <div className="p-4 space-y-1 flex-1 overflow-y-auto">
-        {/* KNOWLEDGE group */}
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-2 pb-2">
-          Knowledge
-        </div>
-        {knowledgeItems.map((item) => (
-          <button
-            key={item.section}
-            onClick={() => onSectionChange(item.section)}
-            className={cn(
-              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
-              activeSection === item.section
-                ? "bg-primary/10 text-primary"
-                : "text-muted-foreground hover:bg-muted hover:text-foreground"
-            )}
-          >
-            <span className="flex items-center gap-2">
-              {item.icon}
-              {item.label}
-            </span>
-            {item.count !== undefined && item.count > 0 && (
-              <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                {item.count}
-              </span>
-            )}
-          </button>
-        ))}
-
-        {/* FILESYSTEM group */}
-        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-4 pb-2">
-          Filesystem
-        </div>
-
-        {/* Platforms parent item */}
-        <button
-          onClick={() => onSectionChange('platforms')}
-          className={cn(
-            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
-            isPlatformSection
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <span className="flex items-center gap-2">
-            <Database className="w-4 h-4" />
-            Platforms
-          </span>
-          {counts.platforms > 0 && (
-            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-              {counts.platforms}
-            </span>
-          )}
-        </button>
-
-        {/* Per-platform sub-items — always shown */}
-        <div className="ml-3 space-y-0.5">
-          {ALL_PLATFORMS.map((platformKey) => {
-            const config = PLATFORM_CONFIG[platformKey];
-            const summary = platformStatus[platformKey];
-            const isConnected = summary?.status === 'connected';
-            const sectionKey = `platform_${platformKey}` as Section;
-            const isActive = activeSection === sectionKey;
-
-            return (
-              <button
-                key={platformKey}
-                onClick={() => router.push(`/context/${platformKey}`)}
-                className={cn(
-                  "w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
-                  isActive
-                    ? "bg-primary/10 text-primary"
-                    : isConnected
-                      ? "text-foreground hover:bg-muted"
-                      : "text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground"
-                )}
-              >
-                <span className="flex items-center gap-2">
-                  <span className={cn(
-                    "w-1.5 h-1.5 rounded-full shrink-0",
-                    isConnected ? "bg-green-500" : "bg-muted-foreground/30"
-                  )} />
-                  {config.label}
-                </span>
-                {isConnected && summary && summary.resource_count > 0 && (
-                  <span className="text-muted-foreground">
-                    {summary.resource_count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Documents */}
-        <button
-          onClick={() => onSectionChange('documents')}
-          className={cn(
-            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors mt-1",
-            activeSection === 'documents'
-              ? "bg-primary/10 text-primary"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <span className="flex items-center gap-2">
-            <FileText className="w-4 h-4" />
-            Documents
-          </span>
-          {counts.documents > 0 && (
-            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-              {counts.documents}
-            </span>
-          )}
-        </button>
-      </div>
-
-      {/* Actions */}
-      <div className="p-4 border-t border-border">
-        <button
-          onClick={() => onSectionChange('entries')}
-          className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium transition-colors"
-        >
-          <Plus className="w-4 h-4" />
-          Add Knowledge
-        </button>
-      </div>
-    </nav>
-  );
-}
 
 // =============================================================================
 // Profile Section
@@ -1080,15 +914,6 @@ export default function ContextPage() {
   const [platforms, setPlatforms] = useState<PlatformSummary[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
 
-  // Counts for sidebar
-  const counts = {
-    styles: styles.length,
-    domains: domains.length,
-    entries: entries.length,
-    platforms: platforms.filter((p) => p.status === 'connected').length,
-    documents: documents.length,
-  };
-
   // Load all data
   const loadData = useCallback(async () => {
     try {
@@ -1182,15 +1007,14 @@ export default function ContextPage() {
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center h-screen">
+      <div className="flex items-center justify-center h-full py-24">
         <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
-  // Always show sidebar, with empty state in content area when no data
   return (
-    <div className="min-h-screen bg-background flex flex-col">
+    <>
       {/* Header */}
       <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between">
         <h1 className="text-xl font-semibold text-foreground">Context</h1>
@@ -1207,98 +1031,87 @@ export default function ContextPage() {
         </button>
       </div>
 
-      {/* Main Content */}
-      <div className="flex-1 flex">
-        {/* Sidebar */}
-        <Sidebar
-          activeSection={activeSection}
-          onSectionChange={handleSectionChange}
-          counts={counts}
-          platforms={platforms}
-        />
-
-        {/* Content Area */}
-        <main className="flex-1 p-6 overflow-auto">
-          {/* Show welcome prompt only on profile section when empty, otherwise show section content */}
-          {showEmptyState && activeSection === 'profile' ? (
-            <div className="h-full flex items-center justify-center">
-              <div className="max-w-md text-center">
-                <h2 className="text-xl font-semibold text-foreground mb-2">
-                  Get started with context
-                </h2>
-                <p className="text-muted-foreground mb-6">
-                  TP works best when it knows about your work. Use the sidebar to add context.
-                </p>
-                <div className="flex flex-col gap-3">
-                  <button
-                    onClick={() => handleSectionChange('platforms')}
-                    className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
-                  >
-                    Connect a platform
-                  </button>
-                  <button
-                    onClick={() => fileInputRef.current?.click()}
-                    className="px-4 py-2 border border-border text-foreground hover:bg-muted rounded-lg text-sm"
-                  >
-                    Upload a document
-                  </button>
-                </div>
+      {/* Content Area */}
+      <main className="flex-1 p-6 overflow-auto">
+        {/* Show welcome prompt only on profile section when empty, otherwise show section content */}
+        {showEmptyState && activeSection === 'profile' ? (
+          <div className="h-full flex items-center justify-center">
+            <div className="max-w-md text-center">
+              <h2 className="text-xl font-semibold text-foreground mb-2">
+                Get started with context
+              </h2>
+              <p className="text-muted-foreground mb-6">
+                TP works best when it knows about your work. Use the sidebar to add context.
+              </p>
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={() => handleSectionChange('platforms')}
+                  className="px-4 py-2 bg-primary hover:bg-primary/90 text-primary-foreground rounded-lg text-sm font-medium"
+                >
+                  Connect a platform
+                </button>
+                <button
+                  onClick={() => fileInputRef.current?.click()}
+                  className="px-4 py-2 border border-border text-foreground hover:bg-muted rounded-lg text-sm"
+                >
+                  Upload a document
+                </button>
               </div>
             </div>
-          ) : (
-            <>
-              {activeSection === 'profile' && (
-                <ProfileSection
-                  profile={profile}
-                  loading={false}
-                  onUpdate={handleProfileUpdate}
-                />
-              )}
+          </div>
+        ) : (
+          <>
+            {activeSection === 'profile' && (
+              <ProfileSection
+                profile={profile}
+                loading={false}
+                onUpdate={handleProfileUpdate}
+              />
+            )}
 
-              {activeSection === 'styles' && (
-                <StylesSection
-                  styles={styles}
-                  loading={false}
-                  onUpdate={handleStyleUpdate}
-                />
-              )}
+            {activeSection === 'styles' && (
+              <StylesSection
+                styles={styles}
+                loading={false}
+                onUpdate={handleStyleUpdate}
+              />
+            )}
 
-              {activeSection === 'domains' && (
-                <DomainsSection
-                  domains={domains}
-                  loading={false}
-                  onNavigate={(id) => router.push(`/domains/${id}`)}
-                />
-              )}
+            {activeSection === 'domains' && (
+              <DomainsSection
+                domains={domains}
+                loading={false}
+                onNavigate={(id) => router.push(`/domains/${id}`)}
+              />
+            )}
 
-              {activeSection === 'entries' && (
-                <EntriesSection
-                  entries={entries}
-                  loading={false}
-                  onAdd={() => router.push('/chat?action=add-knowledge')}
-                  onDelete={handleDeleteEntry}
-                />
-              )}
+            {activeSection === 'entries' && (
+              <EntriesSection
+                entries={entries}
+                loading={false}
+                onAdd={() => router.push('/chat?action=add-knowledge')}
+                onDelete={handleDeleteEntry}
+              />
+            )}
 
-              {activeSection === 'platforms' && (
-                <PlatformsSection
-                  platforms={platforms}
-                  loading={false}
-                  onNavigate={(platform) => router.push(`/context/${platform}`)}
-                />
-              )}
+            {activeSection === 'platforms' && (
+              <PlatformsSection
+                platforms={platforms}
+                loading={false}
+                onNavigate={(platform) => router.push(`/context/${platform}`)}
+              />
+            )}
 
-              {activeSection === 'documents' && (
-                <DocumentsSection
-                  documents={documents}
-                  loading={false}
-                  onUpload={() => fileInputRef.current?.click()}
-                />
-              )}
-            </>
-          )}
-        </main>
-      </div>
+            {activeSection === 'documents' && (
+              <DocumentsSection
+                documents={documents}
+                loading={false}
+                onUpload={() => fileInputRef.current?.click()}
+              />
+            )}
+          </>
+        )}
+      </main>
 
       {/* Hidden file input */}
       <input
@@ -1308,6 +1121,6 @@ export default function ContextPage() {
         accept=".pdf,.doc,.docx,.txt,.md"
         onChange={handleFileUpload}
       />
-    </div>
+    </>
   );
 }

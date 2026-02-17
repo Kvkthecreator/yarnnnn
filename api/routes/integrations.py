@@ -770,15 +770,23 @@ async def get_integration(
     """
     user_id = auth.user_id
 
-    try:
-        result = auth.client.table("platform_connections").select(
-            "id, platform, status, metadata, last_synced_at, created_at"
-        ).eq("user_id", user_id).eq("platform", provider).execute()
+    # ADR-058: gmail may be stored as 'google' and vice versa (OAuth provider alias)
+    PROVIDER_ALIASES = {"gmail": ["gmail", "google"], "google": ["google", "gmail"]}
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
-        if not result.data:
+    try:
+        row = None
+        for p in providers_to_try:
+            result = auth.client.table("platform_connections").select(
+                "id, platform, status, metadata, last_synced_at, created_at"
+            ).eq("user_id", user_id).eq("platform", p).execute()
+            if result.data:
+                row = result.data[0]
+                break
+
+        if not row:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
 
-        row = result.data[0]
         metadata = row.get("metadata", {}) or {}
 
         return IntegrationResponse(
@@ -2421,12 +2429,23 @@ async def get_landscape(
 
     user_id = auth.user_id
 
-    # Get integration
-    integration = auth.client.table("platform_connections").select(
-        "id, credentials_encrypted, refresh_token_encrypted, metadata, landscape, landscape_discovered_at"
-    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
+    # ADR-058: gmail may be stored as 'google' and vice versa
+    PROVIDER_ALIASES = {"gmail": ["gmail", "google"], "google": ["google", "gmail"]}
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
-    if not integration.data:
+    # Get integration (try aliases)
+    integration = None
+    resolved_provider = provider
+    for p in providers_to_try:
+        result = auth.client.table("platform_connections").select(
+            "id, credentials_encrypted, refresh_token_encrypted, metadata, landscape, landscape_discovered_at"
+        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        if result.data:
+            integration = result
+            resolved_provider = p
+            break
+
+    if not integration or not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
     # Check if we need to discover
@@ -2437,7 +2456,7 @@ async def get_landscape(
 
     if needs_discovery:
         # Discover landscape from provider
-        landscape_data = await _discover_landscape(provider, user_id, integration.data[0])
+        landscape_data = await _discover_landscape(resolved_provider, user_id, integration.data[0])
 
         # Note: We do NOT auto-select sources here.
         # User must explicitly select sources in the modal, gated by tier limits.
@@ -2457,7 +2476,7 @@ async def get_landscape(
     # Get sync records for this provider (ADR-058)
     sync_result = auth.client.table("sync_registry").select(
         "resource_id, resource_name, last_synced_at, item_count"
-    ).eq("user_id", user_id).eq("platform", provider).execute()
+    ).eq("user_id", user_id).eq("platform", resolved_provider).execute()
 
     sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
 
@@ -2907,14 +2926,22 @@ async def get_selected_sources(
     """
     user_id = auth.user_id
 
-    integration = auth.client.table("platform_connections").select(
-        "landscape"
-    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
+    PROVIDER_ALIASES = {"gmail": ["gmail", "google"], "google": ["google", "gmail"]}
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
-    if not integration.data:
+    integration_data = None
+    for p in providers_to_try:
+        result = auth.client.table("platform_connections").select(
+            "landscape"
+        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        if result.data:
+            integration_data = result.data[0]
+            break
+
+    if not integration_data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
-    landscape = integration.data[0].get("landscape", {}) or {}
+    landscape = integration_data.get("landscape", {}) or {}
     selected = landscape.get("selected_sources", [])
 
     return {
@@ -2940,19 +2967,27 @@ async def trigger_platform_sync(
 
     user_id = auth.user_id
 
-    # Verify integration exists
-    integration = auth.client.table("platform_connections").select(
-        "id, status, landscape"
-    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
+    PROVIDER_ALIASES = {"gmail": ["gmail", "google"], "google": ["google", "gmail"]}
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
-    if not integration.data:
+    # Verify integration exists (try aliases)
+    integration_row = None
+    for p in providers_to_try:
+        result = auth.client.table("platform_connections").select(
+            "id, status, landscape"
+        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        if result.data:
+            integration_row = result.data[0]
+            break
+
+    if not integration_row:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
-    if integration.data[0]["status"] != "active":
+    if integration_row["status"] != "active":
         raise HTTPException(status_code=400, detail=f"{provider} integration is not active")
 
     # Get selected sources
-    landscape = integration.data[0].get("landscape", {}) or {}
+    landscape = integration_row.get("landscape", {}) or {}
     selected = landscape.get("selected_sources", [])
 
     if not selected:
