@@ -46,7 +46,7 @@ import type { PlatformSummary } from '@/components/ui/PlatformCard';
 // Types
 // =============================================================================
 
-type Section = 'profile' | 'styles' | 'domains' | 'entries' | 'platforms' | 'documents';
+type Section = 'profile' | 'styles' | 'domains' | 'entries' | 'platforms' | 'platform_slack' | 'platform_gmail' | 'platform_notion' | 'platform_calendar' | 'documents';
 
 interface Profile {
   id?: string;
@@ -132,6 +132,8 @@ const PLATFORM_CONFIG: Record<string, {
 // Sidebar Navigation
 // =============================================================================
 
+const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
+
 interface SidebarProps {
   activeSection: Section;
   onSectionChange: (section: Section) => void;
@@ -142,56 +144,143 @@ interface SidebarProps {
     platforms: number;
     documents: number;
   };
+  platforms: PlatformSummary[];
 }
 
-function Sidebar({ activeSection, onSectionChange, counts }: SidebarProps) {
-  const navItems: Array<{ section: Section; label: string; icon: React.ReactNode; count?: number; group?: string }> = [
-    { section: 'profile', label: 'Profile', icon: <User className="w-4 h-4" />, group: 'KNOWLEDGE' },
-    { section: 'styles', label: 'Styles', icon: <Palette className="w-4 h-4" />, count: counts.styles, group: 'KNOWLEDGE' },
-    { section: 'domains', label: 'Domains', icon: <FolderKanban className="w-4 h-4" />, count: counts.domains, group: 'KNOWLEDGE' },
-    { section: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" />, count: counts.entries, group: 'KNOWLEDGE' },
-    { section: 'platforms', label: 'Platforms', icon: <Database className="w-4 h-4" />, count: counts.platforms, group: 'FILESYSTEM' },
-    { section: 'documents', label: 'Documents', icon: <FileText className="w-4 h-4" />, count: counts.documents, group: 'FILESYSTEM' },
+function Sidebar({ activeSection, onSectionChange, counts, platforms }: SidebarProps) {
+  const router = useRouter();
+  const knowledgeItems: Array<{ section: Section; label: string; icon: React.ReactNode; count?: number }> = [
+    { section: 'profile', label: 'Profile', icon: <User className="w-4 h-4" /> },
+    { section: 'styles', label: 'Styles', icon: <Palette className="w-4 h-4" />, count: counts.styles },
+    { section: 'domains', label: 'Domains', icon: <FolderKanban className="w-4 h-4" />, count: counts.domains },
+    { section: 'entries', label: 'Entries', icon: <BookOpen className="w-4 h-4" />, count: counts.entries },
   ];
 
-  let currentGroup = '';
+  // Build per-platform status from loaded platforms data
+  const platformStatus: Record<string, PlatformSummary | undefined> = {};
+  for (const p of platforms) {
+    // calendar may come back as 'google' from backend
+    const key = p.provider === 'google' ? 'calendar' : p.provider;
+    platformStatus[key] = p;
+  }
+
+  const isPlatformSection = activeSection.startsWith('platform_') || activeSection === 'platforms';
 
   return (
-    <nav className="w-48 flex-shrink-0 border-r border-border bg-muted/50">
-      <div className="p-4 space-y-1">
-        {navItems.map((item) => {
-          const showGroupHeader = item.group && item.group !== currentGroup;
-          if (item.group) currentGroup = item.group;
+    <nav className="w-48 flex-shrink-0 border-r border-border bg-muted/50 flex flex-col">
+      <div className="p-4 space-y-1 flex-1 overflow-y-auto">
+        {/* KNOWLEDGE group */}
+        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-2 pb-2">
+          Knowledge
+        </div>
+        {knowledgeItems.map((item) => (
+          <button
+            key={item.section}
+            onClick={() => onSectionChange(item.section)}
+            className={cn(
+              "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
+              activeSection === item.section
+                ? "bg-primary/10 text-primary"
+                : "text-muted-foreground hover:bg-muted hover:text-foreground"
+            )}
+          >
+            <span className="flex items-center gap-2">
+              {item.icon}
+              {item.label}
+            </span>
+            {item.count !== undefined && item.count > 0 && (
+              <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+                {item.count}
+              </span>
+            )}
+          </button>
+        ))}
 
-          return (
-            <div key={item.section}>
-              {showGroupHeader && (
-                <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-4 pb-2">
-                  {item.group}
-                </div>
-              )}
+        {/* FILESYSTEM group */}
+        <div className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-3 pt-4 pb-2">
+          Filesystem
+        </div>
+
+        {/* Platforms parent item */}
+        <button
+          onClick={() => onSectionChange('platforms')}
+          className={cn(
+            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
+            isPlatformSection
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <span className="flex items-center gap-2">
+            <Database className="w-4 h-4" />
+            Platforms
+          </span>
+          {counts.platforms > 0 && (
+            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+              {counts.platforms}
+            </span>
+          )}
+        </button>
+
+        {/* Per-platform sub-items — always shown */}
+        <div className="ml-3 space-y-0.5">
+          {ALL_PLATFORMS.map((platformKey) => {
+            const config = PLATFORM_CONFIG[platformKey];
+            const summary = platformStatus[platformKey];
+            const isConnected = summary?.status === 'connected';
+            const sectionKey = `platform_${platformKey}` as Section;
+            const isActive = activeSection === sectionKey;
+
+            return (
               <button
-                onClick={() => onSectionChange(item.section)}
+                key={platformKey}
+                onClick={() => router.push(`/context/${platformKey}`)}
                 className={cn(
-                  "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors",
-                  activeSection === item.section
+                  "w-full flex items-center justify-between px-3 py-1.5 rounded-lg text-xs transition-colors",
+                  isActive
                     ? "bg-primary/10 text-primary"
-                    : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                    : isConnected
+                      ? "text-foreground hover:bg-muted"
+                      : "text-muted-foreground/60 hover:bg-muted hover:text-muted-foreground"
                 )}
               >
                 <span className="flex items-center gap-2">
-                  {item.icon}
-                  {item.label}
+                  <span className={cn(
+                    "w-1.5 h-1.5 rounded-full shrink-0",
+                    isConnected ? "bg-green-500" : "bg-muted-foreground/30"
+                  )} />
+                  {config.label}
                 </span>
-                {item.count !== undefined && item.count > 0 && (
-                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
-                    {item.count}
+                {isConnected && summary && summary.resource_count > 0 && (
+                  <span className="text-muted-foreground">
+                    {summary.resource_count}
                   </span>
                 )}
               </button>
-            </div>
-          );
-        })}
+            );
+          })}
+        </div>
+
+        {/* Documents */}
+        <button
+          onClick={() => onSectionChange('documents')}
+          className={cn(
+            "w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm transition-colors mt-1",
+            activeSection === 'documents'
+              ? "bg-primary/10 text-primary"
+              : "text-muted-foreground hover:bg-muted hover:text-foreground"
+          )}
+        >
+          <span className="flex items-center gap-2">
+            <FileText className="w-4 h-4" />
+            Documents
+          </span>
+          {counts.documents > 0 && (
+            <span className="text-xs bg-muted px-1.5 py-0.5 rounded">
+              {counts.documents}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Actions */}
@@ -786,8 +875,6 @@ interface PlatformsSectionProps {
 }
 
 function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionProps) {
-  const router = useRouter();
-
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
@@ -796,94 +883,94 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
     );
   }
 
-  const connectedPlatforms = platforms.filter((p) => p.status === 'connected');
-  const availablePlatforms = ['slack', 'gmail', 'notion', 'calendar'].filter(
-    (p) => !connectedPlatforms.some((cp) => cp.provider === p || (p === 'calendar' && cp.provider === 'google'))
-  );
+  // Build a map for quick lookup; calendar may come from backend as 'google'
+  const platformMap: Record<string, PlatformSummary | undefined> = {};
+  for (const p of platforms) {
+    const key = p.provider === 'google' ? 'calendar' : p.provider;
+    platformMap[key] = p;
+  }
+
+  const connectedCount = ALL_PLATFORMS.filter((p) => platformMap[p]?.status === 'connected').length;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Connected Platforms</h2>
-      </div>
-
-      {connectedPlatforms.length === 0 ? (
-        <div className="bg-muted/50 rounded-lg p-6 text-center">
-          <Database className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-muted-foreground mb-4">
-            No platforms connected yet. Connect Slack, Gmail, Notion, or Calendar to auto-learn your context.
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Platforms</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            {connectedCount === 0
+              ? 'Connect platforms to auto-learn your context.'
+              : `${connectedCount} of ${ALL_PLATFORMS.length} connected`}
           </p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {connectedPlatforms.map((platform) => {
-            const config = PLATFORM_CONFIG[platform.provider] || {
-              label: platform.provider,
-              icon: <Database className="w-4 h-4" />,
-              colors: { bg: 'bg-gray-100', text: 'text-gray-600' },
-            };
+      </div>
 
-            return (
-              <button
-                key={platform.provider}
-                onClick={() => onNavigate(platform.provider)}
-                className="bg-card rounded-lg border border-border p-4 text-left hover:border-primary/50 transition-colors"
-              >
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
-                      {config.icon}
-                    </div>
-                    <div>
-                      <span className="font-medium text-foreground">
-                        {config.label}
-                      </span>
-                      {platform.workspace_name && (
-                        <p className="text-xs text-muted-foreground">
-                          {platform.workspace_name}
-                        </p>
-                      )}
-                    </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {ALL_PLATFORMS.map((platformKey) => {
+          const config = PLATFORM_CONFIG[platformKey];
+          const summary = platformMap[platformKey];
+          const isConnected = summary?.status === 'connected';
+          const navTarget = platformKey === 'calendar' && summary?.provider === 'google' ? 'google' : platformKey;
+
+          return (
+            <button
+              key={platformKey}
+              onClick={() => onNavigate(navTarget)}
+              className={cn(
+                "rounded-lg border p-4 text-left transition-colors",
+                isConnected
+                  ? "bg-card border-border hover:border-primary/50"
+                  : "bg-muted/30 border-border border-dashed hover:border-muted-foreground/40"
+              )}
+            >
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className={cn(
+                    "p-2 rounded-lg",
+                    isConnected ? config.colors.bg : "bg-muted",
+                    isConnected ? config.colors.text : "text-muted-foreground"
+                  )}>
+                    {config.icon}
                   </div>
-                  <div className="flex items-center gap-2">
-                    {platform.status === 'connected' && (
-                      <CheckCircle2 className="w-4 h-4 text-green-500" />
+                  <div>
+                    <span className={cn("font-medium text-sm", isConnected ? "text-foreground" : "text-muted-foreground")}>
+                      {config.label}
+                    </span>
+                    {isConnected && summary?.workspace_name && (
+                      <p className="text-xs text-muted-foreground truncate max-w-[140px]">
+                        {summary.workspace_name}
+                      </p>
                     )}
-                    <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    {!isConnected && (
+                      <p className="text-xs text-muted-foreground/60">Not connected</p>
+                    )}
                   </div>
                 </div>
-                <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                  <span>{platform.resource_count || 0} {platform.resource_type || 'sources'}</span>
-                  <span>{platform.activity_7d || 0} items (7d)</span>
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      )}
+                {isConnected ? (
+                  <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                ) : (
+                  <span className="text-xs text-primary font-medium">Connect →</span>
+                )}
+              </div>
 
-      {availablePlatforms.length > 0 && (
-        <div className="pt-4 border-t border-border">
-          <h3 className="text-sm font-medium text-foreground mb-3">
-            Connect more platforms
-          </h3>
-          <div className="flex flex-wrap gap-2">
-            {availablePlatforms.map((platform) => {
-              const config = PLATFORM_CONFIG[platform];
-              return (
-                <button
-                  key={platform}
-                  onClick={() => router.push(`/context/${platform}`)}
-                  className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg text-sm text-muted-foreground hover:border-primary/50 hover:text-foreground transition-colors"
-                >
-                  {config.icon}
-                  {config.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      )}
+              {isConnected && summary && (
+                <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <CheckCircle2 className="w-3 h-3 text-green-500" />
+                    Connected
+                  </span>
+                  {summary.resource_count > 0 && (
+                    <span>{summary.resource_count} {summary.resource_type || 'sources'}</span>
+                  )}
+                  {summary.activity_7d > 0 && (
+                    <span>{summary.activity_7d} items (7d)</span>
+                  )}
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -1127,6 +1214,7 @@ export default function ContextPage() {
           activeSection={activeSection}
           onSectionChange={handleSectionChange}
           counts={counts}
+          platforms={platforms}
         />
 
         {/* Content Area */}

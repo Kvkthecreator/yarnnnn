@@ -903,8 +903,17 @@ export default function PlatformDetailPage() {
   // =============================================================================
 
   if (!integration) {
+    const connectBenefits: Record<string, string[]> = {
+      slack: ['Sync channels as context sources', 'Surface recent messages to TP', 'Send deliverables to channels or DMs'],
+      gmail: ['Sync email labels as context', 'Surface recent emails to TP', 'Send draft emails as deliverables'],
+      notion: ['Sync pages and databases', 'Surface Notion content to TP', 'Write AI outputs back to pages'],
+      google: ['Sync calendar events', 'Understand your schedule context', 'Create events as deliverables'],
+      calendar: ['Sync calendar events', 'Understand your schedule context', 'Create events as deliverables'],
+    };
+    const benefits = connectBenefits[platform] || [];
+
     return (
-      <div className="h-full">
+      <div className="h-full overflow-auto">
         <div className="border-b border-border px-6 py-4">
           <button
             onClick={() => router.push('/context')}
@@ -914,22 +923,45 @@ export default function PlatformDetailPage() {
             Back to Context
           </button>
         </div>
-        <div className="flex items-center justify-center h-[calc(100%-60px)]">
-          <div className="text-center max-w-md">
-            <div className={cn('w-16 h-16 rounded-full mx-auto mb-4 flex items-center justify-center', config.bgColor)}>
-              <span className={config.color}>{config.icon}</span>
+        <div className="p-6 max-w-lg">
+          {/* Platform header */}
+          <div className="flex items-center gap-4 mb-6">
+            <div className={cn('w-14 h-14 rounded-xl flex items-center justify-center', config.bgColor)}>
+              <span className={cn(config.color, 'scale-150')}>{config.icon}</span>
             </div>
-            <h2 className="text-xl font-medium mb-2">{config.label} Not Connected</h2>
-            <p className="text-sm text-muted-foreground mb-6">
-              Connect {config.label} to import context from your {config.resourceLabel.toLowerCase()}.
-            </p>
-            <button
-              onClick={() => router.push('/settings?tab=integrations')}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
-            >
-              Connect {config.label}
-            </button>
+            <div>
+              <h2 className="text-xl font-semibold text-foreground">{config.label}</h2>
+              <p className="text-sm text-muted-foreground">Not connected</p>
+            </div>
           </div>
+
+          {/* Benefits */}
+          {benefits.length > 0 && (
+            <div className="mb-6 space-y-2">
+              {benefits.map((benefit) => (
+                <div key={benefit} className="flex items-center gap-2 text-sm text-muted-foreground">
+                  <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
+                  {benefit}
+                </div>
+              ))}
+            </div>
+          )}
+
+          <button
+            onClick={async () => {
+              try {
+                const { authorization_url } = await api.integrations.getAuthorizationUrl(
+                  platform === 'calendar' ? 'google' : platform
+                );
+                window.location.href = authorization_url;
+              } catch {
+                router.push('/settings?tab=integrations');
+              }
+            }}
+            className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"
+          >
+            Connect {config.label}
+          </button>
         </div>
       </div>
     );
