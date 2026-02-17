@@ -399,20 +399,17 @@ def get_frontend_redirect_url(success: bool, provider: str, error: Optional[str]
     """
     Get the URL to redirect the user to after OAuth.
 
-    ADR-057: Redirects to dashboard for streamlined onboarding flow.
-    The dashboard will show the source selection modal automatically.
+    Redirects to /context/{platform} page for immediate source selection.
     On error, redirects to settings page.
     """
     base_url = os.getenv("FRONTEND_URL", "https://yarnnn.com")
 
     if success:
-        # ADR-057: Redirect to dashboard with provider param
-        # PlatformSyncStatus will detect this and show source selection modal
+        # Redirect to context page for immediate source selection after connect
         params = {
-            "provider": provider,
             "status": "connected",
         }
-        return f"{base_url}/dashboard?{urlencode(params)}"
+        return f"{base_url}/context/{provider}?{urlencode(params)}"
     else:
         # On error, go to settings for troubleshooting
         params = {
