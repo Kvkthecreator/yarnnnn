@@ -445,3 +445,69 @@ async def notify_suggestion_created(
         source_type="suggestion",  # ADR-060: Uses email_suggestion_created preference
         source_id=None,
     )
+
+
+# =============================================================================
+# ADR-060 Amendment 001: Cold Start Notification
+# =============================================================================
+
+async def notify_analyst_cold_start(
+    db_client,
+    user_id: str,
+) -> bool:
+    """
+    Send one-time cold start message explaining the analyst feature.
+
+    ADR-060 Amendment 001: When analysis runs but finds no patterns,
+    send a one-time message explaining the feature exists.
+
+    Only sent once per user, tracked in user_notification_preferences.
+
+    Returns True if sent, False if already sent or error.
+    """
+    # Check if already sent
+    try:
+        pref_result = (
+            db_client.table("user_notification_preferences")
+            .select("analyst_cold_start_sent")
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+        if pref_result.data and len(pref_result.data) > 0:
+            if pref_result.data[0].get("analyst_cold_start_sent"):
+                return False  # Already sent
+
+    except Exception:
+        pass  # Continue - will try to send
+
+    message = (
+        "I've started analyzing your conversations to detect patterns that could "
+        "benefit from automation. I haven't found any recurring needs yet, but as "
+        "you use YARNNN more, I'll suggest deliverables when I notice you repeatedly "
+        "asking about the same topics or resources."
+    )
+
+    result = await send_notification(
+        db_client=db_client,
+        user_id=user_id,
+        message=message,
+        channel="email",
+        urgency="low",
+        context={"type": "analyst_cold_start"},
+        source_type="system",
+        source_id=None,
+    )
+
+    # Mark as sent
+    if result.status == "sent":
+        try:
+            # Upsert to handle case where row doesn't exist
+            db_client.table("user_notification_preferences").upsert(
+                {"user_id": user_id, "analyst_cold_start_sent": True},
+                on_conflict="user_id"
+            ).execute()
+        except Exception as e:
+            logger.warning(f"[NOTIFICATION] Failed to mark cold start sent: {e}")
+
+    return result.status == "sent"

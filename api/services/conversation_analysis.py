@@ -65,36 +65,132 @@ SUGGESTABLE_TYPES = {
 }
 
 
-ANALYSIS_SYSTEM_PROMPT = """You are analyzing user conversations to detect implicit work patterns.
+# =============================================================================
+# ADR-060 Amendment 001: Behavioral Pattern Detection
+# =============================================================================
 
-Your task: Identify recurring information needs that could become automated deliverables.
+# Stage-based confidence thresholds
+STAGE_THRESHOLDS = {
+    "onboarding": None,   # Skip analysis entirely
+    "exploring": 0.70,    # High confidence only
+    "active": 0.50,       # Normal threshold
+    "power_user": 0.50,   # Normal (gap analysis in future)
+}
 
-**What to look for:**
-1. **Explicit frequency mentions**: "every week", "daily", "monthly", "on Mondays"
-2. **Repeated queries**: Same type of question asked 2+ times (e.g., "what happened in #engineering")
-3. **Audience references**: "for the board", "for my manager", "client update"
-4. **Platform-specific patterns**: Slack channel summaries, email triage, Notion updates
 
-**Output JSON array of suggestions:**
+async def get_user_stage(client, user_id: str) -> str:
+    """
+    Determine user maturity stage for analysis thresholds.
+
+    Stages:
+    - onboarding: < 7 days old OR < 3 sessions (skip analysis)
+    - exploring: 3-10 sessions, no deliverables (high threshold)
+    - active: 10+ sessions OR 1+ deliverables (normal threshold)
+    - power_user: 5+ deliverables (normal + gap analysis future)
+    """
+    try:
+        # Check account age
+        user_result = client.auth.admin.get_user_by_id(user_id)
+        if not user_result or not user_result.user:
+            return "exploring"  # Default if can't determine
+
+        created_at = user_result.user.created_at
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+        elif hasattr(created_at, 'tzinfo') and created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+
+        account_age_days = (datetime.now(timezone.utc) - created_at).days
+
+        # Check session count (all time)
+        session_result = (
+            client.table("chat_sessions")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .execute()
+        )
+        session_count = session_result.count if hasattr(session_result, 'count') else len(session_result.data or [])
+
+        # Check deliverable count
+        deliverable_result = (
+            client.table("deliverables")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .in_("status", ["active", "paused"])
+            .execute()
+        )
+        deliverable_count = deliverable_result.count if hasattr(deliverable_result, 'count') else len(deliverable_result.data or [])
+
+        # Determine stage
+        if account_age_days < 7 or session_count < 3:
+            return "onboarding"
+        elif deliverable_count >= 5:
+            return "power_user"
+        elif deliverable_count >= 1 or session_count >= 10:
+            return "active"
+        else:
+            return "exploring"
+
+    except Exception as e:
+        logger.warning(f"[ANALYSIS] Failed to determine user stage: {e}")
+        return "exploring"  # Safe default
+
+
+ANALYSIS_SYSTEM_PROMPT = """You are analyzing user conversation BEHAVIOR patterns across multiple sessions.
+
+**Your goal**: Detect implicit recurring information needs - NOT explicit scheduling requests.
+
+## What to Look For (Cross-Session Behavioral Patterns)
+
+1. **Repeated Topic Queries** (3+ sessions)
+   - User asks about the same subject/entity across different sessions
+   - Example: "#engineering channel" mentioned in sessions 1, 3, and 5
+   - Suggests: Automated digest for that topic/channel
+
+2. **Platform Resource Interest** (2+ occurrences)
+   - Same Slack channel, email folder, or Notion page queried multiple times
+   - Example: "What's new in #daily-work?" asked in 2 sessions
+   - Suggests: Platform-specific recurring digest
+
+3. **Temporal Information Needs** (2+ occurrences)
+   - Phrases indicating time-based catchup: "yesterday", "this week", "catch me up", "what happened"
+   - Example: "What happened in Slack while I was out?"
+   - Suggests: Recurring summary deliverable
+
+4. **Context Re-establishment** (2+ sessions)
+   - User repeatedly explains the same background information
+   - Example: "I'm working on Project X for Client Y" restated in multiple sessions
+   - Suggests: This should be stored context or deliverable template
+
+## What NOT to Look For
+
+- **Explicit scheduling language**: "every Monday", "weekly", "monthly"
+  (Users who say this would create deliverables themselves)
+- **One-time queries**: Single questions about a topic
+- **Exploration/testing**: Questions about system capabilities, feature discovery
+- **System status checks**: "Is my Slack connected?", "What documents do I have?"
+
+## Confidence Scoring (Behavioral Evidence)
+
+- **0.80+**: Clear cross-session repetition (3+ instances of same pattern)
+- **0.60-0.79**: Moderate pattern (2 instances with supporting context)
+- **0.40-0.59**: Weak signal, needs more data to confirm
+- **< 0.40**: No actionable pattern detected
+
+## Output Format
+
+Return a JSON array of suggestions. Each suggestion:
 ```json
-[
-  {
-    "confidence": 0.75,
-    "deliverable_type": "slack_channel_digest",
-    "title": "Weekly #engineering Digest",
-    "description": "Summary of key discussions in #engineering channel",
-    "suggested_frequency": "weekly",
-    "suggested_sources": [{"type": "slack", "channel": "engineering"}],
-    "detection_reason": "User asked about #engineering activity 3 times"
-  }
-]
+{
+  "confidence": 0.75,
+  "deliverable_type": "slack_channel_digest",
+  "title": "Weekly #engineering Digest",
+  "description": "Summary of key discussions and decisions from #engineering",
+  "suggested_frequency": "weekly",
+  "suggested_sources": [{"type": "slack", "channel": "engineering"}],
+  "detection_reason": "User asked about #engineering activity in 3 separate sessions over the past week"
+}
 ```
-
-**Confidence scoring:**
-- 0.80+: Explicit request with frequency and clear scope
-- 0.60-0.79: Clear pattern but implicit (repeated queries, mentioned audience)
-- 0.40-0.59: Possible pattern but ambiguous
-- <0.40: Too weak to suggest
 
 **Valid deliverable_type values:**
 - slack_channel_digest: Slack channel summary
@@ -106,9 +202,12 @@ Your task: Identify recurring information needs that could become automated deli
 **Valid frequency values:**
 - daily, weekly, biweekly, monthly
 
-Return ONLY the JSON array, no other text.
-Return empty array [] if no patterns detected with confidence >= 0.40.
-"""
+Return empty array `[]` if:
+- No behavioral patterns detected with confidence >= 0.40
+- Conversations are exploratory/testing behavior
+- Insufficient cross-session data
+
+**Important**: Focus on BEHAVIOR across sessions, not keywords within sessions."""
 
 
 async def get_recent_sessions(
@@ -505,21 +604,33 @@ async def create_suggested_deliverable(
 async def run_analysis_for_user(
     client,
     user_id: str,
-) -> int:
+) -> tuple[int, str]:
     """
     Run full analysis pipeline for a single user.
+
+    ADR-060 Amendment 001: Uses user stage to determine thresholds.
 
     Args:
         client: Supabase client
         user_id: User UUID
 
     Returns:
-        Number of suggestions created
+        Tuple of (suggestions_created, user_stage)
     """
+    # Check user stage first
+    stage = await get_user_stage(client, user_id)
+
+    if stage == "onboarding":
+        logger.info(f"[ANALYSIS] Skipping {user_id}: onboarding stage")
+        return 0, stage
+
+    # Get threshold for this stage
+    threshold = STAGE_THRESHOLDS.get(stage, 0.50)
+
     # Gather inputs
     sessions = await get_recent_sessions(client, user_id, days=7)
     if len(sessions) < 2:
-        return 0
+        return 0, stage
 
     existing = await get_user_deliverables(client, user_id)
     knowledge = await get_user_knowledge(client, user_id)
@@ -529,12 +640,13 @@ async def run_analysis_for_user(
         client, user_id, sessions, existing, knowledge
     )
 
-    # Create suggestions that meet threshold
+    # Create suggestions that meet stage-appropriate threshold
     created = 0
     for suggestion in suggestions:
-        if suggestion.confidence >= 0.50:
+        if suggestion.confidence >= threshold:
             result = await create_suggested_deliverable(client, user_id, suggestion)
             if result:
                 created += 1
 
-    return created
+    logger.info(f"[ANALYSIS] User {user_id} (stage={stage}): {created} suggestions created")
+    return created, stage

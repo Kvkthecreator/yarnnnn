@@ -777,21 +777,19 @@ async def run_unified_scheduler():
         logger.warning(f"[IMPORT] Import jobs processing skipped: {e}")
 
     # -------------------------------------------------------------------------
+    # -------------------------------------------------------------------------
     # ADR-060/061: Conversation Analysis Phase (daily)
+    # ADR-060 Amendment 001: Behavioral pattern detection with user stages
     # Detects patterns in user conversations, creates suggested deliverables
     # -------------------------------------------------------------------------
     analysis_users = 0
     analysis_suggestions = 0
+    analysis_cold_starts = 0
     # Run once per day at 6 AM UTC (when hour == 6 and minute < 5)
     if now.hour == 6 and now.minute < 5:
         try:
-            from services.conversation_analysis import (
-                get_recent_sessions,
-                get_user_deliverables,
-                get_user_knowledge,
-                analyze_conversation_patterns,
-                create_suggested_deliverable,
-            )
+            from services.conversation_analysis import run_analysis_for_user
+            from services.notifications import notify_suggestion_created, notify_analyst_cold_start
 
             # Get users with recent activity
             active_users_result = supabase.rpc(
@@ -818,51 +816,63 @@ async def run_unified_scheduler():
 
             for user_id in user_ids:
                 try:
-                    sessions = await get_recent_sessions(supabase, user_id, days=7)
-                    if len(sessions) < 3:  # Need minimum activity
-                        continue
-
-                    existing = await get_user_deliverables(supabase, user_id)
-                    knowledge = await get_user_knowledge(supabase, user_id)
-
-                    suggestions = await analyze_conversation_patterns(
-                        supabase, user_id, sessions, existing, knowledge
+                    # ADR-060 Amendment 001: run_analysis_for_user handles stage detection
+                    suggestions_created, user_stage = await run_analysis_for_user(
+                        supabase, user_id
                     )
 
-                    # Track suggestions created for this user
-                    user_suggestions_created = []
+                    if user_stage == "onboarding":
+                        # Skip onboarding users entirely
+                        continue
 
-                    for suggestion in suggestions:
-                        if suggestion.confidence >= 0.50:
-                            result = await create_suggested_deliverable(
-                                supabase, user_id, suggestion
-                            )
-                            if result:
-                                analysis_suggestions += 1
-                                user_suggestions_created.append(suggestion.title)
+                    analysis_users += 1
+                    analysis_suggestions += suggestions_created
 
-                    # ADR-060: Send notification if suggestions were created
-                    if user_suggestions_created:
+                    if suggestions_created > 0:
+                        # Get suggestion titles for notification
+                        # Query the recently created suggestions
                         try:
-                            from services.notifications import notify_suggestion_created
+                            recent_suggestions = (
+                                supabase.table("deliverable_versions")
+                                .select("deliverable_id, deliverables(title)")
+                                .eq("status", "suggested")
+                                .order("created_at", desc=True)
+                                .limit(suggestions_created)
+                                .execute()
+                            )
+                            titles = [
+                                s.get("deliverables", {}).get("title", "Untitled")
+                                for s in (recent_suggestions.data or [])
+                            ]
+
                             await notify_suggestion_created(
                                 db_client=supabase,
                                 user_id=user_id,
-                                suggestion_count=len(user_suggestions_created),
-                                titles=user_suggestions_created,
+                                suggestion_count=suggestions_created,
+                                titles=titles,
                             )
                         except Exception as notify_err:
-                            logger.warning(f"[ANALYSIS] Notification failed for {user_id}: {notify_err}")
-
-                    analysis_users += 1
+                            logger.warning(f"[ANALYSIS] Suggestion notification failed: {notify_err}")
+                    else:
+                        # ADR-060 Amendment 001: Send cold start if no suggestions
+                        try:
+                            cold_start_sent = await notify_analyst_cold_start(
+                                supabase, user_id
+                            )
+                            if cold_start_sent:
+                                analysis_cold_starts += 1
+                                logger.info(f"[ANALYSIS] Sent cold start to {user_id}")
+                        except Exception as cold_err:
+                            logger.warning(f"[ANALYSIS] Cold start failed for {user_id}: {cold_err}")
 
                 except Exception as e:
                     logger.warning(f"[ANALYSIS] Error for user {user_id}: {e}")
 
-            if analysis_users > 0 or analysis_suggestions > 0:
+            if analysis_users > 0 or analysis_suggestions > 0 or analysis_cold_starts > 0:
                 logger.info(
                     f"[ANALYSIS] Processed {analysis_users} users, "
-                    f"created {analysis_suggestions} suggestions"
+                    f"created {analysis_suggestions} suggestions, "
+                    f"sent {analysis_cold_starts} cold starts"
                 )
 
         except Exception as e:
