@@ -1974,14 +1974,17 @@ async def enable_suggested_version(
     auth: UserClient,
 ) -> VersionResponse:
     """
-    Enable a suggested version by promoting it to 'staged' status.
+    Enable a suggested version by promoting it to 'staged' status
+    and activating the deliverable.
 
     ADR-060: This is the primary action for accepting analyst suggestions.
+    Enabling a suggestion means the user wants it to run on schedule,
+    so we also set the deliverable status to 'active'.
     """
     # Verify ownership
     check = (
         auth.client.table("deliverables")
-        .select("id")
+        .select("id, status")
         .eq("id", str(deliverable_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -2012,9 +2015,9 @@ async def enable_suggested_version(
             detail=f"Version is in '{v['status']}' status, not 'suggested'"
         )
 
-    # Promote to staged
     from datetime import datetime, timezone
 
+    # Promote version to staged
     update_result = (
         auth.client.table("deliverable_versions")
         .update({
@@ -2027,6 +2030,13 @@ async def enable_suggested_version(
 
     if not update_result.data:
         raise HTTPException(status_code=500, detail="Failed to enable version")
+
+    # Also activate the deliverable so it runs on schedule
+    # ADR-060: Enabling a suggestion should start the automation
+    if check.data.get("status") != "active":
+        auth.client.table("deliverables").update({
+            "status": "active",
+        }).eq("id", str(deliverable_id)).execute()
 
     v = update_result.data[0]
 
