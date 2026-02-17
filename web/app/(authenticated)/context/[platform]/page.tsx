@@ -243,11 +243,13 @@ function SyncStatusBanner({
   syncFrequency,
   nextSync,
   selectedCount,
+  syncedCount,
 }: {
   tier: string;
   syncFrequency: string;
   nextSync?: string | null;
   selectedCount: number;
+  syncedCount: number;
 }) {
   const frequencyInfo = SYNC_FREQUENCY_LABELS[syncFrequency] || SYNC_FREQUENCY_LABELS['2x_daily'];
 
@@ -278,8 +280,8 @@ function SyncStatusBanner({
 
   const nextSyncFormatted = formatNextSync(nextSync);
 
-  // Don't show if no sources selected
-  if (selectedCount === 0) {
+  // No sources selected AND no synced content — prompt to select
+  if (selectedCount === 0 && syncedCount === 0) {
     return (
       <div className="p-4 bg-muted/50 border border-border rounded-lg">
         <div className="flex items-start gap-3">
@@ -288,6 +290,24 @@ function SyncStatusBanner({
             <p className="text-sm font-medium">No sources selected</p>
             <p className="text-sm text-muted-foreground mt-1">
               Select sources below to start syncing context. Your {tier} plan syncs {frequencyInfo.label.toLowerCase()}.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Sources are selected but none have synced yet — show pending state
+  if (selectedCount > 0 && syncedCount === 0) {
+    return (
+      <div className="p-4 bg-muted/50 border border-border rounded-lg">
+        <div className="flex items-start gap-3">
+          <Clock className="w-5 h-5 text-muted-foreground mt-0.5" />
+          <div>
+            <p className="text-sm font-medium">{selectedCount} source{selectedCount !== 1 ? 's' : ''} selected — pending first sync</p>
+            <p className="text-sm text-muted-foreground mt-1">
+              Your {tier} plan syncs {frequencyInfo.label.toLowerCase()}.
+              {nextSyncFormatted && ` Next sync ${nextSyncFormatted}.`}
             </p>
           </div>
         </div>
@@ -1009,6 +1029,7 @@ export default function PlatformDetailPage() {
             syncFrequency={tierLimits.limits.sync_frequency}
             nextSync={tierLimits.next_sync}
             selectedCount={selectedIds.size}
+            syncedCount={resources.filter(r => r.items_extracted > 0).length}
           />
         )}
 
