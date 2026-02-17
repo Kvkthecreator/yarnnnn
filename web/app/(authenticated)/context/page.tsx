@@ -1002,7 +1002,7 @@ export default function ContextPage() {
   };
 
   // Check if user has any context
-  const hasContext = counts.platforms > 0 || counts.documents > 0 || counts.entries > 0;
+  const hasContext = platforms.filter((p) => p.status === 'connected').length > 0 || documents.length > 0 || entries.length > 0;
   const showEmptyState = !hasContext && !profile.name;
 
   if (loading) {
