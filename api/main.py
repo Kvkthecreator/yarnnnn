@@ -2,7 +2,7 @@
 YARNNN API - Context-aware AI work platform
 
 Single FastAPI application with route groups:
-- /api/context: Memory and document management
+- /api/memory: Memory layer (profile, styles, entries, activity)
 - /api/work: Work ticket lifecycle
 - /api/chat: Thinking Partner conversations
 - /api/domains: Context domains (ADR-034)
@@ -24,7 +24,7 @@ logging.basicConfig(
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import context, chat, documents, admin, webhooks, subscription, work, deliverables, account, integrations, domains
+from routes import memory, chat, documents, admin, webhooks, subscription, work, deliverables, account, integrations, domains
 
 app = FastAPI(
     title="YARNNN API",
@@ -56,7 +56,7 @@ async def health():
 
 
 # Mount routers
-app.include_router(context.router, prefix="/api/context", tags=["context"])
+app.include_router(memory.router, prefix="/api/memory", tags=["memory"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
 app.include_router(documents.router, prefix="/api", tags=["documents"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])

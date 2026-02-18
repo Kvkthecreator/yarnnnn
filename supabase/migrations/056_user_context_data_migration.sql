@@ -101,7 +101,7 @@ select
   entry_type || ':' || left(regexp_replace(content, '[^a-zA-Z0-9_\- ]', '', 'g'), 60),
   content,
   case
-    when source_type in ('manual', 'user_stated') then 'user_stated'
+    when source in ('manual', 'user_stated') then 'user_stated'
     else 'tp_extracted'
   end,
   coalesce(importance, 0.5)

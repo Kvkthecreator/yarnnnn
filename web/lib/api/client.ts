@@ -137,7 +137,7 @@ export const api = {
       confidence: number;
       created_at: string;
       updated_at: string;
-    }>>("/api/context/user/memories"),
+    }>>("/api/memory/user/memories"),
     create: (data: { content: string; entry_type?: string }) =>
       request<{
         id: string;
@@ -147,12 +147,12 @@ export const api = {
         confidence: number;
         created_at: string;
         updated_at: string;
-      }>("/api/context/user/memories", {
+      }>("/api/memory/user/memories", {
         method: "POST",
         body: JSON.stringify(data),
       }),
     importBulk: (data: BulkImportRequest) =>
-      request<{ memories_extracted: number }>("/api/context/user/memories/import", {
+      request<{ memories_extracted: number }>("/api/memory/user/memories/import", {
         method: "POST",
         body: JSON.stringify(data),
       }),
@@ -161,12 +161,12 @@ export const api = {
   // Memory/Entries management
   memories: {
     update: (memoryId: string, data: MemoryUpdate) =>
-      request<Memory>(`/api/context/memories/${memoryId}`, {
+      request<Memory>(`/api/memory/memories/${memoryId}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
     delete: (memoryId: string) =>
-      request<DeleteResponse>(`/api/context/memories/${memoryId}`, {
+      request<DeleteResponse>(`/api/memory/memories/${memoryId}`, {
         method: "DELETE",
       }),
   },
@@ -180,7 +180,7 @@ export const api = {
         company?: string;
         timezone?: string;
         summary?: string;
-      }>("/api/context/profile"),
+      }>("/api/memory/profile"),
     update: (data: {
       name?: string;
       role?: string;
@@ -194,7 +194,7 @@ export const api = {
         company?: string;
         timezone?: string;
         summary?: string;
-      }>("/api/context/profile", {
+      }>("/api/memory/profile", {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
@@ -209,13 +209,13 @@ export const api = {
           tone?: string;
           verbosity?: string;
         }>;
-      }>("/api/context/styles"),
+      }>("/api/memory/styles"),
     get: (platform: string) =>
       request<{
         platform: string;
         tone?: string;
         verbosity?: string;
-      }>(`/api/context/styles/${platform}`),
+      }>(`/api/memory/styles/${platform}`),
     update: (platform: string, data: {
       tone?: string;
       verbosity?: string;
@@ -224,7 +224,7 @@ export const api = {
         platform: string;
         tone?: string;
         verbosity?: string;
-      }>(`/api/context/styles/${platform}`, {
+      }>(`/api/memory/styles/${platform}`, {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
@@ -233,7 +233,7 @@ export const api = {
   // Onboarding state
   onboarding: {
     getState: () =>
-      request<OnboardingStateResponse>("/api/context/user/onboarding-state"),
+      request<OnboardingStateResponse>("/api/memory/user/onboarding-state"),
   },
 
   // Document endpoints (ADR-008: Document Pipeline)
@@ -1112,7 +1112,7 @@ export const api = {
           created_at: string;
         }>;
         total: number;
-      }>(`/api/context/activity${query ? `?${query}` : ""}`);
+      }>(`/api/memory/activity${query ? `?${query}` : ""}`);
     },
   },
 

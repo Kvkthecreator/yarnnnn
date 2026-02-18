@@ -1,7 +1,7 @@
 """
-Context routes - ADR-059: Simplified Context Model + ADR-063: Activity Log
+Memory routes - ADR-059: Simplified Context Model + ADR-063: Activity Log
 
-Single store: user_context table (key/value with source tracking).
+Mounted at /api/memory. Single store: user_context table (key/value with source tracking).
 
 Endpoints:
   GET  /profile              - Get profile fields (name, role, company, timezone, summary)

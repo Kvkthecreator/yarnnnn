@@ -149,4 +149,4 @@ async def list_domain_memories(domain_id: UUID, auth: UserClient):
 @router.post("/{domain_id}/memories")
 async def create_domain_memory(domain_id: UUID, memory: MemoryCreate, auth: UserClient):
     # ADR-059: knowledge_domains removed — redirect to user context
-    raise HTTPException(status_code=404, detail="Domain memories not supported (ADR-059). Use /api/context/user/memories instead.")
+    raise HTTPException(status_code=404, detail="Domain memories not supported (ADR-059). Use /api/memory/user/memories instead.")
