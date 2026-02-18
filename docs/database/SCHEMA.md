@@ -237,6 +237,8 @@ Conversation turns within a session.
 | metadata | JSONB | `{tokens, latency_ms, model}` |
 | created_at | TIMESTAMPTZ | Auto |
 
+Note: `knowledge_extracted` and `knowledge_extracted_at` columns were dropped in migration 059 (ADR-059 — extraction pipeline removed).
+
 ---
 
 ## Work Tables

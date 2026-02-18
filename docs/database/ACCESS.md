@@ -101,6 +101,21 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Completed Migrations
 
+### Migration 059: Drop dead columns from session_messages (2026-02-18) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/059_drop_dead_columns.sql
+```
+
+**Changes**:
+- Drops `knowledge_extracted` and `knowledge_extracted_at` from `session_messages`
+- These were placeholder columns for background conversation extraction (ADR-059 removed that pipeline)
+- Zero reads/writes in application code — confirmed before dropping
+
+---
+
 ### Migration 058: Fix SECURITY DEFINER View (2026-02-18) ✅
 
 **Status**: Applied
