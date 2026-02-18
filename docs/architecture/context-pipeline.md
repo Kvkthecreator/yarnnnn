@@ -2,13 +2,13 @@
 
 How platform data flows from OAuth connection through to the TP system prompt and deliverable execution.
 
-> **Last updated**: 2026-02-18 (ADR-062 — three-layer model, terminology clarification)
+> **Last updated**: 2026-02-18 (ADR-063 — four-layer model: Memory / Activity / Context / Work)
 
 ---
 
-## Conceptual Model: Three Layers
+## Conceptual Model: Four Layers
 
-Yarnnn operates on three distinct layers. The terminology is intentional and should be used consistently across code, docs, and conversation.
+Yarnnn operates on four distinct layers. The terminology is intentional and should be used consistently across code, docs, and conversation.
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -17,6 +17,14 @@ Yarnnn operates on three distinct layers. The terminology is intentional and sho
 │  Injected into every TP session (working memory block)      │
 └─────────────────────────────────────────────────────────────┘
          Written by: user directly, TP during conversation
+
+┌─────────────────────────────────────────────────────────────┐
+│  ACTIVITY  (activity_log)                                    │
+│  What YARNNN has done — system provenance, append-only      │
+│  Recent events injected into every TP session               │
+└─────────────────────────────────────────────────────────────┘
+         Written by: deliverable pipeline, platform sync,
+                     chat pipeline, TP memory tools
 
 ┌─────────────────────────────────────────────────────────────┐
 │  CONTEXT  (filesystem_items + live platform APIs)           │
@@ -39,6 +47,7 @@ Yarnnn operates on three distinct layers. The terminology is intentional and sho
 | | Claude Code | Clawdbot | Yarnnn |
 |---|---|---|---|
 | **Memory** | CLAUDE.md | SOUL.md / USER.md | `user_context` |
+| **Activity** | Git commit log | Script execution log | `activity_log` |
 | **Context** | Source files (read on demand) | Local filesystem | `filesystem_items` + live APIs |
 | **Work** | Build output | Script output | `deliverable_versions` |
 | **Execution** | Shell / Bash | Skills | Deliverable pipeline (live reads) |

@@ -1,19 +1,20 @@
 # Database Schema
 
 **Supabase Project**: `noxgqcwynkzqabljjyon`
-**Architecture**: ADR-059 Simplified Context Model (Three-Layer: Memory / Context / Work)
+**Architecture**: ADR-063 Four-Layer Model (Memory / Activity / Context / Work)
 **Extensions**: pgvector (for embeddings on filesystem_chunks)
 **Last Updated**: 2026-02-18
 
 ---
 
-## Entity Relationship (ADR-059)
+## Entity Relationship (ADR-063)
 
 ```
 user      1──n platform_connections    (OAuth connections to platforms)
 user      1──n filesystem_items        (synced platform content — conversational search cache)
 user      1──n filesystem_documents    (uploaded files)
 user      1──n user_context            (Memory — what TP knows about the user)
+user      1──n activity_log            (Activity — what YARNNN has done)
 user      1──n chat_sessions           (TP conversations)
 user      1──n deliverables            (scheduled outputs)
 
@@ -24,7 +25,7 @@ deliverables 1──n deliverable_versions       (generated outputs)
 
 ---
 
-## Three-Layer Model
+## Four-Layer Model
 
 ### Layer 1: Memory (user_context)
 
@@ -34,7 +35,15 @@ What TP knows *about the user* — stable, explicit, user-owned. Injected into e
 |-------|---------|
 | `user_context` | Single flat Memory store (replaces the four knowledge_* tables from ADR-058) |
 
-### Layer 2: Context (Filesystem)
+### Layer 2: Activity (activity_log)
+
+What YARNNN has done — system provenance log. Append-only. Recent events injected into every TP session.
+
+| Table | Purpose |
+|-------|---------|
+| `activity_log` | Timestamped event log across all pipelines (deliverable runs, syncs, memory writes, chat sessions) |
+
+### Layer 3: Context (Filesystem)
 
 The current working material — what's in their platforms right now.
 
@@ -46,7 +55,7 @@ The current working material — what's in their platforms right now.
 | `filesystem_chunks` | Document segments with embeddings (for Search) |
 | `sync_registry` | Per-resource sync state tracking |
 
-### Layer 3: Work
+### Layer 4: Work
 
 What TP produces.
 
@@ -97,9 +106,40 @@ Single flat key-value Memory store. Replaces `knowledge_profile`, `knowledge_sty
 
 ---
 
+## Activity Table
+
+### 2. activity_log
+
+Append-only system provenance log. Records what YARNNN has done across all pipelines.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | UUID | FK → auth.users |
+| event_type | TEXT | `deliverable_run`, `memory_written`, `platform_synced`, `chat_session` |
+| event_ref | UUID | FK reference to related record (version_id, session_id, etc.) |
+| summary | TEXT | Human-readable one-liner for working memory injection |
+| metadata | JSONB | Event-specific structured detail |
+| created_at | TIMESTAMPTZ | Auto |
+
+**Append-only**: no UPDATE or DELETE policies. Written by service role only.
+
+**event_type values**:
+
+| event_type | Written by | summary example |
+|---|---|---|
+| `deliverable_run` | `deliverable_execution.py` | `"Weekly Digest v3 generated (staged)"` |
+| `memory_written` | TP memory tools | `"Noted: prefers bullet points"` |
+| `platform_synced` | `platform_worker.py` | `"Synced gmail/INBOX: 12 items"` |
+| `chat_session` | `chat.py` | `"Chat session (8 turns)"` |
+
+**Read by**: `working_memory.py → build_working_memory()` — last 10 events (7-day window) injected as "Recent activity" block in TP system prompt (~300 tokens)
+
+---
+
 ## Context Tables
 
-### 2. platform_connections
+### 3. platform_connections
 
 OAuth connections to external platforms.
 
@@ -122,7 +162,7 @@ OAuth connections to external platforms.
 
 ---
 
-### 3. filesystem_items
+### 4. filesystem_items
 
 Synced platform content — conversational search cache. Not used by deliverable execution.
 
@@ -148,7 +188,7 @@ Synced platform content — conversational search cache. Not used by deliverable
 
 ---
 
-### 4. filesystem_documents
+### 5. filesystem_documents
 
 Uploaded files.
 
@@ -169,7 +209,7 @@ Uploaded files.
 
 ---
 
-### 5. filesystem_chunks
+### 6. filesystem_chunks
 
 Document segments for retrieval.
 
@@ -187,7 +227,7 @@ Document segments for retrieval.
 
 ---
 
-### 6. sync_registry
+### 7. sync_registry
 
 Per-resource sync state tracking.
 
@@ -208,7 +248,7 @@ Per-resource sync state tracking.
 
 ## Session Tables
 
-### 7. chat_sessions
+### 8. chat_sessions
 
 TP conversation containers.
 
@@ -223,7 +263,7 @@ TP conversation containers.
 
 ---
 
-### 8. session_messages
+### 9. session_messages
 
 Conversation turns within a session.
 
@@ -243,7 +283,7 @@ Note: `knowledge_extracted` and `knowledge_extracted_at` columns were dropped in
 
 ## Work Tables
 
-### 9. deliverables
+### 10. deliverables
 
 Scheduled output configurations.
 
@@ -265,7 +305,7 @@ Scheduled output configurations.
 
 ---
 
-### 10. deliverable_versions
+### 11. deliverable_versions
 
 Generated outputs.
 
@@ -285,7 +325,7 @@ Generated outputs.
 
 ## Working Memory
 
-Built at session start from **user_context only** (Memory layer). Raw platform content is not pre-injected.
+Built at session start from **Memory + Activity** layers. Raw platform content is not pre-injected.
 
 ```
 ### About you
@@ -302,6 +342,9 @@ Built at session start from **user_context only** (Memory layer). Raw platform c
 
 ### Connected platforms
 {name, status, last_synced, freshness}
+
+### Recent activity
+{last 10 events from activity_log, last 7 days}
 ```
 
 Injected into TP's system prompt (~2,000 token budget). During a session, TP accesses live platform content via `Search(scope="platform_content")` (hits `filesystem_items`) or direct platform tools (live API calls).
@@ -320,6 +363,9 @@ Injected into TP's system prompt (~2,000 token budget). During a session, TP acc
 | 055 | ADR-059: Create user_context table | Applied |
 | 056 | ADR-059: Migrate stated data from knowledge_* → user_context | Applied |
 | 057 | ADR-059: Drop knowledge_profile/styles/domains/entries | Applied |
+| 058 | Fix SECURITY DEFINER view | Applied |
+| 059 | ADR-059: Drop dead columns from session_messages | Applied |
+| 060 | ADR-063: Create activity_log table | Pending |
 
 ---
 

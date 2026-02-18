@@ -99,7 +99,24 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ---
 
-## Completed Migrations
+## Migrations
+
+### Migration 060: Create activity_log table (2026-02-18) ⏳
+
+**Status**: Pending — run when ready to implement ADR-063
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/060_activity_log.sql
+```
+
+**Changes**:
+- Creates `activity_log(user_id, event_type, event_ref, summary, metadata, created_at)`
+- event_type: `deliverable_run`, `memory_written`, `platform_synced`, `chat_session`
+- RLS: users can SELECT own rows; INSERT/UPDATE/DELETE service-role only (append-only)
+- Indexes: `(user_id, created_at DESC)` and `(user_id, event_type, created_at DESC)`
+- ADR-063: Activity layer in four-layer model (Memory / Activity / Context / Work)
+
+---
 
 ### Migration 059: Drop dead columns from session_messages (2026-02-18) ✅
 
