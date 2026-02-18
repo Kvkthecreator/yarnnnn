@@ -1,5 +1,5 @@
 """
-Context routes - ADR-059: Simplified Context Model
+Context routes - ADR-059: Simplified Context Model + ADR-063: Activity Log
 
 Single store: user_context table (key/value with source tracking).
 
@@ -13,6 +13,7 @@ Endpoints:
   POST /user/memories/import - Bulk import: extract from text
   DELETE /memories/{id}      - Delete a context entry by id
   GET  /user/onboarding-state - Detect onboarding state
+  GET  /activity             - List recent activity from activity_log (ADR-063)
 """
 
 from fastapi import APIRouter, HTTPException
@@ -375,5 +376,64 @@ async def delete_memory(entry_id: UUID, auth: UserClient):
 
     except HTTPException:
         raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ─── Activity Log (ADR-063) ───────────────────────────────────────────────────
+
+class ActivityItem(BaseModel):
+    id: UUID
+    event_type: str
+    event_ref: Optional[UUID] = None
+    summary: str
+    metadata: Optional[dict] = None
+    created_at: datetime
+
+
+class ActivityListResponse(BaseModel):
+    activities: list[ActivityItem]
+    total: int
+
+
+@router.get("/activity", response_model=ActivityListResponse)
+async def list_activity(
+    auth: UserClient,
+    limit: int = 50,
+    days: int = 30,
+    event_type: Optional[str] = None,
+):
+    """
+    List recent activity from activity_log.
+
+    ADR-063: Four-layer model — Activity layer (what YARNNN has done).
+
+    Args:
+        limit: Max items to return (default 50)
+        days: Lookback window in days (default 30)
+        event_type: Filter by type (deliverable_run, memory_written, platform_synced, chat_session)
+    """
+    from datetime import timedelta
+
+    try:
+        since = (datetime.utcnow() - timedelta(days=days)).isoformat()
+
+        query = auth.client.table("activity_log")\
+            .select("*", count="exact")\
+            .eq("user_id", auth.user_id)\
+            .gte("created_at", since)\
+            .order("created_at", desc=True)\
+            .limit(limit)
+
+        if event_type:
+            query = query.eq("event_type", event_type)
+
+        result = query.execute()
+
+        return ActivityListResponse(
+            activities=result.data or [],
+            total=result.count or 0,
+        )
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

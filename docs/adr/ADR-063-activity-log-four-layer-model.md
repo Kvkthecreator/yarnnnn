@@ -76,7 +76,7 @@ Every write is from a system pipeline, never from the user. Events are immutable
 | event_type | Written by | summary example |
 |---|---|---|
 | `deliverable_run` | deliverable_execution.py | "Generated Weekly Digest v3 (draft)" |
-| `memory_written` | TP tools (create_memory / update_memory) | "Noted: prefers bullet points" |
+| `memory_written` | memory.py (implicit extraction) | "Noted: prefers bullet points" |
 | `platform_synced` | platform_worker.py | "Synced Slack #general: 47 messages" |
 | `chat_session` | chat.py (on session end / summary) | "Session: discussed digest cadence" |
 
@@ -153,7 +153,7 @@ This gives TP a grounded, factual answer to "when did you last run my digest?" w
 | `api/services/deliverable_execution.py` | Call `write_activity("deliverable_run", ...)` after version created |
 | `api/workers/platform_worker.py` | Call `write_activity("platform_synced", ...)` after sync batch completes |
 | `api/routes/chat.py` | Call `write_activity("chat_session", ...)` when session summary is available |
-| `api/services/working_memory/tools.py` (TP tools) | Call `write_activity("memory_written", ...)` on create_memory / update_memory |
+| `api/services/memory.py` | Call `write_activity("memory_written", ...)` on implicit extraction (ADR-064) |
 | `api/services/working_memory.py` | Read last 10 activity_log rows, inject "Recent activity" block |
 
 ---
@@ -185,7 +185,7 @@ Replacing `filesystem_items` with `activity_log` was considered and rejected. Th
 │  Recent events injected into every TP session               │
 └─────────────────────────────────────────────────────────────┘
          Written by: deliverable pipeline, platform sync,
-                     chat pipeline, TP memory tools
+                     chat pipeline, memory extraction (ADR-064)
 
 ┌─────────────────────────────────────────────────────────────┐
 │  CONTEXT  (filesystem_items + live platform APIs)           │

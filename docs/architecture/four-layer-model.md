@@ -60,13 +60,15 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 
 **Table**: `user_context` — single flat key-value store. One row per fact.
 
-**How it is written** — two paths only:
+**How it is written** — ADR-064 implicit extraction:
 1. User edits directly on the Context page (Profile / Styles / Entries tabs)
-2. TP calls `create_memory` / `update_memory` during a conversation, with the user present
+2. Backend extracts from conversation at session end (implicit, no tool call)
+3. Backend extracts from deliverable feedback (when user edits and approves)
+4. Background job detects patterns from activity_log (daily)
 
 **How it is read**: `working_memory.py → build_working_memory()` reads all rows at session start and injects them into the TP system prompt as the "About you / Your preferences / What you've told me" block.
 
-**Key property**: Memory never grows by inference or background job. Nothing enters Memory without an explicit write. The inference pipeline was removed in ADR-059.
+**Key property**: Memory grows through implicit extraction at pipeline boundaries (ADR-064). The explicit memory tools were removed. The old inference pipeline (ADR-059) was replaced with boundary-triggered extraction.
 
 **Lifecycle**: Persistent. Memory from six months ago is still in the prompt today unless the user or TP explicitly removes it.
 
@@ -81,7 +83,7 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 | event_type | Written by | When |
 |---|---|---|
 | `deliverable_run` | `deliverable_execution.py` | After version created |
-| `memory_written` | `project_tools.py` | After `user_context` upsert |
+| `memory_written` | `memory.py` | After `user_context` upsert (implicit extraction) |
 | `platform_synced` | `platform_worker.py` | After sync batch completes |
 | `chat_session` | `chat.py` | After each chat turn |
 
@@ -186,7 +188,7 @@ The layers interact in a defined, unidirectional way. Data flows in one directio
 ```
 
 **What never happens**:
-- Memory is never written by background inference
+- Memory is written by backend extraction at session end (ADR-064), not by TP tool calls
 - Activity is never written by user-facing clients
 - Deliverable execution never reads `filesystem_items`
 - Context (platform content) is never pre-loaded into the TP system prompt
@@ -201,7 +203,7 @@ The layers interact in a defined, unidirectional way. Data flows in one directio
 | Why does `activity_log` exist if `deliverable_versions` records runs? | `deliverable_versions` holds full generated content. `activity_log` holds lightweight event summaries for prompt injection. Neither replaces the other. |
 | Can platform content become Memory automatically? | No. Automatic promotion was removed in ADR-059. "Promote document to Memory" is a deferred feature (ADR-062). |
 | Does TP get platform content in its system prompt? | No. Context is fetched on demand via Search or tools, never pre-loaded. |
-| Is Memory updated during a session? | Memory is read at session start and does not update mid-session. TP can write new keys via `create_memory` / `update_memory`, but those writes take effect in the *next* session's working memory. |
+| Is Memory updated during a session? | Memory is read at session start and does not update mid-session. Memory extraction happens at session end (ADR-064), taking effect in the *next* session's working memory. |
 | What happens if `write_activity()` fails? | The calling operation continues. All log writes are non-fatal by design. |
 | Can a user write to `activity_log`? | No. Service-role writes only. Users can SELECT their own rows. |
 | Is a `deliverable_version` mutable after generation? | The `content` field is immutable. The `status` field progresses (staged → approved → published). |

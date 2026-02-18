@@ -1,10 +1,16 @@
 'use client';
 
 /**
- * ADR-037: Activity Page (Route-based)
+ * ADR-063: Activity Page — Four-Layer Model
  *
- * Audit trail page showing what happened, when, and provenance.
- * Shows recent work, exports, imports, and deliverable runs.
+ * Audit trail page showing what YARNNN has done.
+ * Reads from activity_log table (unified activity layer).
+ *
+ * Event types:
+ *   - deliverable_run: Automated content generation
+ *   - memory_written: TP learned something about user
+ *   - platform_synced: Platform data synced
+ *   - chat_session: TP conversation ended
  */
 
 import { useState, useEffect } from 'react';
@@ -13,8 +19,8 @@ import {
   Loader2,
   Activity,
   FileText,
-  Upload,
-  Download,
+  Brain,
+  RefreshCw,
   Play,
   CheckCircle2,
   XCircle,
@@ -22,97 +28,72 @@ import {
   ArrowRight,
   Mail,
   MessageSquare,
-  ExternalLink,
+  Calendar,
+  Filter,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
+import { cn } from '@/lib/utils';
+
+type EventType = 'deliverable_run' | 'memory_written' | 'platform_synced' | 'chat_session';
 
 interface ActivityItem {
   id: string;
-  type: 'deliverable_run' | 'export' | 'import' | 'work';
-  title: string;
-  status: string;
-  timestamp: string;
-  metadata?: {
-    deliverable_id?: string;
-    version_id?: string;
-    provider?: string;
-    external_url?: string;
-    resource_name?: string;
-  };
+  event_type: EventType;
+  event_ref: string | null;
+  summary: string;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
 }
+
+const EVENT_CONFIG: Record<EventType, {
+  label: string;
+  icon: React.ReactNode;
+  color: string;
+}> = {
+  deliverable_run: {
+    label: 'Deliverable',
+    icon: <Play className="w-4 h-4" />,
+    color: 'text-blue-500',
+  },
+  memory_written: {
+    label: 'Learned',
+    icon: <Brain className="w-4 h-4" />,
+    color: 'text-purple-500',
+  },
+  platform_synced: {
+    label: 'Synced',
+    icon: <RefreshCw className="w-4 h-4" />,
+    color: 'text-green-500',
+  },
+  chat_session: {
+    label: 'Chat',
+    icon: <MessageSquare className="w-4 h-4" />,
+    color: 'text-amber-500',
+  },
+};
 
 export default function ActivityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [total, setTotal] = useState(0);
+  const [filter, setFilter] = useState<EventType | 'all'>('all');
 
   useEffect(() => {
     loadActivity();
-  }, []);
+  }, [filter]);
 
   const loadActivity = async () => {
     setLoading(true);
     try {
-      // Aggregate activity from multiple sources
-      const [deliverables, exportHistory, importJobs] = await Promise.all([
-        api.deliverables.list().catch(() => []),
-        api.integrations.getHistory().catch(() => ({ exports: [] })),
-        api.integrations.listImportJobs({ limit: 20 }).catch(() => ({ jobs: [] })),
-      ]);
-
-      const items: ActivityItem[] = [];
-
-      // Add recent deliverable versions as activity
-      for (const d of deliverables.slice(0, 10)) {
-        if (d.last_run_at) {
-          items.push({
-            id: `deliverable-${d.id}`,
-            type: 'deliverable_run',
-            title: d.title,
-            status: d.latest_version_status || 'completed',
-            timestamp: d.last_run_at,
-            metadata: {
-              deliverable_id: d.id,
-            },
-          });
-        }
-      }
-
-      // Add exports
-      for (const exp of exportHistory.exports.slice(0, 10)) {
-        items.push({
-          id: `export-${exp.id}`,
-          type: 'export',
-          title: `Export to ${exp.provider}`,
-          status: exp.status,
-          timestamp: exp.created_at,
-          metadata: {
-            provider: exp.provider,
-            external_url: exp.external_url || undefined,
-          },
-        });
-      }
-
-      // Add imports
-      for (const job of importJobs.jobs.slice(0, 10)) {
-        items.push({
-          id: `import-${job.id}`,
-          type: 'import',
-          title: `Import from ${job.provider}`,
-          status: job.status,
-          timestamp: job.created_at,
-          metadata: {
-            provider: job.provider,
-            resource_name: job.resource_name || undefined,
-          },
-        });
-      }
-
-      // Sort by timestamp descending
-      items.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-
-      setActivities(items.slice(0, 50));
+      const result = await api.activity.list({
+        limit: 50,
+        days: 30,
+        eventType: filter === 'all' ? undefined : filter,
+      });
+      setActivities(result.activities);
+      setTotal(result.total);
     } catch (err) {
       console.error('Failed to load activity:', err);
     } finally {
@@ -120,21 +101,19 @@ export default function ActivityPage() {
     }
   };
 
-  const getActivityIcon = (type: string, status: string) => {
+  const getStatusIcon = (item: ActivityItem) => {
+    const metadata = item.metadata || {};
+    const status = metadata.status as string | undefined;
+
     if (status === 'failed') return <XCircle className="w-4 h-4 text-red-500" />;
     if (status === 'staged' || status === 'pending') return <Clock className="w-4 h-4 text-amber-500" />;
-    if (status === 'approved' || status === 'completed') return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-
-    switch (type) {
-      case 'deliverable_run':
-        return <Play className="w-4 h-4 text-primary" />;
-      case 'export':
-        return <Upload className="w-4 h-4 text-blue-500" />;
-      case 'import':
-        return <Download className="w-4 h-4 text-purple-500" />;
-      default:
-        return <Activity className="w-4 h-4 text-muted-foreground" />;
+    if (status === 'approved' || status === 'completed' || status === 'published') {
+      return <CheckCircle2 className="w-4 h-4 text-green-500" />;
     }
+
+    // Default: use event type icon
+    const config = EVENT_CONFIG[item.event_type];
+    return <span className={config.color}>{config.icon}</span>;
   };
 
   const getPlatformIcon = (provider?: string) => {
@@ -145,16 +124,38 @@ export default function ActivityPage() {
         return <Mail className="w-3 h-3" />;
       case 'notion':
         return <FileText className="w-3 h-3" />;
+      case 'calendar':
+      case 'google':
+        return <Calendar className="w-3 h-3" />;
       default:
         return null;
     }
   };
 
-  const handleActivityClick = (activity: ActivityItem) => {
-    if (activity.type === 'deliverable_run' && activity.metadata?.deliverable_id) {
-      router.push(`/deliverables/${activity.metadata.deliverable_id}`);
-    } else if (activity.metadata?.external_url) {
-      window.open(activity.metadata.external_url, '_blank');
+  const handleActivityClick = (item: ActivityItem) => {
+    const metadata = item.metadata || {};
+
+    // Navigate based on event type
+    switch (item.event_type) {
+      case 'deliverable_run':
+        if (metadata.deliverable_id) {
+          router.push(`/deliverables/${metadata.deliverable_id}`);
+        }
+        break;
+      case 'memory_written':
+        // Navigate to context entries
+        router.push('/context?section=entries');
+        break;
+      case 'platform_synced':
+        if (metadata.provider) {
+          const provider = metadata.provider === 'google' ? 'calendar' : metadata.provider;
+          router.push(`/context/${provider}`);
+        }
+        break;
+      case 'chat_session':
+        // Navigate to dashboard (chat)
+        router.push('/dashboard');
+        break;
     }
   };
 
@@ -162,13 +163,54 @@ export default function ActivityPage() {
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
         {/* Header */}
-        <div className="flex items-center gap-3 mb-6">
-          <Activity className="w-6 h-6" />
-          <h1 className="text-2xl font-bold">Activity</h1>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Activity className="w-6 h-6" />
+            <h1 className="text-2xl font-bold">Activity</h1>
+          </div>
+          <button
+            onClick={() => loadActivity()}
+            disabled={loading}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <RefreshCw className={cn("w-4 h-4", loading && "animate-spin")} />
+            Refresh
+          </button>
         </div>
-        <p className="text-muted-foreground mb-6">
-          Recent actions, exports, imports, and deliverable runs.
+
+        <p className="text-muted-foreground mb-4">
+          What YARNNN has done — deliverables, syncs, learnings, and conversations.
         </p>
+
+        {/* Filter */}
+        <div className="flex items-center gap-2 mb-6 flex-wrap">
+          <Filter className="w-4 h-4 text-muted-foreground" />
+          <button
+            onClick={() => setFilter('all')}
+            className={cn(
+              "px-3 py-1.5 text-sm rounded-full transition-colors",
+              filter === 'all'
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted text-muted-foreground hover:text-foreground"
+            )}
+          >
+            All
+          </button>
+          {(Object.keys(EVENT_CONFIG) as EventType[]).map((type) => (
+            <button
+              key={type}
+              onClick={() => setFilter(type)}
+              className={cn(
+                "px-3 py-1.5 text-sm rounded-full transition-colors flex items-center gap-1.5",
+                filter === type
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              )}
+            >
+              {EVENT_CONFIG[type].label}
+            </button>
+          ))}
+        </div>
 
         {/* Content */}
         {loading ? (
@@ -184,42 +226,58 @@ export default function ActivityPage() {
             </p>
           </div>
         ) : (
-          <div className="space-y-1">
-            {activities.map((activity) => (
-              <button
-                key={activity.id}
-                onClick={() => handleActivityClick(activity)}
-                className="w-full p-4 border border-border rounded-lg text-left hover:bg-muted transition-colors"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="mt-0.5">{getActivityIcon(activity.type, activity.status)}</div>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm font-medium truncate">{activity.title}</span>
-                      {activity.metadata?.provider && (
-                        <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                          {getPlatformIcon(activity.metadata.provider)}
-                          {activity.metadata.resource_name && (
-                            <span className="truncate max-w-[150px]">{activity.metadata.resource_name}</span>
+          <>
+            <p className="text-sm text-muted-foreground mb-4">
+              Showing {activities.length} of {total} events
+            </p>
+            <div className="space-y-1">
+              {activities.map((item) => {
+                const config = EVENT_CONFIG[item.event_type];
+                const metadata = item.metadata || {};
+                const provider = metadata.provider as string | undefined;
+                const source = metadata.source as string | undefined;
+
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => handleActivityClick(item)}
+                    className="w-full p-4 border border-border rounded-lg text-left hover:bg-muted transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="mt-0.5">{getStatusIcon(item)}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-medium truncate">{item.summary}</span>
+                          {provider && (
+                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                              {getPlatformIcon(provider)}
+                            </span>
                           )}
-                        </span>
-                      )}
+                          {/* Source badge for memory_written */}
+                          {item.event_type === 'memory_written' && source && (
+                            <span className={cn(
+                              "text-xs px-1.5 py-0.5 rounded",
+                              source === 'conversation' && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+                              source === 'feedback' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                              source === 'pattern' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                            )}>
+                              {source}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                          <span className={config.color}>{config.label}</span>
+                          <span>·</span>
+                          <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
+                        </div>
+                      </div>
+                      <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
-                      <span className="capitalize">{activity.status}</span>
-                      <span>·</span>
-                      <span>{formatDistanceToNow(new Date(activity.timestamp), { addSuffix: true })}</span>
-                    </div>
-                  </div>
-                  {activity.metadata?.external_url ? (
-                    <ExternalLink className="w-4 h-4 text-muted-foreground shrink-0" />
-                  ) : activity.metadata?.deliverable_id ? (
-                    <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                  ) : null}
-                </div>
-              </button>
-            ))}
-          </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
     </div>

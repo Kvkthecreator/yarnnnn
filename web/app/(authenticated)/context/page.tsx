@@ -469,6 +469,43 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
     fact: 'Fact',
     preference: 'Prefers',
     instruction: 'Note',
+    pattern: 'Pattern',
+  };
+
+  // ADR-064: Source styling for implicit memory
+  const sourceConfig: Record<string, { label: string; bg: string; text: string }> = {
+    user_stated: {
+      label: 'You said',
+      bg: 'bg-green-100 dark:bg-green-900/30',
+      text: 'text-green-700 dark:text-green-400',
+    },
+    conversation: {
+      label: 'From chat',
+      bg: 'bg-purple-100 dark:bg-purple-900/30',
+      text: 'text-purple-700 dark:text-purple-400',
+    },
+    feedback: {
+      label: 'From edits',
+      bg: 'bg-blue-100 dark:bg-blue-900/30',
+      text: 'text-blue-700 dark:text-blue-400',
+    },
+    pattern: {
+      label: 'Detected',
+      bg: 'bg-amber-100 dark:bg-amber-900/30',
+      text: 'text-amber-700 dark:text-amber-400',
+    },
+    tp_extracted: {
+      label: 'TP learned',
+      bg: 'bg-purple-100 dark:bg-purple-900/30',
+      text: 'text-purple-700 dark:text-purple-400',
+    },
+  };
+
+  // Confidence indicator
+  const getConfidenceLabel = (confidence: number): { label: string; color: string } => {
+    if (confidence >= 0.9) return { label: 'high', color: 'text-green-600 dark:text-green-400' };
+    if (confidence >= 0.7) return { label: 'medium', color: 'text-amber-600 dark:text-amber-400' };
+    return { label: 'low', color: 'text-muted-foreground' };
   };
 
   return (
@@ -507,8 +544,13 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
           {entries.map((entry) => {
             const prefix = entry.key.split(':')[0];
             const label = typeLabel[prefix] || prefix;
-            const sourceLabel = entry.source === 'user_stated' ? 'stated' :
-              entry.source === 'tp_extracted' ? 'TP' : entry.source;
+            const source = sourceConfig[entry.source] || {
+              label: entry.source,
+              bg: 'bg-muted',
+              text: 'text-muted-foreground',
+            };
+            const confidence = getConfidenceLabel(entry.confidence);
+            const showConfidence = entry.source !== 'user_stated' && entry.confidence < 1.0;
 
             return (
               <div
@@ -516,9 +558,22 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
                 className="bg-card rounded-lg border border-border p-4 flex items-start gap-3"
               >
                 <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex items-center gap-2 mb-1 flex-wrap">
                     <span className="text-xs font-medium text-muted-foreground">{label}</span>
-                    <span className="text-xs text-muted-foreground">· {sourceLabel}</span>
+                    {/* Source badge */}
+                    <span className={cn(
+                      "text-xs px-1.5 py-0.5 rounded",
+                      source.bg,
+                      source.text
+                    )}>
+                      {source.label}
+                    </span>
+                    {/* Confidence indicator for non-user entries */}
+                    {showConfidence && (
+                      <span className={cn("text-xs", confidence.color)}>
+                        · {confidence.label} confidence
+                      </span>
+                    )}
                   </div>
                   <p className="text-foreground">{entry.value}</p>
                 </div>
