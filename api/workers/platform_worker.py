@@ -369,14 +369,21 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
     Sync Notion pages.
 
     ADR-056: Directly fetches selected pages by ID (not search-then-filter).
+    ADR-062: Uses NotionAPIClient (direct REST) instead of MCP Gateway.
+             MCP Gateway requires internal ntn_... tokens; OAuth tokens only work via direct API.
     """
-    from integrations.core.client import MCPClientManager
+    from integrations.core.notion_client import get_notion_client
+    from integrations.core.tokens import get_token_manager
 
-    settings = integration.get("settings", {})
-    notion_token = settings.get("notion_token") or integration.get("access_token")
+    credentials_encrypted = integration.get("credentials_encrypted")
+    if not credentials_encrypted:
+        return {"error": "Missing Notion credentials", "items_synced": 0}
 
-    if not notion_token:
-        return {"error": "Missing Notion token", "items_synced": 0}
+    token_manager = get_token_manager()
+    access_token = token_manager.decrypt(credentials_encrypted)
+
+    if not access_token:
+        return {"error": "Failed to decrypt Notion access token", "items_synced": 0}
 
     # ADR-056: If no sources selected, nothing to sync
     if not selected_sources:
@@ -385,7 +392,7 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
 
     logger.info(f"[PLATFORM_WORKER] Notion sync: {len(selected_sources)} pages selected")
 
-    manager = MCPClientManager()
+    notion_client = get_notion_client()
     items_synced = 0
     pages_synced = 0
     pages_failed = 0
@@ -396,27 +403,24 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
             try:
                 logger.debug(f"[PLATFORM_WORKER] Fetching Notion page: {page_id}")
 
-                page_content = await manager.get_notion_page_content(
-                    user_id=user_id,
-                    page_id=page_id,
-                    auth_token=notion_token,
-                )
+                # Fetch page metadata (title, last_edited_time, url)
+                page_meta = await notion_client.get_page(access_token, page_id)
 
-                if not page_content:
-                    logger.warning(f"[PLATFORM_WORKER] Notion page not found: {page_id}")
-                    pages_failed += 1
-                    continue
+                # Extract title from page properties
+                page_title = "Untitled"
+                props = page_meta.get("properties", {})
+                for prop in props.values():
+                    if prop.get("type") == "title":
+                        title_parts = prop.get("title", [])
+                        page_title = "".join(t.get("plain_text", "") for t in title_parts) or "Untitled"
+                        break
 
-                page_title = page_content.get("title", "Untitled")
+                last_edited = page_meta.get("last_edited_time")
+                page_url = page_meta.get("url")
 
-                # Extract text content from page
-                content = page_content.get("content", "")
-                if isinstance(content, list):
-                    # If content is blocks, join text
-                    content = "\n".join(
-                        block.get("text", "") if isinstance(block, dict) else str(block)
-                        for block in content
-                    )
+                # Fetch page content blocks
+                blocks = await notion_client.get_page_content(access_token, page_id)
+                content = _extract_text_from_notion_blocks(blocks)
 
                 await _store_filesystem_items(
                     client=client,
@@ -427,10 +431,10 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
                     content=content,
                     content_type="page",
                     metadata={
-                        "url": page_content.get("url"),
-                        "last_edited": page_content.get("last_edited_time"),
+                        "url": page_url,
+                        "last_edited": last_edited,
                     },
-                    source_timestamp=page_content.get("last_edited_time"),
+                    source_timestamp=last_edited,
                 )
                 items_synced += 1
                 pages_synced += 1
@@ -449,8 +453,33 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
     except Exception as e:
         logger.warning(f"[PLATFORM_WORKER] Notion sync error: {e}")
         return {"error": str(e), "items_synced": items_synced}
-    finally:
-        await manager.close_all()
+
+
+def _extract_text_from_notion_blocks(blocks: list[dict]) -> str:
+    """
+    Extract plain text from Notion block objects.
+
+    Notion API returns structured block objects, each with a `type` and
+    a matching key containing rich_text arrays.
+    """
+    lines = []
+    text_block_types = {
+        "paragraph", "heading_1", "heading_2", "heading_3",
+        "bulleted_list_item", "numbered_list_item", "to_do",
+        "toggle", "quote", "callout", "code",
+    }
+
+    for block in blocks:
+        block_type = block.get("type", "")
+        block_data = block.get(block_type, {})
+
+        if block_type in text_block_types:
+            rich_text = block_data.get("rich_text", [])
+            text = "".join(t.get("plain_text", "") for t in rich_text)
+            if text:
+                lines.append(text)
+
+    return "\n".join(lines)
 
 
 async def _sync_calendar(client, user_id: str, integration: dict, selected_sources: list[str]) -> dict:

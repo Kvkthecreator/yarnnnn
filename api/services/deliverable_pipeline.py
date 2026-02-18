@@ -596,7 +596,14 @@ async def _fetch_notion_data(
     filters: dict,
     max_items: int = 10,
 ) -> SourceFetchResult:
-    """Fetch Notion page content and format as context."""
+    """
+    Fetch Notion page content and format as context.
+
+    ADR-062: Uses NotionAPIClient (direct REST) instead of MCP Gateway.
+             MCP requires internal ntn_... tokens; OAuth tokens work only via direct API.
+    """
+    from integrations.core.notion_client import get_notion_client
+
     access_token = token_manager.decrypt(integration["credentials_encrypted"])
 
     if not access_token:
@@ -607,20 +614,41 @@ async def _fetch_notion_data(
     if not page_id:
         return SourceFetchResult(error="No Notion page specified")
 
-    page_content = await mcp_manager.get_notion_page_content(
-        user_id=user_id,
-        page_id=page_id,
-        auth_token=access_token,
-    )
+    notion_client = get_notion_client()
 
-    if not page_content:
+    # Fetch page metadata for title
+    page_meta = await notion_client.get_page(access_token, page_id)
+    title = "Untitled"
+    props = page_meta.get("properties", {})
+    for prop in props.values():
+        if prop.get("type") == "title":
+            title_parts = prop.get("title", [])
+            title = "".join(t.get("plain_text", "") for t in title_parts) or "Untitled"
+            break
+
+    # Fetch content blocks
+    blocks = await notion_client.get_page_content(access_token, page_id)
+    text_block_types = {
+        "paragraph", "heading_1", "heading_2", "heading_3",
+        "bulleted_list_item", "numbered_list_item", "to_do",
+        "toggle", "quote", "callout", "code",
+    }
+    lines = []
+    for block in blocks:
+        block_type = block.get("type", "")
+        block_data = block.get(block_type, {})
+        if block_type in text_block_types:
+            rich_text = block_data.get("rich_text", [])
+            text = "".join(t.get("plain_text", "") for t in rich_text)
+            if text:
+                lines.append(text)
+    content = "\n".join(lines)
+
+    if not content:
         return SourceFetchResult(
-            content="[Notion] Page not found or empty",
+            content=f"[Notion Integration Data - {title}]\n\n(Page is empty or has no readable text blocks)",
             items_fetched=0,
         )
-
-    title = page_content.get("title", "Untitled")
-    content = page_content.get("content", "")
 
     if len(content) > 3000:
         content = content[:3000] + "... [truncated]"

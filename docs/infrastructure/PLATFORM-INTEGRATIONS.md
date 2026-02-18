@@ -9,7 +9,7 @@ YARNNN integrates with four external platforms:
 | Platform | OAuth Provider | Transport | TP Tools | Deliverable Source | Deliverable Export |
 |----------|---------------|-----------|----------|-------------------|-------------------|
 | Slack | slack | MCP Gateway | Yes | Yes | Yes |
-| Notion | notion | MCP Gateway | Yes | Yes | Yes |
+| Notion | notion | Direct API | Yes | Yes | Yes |
 | Gmail | google | Direct API | Yes | Yes | Yes |
 | Calendar | google | Direct API | Yes | Yes | Yes |
 
@@ -24,10 +24,10 @@ YARNNN integrates with four external platforms:
                           │  │     Platform Router            │  │
                           │  │                                │  │
                           │  │  Routes by provider:           │  │
-                          │  │  ├─ slack  → MCP Gateway       │  │
-                          │  │  ├─ notion → MCP Gateway       │  │
-                          │  │  ├─ gmail  → Direct Google API │  │
-                          │  │  └─ calendar → Direct Google API│ │
+                          │  │  ├─ slack    → MCP Gateway     │  │
+                          │  │  ├─ notion   → Direct API      │  │
+                          │  │  ├─ gmail    → Direct API      │  │
+                          │  │  └─ calendar → Direct API      │  │
                           │  └────────────────────────────────┘  │
                           │              │                       │
                           │              │ Slack, Notion         │
@@ -44,10 +44,10 @@ YARNNN integrates with four external platforms:
 │                    yarnnn-mcp-gateway                           │
 │                      (Node.js/Express)                          │
 │                                                                 │
-│  ┌─────────────────────────┐  ┌──────────────────────────────┐ │
-│  │ @modelcontextprotocol/  │  │ @notionhq/notion-mcp-server  │ │
-│  │   server-slack          │  │                              │ │
-│  └─────────────────────────┘  └──────────────────────────────┘ │
+│  ┌─────────────────────────┐                                    │
+│  │ @modelcontextprotocol/  │  (Notion removed: uses Direct API) │
+│  │   server-slack          │                                    │
+│  └─────────────────────────┘                                    │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
@@ -80,7 +80,7 @@ TP calls tool → platform_tools.py → mcp_gateway.py (HTTP) → yarnnn-mcp-gat
 
 ---
 
-### Notion (MCP Gateway)
+### Notion (Direct API)
 
 **OAuth Config**: Uses Notion's built-in OAuth (no scopes needed)
 
@@ -88,7 +88,20 @@ TP calls tool → platform_tools.py → mcp_gateway.py (HTTP) → yarnnn-mcp-gat
 - `platform_notion_search` - Search pages/databases
 - `platform_notion_create_comment` - Add comments
 
-**Data Flow**: Same as Slack, via MCP Gateway
+**Why Direct API (not MCP)**:
+- `@notionhq/notion-mcp-server` requires internal `ntn_...` integration tokens, not OAuth tokens
+- Notion's hosted MCP (`mcp.notion.com`) manages its own OAuth sessions — no way to inject ours
+- Direct calls to `api.notion.com` work correctly with YARNNN's OAuth tokens
+- `NotionAPIClient` (`api/integrations/core/notion_client.py`) handles all Notion REST operations
+
+**Data Flow**:
+```
+TP tool call → platform_tools.py → NotionAPIClient → api.notion.com
+                              ↓
+Platform sync → platform_worker._sync_notion() → NotionAPIClient → api.notion.com
+                              ↓
+Deliverable pipeline → _fetch_notion_data() → NotionAPIClient → api.notion.com
+```
 
 ---
 
@@ -227,13 +240,13 @@ async def get_valid_google_token(integration: dict) -> str:
 
 ## Adding New Platforms
 
-### MCP Gateway Route (Slack/Notion pattern)
+### MCP Gateway Route (Slack pattern)
 1. Add OAuth config to [oauth.py](../../api/integrations/core/oauth.py)
 2. Add to [platform_registry.py](../../api/integrations/platform_registry.py)
 3. Add MCP server to `yarnnn-mcp-gateway/src/mcp/client-manager.ts`
 4. Define TP tools in [platform_tools.py](../../api/services/platform_tools.py)
 
-### Direct API Route (Gmail/Calendar pattern)
+### Direct API Route (Gmail/Calendar/Notion pattern)
 1. Add OAuth config to oauth.py
 2. Define TP tools in [platform_tools.py](../../api/services/platform_tools.py) with handler functions
 3. Implement fetch function in [deliverable_pipeline.py](../../api/services/deliverable_pipeline.py)
