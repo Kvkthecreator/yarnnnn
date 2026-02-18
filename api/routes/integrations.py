@@ -2814,14 +2814,14 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     """
     from services.platform_limits import get_usage_summary
 
-    # Get user's timezone from settings (default to UTC)
+    # Get user's timezone from user_context (ADR-059: timezone stored as key='timezone')
     user_tz = "UTC"
     try:
-        settings_result = auth.client.table("user_settings").select(
-            "timezone"
-        ).eq("user_id", auth.user_id).maybe_single().execute()
-        if settings_result.data:
-            user_tz = settings_result.data.get("timezone", "UTC")
+        tz_result = auth.client.table("user_context").select(
+            "value"
+        ).eq("user_id", auth.user_id).eq("key", "timezone").maybe_single().execute()
+        if tz_result.data:
+            user_tz = tz_result.data.get("value", "UTC")
     except Exception:
         pass
 

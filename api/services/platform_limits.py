@@ -322,14 +322,14 @@ def get_active_deliverable_count(client, user_id: str) -> int:
     """
     Count active deliverables for a user.
 
-    Active = enabled and not deleted.
+    Active = status 'active' (ADR-059: deliverables use status, not enabled column).
     """
     try:
         result = (
             client.table("deliverables")
             .select("id", count="exact")
             .eq("user_id", user_id)
-            .eq("enabled", True)
+            .eq("status", "active")
             .execute()
         )
 
