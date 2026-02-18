@@ -55,28 +55,28 @@ async def load_context_for_work(
     memories = []
 
     try:
-        # Load user memories
+        # ADR-059: Load user context entries (fact/instruction/preference keys)
         user_result = (
-            client.table("knowledge_entries")
+            client.table("user_context")
             .select("*")
             .eq("user_id", user_id)
-            .eq("is_active", True)
-            .order("importance", desc=True)
             .limit(max_memories)
             .execute()
         )
 
         for row in (user_result.data or []):
-            memories.append(Memory(
-                id=UUID(row["id"]),
-                content=row["content"],
-                importance=row.get("importance", 0.5),
-                tags=row.get("tags", []),
-                entities=row.get("entities", {}),
-                source_type=row.get("source_type", "chat"),
-            ))
+            key = row.get("key", "")
+            if key.startswith(("fact:", "instruction:", "preference:")):
+                memories.append(Memory(
+                    id=UUID(row["id"]),
+                    content=row["value"],
+                    importance=row.get("confidence", 0.5),
+                    tags=[],
+                    entities={},
+                    source_type=row.get("source", "user_stated"),
+                ))
 
-        logger.info(f"Loaded {len(memories)} memories for work execution")
+        logger.info(f"Loaded {len(memories)} context entries for work execution")
 
     except Exception as e:
         logger.warning(f"Error loading context: {e}")

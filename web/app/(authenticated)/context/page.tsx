@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * ADR-058: Knowledge Base Architecture - Context Page
+ * ADR-059: Simplified Context Model
  *
- * Two-layer model with sidebar navigation:
- * - KNOWLEDGE: Profile, Styles, Domains, Entries
+ * Two sections:
+ * - KNOWLEDGE: Profile, Styles, Entries
  * - FILESYSTEM: Platforms, Documents
  *
- * Replaces ADR-039's flat filter-based view with a hierarchical sidebar.
+ * Removed: Domains section (domain grouping is a UI concept on deliverables, not a data concept)
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -19,7 +19,6 @@ import {
   RefreshCw,
   User,
   Palette,
-  FolderKanban,
   BookOpen,
   FileText,
   Slack,
@@ -43,55 +42,30 @@ import type { PlatformSummary } from '@/components/ui/PlatformCard';
 // Types
 // =============================================================================
 
-type Section = 'profile' | 'styles' | 'domains' | 'entries' | 'platforms' | 'platform_slack' | 'platform_gmail' | 'platform_notion' | 'platform_calendar' | 'documents';
+type Section = 'profile' | 'styles' | 'entries' | 'platforms' | 'documents';
 
 interface Profile {
-  id?: string;
   name?: string;
   role?: string;
   company?: string;
   timezone?: string;
   summary?: string;
-  name_source?: string;
-  role_source?: string;
-  company_source?: string;
-  timezone_source?: string;
-  summary_source?: string;
-  last_inferred_at?: string;
-  inference_confidence?: number;
 }
 
-interface Style {
-  id?: string;
+interface StyleItem {
   platform: string;
   tone?: string;
   verbosity?: string;
-  formatting?: Record<string, unknown>;
-  vocabulary_notes?: string;
-  sample_excerpts?: string[];
-  stated_preferences?: Record<string, unknown>;
-  sample_count: number;
-  last_inferred_at?: string;
 }
 
-interface Domain {
+interface ContextEntry {
   id: string;
-  name: string;
-  summary?: string;
-  sources?: Array<{ platform: string; resource_id: string; resource_name?: string }>;
-  is_default: boolean;
-  is_active: boolean;
-}
-
-interface Entry {
-  id: string;
-  content: string;
-  entry_type: string;
+  key: string;
+  value: string;
   source: string;
-  tags: string[];
-  importance: number;
-  domain_id?: string;
+  confidence: number;
   created_at: string;
+  updated_at: string;
 }
 
 // =============================================================================
@@ -124,10 +98,6 @@ const PLATFORM_CONFIG: Record<string, {
     colors: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
   },
 };
-
-// =============================================================================
-// Platform list for PlatformsSection
-// =============================================================================
 
 const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
 
@@ -208,9 +178,7 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
         <div className="bg-card rounded-lg border border-border p-6 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Name
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-1">Name</label>
               <input
                 type="text"
                 value={formData.name || ''}
@@ -220,9 +188,7 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Role
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-1">Role</label>
               <input
                 type="text"
                 value={formData.role || ''}
@@ -232,9 +198,7 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Company
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-1">Company</label>
               <input
                 type="text"
                 value={formData.company || ''}
@@ -244,9 +208,7 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-foreground mb-1">
-                Timezone
-              </label>
+              <label className="block text-sm font-medium text-foreground mb-1">Timezone</label>
               <input
                 type="text"
                 value={formData.timezone || ''}
@@ -257,9 +219,7 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
             </div>
           </div>
           <div>
-            <label className="block text-sm font-medium text-foreground mb-1">
-              Summary
-            </label>
+            <label className="block text-sm font-medium text-foreground mb-1">Summary</label>
             <textarea
               value={formData.summary || ''}
               onChange={(e) => setFormData({ ...formData, summary: e.target.value })}
@@ -291,16 +251,9 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
               {profile.name?.charAt(0)?.toUpperCase() || '?'}
             </div>
             <div className="flex-1">
-              <div className="flex items-center gap-2">
-                <h3 className="text-xl font-semibold text-foreground">
-                  {profile.name || 'Anonymous'}
-                </h3>
-                {profile.name_source === 'inferred' && (
-                  <span className="text-xs px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
-                    inferred
-                  </span>
-                )}
-              </div>
+              <h3 className="text-xl font-semibold text-foreground">
+                {profile.name || 'Anonymous'}
+              </h3>
               {profile.role && (
                 <p className="text-muted-foreground">
                   {profile.role}
@@ -308,14 +261,10 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
                 </p>
               )}
               {profile.summary && (
-                <p className="mt-2 text-muted-foreground text-sm">
-                  {profile.summary}
-                </p>
+                <p className="mt-2 text-muted-foreground text-sm">{profile.summary}</p>
               )}
               {profile.timezone && (
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Timezone: {profile.timezone}
-                </p>
+                <p className="mt-2 text-xs text-muted-foreground">Timezone: {profile.timezone}</p>
               )}
             </div>
           </div>
@@ -330,9 +279,9 @@ function ProfileSection({ profile, loading, onUpdate }: ProfileSectionProps) {
 // =============================================================================
 
 interface StylesSectionProps {
-  styles: Style[];
+  styles: StyleItem[];
   loading: boolean;
-  onUpdate?: (platform: string, data: { tone?: string; verbosity?: string }) => Promise<void>;
+  onUpdate: (platform: string, data: { tone?: string; verbosity?: string }) => Promise<void>;
 }
 
 function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
@@ -340,16 +289,13 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
   const [editForm, setEditForm] = useState<{ tone?: string; verbosity?: string }>({});
   const [saving, setSaving] = useState(false);
 
-  const handleEdit = (style: Style) => {
+  const handleEdit = (style: StyleItem) => {
     setEditingPlatform(style.platform);
-    setEditForm({
-      tone: style.stated_preferences?.tone as string || style.tone || '',
-      verbosity: style.stated_preferences?.verbosity as string || style.verbosity || '',
-    });
+    setEditForm({ tone: style.tone || '', verbosity: style.verbosity || '' });
   };
 
   const handleSave = async () => {
-    if (!editingPlatform || !onUpdate) return;
+    if (!editingPlatform) return;
     setSaving(true);
     try {
       await onUpdate(editingPlatform, editForm);
@@ -367,220 +313,123 @@ function StylesSection({ styles, loading, onUpdate }: StylesSectionProps) {
     );
   }
 
+  // Show all 4 platforms — empty ones can be configured
+  const allPlatformStyles: StyleItem[] = ALL_PLATFORMS.map((p) => {
+    const existing = styles.find((s) => s.platform === p);
+    return existing || { platform: p };
+  });
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Communication Styles</h2>
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        These styles are inferred from your messages. Override them to control how TP generates content for you.
-      </p>
-
-      {styles.length === 0 ? (
-        <div className="bg-muted/50 rounded-lg p-6 text-center">
-          <Palette className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-muted-foreground">
-            No styles inferred yet. Connect platforms and sync content to learn your communication patterns.
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Communication Styles</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Set your preferred tone and verbosity per platform. TP uses these when writing content for you.
           </p>
         </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {styles.map((style) => {
-            const config = PLATFORM_CONFIG[style.platform] || {
-              label: style.platform,
-              icon: <Database className="w-4 h-4" />,
-              colors: { bg: 'bg-gray-100', text: 'text-gray-600' },
-            };
-            const isEditing = editingPlatform === style.platform;
-            const hasOverride = style.stated_preferences && Object.keys(style.stated_preferences).length > 0;
+      </div>
 
-            return (
-              <div
-                key={style.platform}
-                className="bg-card rounded-lg border border-border p-4"
-              >
-                <div className="flex items-center justify-between mb-3">
-                  <div className="flex items-center gap-2">
-                    <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
-                      {config.icon}
-                    </div>
-                    <span className="font-medium text-foreground">
-                      {config.label}
-                    </span>
-                    {hasOverride && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">
-                        custom
-                      </span>
-                    )}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {allPlatformStyles.map((style) => {
+          const config = PLATFORM_CONFIG[style.platform] || {
+            label: style.platform,
+            icon: <Database className="w-4 h-4" />,
+            colors: { bg: 'bg-gray-100', text: 'text-gray-600' },
+          };
+          const isEditing = editingPlatform === style.platform;
+          const hasPrefs = style.tone || style.verbosity;
+
+          return (
+            <div key={style.platform} className="bg-card rounded-lg border border-border p-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <div className={cn("p-2 rounded-lg", config.colors.bg, config.colors.text)}>
+                    {config.icon}
                   </div>
-                  {!isEditing && onUpdate && (
-                    <button
-                      onClick={() => handleEdit(style)}
-                      className="text-xs text-primary hover:text-primary/80"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                  <span className="font-medium text-foreground">{config.label}</span>
+                  {hasPrefs && (
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary">set</span>
                   )}
                 </div>
-
-                {isEditing ? (
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs text-muted-foreground mb-1">Tone</label>
-                      <select
-                        value={editForm.tone || ''}
-                        onChange={(e) => setEditForm({ ...editForm, tone: e.target.value })}
-                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                      >
-                        <option value="">Auto (inferred)</option>
-                        <option value="casual">Casual</option>
-                        <option value="formal">Formal</option>
-                        <option value="professional">Professional</option>
-                        <option value="friendly">Friendly</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
-                      <select
-                        value={editForm.verbosity || ''}
-                        onChange={(e) => setEditForm({ ...editForm, verbosity: e.target.value })}
-                        className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
-                      >
-                        <option value="">Auto (inferred)</option>
-                        <option value="minimal">Minimal</option>
-                        <option value="moderate">Moderate</option>
-                        <option value="detailed">Detailed</option>
-                      </select>
-                    </div>
-                    <div className="flex gap-2 pt-2">
-                      <button
-                        onClick={() => setEditingPlatform(null)}
-                        className="flex-1 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
-                      >
-                        Cancel
-                      </button>
-                      <button
-                        onClick={handleSave}
-                        disabled={saving}
-                        className="flex-1 px-2 py-1.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground rounded disabled:opacity-50"
-                      >
-                        {saving ? 'Saving...' : 'Save'}
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-2 text-sm">
-                      {(style.tone || (style.stated_preferences?.tone as string | undefined)) && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Tone</span>
-                          <span className="text-foreground capitalize">
-                            {String((style.stated_preferences?.tone as string | undefined) || style.tone)}
-                          </span>
-                        </div>
-                      )}
-                      {(style.verbosity || (style.stated_preferences?.verbosity as string | undefined)) && (
-                        <div className="flex justify-between">
-                          <span className="text-muted-foreground">Verbosity</span>
-                          <span className="text-foreground capitalize">
-                            {String((style.stated_preferences?.verbosity as string | undefined) || style.verbosity)}
-                          </span>
-                        </div>
-                      )}
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Samples</span>
-                        <span className="text-foreground">{style.sample_count}</span>
-                      </div>
-                    </div>
-
-                    {style.sample_excerpts && style.sample_excerpts.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-border">
-                        <p className="text-xs text-muted-foreground mb-1">Example:</p>
-                        <p className="text-xs text-muted-foreground italic line-clamp-2">
-                          &ldquo;{style.sample_excerpts[0]}&rdquo;
-                        </p>
-                      </div>
-                    )}
-                  </>
+                {!isEditing && (
+                  <button
+                    onClick={() => handleEdit(style)}
+                    className="text-xs text-primary hover:text-primary/80"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
                 )}
               </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
-  );
-}
 
-// =============================================================================
-// Domains Section
-// =============================================================================
-
-interface DomainsSectionProps {
-  domains: Domain[];
-  loading: boolean;
-  onNavigate: (domainId: string) => void;
-}
-
-function DomainsSection({ domains, loading, onNavigate }: DomainsSectionProps) {
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Work Domains</h2>
-      </div>
-
-      {domains.length === 0 ? (
-        <div className="bg-muted/50 rounded-lg p-6 text-center">
-          <FolderKanban className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
-          <p className="text-muted-foreground">
-            No domains yet. Domains are automatically created when you group platform sources.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          {domains.map((domain) => (
-            <button
-              key={domain.id}
-              onClick={() => onNavigate(domain.id)}
-              className="w-full bg-card rounded-lg border border-border p-4 text-left hover:border-primary/50 transition-colors"
-            >
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <FolderKanban className="w-5 h-5 text-primary" />
-                  <span className="font-medium text-foreground">
-                    {domain.name}
-                  </span>
-                  {domain.is_default && (
-                    <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary">
-                      default
-                    </span>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Tone</label>
+                    <select
+                      value={editForm.tone || ''}
+                      onChange={(e) => setEditForm({ ...editForm, tone: e.target.value })}
+                      className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
+                    >
+                      <option value="">Not set</option>
+                      <option value="casual">Casual</option>
+                      <option value="formal">Formal</option>
+                      <option value="professional">Professional</option>
+                      <option value="friendly">Friendly</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs text-muted-foreground mb-1">Verbosity</label>
+                    <select
+                      value={editForm.verbosity || ''}
+                      onChange={(e) => setEditForm({ ...editForm, verbosity: e.target.value })}
+                      className="w-full px-2 py-1.5 text-sm border border-border rounded bg-background text-foreground"
+                    >
+                      <option value="">Not set</option>
+                      <option value="minimal">Minimal</option>
+                      <option value="moderate">Moderate</option>
+                      <option value="detailed">Detailed</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2 pt-2">
+                    <button
+                      onClick={() => setEditingPlatform(null)}
+                      className="flex-1 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      className="flex-1 px-2 py-1.5 text-xs bg-primary hover:bg-primary/90 text-primary-foreground rounded disabled:opacity-50"
+                    >
+                      {saving ? 'Saving...' : 'Save'}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2 text-sm">
+                  {style.tone ? (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Tone</span>
+                      <span className="text-foreground capitalize">{style.tone}</span>
+                    </div>
+                  ) : null}
+                  {style.verbosity ? (
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Verbosity</span>
+                      <span className="text-foreground capitalize">{style.verbosity}</span>
+                    </div>
+                  ) : null}
+                  {!hasPrefs && (
+                    <p className="text-xs text-muted-foreground/60">Not configured</p>
                   )}
                 </div>
-                <ChevronRight className="w-4 h-4 text-muted-foreground" />
-              </div>
-              {domain.summary && (
-                <p className="mt-1 text-sm text-muted-foreground line-clamp-2">
-                  {domain.summary}
-                </p>
               )}
-              {domain.sources && domain.sources.length > 0 && (
-                <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                  <span>{domain.sources.length} source{domain.sources.length !== 1 ? 's' : ''}</span>
-                </div>
-              )}
-            </button>
-          ))}
-        </div>
-      )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -590,7 +439,7 @@ function DomainsSection({ domains, loading, onNavigate }: DomainsSectionProps) {
 // =============================================================================
 
 interface EntriesSectionProps {
-  entries: Entry[];
+  entries: ContextEntry[];
   loading: boolean;
   onAdd: () => void;
   onDelete: (id: string) => Promise<void>;
@@ -616,17 +465,21 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
     );
   }
 
-  const entryTypeLabel: Record<string, string> = {
+  const typeLabel: Record<string, string> = {
+    fact: 'Fact',
     preference: 'Prefers',
     instruction: 'Note',
-    decision: 'Decided',
-    fact: 'Fact',
   };
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold text-foreground">Knowledge Entries</h2>
+        <div>
+          <h2 className="text-lg font-semibold text-foreground">Knowledge Entries</h2>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Facts, preferences, and instructions TP keeps in mind every session.
+          </p>
+        </div>
         <button
           onClick={onAdd}
           className="flex items-center gap-1.5 text-sm text-primary hover:text-primary/80"
@@ -640,7 +493,7 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
         <div className="bg-muted/50 rounded-lg p-6 text-center">
           <BookOpen className="w-12 h-12 mx-auto text-muted-foreground/50 mb-3" />
           <p className="text-muted-foreground mb-4">
-            No knowledge entries yet. Add facts, preferences, and decisions for TP to remember.
+            No knowledge entries yet. Add facts, preferences, and instructions for TP to remember.
           </p>
           <button
             onClick={onAdd}
@@ -651,47 +504,38 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
         </div>
       ) : (
         <div className="space-y-2">
-          {entries.map((entry) => (
-            <div
-              key={entry.id}
-              className="bg-card rounded-lg border border-border p-4 flex items-start gap-3"
-            >
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xs font-medium text-muted-foreground">
-                    {entryTypeLabel[entry.entry_type] || entry.entry_type}
-                  </span>
-                  <span className="text-xs text-muted-foreground">
-                    · {entry.source}
-                  </span>
-                </div>
-                <p className="text-foreground">{entry.content}</p>
-                {entry.tags.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-1">
-                    {entry.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground"
-                      >
-                        {tag}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </div>
-              <button
-                onClick={() => handleDelete(entry.id)}
-                disabled={deletingId === entry.id}
-                className="p-1 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 transition-colors"
+          {entries.map((entry) => {
+            const prefix = entry.key.split(':')[0];
+            const label = typeLabel[prefix] || prefix;
+            const sourceLabel = entry.source === 'user_stated' ? 'stated' :
+              entry.source === 'tp_extracted' ? 'TP' : entry.source;
+
+            return (
+              <div
+                key={entry.id}
+                className="bg-card rounded-lg border border-border p-4 flex items-start gap-3"
               >
-                {deletingId === entry.id ? (
-                  <Loader2 className="w-4 h-4 animate-spin" />
-                ) : (
-                  <Trash2 className="w-4 h-4" />
-                )}
-              </button>
-            </div>
-          ))}
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium text-muted-foreground">{label}</span>
+                    <span className="text-xs text-muted-foreground">· {sourceLabel}</span>
+                  </div>
+                  <p className="text-foreground">{entry.value}</p>
+                </div>
+                <button
+                  onClick={() => handleDelete(entry.id)}
+                  disabled={deletingId === entry.id}
+                  className="p-1 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                >
+                  {deletingId === entry.id ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="w-4 h-4" />
+                  )}
+                </button>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
@@ -717,7 +561,6 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
     );
   }
 
-  // Build a map for quick lookup; calendar may come from backend as 'google'
   const platformMap: Record<string, PlatformSummary | undefined> = {};
   for (const p of platforms) {
     const key = p.provider === 'google' ? 'calendar' : p.provider;
@@ -733,7 +576,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
           <h2 className="text-lg font-semibold text-foreground">Platforms</h2>
           <p className="text-sm text-muted-foreground mt-0.5">
             {connectedCount === 0
-              ? 'Connect platforms to auto-learn your context.'
+              ? 'Connect platforms to sync your context.'
               : `${connectedCount} of ${ALL_PLATFORMS.length} connected`}
           </p>
         </div>
@@ -863,9 +706,7 @@ function DocumentsSection({ documents, loading, onUpload }: DocumentsSectionProp
             >
               <FileText className="w-8 h-8 text-primary" />
               <div className="flex-1 min-w-0">
-                <p className="font-medium text-foreground truncate">
-                  {doc.filename}
-                </p>
+                <p className="font-medium text-foreground truncate">{doc.filename}</p>
                 <p className="text-xs text-muted-foreground">
                   {doc.file_type?.toUpperCase()} · {formatDistanceToNow(new Date(doc.created_at), { addSuffix: true })}
                 </p>
@@ -898,36 +739,29 @@ export default function ContextPage() {
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Determine initial section from URL
   const sectionParam = searchParams.get('section') as Section | null;
   const [activeSection, setActiveSection] = useState<Section>(sectionParam || 'profile');
 
-  // Loading states
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
-  // Data states
   const [profile, setProfile] = useState<Profile>({});
-  const [styles, setStyles] = useState<Style[]>([]);
-  const [domains, setDomains] = useState<Domain[]>([]);
-  const [entries, setEntries] = useState<Entry[]>([]);
+  const [styles, setStyles] = useState<StyleItem[]>([]);
+  const [entries, setEntries] = useState<ContextEntry[]>([]);
   const [platforms, setPlatforms] = useState<PlatformSummary[]>([]);
   const [documents, setDocuments] = useState<Document[]>([]);
 
-  // Load all data
   const loadData = useCallback(async () => {
     try {
       const [
         profileResult,
         stylesResult,
-        domainsResult,
         entriesResult,
         platformsResult,
         documentsResult,
       ] = await Promise.all([
         api.profile.get().catch(() => ({})),
         api.styles.list().catch(() => ({ styles: [] })),
-        api.domains.list().catch(() => []),
         api.userMemories.list().catch(() => []),
         api.integrations.getSummary().catch(() => ({ platforms: [] })),
         api.documents.list().catch(() => ({ documents: [] })),
@@ -935,8 +769,7 @@ export default function ContextPage() {
 
       setProfile(profileResult || {});
       setStyles(stylesResult?.styles || []);
-      setDomains(Array.isArray(domainsResult) ? domainsResult : []);
-      setEntries(Array.isArray(entriesResult) ? entriesResult as Entry[] : []);
+      setEntries(Array.isArray(entriesResult) ? entriesResult as ContextEntry[] : []);
       setPlatforms(platformsResult?.platforms || []);
       setDocuments(documentsResult?.documents || []);
     } catch (err) {
@@ -950,7 +783,14 @@ export default function ContextPage() {
     loadData();
   }, [loadData]);
 
-  // Update URL when section changes
+  // Sync section from URL changes
+  useEffect(() => {
+    const s = searchParams.get('section') as Section | null;
+    if (s && s !== activeSection) {
+      setActiveSection(s);
+    }
+  }, [searchParams, activeSection]);
+
   const handleSectionChange = (section: Section) => {
     setActiveSection(section);
     const url = new URL(window.location.href);
@@ -958,51 +798,47 @@ export default function ContextPage() {
     router.replace(url.pathname + url.search, { scroll: false });
   };
 
-  // Profile update handler
   const handleProfileUpdate = async (data: Partial<Profile>) => {
     const result = await api.profile.update(data);
     setProfile(result);
   };
 
-  // Style update handler (ADR-058: user override)
   const handleStyleUpdate = async (platform: string, data: { tone?: string; verbosity?: string }) => {
     const result = await api.styles.update(platform, data);
-    // Update the styles array with the new values
-    setStyles(styles.map((s) =>
-      s.platform === platform
-        ? { ...s, stated_preferences: result.stated_preferences }
-        : s
-    ));
+    setStyles((prev) => {
+      const exists = prev.find((s) => s.platform === platform);
+      if (exists) {
+        return prev.map((s) => s.platform === platform ? { ...s, ...result } : s);
+      }
+      return [...prev, result];
+    });
   };
 
-  // Entry delete handler
   const handleDeleteEntry = async (id: string) => {
     await api.memories.delete(id);
-    setEntries(entries.filter((e) => e.id !== id));
+    setEntries((prev) => prev.filter((e) => e.id !== id));
   };
 
-  // File upload handler
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     try {
       await api.documents.upload(file);
-      // Refresh documents
       const result = await api.documents.list();
       setDocuments(result.documents || []);
     } catch (err) {
       console.error('Upload failed:', err);
     }
 
-    // Reset input
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  // Check if user has any context
-  const hasContext = platforms.filter((p) => p.status === 'connected').length > 0 || documents.length > 0 || entries.length > 0;
+  const hasContext = platforms.filter((p) => p.status === 'connected').length > 0 ||
+    documents.length > 0 ||
+    entries.length > 0;
   const showEmptyState = !hasContext && !profile.name;
 
   if (loading) {
@@ -1033,7 +869,6 @@ export default function ContextPage() {
 
       {/* Content Area */}
       <main className="flex-1 p-6 overflow-auto">
-        {/* Show welcome prompt only on profile section when empty, otherwise show section content */}
         {showEmptyState && activeSection === 'profile' ? (
           <div className="h-full flex items-center justify-center">
             <div className="max-w-md text-center">
@@ -1074,14 +909,6 @@ export default function ContextPage() {
                 styles={styles}
                 loading={false}
                 onUpdate={handleStyleUpdate}
-              />
-            )}
-
-            {activeSection === 'domains' && (
-              <DomainsSection
-                domains={domains}
-                loading={false}
-                onNavigate={(id) => router.push(`/domains/${id}`)}
               />
             )}
 

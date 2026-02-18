@@ -2258,18 +2258,17 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     sample_memories = []
 
     try:
-        # ADR-034: Count memories from default domain (user's portable context)
-        # Domain-scoped memories will be available via domain inference after sources are configured
-        user_mem_result = auth.client.table("knowledge_entries")\
-            .select("id, content", count="exact")\
+        # ADR-059: Count memories from user_context (fact:/instruction:/preference: keys)
+        user_mem_result = auth.client.table("user_context")\
+            .select("id, value", count="exact")\
             .eq("user_id", auth.user_id)\
-            .eq("is_active", True)\
+            .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
         user_memory_count = user_mem_result.count or 0
 
         # Get sample user memories (first 3)
         if user_mem_result.data:
-            sample_memories = [m["content"][:100] for m in user_mem_result.data[:3]]
+            sample_memories = [m["value"][:100] for m in user_mem_result.data[:3]]
 
         # Count user documents
         doc_result = auth.client.table("filesystem_documents")\
@@ -2410,47 +2409,34 @@ async def handle_list_memories(auth, input: dict) -> dict:
     Returns:
         Dict with memories list
     """
-    scope = input.get("scope")
-    project_id = input.get("project_id")
-    tag = input.get("tag")
+    # ADR-059: Read from user_context
     search = input.get("search")
     limit = input.get("limit", 20)
 
-    # Build query - filter is_active=true since schema uses soft delete
-    # ADR-034: Projects removed, memories are user-scoped (domain_id replaces project_id)
-    query = auth.client.table("knowledge_entries")\
-        .select("id, content, tags, domain_id, created_at, updated_at")\
+    query = auth.client.table("user_context")\
+        .select("id, key, value, source, created_at, updated_at")\
         .eq("user_id", auth.user_id)\
-        .eq("is_active", True)\
         .order("created_at", desc=True)\
         .limit(limit)
 
-    # ADR-034: Scope filter simplified - all memories are user-scoped
-    # Domain filtering can be added when domain_id is populated
-
-    # Apply tag filter
-    if tag:
-        query = query.contains("tags", [tag])
-
-    # Apply search filter
     if search:
-        query = query.ilike("content", f"%{search}%")
+        query = query.ilike("value", f"%{search}%")
 
     result = query.execute()
-    memories = result.data or []
+    rows = result.data or []
 
-    # Format response
-    # ADR-034: Projects removed, all memories are user-scoped
     items = []
-    for m in memories:
-        items.append({
-            "id": m["id"],
-            "content": m["content"][:200] + "..." if len(m["content"]) > 200 else m["content"],
-            "tags": m.get("tags", []),
-            "scope": "user",  # ADR-034: All memories are user-scoped
-            "domain_id": m.get("domain_id"),  # ADR-034: Domain scoping
-            "created_at": m["created_at"],
-        })
+    for row in rows:
+        key = row.get("key", "")
+        if key.startswith(("fact:", "instruction:", "preference:")):
+            value = row["value"]
+            items.append({
+                "id": row["id"],
+                "content": value[:200] + "..." if len(value) > 200 else value,
+                "type": key.split(":")[0],
+                "source": row.get("source", "user_stated"),
+                "created_at": row["created_at"],
+            })
 
     return {
         "success": True,
@@ -2474,73 +2460,43 @@ async def handle_create_memory(auth, input: dict) -> dict:
     Returns:
         Dict with created memory details including project attribution
     """
-    content = input["content"]
-    tags = input.get("tags", [])
-    project_id = input.get("project_id")
+    # ADR-059: Write to user_context
+    import re as _re
+    from datetime import datetime as _dt
 
-    # Build knowledge entry data
-    # ADR-058: knowledge_entries schema
-    memory_data = {
-        "content": content,
-        "tags": tags,
+    content = input["content"]
+    entry_type = input.get("entry_type", "fact")
+
+    safe_content = _re.sub(r'[^a-zA-Z0-9_ -]', '', content)[:60].strip()
+    key = f"{entry_type}:{safe_content}"
+
+    now = _dt.utcnow().isoformat()
+    record = {
         "user_id": auth.user_id,
-        "source": "user_stated",  # Created via TP tool
-        "entry_type": "fact",  # Default type
+        "key": key,
+        "value": content,
+        "source": "tp_extracted",
+        "confidence": 1.0,
+        "created_at": now,
+        "updated_at": now,
     }
 
-    # Get project name for attribution if project_id provided
-    project_name = None
-    if project_id:
-        memory_data["project_id"] = project_id
-        try:
-            project_result = auth.client.table("projects")\
-                .select("name")\
-                .eq("id", project_id)\
-                .single()\
-                .execute()
-            if project_result.data:
-                project_name = project_result.data["name"]
-        except Exception:
-            pass
-
-    # Create memory
-    result = auth.client.table("knowledge_entries").insert(memory_data).execute()
+    result = auth.client.table("user_context").upsert(record, on_conflict="user_id,key").execute()
 
     if not result.data:
-        return {
-            "success": False,
-            "error": "Failed to create memory"
-        }
+        return {"success": False, "error": "Failed to create memory"}
 
     memory = result.data[0]
-    scope = "project" if project_id else "user"
-
-    # ADR-024: Build attribution message for transparency
-    if project_id and project_name:
-        scope_display = f"'{project_name}' project"
-        attribution_message = f"Saved to {scope_display} context."
-    else:
-        scope_display = "Personal"
-        attribution_message = "Saved to your personal context (applies across all projects)."
 
     return {
         "success": True,
         "memory": {
             "id": memory["id"],
             "content": content[:100] + "..." if len(content) > 100 else content,
-            "tags": tags,
-            "scope": scope,
-            "project_id": project_id,
-            "project_name": project_name,
+            "type": entry_type,
         },
-        "message": f"Memory stored. {attribution_message}",
-        # ADR-024: Include attribution for confirmation UI
-        "attribution": {
-            "scope": scope,
-            "scope_display": scope_display,
-            "project_id": project_id,
-            "project_name": project_name,
-        }
+        "message": "Saved to your context.",
+        "attribution": {"scope": "user", "scope_display": "Personal"}
     }
 
 
@@ -2558,25 +2514,19 @@ async def handle_update_memory(auth, input: dict) -> dict:
     from datetime import datetime
 
     memory_id = input["memory_id"]
-    updates = {}
 
-    if "content" in input:
-        updates["content"] = input["content"]
-
-    if "tags" in input:
-        updates["tags"] = input["tags"]
-
-    if not updates:
+    if "content" not in input:
         return {
             "success": False,
             "error": "No updates provided"
         }
 
-    updates["updated_at"] = datetime.utcnow().isoformat()
+    new_value = input["content"]
+    updated_at = datetime.utcnow().isoformat()
 
-    # Apply update
-    result = auth.client.table("knowledge_entries")\
-        .update(updates)\
+    # ADR-059: user_context stores value; update by id scoped to user
+    result = auth.client.table("user_context")\
+        .update({"value": new_value, "updated_at": updated_at})\
         .eq("id", memory_id)\
         .eq("user_id", auth.user_id)\
         .execute()
@@ -2588,13 +2538,13 @@ async def handle_update_memory(auth, input: dict) -> dict:
         }
 
     memory = result.data[0]
+    preview = memory["value"][:100] + "..." if len(memory["value"]) > 100 else memory["value"]
 
     return {
         "success": True,
         "memory": {
             "id": memory["id"],
-            "content": memory["content"][:100] + "..." if len(memory["content"]) > 100 else memory["content"],
-            "tags": memory.get("tags", []),
+            "content": preview,
         },
         "message": "Memory updated."
     }
@@ -2613,13 +2563,12 @@ async def handle_delete_memory(auth, input: dict) -> dict:
     """
     memory_id = input["memory_id"]
 
-    # Verify ownership and get content preview (only active memories)
+    # ADR-059: user_context uses hard deletes (no is_active flag)
     try:
-        memory_result = auth.client.table("knowledge_entries")\
-            .select("id, content")\
+        memory_result = auth.client.table("user_context")\
+            .select("id, value")\
             .eq("id", memory_id)\
             .eq("user_id", auth.user_id)\
-            .eq("is_active", True)\
             .single()\
             .execute()
     except Exception:
@@ -2634,12 +2583,13 @@ async def handle_delete_memory(auth, input: dict) -> dict:
             "error": "Memory not found or access denied"
         }
 
-    content_preview = memory_result.data["content"][:50] + "..." if len(memory_result.data["content"]) > 50 else memory_result.data["content"]
+    value = memory_result.data["value"]
+    content_preview = value[:50] + "..." if len(value) > 50 else value
 
-    # Soft delete memory (schema uses is_active pattern)
-    auth.client.table("knowledge_entries")\
-        .update({"is_active": False})\
+    auth.client.table("user_context")\
+        .delete()\
         .eq("id", memory_id)\
+        .eq("user_id", auth.user_id)\
         .execute()
 
     return {
@@ -2735,25 +2685,8 @@ async def handle_suggest_project_for_memory(auth, input: dict) -> dict:
         if desc_overlap:
             score += 0.2 * min(len(desc_overlap) / max(len(content_keywords), 1), 1.0)
 
-        # Check for project-specific context in the project's memories
-        try:
-            project_memories = auth.client.table("knowledge_entries")\
-                .select("content")\
-                .eq("project_id", project["id"])\
-                .eq("is_active", True)\
-                .limit(10)\
-                .execute()
-
-            if project_memories.data:
-                # Check if content relates to existing project memories
-                project_memory_text = " ".join([m["content"].lower() for m in project_memories.data])
-                project_mem_words = set(project_memory_text.split()) - stopwords
-                mem_overlap = content_keywords & project_mem_words
-                if mem_overlap:
-                    score += 0.2 * min(len(mem_overlap) / max(len(content_keywords), 1), 1.0)
-                    reasons.append(f"relates to existing context")
-        except Exception:
-            pass
+        # ADR-059: project-scoped memories removed; skip knowledge_entries lookup
+        pass
 
         suggestions.append({
             "project_id": project["id"],

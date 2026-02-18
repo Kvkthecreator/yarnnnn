@@ -127,11 +127,27 @@ async function request<T>(
 }
 
 export const api = {
-  // User memories (user-scoped, portable)
+  // ADR-059: User context entries (user-scoped, stored in user_context table)
   userMemories: {
-    list: () => request<Memory[]>("/api/context/user/memories"),
-    create: (data: MemoryCreate) =>
-      request<Memory>("/api/context/user/memories", {
+    list: () => request<Array<{
+      id: string;
+      key: string;
+      value: string;
+      source: string;
+      confidence: number;
+      created_at: string;
+      updated_at: string;
+    }>>("/api/context/user/memories"),
+    create: (data: { content: string; entry_type?: string }) =>
+      request<{
+        id: string;
+        key: string;
+        value: string;
+        source: string;
+        confidence: number;
+        created_at: string;
+        updated_at: string;
+      }>("/api/context/user/memories", {
         method: "POST",
         body: JSON.stringify(data),
       }),
@@ -155,23 +171,15 @@ export const api = {
       }),
   },
 
-  // ADR-058: Knowledge Profile
+  // ADR-059: Profile — reads/writes user_context table
   profile: {
     get: () =>
       request<{
-        id?: string;
         name?: string;
         role?: string;
         company?: string;
         timezone?: string;
         summary?: string;
-        name_source?: string;
-        role_source?: string;
-        company_source?: string;
-        timezone_source?: string;
-        summary_source?: string;
-        last_inferred_at?: string;
-        inference_confidence?: number;
       }>("/api/context/profile"),
     update: (data: {
       name?: string;
@@ -181,64 +189,41 @@ export const api = {
       summary?: string;
     }) =>
       request<{
-        id?: string;
         name?: string;
         role?: string;
         company?: string;
         timezone?: string;
         summary?: string;
-        name_source?: string;
-        role_source?: string;
-        company_source?: string;
-        timezone_source?: string;
-        summary_source?: string;
       }>("/api/context/profile", {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
   },
 
-  // ADR-058: Knowledge Styles
+  // ADR-059: Styles — tone/verbosity per platform, stored in user_context
   styles: {
     list: () =>
       request<{
         styles: Array<{
-          id?: string;
           platform: string;
           tone?: string;
           verbosity?: string;
-          formatting?: Record<string, unknown>;
-          vocabulary_notes?: string;
-          sample_excerpts?: string[];
-          stated_preferences?: Record<string, unknown>;
-          sample_count: number;
-          last_inferred_at?: string;
         }>;
       }>("/api/context/styles"),
     get: (platform: string) =>
       request<{
-        id?: string;
         platform: string;
         tone?: string;
         verbosity?: string;
-        formatting?: Record<string, unknown>;
-        vocabulary_notes?: string;
-        sample_excerpts?: string[];
-        stated_preferences?: Record<string, unknown>;
-        sample_count: number;
-        last_inferred_at?: string;
       }>(`/api/context/styles/${platform}`),
     update: (platform: string, data: {
       tone?: string;
       verbosity?: string;
-      stated_preferences?: Record<string, unknown>;
     }) =>
       request<{
-        id?: string;
         platform: string;
         tone?: string;
         verbosity?: string;
-        stated_preferences?: Record<string, unknown>;
       }>(`/api/context/styles/${platform}`, {
         method: "PATCH",
         body: JSON.stringify(data),

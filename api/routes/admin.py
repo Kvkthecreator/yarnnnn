@@ -111,17 +111,17 @@ async def get_overview_stats(admin: AdminAuth):
             .execute()
         projects_7d = projects_7d_result.count or 0
 
-        # Total memories (active only)
-        memories_result = client.table("knowledge_entries")\
+        # Total memories (ADR-059: user_context entry-type keys)
+        memories_result = client.table("user_context")\
             .select("id", count="exact")\
-            .eq("is_active", True)\
+            .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
         total_memories = memories_result.count or 0
 
         # Memories in last 7 days
-        memories_7d_result = client.table("knowledge_entries")\
+        memories_7d_result = client.table("user_context")\
             .select("id", count="exact")\
-            .eq("is_active", True)\
+            .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .gte("created_at", seven_days_ago)\
             .execute()
         memories_7d = memories_7d_result.count or 0
@@ -187,11 +187,11 @@ async def list_users(admin: AdminAuth):
                     .execute()
                 project_count = projects.count or 0
 
-            # Get memory count
-            memories = client.table("knowledge_entries")\
+            # Get memory count (ADR-059)
+            memories = client.table("user_context")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
-                .eq("is_active", True)\
+                .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
                 .execute()
             memory_count = memories.count or 0
 
@@ -231,69 +231,46 @@ async def get_memory_stats(admin: AdminAuth):
     try:
         client = admin.client
 
-        # By source type
+        # ADR-059: user_context replaces knowledge_entries; count by source
         by_source = {}
-        for source in ["chat", "document", "manual", "import"]:
-            result = client.table("knowledge_entries")\
+        for source in ["user_stated", "tp_extracted", "document"]:
+            result = client.table("user_context")\
                 .select("id", count="exact")\
-                .eq("source_type", source)\
-                .eq("is_active", True)\
+                .eq("source", source)\
+                .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
                 .execute()
             by_source[source] = result.count or 0
 
-        # By scope (user vs project)
-        # Get total active memories first
-        total_result = client.table("knowledge_entries")\
+        # All entry-type context rows
+        total_result = client.table("user_context")\
             .select("id", count="exact")\
-            .eq("is_active", True)\
+            .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
         total_active_memories = total_result.count or 0
 
-        user_scoped = client.table("knowledge_entries")\
-            .select("id", count="exact")\
-            .is_("project_id", "null")\
-            .eq("is_active", True)\
-            .execute()
-        user_scoped_count = user_scoped.count or 0
-
-        # Project-scoped = total - user-scoped (avoids NOT NULL query)
-        project_scoped_count = total_active_memories - user_scoped_count
-
         by_scope = {
-            "user_scoped": user_scoped_count,
-            "project_scoped": project_scoped_count,
+            "user_scoped": total_active_memories,
+            "project_scoped": 0,  # ADR-059: no project-scoped memories
         }
 
-        # Average importance
-        all_memories = client.table("knowledge_entries")\
-            .select("importance")\
-            .eq("is_active", True)\
+        # Average confidence (replaces importance)
+        all_memories = client.table("user_context")\
+            .select("confidence")\
+            .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
 
         avg_importance = 0.0
         if all_memories.data:
-            importances = [m.get("importance", 0) or 0 for m in all_memories.data]
-            if importances:
-                avg_importance = sum(importances) / len(importances)
-
-        # Total active
-        total_active = client.table("knowledge_entries")\
-            .select("id", count="exact")\
-            .eq("is_active", True)\
-            .execute()
-
-        # Total soft-deleted
-        total_deleted = client.table("knowledge_entries")\
-            .select("id", count="exact")\
-            .eq("is_active", False)\
-            .execute()
+            confidences = [m.get("confidence", 1.0) or 1.0 for m in all_memories.data]
+            if confidences:
+                avg_importance = sum(confidences) / len(confidences)
 
         return AdminMemoryStats(
             by_source=by_source,
             by_scope=by_scope,
             avg_importance=round(avg_importance, 3),
-            total_active=total_active.count or 0,
-            total_soft_deleted=total_deleted.count or 0,
+            total_active=total_active_memories,
+            total_soft_deleted=0,  # ADR-059: hard deletes only
         )
 
     except Exception as e:
@@ -434,11 +411,11 @@ async def export_users_excel(admin: AdminAuth):
                     .execute()
                 project_count = projects.count or 0
 
-            # Get memory count
-            memories = client.table("knowledge_entries")\
+            # Get memory count (ADR-059)
+            memories = client.table("user_context")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
-                .eq("is_active", True)\
+                .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
                 .execute()
             memory_count = memories.count or 0
 
@@ -575,10 +552,10 @@ async def export_full_report(admin: AdminAuth):
             .execute()
         total_projects = projects_result.count or 0
 
-        # Memories
-        memories_result = client.table("knowledge_entries")\
+        # Memories (ADR-059: user_context entry-type keys)
+        memories_result = client.table("user_context")\
             .select("id, created_at", count="exact")\
-            .eq("is_active", True)\
+            .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
         total_memories = memories_result.count or 0
 
@@ -622,11 +599,11 @@ async def export_full_report(admin: AdminAuth):
                     .execute()
                 project_count = projects.count or 0
 
-            # Memory count
-            memories = client.table("knowledge_entries")\
+            # Memory count (ADR-059)
+            memories = client.table("user_context")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
-                .eq("is_active", True)\
+                .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
                 .execute()
             memory_count = memories.count or 0
 

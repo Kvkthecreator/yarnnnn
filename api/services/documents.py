@@ -9,8 +9,7 @@ import io
 from typing import Optional
 from datetime import datetime
 
-from services.embeddings import get_embedding, get_embeddings_batch
-from services.extraction import extract_memories_from_text
+from services.embeddings import get_embeddings_batch
 
 
 # =============================================================================
@@ -252,44 +251,9 @@ async def process_document(
             except Exception as e:
                 print(f"Failed to insert chunk {i}: {e}")
 
-        # 5. Extract memories from chunks
+        # ADR-059: LLM memory extraction from documents removed.
+        # Document content is available via filesystem_chunks for search.
         memories_inserted = 0
-        for chunk in chunks:
-            try:
-                memories = await extract_memories_from_text(chunk["content"])
-
-                for mem in memories:
-                    # For documents, project-scoped memories go to this project
-                    mem_project_id = None if mem["scope"] == "user" else project_id
-
-                    # Generate embedding
-                    try:
-                        embedding = await get_embedding(mem["content"])
-                    except:
-                        embedding = None
-
-                    record = {
-                        "user_id": user_id,
-                        "domain_id": mem_project_id,  # project_id → domain_id
-                        "content": mem["content"],
-                        "tags": mem["tags"],
-                        "importance": mem["importance"],
-                        "source": "document",  # ADR-058
-                        "entry_type": "fact",
-                        "source_ref": {
-                            "document_id": document_id,
-                            "chunk_index": chunk["chunk_index"]
-                        }
-                    }
-
-                    if embedding:
-                        record["embedding"] = embedding
-
-                    db_client.table("knowledge_entries").insert(record).execute()
-                    memories_inserted += 1
-
-            except Exception as e:
-                print(f"Memory extraction from chunk failed: {e}")
 
         # 6. Update document status
         db_client.table("filesystem_documents").update({

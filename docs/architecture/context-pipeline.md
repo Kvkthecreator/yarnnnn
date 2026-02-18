@@ -1,219 +1,251 @@
 # Context Pipeline Architecture
 
-How platform data flows from OAuth connection → extracted content → working knowledge → TP system prompt.
+How platform data flows from OAuth connection through to the TP system prompt and deliverable execution.
+
+> **Last updated**: 2026-02-18 (ADR-062 — three-layer model, terminology clarification)
 
 ---
 
-## Overview
+## Conceptual Model: Three Layers
 
-There are four distinct layers:
+Yarnnn operates on three distinct layers. The terminology is intentional and should be used consistently across code, docs, and conversation.
 
 ```
-1. platform_connections   OAuth credentials + landscape (what sources exist)
-         ↓
-2. filesystem_items       Raw extracted platform content, short TTL
-         ↓
-3. knowledge_* tables     Inferred + stated knowledge, permanent
-         ↓
-4. working_memory         ~2,500-token system prompt injected per TP session
+┌─────────────────────────────────────────────────────────────┐
+│  MEMORY  (user_context)                                      │
+│  What TP knows about you — stable, explicit, small          │
+│  Injected into every TP session (working memory block)      │
+└─────────────────────────────────────────────────────────────┘
+         Written by: user directly, TP during conversation
+
+┌─────────────────────────────────────────────────────────────┐
+│  CONTEXT  (filesystem_items + live platform APIs)           │
+│  What's in your platforms right now — ephemeral, large      │
+│  Accessed on demand: Search (cache) or live fetch           │
+└─────────────────────────────────────────────────────────────┘
+         Written by: background sync worker (cache),
+                     live API calls at execution time
+
+┌─────────────────────────────────────────────────────────────┐
+│  WORK  (deliverables + deliverable_versions)                 │
+│  What TP produces — structured, versioned, exported         │
+│  Always generated from live Context reads                   │
+└─────────────────────────────────────────────────────────────┘
+         Written by: deliverable execution pipeline
 ```
 
-TP operates from layer 4. It never reads `filesystem_items` directly unless it explicitly calls the Search primitive during a chat.
+### Reference models
+
+| | Claude Code | Clawdbot | Yarnnn |
+|---|---|---|---|
+| **Memory** | CLAUDE.md | SOUL.md / USER.md | `user_context` |
+| **Context** | Source files (read on demand) | Local filesystem | `filesystem_items` + live APIs |
+| **Work** | Build output | Script output | `deliverable_versions` |
+| **Execution** | Shell / Bash | Skills | Deliverable pipeline (live reads) |
 
 ---
 
-## Layer 1: platform_connections
+## Two Independent Data Paths
 
-**Table:** `platform_connections`
-**Written by:** OAuth callback (`api/routes/integrations.py`)
+A common source of confusion: the platform sync pipeline and the deliverable execution pipeline both talk to the same upstream platforms (Slack, Gmail, Notion, Calendar) but are **completely independent systems** with different purposes.
 
-Stores per-user, per-platform:
-- Encrypted OAuth credentials + refresh token
-- `metadata` — workspace name, email, team ID
-- `landscape` — JSON snapshot of available resources (channels, labels, pages)
-- `landscape_discovered_at` — timestamp of last discovery
-- `status` — connected / disconnected / error
+```
+Platform Sync (platform_worker.py)
+  → Reads platform APIs on a schedule
+  → Writes to filesystem_items (TTL cache)
+  → Purpose: power conversational Search
 
-Landscape is cleared to NULL on each re-auth and lazily re-discovered when the `/integrations/{provider}/landscape` endpoint is first called after connect.
+Deliverable Execution (deliverable_pipeline.py)
+  → Reads platform APIs live at generation time
+  → Never reads filesystem_items
+  → Purpose: produce authoritative, current content
+```
+
+Scheduled deliverables run entirely on live reads. `filesystem_items` is not consulted. This is by design and correct — deliverables should reflect the state of platforms at the moment of generation, not a cached snapshot.
 
 ---
 
-## Layer 2: filesystem_items
+## Memory Layer: user_context
 
-**Table:** `filesystem_items`
-**Written by:** `api/workers/platform_worker.py`
-**Triggered by:** Render cron job every 5 minutes → `api/jobs/platform_sync_scheduler.py`
+**Table**: `user_context`
+**ADR**: ADR-059
+
+A single flat key-value store for everything TP knows *about the user*. Replaces the prior four-table inference pipeline (`knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`).
+
+| Key pattern | Meaning | Example |
+|---|---|---|
+| `name`, `role`, `company`, `timezone` | Profile fields | `role = "Head of Growth"` |
+| `tone_{platform}`, `verbosity_{platform}` | Style preferences | `tone_slack = "casual"` |
+| `fact:...` | Noted facts | `fact:prefers bullet points` |
+| `instruction:...` | Standing instructions | `instruction:always include TL;DR` |
+| `preference:...` | Stated preferences | `preference:no jargon in reports` |
+
+**Written by**:
+- User directly via the Context page (Profile, Styles, Entries sections)
+- TP during conversation using the `create_memory` / `update_memory` tools
+
+**Never written by**: background inference jobs. The prior inference pipeline (profile_inference.py, domain_inference.py, style_learning.py) has been removed. If TP learns something, it writes it during the conversation, in context, with the user present.
+
+**Read by**: `working_memory.py → build_working_memory()` — assembled into the system prompt block injected at the start of every TP session (~2,000 token budget).
+
+### Working memory format
+
+```
+### About you
+{name, role, company, timezone}
+
+### Your preferences
+{tone_*, verbosity_*, preference:*}
+
+### What you've told me
+{fact:*, instruction:*}
+
+### Active deliverables
+{title, destination, sources, schedule — max 5}
+
+### Connected platforms
+{name, status, last_synced, freshness}
+```
+
+---
+
+## Context Layer: filesystem_items
+
+**Table**: `filesystem_items`
+**ADR**: ADR-049, ADR-062
+
+An internal cache of recent platform content. Short TTL. Exists specifically to serve `Search(scope="platform_content")` during conversational TP sessions.
+
+### What it is and is not
+
+- **Is**: A search index for conversational queries about platform content
+- **Is not**: A source of truth. Is not used by deliverable execution. Is not a primary store.
 
 ### Sync frequency (ADR-053)
 
-| Tier     | Frequency | Min interval |
-|----------|-----------|--------------|
-| Free     | 2x/day    | 6 hours      |
-| Starter  | 4x/day    | 4 hours      |
-| Pro      | Hourly    | 45 minutes   |
+| Tier | Frequency | Min interval |
+|---|---|---|
+| Free | 2x/day | 6 hours |
+| Starter | 4x/day | 4 hours |
+| Pro | Hourly | 45 minutes |
 
-The scheduler checks every 5 minutes whether each user is due. It only syncs sources the user has explicitly selected (stored in `landscape.selected_sources`).
+Triggered by `unified_scheduler.py` → `platform_sync_scheduler.py` → `platform_worker.py` every 5 minutes.
 
 ### What each platform extracts
 
 | Platform | Method | What is stored |
-|----------|--------|----------------|
-| Slack | `MCPClientManager` → `@modelcontextprotocol/server-slack` subprocess | Last 50 messages per selected channel (text, user, timestamp, reactions) |
-| Notion | `MCPClientManager` → `@notionhq/notion-mcp-server` subprocess | **Full page content** (title + all text blocks) per selected page |
-| Gmail | `GoogleAPIClient` direct REST | Last 50 emails per selected label, 7-day window (subject, from, snippet) |
-| Calendar | `GoogleAPIClient` direct REST | Next 7 days of events (summary, description, location, attendees) |
-
-> **Known issue:** `_sync_notion()` uses `MCPClientManager` which spawns `@notionhq/notion-mcp-server` via `npx`. This server requires internal integration tokens (`ntn_...`), not OAuth tokens. This sync path may be silently failing — Notion content may not be landing in `filesystem_items`. The landscape discovery fix (switching to direct `NotionAPIClient`) has not yet been applied to the sync worker.
+|---|---|---|
+| Slack | MCPClientManager → `@modelcontextprotocol/server-slack` | Last 50 messages per selected channel |
+| Notion | **Should use** direct `NotionAPIClient` (see known issue below) | Full page content per selected page |
+| Gmail | `GoogleAPIClient` direct REST | Last 50 emails per selected label, 7-day window |
+| Calendar | `GoogleAPIClient` direct REST | Next 7 days of events |
 
 ### TTL
 
 | Platform | Expiry |
-|----------|--------|
-| Slack    | 72 hours (3 days) |
-| Notion   | 168 hours (7 days) |
-| Gmail    | 168 hours (7 days) |
-| Calendar | 168 hours (7 days) |
-
-Expired rows are cleaned up hourly by `unified_scheduler.py → cleanup_expired_items()`.
+|---|---|
+| Slack | 72 hours |
+| Notion | 168 hours |
+| Gmail | 168 hours |
+| Calendar | 168 hours |
 
 ### Upsert key
 
-`(user_id, platform, resource_id)` — each source+resource combination is one row, refreshed on each sync.
+`(user_id, platform, resource_id)` — one row per source+resource, refreshed on each sync.
+
+### Known issue: Notion sync
+
+`_sync_notion()` in `platform_worker.py` currently uses `MCPClientManager` which spawns `@notionhq/notion-mcp-server` via `npx`. This server requires internal integration tokens (`ntn_...`), not OAuth tokens. Notion content is likely **not landing in `filesystem_items`** — the sync is silently failing.
+
+**Fix**: Replace with direct `NotionAPIClient.get_page_content()` calls, identical to the landscape discovery fix already applied. This is the correct and ready fix; it is now a prioritised bug.
 
 ---
 
-## Layer 3: knowledge_* tables
+## Context Layer: Live Platform APIs (Deliverable Execution)
 
-These are the permanent, per-user knowledge store. They are written by inference jobs that run after sync, not by sync itself. Once written, they persist until explicitly updated or deleted.
+When a deliverable runs (scheduled or on-demand), data is fetched **live** from platform APIs at execution time. No cache is consulted.
 
-### knowledge_profile
+**Entry point**: `deliverable_pipeline.py → fetch_integration_source_data()`
 
-**Written by:** `api/services/profile_inference.py → infer_profile_from_filesystem()`
-**Triggered by:** After every successful platform sync (`platform_worker.py` line ~142)
-**Model:** Claude 3 Haiku
+**Flow**:
+```
+unified_scheduler.py (every 5 min)
+  → get_due_deliverables()
+  → execute_deliverable_generation()   [deliverable_execution.py]
+  → get_execution_strategy()           [execution_strategies.py]
+  → strategy.gather_context()
+  → fetch_integration_source_data()    [deliverable_pipeline.py]
+  → _fetch_gmail_data() / _fetch_slack_data() / _fetch_notion_data() / _fetch_calendar_data()
+  → Live API call using decrypted credentials from platform_connections
+```
 
-Reads `filesystem_items` (Gmail signatures, Slack profile content, Calendar work hour patterns) and calls Claude Haiku to extract:
-- `inferred_name`, `inferred_role`, `inferred_company`, `inferred_timezone`, `inferred_summary`
-
-User can override any field with `stated_*` equivalents. Stated values always win in prompt formatting.
-
-### knowledge_styles
-
-**Written by:** `api/agents/integration/style_learning.py`
-**Triggered by:** Slack import jobs when `learn_style=true` config flag is set
-**Model:** Claude Sonnet 4
-
-Analyzes user-authored content from `filesystem_items` (Slack messages where `is_user_authored=true`, Notion pages, Gmail sent emails) and extracts per-platform style profile:
-- Tone (casual/formal/professional)
-- Verbosity (minimal/moderate/detailed)
-- Structure, vocabulary, sentence style, emoji usage, formatting preferences
-
-Stored as `knowledge_entries` rows with tags `["style", "{platform}"]`, not in a separate table.
-User can state overrides via `stated_preferences` on the style entry.
-
-### knowledge_domains
-
-**Written by:** `api/services/domain_inference.py → recompute_user_domains()`
-**Triggered by:** Deliverable create/update (not by platform sync)
-**Model:** None — pure heuristic/graph algorithm
-
-Domains are **not derived from filesystem_items**. They are derived from deliverable sources using a graph algorithm:
-1. Extracts sources from all user deliverables (e.g., `#client-acme` channel, `acme@company.com` label)
-2. Builds adjacency graph — sources that appear together in a deliverable are connected
-3. Finds connected components (BFS) — each component becomes a domain
-4. Names the domain by pattern-matching source identifiers for client/project names
-
-Each domain has a `sources` JSONB array: `[{platform, resource_id, resource_name}]`
-
-### knowledge_entries
-
-**Written by multiple paths:**
-
-| Source | Writer | Entry type |
-|--------|--------|------------|
-| Platform sync (style) | `import_jobs.py` | `preference` |
-| Background extraction | `services/extraction.py` | `fact`, `decision`, `instruction` |
-| TP conversation | Agent during chat | `fact`, `preference` |
-| Document upload | `api/routes/documents.py` | `fact` |
-
-Each entry has:
-- `content` — the actual fact/preference/decision text
-- `entry_type` — preference, fact, decision, instruction
-- `source` — inferred, user_stated, document, conversation
-- `source_ref JSONB` — `{table, id}` traceability pointer back to origin
-- `domain_id` — optional scope to a work domain
-- `importance` — 0.0–1.0 float
-- `tags TEXT[]`
+Credentials are decrypted from `platform_connections` at execution time. Google tokens are refreshed automatically if expired. No user session is required — scheduled deliverables run fully headless.
 
 ---
 
-## Layer 4: working_memory (TP system prompt)
+## Work Layer: Deliverables
 
-**Built by:** `api/services/working_memory.py → build_working_memory()`
-**Called at:** Start of every TP streaming response (`thinking_partner.py` line ~466)
-**Budget:** ~2,500 tokens
+**Tables**: `deliverables`, `deliverable_versions`
 
-Assembles from knowledge tables (not `filesystem_items`):
+The output of TP's execution pipeline. Every generation run produces a new `deliverable_version`. Versions are reviewed by the user and exported to the platform destination (Slack channel, Gmail draft, Notion page, etc.).
 
-| Section | Source table | Cap |
-|---------|-------------|-----|
-| Profile | `knowledge_profile` | 1 row |
-| Styles | `knowledge_styles` | 3 platforms |
-| Domains | `knowledge_domains` | all active |
-| Entries | `knowledge_entries` | 15 most important |
-| Deliverables | `deliverables` | 5 active |
-| Platform status | `platform_connections` | all connected, with freshness |
-| Recent sessions | `chat_sessions` | 3 sessions, 7-day window, 300-char summaries |
-
-Formatted as readable markdown sections and injected as the system prompt context block.
+Deliverables carry their own source configuration — which channels, labels, pages, or calendars to read from. Source references live on the deliverable, not on any domain or grouping abstraction (knowledge_domains was removed in ADR-059 for this reason).
 
 ---
 
-## What TP does NOT have at session start
+## Live Platform Tools (Conversational)
 
-- Raw Slack messages, Gmail bodies, Notion page content — these stay in `filesystem_items`
-- Real-time platform state
-- More than 15 knowledge entries
-
-TP only accesses `filesystem_items` if it explicitly calls the `Search(scope="platform_content")` primitive during a chat turn (text search on the `content` column, filtered by `expires_at > now`).
-
----
-
-## Live platform queries during chat
-
-TP has platform tools available when connected integrations exist. These make live API calls:
+TP has platform tools for direct, action-oriented platform operations during conversation. These are distinct from both the sync cache and deliverable execution:
 
 | Tool | Platform | Method |
-|------|----------|--------|
-| `platform_slack_send_message` | Slack | MCP Gateway (Node.js HTTP service) → Slack API |
+|---|---|---|
+| `platform_slack_send_message` | Slack | MCP Gateway → Slack API |
 | `platform_slack_list_channels` | Slack | MCP Gateway → Slack API |
-| `platform_notion_search` | Notion | Direct `NotionAPIClient` → Notion REST API |
-| `platform_notion_create_comment` | Notion | Direct `NotionAPIClient` → Notion REST API |
-| `platform_gmail_search` | Gmail | `GoogleAPIClient` → Gmail API |
-| `platform_gmail_create_draft` | Gmail | `GoogleAPIClient` → Gmail API |
-| `platform_calendar_list_events` | Calendar | `GoogleAPIClient` → Calendar API |
-| `platform_calendar_create_event` | Calendar | `GoogleAPIClient` → Calendar API |
+| `platform_notion_search` | Notion | Direct NotionAPIClient |
+| `platform_notion_create_comment` | Notion | Direct NotionAPIClient |
+| `platform_gmail_search` | Gmail | GoogleAPIClient |
+| `platform_gmail_create_draft` | Gmail | GoogleAPIClient |
+| `platform_calendar_list_events` | Calendar | GoogleAPIClient |
+| `platform_calendar_create_event` | Calendar | GoogleAPIClient |
 
-These are action-oriented (TP doing something on a platform), not passive context loading.
-
----
-
-## MCP Gateway vs MCPClientManager vs Direct API
-
-Three different connection mechanisms exist in the codebase — understanding the distinction prevents confusion:
-
-| Mechanism | Location | Used for | Notes |
-|-----------|----------|----------|-------|
-| **MCP Gateway** | `mcp-gateway/` (Node.js HTTP service) + `api/services/mcp_gateway.py` (Python client) | TP live Slack tool calls during chat | HTTP-based, only Slack supported |
-| **MCPClientManager** | `api/integrations/core/client.py` | Background Slack + Notion sync in `platform_worker.py` | Spawns `npx` subprocess per session, stdio transport |
-| **Direct API clients** | `api/integrations/core/notion_client.py`, `api/integrations/core/google_client.py` | Notion landscape discovery, Gmail/Calendar sync and TP tools | Standard REST over httpx |
+These are action calls TP makes on behalf of the user during a chat turn. They are **not** how context flows into TP — that is the working memory block and Search.
 
 ---
 
-## Known gaps as of 2026-02-17
+## What TP Has at Session Start
 
-1. **Notion sync uses wrong method** — `_sync_notion()` in `platform_worker.py` calls `MCPClientManager` which uses `@notionhq/notion-mcp-server`. This server requires internal `ntn_...` tokens, not OAuth tokens. Notion page content is likely not being synced to `filesystem_items`. Fix: replace with direct `NotionAPIClient.get_page_content()` calls, same as the landscape discovery fix applied today.
+At the start of every TP session, the working memory block is assembled from **Memory only** (user_context + active deliverables + platform connection status). Raw platform content is **not** pre-injected.
 
-2. **Style learning is gated** — `knowledge_styles` is only populated during Slack import jobs when `learn_style=true`. It is not triggered by the regular scheduled sync.
+TP accesses platform content during a session in two ways:
+1. `Search(scope="platform_content")` — hits `filesystem_items` cache (text search)
+2. Platform tools (gmail_search, notion_search, etc.) — live API call for specific lookup
 
-3. **Domains depend on deliverables** — If a user has no deliverables yet, `knowledge_domains` is empty regardless of how many platforms are connected.
+---
+
+## Document Uploads
+
+Uploaded documents are processed into `filesystem_chunks` (chunked, embedded, indexed). They are searchable via `Search(scope="document")`. Documents do **not** automatically extract into Memory (`user_context`).
+
+**Intentional oversight**: there is a legitimate future use case for "promote document to Memory" — where a user wants a style guide, brief, or set of standing instructions to always be present in working memory rather than just searchable. This should be implemented as an explicit user action, not automatic extraction. It is deferred pending architectural hardening.
+
+---
+
+## Connection Mechanisms
+
+Three different connection mechanisms exist — understanding the distinction prevents confusion:
+
+| Mechanism | Location | Used for |
+|---|---|---|
+| **MCP Gateway** | `mcp-gateway/` (Node.js) + `api/services/mcp_gateway.py` | TP live Slack tool calls during chat |
+| **MCPClientManager** | `api/integrations/core/client.py` | Background Slack + Notion sync (platform_worker) |
+| **Direct API clients** | `api/integrations/core/notion_client.py`, `google_client.py` | Notion discovery, Gmail/Calendar sync and TP tools |
+
+---
+
+## Known Gaps (as of 2026-02-18)
+
+1. **Notion sync uses wrong method** — `_sync_notion()` calls MCPClientManager which requires internal tokens. Fix: replace with direct NotionAPIClient. Prioritised.
+
+2. **Document-to-Memory extraction removed** — Documents populate filesystem_chunks only. Intentional for now; "promote to Memory" is a deferred feature.
+
+3. **filesystem_items not used by execution** — documented here as intended behaviour, not a gap. Prevents confusion about the mirror's purpose.

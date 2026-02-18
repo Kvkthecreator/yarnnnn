@@ -511,15 +511,13 @@ def _parse_last_run_at(last_run_at) -> Optional[datetime]:
 
 
 async def _get_user_memories(client, user_id: str) -> str:
-    """Get relevant user memories for context."""
+    """Get user context entries for prompt injection."""
     try:
-        # ADR-058: Get knowledge entries
+        # ADR-059: Read from user_context (fact/instruction/preference keys)
         result = (
-            client.table("knowledge_entries")
-            .select("content, tags, entry_type")
+            client.table("user_context")
+            .select("key, value")
             .eq("user_id", user_id)
-            .eq("is_active", True)
-            .order("importance", desc=True)
             .limit(20)
             .execute()
         )
@@ -528,18 +526,16 @@ async def _get_user_memories(client, user_id: str) -> str:
             return ""
 
         lines = []
-        for mem in result.data:
-            content = mem.get("content", "")
-            tags = mem.get("tags", [])
-            if tags:
-                lines.append(f"- {content} [{', '.join(tags)}]")
-            else:
-                lines.append(f"- {content}")
+        for row in result.data:
+            key = row.get("key", "")
+            value = row.get("value", "")
+            if key.startswith(("fact:", "instruction:", "preference:")):
+                lines.append(f"- {value}")
 
         return "\n".join(lines)
 
     except Exception as e:
-        logger.warning(f"[STRATEGY] Failed to fetch memories: {e}")
+        logger.warning(f"[STRATEGY] Failed to fetch user context: {e}")
         return ""
 
 

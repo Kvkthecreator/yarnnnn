@@ -28,47 +28,11 @@ logger = logging.getLogger(__name__)
 async def store_style_memory(
     supabase_client,
     user_id: str,
-    profile,  # StyleProfile from style_learning.py
+    profile,
     job_id: str,
 ) -> bool:
-    """
-    Store a style profile as a user-scoped memory.
-
-    Style memories are always user-scoped (project_id = NULL) because
-    communication style follows the user across all projects.
-
-    Returns True if stored successfully.
-    """
-    from agents.integration.style_learning import (
-        style_profile_to_memory_content,
-        style_profile_to_source_ref,
-    )
-
-    try:
-        memory_data = {
-            "user_id": user_id,
-            "project_id": None,  # User-scoped (portable)
-            "content": style_profile_to_memory_content(profile),
-            "source_type": "import",
-            "source_ref": {
-                **style_profile_to_source_ref(profile),
-                "job_id": job_id,
-            },
-            "importance": 0.8,  # High importance for style
-            "tags": ["style", profile.platform, profile.context],
-        }
-
-        supabase_client.table("knowledge_entries").insert(memory_data).execute()
-
-        logger.info(
-            f"[STYLE] Stored {profile.platform} style profile for user "
-            f"(confidence: {profile.confidence})"
-        )
-        return True
-
-    except Exception as e:
-        logger.error(f"[STYLE] Failed to store style memory: {e}")
-        return False
+    # ADR-059: Style inference removed. TP learns style conversationally via user_context.
+    return False
 
 
 async def get_pending_import_jobs(supabase_client) -> list[dict]:
@@ -291,7 +255,6 @@ async def process_slack_import(
     token_manager,
 ) -> dict:
     """Process a Slack channel import job."""
-    from agents.integration.style_learning import StyleLearningAgent
     from agents.integration.platform_semantics import extract_slack_channel_signals
     from services.filesystem import store_slack_items_batch
 
@@ -414,36 +377,9 @@ async def process_slack_import(
         current_resource=resource_name,
     )
 
-    # 4. Optionally learn style from user's messages (Phase 5)
+    # ADR-059: Style learning removed — TP learns style conversationally
     style_learned = False
     style_confidence = None
-
-    if learn_style:
-        try:
-            # Filter to user's messages if style_user_id provided
-            user_messages = messages
-            if style_user_id:
-                user_messages = [m for m in messages if m.get("user") == style_user_id]
-
-            if len(user_messages) >= 5:
-                logger.info(f"[STYLE] Learning style from {len(user_messages)} messages")
-                style_agent = StyleLearningAgent()
-                profile = await style_agent.analyze_slack_messages(
-                    messages=user_messages,
-                    user_name=metadata.get("user_name"),
-                )
-
-                style_learned = await store_style_memory(
-                    supabase_client,
-                    user_id=user_id,
-                    profile=profile,
-                    job_id=job["id"],
-                )
-                style_confidence = profile.confidence
-            else:
-                logger.info(f"[STYLE] Skipping - only {len(user_messages)} user messages (need 5+)")
-        except Exception as e:
-            logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
 
     # ADR-030: Update coverage state
     await update_coverage_state(
@@ -486,7 +422,6 @@ async def process_notion_import(
     token_manager,
 ) -> dict:
     """Process a Notion page import job."""
-    from agents.integration.style_learning import StyleLearningAgent
     from services.filesystem import store_notion_item
 
     user_id = job["user_id"]
@@ -595,28 +530,9 @@ async def process_notion_import(
         current_resource=resource_name,
     )
 
-    # 4. Optionally learn style from page content (Phase 5)
+    # ADR-059: Style learning removed — TP learns style conversationally
     style_learned = False
     style_confidence = None
-
-    if learn_style and page_content.get("content"):
-        try:
-            logger.info(f"[STYLE] Learning documentation style from Notion page")
-            style_agent = StyleLearningAgent()
-            profile = await style_agent.analyze_notion_content(
-                pages=[page_content],
-                user_name=None,
-            )
-
-            style_learned = await store_style_memory(
-                supabase_client,
-                user_id=user_id,
-                profile=profile,
-                job_id=job["id"],
-            )
-            style_confidence = profile.confidence
-        except Exception as e:
-            logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
 
     # ADR-030: Update coverage state
     await update_coverage_state(
@@ -661,7 +577,6 @@ async def process_gmail_import(
     - query:<query>: Messages matching Gmail search query
     """
     import os
-    from agents.integration.style_learning import StyleLearningAgent
     from services.filesystem import store_gmail_items_batch
 
     user_id = job["user_id"]
@@ -863,28 +778,9 @@ async def process_gmail_import(
         current_resource=resource_name,
     )
 
-    # Optionally learn style from email content
+    # ADR-059: Style learning removed — TP learns style conversationally
     style_learned = False
     style_confidence = None
-
-    if learn_style and len(full_messages) >= 5:
-        try:
-            logger.info(f"[STYLE] Learning email style from {len(full_messages)} messages")
-            style_agent = StyleLearningAgent()
-            profile = await style_agent.analyze_email_messages(
-                messages=full_messages,
-                user_email=metadata.get("email"),
-            )
-
-            style_learned = await store_style_memory(
-                supabase_client,
-                user_id=user_id,
-                profile=profile,
-                job_id=job["id"],
-            )
-            style_confidence = profile.confidence
-        except Exception as e:
-            logger.warning(f"[STYLE] Style learning failed (non-fatal): {e}")
 
     # ADR-030: Update coverage state
     await update_coverage_state(

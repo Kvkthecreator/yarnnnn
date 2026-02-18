@@ -20,7 +20,6 @@ Endpoints:
 """
 
 import json
-import asyncio
 import logging
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -32,7 +31,6 @@ from datetime import datetime
 from services.supabase import UserClient
 
 logger = logging.getLogger(__name__)
-from services.extraction import extract_from_conversation
 from services.embeddings import get_embedding
 from agents.base import ContextBundle, Memory
 from agents.thinking_partner import ThinkingPartnerAgent
@@ -632,27 +630,7 @@ Status: {w['status']}{content_section}
         return None
 
 
-# =============================================================================
-# Background Extraction
-# =============================================================================
-
-async def _background_extraction(
-    user_id: str,
-    messages: list[dict],
-    client,
-    domain_id: Optional[str] = None
-):
-    """Background task for memory extraction (ADR-005, ADR-034)."""
-    try:
-        result = await extract_from_conversation(
-            user_id=user_id,
-            messages=messages,
-            db_client=client,
-            source_type="chat",
-            domain_id=domain_id
-        )
-    except Exception:
-        pass  # Background extraction failures are non-critical
+# ADR-059: Background extraction removed — TP only knows what users explicitly state.
 
 
 # =============================================================================
@@ -703,50 +681,9 @@ async def global_chat(
     history = build_history_for_claude(existing_messages, use_structured_format=False)
     logger.info(f"[TP] Loaded {len(existing_messages)} messages, built {len(history)} history entries")
 
-    # ADR-034: Determine active domain from context
-    # Priority: surface deliverable > only-one-domain > none (search all)
+    # ADR-059: Domains removed — no domain scoping
     active_domain_id = None
     active_domain_name = None
-
-    # Get domain from surface context if viewing a deliverable
-    deliverable_id_for_domain = None
-    if request.surface_context and request.surface_context.deliverableId:
-        deliverable_id_for_domain = request.surface_context.deliverableId
-
-    if deliverable_id_for_domain:
-        try:
-            domain_result = auth.client.rpc(
-                "get_deliverable_domain",
-                {"p_deliverable_id": deliverable_id_for_domain}
-            ).execute()
-            if domain_result.data:
-                active_domain_id = UUID(domain_result.data)
-                # Get domain name
-                domain_name_result = auth.client.table("knowledge_domains")\
-                    .select("name")\
-                    .eq("id", str(active_domain_id))\
-                    .single()\
-                    .execute()
-                if domain_name_result.data:
-                    active_domain_name = domain_name_result.data["name"]
-                logger.info(f"[TP] Active domain from deliverable: {active_domain_name} ({active_domain_id})")
-        except Exception as e:
-            logger.debug(f"[TP] Could not resolve domain from deliverable: {e}")
-
-    # Fallback: check if user has only one domain (use it implicitly)
-    if not active_domain_id:
-        try:
-            domains_result = auth.client.table("knowledge_domains")\
-                .select("id, name")\
-                .eq("user_id", auth.user_id)\
-                .eq("is_default", False)\
-                .execute()
-            if domains_result.data and len(domains_result.data) == 1:
-                active_domain_id = UUID(domains_result.data[0]["id"])
-                active_domain_name = domains_result.data[0]["name"]
-                logger.info(f"[TP] Single domain auto-selected: {active_domain_name}")
-        except Exception as e:
-            logger.debug(f"[TP] Could not check user domains: {e}")
 
     # Load memories with domain scoping (ADR-034)
     context = await load_memories(
@@ -916,19 +853,7 @@ async def global_chat(
 
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
 
-            # Fire-and-forget extraction with domain context (ADR-034)
-            messages_for_extraction = history + [
-                {"role": "user", "content": request.content},
-                {"role": "assistant", "content": full_response},
-            ]
-            asyncio.create_task(
-                _background_extraction(
-                    auth.user_id,
-                    messages_for_extraction,
-                    auth.client,
-                    str(active_domain_id) if active_domain_id else None
-                )
-            )
+            # ADR-059: Background extraction removed.
 
         except Exception as e:
             import traceback

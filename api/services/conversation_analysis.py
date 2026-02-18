@@ -308,16 +308,22 @@ async def get_user_knowledge(
         List of knowledge entries
     """
     try:
+        # ADR-059: Read from user_context
         result = (
-            client.table("knowledge_entries")
-            .select("content, tags, entry_type")
+            client.table("user_context")
+            .select("key, value")
             .eq("user_id", user_id)
-            .eq("is_active", True)
-            .order("importance", desc=True)
             .limit(20)
             .execute()
         )
-        return result.data or []
+        # Return in compatible shape for callers expecting content/entry_type
+        entries = []
+        for row in (result.data or []):
+            key = row.get("key", "")
+            if key.startswith(("fact:", "instruction:", "preference:")):
+                entry_type = key.split(":")[0]
+                entries.append({"content": row["value"], "entry_type": entry_type, "tags": []})
+        return entries
 
     except Exception as e:
         logger.warning(f"[ANALYSIS] Failed to get knowledge for {user_id}: {e}")

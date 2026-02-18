@@ -204,10 +204,12 @@ async def generate_digest_content(
         content.outputs_delivered = len(outputs_result.data or [])
         content.top_outputs = outputs_result.data or []
 
-    # Count new memories
-    memories_result = supabase_client.table("knowledge_entries").select(
+    # Count new memories (ADR-059: user_context entry-type keys)
+    memories_result = supabase_client.table("user_context").select(
         "id", count="exact"
-    ).eq("user_id", user_id).gte(
+    ).eq("user_id", user_id).or_(
+        "key.like.fact:%,key.like.instruction:%,key.like.preference:%"
+    ).gte(
         "created_at", week_ago.isoformat()
     ).execute()
 

@@ -10,10 +10,9 @@ This will:
 1. Delete all deliverable_versions for user's deliverables
 2. Delete all deliverables
 3. Delete all chat_sessions (and cascade to session_messages)
-4. Delete all knowledge_entries (ADR-058)
+4. Delete all user_context rows (ADR-059)
 5. Delete all work_outputs for user's work_tickets
 6. Delete all work_tickets
-7. Delete all knowledge_domains (ADR-058)
 
 WARNING: This is destructive and cannot be undone!
 """
@@ -99,14 +98,14 @@ def purge_user_data(email: str, dry_run: bool = False):
         sessions = client.table("chat_sessions").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(sessions.data or [])} chat sessions")
 
-    # 3. Delete memories
-    print(f"\n🗑️  {action} memories...")
+    # 3. Delete user_context (ADR-059: replaces knowledge_entries)
+    print(f"\n🗑️  {action} user_context...")
     if not dry_run:
-        result = client.table("knowledge_entries").delete().eq("user_id", user_id).execute()
-        print(f"   Deleted {len(result.data or [])} memories")
+        result = client.table("user_context").delete().eq("user_id", user_id).execute()
+        print(f"   Deleted {len(result.data or [])} context entries")
     else:
-        memories = client.table("knowledge_entries").select("id").eq("user_id", user_id).execute()
-        print(f"   Would delete {len(memories.data or [])} memories")
+        memories = client.table("user_context").select("id").eq("user_id", user_id).execute()
+        print(f"   Would delete {len(memories.data or [])} context entries")
 
     # 4. Delete work_outputs and work_tickets
     print(f"\n📋 Fetching work_tickets...")
@@ -127,14 +126,7 @@ def purge_user_data(email: str, dry_run: bool = False):
     else:
         print(f"   Would delete {len(ticket_ids)} work tickets")
 
-    # 5. Delete knowledge_domains (ADR-058)
-    print(f"\n🗑️  {action} knowledge_domains...")
-    if not dry_run:
-        result = client.table("knowledge_domains").delete().eq("user_id", user_id).execute()
-        print(f"   Deleted {len(result.data or [])} context domains")
-    else:
-        domains = client.table("knowledge_domains").select("id").eq("user_id", user_id).execute()
-        print(f"   Would delete {len(domains.data or [])} context domains")
+    # 5. knowledge_domains removed (ADR-059); nothing to delete.
 
     print(f"\n{'🔍 DRY RUN COMPLETE' if dry_run else '✅ PURGE COMPLETE'}")
     print(f"User {email} is now in cold-start state (zero deliverables, no chat history).")

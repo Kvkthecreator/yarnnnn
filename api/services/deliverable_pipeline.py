@@ -3749,22 +3749,25 @@ async def save_as_memory(
     tags: Optional[list] = None,
 ) -> Optional[str]:
     """
-    Save content as a project memory.
+    ADR-059: Save TP-extracted content to user_context.
     """
-    memory_data = {
+    import re as _re
+    from datetime import datetime as _dt
+
+    safe = _re.sub(r'[^a-zA-Z0-9_ -]', '', content)[:60].strip()
+    key = f"fact:{safe}"
+    now = _dt.utcnow().isoformat()
+    record = {
         "user_id": user_id,
-        "project_id": project_id,
-        "content": content,
-        "source_type": source_type,
-        "importance": 0.8,
-        "tags": tags or [],
+        "key": key,
+        "value": content,
+        "source": "tp_extracted",
+        "confidence": 0.8,
+        "created_at": now,
+        "updated_at": now,
     }
-
-    result = client.table("knowledge_entries").insert(memory_data).execute()
-
-    if result.data:
-        return result.data[0]["id"]
-    return None
+    result = client.table("user_context").upsert(record, on_conflict="user_id,key").execute()
+    return result.data[0]["id"] if result.data else None
 
 
 async def update_version_status(client, version_id: str, status: str):

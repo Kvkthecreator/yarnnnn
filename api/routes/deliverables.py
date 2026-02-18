@@ -33,12 +33,8 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 async def _trigger_domain_recomputation(deliverable_id: str, user_id: str):
-    """Background task to recompute domains after deliverable change."""
-    try:
-        from services.domain_inference import on_deliverable_changed
-        await on_deliverable_changed(deliverable_id, user_id)
-    except Exception as e:
-        logger.error(f"[DOMAIN] Failed to recompute domains: {e}")
+    # ADR-059: Domain inference removed — no-op
+    pass
 
 router = APIRouter()
 

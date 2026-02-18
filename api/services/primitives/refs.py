@@ -22,7 +22,7 @@ Entity types:
   - work: Work execution records
   - action: Executable actions (for discovery)
 
-NOTE: Per ADR-058, 'memory' maps to knowledge_entries.
+NOTE: Per ADR-059, 'memory' maps to user_context (replaces knowledge_entries).
       Platform content (Slack/Gmail/Notion imports) lives in filesystem_items.
 
 Special identifiers:
@@ -73,7 +73,7 @@ ENTITY_TYPES = {
     "deliverable",
     "platform",
     "platform_content",  # ADR-058: filesystem_items
-    "memory",  # ADR-058: knowledge_entries
+    "memory",  # ADR-059: user_context
     "session",
     "domain",
     "document",
@@ -156,9 +156,9 @@ TABLE_MAP = {
     "deliverable": "deliverables",
     "platform": "platform_connections",
     "platform_content": "filesystem_items",  # ADR-058
-    "memory": "knowledge_entries",  # ADR-058: User-stated facts
+    "memory": "user_context",  # ADR-059: Replaces knowledge_entries
     "session": "chat_sessions",
-    "domain": "knowledge_domains",  # ADR-058
+    "domain": "user_context",  # ADR-059: knowledge_domains removed
     "document": "filesystem_documents",  # ADR-058
     "work": "work_tickets",
 }

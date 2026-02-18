@@ -10,7 +10,6 @@ import { useRouter, usePathname, useSearchParams } from 'next/navigation';
 import {
   User,
   Palette,
-  FolderKanban,
   BookOpen,
   Database,
   FileText,
@@ -57,7 +56,6 @@ export function ContextSidebar() {
   const knowledgeItems = [
     { label: 'Profile', icon: <User className="w-4 h-4" />, section: 'profile' },
     { label: 'Styles', icon: <Palette className="w-4 h-4" />, section: 'styles' },
-    { label: 'Domains', icon: <FolderKanban className="w-4 h-4" />, section: 'domains' },
     { label: 'Entries', icon: <BookOpen className="w-4 h-4" />, section: 'entries' },
   ];
 

@@ -1,28 +1,24 @@
 """
-Working Memory Builder - ADR-058 Knowledge Base Architecture
+Working Memory Builder - ADR-059: Simplified Context Model
 
 Builds the working memory injected into the TP system prompt at session start.
-This is YARNNN's equivalent of Claude Code reading CLAUDE.md + scanning project structure.
+Analogous to Claude Code reading CLAUDE.md — TP reads what's explicitly stated,
+nothing inferred by background jobs.
 
-ADR-058 Terminology:
-- Working Memory: What TP has in prompt for current request
-- Knowledge: User profile, styles, domains, entries (inferred from filesystem)
-- Filesystem: Raw synced data (platform content + documents)
+Two sources:
+  user_context   — stated preferences, profile, facts, instructions
+  filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
-The working memory gives TP immediate awareness of:
-- WHO: User profile (name, role, timezone, company)
-- HOW: User styles per platform (tone, verbosity, patterns)
-- WHAT: Active domains and their sources
-- KNOWN: Knowledge entries (facts, preferences, decisions)
-- WORK: Active deliverables
-- STATUS: Connected platforms + sync freshness
-- HISTORY: Recent session summaries
+What goes in the prompt (~2,000 tokens):
+  - About you: name, role, company, timezone
+  - Preferences: tone_*, verbosity_*, preference:*
+  - What you've told me: fact:*, instruction:*
+  - Active deliverables (max 5)
+  - Connected platforms + sync freshness
+  - Recent session summaries
 
-This eliminates the need for runtime searches in ~90% of interactions.
-
-Usage:
-    working_memory = await build_working_memory(user_id, supabase_client)
-    system_prompt = TP_PROMPT_TEMPLATE.format(working_memory=format_for_prompt(working_memory))
+Raw filesystem_items content is NOT included here.
+TP fetches it via Search when needed.
 """
 
 import json
@@ -31,13 +27,12 @@ from typing import Any, Optional
 
 # --- Configuration ---
 
-MAX_DELIVERABLES = 5        # Truncate to most recent if more
-MAX_PLATFORMS = 5           # Unlikely to exceed, but cap it
-MAX_RECENT_SESSIONS = 3     # Session summaries to include
-MAX_KNOWLEDGE_ENTRIES = 15  # Knowledge entries to include
-MAX_STYLES = 3              # Platform styles to include
-SESSION_LOOKBACK_DAYS = 7   # Only include sessions from last N days
-WORKING_MEMORY_TOKEN_BUDGET = 2500  # Approximate target
+MAX_DELIVERABLES = 5
+MAX_PLATFORMS = 5
+MAX_RECENT_SESSIONS = 3
+MAX_CONTEXT_ENTRIES = 20       # Max user_context rows to include in prompt
+SESSION_LOOKBACK_DAYS = 7
+WORKING_MEMORY_TOKEN_BUDGET = 2000
 
 
 async def build_working_memory(user_id: str, client: Any) -> dict:
@@ -50,13 +45,15 @@ async def build_working_memory(user_id: str, client: Any) -> dict:
 
     Returns:
         Dict structured for JSON serialization into the prompt.
-        Designed to stay under ~2,500 tokens.
+        Designed to stay under ~2,000 tokens.
     """
+    # Load user_context rows — the single source of truth for stated preferences
+    context_rows = await _get_user_context(user_id, client)
+
     working_memory = {
-        "profile": await _get_knowledge_profile(user_id, client),
-        "styles": await _get_knowledge_styles(user_id, client),
-        "domains": await _get_knowledge_domains(user_id, client),
-        "entries": await _get_knowledge_entries(user_id, client),
+        "profile": _extract_profile(context_rows),
+        "preferences": _extract_preferences(context_rows),
+        "known": _extract_known(context_rows),
         "deliverables": await _get_active_deliverables(user_id, client),
         "platforms": await _get_connected_platforms(user_id, client),
         "recent_sessions": await _get_recent_sessions(user_id, client),
@@ -65,149 +62,78 @@ async def build_working_memory(user_id: str, client: Any) -> dict:
     return working_memory
 
 
-async def _get_knowledge_profile(user_id: str, client: Any) -> dict:
+async def _get_user_context(user_id: str, client: Any) -> list[dict]:
     """
-    Fetch user's knowledge profile.
+    Fetch all user_context rows for the user.
 
-    ADR-058: Profile contains who the user is - name, role, company, timezone.
-    Uses stated_* fields if set (user override), otherwise inferred_* fields.
+    ADR-059: Single SELECT replaces four separate table queries.
     """
-    profile = {
-        "name": None,
-        "role": None,
-        "company": None,
-        "timezone": None,
-    }
-
     try:
-        result = client.table("knowledge_profile").select(
-            "stated_name, inferred_name, "
-            "stated_role, inferred_role, "
-            "stated_company, inferred_company, "
-            "stated_timezone, inferred_timezone"
-        ).eq("user_id", user_id).single().execute()
+        result = client.table("user_context").select(
+            "key, value, source, confidence"
+        ).eq("user_id", user_id).limit(MAX_CONTEXT_ENTRIES).execute()
 
-        if result.data:
-            row = result.data
-            # Stated values take precedence (user overrides)
-            profile["name"] = row.get("stated_name") or row.get("inferred_name")
-            profile["role"] = row.get("stated_role") or row.get("inferred_role")
-            profile["company"] = row.get("stated_company") or row.get("inferred_company")
-            profile["timezone"] = row.get("stated_timezone") or row.get("inferred_timezone")
+        return result.data or []
 
     except Exception:
-        # Profile is best-effort; don't fail session start
-        pass
+        return []
+
+
+def _extract_profile(rows: list[dict]) -> dict:
+    """Extract profile keys: name, role, company, timezone, summary."""
+    profile_keys = {"name", "role", "company", "timezone", "summary"}
+    profile: dict[str, Optional[str]] = {k: None for k in profile_keys}
+
+    for row in rows:
+        key = row.get("key", "")
+        if key in profile_keys:
+            profile[key] = row.get("value")
 
     return profile
 
 
-async def _get_knowledge_styles(user_id: str, client: Any) -> list:
+def _extract_preferences(rows: list[dict]) -> list[dict]:
     """
-    Fetch user's writing styles per platform.
+    Extract tone/verbosity preferences per platform.
 
-    ADR-058: Styles are inferred from user-authored content in filesystem_items.
-    Includes tone, verbosity, formatting patterns, and sample excerpts.
+    Keys: tone_slack, tone_gmail, verbosity_slack, verbosity_gmail, etc.
     """
-    styles = []
+    prefs: dict[str, dict] = {}
 
-    try:
-        result = client.table("knowledge_styles").select(
-            "platform, tone, verbosity, formatting, sample_excerpts"
-        ).eq(
-            "user_id", user_id
-        ).limit(MAX_STYLES).execute()
+    for row in rows:
+        key = row.get("key", "")
+        value = row.get("value", "")
 
-        if result.data:
-            for row in result.data:
-                styles.append({
-                    "platform": row.get("platform"),
-                    "tone": row.get("tone"),
-                    "verbosity": row.get("verbosity"),
-                    "formatting": row.get("formatting"),
-                    "samples": row.get("sample_excerpts", [])[:2],  # Just 2 samples
-                })
+        if key.startswith("tone_"):
+            platform = key[5:]  # "tone_slack" → "slack"
+            prefs.setdefault(platform, {})["tone"] = value
 
-    except Exception:
-        # Styles are best-effort
-        pass
+        elif key.startswith("verbosity_"):
+            platform = key[10:]  # "verbosity_slack" → "slack"
+            prefs.setdefault(platform, {})["verbosity"] = value
 
-    return styles
+        elif key.startswith("preference:"):
+            # Flat preference entry — group under 'general'
+            prefs.setdefault("general", {}).setdefault("preferences", []).append(value)
+
+    return [{"platform": k, **v} for k, v in prefs.items()]
 
 
-async def _get_knowledge_domains(user_id: str, client: Any) -> list:
+def _extract_known(rows: list[dict]) -> list[dict]:
     """
-    Fetch user's knowledge domains.
-
-    ADR-058: Domains are work contexts that group sources and entries.
+    Extract fact/instruction entries: keys starting with 'fact:' or 'instruction:'.
     """
-    domains = []
-
-    try:
-        result = client.table("knowledge_domains").select(
-            "id, name, summary, sources, is_default"
-        ).eq(
-            "user_id", user_id
-        ).eq(
-            "is_active", True
-        ).order(
-            "is_default", desc=True  # Default domain first
-        ).execute()
-
-        if result.data:
-            for row in result.data:
-                sources = row.get("sources", [])
-                domains.append({
-                    "id": row.get("id"),
-                    "name": row.get("name"),
-                    "summary": row.get("summary"),
-                    "source_count": len(sources) if sources else 0,
-                    "is_default": row.get("is_default", False),
-                })
-
-    except Exception:
-        # Domains are best-effort
-        pass
-
-    return domains
-
-
-async def _get_knowledge_entries(user_id: str, client: Any) -> list:
-    """
-    Fetch user's knowledge entries (facts, preferences, decisions).
-
-    ADR-058: Entries are explicit knowledge - things the user stated,
-    preferences inferred from conversations, decisions made.
-    """
-    entries = []
-
-    try:
-        result = client.table("knowledge_entries").select(
-            "content, entry_type, source, importance, tags"
-        ).eq(
-            "user_id", user_id
-        ).eq(
-            "is_active", True
-        ).order(
-            "importance", desc=True
-        ).order(
-            "created_at", desc=True
-        ).limit(MAX_KNOWLEDGE_ENTRIES).execute()
-
-        if result.data:
-            for row in result.data:
-                entries.append({
-                    "content": row.get("content"),
-                    "type": row.get("entry_type"),
-                    "source": row.get("source"),
-                    "importance": row.get("importance"),
-                })
-
-    except Exception:
-        # Entries are best-effort
-        pass
-
-    return entries
+    known = []
+    for row in rows:
+        key = row.get("key", "")
+        if key.startswith("fact:") or key.startswith("instruction:") or key.startswith("preference:"):
+            entry_type = key.split(":")[0]
+            known.append({
+                "type": entry_type,
+                "content": row.get("value", ""),
+                "source": row.get("source", ""),
+            })
+    return known
 
 
 async def _get_active_deliverables(user_id: str, client: Any) -> list:
@@ -221,25 +147,15 @@ async def _get_active_deliverables(user_id: str, client: Any) -> list:
     total_count = 0
 
     try:
-        # Get count first
         count_result = client.table("deliverables").select(
             "id", count="exact"
-        ).eq(
-            "user_id", user_id
-        ).eq(
-            "status", "active"
-        ).execute()
+        ).eq("user_id", user_id).eq("status", "active").execute()
 
         total_count = count_result.count or 0
 
-        # Get details for display
         result = client.table("deliverables").select(
             "id, title, status, schedule, recipient_context, next_run_at, updated_at"
-        ).eq(
-            "user_id", user_id
-        ).eq(
-            "status", "active"
-        ).order(
+        ).eq("user_id", user_id).eq("status", "active").order(
             "updated_at", desc=True
         ).limit(MAX_DELIVERABLES).execute()
 
@@ -256,14 +172,12 @@ async def _get_active_deliverables(user_id: str, client: Any) -> list:
                     "next_run": d.get("next_run_at"),
                 })
 
-        # Add overflow note if truncated
         if total_count > MAX_DELIVERABLES:
             deliverables.append({
                 "_note": f"... and {total_count - MAX_DELIVERABLES} more active deliverables"
             })
 
     except Exception:
-        # Deliverables are best-effort
         pass
 
     return deliverables
@@ -272,17 +186,13 @@ async def _get_active_deliverables(user_id: str, client: Any) -> list:
 async def _get_connected_platforms(user_id: str, client: Any) -> list:
     """
     Fetch connected platform summary for working memory.
-
-    ADR-058: Uses platform_connections table (was user_integrations).
     """
     platforms = []
 
     try:
         result = client.table("platform_connections").select(
             "id, platform, status, last_synced_at, settings"
-        ).eq(
-            "user_id", user_id
-        ).order("platform").limit(MAX_PLATFORMS).execute()
+        ).eq("user_id", user_id).order("platform").limit(MAX_PLATFORMS).execute()
 
         if result.data:
             now = datetime.now(timezone.utc)
@@ -299,7 +209,6 @@ async def _get_connected_platforms(user_id: str, client: Any) -> list:
                 })
 
     except Exception:
-        # Platforms are best-effort
         pass
 
     return platforms
@@ -330,8 +239,7 @@ async def _get_recent_sessions(user_id: str, client: Any) -> list:
     """
     Fetch recent session summaries for working memory.
 
-    Returns last N session summaries (not full message history).
-    Only includes sessions from last 7 days with non-empty summaries.
+    Returns last N session summaries from last 7 days.
     """
     sessions = []
 
@@ -340,13 +248,9 @@ async def _get_recent_sessions(user_id: str, client: Any) -> list:
 
         result = client.table("chat_sessions").select(
             "id, created_at, summary"
-        ).eq(
-            "user_id", user_id
-        ).not_.is_(
+        ).eq("user_id", user_id).not_.is_(
             "summary", "null"
-        ).gte(
-            "created_at", cutoff
-        ).order(
+        ).gte("created_at", cutoff).order(
             "created_at", desc=True
         ).limit(MAX_RECENT_SESSIONS).execute()
 
@@ -355,12 +259,11 @@ async def _get_recent_sessions(user_id: str, client: Any) -> list:
                 summary = s.get("summary", "")
                 if summary:
                     sessions.append({
-                        "date": s.get("created_at", "")[:10],  # Just the date
-                        "summary": summary[:300],  # Truncate long summaries
+                        "date": s.get("created_at", "")[:10],
+                        "summary": summary[:300],
                     })
 
     except Exception:
-        # Sessions are best-effort
         pass
 
     return sessions
@@ -369,10 +272,7 @@ async def _get_recent_sessions(user_id: str, client: Any) -> list:
 # --- Formatting ---
 
 def estimate_working_memory_tokens(working_memory: dict) -> int:
-    """
-    Rough token count estimation for working memory injection.
-    Rule of thumb: 1 token ≈ 4 characters for JSON.
-    """
+    """Rough token count estimation. Rule of thumb: 1 token ≈ 4 characters."""
     json_str = json.dumps(working_memory, indent=2)
     return len(json_str) // 4
 
@@ -381,64 +281,63 @@ def format_for_prompt(working_memory: dict) -> str:
     """
     Format working memory dict as a readable string for prompt injection.
 
-    This is the actual text that goes into TP's system prompt.
+    This is the text that goes into TP's system prompt.
     """
     lines = ["## Working Memory\n"]
 
     # Profile (WHO)
     profile = working_memory.get("profile", {})
-    if any(profile.values()):
-        lines.append("### Who You're Talking To")
+    if any(v for v in profile.values() if v):
+        lines.append("### About you")
         if profile.get("name"):
             role_str = f" ({profile.get('role')})" if profile.get("role") else ""
             company_str = f" at {profile.get('company')}" if profile.get("company") else ""
             lines.append(f"**{profile['name']}**{role_str}{company_str}")
         if profile.get("timezone"):
             lines.append(f"Timezone: {profile['timezone']}")
+        if profile.get("summary"):
+            lines.append(f"{profile['summary']}")
 
-    # Styles (HOW)
-    styles = working_memory.get("styles", [])
-    if styles:
-        lines.append("\n### Their Communication Style")
-        for style in styles:
-            platform = style.get("platform", "unknown").title()
-            tone = style.get("tone", "")
-            verbosity = style.get("verbosity", "")
-            style_desc = ", ".join(filter(None, [tone, verbosity]))
-            if style_desc:
-                lines.append(f"- **{platform}**: {style_desc}")
+    # Preferences (HOW)
+    preferences = working_memory.get("preferences", [])
+    if preferences:
+        lines.append("\n### Your preferences")
+        for pref in preferences:
+            platform = pref.get("platform", "unknown")
+            tone = pref.get("tone")
+            verbosity = pref.get("verbosity")
+            parts = []
+            if tone:
+                parts.append(f"tone: {tone}")
+            if verbosity:
+                parts.append(f"verbosity: {verbosity}")
+            if parts:
+                lines.append(f"- **{platform}**: {', '.join(parts)}")
+            # Flat preferences list
+            for p in pref.get("preferences", []):
+                lines.append(f"- Prefers: {p}")
 
-    # Knowledge Entries (KNOWN)
-    entries = working_memory.get("entries", [])
-    if entries:
-        lines.append("\n### What You Know About Them")
-        for entry in entries:
-            content = entry.get("content", "")
-            entry_type = entry.get("type", "fact")
-            type_marker = {"preference": "Prefers", "instruction": "Note", "decision": "Decided", "fact": ""}.get(entry_type, "")
+    # Known facts / instructions
+    known = working_memory.get("known", [])
+    if known:
+        lines.append("\n### What you've told me")
+        for item in known:
+            entry_type = item.get("type", "fact")
+            content = item.get("content", "")
+            type_marker = {
+                "preference": "Prefers",
+                "instruction": "Note",
+                "fact": "",
+            }.get(entry_type, "")
             if type_marker:
                 lines.append(f"- {type_marker}: {content}")
             else:
                 lines.append(f"- {content}")
 
-    # Domains (WHAT)
-    domains = working_memory.get("domains", [])
-    if domains:
-        lines.append("\n### Their Work Domains")
-        for domain in domains:
-            name = domain.get("name", "Unknown")
-            summary = domain.get("summary", "")
-            source_count = domain.get("source_count", 0)
-            default_marker = " (default)" if domain.get("is_default") else ""
-            if summary:
-                lines.append(f"- **{name}**{default_marker}: {summary}")
-            else:
-                lines.append(f"- **{name}**{default_marker} ({source_count} sources)")
-
     # Deliverables (WORK)
     deliverables = working_memory.get("deliverables", [])
     if deliverables:
-        lines.append(f"\n### Active Deliverables")
+        lines.append(f"\n### Active deliverables")
         for d in deliverables:
             if "_note" in d:
                 lines.append(f"  {d['_note']}")
@@ -448,7 +347,7 @@ def format_for_prompt(working_memory: dict) -> str:
     # Platforms (STATUS)
     platforms = working_memory.get("platforms", [])
     if platforms:
-        lines.append(f"\n### Connected Platforms")
+        lines.append(f"\n### Connected platforms")
         for p in platforms:
             status = p.get("status", "unknown")
             freshness = p.get("freshness", "unknown")
@@ -460,7 +359,7 @@ def format_for_prompt(working_memory: dict) -> str:
     # Recent Sessions (HISTORY)
     sessions = working_memory.get("recent_sessions", [])
     if sessions:
-        lines.append(f"\n### Recent Conversations")
+        lines.append(f"\n### Recent conversations")
         for s in sessions:
             lines.append(f"- {s.get('date')}: {s.get('summary')}")
 

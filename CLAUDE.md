@@ -23,8 +23,8 @@ grep -r "<keyword>" docs/adr/
 
 Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-049**: Context freshness model - explains why NO history compression/summarization
-- **ADR-034**: Domain-scoped context - why memories are scoped, not global
-- **ADR-058**: Knowledge base architecture - current schema decisions
+- **ADR-059**: Simplified context model - current Memory schema (user_context), inference removal
+- **ADR-062**: Platform context architecture - three-layer model (Memory / Context / Work), filesystem_items role
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -76,7 +76,6 @@ When modifying any prompt or tool definition in these files:
 - `api/agents/thinking_partner.py` (TP system prompt)
 - `api/services/primitives/*.py` (tool definitions)
 - `api/services/extraction.py` (extraction prompts)
-- `api/services/profile_inference.py` (inference prompts)
 
 You MUST:
 1. Update `api/prompts/CHANGELOG.md` with the change
@@ -97,14 +96,16 @@ You MUST:
 
 ## Key Architecture References
 
-### ADR-058: Knowledge Base Architecture (Current Schema)
+### ADR-059: Simplified Context Model (Current Schema)
 
 **Tables** (use these names, not legacy):
 - `platform_connections` (not `user_integrations`)
 - `filesystem_items` (not `ephemeral_context`)
 - `filesystem_documents` / `filesystem_chunks`
-- `knowledge_domains` / `knowledge_entries`
-- `knowledge_profile` / `knowledge_styles`
+- `user_context` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
+
+**Removed tables** (ADR-059 — do not reference in new code):
+- `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`
 
 ### ADR-057: Streamlined Onboarding
 

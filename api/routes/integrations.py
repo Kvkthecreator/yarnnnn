@@ -2333,13 +2333,7 @@ async def oauth_callback(
                 "user_id", user_id
             ).eq("platform", provider).execute()
 
-            # Delete knowledge_entries sourced from this platform
-            # (source_ref contains platform info for inferred entries)
-            service_client.table("knowledge_entries").delete().eq(
-                "user_id", user_id
-            ).eq("source", "inferred").filter(
-                "source_ref->>platform", "eq", provider
-            ).execute()
+            # ADR-059: user_context has no inferred/platform-sourced entries; nothing to delete.
 
             # Invalidate MCP session so it gets recreated with new credentials
             # This is critical when switching workspaces (e.g., different Slack team)

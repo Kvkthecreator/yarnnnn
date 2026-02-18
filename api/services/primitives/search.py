@@ -216,20 +216,17 @@ async def _search_user_memories(
     limit: int,
 ) -> list[dict]:
     """
-    Search knowledge_entries table for user knowledge.
-
-    ADR-058: Knowledge entries are user-stated facts, preferences, decisions.
-    source IN ('user_stated', 'conversation', 'document', 'inferred')
+    ADR-059: Search user_context table for user knowledge (fact:/instruction:/preference: keys).
     """
     try:
-        result = auth.client.table("knowledge_entries").select(
-            "id, content, tags, importance, source, entry_type, created_at"
+        result = auth.client.table("user_context").select(
+            "id, key, value, source, confidence, created_at"
         ).eq(
             "user_id", auth.user_id
-        ).eq(
-            "is_active", True
+        ).or_(
+            "key.like.fact:%,key.like.instruction:%,key.like.preference:%"
         ).ilike(
-            "content", f"%{query}%"
+            "value", f"%{query}%"
         ).order(
             "created_at", desc=True
         ).limit(limit).execute()
@@ -242,11 +239,10 @@ async def _search_user_memories(
                 "entity_type": "memory",
                 "ref": f"memory:{item['id']}",
                 "data": {
-                    "content": item["content"],
-                    "tags": item.get("tags", []),
-                    "importance": item.get("importance", 0.5),
+                    "content": item["value"],
                     "source": item.get("source"),
-                    "entry_type": item.get("entry_type"),
+                    "entry_type": item["key"].split(":")[0],
+                    "importance": item.get("confidence", 1.0),
                 },
                 "score": 0.5,
             }

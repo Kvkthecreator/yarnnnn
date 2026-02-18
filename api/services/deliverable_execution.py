@@ -255,15 +255,13 @@ async def gather_context_inline(
 
 
 async def _get_relevant_memories(client, user_id: str, deliverable: dict) -> str:
-    """Get relevant user knowledge for context."""
+    """Get user context entries for deliverable generation."""
     try:
-        # Get user knowledge entries (ADR-058)
+        # ADR-059: Read from user_context
         result = (
-            client.table("knowledge_entries")
-            .select("content, tags, entry_type")
+            client.table("user_context")
+            .select("key, value")
             .eq("user_id", user_id)
-            .eq("is_active", True)
-            .order("importance", desc=True)
             .limit(20)
             .execute()
         )
@@ -272,13 +270,11 @@ async def _get_relevant_memories(client, user_id: str, deliverable: dict) -> str
             return ""
 
         memory_lines = []
-        for mem in result.data:
-            content = mem.get("content", "")
-            tags = mem.get("tags", [])
-            if tags:
-                memory_lines.append(f"- {content} [{', '.join(tags)}]")
-            else:
-                memory_lines.append(f"- {content}")
+        for row in result.data:
+            key = row.get("key", "")
+            value = row.get("value", "")
+            if key.startswith(("fact:", "instruction:", "preference:")):
+                memory_lines.append(f"- {value}")
 
         return "\n".join(memory_lines)
 
