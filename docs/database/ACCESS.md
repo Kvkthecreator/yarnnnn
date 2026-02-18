@@ -101,6 +101,20 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Completed Migrations
 
+### Migration 058: Fix SECURITY DEFINER View (2026-02-18) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/058_fix_security_definer_view.sql
+```
+
+**Changes**:
+- Recreates `deliverable_type_metrics` view with `security_invoker = true`
+- Fixes Supabase Advisor security warning about RLS bypass via SECURITY DEFINER views
+
+---
+
 ### Migrations 055-057: ADR-059 Simplified Context Model (2026-02-18) ✅
 
 **Status**: Applied
