@@ -1,6 +1,6 @@
 # ADR-062: Platform Context Architecture — Live Reads, Internal Mirror, and the Role of filesystem_items
 
-**Status**: Proposed
+**Status**: Accepted
 **Date**: 2026-02-18
 **Relates to**: ADR-038 (Filesystem-as-Context), ADR-049 (Context Freshness), ADR-059 (Simplified Context Model)
 

@@ -136,7 +136,7 @@ Triggered by `unified_scheduler.py` → `platform_sync_scheduler.py` → `platfo
 | Platform | Method | What is stored |
 |---|---|---|
 | Slack | MCPClientManager → `@modelcontextprotocol/server-slack` | Last 50 messages per selected channel |
-| Notion | **Should use** direct `NotionAPIClient` (see known issue below) | Full page content per selected page |
+| Notion | `NotionAPIClient` direct REST (fixed 580f378) | Full page content per selected page |
 | Gmail | `GoogleAPIClient` direct REST | Last 50 emails per selected label, 7-day window |
 | Calendar | `GoogleAPIClient` direct REST | Next 7 days of events |
 
@@ -244,7 +244,7 @@ Three different connection mechanisms exist — understanding the distinction pr
 
 ## Known Gaps (as of 2026-02-18)
 
-1. **Notion sync uses wrong method** — `_sync_notion()` calls MCPClientManager which requires internal tokens. Fix: replace with direct NotionAPIClient. Prioritised.
+1. **Notion sync fixed** — `_sync_notion()` now uses `NotionAPIClient` directly (580f378). Resolved.
 
 2. **Document-to-Memory extraction removed** — Documents populate filesystem_chunks only. Intentional for now; "promote to Memory" is a deferred feature.
 
