@@ -2,10 +2,9 @@
 
 /**
  * UserContextPanel
- * ADR-005: Unified Memory with Embeddings
- * ADR-008: Document Pipeline
+ * ADR-059: User Context Entries
  *
- * Displays user memories and documents.
+ * Displays user context entries (key-value pairs) and documents.
  * Supports both sidebar mode and inline mode.
  */
 
@@ -22,7 +21,17 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { DocumentList } from "@/components/DocumentList";
-import type { Memory } from "@/types";
+
+// ADR-059: User context entry format (from user_context table)
+interface UserContextEntry {
+  id: string;
+  key: string;
+  value: string;
+  source: string;
+  confidence: number;
+  created_at: string;
+  updated_at: string;
+}
 
 interface UserContextPanelProps {
   isOpen: boolean;
@@ -31,72 +40,72 @@ interface UserContextPanelProps {
 }
 
 export function UserContextPanel({ isOpen, onClose, inline = false }: UserContextPanelProps) {
-  const [memories, setMemories] = useState<Memory[]>([]);
+  const [entries, setEntries] = useState<UserContextEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [expandedTags, setExpandedTags] = useState<Set<string>>(new Set());
+  const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
 
-  // Fetch user memories on mount
+  // Fetch user context entries on mount
   useEffect(() => {
-    async function fetchMemories() {
+    async function fetchEntries() {
       try {
         const data = await api.userMemories.list();
-        setMemories(data);
+        setEntries(data);
         setError(null);
 
-        // Auto-expand all tags that have items
-        const tags = new Set<string>();
-        data.forEach((m) => m.tags.forEach((t) => tags.add(t)));
-        setExpandedTags(tags);
+        // Auto-expand all sources that have items
+        const sources = new Set<string>();
+        data.forEach((e) => sources.add(e.source || "other"));
+        setExpandedSources(sources);
       } catch (err) {
-        console.error("Failed to fetch user memories:", err);
+        console.error("Failed to fetch user context:", err);
         setError("Failed to load");
       } finally {
         setIsLoading(false);
       }
     }
     if (isOpen) {
-      fetchMemories();
+      fetchEntries();
     }
   }, [isOpen]);
 
-  const handleDelete = async (memoryId: string) => {
+  const handleDelete = async (entryId: string) => {
     try {
-      await api.memories.delete(memoryId);
-      setMemories((prev) => prev.filter((m) => m.id !== memoryId));
+      await api.memories.delete(entryId);
+      setEntries((prev) => prev.filter((e) => e.id !== entryId));
     } catch (err) {
-      console.error("Failed to delete memory:", err);
+      console.error("Failed to delete entry:", err);
     }
   };
 
-  const toggleTag = (tag: string) => {
-    setExpandedTags((prev) => {
+  const toggleSource = (source: string) => {
+    setExpandedSources((prev) => {
       const next = new Set(prev);
-      if (next.has(tag)) {
-        next.delete(tag);
+      if (next.has(source)) {
+        next.delete(source);
       } else {
-        next.add(tag);
+        next.add(source);
       }
       return next;
     });
   };
 
-  // Group memories by their first tag (or "other" if no tags)
-  const memoriesByTag = memories.reduce(
-    (acc, memory) => {
-      const primaryTag = memory.tags[0] || "other";
-      if (!acc[primaryTag]) {
-        acc[primaryTag] = [];
+  // Group entries by source (or "other" if no source)
+  const entriesBySource = entries.reduce(
+    (acc, entry) => {
+      const source = entry.source || "other";
+      if (!acc[source]) {
+        acc[source] = [];
       }
-      acc[primaryTag].push(memory);
+      acc[source].push(entry);
       return acc;
     },
-    {} as Record<string, Memory[]>
+    {} as Record<string, UserContextEntry[]>
   );
 
-  // Sort tags by count (most items first)
-  const sortedTags = Object.keys(memoriesByTag).sort(
-    (a, b) => memoriesByTag[b].length - memoriesByTag[a].length
+  // Sort sources by count (most items first)
+  const sortedSources = Object.keys(entriesBySource).sort(
+    (a, b) => entriesBySource[b].length - entriesBySource[a].length
   );
 
   if (!isOpen) {
@@ -121,7 +130,7 @@ export function UserContextPanel({ isOpen, onClose, inline = false }: UserContex
       );
     }
 
-    if (memories.length === 0) {
+    if (entries.length === 0) {
       return (
         <div className="text-center py-8">
           <User className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
@@ -135,15 +144,15 @@ export function UserContextPanel({ isOpen, onClose, inline = false }: UserContex
 
     return (
       <div className="space-y-3">
-        {sortedTags.map((tag) => {
-          const tagMemories = memoriesByTag[tag];
-          const isExpanded = expandedTags.has(tag);
+        {sortedSources.map((source) => {
+          const sourceEntries = entriesBySource[source];
+          const isExpanded = expandedSources.has(source);
 
           return (
-            <div key={tag}>
-              {/* Tag Header */}
+            <div key={source}>
+              {/* Source Header */}
               <button
-                onClick={() => toggleTag(tag)}
+                onClick={() => toggleSource(source)}
                 className="w-full flex items-center gap-2 text-xs font-medium text-muted-foreground hover:text-foreground mb-1 py-1"
               >
                 {isExpanded ? (
@@ -154,42 +163,30 @@ export function UserContextPanel({ isOpen, onClose, inline = false }: UserContex
                 <span className="p-1 rounded bg-primary/10 text-primary">
                   <Tag className="w-3 h-3" />
                 </span>
-                <span className="capitalize">{tag}</span>
+                <span className="capitalize">{source}</span>
                 <span className="ml-auto text-muted-foreground">
-                  {tagMemories.length}
+                  {sourceEntries.length}
                 </span>
               </button>
 
-              {/* Tag Items */}
+              {/* Source Items */}
               {isExpanded && (
                 <div className="space-y-1 ml-5">
-                  {tagMemories.map((memory) => (
+                  {sourceEntries.map((entry) => (
                     <div
-                      key={memory.id}
+                      key={entry.id}
                       className="group relative p-2 text-xs rounded hover:bg-muted"
                     >
-                      <p className="pr-6">{memory.content}</p>
-                      {/* Show additional tags */}
-                      {memory.tags.length > 1 && (
-                        <div className="flex gap-1 mt-1 flex-wrap">
-                          {memory.tags.slice(1).map((t) => (
-                            <span
-                              key={t}
-                              className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground"
-                            >
-                              {t}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                      {/* Importance indicator */}
-                      {memory.importance >= 0.8 && (
+                      <p className="pr-6 font-medium text-muted-foreground">{entry.key}</p>
+                      <p className="pr-6">{entry.value}</p>
+                      {/* Confidence indicator */}
+                      {entry.confidence >= 0.8 && (
                         <span className="text-[10px] text-primary ml-1">
-                          ★
+                          high confidence
                         </span>
                       )}
                       <button
-                        onClick={() => handleDelete(memory.id)}
+                        onClick={() => handleDelete(entry.id)}
                         className="absolute top-2 right-2 p-1.5 opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive transition-opacity"
                         title="Remove this"
                       >
@@ -219,19 +216,19 @@ export function UserContextPanel({ isOpen, onClose, inline = false }: UserContex
           <DocumentList />
         </div>
 
-        {/* Memories Section */}
+        {/* Context Entries Section */}
         <div className="pt-4 border-t border-border">
           <h3 className="text-xs font-medium text-muted-foreground mb-3 flex items-center gap-2">
             <Tag className="w-3.5 h-3.5" />
-            Memories
+            Context
           </h3>
           {renderContent()}
         </div>
 
-        {memories.length > 0 && (
+        {entries.length > 0 && (
           <div className="mt-6 pt-4 border-t border-border">
             <p className="text-xs text-muted-foreground">
-              {memories.length} memories about you
+              {entries.length} things I know about you
             </p>
           </div>
         )}
@@ -264,21 +261,21 @@ export function UserContextPanel({ isOpen, onClose, inline = false }: UserContex
           <DocumentList compact />
         </div>
 
-        {/* Memories Section */}
+        {/* Context Entries Section */}
         <div className="pt-3 border-t border-border">
           <h3 className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-2">
             <Tag className="w-3 h-3" />
-            Memories
+            Context
           </h3>
           {renderContent()}
         </div>
       </div>
 
       {/* Footer */}
-      {memories.length > 0 && (
+      {entries.length > 0 && (
         <div className="p-3 border-t border-border shrink-0">
           <p className="text-xs text-muted-foreground text-center">
-            {memories.length} memories about you
+            {entries.length} things I know about you
           </p>
         </div>
       )}

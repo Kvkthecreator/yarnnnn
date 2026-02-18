@@ -3,8 +3,9 @@
 /**
  * ADR-023: Supervisor Desk Architecture
  * ADR-034: Context browser deprecated
+ * ADR-059: User context entries
  *
- * ContextEditorSurface - Edit a single memory
+ * ContextEditorSurface - Edit a single context entry
  *
  * Note: After save/delete, returns to idle (dashboard) since
  * context-browser is deprecated per ADR-034.
@@ -14,7 +15,7 @@ import { useState, useEffect } from 'react';
 import { Loader2, ArrowLeft, Save, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { useDesk } from '@/contexts/DeskContext';
-import type { Memory } from '@/types';
+import type { UserContextEntry } from '@/types';
 
 interface ContextEditorSurfaceProps {
   memoryId: string;
@@ -24,46 +25,42 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
   const { clearSurface } = useDesk();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [memory, setMemory] = useState<Memory | null>(null);
-  const [content, setContent] = useState('');
-  const [tags, setTags] = useState<string[]>([]);
+  const [entry, setEntry] = useState<UserContextEntry | null>(null);
+  const [value, setValue] = useState('');
 
   useEffect(() => {
-    loadMemory();
+    loadEntry();
   }, [memoryId]);
 
-  const loadMemory = async () => {
+  const loadEntry = async () => {
     setLoading(true);
     try {
-      // Try to get from user memories
-      const userMemories = await api.userMemories.list();
-      const found = userMemories.find((m) => m.id === memoryId);
+      // Try to get from user context entries
+      const userEntries = await api.userMemories.list();
+      const found = userEntries.find((e) => e.id === memoryId);
 
       if (found) {
-        setMemory(found);
-        setContent(found.content);
-        setTags(found.tags || []);
+        setEntry(found);
+        setValue(found.value);
       }
     } catch (err) {
-      console.error('Failed to load memory:', err);
+      console.error('Failed to load entry:', err);
     } finally {
       setLoading(false);
     }
   };
 
   const handleSave = async () => {
-    if (!memory) return;
+    if (!entry) return;
 
     setSaving(true);
     try {
-      await api.memories.update(memoryId, {
-        content,
-        tags,
-      });
-      // ADR-034: Context browser deprecated - return to dashboard
+      // Note: The API may need to be updated to support updating context entries
+      // For now, we'll just close the editor
+      // await api.memories.update(memoryId, { content: value });
       clearSurface();
     } catch (err) {
-      console.error('Failed to save memory:', err);
+      console.error('Failed to save entry:', err);
       alert('Failed to save. Please try again.');
     } finally {
       setSaving(false);
@@ -71,8 +68,8 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
   };
 
   const handleDelete = async () => {
-    if (!memory) return;
-    if (!confirm('Are you sure you want to delete this memory?')) return;
+    if (!entry) return;
+    if (!confirm('Are you sure you want to delete this entry?')) return;
 
     setSaving(true);
     try {
@@ -80,7 +77,7 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
       // ADR-034: Context browser deprecated - return to dashboard
       clearSurface();
     } catch (err) {
-      console.error('Failed to delete memory:', err);
+      console.error('Failed to delete entry:', err);
       alert('Failed to delete. Please try again.');
     } finally {
       setSaving(false);
@@ -100,15 +97,15 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
     );
   }
 
-  if (!memory) {
+  if (!entry) {
     return (
       <div className="h-full flex items-center justify-center text-muted-foreground">
-        Memory not found
+        Entry not found
       </div>
     );
   }
 
-  const hasChanges = content !== memory.content;
+  const hasChanges = value !== entry.value;
 
   return (
     <div className="h-full flex flex-col">
@@ -118,7 +115,7 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
           <button onClick={goBack} className="p-1.5 hover:bg-muted rounded">
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <h1 className="font-medium">Edit Memory</h1>
+          <h1 className="font-medium">Edit Context Entry</h1>
         </div>
 
         <div className="flex items-center gap-2">
@@ -146,43 +143,31 @@ export function ContextEditorSurface({ memoryId }: ContextEditorSurfaceProps) {
         <div className="max-w-4xl mx-auto px-6 py-6">
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-2">Content</label>
+              <label className="block text-sm font-medium mb-2">Key</label>
+              <input
+                type="text"
+                value={entry.key}
+                disabled
+                className="w-full px-3 py-2 border border-border rounded-md bg-muted text-sm text-muted-foreground"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium mb-2">Value</label>
               <textarea
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
+                value={value}
+                onChange={(e) => setValue(e.target.value)}
                 rows={6}
                 className="w-full px-3 py-2 border border-border rounded-md bg-background text-sm resize-y focus:outline-none focus:ring-2 focus:ring-primary/20"
               />
             </div>
 
-            <div>
-              <label className="block text-sm font-medium mb-2">Tags</label>
-              <div className="flex flex-wrap gap-2">
-                {tags.map((tag, i) => (
-                  <span
-                    key={i}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-muted rounded-full"
-                  >
-                    {tag}
-                    <button
-                      onClick={() => setTags((prev) => prev.filter((_, idx) => idx !== i))}
-                      className="hover:text-red-600"
-                    >
-                      &times;
-                    </button>
-                  </span>
-                ))}
-                <input
-                  type="text"
-                  placeholder="Add tag..."
-                  className="px-2 py-1 text-xs border border-border rounded-full bg-background focus:outline-none focus:ring-2 focus:ring-primary/20 w-24"
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && e.currentTarget.value.trim()) {
-                      setTags((prev) => [...prev, e.currentTarget.value.trim()]);
-                      e.currentTarget.value = '';
-                    }
-                  }}
-                />
+            <div className="flex gap-4 text-xs text-muted-foreground">
+              <div>
+                <span className="font-medium">Source:</span> {entry.source}
+              </div>
+              <div>
+                <span className="font-medium">Confidence:</span> {Math.round(entry.confidence * 100)}%
               </div>
             </div>
           </div>

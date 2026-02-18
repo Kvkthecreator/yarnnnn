@@ -18,7 +18,7 @@ export interface SourceRef {
   metadata?: Record<string, unknown>;
 }
 
-// Memory (ADR-005: unified model)
+// Memory (ADR-005: unified model) - Legacy format for domain memories
 export interface Memory {
   id: string;
   content: string;
@@ -33,6 +33,17 @@ export interface Memory {
   source_ref?: SourceRef; // Platform provenance for imports
   project_id?: string; // null = user-scoped
   is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+// ADR-059: User context entry (key-value pairs in user_context table)
+export interface UserContextEntry {
+  id: string;
+  key: string;
+  value: string;
+  source: string;
+  confidence: number;
   created_at: string;
   updated_at: string;
 }

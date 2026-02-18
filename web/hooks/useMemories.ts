@@ -4,13 +4,15 @@
  * Memory hooks for context management
  *
  * ADR-034: Context v2 - Domain-based scoping
+ * ADR-059: User context entries
+ *
  * - useDomainMemories: Fetch memories for a specific domain
- * - useUserMemories: Fetch user-scoped memories (default domain)
+ * - useUserMemories: Fetch user-scoped context entries
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { api } from "@/lib/api/client";
-import type { Memory, MemoryCreate } from "@/types";
+import type { Memory, MemoryCreate, UserContextEntry } from "@/types";
 
 /**
  * Hook to fetch and manage memories for a domain.
@@ -70,10 +72,11 @@ export function useDomainMemories(domainId: string | null) {
 }
 
 /**
- * Hook to fetch and manage user-scoped memories.
+ * Hook to fetch and manage user-scoped context entries.
+ * ADR-059: User context entries (key-value pairs)
  */
 export function useUserMemories() {
-  const [memories, setMemories] = useState<Memory[]>([]);
+  const [entries, setEntries] = useState<UserContextEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
 
@@ -82,7 +85,7 @@ export function useUserMemories() {
     setError(null);
     try {
       const data = await api.userMemories.list();
-      setMemories(data);
+      setEntries(data);
     } catch (err) {
       setError(err as Error);
     } finally {
@@ -90,15 +93,15 @@ export function useUserMemories() {
     }
   }, []);
 
-  const create = useCallback(async (data: MemoryCreate) => {
+  const create = useCallback(async (data: { content: string; entry_type?: string }) => {
     const created = await api.userMemories.create(data);
-    setMemories((prev) => [...prev, created]);
+    setEntries((prev) => [...prev, created]);
     return created;
   }, []);
 
-  const remove = useCallback(async (memoryId: string) => {
-    await api.memories.delete(memoryId);
-    setMemories((prev) => prev.filter((m) => m.id !== memoryId));
+  const remove = useCallback(async (entryId: string) => {
+    await api.memories.delete(entryId);
+    setEntries((prev) => prev.filter((e) => e.id !== entryId));
   }, []);
 
   useEffect(() => {
@@ -106,7 +109,9 @@ export function useUserMemories() {
   }, [load]);
 
   return {
-    memories,
+    entries,
+    // Alias for backwards compatibility
+    memories: entries,
     isLoading,
     error,
     reload: load,
