@@ -854,10 +854,12 @@ async def global_chat(
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
 
             # Activity log: record chat turn completion (ADR-063)
+            # Must use service client — activity_log RLS blocks INSERT from user JWT
             try:
                 from services.activity_log import write_activity
+                from services.supabase import get_service_client
                 await write_activity(
-                    client=auth.client,
+                    client=get_service_client(),
                     user_id=auth.user_id,
                     event_type="chat_session",
                     summary=f"Chat turn complete" + (f" (tools: {', '.join(tools_used)})" if tools_used else ""),
