@@ -108,7 +108,7 @@ export function SourcePicker({ value, onChange, suggestedPlatform }: SourcePicke
       try {
         const integrations = await api.integrations.list();
         const hasGmail = integrations.integrations?.some(
-          (i) => i.provider === 'gmail' && i.status === 'connected'
+          (i) => i.provider === 'gmail' && i.status === 'active'
         );
         if (hasGmail) {
           allResources.push({

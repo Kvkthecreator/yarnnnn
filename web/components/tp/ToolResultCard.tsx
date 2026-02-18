@@ -94,7 +94,7 @@ function renderEntityPreview(entity: Record<string, unknown>, entityType?: strin
           {status ? (
             <span className={cn(
               "text-xs px-1.5 py-0.5 rounded",
-              status === 'connected' ? "bg-green-500/10 text-green-600" : "bg-muted"
+              status === 'active' ? "bg-green-500/10 text-green-600" : "bg-muted"
             )}>
               {status}
             </span>
@@ -305,7 +305,7 @@ function getDisplayData(toolName: string, data?: Record<string, unknown>): { con
                       <>
                         <span className={cn(
                           "w-2 h-2 rounded-full",
-                          e.status === 'connected' ? "bg-green-500" : "bg-muted"
+                          e.status === 'active' ? "bg-green-500" : "bg-muted"
                         )} />
                         <span className="font-medium capitalize">{String(e.provider)}</span>
                       </>

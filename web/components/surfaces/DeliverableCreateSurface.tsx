@@ -343,7 +343,7 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
       // Load integrations
       const integrationsResult = await api.integrations.list();
       const activeIntegrations = (integrationsResult.integrations || []).filter(
-        (i) => i.status === 'active' || i.status === 'connected'
+        (i) => i.status === 'active'
       ) as Integration[];
       setIntegrations(activeIntegrations);
 

@@ -112,7 +112,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
     platformMap[key] = p;
   }
 
-  const connectedCount = ALL_PLATFORMS.filter((p) => platformMap[p]?.status === 'connected').length;
+  const connectedCount = ALL_PLATFORMS.filter((p) => platformMap[p]?.status === 'active').length;
 
   return (
     <div className="space-y-6">
@@ -131,7 +131,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
         {ALL_PLATFORMS.map((platformKey) => {
           const config = PLATFORM_CONFIG[platformKey];
           const summary = platformMap[platformKey];
-          const isConnected = summary?.status === 'connected';
+          const isConnected = summary?.status === 'active';
           const navTarget = platformKey === 'calendar' && summary?.provider === 'google' ? 'google' : platformKey;
 
           return (

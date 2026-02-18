@@ -133,7 +133,7 @@ export function DestinationSelector({
     const loadIntegrations = async () => {
       try {
         const result = await api.integrations.list();
-        setIntegrations(result.integrations.filter(i => i.status === 'connected'));
+        setIntegrations(result.integrations.filter(i => i.status === 'active'));
       } catch (err) {
         console.error('Failed to load integrations:', err);
         setError('Failed to load integrations');

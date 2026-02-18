@@ -111,7 +111,7 @@ export function ContextSidebar() {
           {ALL_PLATFORMS.map((platformKey) => {
             const config = PLATFORM_CONFIG[platformKey];
             const summary = platformStatus[platformKey];
-            const isConnected = summary?.status === 'connected';
+            const isConnected = summary?.status === 'active';
             const isActive = activePlatform === platformKey ||
               (platformKey === 'calendar' && activePlatform === 'google');
 
