@@ -861,6 +861,28 @@ export default function SettingsPage() {
                               Connected
                             </span>
                             <button
+                              onClick={() => handleConnectIntegration("slack")}
+                              disabled={connectingProvider === "slack"}
+                              className="px-3 py-1.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                            >
+                              {connectingProvider === "slack" ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Reconnect"
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDisconnectIntegration(slackIntegration.provider)}
+                              disabled={disconnectingProvider === slackIntegration.provider}
+                              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
+                            >
+                              {disconnectingProvider === slackIntegration.provider ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Disconnect"
+                              )}
+                            </button>
+                            <button
                               onClick={() => router.push("/context/slack")}
                               className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
                             >
@@ -918,6 +940,28 @@ export default function SettingsPage() {
                               <Check className="w-4 h-4" />
                               Connected
                             </span>
+                            <button
+                              onClick={() => handleConnectIntegration("notion")}
+                              disabled={connectingProvider === "notion"}
+                              className="px-3 py-1.5 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                            >
+                              {connectingProvider === "notion" ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Reconnect"
+                              )}
+                            </button>
+                            <button
+                              onClick={() => handleDisconnectIntegration(notionIntegration.provider)}
+                              disabled={disconnectingProvider === notionIntegration.provider}
+                              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-destructive border border-border rounded-md hover:border-destructive/30 transition-colors"
+                            >
+                              {disconnectingProvider === notionIntegration.provider ? (
+                                <Loader2 className="w-4 h-4 animate-spin" />
+                              ) : (
+                                "Disconnect"
+                              )}
+                            </button>
                             <button
                               onClick={() => router.push("/context/notion")}
                               className="px-3 py-1.5 text-sm text-primary border border-primary/30 rounded-md hover:bg-primary/10 transition-colors"
