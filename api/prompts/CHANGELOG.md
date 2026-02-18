@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.18.2] - Implicit Memory (ADR-064)
+
+### Removed
+- `api/services/project_tools.py`: Removed `create_memory`, `update_memory`, `delete_memory`, `suggest_project_for_memory` tools
+- `api/services/extraction.py`: Deleted file (replaced by `memory.py`)
+
+### Added
+- `api/services/memory.py`: New unified Memory Service with `process_conversation()`, `process_feedback()`, `process_patterns()`, `get_for_prompt()`
+
+### Changed
+- `api/agents/tp_prompts/tools.py`: Updated tool documentation to reflect memory is now implicit
+  - Removed `Write(ref="memory:new")` examples
+  - Added "Memory (ADR-064)" section explaining implicit handling
+  - Marked `List(pattern="memory:*")` as read-only
+- `api/routes/context.py`: Updated import from `extraction` to `memory`
+
+### Expected behavior
+- TP no longer has explicit memory tools
+- When users state preferences, TP acknowledges naturally without tool calls
+- Memory extraction happens at session end via backend service (not yet wired)
+- User edits via Context page continue to work (no change)
+
+### Token budget impact
+- None — memory format in working memory unchanged
+
+---
+
 ## [2026.02.18.1] - Activity Log Injection into Working Memory (ADR-063)
 
 ### Added

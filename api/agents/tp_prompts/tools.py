@@ -20,7 +20,7 @@ TOOLS_SECTION = """---
 
 **Write(ref, content)** - Create new entity
 - `Write(ref="deliverable:new", content={title: "Weekly Update", deliverable_type: "status_report"})`
-- `Write(ref="memory:new", content={content: "User prefers bullets"})`
+- (Memory writes are implicit - see Memory section below)
 
 **Edit(ref, changes)** - Modify existing entity
 - `Edit(ref="deliverable:uuid", changes={status: "paused"})`
@@ -29,7 +29,7 @@ TOOLS_SECTION = """---
 - `List(pattern="deliverable:*")` - all deliverables
 - `List(pattern="deliverable:?status=active")` - filtered
 - `List(pattern="platform:*")` - connected platforms
-- `List(pattern="memory:*")` - all memories
+- `List(pattern="memory:*")` - all memories (read-only)
 
 **Search(query, scope?)** - Semantic search over **synced content only**
 - `Search(query="database decisions", scope="memory")`
@@ -66,7 +66,7 @@ WebSearch is ideal for:
 
 Format: `<type>:<identifier>`
 
-**Types:** deliverable, platform, memory, document, work, action
+**Types:** deliverable, platform, document, work, action
 
 **Special:** `new` (create), `latest` (most recent), `*` (all), `?key=val` (filter)
 
@@ -75,7 +75,7 @@ Format: `<type>:<identifier>`
 ## Domain Terms
 
 - "deliverable" = recurring automated content (reports, digests, updates)
-- "memory" = context/knowledge stored about user
+- "memory" = context/knowledge about user (read-only; updated implicitly)
 - "platform" = connected integration (Slack, Gmail, Notion)
 - "work" = one-time agent task
 
@@ -93,11 +93,15 @@ Write(ref="deliverable:new", content={
 })
 ```
 
-**Memories:**
-```
-Write(ref="memory:new", content={
-  content: "User prefers bullet points"
-})
-```
+**Always use user's stated frequency** - don't override with defaults.
 
-**Always use user's stated frequency** - don't override with defaults."""
+---
+
+## Memory (ADR-064)
+
+Memory is handled implicitly. You don't need to create or update memories explicitly.
+When users state preferences or facts, just acknowledge them naturally.
+The system will remember them automatically for future conversations.
+
+If the user asks what you know about them, describe the context from the working memory
+block at the start of this prompt."""

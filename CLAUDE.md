@@ -97,6 +97,19 @@ You MUST:
 
 ## Key Architecture References
 
+### ADR-064: Unified Memory Service
+
+**Memory is implicit** — TP no longer has explicit memory tools (`create_memory`, `update_memory`, etc.)
+
+- Memory extraction happens at session end via `api/services/memory.py`
+- User can still edit memories directly via Context page
+- Working memory injected into TP prompt is unchanged
+
+**Key files**:
+- `api/services/memory.py` — extraction service
+- `api/services/working_memory.py` — formats memory for prompt injection
+- `docs/features/memory.md` — user-facing docs
+
 ### ADR-059: Simplified Context Model (Current Schema)
 
 **Tables** (use these names, not legacy):
@@ -104,6 +117,9 @@ You MUST:
 - `filesystem_items` (not `ephemeral_context`)
 - `filesystem_documents` / `filesystem_chunks`
 - `user_context` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
+
+**Removed files** (ADR-064):
+- `api/services/extraction.py` — replaced by `memory.py`
 
 **Removed tables** (ADR-059 — do not reference in new code):
 - `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`
@@ -127,6 +143,8 @@ You MUST:
 |---------|----------|
 | TP Agent | `api/agents/thinking_partner.py` |
 | Tool Primitives | `api/services/primitives/*.py` |
+| Memory Service | `api/services/memory.py` |
+| Working Memory | `api/services/working_memory.py` |
 | Chat/Streaming | `api/services/anthropic.py` |
 | OAuth Flow | `api/integrations/core/oauth.py` |
 | Platform Sync | `api/integrations/{slack,gmail,notion}/` |

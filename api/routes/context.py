@@ -343,7 +343,7 @@ async def import_user_memories(request: BulkImportRequest, auth: UserClient):
         raise HTTPException(status_code=400, detail="Text too short (minimum 50 characters)")
 
     try:
-        from services.extraction import extract_from_text_to_user_context
+        from services.memory import extract_from_text_to_user_context
         count = await extract_from_text_to_user_context(
             user_id=auth.user_id,
             text=request.text,
