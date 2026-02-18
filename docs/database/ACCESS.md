@@ -101,132 +101,84 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Completed Migrations
 
-### Migration 043-045: ADR-058 Knowledge Base Architecture (2026-02-13) ✅
+### Migrations 055-057: ADR-059 Simplified Context Model (2026-02-18) ✅
 
 **Status**: Applied
 
 ```bash
 # Run in sequence:
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/043_knowledge_base_architecture.sql
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/044_knowledge_base_data_migration.sql
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/045_knowledge_base_cleanup.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/055_user_context_table.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/056_user_context_data_migration.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/057_drop_knowledge_tables.sql
 ```
 
 **Changes**:
-- **Terminology alignment** per ADR-058:
+- **Creates** `user_context(user_id, key, value, source, confidence)` — single flat Memory store
+  - Keys: `name`, `role`, `company`, `timezone`, `summary`, `tone_{platform}`, `verbosity_{platform}`, `fact:...`, `instruction:...`, `preference:...`
+  - Sources: `user_stated`, `tp_extracted`, `document`
+- **Migrates** stated fields from `knowledge_profile` → `user_context` (inferred fields discarded)
+- **Migrates** `user_stated` entries from `knowledge_entries` → `user_context`
+- **Migrates** stated style preferences from `knowledge_styles` → `user_context`
+- **Drops**: `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`
+
+---
+
+### Migrations 051-054: ADR-060 Background Conversation Analyst (2026-02-16/17) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/051_suggested_deliverable_status.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/052_suggestion_notification_preference.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/053_get_active_users_for_analysis.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/054_analyst_cold_start_tracking.sql
+```
+
+**Changes**:
+- Adds `suggested` status to `deliverable_versions` (auto-detected pattern proposals)
+- Adds notification preference for suggested deliverables to `user_notification_preferences`
+- Adds `get_active_users_for_analysis()` RPC for conversation analyst
+- Adds cold-start tracking column to `user_notification_preferences`
+
+---
+
+### Migrations 049-050: Fix RPCs for ADR-058 schema (2026-02-13) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/049_fix_document_rpcs.sql
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/050_fix_coverage_summary.sql
+```
+
+**Changes**:
+- 049: Updates `get_document_with_stats()` to use `filesystem_documents`/`filesystem_chunks`
+- 050: Recreates `get_coverage_summary()` using `sync_registry` (replaces dropped `integration_coverage`)
+
+---
+
+### Migrations 043-048: ADR-058 Knowledge Base Architecture (2026-02-13) ✅
+
+**Status**: Applied — **knowledge_* tables superseded by ADR-059** (migrations 055-057)
+
+**Changes**:
+- **Terminology alignment** (still current — these table names are correct):
   - `user_integrations` → `platform_connections`
   - `ephemeral_context` → `filesystem_items`
   - `documents` → `filesystem_documents`
   - `chunks` → `filesystem_chunks`
-  - `context_domains` → `knowledge_domains`
-  - `memories` (user facts) → `knowledge_entries`
-- **New Knowledge tables**:
-  - `knowledge_profile` - User profile (inferred + stated)
-  - `knowledge_styles` - Per-platform communication styles
-  - `knowledge_domains` - Work domains
-  - `knowledge_entries` - Preferences, facts, decisions
-- **Dropped tables**: `user_integrations`, `ephemeral_context`, `documents`, `chunks`, `context_domains`, `domain_sources`, `domain_style_profiles`, `deliverable_domains`, `memories`, `integration_coverage`
-
-### Migration 046: Restore import_jobs (2026-02-13) ✅
-
-**Status**: Applied
-
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/046_restore_import_jobs.sql
-```
-
-**Changes**:
-- Restores `integration_import_jobs` table (was accidentally dropped in 045)
-- This table is still needed for tracking sync/import operations
-- **Helper functions**: `get_effective_profile()`, `get_or_create_default_domain()`, `get_knowledge_entries_by_importance()`
-
-### Migration 047: Fix Memory RPCs (2026-02-13) ✅
-
-**Status**: Applied
-
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/047_fix_memory_rpcs.sql
-```
-
-**Changes**:
-- Updates `search_memories()` RPC to use `knowledge_entries` table (was referencing dropped `memories` table)
-- Updates `get_memories_by_importance()` RPC to use `knowledge_entries` table
-- Domain-scoped search with default domain always accessible
-- Returns compatible schema for TP working memory injection
-
-### Migration 048: Fix Domain RPCs (2026-02-13) ✅
-
-**Status**: Applied
-
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/048_fix_domain_rpcs.sql
-```
-
-**Changes**:
-- Updates `get_user_domains_summary()` to use `knowledge_domains.sources` JSONB (was referencing dropped `domain_sources` table)
-- Updates `get_deliverable_domain()` to compute domain associations dynamically from sources overlap (was referencing dropped `deliverable_domains` table)
-- Drops `get_domain_sources()` function (no longer needed)
+- **knowledge_* tables** (created in 043, dropped in 057 — do not reference in new code):
+  - `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`
+- 046: Restores `integration_import_jobs` (accidentally dropped in 045)
+- 047-048: Fix RPCs to use knowledge_entries/knowledge_domains (also superseded by ADR-059)
 
 ---
 
-### Migration 041: ADR-040 Notifications (2026-02-11) ✅
+### Migrations 001-050: Prior migrations ✅
 
-**Status**: Applied
+**Status**: Applied — see individual files in `supabase/migrations/` for details.
 
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/041_notifications.sql
-```
-
-**Changes**:
-- Creates `notifications` table for audit logging of sent notifications
-- Creates `event_trigger_log` table for database-backed cooldown tracking
-- Adds `cleanup_old_trigger_logs()` function for retention management
-- RLS policies for user access and service role
-
----
-
-### Migration 039: Calendar Type Classification (2026-02-11) ✅
-
-**Status**: Applied
-
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/039_calendar_type_classification.sql
-```
-
-**Changes**:
-- Adds type_classification for `meeting_prep` and `weekly_calendar_preview` types
-- Both are `platform_bound` with `primary_platform: "calendar"`
-- `meeting_prep` is `reactive` (triggers before meetings)
-- `weekly_calendar_preview` is `scheduled`
-
----
-
-### Migration 038: Agent Type Rename (2026-02-11) ✅
-
-**Status**: Applied
-
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/038_agent_type_rename.sql
-```
-
-**Changes**:
-- Renames `agent_type` values: research → synthesizer, content → deliverable, reporting → report
-- Updates `work_tickets` and `agent_sessions` tables
-- Adds documentation comments to columns
-
----
-
-### Migration 037: ADR-044 Deliverable Type Classification (2026-02-11) ✅
-
-**Status**: Applied
-
-```bash
-psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/037_deliverable_type_classification.sql
-```
-
-**Changes**:
-- Adds `type_classification` JSONB column to `deliverables` table
-- Creates `deliverable_proposals` table for emergent discovery
-- Creates `user_interaction_patterns` table for pattern detection
-- Backfills existing deliverables with inferred classification
-- Helper functions: `increment_interaction_pattern`, `should_propose_deliverable`
+Notable milestones:
+- 041: `notifications` + `event_trigger_log` tables (ADR-040)
+- 039: Calendar type classification (`meeting_prep`, `weekly_calendar_preview`)
+- 037: Deliverable type classification + `deliverable_proposals` + `user_interaction_patterns`
