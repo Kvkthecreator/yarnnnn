@@ -3,9 +3,16 @@
 /**
  * ADR-037: Deliverables Page (Route-based)
  * ADR-060: Includes suggested deliverables from Conversation Analyst
+ * ADR-063: Four-Layer Model — Work Layer
+ *
+ * Layer 4: Work — What YARNNN produces
  *
  * Standalone page for listing and managing recurring deliverables.
  * Core feature page - list, filter, and navigate to deliverable details.
+ *
+ * Data lives in: deliverables, deliverable_versions
+ * Written by: Deliverable pipeline, Conversation Analyst (suggestions)
+ * Read by: User review, export, TP reference
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';

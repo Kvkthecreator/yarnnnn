@@ -2,25 +2,27 @@
 
 /**
  * ADR-037: Chat-First Surface Architecture
- * ADR-039: Unified Context Surface
+ * ADR-063: Four-Layer Model Navigation
  *
  * Navigation model:
  * - Home (/dashboard) = Chat-first experience (TP primary)
- * - Entity pages: /context, /settings
- * - Surfaces exist but are secondary to chat (invoked via TP tools)
+ * - Four-layer pages: Memory, Activity, Context, Work (Deliverables)
+ * - Settings is meta (not a layer)
  *
- * Navigation structure (ADR-039):
- * - Chat (home) | Deliverables | Context | Activity | Settings
+ * Navigation structure (ADR-063 aligned):
+ * - Chat (home) | Deliverables (Work) | Memory | Context | Activity | Settings
  *
- * Key changes from ADR-037:
- * - /integrations and /docs merged into /context
- * - Context = unified view of platforms, documents, facts (Finder-like)
+ * Four-Layer Model:
+ * - Memory (/memory): What YARNNN knows about you (Profile, Styles, Entries)
+ * - Activity (/activity): What YARNNN has done (audit trail)
+ * - Context (/context): What's in your platforms (Platforms, Documents)
+ * - Work (/deliverables): What YARNNN produces (recurring outputs)
  */
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { MessageCircle, ChevronDown, Settings, Calendar, Activity, Layers } from 'lucide-react';
+import { MessageCircle, ChevronDown, Settings, Calendar, Activity, Layers, Brain } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -103,10 +105,11 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-037 + ADR-039: Navigation structure
-// Chat | Deliverables | Context | Activity | Settings
+// ADR-063: Four-Layer Model Navigation
+// Chat | Deliverables (Work) | Memory | Context | Activity | Settings
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' },
+  { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
   { id: 'context', label: 'Context', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
