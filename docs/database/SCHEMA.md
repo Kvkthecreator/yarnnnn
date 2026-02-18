@@ -365,7 +365,7 @@ Injected into TP's system prompt (~2,000 token budget). During a session, TP acc
 | 057 | ADR-059: Drop knowledge_profile/styles/domains/entries | Applied |
 | 058 | Fix SECURITY DEFINER view | Applied |
 | 059 | ADR-059: Drop dead columns from session_messages | Applied |
-| 060 | ADR-063: Create activity_log table | Pending |
+| 060 | ADR-063: Create activity_log table | Applied |
 
 ---
 

@@ -141,6 +141,23 @@ async def _sync_platform_async(
 
         # ADR-059: Profile inference removed — TP learns profile conversationally via user_context
 
+        # Activity log: record this sync batch (ADR-063)
+        try:
+            from services.activity_log import write_activity
+            items_synced = sync_result.get("items_synced", 0)
+            await write_activity(
+                client=client,
+                user_id=user_id,
+                event_type="platform_synced",
+                summary=f"Synced {provider}: {items_synced} items",
+                metadata={
+                    "platform": provider,
+                    **{k: v for k, v in sync_result.items() if k != "error"},
+                },
+            )
+        except Exception:
+            pass  # Non-fatal — never block sync
+
         return {
             "success": True,
             "provider": provider,

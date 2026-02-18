@@ -2488,6 +2488,21 @@ async def handle_create_memory(auth, input: dict) -> dict:
 
     memory = result.data[0]
 
+    # Activity log: record memory write (ADR-063)
+    try:
+        from services.activity_log import write_activity
+        preview = content[:80] + "..." if len(content) > 80 else content
+        await write_activity(
+            client=auth.client,
+            user_id=auth.user_id,
+            event_type="memory_written",
+            summary=f"Noted: {preview}",
+            event_ref=memory["id"],
+            metadata={"key": key, "entry_type": entry_type, "action": "create"},
+        )
+    except Exception:
+        pass  # Non-fatal
+
     return {
         "success": True,
         "memory": {
@@ -2539,6 +2554,21 @@ async def handle_update_memory(auth, input: dict) -> dict:
 
     memory = result.data[0]
     preview = memory["value"][:100] + "..." if len(memory["value"]) > 100 else memory["value"]
+
+    # Activity log: record memory update (ADR-063)
+    try:
+        from services.activity_log import write_activity
+        short = new_value[:80] + "..." if len(new_value) > 80 else new_value
+        await write_activity(
+            client=auth.client,
+            user_id=auth.user_id,
+            event_type="memory_written",
+            summary=f"Updated: {short}",
+            event_ref=memory_id,
+            metadata={"memory_id": memory_id, "action": "update"},
+        )
+    except Exception:
+        pass  # Non-fatal
 
     return {
         "success": True,

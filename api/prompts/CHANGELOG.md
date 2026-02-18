@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.18.1] - Activity Log Injection into Working Memory (ADR-063)
+
+### Added
+- `api/services/activity_log.py`: New module — `write_activity()` and `get_recent_activity()`
+- `supabase/migrations/060_activity_log.sql`: `activity_log` table (append-only, RLS)
+
+### Changed
+- `api/services/working_memory.py`: Added `_get_recent_activity()` helper and `recent_activity` key
+- `api/services/working_memory.py`: Added "Recent activity" section to `format_for_prompt()`
+- `api/services/deliverable_execution.py`: Writes `deliverable_run` event after generation completes
+- `api/workers/platform_worker.py`: Writes `platform_synced` event after each sync batch
+
+### Expected behavior
+- TP system prompt now includes a "### Recent activity" block (up to 10 events, 7-day window)
+- Format: `- 2026-02-18 09:00 · Weekly Digest v3 generated (staged)`
+- TP can now answer "when did you last run my digest?" without a live DB query
+- Cold-start sessions: block renders empty until first deliverable run or sync
+- All writes are non-fatal — failures log a warning and never block the primary operation
+
+### Token budget impact
+- New block: ~300 tokens of the 2,000 token budget
+- "Recent conversations" block retained but currently renders empty (chat session summaries not yet written)
+
+---
+
 ## [2026.02.16.8] - Suggestion Notification Layer (ADR-060 Phase 3)
 
 ### Added

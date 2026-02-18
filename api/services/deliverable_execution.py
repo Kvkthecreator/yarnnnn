@@ -578,6 +578,25 @@ async def execute_deliverable_generation(
             f"status={final_status}, strategy={strategy.strategy_name}"
         )
 
+        # Activity log: record this deliverable run (ADR-063)
+        try:
+            from services.activity_log import write_activity
+            await write_activity(
+                client=client,
+                user_id=user_id,
+                event_type="deliverable_run",
+                summary=f"{title} v{next_version} generated ({final_status})",
+                event_ref=version_id,
+                metadata={
+                    "deliverable_id": str(deliverable_id),
+                    "version_number": next_version,
+                    "strategy": strategy.strategy_name,
+                    "final_status": final_status,
+                },
+            )
+        except Exception:
+            pass  # Non-fatal — never block execution
+
         return {
             "success": True,
             "version_id": version_id,

@@ -101,9 +101,9 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Migrations
 
-### Migration 060: Create activity_log table (2026-02-18) ⏳
+### Migration 060: Create activity_log table (2026-02-18) ✅
 
-**Status**: Pending — run when ready to implement ADR-063
+**Status**: Applied
 
 ```bash
 psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/060_activity_log.sql

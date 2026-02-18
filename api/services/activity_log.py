@@ -1,0 +1,113 @@
+"""
+Activity Log — ADR-063: Four-Layer Model
+
+Append-only system provenance log. Records what YARNNN has done across all pipelines.
+
+Layer: Activity (between Memory and Context in the four-layer model)
+Table: activity_log
+
+Write points (all non-fatal — callers continue regardless of log failure):
+  - deliverable_execution.py: 'deliverable_run' after version created
+  - platform_worker.py: 'platform_synced' after sync batch completes
+  - TP memory tools: 'memory_written' after user_context upsert
+  - chat.py: 'chat_session' when session ends
+
+Read point:
+  - working_memory.py: get_recent_activity() → injected as "Recent activity" block
+    in TP system prompt (~300 tokens, last 10 events, 7-day window)
+"""
+
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+VALID_EVENT_TYPES = frozenset(
+    {"deliverable_run", "memory_written", "platform_synced", "chat_session"}
+)
+
+
+async def write_activity(
+    client,
+    user_id: str,
+    event_type: str,
+    summary: str,
+    event_ref: Optional[str] = None,
+    metadata: Optional[dict] = None,
+) -> Optional[str]:
+    """
+    Append an event to activity_log.
+
+    Non-fatal by design — a log failure never blocks the primary operation.
+    Callers should wrap in try/except and continue regardless.
+
+    Args:
+        client: Supabase service-role client
+        user_id: The user this event belongs to
+        event_type: One of 'deliverable_run', 'memory_written', 'platform_synced', 'chat_session'
+        summary: Human-readable one-liner (shown in working memory block)
+        event_ref: UUID of related record (version_id, session_id, etc.) — optional
+        metadata: Structured detail dict — optional
+
+    Returns:
+        activity_log row id, or None on error
+    """
+    if event_type not in VALID_EVENT_TYPES:
+        logger.warning(f"[activity_log] Unknown event_type ignored: {event_type!r}")
+        return None
+
+    row: dict = {
+        "user_id": user_id,
+        "event_type": event_type,
+        "summary": summary,
+    }
+    if event_ref is not None:
+        row["event_ref"] = str(event_ref)
+    if metadata is not None:
+        row["metadata"] = metadata
+
+    try:
+        result = client.table("activity_log").insert(row).execute()
+        inserted = result.data[0] if result.data else {}
+        return inserted.get("id")
+    except Exception as e:
+        logger.error(f"[activity_log] write failed (event_type={event_type}): {e}")
+        return None
+
+
+async def get_recent_activity(
+    client,
+    user_id: str,
+    limit: int = 10,
+    days: int = 7,
+) -> list[dict]:
+    """
+    Fetch recent activity events for working memory injection.
+
+    Args:
+        client: Supabase client (anon or service role)
+        user_id: The user
+        limit: Max rows to return (default 10)
+        days: Lookback window in days (default 7)
+
+    Returns:
+        List of activity_log rows ordered by created_at DESC.
+        Fields: event_type, event_ref, summary, metadata, created_at
+    """
+    since = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+
+    try:
+        result = (
+            client.table("activity_log")
+            .select("event_type, event_ref, summary, metadata, created_at")
+            .eq("user_id", user_id)
+            .gte("created_at", since)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+        return result.data or []
+    except Exception as e:
+        logger.error(f"[activity_log] get_recent_activity failed: {e}")
+        return []

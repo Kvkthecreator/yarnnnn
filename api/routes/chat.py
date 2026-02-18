@@ -853,6 +853,20 @@ async def global_chat(
 
             yield f"data: {json.dumps({'done': True, 'session_id': session_id, 'tools_used': tools_used})}\n\n"
 
+            # Activity log: record chat turn completion (ADR-063)
+            try:
+                from services.activity_log import write_activity
+                await write_activity(
+                    client=auth.client,
+                    user_id=auth.user_id,
+                    event_type="chat_session",
+                    summary=f"Chat turn complete" + (f" (tools: {', '.join(tools_used)})" if tools_used else ""),
+                    event_ref=session_id,
+                    metadata={"session_id": session_id, "tools_used": tools_used},
+                )
+            except Exception:
+                pass  # Non-fatal
+
             # ADR-059: Background extraction removed.
 
         except Exception as e:

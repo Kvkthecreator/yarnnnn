@@ -24,7 +24,8 @@ grep -r "<keyword>" docs/adr/
 Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-049**: Context freshness model - explains why NO history compression/summarization
 - **ADR-059**: Simplified context model - current Memory schema (user_context), inference removal
-- **ADR-062**: Platform context architecture - three-layer model (Memory / Context / Work), filesystem_items role
+- **ADR-062**: Platform context architecture - filesystem_items role (conversational search cache only)
+- **ADR-063**: Four-layer model (Memory / Activity / Context / Work) - activity_log, working memory injection
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 

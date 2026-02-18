@@ -1,12 +1,13 @@
 """
-Working Memory Builder - ADR-059: Simplified Context Model
+Working Memory Builder - ADR-063: Four-Layer Model
 
 Builds the working memory injected into the TP system prompt at session start.
 Analogous to Claude Code reading CLAUDE.md — TP reads what's explicitly stated,
 nothing inferred by background jobs.
 
-Two sources:
-  user_context   — stated preferences, profile, facts, instructions
+Sources (Memory + Activity layers only):
+  user_context   — stated preferences, profile, facts, instructions (Memory)
+  activity_log   — recent system events: deliverable runs, syncs, memory writes (Activity)
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
 What goes in the prompt (~2,000 tokens):
@@ -15,7 +16,7 @@ What goes in the prompt (~2,000 tokens):
   - What you've told me: fact:*, instruction:*
   - Active deliverables (max 5)
   - Connected platforms + sync freshness
-  - Recent session summaries
+  - Recent activity (last 10 events, 7-day window) ← ADR-063
 
 Raw filesystem_items content is NOT included here.
 TP fetches it via Search when needed.
@@ -31,7 +32,9 @@ MAX_DELIVERABLES = 5
 MAX_PLATFORMS = 5
 MAX_RECENT_SESSIONS = 3
 MAX_CONTEXT_ENTRIES = 20       # Max user_context rows to include in prompt
+MAX_ACTIVITY_EVENTS = 10       # ADR-063: Recent activity events injected into prompt
 SESSION_LOOKBACK_DAYS = 7
+ACTIVITY_LOOKBACK_DAYS = 7     # ADR-063: Window for activity_log query
 WORKING_MEMORY_TOKEN_BUDGET = 2000
 
 
@@ -57,6 +60,7 @@ async def build_working_memory(user_id: str, client: Any) -> dict:
         "deliverables": await _get_active_deliverables(user_id, client),
         "platforms": await _get_connected_platforms(user_id, client),
         "recent_sessions": await _get_recent_sessions(user_id, client),
+        "recent_activity": await _get_recent_activity(user_id, client),  # ADR-063
     }
 
     return working_memory
@@ -269,6 +273,25 @@ async def _get_recent_sessions(user_id: str, client: Any) -> list:
     return sessions
 
 
+async def _get_recent_activity(user_id: str, client: Any) -> list[dict]:
+    """
+    Fetch recent activity events for working memory prompt injection.
+
+    ADR-063: Activity layer — records what YARNNN has done.
+    Returns last MAX_ACTIVITY_EVENTS events within ACTIVITY_LOOKBACK_DAYS.
+    """
+    try:
+        from services.activity_log import get_recent_activity
+        return await get_recent_activity(
+            client=client,
+            user_id=user_id,
+            limit=MAX_ACTIVITY_EVENTS,
+            days=ACTIVITY_LOOKBACK_DAYS,
+        )
+    except Exception:
+        return []
+
+
 # --- Formatting ---
 
 def estimate_working_memory_tokens(working_memory: dict) -> int:
@@ -356,11 +379,26 @@ def format_for_prompt(working_memory: dict) -> str:
             else:
                 lines.append(f"- {p.get('platform')}: {status}")
 
-    # Recent Sessions (HISTORY)
+    # Recent Sessions (HISTORY) — only rendered if summaries exist
     sessions = working_memory.get("recent_sessions", [])
     if sessions:
         lines.append(f"\n### Recent conversations")
         for s in sessions:
             lines.append(f"- {s.get('date')}: {s.get('summary')}")
+
+    # Recent Activity (ADR-063) — system provenance log
+    activity = working_memory.get("recent_activity", [])
+    if activity:
+        lines.append(f"\n### Recent activity")
+        for event in activity:
+            created_at = event.get("created_at", "")
+            # Format: "2026-02-18T09:00:00+00:00" → "2026-02-18 09:00"
+            try:
+                dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                ts = dt.strftime("%Y-%m-%d %H:%M")
+            except Exception:
+                ts = created_at[:16]
+            summary = event.get("summary", "")
+            lines.append(f"- {ts} · {summary}")
 
     return "\n".join(lines)
