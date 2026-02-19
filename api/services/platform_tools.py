@@ -532,9 +532,12 @@ async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict
         metadata=metadata,
     )
 
-    # Normalize list_channels result before TP sees it
-    if result.get("success") and tool == "list_channels":
-        result = _normalize_list_channels_result(result)
+    # Normalize MCP results before TP sees them (strip raw API noise)
+    if result.get("success"):
+        if tool == "list_channels":
+            result = _normalize_list_channels_result(result)
+        elif tool == "get_channel_history":
+            result = _normalize_get_channel_history_result(result)
 
     return result
 
@@ -587,6 +590,55 @@ def _normalize_list_channels_result(result: dict) -> dict:
         logger.warning("[PLATFORM-TOOLS] list_channels: channel names unavailable (scope issue)")
     else:
         logger.info(f"[PLATFORM-TOOLS] list_channels: normalized {len(normalized)} channels")
+
+    return result
+
+
+def _normalize_get_channel_history_result(result: dict) -> dict:
+    """
+    Normalize get_channel_history result to only the fields TP needs.
+
+    The Slack MCP server returns the raw conversations.history response including
+    ok, has_more, pin_count, response_metadata, and 15+ fields per message.
+    Strip down to: text, user, ts, reactions (count only).
+    """
+    raw = result.get("result")
+    messages = None
+
+    if isinstance(raw, list):
+        messages = raw
+    elif isinstance(raw, dict):
+        messages = raw.get("messages") or raw.get("history")
+
+    if not messages or not isinstance(messages, list):
+        return result
+
+    normalized = []
+    for msg in messages:
+        if not isinstance(msg, dict):
+            continue
+        text = msg.get("text", "")
+        # Skip empty/bot messages with no text
+        if not text:
+            continue
+        entry: dict = {
+            "user": msg.get("user") or msg.get("username"),
+            "text": text,
+            "ts": msg.get("ts"),
+        }
+        # Include reactions as simple name counts if present
+        reactions = msg.get("reactions")
+        if reactions:
+            entry["reactions"] = [
+                {"name": r.get("name"), "count": r.get("count", 0)}
+                for r in reactions
+                if isinstance(r, dict)
+            ]
+        normalized.append(entry)
+
+    result = dict(result)
+    result["result"] = {"messages": normalized, "count": len(normalized)}
+    logger.info(f"[PLATFORM-TOOLS] get_channel_history: normalized {len(normalized)} messages")
 
     return result
 

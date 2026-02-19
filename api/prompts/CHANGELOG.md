@@ -51,6 +51,17 @@ ADR-059 collapsed `memories`, `knowledge_profile`, `knowledge_styles`, `knowledg
 
 ---
 
+## [2026.02.19.9] - Normalize get_channel_history result (closes raw MCP pass-through gap)
+
+### Changed
+- `_normalize_get_channel_history_result()` strips raw `conversations.history` response to `{user, text, ts, reactions}` per message before TP sees it
+- Empty/bot messages with no text are filtered out
+- Reactions normalized to `{name, count}` pairs only (was full user-list array)
+- All other Slack API fields (`ok`, `has_more`, `pin_count`, `response_metadata`, `subtype`, `team`, etc.) removed
+
+### Context
+With `list_channels` now normalized (`[2026.02.19.8]`), `get_channel_history` was the last Slack MCP tool passing raw API responses to TP. Notion, Gmail, and Calendar all normalize at the handler level — this closes the same gap for Slack MCP. All platform tools now return clean, minimal response dicts.
+
 ## [2026.02.19.8] - Normalize list_channels result to eliminate model hallucination
 
 ### Fixed
