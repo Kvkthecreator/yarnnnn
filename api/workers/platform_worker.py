@@ -230,20 +230,22 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
 
             # Store in filesystem_items
             for msg in messages:
+                msg_ts = msg.get("ts", "")
                 await _store_filesystem_items(
                     client=client,
                     user_id=user_id,
                     source_type="slack",
                     resource_id=channel_id,
                     resource_name=f"#{channel_name}",
+                    item_id=msg_ts,
                     content=msg.get("text", ""),
                     content_type="message",
                     metadata={
                         "user": msg.get("user"),
-                        "ts": msg.get("ts"),
+                        "ts": msg_ts,
                         "reactions": msg.get("reactions", []),
                     },
-                    source_timestamp=msg.get("ts"),
+                    source_timestamp=msg_ts,
                 )
                 items_synced += 1
 
@@ -350,6 +352,7 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                             source_type="gmail",
                             resource_id=resource_id,  # ADR-055: Use label: prefix
                             resource_name=subject,
+                            item_id=msg_id,
                             content=full_msg.get("snippet", ""),
                             content_type="email",
                             metadata={
@@ -445,6 +448,7 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
                     source_type="notion",
                     resource_id=page_id,
                     resource_name=page_title,
+                    item_id=page_id,
                     content=content,
                     content_type="page",
                     metadata={
@@ -575,6 +579,7 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
                         source_type="calendar",
                         resource_id=calendar_id,
                         resource_name=summary,
+                        item_id=event_id,
                         content=content,
                         content_type="event",
                         metadata={
@@ -611,14 +616,24 @@ async def _store_filesystem_items(
     source_type: str,
     resource_id: str,
     resource_name: str,
+    item_id: str,
     content: str,
     content_type: str,
     metadata: dict,
     source_timestamp: Optional[str] = None,
 ) -> None:
-    """Store item in filesystem_items table with TTL."""
+    """Store item in filesystem_items table with TTL.
+
+    item_id is the platform-native identifier for the specific item within the resource:
+    - Slack: message ts
+    - Gmail: message_id
+    - Calendar: event_id
+    - Notion: page_id (same as resource_id for Notion since each page is its own resource)
+
+    Upserts on (user_id, platform, resource_id, item_id) — matching the UNIQUE constraint —
+    so re-syncing the same item refreshes content and extends TTL rather than duplicating.
+    """
     from datetime import timedelta
-    from uuid import uuid4
 
     # TTL based on source type
     ttl_hours = {
@@ -632,20 +647,19 @@ async def _store_filesystem_items(
     expires_at = now + timedelta(hours=ttl_hours)
 
     try:
-        # Upsert to avoid duplicates
         client.table("filesystem_items").upsert({
-            "id": str(uuid4()),
             "user_id": user_id,
             "platform": source_type,
             "resource_id": resource_id,
             "resource_name": resource_name,
-            "content": content[:10000],  # Truncate long content
+            "item_id": item_id,
+            "content": content[:10000],
             "content_type": content_type,
             "metadata": metadata,
             "source_timestamp": source_timestamp,
-            "created_at": now.isoformat(),
+            "synced_at": now.isoformat(),
             "expires_at": expires_at.isoformat(),
-        }, on_conflict="user_id,platform,resource_id").execute()
+        }, on_conflict="user_id,platform,resource_id,item_id").execute()
 
     except Exception as e:
         logger.warning(f"[PLATFORM_WORKER] Failed to store context: {e}")

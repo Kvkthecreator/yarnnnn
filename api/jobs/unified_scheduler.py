@@ -964,6 +964,105 @@ async def run_unified_scheduler():
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")
 
     # -------------------------------------------------------------------------
+    # ADR-068: Signal Processing Phase (daily at 7 AM UTC)
+    # Extracts behavioral signals from platform cache, reasons over what the
+    # user's world warrants, creates signal-emergent deliverables.
+    # Only runs for users with recent platform activity (cost gate).
+    # -------------------------------------------------------------------------
+    signal_users = 0
+    signal_created = 0
+    if now.hour == 7 and now.minute < 5:
+        try:
+            from services.signal_extraction import extract_signal_summary
+            from services.signal_processing import process_signal, execute_signal_actions
+            from services.working_memory import _get_active_deliverables
+            from services.activity_log import get_recent_activity
+
+            # Get users with recent platform activity (filesystem_items populated in last 48h)
+            since_48h = (now - timedelta(hours=48)).isoformat()
+            active_result = (
+                supabase.table("filesystem_items")
+                .select("user_id")
+                .gte("synced_at", since_48h)
+                .execute()
+            )
+            active_user_ids = list(set(
+                row["user_id"] for row in (active_result.data or [])
+            ))
+
+            logger.info(f"[SIGNAL] Found {len(active_user_ids)} users with recent platform activity")
+
+            for user_id in active_user_ids:
+                try:
+                    # Extract behavioral signals from platform cache
+                    signal_summary = await extract_signal_summary(supabase, user_id)
+
+                    if not signal_summary.has_signals:
+                        continue
+
+                    # Fetch inputs for reasoning pass
+                    user_context_result = (
+                        supabase.table("user_context")
+                        .select("key, value")
+                        .eq("user_id", user_id)
+                        .limit(20)
+                        .execute()
+                    )
+                    user_context = user_context_result.data or []
+
+                    recent_activity = await get_recent_activity(
+                        client=supabase,
+                        user_id=user_id,
+                        limit=10,
+                        days=7,
+                    )
+
+                    existing_deliverables_result = (
+                        supabase.table("deliverables")
+                        .select("id, title, deliverable_type, next_run_at, status")
+                        .eq("user_id", user_id)
+                        .in_("status", ["active", "paused"])
+                        .execute()
+                    )
+                    existing_deliverables = existing_deliverables_result.data or []
+
+                    # Single LLM call — reason over signals
+                    processing_result = await process_signal(
+                        client=supabase,
+                        user_id=user_id,
+                        signal_summary=signal_summary,
+                        user_context=user_context,
+                        recent_activity=recent_activity,
+                        existing_deliverables=existing_deliverables,
+                    )
+
+                    if processing_result.actions:
+                        created = await execute_signal_actions(
+                            client=supabase,
+                            user_id=user_id,
+                            result=processing_result,
+                        )
+                        signal_created += created
+                        if created > 0:
+                            signal_users += 1
+                            logger.info(
+                                f"[SIGNAL] Created {created} signal-emergent deliverable(s) "
+                                f"for {user_id}"
+                            )
+
+                except Exception as e:
+                    logger.warning(f"[SIGNAL] Error processing signals for {user_id}: {e}")
+
+            if signal_users > 0:
+                logger.info(
+                    f"[SIGNAL] Phase complete: {signal_users} users, "
+                    f"{signal_created} deliverables created"
+                )
+
+        except Exception as e:
+            logger.warning(f"[SIGNAL] Signal processing phase skipped: {e}")
+
+    # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
     deliverable_summary = f"{deliverable_success}/{len(deliverables)}"

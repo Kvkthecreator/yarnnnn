@@ -21,7 +21,7 @@ from fastapi import APIRouter, HTTPException, BackgroundTasks
 from pydantic import BaseModel, Field
 from typing import Optional, Literal, Union, Annotated
 from uuid import UUID
-from datetime import datetime
+from datetime import datetime, timezone
 
 from services.supabase import UserClient
 
@@ -876,6 +876,11 @@ class DeliverableUpdate(BaseModel):
     template_structure: Optional[TemplateStructure] = None
 
 
+class PromoteToRecurringRequest(BaseModel):
+    """ADR-068: Promote a signal-emergent one-time deliverable to a recurring schedule."""
+    schedule: ScheduleConfig
+
+
 class DeliverableResponse(BaseModel):
     """Deliverable response - includes ADR-019 type fields."""
     id: str
@@ -918,6 +923,8 @@ class DeliverableResponse(BaseModel):
     avg_edit_distance: Optional[float] = None  # Average over last 5 versions
     # ADR-030: Source freshness
     source_freshness: Optional[list[dict]] = None  # [{source_index, provider, last_fetched_at, is_stale}]
+    # ADR-068: Deliverable origin (how it came to exist)
+    origin: str = "user_configured"  # user_configured | analyst_suggested | signal_emergent
     # Legacy fields (for backwards compatibility)
     description: Optional[str] = None
     template_structure: Optional[dict] = None
@@ -1154,6 +1161,8 @@ async def create_deliverable(
         governance=deliverable.get("governance", "manual"),
         # ADR-031: Governance ceiling
         governance_ceiling=deliverable.get("governance_ceiling"),
+        # ADR-068: Deliverable origin
+        origin=deliverable.get("origin", "user_configured"),
         # Legacy fields
         description=deliverable.get("description"),
         template_structure=deliverable.get("template_structure"),
@@ -1275,6 +1284,8 @@ async def list_deliverables(
             quality_score=quality_score,
             quality_trend=quality_trend,
             avg_edit_distance=avg_edit_distance,
+            # ADR-068: Deliverable origin
+            origin=d.get("origin", "user_configured"),
             # Legacy
             description=d.get("description"),
             template_structure=d.get("template_structure"),
@@ -1398,6 +1409,8 @@ async def get_deliverable(
             governance=deliverable.get("governance", "manual"),
             # ADR-031: Governance ceiling
             governance_ceiling=deliverable.get("governance_ceiling"),
+            # ADR-068: Deliverable origin
+            origin=deliverable.get("origin", "user_configured"),
             # Legacy
             description=deliverable.get("description"),
             template_structure=deliverable.get("template_structure"),
@@ -1531,6 +1544,8 @@ async def update_deliverable(
         governance=d.get("governance", "manual"),
         # ADR-031: Governance ceiling
         governance_ceiling=d.get("governance_ceiling"),
+        # ADR-068: Deliverable origin
+        origin=d.get("origin", "user_configured"),
         # Legacy
         description=d.get("description"),
         template_structure=d.get("template_structure"),
@@ -2128,6 +2143,89 @@ async def dismiss_suggested_version(
     ).execute()
 
     return {"success": True, "message": "Suggestion dismissed"}
+
+
+@router.post("/{deliverable_id}/promote-to-recurring")
+async def promote_to_recurring(
+    deliverable_id: UUID,
+    request: PromoteToRecurringRequest,
+    auth: UserClient,
+) -> DeliverableResponse:
+    """
+    Promote a signal-emergent one-time deliverable to a recurring schedule.
+
+    ADR-068: The deliverable's trigger_type changes from 'manual' to 'schedule'
+    and next_run_at is calculated from the provided schedule config.
+    The origin field is preserved — it records provenance, not current state.
+    """
+    # Verify ownership and that this is a signal-emergent deliverable
+    check = (
+        auth.client.table("deliverables")
+        .select("*")
+        .eq("id", str(deliverable_id))
+        .eq("user_id", auth.user_id)
+        .single()
+        .execute()
+    )
+
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Deliverable not found")
+
+    deliverable = check.data
+    if deliverable.get("origin") != "signal_emergent":
+        raise HTTPException(
+            status_code=400,
+            detail="Only signal-emergent deliverables can be promoted to recurring"
+        )
+
+    if deliverable.get("trigger_type") == "schedule":
+        raise HTTPException(
+            status_code=400,
+            detail="Deliverable is already on a recurring schedule"
+        )
+
+    # Calculate next_run_at from the provided schedule
+    next_run_at = calculate_next_run(request.schedule)
+    schedule_dict = request.schedule.model_dump()
+    now = datetime.now(timezone.utc).isoformat()
+
+    update_result = (
+        auth.client.table("deliverables")
+        .update({
+            "trigger_type": "schedule",
+            "schedule": schedule_dict,
+            "next_run_at": next_run_at,
+            "updated_at": now,
+            # origin is intentionally NOT updated — provenance preserved
+        })
+        .eq("id", str(deliverable_id))
+        .execute()
+    )
+
+    if not update_result.data:
+        raise HTTPException(status_code=500, detail="Failed to promote deliverable")
+
+    d = update_result.data[0]
+    return DeliverableResponse(
+        id=d["id"],
+        title=d["title"],
+        deliverable_type=d.get("deliverable_type", "custom"),
+        type_config=d.get("type_config"),
+        type_classification=d.get("type_classification"),
+        trigger_type=d.get("trigger_type", "schedule"),
+        schedule=d.get("schedule"),
+        sources=d.get("sources") or [],
+        status=d.get("status", "active"),
+        created_at=d["created_at"],
+        updated_at=d["updated_at"],
+        next_run_at=d.get("next_run_at"),
+        governance=d.get("governance", "manual"),
+        governance_ceiling=d.get("governance_ceiling"),
+        destination=d.get("destination"),
+        destinations=d.get("destinations") or [],
+        origin=d.get("origin", "user_configured"),
+        description=d.get("description"),
+    )
 
 
 # =============================================================================

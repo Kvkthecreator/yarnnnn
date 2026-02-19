@@ -9,6 +9,23 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ---
 
+### 070 — ADR-068 deliverables.origin column (2026-02-19) ✅
+
+- Adds `origin TEXT NOT NULL DEFAULT 'user_configured'` with CHECK constraint `('user_configured', 'analyst_suggested', 'signal_emergent')`
+- All existing rows default to `user_configured`
+- Adds sparse index on `(user_id, origin)` WHERE origin != 'user_configured' for signal-emergent queries
+
+---
+
+### 069 — Fix filesystem_items item_id deduplication (2026-02-19) ✅
+
+- `TRUNCATE TABLE filesystem_items` — clears all rows where `item_id` was stored as `uuid4()` (same as `id` PK) instead of the platform-native identifier
+- Root cause: `_store_filesystem_items` in `platform_worker.py` passed `"id": uuid4()` to upsert; PostgREST stored it in both `id` and `item_id`. The UNIQUE constraint `(user_id, platform, resource_id, item_id)` was meaningless — every sync run inserted rather than upserted
+- Fix: `platform_worker.py` now passes `item_id` explicitly (message_ts for Slack, message_id for Gmail, page_id for Notion, event_id for Calendar) with `on_conflict="user_id,platform,resource_id,item_id"`
+- filesystem_items is a TTL cache; truncating and repopulating on next sync is correct
+
+---
+
 ### 064 — Extend deliverable_type CHECK constraint (2026-02-19) ✅
 
 - Drops and recreates `deliverables_deliverable_type_check` with all 25 types from `TYPE_TIERS`
