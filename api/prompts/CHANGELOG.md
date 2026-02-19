@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.15] - Calendar full CRUD: update_event + delete_event
+
+### Added
+- `api/integrations/core/google_client.py`: `update_calendar_event()` — PATCH semantics, only provided fields changed
+- `api/integrations/core/google_client.py`: `delete_calendar_event()` — DELETE, treats 204 and 410 (already deleted) as success
+- `api/services/platform_tools.py`: `platform_calendar_update_event` tool — enforces list→get→confirm→update workflow in description; all fields optional except `event_id`
+- `api/services/platform_tools.py`: `platform_calendar_delete_event` tool — enforces list→get→explicit confirm→delete; emphasizes permanence
+- `api/services/platform_tools.py`: Handlers for both new tools in `_execute_calendar_tool()`
+- `api/agents/tp_prompts/platforms.py`: "Calendar CRUD — full workflow" section with step-by-step Read/Create/Update/Delete instructions; explicit note that scheduling intelligence (conflict detection, free-slot reasoning, timezone awareness) is TP's responsibility, not a separate Python service
+
+### Expected behavior
+- TP can now modify and delete existing calendar events, completing the full CRUD surface
+- TP will always list→get before modifying (enforced by tool description workflow)
+- TP will confirm with user before update, and get explicit confirmation before delete
+- Scheduling intelligence (finding free slots, checking conflicts) happens in TP's reasoning context using list_events data — no separate Python logic needed
+
+---
+
 ## [2026.02.19.14] - Activity tracking gaps fixed
 
 ### Added
