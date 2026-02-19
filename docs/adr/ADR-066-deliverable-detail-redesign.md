@@ -10,7 +10,12 @@
 - ✅ Removed governance gate — always delivers immediately
 - ✅ No more `staged` status — versions go to `delivered` or `failed`
 - ✅ Added `update_version_for_delivery()` function
+- ✅ Email-first delivery: `normalize_destination_for_delivery()` defaults to user's email
 - ⚠️ Approval endpoints kept for backwards compatibility (deprecated)
+
+**Backend** (`api/services/delivery.py` + `api/integrations/exporters/registry.py`):
+- ✅ Added `email` platform alias → `gmail` exporter
+- ✅ Platform lookup maps `email` → `gmail` for credentials
 
 **Frontend** (`web/app/(authenticated)/deliverables/[id]/page.tsx`):
 - ✅ Removed Approve/Reject buttons
@@ -19,6 +24,10 @@
 - ✅ Platform badge in header
 - ✅ External link to delivered content
 - ✅ Retry button for failed deliveries
+
+**Frontend** (`web/components/modals/DeliverableSettingsModal.tsx`):
+- ✅ Simplified destination to email-first (no complex DestinationSelector)
+- ✅ Default destination is user's registered email
 
 ---
 

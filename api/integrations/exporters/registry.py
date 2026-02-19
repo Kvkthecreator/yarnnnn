@@ -133,4 +133,11 @@ def _initialize_default_exporters(registry: ExporterRegistry) -> None:
     registry.register(DownloadExporter())
     registry.register(GmailExporter())  # ADR-029
 
+    # Alias "email" to "gmail" for email-first delivery
+    # Frontend uses "email" platform, backend has "gmail" exporter
+    gmail_exporter = registry.get("gmail")
+    if gmail_exporter:
+        registry._exporters["email"] = gmail_exporter
+        logger.debug("[EXPORTERS] Added 'email' alias for 'gmail' exporter")
+
     logger.info(f"[EXPORTERS] Initialized registry with: {registry.list_platforms()}")

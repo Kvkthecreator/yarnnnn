@@ -267,11 +267,17 @@ class DeliveryService:
                 metadata={}
             )
 
+        # Map platform aliases to actual connection names
+        # "email" uses "gmail" credentials (Google OAuth)
+        lookup_platform = platform
+        if platform == "email":
+            lookup_platform = "gmail"
+
         try:
             # Get user's integration
             integration = self.client.table("platform_connections").select(
                 "credentials_encrypted, refresh_token_encrypted, metadata, status"
-            ).eq("user_id", user_id).eq("platform", platform).single().execute()
+            ).eq("user_id", user_id).eq("platform", lookup_platform).single().execute()
 
             if not integration.data:
                 return None

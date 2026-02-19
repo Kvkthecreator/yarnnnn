@@ -47,6 +47,70 @@ logger = logging.getLogger(__name__)
 SONNET_MODEL = "claude-sonnet-4-20250514"
 
 
+def get_user_email(client, user_id: str) -> Optional[str]:
+    """Get user's email from auth.users for email-first delivery."""
+    try:
+        # Query auth.users via Supabase admin API
+        result = client.auth.admin.get_user_by_id(user_id)
+        if result and result.user and result.user.email:
+            return result.user.email
+    except Exception as e:
+        logger.warning(f"[EXEC] Failed to get user email: {e}")
+    return None
+
+
+def normalize_destination_for_delivery(
+    destination: Optional[dict],
+    user_email: Optional[str],
+) -> Optional[dict]:
+    """
+    Normalize destination for delivery, defaulting to user's email.
+
+    ADR-066 email-first: If destination is incomplete or missing target,
+    fall back to sending to user's registered email address.
+
+    Args:
+        destination: The deliverable's destination config
+        user_email: User's email address
+
+    Returns:
+        Normalized destination dict, or None if no valid destination
+    """
+    # No destination at all - use email (aliased to gmail exporter)
+    if not destination:
+        if user_email:
+            logger.info(f"[EXEC] No destination - defaulting to email: {user_email}")
+            return {
+                "platform": "email",
+                "target": user_email,
+                "format": "send",
+            }
+        return None
+
+    platform = destination.get("platform")
+    target = destination.get("target")
+
+    # Destination has valid target - use as-is
+    if target and target not in ("", "dm"):  # "dm" was a placeholder
+        return destination
+
+    # Missing or incomplete target - fall back to email
+    if user_email:
+        logger.info(
+            f"[EXEC] Incomplete destination (platform={platform}, target={target}) "
+            f"- defaulting to email: {user_email}"
+        )
+        return {
+            "platform": "email",
+            "target": user_email,
+            "format": "send",
+        }
+
+    # No fallback available
+    logger.warning(f"[EXEC] Incomplete destination and no user email available")
+    return destination
+
+
 async def get_next_version_number(client, deliverable_id: str) -> int:
     """Get the next version number for a deliverable."""
     result = (
@@ -572,7 +636,21 @@ async def execute_deliverable_generation(
         }).eq("id", deliverable_id).execute()
 
         # 10. ADR-066: Always attempt delivery (no governance check)
-        destination = deliverable.get("destination")
+        # Email-first: normalize/fallback to user's email if destination incomplete
+        user_email = get_user_email(client, user_id)
+        raw_destination = deliverable.get("destination")
+        destination = normalize_destination_for_delivery(raw_destination, user_email)
+
+        # Update deliverable with normalized destination if it changed
+        if destination and destination != raw_destination:
+            try:
+                client.table("deliverables").update({
+                    "destination": destination,
+                }).eq("id", deliverable_id).execute()
+                logger.info(f"[EXEC] Updated deliverable destination to email-first default")
+            except Exception:
+                pass  # Non-fatal
+
         final_status = "delivered"
         delivery_result = None
         delivery_error = None

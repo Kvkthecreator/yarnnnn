@@ -38,7 +38,7 @@ import {
 import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import { DestinationSelector } from '@/components/ui/DestinationSelector';
+// ADR-066: Removed DestinationSelector - using email-first approach
 import type {
   Deliverable,
   DeliverableUpdate,
@@ -144,6 +144,9 @@ export function DeliverableSettingsModal({
   const [showArchiveConfirm, setShowArchiveConfirm] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // User email for email-first default
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
   // Form state
   const [title, setTitle] = useState(deliverable.title);
   const [schedule, setSchedule] = useState<ScheduleConfig>(
@@ -153,7 +156,7 @@ export function DeliverableSettingsModal({
   const [recipient, setRecipient] = useState<RecipientContext>(
     deliverable.recipient_context || {}
   );
-  // ADR-032: Destination is step 1 and required
+  // ADR-066: Destination defaults to user's email (email-first)
   const [destination, setDestination] = useState<Destination | undefined>(
     deliverable.destination
   );
@@ -177,22 +180,62 @@ export function DeliverableSettingsModal({
     max_items: 200,
   });
 
+  // Load user email for email-first default
+  useEffect(() => {
+    const loadUserEmail = async () => {
+      try {
+        const { createClient } = await import('@/lib/supabase/client');
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          setUserEmail(user.email);
+        }
+      } catch (err) {
+        console.error('Failed to load user email:', err);
+      }
+    };
+    loadUserEmail();
+  }, []);
+
   // Reset form when deliverable changes
   useEffect(() => {
     setTitle(deliverable.title);
     setSchedule(deliverable.schedule || { frequency: 'weekly', day: 'monday', time: '09:00' });
     setSources(deliverable.sources || []);
     setRecipient(deliverable.recipient_context || {});
-    setDestination(deliverable.destination);
-    // ADR-032: Governance is fixed to 'manual' (draft mode)
+    // ADR-066: Default to user's email if destination is incomplete
+    const dest = deliverable.destination;
+    if (!dest || !dest.target) {
+      // Set default email destination once we have user email
+      if (userEmail) {
+        setDestination({
+          platform: 'email',
+          target: userEmail,
+          format: 'send',
+        });
+      } else {
+        setDestination(dest);
+      }
+    } else {
+      setDestination(dest);
+    }
     setError(null);
-  }, [deliverable]);
+  }, [deliverable, userEmail]);
 
   const handleSave = async () => {
-    // ADR-032: Destination is required
-    if (!destination) {
-      setError('Please select a destination for this deliverable');
-      return;
+    // ADR-066: Ensure destination has email default
+    let finalDestination = destination;
+    if (!finalDestination || !finalDestination.target) {
+      if (userEmail) {
+        finalDestination = {
+          platform: 'email',
+          target: userEmail,
+          format: 'send',
+        };
+      } else {
+        setError('Unable to determine delivery email. Please try again.');
+        return;
+      }
     }
 
     setSaving(true);
@@ -204,7 +247,7 @@ export function DeliverableSettingsModal({
         schedule,
         sources,
         recipient_context: recipient,
-        destination,
+        destination: finalDestination,
         governance,
       };
 
@@ -314,7 +357,7 @@ export function DeliverableSettingsModal({
           )}
 
           {/* ============================================ */}
-          {/* STEP 1: DESTINATION (ADR-032 Platform-First) */}
+          {/* STEP 1: DESTINATION (ADR-066 Email-First) */}
           {/* ============================================ */}
           <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
             <div className="flex items-center gap-2 mb-3">
@@ -325,49 +368,26 @@ export function DeliverableSettingsModal({
               </label>
             </div>
 
-            {destination ? (
-              <div className="flex items-center gap-3 p-3 bg-background rounded-md border border-border">
-                <div className={cn("shrink-0", PLATFORM_COLORS[destination.platform] || 'text-muted-foreground')}>
-                  {PLATFORM_ICONS[destination.platform] || <Send className="w-4 h-4" />}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium capitalize">
-                    {destination.platform}
-                    {destination.format && (
-                      <span className="text-muted-foreground ml-1">
-                        ({destination.format})
-                      </span>
-                    )}
-                  </div>
-                  {destination.target && (
-                    <div className="text-xs text-muted-foreground truncate">
-                      → {destination.target}
-                    </div>
-                  )}
-                </div>
-                <button
-                  onClick={() => setDestination(undefined)}
-                  className="p-1.5 hover:bg-muted rounded text-muted-foreground hover:text-foreground"
-                  title="Change destination"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+            {/* Email-first: Simple destination display */}
+            <div className="flex items-center gap-3 p-3 bg-background rounded-md border border-border">
+              <div className="shrink-0 text-red-500">
+                <Mail className="w-4 h-4" />
               </div>
-            ) : (
-              <DestinationSelector
-                value={destination}
-                onChange={setDestination}
-                onClose={onClose}
-              />
-            )}
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium">
+                  Email
+                </div>
+                <div className="text-xs text-muted-foreground truncate">
+                  → {destination?.target || userEmail || 'Loading...'}
+                </div>
+              </div>
+            </div>
 
-            {/* Draft mode indicator */}
-            {destination && (
-              <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
-                <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
-                <span>Draft mode: You'll review content before it's sent</span>
-              </div>
-            )}
+            {/* Delivery confirmation */}
+            <div className="flex items-center gap-2 mt-3 text-xs text-muted-foreground">
+              <CheckCircle2 className="w-3.5 h-3.5 text-green-500" />
+              <span>Deliverables will be sent to your email</span>
+            </div>
           </div>
 
           {/* ============================================ */}
