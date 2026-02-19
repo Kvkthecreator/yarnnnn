@@ -32,8 +32,6 @@ import {
   Check,
   AlertTriangle,
   Sparkles,
-  Target,
-  X,
   Clock,
   RefreshCw,
   Zap,
@@ -411,29 +409,6 @@ export default function PlatformDetailPage() {
   const [resourceContextTotalCount, setResourceContextTotalCount] = useState<Record<string, number>>({});
   const [loadingMoreContext, setLoadingMoreContext] = useState<Record<string, boolean>>({});
 
-  // ADR-050: Notion designated page state
-  const [designatedPage, setDesignatedPage] = useState<{
-    id: string | null;
-    name: string | null;
-  }>({ id: null, name: null });
-  const [showPagePicker, setShowPagePicker] = useState(false);
-  const [savingDesignatedPage, setSavingDesignatedPage] = useState(false);
-
-  // ADR-050: Google/Calendar designated calendar state
-  const [designatedCalendar, setDesignatedCalendar] = useState<{
-    id: string | null;
-    name: string | null;
-  }>({ id: null, name: null });
-  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
-  const [savingDesignatedCalendar, setSavingDesignatedCalendar] = useState(false);
-  const [availableCalendars, setAvailableCalendars] = useState<Array<{ id: string; summary: string }>>([]);
-
-  // ADR-051: Gmail designated email state (for draft recipients)
-  const [designatedEmail, setDesignatedEmail] = useState<string | null>(null);
-  const [editingEmail, setEditingEmail] = useState(false);
-  const [emailInput, setEmailInput] = useState('');
-  const [savingEmail, setSavingEmail] = useState(false);
-
   // Connection details modal state
   const [showConnectionModal, setShowConnectionModal] = useState(false);
 
@@ -461,8 +436,8 @@ export default function PlatformDetailPage() {
       const backendProviders = BACKEND_PROVIDER_MAP[platform];
 
       // Load all data in parallel
-      // ADR-051: Gmail also loads Google settings for designated_email
-      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, platformContextResult, designatedPageResult, googleSettingsResult, calendarsResult] = await Promise.all([
+      // ADR-066: Removed designated output settings (email-first delivery)
+      const [integrationResult, landscapeResult, sourcesResult, limitsResult, deliverablesResult, platformContextResult, calendarsResult] = await Promise.all([
         api.integrations.get(apiProvider).catch(() => null),
         // ADR-046: Calendar uses listGoogleCalendars instead of getLandscape
         // Gmail labels ≠ Calendar data, so we skip getLandscape for calendar platform
@@ -475,11 +450,7 @@ export default function PlatformDetailPage() {
         // ADR-058: Load platform context from filesystem_items table
         api.integrations.getPlatformContext(platform as "slack" | "notion" | "gmail" | "calendar", { limit: 10 })
           .catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
-        // ADR-050: Load designated page for Notion
-        platform === 'notion' ? api.integrations.getNotionDesignatedPage().catch(() => null) : Promise.resolve(null),
-        // ADR-050/051: Load designated settings for Calendar and Gmail (email)
-        (platform === 'calendar' || platform === 'gmail') ? api.integrations.getGoogleDesignatedSettings().catch(() => null) : Promise.resolve(null),
-        // Load available calendars for Calendar platform
+        // Load available calendars for Calendar platform (for source selection, not output)
         platform === 'calendar' ? api.integrations.listGoogleCalendars().catch(() => ({ calendars: [] })) : Promise.resolve({ calendars: [] }),
       ]);
 
@@ -499,32 +470,6 @@ export default function PlatformDetailPage() {
         setResources(calendarResources);
       } else {
         setResources(landscapeResult.resources || []);
-      }
-
-      // ADR-050: Set designated page state for Notion
-      if (platform === 'notion' && designatedPageResult) {
-        setDesignatedPage({
-          id: designatedPageResult.designated_page_id,
-          name: designatedPageResult.designated_page_name,
-        });
-      }
-
-      // ADR-050: Set designated calendar state for Calendar
-      if (platform === 'calendar' && googleSettingsResult) {
-        setDesignatedCalendar({
-          id: googleSettingsResult.designated_calendar_id,
-          name: googleSettingsResult.designated_calendar_name,
-        });
-      }
-
-      // ADR-051: Set designated email state for Gmail
-      if (platform === 'gmail' && googleSettingsResult) {
-        setDesignatedEmail(googleSettingsResult.designated_email);
-      }
-
-      // Set available calendars for picker
-      if (platform === 'calendar' && calendarsResult?.calendars) {
-        setAvailableCalendars(calendarsResult.calendars);
       }
 
       setTierLimits(limitsResult);
@@ -693,117 +638,7 @@ export default function PlatformDetailPage() {
     router.push(`/deliverables/${id}`);
   };
 
-  // ADR-050: Designated page handlers for Notion
-  const handleSetDesignatedPage = async (pageId: string, pageName: string) => {
-    setSavingDesignatedPage(true);
-    try {
-      const result = await api.integrations.setNotionDesignatedPage(pageId, pageName);
-      if (result.success) {
-        setDesignatedPage({
-          id: result.designated_page_id,
-          name: result.designated_page_name,
-        });
-        setShowPagePicker(false);
-      } else {
-        setError('Failed to set designated page');
-      }
-    } catch (err) {
-      console.error('Failed to set designated page:', err);
-      setError(err instanceof Error ? err.message : 'Failed to set designated page');
-    } finally {
-      setSavingDesignatedPage(false);
-    }
-  };
-
-  const handleClearDesignatedPage = async () => {
-    setSavingDesignatedPage(true);
-    try {
-      const result = await api.integrations.clearNotionDesignatedPage();
-      if (result.success) {
-        setDesignatedPage({ id: null, name: null });
-      }
-    } catch (err) {
-      console.error('Failed to clear designated page:', err);
-      setError(err instanceof Error ? err.message : 'Failed to clear designated page');
-    } finally {
-      setSavingDesignatedPage(false);
-    }
-  };
-
-  // ADR-050: Designated calendar handlers for Google Calendar
-  const handleSetDesignatedCalendar = async (calendarId: string, calendarName: string) => {
-    setSavingDesignatedCalendar(true);
-    try {
-      const result = await api.integrations.setGoogleDesignatedSettings({
-        calendarId,
-        calendarName,
-      });
-      if (result.success) {
-        setDesignatedCalendar({
-          id: result.designated_calendar_id,
-          name: result.designated_calendar_name,
-        });
-        setShowCalendarPicker(false);
-      } else {
-        setError('Failed to set designated calendar');
-      }
-    } catch (err) {
-      console.error('Failed to set designated calendar:', err);
-      setError(err instanceof Error ? err.message : 'Failed to set designated calendar');
-    } finally {
-      setSavingDesignatedCalendar(false);
-    }
-  };
-
-  const handleClearDesignatedCalendar = async () => {
-    setSavingDesignatedCalendar(true);
-    try {
-      const result = await api.integrations.clearGoogleDesignatedSettings();
-      if (result.success) {
-        setDesignatedCalendar({ id: null, name: null });
-      }
-    } catch (err) {
-      console.error('Failed to clear designated calendar:', err);
-      setError(err instanceof Error ? err.message : 'Failed to clear designated calendar');
-    } finally {
-      setSavingDesignatedCalendar(false);
-    }
-  };
-
-  // ADR-051: Gmail designated email handlers
-  const handleStartEditingEmail = () => {
-    setEmailInput(designatedEmail || '');
-    setEditingEmail(true);
-  };
-
-  const handleSaveEmail = async () => {
-    if (!emailInput.trim()) {
-      setError('Email cannot be empty');
-      return;
-    }
-    setSavingEmail(true);
-    try {
-      const result = await api.integrations.setGoogleDesignatedSettings({
-        email: emailInput.trim(),
-      });
-      if (result.success) {
-        setDesignatedEmail(result.designated_email);
-        setEditingEmail(false);
-      } else {
-        setError('Failed to save email');
-      }
-    } catch (err) {
-      console.error('Failed to save email:', err);
-      setError(err instanceof Error ? err.message : 'Failed to save email');
-    } finally {
-      setSavingEmail(false);
-    }
-  };
-
-  const handleCancelEditingEmail = () => {
-    setEditingEmail(false);
-    setEmailInput('');
-  };
+  // ADR-066: Removed designated output handlers (email-first delivery)
 
   const handleConnectionDisconnect = () => {
     // Redirect to context page after disconnect
@@ -1190,328 +1025,8 @@ export default function PlatformDetailPage() {
           )}
         </section>
 
-        {/* ADR-051: Output Email Section (Gmail only) - Always show, allow editing */}
-        {platform === 'gmail' && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-semibold flex items-center gap-2">
-                  <Target className="w-4 h-4" />
-                  Output Email
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Your email address for draft recipients
-                </p>
-              </div>
-            </div>
-
-            {designatedEmail && !editingEmail ? (
-              <div className="border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
-                      <Mail className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{designatedEmail}</p>
-                      <p className="text-xs text-muted-foreground">
-                        Drafts appear in your Gmail drafts folder
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    onClick={handleStartEditingEmail}
-                    className="text-sm text-muted-foreground hover:text-foreground"
-                  >
-                    Change
-                  </button>
-                </div>
-              </div>
-            ) : editingEmail ? (
-              <div className="border border-border rounded-lg p-4">
-                <div className="flex items-center gap-3">
-                  <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center shrink-0', config.bgColor)}>
-                    <Mail className="w-5 h-5 text-muted-foreground" />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <input
-                      type="email"
-                      value={emailInput}
-                      onChange={(e) => setEmailInput(e.target.value)}
-                      placeholder="your@email.com"
-                      className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/50"
-                      autoFocus
-                    />
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Enter your Gmail address
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={handleSaveEmail}
-                      disabled={savingEmail || !emailInput.trim()}
-                      className="px-3 py-1.5 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90 disabled:opacity-50"
-                    >
-                      {savingEmail ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Save'}
-                    </button>
-                    <button
-                      onClick={handleCancelEditingEmail}
-                      disabled={savingEmail}
-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="border border-dashed border-border rounded-lg p-6 text-center">
-                <Mail className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-3">
-                  No email set. Set your email so TP knows where to send drafts.
-                </p>
-                <button
-                  onClick={handleStartEditingEmail}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
-                >
-                  Set Email
-                </button>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ADR-050: Designated Output Page Section (Notion only) */}
-        {platform === 'notion' && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-semibold flex items-center gap-2">
-                  <Target className="w-4 h-4" />
-                  Output Page
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Where TP will write outputs by default (like a YARNNN inbox)
-                </p>
-              </div>
-            </div>
-
-            {designatedPage.id ? (
-              <div className="border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
-                      <FileText className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{designatedPage.name || 'Unnamed Page'}</p>
-                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                        {designatedPage.id}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setShowPagePicker(true)}
-                      className="text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      Change
-                    </button>
-                    <button
-                      onClick={handleClearDesignatedPage}
-                      disabled={savingDesignatedPage}
-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
-                    >
-                      {savingDesignatedPage ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <X className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="border border-dashed border-border rounded-lg p-6 text-center">
-                <Target className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-3">
-                  No output page set. Choose a Notion page where TP will add comments and outputs.
-                </p>
-                <button
-                  onClick={() => setShowPagePicker(true)}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
-                >
-                  Choose Page
-                </button>
-              </div>
-            )}
-
-            {/* Page Picker Modal */}
-            {showPagePicker && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-md max-h-[60vh] overflow-hidden">
-                  <div className="p-4 border-b border-border flex items-center justify-between">
-                    <h3 className="font-semibold">Select Output Page</h3>
-                    <button
-                      onClick={() => setShowPagePicker(false)}
-                      className="p-1 hover:bg-muted rounded"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="p-4 overflow-y-auto max-h-[400px]">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Choose a page from your workspace. TP will add outputs as comments to this page.
-                    </p>
-                    {resources.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No pages found. Make sure Notion is connected and has accessible pages.
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {resources.map((resource) => (
-                          <button
-                            key={resource.id}
-                            onClick={() => handleSetDesignatedPage(resource.id, resource.name)}
-                            disabled={savingDesignatedPage}
-                            className={cn(
-                              'w-full px-3 py-2 flex items-center gap-3 rounded-md text-left transition-colors',
-                              resource.id === designatedPage.id
-                                ? 'bg-primary/10 border border-primary'
-                                : 'hover:bg-muted border border-transparent'
-                            )}
-                          >
-                            <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
-                            <span className="text-sm truncate">{resource.name}</span>
-                            {resource.id === designatedPage.id && (
-                              <Check className="w-4 h-4 text-primary ml-auto shrink-0" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* ADR-050/051: Designated Calendar Section (Calendar only) - Output destination */}
-        {platform === 'calendar' && (
-          <section>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-base font-semibold flex items-center gap-2">
-                  <Target className="w-4 h-4" />
-                  Output Calendar
-                </h2>
-                <p className="text-sm text-muted-foreground">
-                  Where TP creates events by default (separate from context sources above)
-                </p>
-              </div>
-            </div>
-
-            {designatedCalendar.id ? (
-              <div className="border border-border rounded-lg p-4">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
-                      <Calendar className="w-5 h-5 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="font-medium">{designatedCalendar.name || 'Primary Calendar'}</p>
-                      <p className="text-xs text-muted-foreground truncate max-w-[200px]">
-                        {designatedCalendar.id}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={() => setShowCalendarPicker(true)}
-                      className="text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      Change
-                    </button>
-                    <button
-                      onClick={handleClearDesignatedCalendar}
-                      disabled={savingDesignatedCalendar}
-                      className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded"
-                    >
-                      {savingDesignatedCalendar ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <X className="w-4 h-4" />
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="border border-dashed border-border rounded-lg p-6 text-center">
-                <Target className="w-8 h-8 mx-auto mb-3 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-3">
-                  No default calendar set. TP will use your primary calendar, or you can choose a specific one.
-                </p>
-                <button
-                  onClick={() => setShowCalendarPicker(true)}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-md text-sm hover:bg-primary/90"
-                >
-                  Choose Calendar
-                </button>
-              </div>
-            )}
-
-            {/* Calendar Picker Modal */}
-            {showCalendarPicker && (
-              <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                <div className="bg-background border border-border rounded-lg shadow-lg w-full max-w-md max-h-[60vh] overflow-hidden">
-                  <div className="p-4 border-b border-border flex items-center justify-between">
-                    <h3 className="font-semibold">Select Default Calendar</h3>
-                    <button
-                      onClick={() => setShowCalendarPicker(false)}
-                      className="p-1 hover:bg-muted rounded"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
-                  <div className="p-4 overflow-y-auto max-h-[400px]">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      Choose a calendar. TP will create events here by default.
-                    </p>
-                    {availableCalendars.length === 0 ? (
-                      <p className="text-sm text-muted-foreground text-center py-4">
-                        No calendars found. Make sure Google Calendar is connected.
-                      </p>
-                    ) : (
-                      <div className="space-y-1">
-                        {availableCalendars.map((cal) => (
-                          <button
-                            key={cal.id}
-                            onClick={() => handleSetDesignatedCalendar(cal.id, cal.summary)}
-                            disabled={savingDesignatedCalendar}
-                            className={cn(
-                              'w-full px-3 py-2 flex items-center gap-3 rounded-md text-left transition-colors',
-                              cal.id === designatedCalendar.id
-                                ? 'bg-primary/10 border border-primary'
-                                : 'hover:bg-muted border border-transparent'
-                            )}
-                          >
-                            <Calendar className="w-4 h-4 text-muted-foreground shrink-0" />
-                            <span className="text-sm truncate">{cal.summary}</span>
-                            {cal.id === designatedCalendar.id && (
-                              <Check className="w-4 h-4 text-primary ml-auto shrink-0" />
-                            )}
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
-        )}
+        {/* ADR-066: Removed Output sections (Email, Page, Calendar) - delivery destinations
+            are now handled per-deliverable with email-first default */}
 
         {/* Deliverables Section */}
         <section>
