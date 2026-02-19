@@ -111,6 +111,11 @@ export default function DeliverableDetailPage() {
   // Get the latest version
   const latestVersion = versions[0];
 
+  // Gate: platform-bound deliverable with no sources configured can't produce useful output
+  const isPlatformBound = deliverable?.type_classification?.binding === 'platform_bound';
+  const hasSources = (deliverable?.sources?.length ?? 0) > 0;
+  const missingSourcesWarning = isPlatformBound && !hasSources;
+
   // =============================================================================
   // Actions
   // =============================================================================
@@ -504,6 +509,12 @@ export default function DeliverableDetailPage() {
           <div className="px-4 py-3 border-b border-border bg-muted/30">
             <h2 className="text-sm font-medium">Schedule</h2>
           </div>
+          {missingSourcesWarning && (
+            <div className="px-4 py-2.5 bg-amber-50 border-b border-amber-200 text-xs text-amber-800 flex items-center gap-2">
+              <span className="shrink-0">⚠</span>
+              No sources configured — open Settings to select which {deliverable.type_classification?.primary_platform ?? 'platform'} content to monitor.
+            </div>
+          )}
           <div className="p-4 flex items-center justify-between">
             <div>
               {deliverable.next_run_at ? (
@@ -521,8 +532,9 @@ export default function DeliverableDetailPage() {
             </div>
             <button
               onClick={handleRunNow}
-              disabled={running || deliverable.status === 'archived'}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 transition-colors"
+              disabled={running || deliverable.status === 'archived' || missingSourcesWarning}
+              title={missingSourcesWarning ? 'Add sources in Settings before running' : undefined}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
               Run Now

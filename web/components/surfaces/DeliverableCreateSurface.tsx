@@ -392,9 +392,10 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
     if (!selectedType) return false;
     if (!title.trim()) return false;
     if (!schedule.frequency) return false;
-    // Destination optional for some types
+    // Platform-bound types require at least one source selected
+    if (selectedType.primaryPlatform && resources.length > 0 && selectedSources.length === 0) return false;
     return true;
-  }, [selectedType, title, schedule]);
+  }, [selectedType, title, schedule, resources, selectedSources]);
 
   const handleCreate = async () => {
     if (!canCreate() || !selectedType) return;
@@ -622,7 +623,9 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
             <div>
               <label className="block text-sm font-medium mb-2">
                 Source {selectedType.primaryPlatform === 'slack' ? 'channels' : selectedType.primaryPlatform === 'notion' ? 'pages' : 'labels'}
-                <span className="text-muted-foreground font-normal ml-1">(optional)</span>
+                {resources.length > 0 && (
+                  <span className="text-red-500 ml-1">*</span>
+                )}
               </label>
               {loadingResources ? (
                 <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
@@ -634,31 +637,38 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
                   No resources found. Make sure {selectedType.primaryPlatform} is connected.
                 </p>
               ) : (
-                <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
-                  {resources.slice(0, 12).map((resource) => {
-                    const isSelected = selectedSources.includes(resource.id);
-                    return (
-                      <button
-                        key={resource.id}
-                        type="button"
-                        onClick={() => toggleSource(resource.id)}
-                        className={cn(
-                          'p-2 border rounded-md text-left text-sm transition-all',
-                          isSelected
-                            ? 'border-primary bg-primary/5'
-                            : 'border-border hover:border-muted-foreground/50'
-                        )}
-                      >
-                        <div className="flex items-center gap-2">
-                          {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
-                          <span className={cn('truncate', !isSelected && 'ml-5')}>
-                            {resource.name}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                <>
+                  <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                    {resources.slice(0, 12).map((resource) => {
+                      const isSelected = selectedSources.includes(resource.id);
+                      return (
+                        <button
+                          key={resource.id}
+                          type="button"
+                          onClick={() => toggleSource(resource.id)}
+                          className={cn(
+                            'p-2 border rounded-md text-left text-sm transition-all',
+                            isSelected
+                              ? 'border-primary bg-primary/5'
+                              : 'border-border hover:border-muted-foreground/50'
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            {isSelected && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                            <span className={cn('truncate', !isSelected && 'ml-5')}>
+                              {resource.name}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedSources.length === 0 && (
+                    <p className="text-xs text-muted-foreground mt-1.5">
+                      Select at least one source to continue.
+                    </p>
+                  )}
+                </>
               )}
             </div>
           )}
