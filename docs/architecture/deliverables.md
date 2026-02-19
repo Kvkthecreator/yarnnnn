@@ -261,7 +261,9 @@ User reviews output:
 
 ## Governance Model (ADR-066)
 
-**Current state (ADR-066)**: All deliverables deliver immediately. There is no staging or approval gate. The `governance` field on the `deliverables` table is **legacy** and ignored.
+**Current state (ADR-066)**: All deliverables deliver immediately. There is no staging or approval gate.
+
+**The `governance` and `governance_ceiling` fields are DEPRECATED** (marked in Pydantic models with `deprecated=True`). They remain in the schema and API for backwards compatibility but are **ignored by all execution logic**.
 
 When a deliverable executes:
 - A version is created
@@ -275,6 +277,8 @@ When a deliverable executes:
 - `full_auto` — fully automated, no user interaction
 
 ADR-066 removed this complexity. All deliverables are now effectively `full_auto` (delivery-first). Users can pause or archive deliverables, but there is no pre-delivery approval step.
+
+**Deprecation path**: The `governance` field remains in the database schema and API responses for backwards compatibility. It is marked `deprecated=True` in Pydantic models (as of 2026-02-19). Plan: Remove entirely in Phase 3 cleanup (Option A per CLAUDE.md discipline: "Delete legacy code when replacing with new implementation").
 
 **Rationale**: All deliverable outputs land in the user's own platforms (Slack DM, Gmail drafts, Notion pages). The user is the audience. Pre-approval adds friction without value — the user can always delete the delivered output if it's incorrect.
 

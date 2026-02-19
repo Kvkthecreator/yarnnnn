@@ -842,7 +842,13 @@ class DeliverableCreate(BaseModel):
     destination: Optional[dict] = None  # { platform, target, format, options }
     # ADR-031 Phase 6: Multi-destination support for synthesizers
     destinations: Optional[list[dict]] = None  # Array of destination configs
-    governance: Optional[Literal["manual", "semi_auto", "full_auto"]] = "manual"
+    # DEPRECATED (ADR-066): Governance removed, delivery-first for all deliverables
+    # Kept for API compatibility only — field is ignored by execution logic
+    governance: Optional[Literal["manual", "semi_auto", "full_auto"]] = Field(
+        default="manual",
+        deprecated=True,
+        description="DEPRECATED: ADR-066 removed governance gates. All deliverables deliver immediately."
+    )
     # ADR-031 Phase 6: Synthesizer flag
     is_synthesizer: bool = False  # If true, uses cross-platform context assembly
     # Legacy fields (deprecated, use type_config)
@@ -868,7 +874,12 @@ class DeliverableUpdate(BaseModel):
     destination: Optional[dict] = None
     # ADR-031 Phase 6: Multi-destination support
     destinations: Optional[list[dict]] = None
-    governance: Optional[Literal["manual", "semi_auto", "full_auto"]] = None
+    # DEPRECATED (ADR-066): Governance removed, delivery-first for all deliverables
+    governance: Optional[Literal["manual", "semi_auto", "full_auto"]] = Field(
+        default=None,
+        deprecated=True,
+        description="DEPRECATED: ADR-066 removed governance gates. Field ignored."
+    )
     # ADR-031 Phase 6: Synthesizer flag
     is_synthesizer: Optional[bool] = None
     # Legacy fields (deprecated)
@@ -911,9 +922,18 @@ class DeliverableResponse(BaseModel):
     destination: Optional[dict] = None  # { platform, target, format, options }
     # ADR-031 Phase 6: Multi-destination support
     destinations: list[dict] = Field(default_factory=list)  # Array of destination configs
-    governance: str = "manual"  # manual, semi_auto, full_auto
-    # ADR-031: System-enforced governance ceiling
-    governance_ceiling: Optional[str] = None  # Max governance based on destination
+    # DEPRECATED (ADR-066): Governance removed, delivery-first for all deliverables
+    governance: str = Field(
+        default="manual",
+        deprecated=True,
+        description="DEPRECATED: ADR-066 removed governance gates. Field ignored by execution logic."
+    )
+    # DEPRECATED: Governance ceiling was tied to governance field
+    governance_ceiling: Optional[str] = Field(
+        default=None,
+        deprecated=True,
+        description="DEPRECATED: Tied to removed governance system."
+    )
     # ADR-031 Phase 6: Synthesizer fields
     is_synthesizer: bool = False  # Uses cross-platform context assembly
     linked_resources: Optional[list[dict]] = None  # Project resources for synthesizers

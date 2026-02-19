@@ -13,8 +13,8 @@ Actions this service can take:
 - trigger_existing: Advance the next_run of an existing deliverable
 - no_action: Signal doesn't meet confidence threshold or is deduplicated
 
-Signal-emergent deliverables start with governance=manual, so the generated
-version lands as 'staged' for user review before delivery.
+Signal-emergent deliverables are delivery-first (ADR-066) — they deliver
+immediately after generation, same as all deliverables.
 """
 
 import json
@@ -200,7 +200,6 @@ async def _create_signal_emergent_deliverable(
             "schedule": {},                  # No schedule — one-time
             "trigger_type": "manual",        # ADR-068: one-time, no recurring schedule
             "sources": action.sources,
-            "governance": "manual",          # Always requires user review
             "origin": "signal_emergent",     # ADR-068
             "status": "active",
             "created_at": now,
