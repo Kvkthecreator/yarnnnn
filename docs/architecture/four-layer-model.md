@@ -232,7 +232,7 @@ The layers interact in a defined, unidirectional way. Data flows in one directio
 - [memory.md](../features/memory.md) — Memory layer detail
 - [activity.md](../features/activity.md) — Activity layer detail
 - [context.md](../features/context.md) — Context layer detail
-- [work.md](../features/work.md) — Work layer detail
+- [deliverables.md](../features/deliverables.md) — Deliverables layer detail
 - [context-pipeline.md](context-pipeline.md) — Technical pipeline detail for Context
 - `api/services/working_memory.py` — Working memory build and format
 - `api/services/activity_log.py` — `write_activity()`, `get_recent_activity()`

@@ -255,6 +255,6 @@ Existing review page URLs (`/dashboard/deliverable/[id]/review/[versionId]`) sho
 
 - [ADR-063](ADR-063-activity-log-four-layer-model.md) — Four-layer model (Work layer definition)
 - [ADR-042](ADR-042-deliverable-execution-simplification.md) — Deliverable execution pipeline
-- [docs/features/work.md](../features/work.md) — Work layer documentation
+- [docs/features/deliverables.md](../features/deliverables.md) — Deliverables layer documentation
 - `web/app/(authenticated)/deliverables/[id]/page.tsx` — Current detail page
 - `web/components/modals/DeliverableSettingsModal.tsx` — Current settings modal
