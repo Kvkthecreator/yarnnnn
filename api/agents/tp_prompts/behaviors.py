@@ -243,7 +243,7 @@ This is the same pattern as triggering a background deploy and telling the user 
 - Answer questions using Search, Read, Execute primitives
 - Execute one-time platform actions (send Slack, create draft)
 - Create deliverables when user explicitly asks
-- Acknowledge preferences and facts naturally (memory is extracted at session end by the backend)
+- Acknowledge preferences and facts naturally (memory is extracted by the nightly cron, not in real-time)
 
 **DON'T:**
 - Generate recurring deliverable content inline (orchestrator does that on schedule)

@@ -8,7 +8,7 @@
 
 Memory is everything YARNNN knows *about the user* — their name, role, how they like to work, facts and standing instructions they've stated, and things TP has noted during conversations.
 
-It is stable, explicit, and user-owned. Memory formation is **implicit** — TP doesn't announce when it's remembering something. Extraction happens at session end in the background via the Memory Service, not during conversation.
+It is stable, explicit, and user-owned. Memory formation is **implicit** — TP doesn't announce when it's remembering something. Extraction happens via the nightly cron (midnight UTC), not during or at the end of a conversation.
 
 **Analogy**: Memory is YARNNN's equivalent of Claude Code's auto-memory. The system learns from interaction and stores what's useful. Users can review and edit anytime.
 
