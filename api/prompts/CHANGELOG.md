@@ -6,6 +6,24 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.10] - Add platform_notion_get_page tool
+
+### Added
+- `api/services/platform_tools.py`: New `platform_notion_get_page` tool
+  - Calls `NotionAPIClient.get_page()` for title/metadata + `get_page_content()` for block children
+  - Returns `{title, url, blocks: [{type, text}], block_count}`
+  - Block normalizer `_normalize_notion_blocks()` strips Notion API noise to plain text per block type
+  - Helper `_extract_rich_text()` for Notion rich_text arrays
+  - Handler in `_execute_notion_tool()` for `tool == "get_page"`
+  - Tool description instructs TP: search → get_page, never use Read or create_comment as read probes
+
+### Behavior
+- TP can now read Notion page content after `platform_notion_search` returns a page ID
+- Blocks normalized: paragraphs, headings, bullets, to-dos, code, dividers, images → `{type, text}`
+- Fixes TP fallback to `Read(ref: document:...)` and `create_comment` used as probes (both wrong)
+
+---
+
 ## [2026.02.19.9] - Improve channel_names_unavailable hint (brevity)
 
 ### Changed

@@ -157,6 +157,28 @@ NOTION_TOOLS = [
         }
     },
     {
+        "name": "platform_notion_get_page",
+        "description": """Read the content of a Notion page by ID.
+
+Use AFTER platform_notion_search to read the actual content of a page.
+
+Workflow:
+1. platform_notion_search(query="...") → find the page, get its id
+2. platform_notion_get_page(page_id="<id from search>") → read the content
+
+Returns the page title and its text content as plain text blocks. Do NOT use Read or create_comment to probe page content — use this tool.""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "page_id": {
+                    "type": "string",
+                    "description": "Page ID (UUID). Get from platform_notion_search results."
+                }
+            },
+            "required": ["page_id"]
+        }
+    },
+    {
         "name": "platform_notion_create_comment",
         "description": """Add a comment to a Notion page.
 
@@ -646,6 +668,55 @@ def _normalize_get_channel_history_result(result: dict) -> dict:
     return result
 
 
+def _extract_rich_text(rich_text_arr: list) -> str:
+    """Extract plain text from a Notion rich_text array."""
+    return "".join(part.get("plain_text", "") for part in rich_text_arr if isinstance(part, dict))
+
+
+def _normalize_notion_blocks(blocks: list) -> list[dict]:
+    """
+    Convert Notion block objects to simple {type, text} dicts for TP readability.
+
+    Notion blocks have deeply nested rich_text arrays inside type-specific sub-dicts.
+    This normalizes to plain text so TP doesn't see raw API noise.
+    """
+    normalized = []
+    for block in blocks:
+        if not isinstance(block, dict):
+            continue
+        block_type = block.get("type")
+        if not block_type:
+            continue
+
+        # Most block types have rich_text inside a type-keyed sub-dict
+        type_data = block.get(block_type, {})
+        rich_text = type_data.get("rich_text", [])
+        text = _extract_rich_text(rich_text)
+
+        # Special handling for specific types
+        if block_type == "child_page":
+            text = type_data.get("title", "")
+        elif block_type == "image":
+            img = type_data.get("external") or type_data.get("file") or {}
+            text = img.get("url", "[image]")
+        elif block_type == "divider":
+            text = "---"
+        elif block_type == "equation":
+            text = type_data.get("expression", "")
+        elif block_type == "to_do":
+            checked = type_data.get("checked", False)
+            prefix = "[x]" if checked else "[ ]"
+            text = f"{prefix} {text}"
+        elif block_type == "code":
+            lang = type_data.get("language", "")
+            text = f"```{lang}\n{text}\n```"
+
+        if text or block_type in ("divider",):
+            normalized.append({"type": block_type, "text": text})
+
+    return normalized
+
+
 async def _handle_notion_tool(auth: Any, tool: str, tool_input: dict) -> dict:
     """
     ADR-050: Handle Notion tools via Direct API.
@@ -741,6 +812,44 @@ async def _execute_notion_tool(
             "success": True,
             "results": formatted,
             "count": len(results),
+        }
+
+    elif tool == "get_page":
+        page_id = args.get("page_id")
+        if not page_id:
+            return {"success": False, "error": "page_id is required"}
+
+        # Get page metadata (title, properties)
+        page_meta = await notion_client.get_page(
+            access_token=access_token,
+            page_id=page_id,
+        )
+
+        # Extract title from page properties
+        title = "Untitled"
+        props = page_meta.get("properties", {})
+        title_prop = props.get("title") or props.get("Name") or {}
+        title_arr = title_prop.get("title", [])
+        if title_arr:
+            title = _extract_rich_text(title_arr) or "Untitled"
+
+        # Get page content (blocks)
+        blocks = await notion_client.get_page_content(
+            access_token=access_token,
+            page_id=page_id,
+            page_size=100,
+        )
+
+        normalized_blocks = _normalize_notion_blocks(blocks)
+        logger.info(f"[PLATFORM-TOOLS] notion get_page: {len(normalized_blocks)} blocks from page {page_id}")
+
+        return {
+            "success": True,
+            "page_id": page_id,
+            "title": title,
+            "url": page_meta.get("url"),
+            "blocks": normalized_blocks,
+            "block_count": len(normalized_blocks),
         }
 
     elif tool == "create_comment":
