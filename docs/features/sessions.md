@@ -68,47 +68,53 @@ There is no real-time session-end extraction. The Context page is the only way t
 
 Claude Code uses auto-compaction — context-window-pressure-driven, not time-based — and maintains cross-session continuity via CLAUDE.md and auto memory. YARNNN uses a time-based daily boundary with no compaction.
 
-| | Claude Code | YARNNN (current) | YARNNN (proposed, ADR-067) |
+| | Claude Code | YARNNN (current) | YARNNN (ADR-067) |
 |---|---|---|---|
 | **Session boundary** | Context-window-driven | UTC midnight (daily) | Inactivity-based (4h default) |
-| **In-session overflow** | Auto-compaction (summary prepended) | Hard truncation (oldest dropped) | Deferred compaction |
-| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | Working memory block (user_context + deliverables + activity) | + session summaries |
-| **Session summaries** | Auto-generated during compaction | Schema exists, never written | Written by nightly cron |
+| **In-session overflow** | Auto-compaction (`<summary>` block prepended) | Hard truncation (oldest dropped, silent) | Compaction at 80% of budget (Phase 3) |
+| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | `user_context` + deliverables + activity | + `chat_sessions.summary` (Phase 1) |
+| **Session summaries** | Auto-generated during compaction | Schema + reader exist; writer missing | Written by nightly cron (Phase 1) |
 | **Session resumption** | `--continue` / `--resume <id>` | Not supported (session_id ignored) | Deferred |
 
 The practical implication today: if a user had a long conversation yesterday about their preferences, TP won't remember the conversation details today — but it will know the extracted preferences (after the nightly cron runs).
 
 ---
 
-## Proposed changes (ADR-067)
+## Architecture direction (ADR-067)
 
-Two changes are proposed in [ADR-067](../adr/ADR-067-session-compaction-architecture.md):
+[ADR-067](../adr/ADR-067-session-compaction-architecture.md) follows Claude Code's session model fully — three changes, all decided:
 
-### Phase 1 — Session summaries (no UX change)
+### Phase 1 — Session summaries (cross-session auto memory)
 
-The nightly cron will write a prose summary to `chat_sessions.summary` after processing memory extraction for each session. The working memory "Recent conversations" block — currently always empty — will be populated with the last 3 summaries (within a 14-day window).
+The YARNNN equivalent of Claude Code's auto memory (MEMORY.md). The nightly cron writes a prose summary to `chat_sessions.summary` after processing memory extraction for each session. The "Recent conversations" working memory block — currently always empty — is populated with the last 3 summaries within a 14-day window.
+
+The reader is already built: `working_memory.py → _get_recent_sessions()` queries `chat_sessions.summary` and `format_for_prompt()` renders "Recent conversations." Only the writer (nightly cron) needs wiring — ~30 lines.
 
 **Example summary**:
-> [2026-02-19] Worked on Q2 board update structure — settled on 4-section format. User wants financials added; deliverable paused pending numbers. Also set up weekly #engineering digest.
-
-This closes the gap between "what the user discussed yesterday" and "what TP knows today."
+> [2026-02-19] Worked on Q2 board update — settled on 4-section structure. User wants financials added; deliverable paused pending numbers. Also set up weekly #engineering digest.
 
 ### Phase 2 — Inactivity-based session boundary
 
-The UTC midnight hard cut is replaced with an inactivity-based boundary (default: 4 hours of no messages). A user continuing a thread from this morning stays in the same session; a user starting a new work context after a break gets a new one.
+The UTC midnight hard cut is replaced with an inactivity-based boundary (default: 4 hours). A user continuing a thread from this morning stays in the same session; a user starting a new work context after a break gets a new one.
 
-The nightly cron continues to run at UTC midnight regardless — backend scheduling and conversational session management are decoupled.
+The nightly cron continues to run at UTC midnight regardless — backend scheduling and conversational session management are now decoupled.
+
+### Phase 3 — In-session compaction
+
+The YARNNN equivalent of Claude Code's auto-compaction. When the history budget reaches 80% (40k of 50k tokens), instead of silently truncating the oldest messages, a compaction summary is generated and prepended as an assistant-role `<summary>` block. The model continues from the compaction point with full awareness of prior work — the same mechanism Claude Code uses.
+
+Compaction text is stored in `chat_sessions.compaction_summary` and reused on subsequent turns — the summary is generated once per overflow event, not on every turn.
 
 ---
 
 ## Known gaps (current state)
 
-1. **No real-time extraction** — preferences from a conversation land in working memory overnight, not immediately.
-2. **No session summaries** — `chat_sessions.summary` is never written; "Recent conversations" always renders empty.
+1. **No real-time extraction** — preferences from a conversation land in working memory overnight, not immediately. *(Deferred in ADR-067)*
+2. **No session summaries** — `chat_sessions.summary` is never written; "Recent conversations" always renders empty. *(ADR-067 Phase 1)*
 3. **No explicit close** — sessions accumulate as `active` indefinitely; `ended_at` is never set.
-4. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses daily-scope auto-create; users can't resume a specific old session from the frontend.
-5. **No in-session compaction** — 50k hard truncation with no summary of dropped content.
-6. **UTC midnight boundary is timezone-naive** — a user in Singapore at 11:30pm UTC gets a 30-minute session before reset.
+4. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses daily-scope auto-create; users can't resume a specific old session from the frontend. *(Deferred in ADR-067)*
+5. **No in-session compaction** — 50k hard truncation with no summary of dropped content. *(ADR-067 Phase 3)*
+6. **UTC midnight boundary is timezone-naive** — a user in Singapore at 11:30pm UTC gets a 30-minute session before reset. *(ADR-067 Phase 2)*
 
 ---
 

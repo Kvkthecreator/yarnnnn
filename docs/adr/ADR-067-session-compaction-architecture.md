@@ -1,4 +1,4 @@
-# ADR-067: Session Compaction and Conversational Continuity
+# ADR-067: Session Architecture — Follow Claude Code's Model Fully
 
 **Status**: Proposed
 **Date**: 2026-02-19
@@ -15,134 +15,144 @@ YARNNN's current session model (ADR-049) was built on one core assumption:
 
 > *"Sessions are for API coherence (tool_use/tool_result blocks), not context memory. Context continuity comes from deliverable state and platform freshness, not history."*
 
-This assumption was reasonable when YARNNN was primarily a deliverable orchestrator — TP's main job was to create and run deliverables, and those deliverables carried their own state. In practice, as TP has evolved into a more capable conversational assistant, the assumption has three failure modes:
+This was wrong in practice, and has produced four compounding gaps:
 
 **1. Hard cliff at session boundary.**
-The session boundary is UTC midnight. At midnight, the current session ends and a new one begins. The user loses the entire conversation thread. Working memory (user_context) only updates when the nightly cron runs — so preferences stated today are not available until tomorrow morning. The user experiences a sudden reset.
+The session boundary is UTC midnight. At midnight, the current session ends and a new one begins with no thread continuity. Working memory updates overnight — preferences stated today are not available until tomorrow. The user experiences a sudden reset.
 
-**2. Hard truncation within a session.**
-`MAX_HISTORY_TOKENS = 50,000`. When the budget fills, the oldest messages are silently dropped. A productive 3-hour session can exhaust this. TP loses the beginning of its own reasoning with no indication to the user.
+**2. Hard truncation within a session with no recovery.**
+`MAX_HISTORY_TOKENS = 50,000`. When the budget fills, the oldest messages are silently dropped — no summary, no indication, no recovery. In YARNNN this happens faster than in a typical Claude Code session: live platform tool calls (Slack reads, Gmail searches, Notion fetches) bulk up history at 2-5k tokens per turn. A user doing a multi-step platform workflow exhausts this within a single productive session.
 
 **3. Session boundary conflated with backend cron cadence.**
-`scope="daily"` in chat.py uses UTC midnight as the session boundary. This is the same boundary used by the nightly memory extraction cron. These are different concerns — conversational continuity versus batch processing — being accidentally treated as the same domain. A user in Singapore who starts a conversation at 11:30pm gets a 30-minute session before a hard reset.
+`scope="daily"` uses UTC midnight as the session boundary — the same boundary as the nightly cron. These are different concerns. A user in Singapore at 11:30pm UTC gets a 30-minute session before a hard reset. The backend cron should run on its own schedule, independent of when a conversation ends.
 
 **4. Session summaries never written.**
-`chat_sessions.summary` exists in the schema and is referenced in the working memory format as "Recent conversations." It is never populated. The "Recent conversations" block in every working memory prompt renders empty.
+`chat_sessions.summary` exists in the schema and is already queried by `working_memory.py → _get_recent_sessions()` and rendered in `format_for_prompt()` as "Recent conversations." The infrastructure is fully built. The column is just never populated. Every working memory prompt renders an empty "Recent conversations" block.
 
-### How Claude Code handles this
+### Why Claude Code's model applies directly — and more urgently
 
-Claude Code uses **auto-compaction** — a precise mechanism worth understanding before mapping it to YARNNN:
+Claude Code operates in a static environment (codebase). YARNNN operates in a dynamic one (live platform data). This makes compaction *more* necessary for YARNNN:
 
-**Trigger**: When input tokens reach ~95% of the context window (roughly 150k of 200k tokens). Not time-based. Not session-boundary-based.
+- Tool results from live platform reads (Slack history, Gmail threads, Notion pages) are large and consume history budget fast
+- The conversational surface is richer — users iteratively refine deliverables, discuss preferences, review content — all of which produces history that is contextually important but quickly fills the window
+- Working memory updates overnight, not in real-time — so within-session context is the only continuity mechanism a user has during the day
 
-**Mechanism**: When compaction triggers, Claude Code generates a structured summary of the conversation history. Older message blocks are dropped. The summary is prepended to the remaining context as a `compaction` block — treated as content Claude itself previously generated. The model continues from the compaction point with full awareness of prior work.
+Claude Code's three mechanisms solve exactly these problems. There is no architectural reason to deviate from them.
 
-**Format**: The compaction block wraps the summary in `<summary></summary>` tags and is prepended to the message list. Prior message blocks are dropped. The model receives its own summary as the starting point for continuation.
+### The three Claude Code mechanisms and YARNNN's infrastructure status
 
-**What carries over between invocations**: CLAUDE.md (re-read at every session start), auto memory (`MEMORY.md`, maintained by Claude itself, first 200 lines). Raw conversation history from a prior session does not automatically carry over — but the user can explicitly resume via `--continue` or `--resume <session-id>`.
-
-**Session resumption**: Claude Code stores session files locally. `--continue` resumes the most recent session including its full message history (or compaction-reduced history). Sessions are identified by UUID.
-
-### Key insight from the Claude Code model
-
-Claude Code separates two distinct concerns:
-
-| Concern | Mechanism | Boundary |
+| Claude Code mechanism | YARNNN equivalent | Infrastructure |
 |---|---|---|
-| **In-session continuity** | Message history with auto-compaction | Context window pressure |
-| **Cross-session continuity** | CLAUDE.md + auto memory | Explicit (user reads CLAUDE.md; Claude writes memory) |
+| Auto-compaction (context-window trigger) | In-session compaction | `build_history_for_claude()` exists; needs compaction path |
+| CLAUDE.md (re-read at session start) | `user_context` working memory block | Live and working |
+| Auto memory (MEMORY.md, written by Claude) | `chat_sessions.summary` | Schema + reader exist; writer missing |
+| Context-window boundary | Inactivity-based boundary | One RPC change in Supabase migration |
 
-YARNNN currently conflates both concerns with a single time-based boundary (UTC midnight) and provides no compaction. The result: neither within-session continuity (breaks on overflow) nor cross-session continuity (empty summary block) is reliably served.
+The session summary reader and formatter (`_get_recent_sessions()`, `format_for_prompt()`) are already implemented in `working_memory.py:242-273`. The "Recent conversations" section already renders — it just has nothing to render. The missing piece is the writer.
 
 ---
 
 ## Decision
 
-### Two changes, independent of each other
+Follow Claude Code's session architecture fully. Three changes, all decided here:
 
-#### Change 1: Session summaries written at natural break points
+### 1. Auto-compaction (in-session)
 
-At the end of each day's session (detected by the nightly cron as "sessions started yesterday with no messages today"), write a `chat_sessions.summary`. This is the YARNNN equivalent of Claude Code's auto memory — a structured prose summary of what the conversation covered.
+**Trigger**: When `build_history_for_claude()` detects that the selected messages would exceed **80% of `MAX_HISTORY_TOKENS`** (40,000 of 50,000 tokens), trigger compaction instead of silent truncation.
 
-**Format** (to be injected into working memory "Recent conversations" block):
+**Mechanism** (following Claude Code exactly):
 
+1. Take the messages that would be truncated (the oldest portion)
+2. Make a single LLM call to generate a compaction summary of those messages
+3. Prepend the summary as an assistant-role "compaction block" to the remaining (recent) messages
+4. Drop the original truncated messages from the API call — they are retained in `session_messages` for audit, but not sent to the model
+
+**Format** (matching Claude Code's `<summary>` pattern):
+
+```python
+compaction_block = {
+    "role": "assistant",
+    "content": [{
+        "type": "text",
+        "text": f"<summary>\n{compaction_text}\n</summary>"
+    }]
+}
 ```
-[2026-02-19] Worked on Q2 board update structure — settled on 4-section format
-(Overview, Metrics, Risks, Next Steps). User wants financials added. Deliverable
-paused; user will provide numbers. Also set up weekly #engineering digest.
-```
 
-**Trigger**: Nightly cron (`unified_scheduler.py`, midnight UTC) — same job that processes memory extraction. After processing `process_conversation()` for a session, also call `generate_session_summary()` if the session had sufficient activity (≥ 5 user messages).
+The model receives the compaction block as the first message in its history — content it previously generated — followed by the recent messages. All prior message blocks are absent from the API call.
 
-**Implementation**: Single LLM call to `memory.py → generate_session_summary()`. Input: full session messages. Output: 2-5 sentence prose summary focused on decisions, in-progress work, and stated intent. Written to `chat_sessions.summary`.
+**Compaction prompt** (analogous to Claude Code's default):
 
-**Working memory injection**: `working_memory.py → build_working_memory()` already has a "Recent conversations" section. Currently empty. Populate it with summaries from the last 3 sessions (within 14-day window), most recent first.
+> "Summarise the conversation above for continuity. The reader will have no access to the original messages — only this summary. Focus on: decisions made, work in progress, user preferences stated, platform actions taken, and anything left unresolved."
 
-**Token budget impact**: Summaries are short (50-100 tokens each). 3 summaries = ~300 tokens within the existing 2,000 token working memory budget.
+**Storage**: Write the compaction summary to `chat_sessions.compaction_summary` (new column). On subsequent turns, if a compaction exists for the session, prepend it before the recent message window — do not re-generate.
 
-#### Change 2: Decouple session boundary from UTC midnight
+**Why 80% trigger**: Compacting at 80% (40k of 50k tokens) leaves headroom for the compaction LLM call itself and ensures the summary is generated while the full context is still available, not in extremis.
 
-The `scope="daily"` hard cut at UTC midnight is wrong for two reasons: it is timezone-naive (a user in Singapore gets a 30-minute session at 11:30pm UTC), and it conflates conversational UX with backend scheduling.
+### 2. Session summaries (cross-session auto memory)
 
-**Replace with inactivity-based boundary**: A new session is created when the user sends their first message after N hours of inactivity (default: 4 hours). The specific threshold is configurable; 4 hours captures the natural "different work context" boundary without breaking same-day continuity.
+At the end of each session (detected by the nightly cron: sessions started yesterday, processed during memory extraction), generate a `chat_sessions.summary`.
 
-**Implementation in `get_or_create_session()`**: Change the daily RPC logic to check `last_message_at` on the current session instead of `DATE(started_at) = CURRENT_DATE`. If the most recent session's last message was within the inactivity window, reuse it. Otherwise create a new one.
+**This is the YARNNN equivalent of Claude Code's auto memory (MEMORY.md)** — a persistent, concise record of what the conversation produced that carries forward to the next session's working memory.
 
-**Backend cron is unaffected**: The nightly cron still runs at midnight UTC. It processes all sessions from the prior day by date range, regardless of when those sessions started or ended. The cron cadence is a scheduling concern; session boundaries are a UX concern.
+**Trigger**: Nightly cron (`unified_scheduler.py`, midnight UTC), after `process_conversation()` for each session. Called for sessions with ≥ 5 user messages.
+
+**Implementation**: Add `generate_session_summary()` to `api/services/memory.py`. Single LLM call. Input: full session messages. Output: 2-5 sentence prose summary focused on decisions, in-progress work, and stated intent.
+
+**Example**:
+> [2026-02-19] Worked on Q2 board update — settled on 4-section structure (Overview, Metrics, Risks, Next Steps). User wants financials added; deliverable paused pending numbers. Also set up weekly #engineering digest.
+
+**Working memory injection**: `_get_recent_sessions()` in `working_memory.py` already queries `chat_sessions.summary` and the `format_for_prompt()` function already renders "Recent conversations." No changes needed to the reader path — only the writer (nightly cron) needs to be wired.
+
+**Token budget**: Summaries are short (50-100 tokens each). 3 summaries within a 14-day window = ~300 tokens within the existing 2,000 token working memory budget.
+
+### 3. Inactivity-based session boundary
+
+**Replace** `DATE(started_at) = CURRENT_DATE` (UTC midnight hard cut) with an inactivity-based boundary.
+
+**Rule**: Find the most recent session for this user. If its `last_message_at` is within N hours (default: **4 hours**), reuse it. Otherwise create a new session.
+
+**Why 4 hours**: Captures the natural "different work context" gap (e.g., morning work vs. evening work) without breaking same-working-session continuity. This threshold should eventually be user-configurable.
+
+**Backend cron is unaffected**: The nightly cron continues to run at midnight UTC. It processes all sessions from the prior calendar day by date range (`created_at` between yesterday and today). The cron cadence is a scheduling concern; session boundaries are a UX concern. They are now fully decoupled.
+
+**Implementation**: Update `get_or_create_chat_session()` RPC in Supabase. Requires adding `last_message_at` to `chat_sessions` (via trigger on `session_messages` insert, or explicit update in `append_message()`).
 
 ---
 
-## What is NOT decided here (deferred)
+## What is explicitly deferred
 
-**In-session compaction**: When the 50k token history budget is exhausted, the current behavior is silent truncation from the oldest end. The Claude Code equivalent — generating a summary of the dropped messages and prepending it as a compaction block — is the right long-term fix. This is deferred because:
+**Session resumption by ID**: `ChatRequest.session_id` exists in the API but is ignored. Explicit session resumption (`--resume` equivalent) is useful but requires frontend UX design. Deferred.
 
-- 50k tokens covers most practical sessions (approximately 35,000 words of conversation)
-- The inactivity boundary change (Change 2) will reduce the likelihood of single-session overflow
-- Implementing the compaction block properly requires changes to `build_history_for_claude()` and the message storage format
+**Real-time memory extraction on session close**: When the inactivity boundary triggers (new session created after 4h silence), the prior session could be immediately processed for memory extraction rather than waiting until midnight. This is a natural extension of Phase 2 — deferred to a follow-up.
 
-When implemented, in-session compaction should follow the Claude Code pattern exactly: trigger at ~80% of budget, generate a summary block, prepend it to the remaining messages, drop all prior messages from the API call (but retain them in `session_messages` for audit).
-
-**Session resumption by ID**: `ChatRequest.session_id` exists in the API but is ignored. Explicit session resumption (`--resume` equivalent) is a useful feature for power users. Deferred pending UX design.
-
-**Real-time memory extraction**: Preferences stated during a conversation are currently only available in working memory the next morning (nightly cron). Triggering `process_conversation()` at session close (inactivity boundary detected) would make them available immediately. Deferred to a follow-up.
+**Compaction for tool result payloads**: Large tool results (full Slack history, Gmail threads) could be individually summarised before being stored in `session_messages`, reducing per-turn token cost before compaction is even needed. Deferred — the session-level compaction handles this indirectly.
 
 ---
 
-## Implementation plan
+## Implementation sequence
 
-### Phase 1 — Session summaries (immediate value, no UX change)
+### Phase 1 — Session summaries (writer side) — ~30 lines
 
-1. Add `generate_session_summary()` to `api/services/memory.py`
-   - Input: list of session messages
-   - Output: 2-5 sentence prose summary
-   - Single LLM call, same model as `process_conversation()`
-   - Only called for sessions with ≥ 5 user messages
+No infrastructure changes. Just wire the nightly cron writer:
 
-2. Call from nightly cron (`unified_scheduler.py`) after `process_conversation()`:
-   ```python
-   summary = await generate_session_summary(client, messages)
-   if summary:
-       client.table("chat_sessions").update({"summary": summary}).eq("id", session_id).execute()
-   ```
+1. Add `generate_session_summary(client, messages) -> str` to `api/services/memory.py`
+2. In `unified_scheduler.py`, after `process_conversation()` for each session, call it and write to `chat_sessions.summary`
+3. The reader path in `working_memory.py` and `format_for_prompt()` already works — "Recent conversations" block will populate immediately
 
-3. Update `working_memory.py → build_working_memory()`:
-   - Query last 3 `chat_sessions` rows where `summary IS NOT NULL AND started_at > now - 14 days`
-   - Format into "Recent conversations" block (already exists, currently empty)
+### Phase 2 — Inactivity boundary — migration + one function change
 
-4. Update `api/prompts/CHANGELOG.md` with new working memory block content.
+1. Add `last_message_at TIMESTAMPTZ` to `chat_sessions` schema
+2. Add trigger on `session_messages` insert to update `chat_sessions.last_message_at`
+3. Update `get_or_create_chat_session()` RPC: replace date-equality check with inactivity window check
+4. Update `chat.py` comment from ADR-049 to ADR-067
 
-### Phase 2 — Inactivity-based session boundary
+### Phase 3 — In-session compaction — `build_history_for_claude()` + new column
 
-1. Add `last_message_at` tracking to `chat_sessions` (via trigger or explicit update on message append)
-
-2. Update `get_or_create_chat_session()` RPC in `supabase/migrations/`:
-   - Replace `DATE(started_at) = CURRENT_DATE` logic with inactivity check
-   - New logic: find the most recent session for this user; if its `last_message_at` is within 4 hours, return it; otherwise create new
-   - Inactivity threshold configurable via env var (`SESSION_INACTIVITY_HOURS`, default 4)
-
-3. Update `chat.py` comment and ADR reference from ADR-049 to ADR-067.
-
-4. Update `docs/features/sessions.md` with new boundary model.
+1. Add `compaction_summary TEXT` to `chat_sessions` schema
+2. In `build_history_for_claude()`: after truncation calculation, check if truncated tokens > 40k threshold; if so, call compaction LLM and write to `chat_sessions.compaction_summary`
+3. At session history load in `chat.py`: if `compaction_summary` exists for session, prepend compaction block to `existing_messages` before passing to `build_history_for_claude()`
+4. Update `get_session_messages()` to also return session-level `compaction_summary`
 
 ---
 
@@ -150,47 +160,49 @@ When implemented, in-session compaction should follow the Claude Code pattern ex
 
 ### Positive
 
-- **"Recent conversations" block becomes useful** — Phase 1 alone populates the working memory block that's been empty since the field was added
-- **Cross-session continuity without raw history** — TP can reference what was discussed last session without needing the full message thread
-- **Session boundary matches user intent** — A user starting a new work context after lunch gets a new session; a user continuing a thread from this morning stays in the same session
-- **Backend cron is cleanly decoupled** — The nightly job has no dependency on the UX session boundary; it just processes all sessions from the prior day regardless of when they ended
+- **Continuous conversational thread** — within a session (compaction) and across sessions (summaries), TP maintains coherent context
+- **No more silent truncation** — when history fills, the model gets a summary of what was dropped, not a blind cut
+- **"Recent conversations" block useful from day one** — Phase 1 alone populates what has always been empty
+- **Session boundary reflects UX intent** — a 4-hour gap creates a new session; picking up a thread after 30 minutes doesn't
+- **Backend and UX concerns fully decoupled** — nightly cron schedule and session boundary are independent
 
 ### Negative
 
-- **Session summaries cost tokens** — One additional LLM call per session per night. Low cost (short input, short output), but a real addition to nightly cron runtime.
-- **Inactivity threshold is a judgment call** — 4 hours may not be right for all users. May need per-user configuration later.
-- **Inactivity model changes session count** — A user who chats for 30 minutes in the morning and 30 minutes in the afternoon may now be in one session instead of two (if within 4 hours). TP conversation limits (ADR-053) count new sessions — this needs a review.
+- **Compaction costs tokens** — one additional LLM call per session when the budget threshold is hit; and one per session per night for the summary. Both are small inputs → small outputs.
+- **Inactivity threshold is a judgment call** — 4 hours may not suit all users or all timezones. Future: per-user preference.
+- **ADR-053 TP conversation limits need review** — currently counts new sessions; inactivity-based boundary changes session creation frequency.
 
 ### Neutral
 
-- **Existing session data unchanged** — Old sessions without summaries continue to work; the "Recent conversations" block simply renders empty for them (same as today)
-- **API surface unchanged** — No changes to the chat endpoint request/response format
+- **Existing session data unchanged** — old sessions without summaries or compaction work as before; "Recent conversations" renders empty for them (same as today)
+- **API surface unchanged** — no changes to `/chat` request/response format
+- **`session_messages` audit log preserved** — compaction drops messages from API calls but retains them in the DB
 
 ---
 
-## Mapping: Claude Code → YARNNN
+## Mapping: Claude Code → YARNNN (final)
 
-| Claude Code mechanism | YARNNN equivalent | Status |
+| Dimension | Claude Code | YARNNN (after ADR-067) |
 |---|---|---|
-| Auto-compaction block | In-session compaction (deferred) | Not yet |
-| CLAUDE.md | `user_context` (working memory block) | Live |
-| Auto memory (MEMORY.md) | `chat_sessions.summary` injected into working memory | Phase 1 |
-| `--continue` / `--resume` | Session resumption by ID (deferred) | Not yet |
-| Context-window-driven boundary | Inactivity-based boundary | Phase 2 |
-| Per-session `<summary>` block | `chat_sessions.summary` prose block | Phase 1 |
+| **In-session overflow** | Auto-compaction block, prepended to remaining history | Same mechanism, triggered at 80% of 50k token budget |
+| **Cross-session memory** | CLAUDE.md (rules) + auto memory MEMORY.md (learned) | `user_context` (rules/preferences) + `chat_sessions.summary` (learned) |
+| **Session boundary** | Context-window-driven | Inactivity-based (4h default) |
+| **Compaction format** | `<summary>` block as assistant content | Same |
+| **Summary writer** | Claude writes to MEMORY.md during compaction | Nightly cron writes to `chat_sessions.summary` |
+| **Session resumption** | `--continue` / `--resume <id>` | Deferred |
 
 ---
 
 ## Related
 
-- [Sessions](../features/sessions.md) — Session lifecycle documentation (update after Phase 2)
+- [Sessions](../features/sessions.md) — Session lifecycle documentation
 - [Memory](../features/memory.md) — Memory extraction (nightly cron, same job as session summaries)
-- [Backend Orchestration](../features/backend-orchestration.md) — Nightly cron context
+- [Backend Orchestration](../features/backend-orchestration.md) — Nightly cron context (independent domain)
 - [ADR-049](ADR-049-context-freshness-model.md) — Superseded: session scope and history sections
 - [ADR-006](ADR-006-session-message-architecture.md) — Session and message schema
 - [ADR-064](ADR-064-unified-memory-service.md) — Memory extraction service (Phase 1 extends this)
-- `api/routes/chat.py` — Session creation and history building
-- `api/services/working_memory.py` — Working memory assembly
+- `api/routes/chat.py` — Session creation, history building
+- `api/services/working_memory.py` — Working memory assembly (reader already built)
 - `api/services/memory.py` — Memory and summary extraction
 - `api/jobs/unified_scheduler.py` — Nightly cron (Phase 1 trigger)
-- `supabase/migrations/008_chat_sessions.sql` — Session schema (Phase 2 migration)
+- `supabase/migrations/008_chat_sessions.sql` — Session schema (Phase 2 + 3 migrations)
