@@ -2,8 +2,8 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-10
-> **Updated**: 2026-02-13 (ADR-058 Knowledge Base Architecture)
-> **Related ADRs**: ADR-058 (Knowledge Base), ADR-036 (Two-Layer), ADR-037 (Chat-First), ADR-038 (Filesystem-as-Context), ADR-042 (Execution Simplification)
+> **Updated**: 2026-02-19 (list_integrations wired; WebSearch shipped)
+> **Related ADRs**: ADR-058 (Knowledge Base), ADR-036 (Two-Layer), ADR-037 (Chat-First), ADR-038 (Filesystem-as-Context), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-050 (MCP Gateway)
 > **Implementation**: `api/services/primitives/`
 
 ---
@@ -14,7 +14,7 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 
 ### Design Principles
 
-1. **Minimal Surface** — 7 primitives cover all use cases
+1. **Minimal Surface** — 9 primitives cover all use cases
 2. **Universal Reference Syntax** — Consistent `type:identifier` addressing
 3. **Composable** — Primitives combine for complex operations
 4. **Self-Describing** — Results include context for further action
@@ -40,7 +40,7 @@ Users without platform connections can still provide rich context via documents 
 
 ---
 
-## The 7 Primitives
+## The 9 Primitives
 
 | Primitive | Purpose | Input | Output |
 |-----------|---------|-------|--------|
@@ -50,13 +50,15 @@ Users without platform connections can still provide rich context via documents 
 | **List** | Find entities by pattern | `pattern` | `items`, `count` |
 | **Search** | Find by content | `query`, `scope` | `results`, `count` |
 | **Execute** | Trigger external operation | `action`, `target` | `result` |
+| **WebSearch** | Search the web | `query` | `results`, `count` |
+| **list_integrations** | Discover connected platforms + metadata | — | `integrations` |
 | **Clarify** | Ask user for input | `question`, `options` | `ui_action` |
 
 > **Note**: Todo and Respond primitives were removed per ADR-038 (Filesystem-as-Context).
 > Todo will return when multi-step workflows require 30+ second operations.
 > Respond was redundant with model output.
 
-> **Future**: WebSearch primitive is planned for ADR-045 when research-type deliverables require external context. See "Deferred Primitives" section below.
+> **list_integrations** returns `authed_user_id` (Slack), `designated_page_id` (Notion), `user_email` + `designated_calendar_id` (Gmail/Calendar). Call this first before any platform tool to get the correct IDs for default landing zones. Tool descriptions are the source of truth for platform tool workflow — not a separate prompt layer.
 
 ---
 
@@ -598,6 +600,15 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 
 ## Changelog
 
+### 2026-02-19 — list_integrations wired; WebSearch promoted from deferred
+- `list_integrations` added to PRIMITIVES in `registry.py` with handler wired from `project_tools.py`
+  - Previously documented in `platforms.py` prompt but not in schema — a ghost tool TP couldn't call
+  - Tool `description` field now carries all behavioral docs (agentic pattern, landing zone IDs)
+- `WebSearch` promoted from "Deferred Primitives" — already shipped (ADR-045)
+- `platforms.py` PLATFORMS_SECTION slimmed to behavioral framing only; per-tool docs now live in tool definitions
+  - Tool descriptions are the source of truth for platform workflow docs, not a separate prompt layer
+- Primitive count updated from 7 → 9 (WebSearch + list_integrations)
+
 ### 2026-02-11 — ADR-042 Entity Tier Clarification
 - Clarified entity types into TP-facing (6) and background (3) tiers
 - TP-facing: deliverable, platform, document, work, session, action
@@ -628,67 +639,6 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 ---
 
 ## Deferred Primitives
-
-These primitives are documented but not yet implemented. They will be added when specific use cases require them.
-
-### WebSearch (ADR-045)
-
-Web search capability for research-type deliverables.
-
-**Trigger**: When `competitive_analysis`, `market_landscape`, or research-binding deliverables require external context.
-
-**Input**:
-```json
-{
-  "query": "competitor pricing strategies SaaS 2026",
-  "max_results": 5
-}
-```
-
-**Output**:
-```json
-{
-  "success": true,
-  "results": [
-    {
-      "title": "SaaS Pricing Trends 2026",
-      "url": "https://...",
-      "snippet": "Key findings show...",
-      "score": 0.92
-    }
-  ],
-  "count": 5
-}
-```
-
-**Implementation considerations**:
-- Provider options: Anthropic built-in (if available), Tavily, Brave Search
-- Caching: 15-minute TTL for same query
-- Cost: Per-search API cost, may require usage limits
-
-### WebFetch (ADR-045)
-
-Fetch and extract content from a specific URL.
-
-**Trigger**: When TP or agent needs to pull content from a URL provided by user or discovered via WebSearch.
-
-**Input**:
-```json
-{
-  "url": "https://example.com/article",
-  "extract_prompt": "Extract key pricing information"
-}
-```
-
-**Output**:
-```json
-{
-  "success": true,
-  "content": "Extracted content...",
-  "title": "Page Title",
-  "url": "https://example.com/article"
-}
-```
 
 ### Todo (Deferred from ADR-038)
 

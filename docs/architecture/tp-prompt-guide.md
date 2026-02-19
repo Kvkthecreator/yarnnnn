@@ -4,7 +4,7 @@
 > **Created**: 2026-02-11
 > **Updated**: 2026-02-19
 > **Location**: `api/agents/thinking_partner.py`
-> **Primitives**: 7 (ADR-038)
+> **Primitives**: 9 (ADR-038 + ADR-045 + list_integrations)
 > **Platform Tools**: Slack, Notion, Gmail, Calendar (ADR-046, ADR-050)
 > **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-050: MCP Gateway](../adr/ADR-050-mcp-gateway-architecture.md), [ADR-065: Live-First Platform Context](../adr/ADR-065-live-first-platform-context.md)
 
@@ -18,7 +18,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 
 ---
 
-## Current Version: v6 (2026-02-19)
+## Current Version: v6.1 (2026-02-19)
 
 ### Key Principles
 
@@ -30,7 +30,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 | **Explore before asking** | Use List/Search to find patterns before using Clarify |
 | **One clarifying question** | Use `Clarify` only when context + exploration don't resolve ambiguity |
 | **Confirm before creating** | Ask user, then create on confirmation |
-| **7 primitives** | Read, Write, Edit, List, Search, Execute, Clarify (no Respond, no Todo) |
+| **9 primitives** | Read, Write, Edit, List, Search, Execute, WebSearch, list_integrations, Clarify (no Respond, no Todo) |
 | **Live tools first** | For platform content queries, call live platform tools before searching the cache (ADR-065) |
 | **Disclose cache use** | When `filesystem_items` fallback is used, tell the user the data age (ADR-065) |
 | **Sync hand-off** | After triggering sync, inform user and stop — sync is async, no in-conversation polling tool available (ADR-065) |
@@ -110,14 +110,15 @@ Only if {context} is empty AND exploration finds nothing:
 → Clarify(question="Who receives this?", options=[...])
 ```
 
-### Prompt Structure (7 Primitives + Platform Tools)
+### Prompt Structure (9 Primitives + Platform Tools)
 
 ```
 1. Context injection ({context}) - user profile, deliverables, platforms, sessions
 2. Tone and Style - conciseness rules
 3. How You Work - text primary, tools for actions
-4. Available Tools - 7 primitives (Read, Write, Edit, List, Search, Execute, Clarify)
+4. Available Tools - 9 primitives (Read, Write, Edit, List, Search, Execute, WebSearch, list_integrations, Clarify)
 5. Platform Tools - platform_slack_*, platform_notion_*, platform_gmail_*, platform_calendar_* (ADR-046, ADR-050)
+   (dynamically loaded; tool descriptions carry full workflow docs — no separate prompt layer)
 6. Reference Syntax - type:identifier
 7. Guidelines - behavioral rules
 8. Domain Terms - vocabulary
@@ -144,7 +145,7 @@ Platform tools are dynamically added based on user's connected integrations:
 
 | Provider | Tools | Backend |
 |----------|-------|---------|
-| **Slack** | `platform_slack_send_message`, `platform_slack_list_channels` | MCP Gateway |
+| **Slack** | `platform_slack_send_message`, `platform_slack_list_channels`, `platform_slack_get_channel_history` | MCP Gateway |
 | **Notion** | `platform_notion_search`, `platform_notion_create_comment` | MCP Gateway |
 | **Gmail** | `platform_gmail_search`, `platform_gmail_get_thread`, `platform_gmail_send`, `platform_gmail_create_draft` | Direct API |
 | **Calendar** | `platform_calendar_list_events`, `platform_calendar_get_event`, `platform_calendar_create_event` | Direct API |
@@ -192,6 +193,21 @@ User: "What platforms are connected?"
 ---
 
 ## Changelog
+
+### v6.1 (2026-02-19)
+
+**Changes:**
+- `list_integrations` wired as a real PRIMITIVES entry (`registry.py`); previously a ghost tool documented in the prompt but not in schema
+- `platforms.py` PLATFORMS_SECTION slimmed from ~130 to ~30 lines — per-tool workflow docs moved to tool `description` fields
+- `platform_slack_get_channel_history` added to Slack tools table (was missing; MCP name bug also fixed in `platform_tools.py`)
+- Primitive count updated to 9 (was 7): adds WebSearch (already shipped) and list_integrations
+
+**Rationale:** Claude Code's pattern — tool `description` fields carry all model-facing workflow docs; no separate prompt layer. The `get_channel_history` MCP name mismatch was caused by a prompt layer that could diverge from execution silently. Tool descriptions co-located with handler mappings in `registry.py` and `platform_tools.py` cannot drift independently.
+
+**Files changed:**
+- `api/services/primitives/registry.py` — LIST_INTEGRATIONS_TOOL added; handler wired
+- `api/agents/tp_prompts/platforms.py` — PLATFORMS_SECTION reduced to behavioral framing
+- `api/services/platform_tools.py` — `get_channel_history` → `slack_get_channel_history` mapping added (CHANGELOG `[2026.02.19.4]`)
 
 ### v6 (2026-02-19)
 
