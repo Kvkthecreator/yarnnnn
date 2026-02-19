@@ -232,7 +232,7 @@ TP accesses platform content during a session in two ways, with a defined priori
 1. **Primary: Live platform tools** — `platform_gmail_search`, `platform_slack_list_channels`, `platform_notion_search`, etc. Direct API calls. Always current. Used first.
 2. **Fallback: `Search(scope="platform_content")`** — hits `filesystem_items` cache (ILIKE text search). Used when live tools can't serve the query (cross-platform aggregation, live tool unavailable). When used, TP **must disclose the cache age** to the user.
 
-**If the cache is needed but empty**: TP triggers `Execute(action="platform.sync")`, informs the user, then waits (polling `get_sync_status`) before re-querying — never re-queries immediately after triggering sync (the job is async, 10–60s).
+**If the cache is needed but empty**: TP triggers `Execute(action="platform.sync")`, informs the user ("takes ~30–60 seconds, ask again once done"), then stops. There is no in-conversation polling tool available — sync is async. The user re-engages after the job completes; the cache will be populated by then.
 
 ---
 
