@@ -24,7 +24,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  Recent events injected into every TP session               │
 └─────────────────────────────────────────────────────────────┘
          Written by: deliverable pipeline, platform sync,
-                     memory service (session end)
+                     memory service (nightly cron)
 
 ┌─────────────────────────────────────────────────────────────┐
 │  CONTEXT  (filesystem_items + live platform APIs)           │
