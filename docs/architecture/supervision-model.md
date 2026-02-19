@@ -1,8 +1,11 @@
 # Design Principle: The Supervision Model
 
-**Status:** Canonical
+**Status:** Canonical — UI/UX and product framing only
+**Scope:** Covers how users interact with and supervise the system (UI/UX, product model). Does NOT cover backend execution paths — see [Agent Execution Model](agent-execution-model.md) for that.
 **Date:** 2026-02-02
 **Related:**
+- [Agent Execution Model](agent-execution-model.md) — backend path separation (Path A / Path B)
+- [ADR-061: Two-Path Architecture](../adr/ADR-061-two-path-architecture.md)
 - [ADR-013: Conversation + Surfaces](../adr/ADR-013-conversation-plus-surfaces.md)
 - [ADR-018: Recurring Deliverables](../adr/ADR-018-recurring-deliverables.md)
 - [ADR-020: Deliverable-Centric Chat](../adr/ADR-020-deliverable-centric-chat.md)
