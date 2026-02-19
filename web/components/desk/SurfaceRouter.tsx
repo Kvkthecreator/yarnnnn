@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * ADR-037: Chat-First Surface Architecture
+ * ADR-037 + ADR-066: Chat-First Surface Architecture
  *
  * Routes to the appropriate surface component based on type.
  *
@@ -11,8 +11,10 @@
  * - Deliverable list/detail → /deliverables route
  * - Context browser → deprecated (ADR-034)
  *
+ * ADR-066 Migration:
+ * - deliverable-review → /deliverables/[id] (inline review)
+ *
  * Remaining surfaces (TP-invoked only):
- * - deliverable-review: Approve/reject generated content
  * - deliverable-create: Create new deliverable
  * - work-output, work-list: Work tracking
  * - context-editor: Edit specific memory
@@ -22,7 +24,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DeskSurface } from '@/types/desk';
-import { DeliverableReviewSurface } from '@/components/surfaces/DeliverableReviewSurface';
 import { DeliverableCreateSurface } from '@/components/surfaces/DeliverableCreateSurface';
 import { WorkOutputSurface } from '@/components/surfaces/WorkOutputSurface';
 import { WorkListSurface } from '@/components/surfaces/WorkListSurface';
@@ -56,11 +57,15 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
         router.replace(`/integrations/${surface.platform}`);
         break;
 
-      // Deliverable list/detail → /deliverables
+      // Deliverable list/detail/review → /deliverables
       case 'deliverable-list':
         router.replace('/deliverables');
         break;
       case 'deliverable-detail':
+        router.replace(`/deliverables/${surface.deliverableId}`);
+        break;
+      // ADR-066: Review now happens inline on detail page
+      case 'deliverable-review':
         router.replace(`/deliverables/${surface.deliverableId}`);
         break;
 
@@ -76,14 +81,9 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
   // Render the surface content
   const renderSurface = () => {
     switch (surface.type) {
-      // TP-invoked surfaces (remain as surfaces)
+      // ADR-066: deliverable-review redirects via useEffect, show idle as fallback
       case 'deliverable-review':
-        return (
-          <DeliverableReviewSurface
-            deliverableId={surface.deliverableId}
-            versionId={surface.versionId}
-          />
-        );
+        return <IdleSurface />;
 
       case 'deliverable-create':
         return <DeliverableCreateSurface initialPlatform={surface.initialPlatform} />;

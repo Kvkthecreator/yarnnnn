@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * ADR-023: Supervisor Desk Architecture
+ * ADR-066: Review Route Redirect
  *
- * Route redirect - opens specific version as review surface.
+ * Legacy route that previously opened review in a surface.
+ * Now redirects to the deliverable detail page which has inline review.
  */
 
 import { useEffect } from 'react';
@@ -14,13 +15,11 @@ export default function VersionReviewPage() {
   const params = useParams();
   const router = useRouter();
   const deliverableId = params.id as string;
-  const versionId = params.versionId as string;
 
   useEffect(() => {
-    router.replace(
-      `/dashboard?surface=deliverable-review&deliverableId=${deliverableId}&versionId=${versionId}`
-    );
-  }, [deliverableId, versionId, router]);
+    // Redirect to detail page with inline review
+    router.replace(`/deliverables/${deliverableId}`);
+  }, [deliverableId, router]);
 
   return (
     <div className="h-screen flex items-center justify-center">

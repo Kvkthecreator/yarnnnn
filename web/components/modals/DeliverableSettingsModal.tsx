@@ -1,16 +1,18 @@
 'use client';
 
 /**
- * DeliverableSettingsModal - ADR-032 Phase 2: Platform-First
+ * DeliverableSettingsModal - ADR-066: Simplified Settings
  *
- * Restructured for destination-first flow:
+ * Configuration-only modal. Review happens on the detail page.
+ *
+ * Sections:
  * 1. Destination (where does this go?) - REQUIRED
- * 2. Title & Type (what is it?)
- * 3. Data Sources (what informs it?)
- * 4. Schedule (when?)
+ * 2. Title (what is it called?)
+ * 3. Schedule (when does it run?)
+ * 4. Data Sources (what informs it?)
  *
- * Governance is simplified: defaults to "manual" (draft mode).
- * User ownership is preserved - they review before sending.
+ * Recipient Context collapsed as advanced option.
+ * Governance fixed to "manual" (draft mode).
  */
 
 import { useState, useEffect } from 'react';
