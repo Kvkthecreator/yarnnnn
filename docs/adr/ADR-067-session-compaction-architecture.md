@@ -1,6 +1,6 @@
 # ADR-067: Session Architecture — Follow Claude Code's Model Fully
 
-**Status**: Proposed
+**Status**: Implemented
 **Date**: 2026-02-19
 **Supersedes**: ADR-049 (Context Freshness Model) — session scope and history management sections
 **Related**: ADR-006 (Session and Message Architecture), ADR-064 (Unified Memory Service), ADR-061 (Two-Path Architecture)

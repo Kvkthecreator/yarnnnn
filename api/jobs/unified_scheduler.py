@@ -935,10 +935,14 @@ async def run_unified_scheduler():
                             logger.info(f"[MEMORY] Extracted {extracted} memories from session {session_id}")
 
                         # Session summary (ADR-067 Phase 1)
-                        summary = await generate_session_summary(
-                            messages=messages,
-                            session_date=session_date,
-                        )
+                        # Requires ≥ 5 user messages — substantive sessions only
+                        if user_msg_count >= 5:
+                            summary = await generate_session_summary(
+                                messages=messages,
+                                session_date=session_date,
+                            )
+                        else:
+                            summary = None
                         if summary:
                             supabase.table("chat_sessions").update(
                                 {"summary": summary}

@@ -110,11 +110,11 @@ Compaction text is stored in `chat_sessions.compaction_summary` and reused on su
 ## Known gaps (current state)
 
 1. **No real-time extraction** — preferences from a conversation land in working memory overnight, not immediately. *(Deferred in ADR-067)*
-2. **No session summaries** — `chat_sessions.summary` is never written; "Recent conversations" always renders empty. *(ADR-067 Phase 1)*
+2. ~~**No session summaries**~~ — **Implemented (ADR-067 Phase 1)**: nightly cron writes `chat_sessions.summary`; "Recent conversations" block populates from next run.
 3. **No explicit close** — sessions accumulate as `active` indefinitely; `ended_at` is never set.
-4. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses daily-scope auto-create; users can't resume a specific old session from the frontend. *(Deferred in ADR-067)*
-5. **No in-session compaction** — 50k hard truncation with no summary of dropped content. *(ADR-067 Phase 3)*
-6. **UTC midnight boundary is timezone-naive** — a user in Singapore at 11:30pm UTC gets a 30-minute session before reset. *(ADR-067 Phase 2)*
+4. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses inactivity-scope auto-create; users can't resume a specific old session from the frontend. *(Deferred in ADR-067)*
+5. ~~**No in-session compaction**~~ — **Implemented (ADR-067 Phase 3)**: `maybe_compact_history()` triggers at 80% of 50k budget; `<summary>` block prepended; result persisted to `chat_sessions.compaction_summary`.
+6. ~~**UTC midnight boundary is timezone-naive**~~ — **Implemented (ADR-067 Phase 2)**: `get_or_create_chat_session()` RPC uses `updated_at >= NOW() - 4 hours` inactivity check. Nightly cron decoupled.
 
 ---
 
@@ -122,7 +122,7 @@ Compaction text is stored in `chat_sessions.compaction_summary` and reused on su
 
 - [Memory](./memory.md) — what persists across sessions and how it's written
 - [Backend Orchestration](./backend-orchestration.md) — nightly cron context (different domain from session management)
-- [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Proposed session compaction and continuity architecture
+- [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Session compaction and continuity architecture (implemented)
 - [ADR-049](../adr/ADR-049-context-freshness-model.md) — original session philosophy (partially superseded by ADR-067)
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — activity log in working memory
 - `api/routes/chat.py` — session creation, message append, history building

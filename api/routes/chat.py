@@ -112,7 +112,6 @@ async def get_or_create_session(
         raise Exception("No session returned from RPC")
     except Exception:
         # Fallback: check for active session within inactivity window (ADR-067 Phase 2)
-        is_new = True
         if scope == "daily":
             from datetime import datetime, timedelta, timezone
             inactivity_cutoff = (
@@ -199,10 +198,6 @@ async def get_session_messages(
         .execute()
     return result.data or []
 
-
-# =============================================================================
-# History Building (Claude Code Alignment)
-# =============================================================================
 
 # =============================================================================
 # History Management (ADR-067: Session Compaction)
