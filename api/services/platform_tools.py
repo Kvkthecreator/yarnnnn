@@ -92,10 +92,7 @@ The user's authed_user_id is in integration metadata. Always send to self unless
 
 Use to find a channel_id before calling platform_slack_get_channel_history.
 
-If the result shows channel IDs but names appear missing or redacted:
-- The user's Slack token may lack scope to read channel names
-- Use Clarify to ask: "I can see your Slack channels but not their names. Can you tell me the name or ID of the channel you want?"
-- Do NOT guess channel IDs or fall back to Search — ask the user directly.""",
+If the result includes warning="channel_names_unavailable": use Clarify to ask the user for the channel name or ID — do NOT fall back to Search.""",
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -112,7 +109,6 @@ Workflow:
 1. platform_slack_list_channels() → find the channel_id matching the channel name the user gave
 2. platform_slack_get_channel_history(channel_id="C...", limit=50) → get messages
 
-If list_channels doesn't show readable names, use Clarify to ask for the channel ID directly.
 Do NOT fall back to Search — Search only queries old cached content, not live messages.
 
 For "last 7 days", use oldest = Unix timestamp of 7 days ago (e.g., str(int(time.time()) - 7*86400)).
@@ -535,6 +531,45 @@ async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict
         token=token,
         metadata=metadata,
     )
+
+    # Result-level failure detection: annotate silent failures before TP sees them
+    if result.get("success") and tool == "list_channels":
+        result = _detect_channel_names_unavailable(result)
+
+    return result
+
+
+def _detect_channel_names_unavailable(result: dict) -> dict:
+    """
+    Detect when list_channels returns channels with empty/missing names.
+
+    Slack's conversations.list returns channel IDs without names when the token
+    lacks channels:read or groups:read scope. This is a silent success — the API
+    call succeeds but the data is incomplete. Add a warning so TP has a runtime
+    signal rather than relying on description-level guidance.
+    """
+    raw = result.get("result")
+    channels = None
+
+    if isinstance(raw, list):
+        channels = raw
+    elif isinstance(raw, dict):
+        channels = raw.get("channels")
+
+    if not channels or not isinstance(channels, list):
+        return result
+
+    # Check if all channels have empty/missing names
+    names_missing = all(not ch.get("name") for ch in channels if isinstance(ch, dict))
+    if names_missing and len(channels) > 0:
+        result = dict(result)
+        result["warning"] = "channel_names_unavailable"
+        result["hint"] = (
+            "Slack token lacks channels:read or groups:read scope — "
+            "channel IDs were returned but names are missing. "
+            "Ask the user for the channel name or ID directly."
+        )
+        logger.warning("[PLATFORM-TOOLS] list_channels: channel names unavailable (scope issue)")
 
     return result
 

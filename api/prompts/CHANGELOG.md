@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.7] - Result-level failure detection for list_channels
+
+### Changed
+- `api/services/platform_tools.py`: Added `_detect_channel_names_unavailable()` post-processor
+  - After a successful `list_channels` call, inspects whether all channels have empty/missing `name` fields
+  - If so, annotates the result with `warning="channel_names_unavailable"` and a `hint` before TP sees it
+  - This is a runtime signal in the data — TP no longer needs to infer the failure from description text
+- `platform_slack_list_channels` description: shortened — removed compensating "if names missing" guidance
+  - Replaced with: "If result includes `warning=channel_names_unavailable`: use Clarify to ask the user"
+  - Description-level guidance was compensating for a silent failure; the result now carries the signal
+- `platform_slack_get_channel_history` description: removed now-redundant "if list_channels doesn't show readable names" line
+
+### Why this matters
+Description-level guidance is a compensating control — it tells the model what to do when something goes wrong, but the model has to correctly interpret a success response as a failure. Result-level annotation is structural: the data itself says what happened. Same class of bug as Render MCP's `list_logs` schema/runtime mismatch, but solved at the source rather than compensated in the prompt layer.
+
+### Behavior before
+TP: list_channels → success:true, channels with empty names → description says "if names missing ask user" → model may or may not follow
+
+### Behavior after
+TP: list_channels → success:true, warning="channel_names_unavailable" → result carries explicit signal → Clarify("Can you tell me the channel name or ID?")
+
 ## [2026.02.19.6] - Fix TP fallback when Slack channel names are unreadable
 
 ### Fixed
