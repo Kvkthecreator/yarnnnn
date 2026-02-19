@@ -2,11 +2,11 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-11
-> **Updated**: 2026-02-12
+> **Updated**: 2026-02-19
 > **Location**: `api/agents/thinking_partner.py`
 > **Primitives**: 7 (ADR-038)
 > **Platform Tools**: Slack, Notion, Gmail, Calendar (ADR-046, ADR-050)
-> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-050: MCP Gateway](../adr/ADR-050-mcp-gateway-architecture.md)
+> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-050: MCP Gateway](../adr/ADR-050-mcp-gateway-architecture.md), [ADR-065: Live-First Platform Context](../adr/ADR-065-live-first-platform-context.md)
 
 ---
 
@@ -18,7 +18,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 
 ---
 
-## Current Version: v5.2 (2026-02-12)
+## Current Version: v6 (2026-02-19)
 
 ### Key Principles
 
@@ -31,6 +31,36 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 | **One clarifying question** | Use `Clarify` only when context + exploration don't resolve ambiguity |
 | **Confirm before creating** | Ask user, then create on confirmation |
 | **7 primitives** | Read, Write, Edit, List, Search, Execute, Clarify (no Respond, no Todo) |
+| **Live tools first** | For platform content queries, call live platform tools before searching the cache (ADR-065) |
+| **Disclose cache use** | When `filesystem_items` fallback is used, tell the user the data age (ADR-065) |
+| **Wait before re-query** | After triggering sync, wait/poll before re-querying — sync is async (ADR-065) |
+
+### Platform Content Access (ADR-065)
+
+This is the most significant v6 change. Prior to v6, TP used `Search(scope="platform_content")` as the primary path for conversational platform queries. This was wrong: TP has direct live platform tools and should use them first.
+
+**Access order:**
+
+```
+1. LIVE (primary) — platform_slack_*, platform_gmail_*, platform_notion_*, platform_calendar_*
+   → Direct API call. Always current. Use this first.
+
+2. CACHE FALLBACK — Search(scope="platform_content")
+   → Queries filesystem_items (ILIKE). May be hours old.
+   → Use only when live tools can't serve the query (cross-platform aggregation, tool unavailable).
+   → MUST disclose cache age: "Based on content synced 3 hours ago..."
+
+3. EMPTY CACHE → SYNC → WAIT → RE-QUERY
+   → Execute(action="platform.sync", target="platform:slack")
+   → Inform user: "Syncing now, ~30–60 seconds."
+   → Poll get_sync_status() until complete (like Claude Code waiting for a deploy)
+   → Re-query once sync confirms fresh
+   → NEVER re-query immediately after triggering sync
+```
+
+**Why this matters:** The empty-query bug (`Search(query="")` after triggering sync) was caused by TP not having this model. It hit an empty cache, triggered sync, then immediately re-queried — getting nothing — because the job is async. With live tools as primary, the sync loop is only ever the last resort.
+
+**Memory is not a search domain.** `scope="memory"` is removed from valid Search scopes. Memory is injected into the system prompt at session start (working memory block). TP already has it. Searching it mid-conversation is redundant and architecturally wrong (ADR-065).
 
 ### The Filesystem Mental Model (ADR-038)
 
@@ -163,6 +193,20 @@ User: "What platforms are connected?"
 ---
 
 ## Changelog
+
+### v6 (2026-02-19)
+
+**Changes:**
+- Reframed platform content access as live-first: live platform tools are primary, `filesystem_items` is fallback
+- Added explicit fallback disclosure requirement: TP must tell the user when a response uses cached content, including cache age
+- Added sync wait-loop pattern: after `Execute(action="platform.sync")`, TP polls `get_sync_status()` before re-querying — never immediate re-query
+- Removed `scope="memory"` from valid Search scopes: Memory is injected at session start, not searched mid-conversation
+
+**Rationale:** ADR-065. TP had live platform tools available but was hitting the `filesystem_items` cache first. Cache empty → trigger sync → immediate re-query → still empty (async race). With live tools as primary, this failure mode is eliminated. Fallback cache is valid for aggregation queries but must be disclosed to the user.
+
+**Files changed:**
+- `api/agents/tp_prompts/behaviors.py` — Added "Platform Content Access" section
+- `api/services/primitives/search.py` — Removed silent `scope="memory"` redirect; added `synced_at` to platform_content results
 
 ### v5.2 (2026-02-12)
 

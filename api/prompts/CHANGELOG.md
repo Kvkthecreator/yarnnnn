@@ -6,6 +6,39 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.1] - Live-First Platform Context (ADR-065)
+
+### Changed
+- `api/agents/tp_prompts/behaviors.py`: Added "Platform Content Access (ADR-065)" section
+  - Defines three-step access order: live tools → cache fallback → sync+wait+re-query
+  - Explicit rule: TP must disclose `synced_at` age when responding from `filesystem_items` cache
+  - Explicit rule: never re-query immediately after `Execute(action="platform.sync")` — sync is async
+  - Wait-loop pattern: poll `get_sync_status()` before re-querying (like Claude Code waiting for a deploy)
+- `api/agents/tp_prompts/behaviors.py`: Fixed Work Boundary DO list — removed "Write to memory" (ADR-064 removed explicit memory tools)
+- `api/services/primitives/search.py`: Removed `scope="memory"` from valid enum values
+- `api/services/primitives/search.py`: Removed silent `scope="memory"` → `scope="platform_content"` redirect; now returns a clear error directing TP to working memory context
+- `api/services/primitives/search.py`: Added `synced_at` field to `platform_content` results so TP can form correct disclosure statements
+- `api/services/primitives/search.py`: `scope="all"` no longer includes `memory` (ADR-065)
+- `api/services/primitives/search.py`: Updated tool description to make live-first model explicit
+
+### Behavior
+- TP's first move for platform content is now a live tool call, not a cache search
+- `Search(scope="platform_content")` is a fallback, not the primary path
+- When fallback is used, TP discloses cache age from `synced_at` field
+- Empty cache → sync → wait → re-query (not immediate re-query)
+- `Search(scope="memory")` now returns a clear error explaining Memory is already in working memory
+
+### Impact
+- Eliminates the empty-query bug: TP no longer falls into cache-miss → sync → immediate re-query → empty loop
+- User always knows when they're seeing cached vs live data
+- Memory search scope removed from TP's available tools — cleaner layer separation
+
+### Token budget impact
+- New behaviors section: ~300 tokens added to system prompt
+- Tool description updated (net neutral — replaced old text)
+
+---
+
 ## [2026.02.18.2] - Implicit Memory (ADR-064)
 
 ### Removed

@@ -1,5 +1,5 @@
 """
-Search Primitive (ADR-038 Phase 2)
+Search Primitive (ADR-038 Phase 2, ADR-065)
 
 Find entities by content using text search.
 
@@ -7,9 +7,13 @@ Usage:
   Search(query="database migration", scope="platform_content")
   Search(query="weekly report", scope="deliverable")
 
-NOTE: 'memory' scope removed per ADR-038. Platform content now lives in
-filesystem_items table. Use scope="platform_content" to search imported
-Slack/Gmail/Notion content.
+ADR-065: scope="platform_content" searches the filesystem_items CACHE (fallback).
+Use live platform tools (platform_slack_*, platform_gmail_*, etc.) as the primary
+path for platform content queries. Search(scope="platform_content") is only for
+cross-platform aggregation or when live tools are unavailable.
+
+scope="memory" is NOT a valid search scope (ADR-065). Memory is injected into the
+TP system prompt at session start via working memory. TP already has it.
 """
 
 from datetime import datetime, timezone
@@ -22,12 +26,16 @@ SEARCH_TOOL = {
     "name": "Search",
     "description": """Find entities by content using text search. Returns refs for use with Read.
 
+IMPORTANT — platform content access order (ADR-065):
+1. Use live platform tools FIRST (platform_slack_*, platform_gmail_*, platform_notion_*, etc.)
+2. Only use Search(scope="platform_content") as FALLBACK for cross-platform aggregation or when live tools fail
+3. When using platform_content results, always disclose the synced_at age to the user
+
 Examples:
-- Search(query="Q2 planning discussion", scope="platform_content") - search imported Slack/Gmail/Notion
+- Search(query="Q2 planning discussion", scope="platform_content") - FALLBACK: search cached Slack/Gmail/Notion
 - Search(query="weekly status", scope="deliverable") - search deliverables
-- Search(query="prefers bullet points", scope="memory") - search user-stated facts
 - Search(query="competitor analysis", scope="document") - search uploaded documents
-- Search(query="competitor analysis") - search all scopes
+- Search(query="competitor analysis") - search all scopes (excludes memory — already in working memory)
 
 Results include a `ref` field (e.g., "document:abc123-uuid"). Use this ref with Read() to get full content.
 
@@ -36,12 +44,13 @@ Workflow for documents:
 2. Read(ref="document:<UUID>") → returns full document content
 
 Scopes:
-- platform_content: Imported platform data (Slack messages, Gmail emails, Notion pages)
-- memory: User-stated facts and preferences (what the user has told you)
+- platform_content: CACHE of platform data (Slack, Gmail, Notion). May be hours old. Disclose age when used.
 - document: Uploaded documents (PDF, DOCX, TXT, MD) - searches actual content, not just filenames
 - deliverable: Your recurring deliverables
 - work: Work tickets
-- all: Search everything""",
+- all: Search everything (platform_content + document + deliverable + work)
+
+Note: Memory is NOT a search scope — it is already in your working memory context at session start.""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -51,8 +60,8 @@ Scopes:
             },
             "scope": {
                 "type": "string",
-                "enum": ["platform_content", "memory", "document", "deliverable", "work", "all"],
-                "description": "What to search. Default: 'all'"
+                "enum": ["platform_content", "document", "deliverable", "work", "all"],
+                "description": "What to search. Default: 'all'. Note: memory is not a scope — it is already in your working memory context."
             },
             "platform": {
                 "type": "string",
@@ -103,14 +112,26 @@ async def handle_search(auth: Any, input: dict) -> dict:
             "message": "Search query is required",
         }
 
-    # Handle legacy 'memory' scope - redirect to platform_content
+    # ADR-065: scope="memory" is not a valid search scope.
+    # Memory is injected into the TP system prompt at session start (working memory).
+    # TP already has this context — searching it mid-conversation is redundant.
     if scope == "memory":
-        scope = "platform_content"
+        return {
+            "success": False,
+            "error": "invalid_scope",
+            "message": (
+                "scope='memory' is not searchable — memory is already in your working memory "
+                "context at session start. Check the 'What you've told me' section of your context. "
+                "To search platform content use scope='platform_content' (cache fallback) or "
+                "use live platform tools (platform_slack_*, platform_gmail_*, etc.) for current data."
+            ),
+        }
 
     try:
         # Determine scopes to search
+        # ADR-065: 'all' excludes memory (already in working memory prompt)
         if scope == "all":
-            scopes = ["platform_content", "memory", "document", "deliverable", "work"]
+            scopes = ["platform_content", "document", "deliverable", "work"]
         else:
             scopes = [scope]
 
@@ -164,7 +185,7 @@ async def _search_platform_content(
     (Slack messages, Gmail emails, Notion pages) lives in filesystem_items.
     """
     try:
-        # Build query on filesystem_items
+        # Build query on filesystem_items (ADR-065: this is the fallback cache path)
         q = auth.client.table("filesystem_items").select(
             "id, platform, resource_id, resource_name, content, content_type, "
             "metadata, source_timestamp, synced_at, expires_at"
@@ -189,10 +210,12 @@ async def _search_platform_content(
         return [
             {
                 "entity_type": "platform_content",
-                "ref": f"platform_content:{item['id']}",  # Use platform_content:uuid format
+                "ref": f"platform_content:{item['id']}",
                 "platform": item["platform"],
                 "resource_name": item.get("resource_name"),
                 "content_type": item.get("content_type"),
+                # ADR-065: synced_at exposed so TP can disclose cache age to user
+                "synced_at": item.get("synced_at"),
                 "data": {
                     "content": item["content"][:500] + "..." if len(item.get("content", "")) > 500 else item.get("content", ""),
                     "source_timestamp": item.get("source_timestamp"),

@@ -2,7 +2,7 @@
 
 How platform data flows from OAuth connection through to the TP system prompt and deliverable execution.
 
-> **Last updated**: 2026-02-18 (ADR-063 — four-layer model: Memory / Activity / Context / Work)
+> **Last updated**: 2026-02-19 (ADR-065 — live-first platform context; filesystem_items as fallback)
 
 ---
 
@@ -127,8 +127,10 @@ An internal cache of recent platform content. Short TTL. Exists specifically to 
 
 ### What it is and is not
 
-- **Is**: A search index for conversational queries about platform content
-- **Is not**: A source of truth. Is not used by deliverable execution. Is not a primary store.
+- **Is**: A fallback search index for conversational queries that live platform tools can't serve cheaply (e.g., cross-platform aggregation)
+- **Is not**: The primary path for platform content access — live platform tools are. Is not a source of truth. Is not used by deliverable execution.
+
+**ADR-065**: The prior model treated `filesystem_items` as TP's primary platform content path. This has been revised. TP uses live platform tools first; `filesystem_items` is a fallback. When fallback is used, TP discloses the cache age to the user.
 
 ### Sync frequency (ADR-053)
 
@@ -225,9 +227,12 @@ These are action calls TP makes on behalf of the user during a chat turn. They a
 
 At the start of every TP session, the working memory block is assembled from **Memory only** (user_context + active deliverables + platform connection status). Raw platform content is **not** pre-injected.
 
-TP accesses platform content during a session in two ways:
-1. `Search(scope="platform_content")` — hits `filesystem_items` cache (text search)
-2. Platform tools (gmail_search, notion_search, etc.) — live API call for specific lookup
+TP accesses platform content during a session in two ways, with a defined priority order (ADR-065):
+
+1. **Primary: Live platform tools** — `platform_gmail_search`, `platform_slack_list_channels`, `platform_notion_search`, etc. Direct API calls. Always current. Used first.
+2. **Fallback: `Search(scope="platform_content")`** — hits `filesystem_items` cache (ILIKE text search). Used when live tools can't serve the query (cross-platform aggregation, live tool unavailable). When used, TP **must disclose the cache age** to the user.
+
+**If the cache is needed but empty**: TP triggers `Execute(action="platform.sync")`, informs the user, then waits (polling `get_sync_status`) before re-querying — never re-queries immediately after triggering sync (the job is async, 10–60s).
 
 ---
 
@@ -251,10 +256,12 @@ Three different connection mechanisms exist — understanding the distinction pr
 
 ---
 
-## Known Gaps (as of 2026-02-18)
+## Known Gaps (as of 2026-02-19)
 
 1. **Notion sync fixed** — `_sync_notion()` now uses `NotionAPIClient` directly (580f378). Resolved.
 
 2. **Document-to-Memory extraction removed** — Documents populate filesystem_chunks only. Intentional for now; "promote to Memory" is a deferred feature.
 
 3. **filesystem_items not used by execution** — documented here as intended behaviour, not a gap. Prevents confusion about the mirror's purpose.
+
+4. **Live-first access model (ADR-065)** — TP now uses live platform tools as the primary path for conversational platform queries. `filesystem_items` is fallback only. TP must disclose when a response is generated from cached content. See [ADR-065](../adr/ADR-065-live-first-platform-context.md).
