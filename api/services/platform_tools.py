@@ -534,6 +534,8 @@ async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict
 
     # Result-level failure detection: annotate silent failures before TP sees them
     if result.get("success") and tool == "list_channels":
+        raw = result.get("result")
+        logger.info(f"[PLATFORM-TOOLS] list_channels raw result type={type(raw).__name__} value={str(raw)[:500]}")
         result = _detect_channel_names_unavailable(result)
 
     return result
