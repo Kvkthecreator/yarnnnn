@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.4] - Fix Slack get_channel_history MCP tool name + platform result truncation
+
+### Fixed
+- `api/services/platform_tools.py`: `map_to_mcp_format()` — added missing `get_channel_history` → `slack_get_channel_history` mapping
+  - `platform_slack_get_channel_history` was passing `get_channel_history` to the MCP gateway, which the Slack MCP server (`@modelcontextprotocol/server-slack`) does not recognise
+  - MCP server returned an empty/error result (200 OK with no messages), causing TP to cascade into the sync fallback loop
+  - Now correctly routes to `slack_get_channel_history` with `channel_id`, `limit`, `oldest` args passed through
+- `api/services/anthropic.py`: `_truncate_tool_result()` — platform tools now use `max_items=100, max_content_len=1000`
+  - Default was `max_items=5`: a workspace with 20 channels would show only 5 to TP, forcing it to guess channel IDs
+  - Platform tool results (channel lists, message history) now pass up to 100 items with 1000-char content per item
+
+### Behavior
+- TP can now correctly read Slack channel history in one live call:
+  `platform_slack_list_channels()` → find channel_id → `platform_slack_get_channel_history(channel_id, ...)` → summarise
+- Sync fallback (`Execute platform.sync`) only triggers when live tools genuinely return empty (no content), not on tool name mismatch
+- Channel list result is no longer truncated before TP can find the right channel by name
+
+### Root cause
+`handle_platform_tool()` parses `platform_slack_get_channel_history` as `provider=slack, tool=get_channel_history`.
+`map_to_mcp_format()` had no case for `get_channel_history`, falling through to the default pass-through.
+The MCP gateway hit `/api/mcp/tools/slack/get_channel_history`; the Slack MCP server has no such tool (its name is `slack_get_channel_history`).
+
+---
+
 ## [2026.02.19.3] - ADR-067: Session compaction and conversational continuity
 
 ### Added

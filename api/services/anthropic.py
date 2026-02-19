@@ -343,7 +343,15 @@ async def chat_completion_stream_with_tools(
 
                 # Truncate large results to prevent context overflow
                 # ADR-043: Keep tool results concise for conversation history
-                truncated_result = _truncate_tool_result(result)
+                # Platform tools (channels, messages) need higher limits than
+                # internal tools — TP must see all channels to find the right one,
+                # and enough messages to answer the user's question.
+                if tool_use.name.startswith("platform_"):
+                    truncated_result = _truncate_tool_result(
+                        result, max_items=100, max_content_len=1000
+                    )
+                else:
+                    truncated_result = _truncate_tool_result(result)
                 tool_results.append({
                     "type": "tool_result",
                     "tool_use_id": tool_use.id,

@@ -992,6 +992,10 @@ def map_to_mcp_format(provider: str, tool: str, args: dict) -> tuple[str, dict]:
     Only used for Slack (the only MCP-routed platform).
     Notion uses Direct API now (ADR-050).
 
+    Slack MCP server tool names (@modelcontextprotocol/server-slack):
+      slack_post_message, slack_list_channels, slack_get_channel_history,
+      slack_get_users, slack_get_user_profile
+
     Returns:
         (mcp_tool_name, mcp_args)
     """
@@ -1003,6 +1007,13 @@ def map_to_mcp_format(provider: str, tool: str, args: dict) -> tuple[str, dict]:
             }
         elif tool == "list_channels":
             return "slack_list_channels", {}
+        elif tool == "get_channel_history":
+            mcp_args: dict = {"channel_id": args.get("channel_id")}
+            if args.get("limit"):
+                mcp_args["limit"] = args["limit"]
+            if args.get("oldest"):
+                mcp_args["oldest"] = args["oldest"]
+            return "slack_get_channel_history", mcp_args
 
     # Default: pass through
     return tool, args
