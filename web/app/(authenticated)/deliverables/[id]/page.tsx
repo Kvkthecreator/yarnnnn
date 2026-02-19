@@ -1,13 +1,15 @@
 'use client';
 
 /**
- * ADR-037: Deliverable Detail Page (Route-based)
+ * ADR-066: Deliverable Detail Page — Output-First with Inline Review
  *
- * Standalone page for viewing a specific deliverable's details.
- * Shows status, versions, sources, and links to review in chat.
+ * Shows the latest generated output with inline approve/reject actions.
+ * Configuration lives in settings modal; this page is for reviewing work.
+ *
+ * Replaces the previous metadata-heavy page and merges in the review functionality.
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import {
   Loader2,
@@ -15,108 +17,151 @@ import {
   Pause,
   Settings,
   Clock,
-  TrendingUp,
-  TrendingDown,
-  Minus,
+  Check,
+  X,
+  Copy,
   CheckCircle2,
   XCircle,
-  AlertCircle,
-  Link as LinkIcon,
-  FileText,
-  User,
-  Sparkles,
-  AlertTriangle,
-  ChevronRight,
-  Eye,
-  Mail,
-  Download,
   ChevronLeft,
-  Calendar,
+  ChevronDown,
+  ChevronRight,
   MessageSquare,
+  Mail,
+  FileText,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { DeliverableSettingsModal } from '@/components/modals/DeliverableSettingsModal';
-import type { Deliverable, DeliverableVersion, FeedbackSummary } from '@/types';
-import { SourceSnapshotsBadge } from '@/components/deliverables/SourceSnapshotsSummary';
+import { SourceSnapshotsSummary } from '@/components/deliverables/SourceSnapshotsSummary';
+import type { Deliverable, DeliverableVersion } from '@/types';
 
-const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
-  status_report: 'Status Report',
-  stakeholder_update: 'Stakeholder Update',
-  research_brief: 'Research Brief',
-  meeting_summary: 'Meeting Summary',
-  custom: 'Custom',
-  client_proposal: 'Client Proposal',
-  performance_self_assessment: 'Performance Self-Assessment',
-  newsletter_section: 'Newsletter Section',
-  changelog: 'Changelog',
-  one_on_one_prep: '1:1 Prep',
-  board_update: 'Board Update',
-  inbox_summary: 'Inbox Summary',
-  reply_draft: 'Reply Draft',
-  follow_up_tracker: 'Follow-up Tracker',
-  thread_summary: 'Thread Summary',
+// =============================================================================
+// Platform Config
+// =============================================================================
+
+const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+  gmail: Mail,
+  slack: MessageSquare,
+  notion: FileText,
+  download: Download,
 };
 
-const PLATFORM_CONFIG: Record<string, {
-  icon: React.ComponentType<{ className?: string }>;
-  label: string;
-  color: string;
-}> = {
-  gmail: { icon: Mail, label: 'Gmail', color: 'text-red-600' },
-  slack: { icon: MessageSquare, label: 'Slack', color: 'text-purple-600' },
-  notion: { icon: FileText, label: 'Notion', color: 'text-gray-700' },
-  download: { icon: Download, label: 'Download', color: 'text-blue-600' },
+const PLATFORM_LABELS: Record<string, string> = {
+  gmail: 'Gmail',
+  slack: 'Slack',
+  notion: 'Notion',
+  download: 'Download',
 };
+
+// =============================================================================
+// Main Component
+// =============================================================================
 
 export default function DeliverableDetailPage() {
   const params = useParams<{ id: string }>();
   const id = params.id;
   const router = useRouter();
+
+  // Data state
   const [loading, setLoading] = useState(true);
-  const [running, setRunning] = useState(false);
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
   const [versions, setVersions] = useState<DeliverableVersion[]>([]);
-  const [feedbackSummary, setFeedbackSummary] = useState<FeedbackSummary | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  useEffect(() => {
-    loadDeliverable();
-  }, [id]);
+  // Review state
+  const [editedContent, setEditedContent] = useState('');
+  const [feedbackNotes, setFeedbackNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [running, setRunning] = useState(false);
 
-  const loadDeliverable = async () => {
-    setLoading(true);
+  // Version history state
+  const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
+
+  // Load deliverable data
+  const loadDeliverable = useCallback(async () => {
     try {
       const detail = await api.deliverables.get(id);
       setDeliverable(detail.deliverable);
       setVersions(detail.versions);
-      setFeedbackSummary(detail.feedback_summary || null);
+
+      // Initialize editor with latest pending version
+      const latestPending = detail.versions.find(
+        (v) => v.status === 'staged' || v.status === 'reviewing' || v.status === 'draft'
+      );
+      if (latestPending) {
+        setEditedContent(latestPending.draft_content || latestPending.final_content || '');
+      }
     } catch (err) {
       console.error('Failed to load deliverable:', err);
     } finally {
       setLoading(false);
     }
+  }, [id]);
+
+  useEffect(() => {
+    loadDeliverable();
+  }, [loadDeliverable]);
+
+  // Get the latest version that needs review (staged/reviewing/draft)
+  const latestVersion = versions[0];
+  const pendingVersion = versions.find(
+    (v) => v.status === 'staged' || v.status === 'reviewing' || v.status === 'draft'
+  );
+  const hasPendingReview = !!pendingVersion;
+
+  // =============================================================================
+  // Actions
+  // =============================================================================
+
+  const handleApprove = async () => {
+    if (!pendingVersion) return;
+
+    setSaving(true);
+    try {
+      const hasEdits = editedContent !== (pendingVersion.draft_content || pendingVersion.final_content);
+      await api.deliverables.updateVersion(id, pendingVersion.id, {
+        status: 'approved',
+        final_content: hasEdits ? editedContent : undefined,
+        feedback_notes: feedbackNotes || undefined,
+      });
+
+      // Reload to get updated state
+      await loadDeliverable();
+      setFeedbackNotes('');
+    } catch (err) {
+      console.error('Failed to approve:', err);
+      alert('Failed to approve. Please try again.');
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const handleRunNow = async () => {
-    if (!deliverable) return;
+  const handleReject = async () => {
+    if (!pendingVersion) return;
 
-    setRunning(true);
+    if (!feedbackNotes.trim()) {
+      alert("Please add feedback explaining why you're rejecting this version.");
+      return;
+    }
+
+    setSaving(true);
     try {
-      const result = await api.deliverables.run(id);
-      if (result.success && result.version_id) {
-        await loadDeliverable();
-        // Navigate to review in dashboard
-        if (result.status === 'staged') {
-          router.push(`/dashboard/deliverable/${id}/review/${result.version_id}`);
-        }
-      }
+      await api.deliverables.updateVersion(id, pendingVersion.id, {
+        status: 'rejected',
+        feedback_notes: feedbackNotes,
+      });
+
+      await loadDeliverable();
+      setFeedbackNotes('');
     } catch (err) {
-      console.error('Failed to run deliverable:', err);
-      alert('Failed to run. Please try again.');
+      console.error('Failed to reject:', err);
+      alert('Failed to reject. Please try again.');
     } finally {
-      setRunning(false);
+      setSaving(false);
     }
   };
 
@@ -132,15 +177,73 @@ export default function DeliverableDetailPage() {
     }
   };
 
-  const openVersionReview = (version: DeliverableVersion) => {
-    if (version.draft_content || version.final_content) {
-      router.push(`/dashboard/deliverable/${id}/review/${version.id}`);
+  const handleRunNow = async () => {
+    if (!deliverable) return;
+
+    setRunning(true);
+    try {
+      await api.deliverables.run(id);
+      await loadDeliverable();
+    } catch (err) {
+      console.error('Failed to run deliverable:', err);
+      alert('Failed to run. Please try again.');
+    } finally {
+      setRunning(false);
     }
+  };
+
+  const handleCopy = async () => {
+    const content = pendingVersion?.draft_content || pendingVersion?.final_content || editedContent;
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleSettingsSaved = (updated: Deliverable) => {
     setDeliverable(updated);
   };
+
+  // =============================================================================
+  // Helpers
+  // =============================================================================
+
+  const formatSchedule = () => {
+    if (!deliverable?.schedule) return 'No schedule';
+    const s = deliverable.schedule;
+    const time = s.time || '09:00';
+    const day = s.day
+      ? s.day.charAt(0).toUpperCase() + s.day.slice(1)
+      : s.frequency === 'monthly' ? '1st' : 'Monday';
+
+    switch (s.frequency) {
+      case 'daily': return `Daily at ${time}`;
+      case 'weekly': return `Weekly on ${day} at ${time}`;
+      case 'biweekly': return `Every 2 weeks on ${day} at ${time}`;
+      case 'monthly': return `Monthly on the ${day} at ${time}`;
+      default: return s.frequency || 'Custom';
+    }
+  };
+
+  const getStatusBadge = (status: string) => {
+    switch (status) {
+      case 'approved':
+        return <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3" />Approved</span>;
+      case 'rejected':
+        return <span className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full"><XCircle className="w-3 h-3" />Rejected</span>;
+      case 'staged':
+      case 'reviewing':
+      case 'draft':
+        return <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full"><Clock className="w-3 h-3" />Pending Review</span>;
+      case 'generating':
+        return <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full"><Loader2 className="w-3 h-3 animate-spin" />Generating</span>;
+      default:
+        return <span className="text-xs text-muted-foreground">{status}</span>;
+    }
+  };
+
+  // =============================================================================
+  // Render
+  // =============================================================================
 
   if (loading) {
     return (
@@ -153,7 +256,7 @@ export default function DeliverableDetailPage() {
   if (!deliverable) {
     return (
       <div className="h-full flex flex-col items-center justify-center gap-4">
-        <Calendar className="w-8 h-8 text-muted-foreground" />
+        <FileText className="w-8 h-8 text-muted-foreground" />
         <p className="text-muted-foreground">Deliverable not found</p>
         <button onClick={() => router.push('/deliverables')} className="text-sm text-primary hover:underline">
           Back to Deliverables
@@ -162,97 +265,36 @@ export default function DeliverableDetailPage() {
     );
   }
 
-  const formatSchedule = () => {
-    const s = deliverable.schedule;
-    if (!s) return 'No schedule';
-
-    const time = s.time || '09:00';
-    const day = s.day
-      ? s.day.charAt(0).toUpperCase() + s.day.slice(1)
-      : s.frequency === 'monthly'
-        ? '1st'
-        : 'Monday';
-
-    switch (s.frequency) {
-      case 'daily':
-        return `Daily at ${time}`;
-      case 'weekly':
-        return `Weekly on ${day} at ${time}`;
-      case 'biweekly':
-        return `Every 2 weeks on ${day} at ${time}`;
-      case 'monthly':
-        return `Monthly on the ${day} at ${time}`;
-      default:
-        return s.frequency || 'Custom';
-    }
-  };
-
-  const getTrendIcon = () => {
-    switch (deliverable.quality_trend) {
-      case 'improving':
-        return <TrendingUp className="w-4 h-4 text-green-600" />;
-      case 'declining':
-        return <TrendingDown className="w-4 h-4 text-red-600" />;
-      default:
-        return <Minus className="w-4 h-4 text-muted-foreground" />;
-    }
-  };
-
-  const getVersionStatusIcon = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <CheckCircle2 className="w-4 h-4 text-green-600" />;
-      case 'rejected':
-        return <XCircle className="w-4 h-4 text-red-600" />;
-      case 'staged':
-      case 'reviewing':
-        return <AlertCircle className="w-4 h-4 text-amber-500" />;
-      case 'generating':
-        return <Loader2 className="w-4 h-4 animate-spin text-blue-500" />;
-      default:
-        return null;
-    }
-  };
-
-  const recentRejections = versions.filter((v) => v.status === 'rejected').length;
-  const lastApproved = versions.find((v) => v.status === 'approved');
-  const allRejected = versions.length > 0 && !lastApproved;
-  const qualityPercent =
-    deliverable.quality_score !== undefined
-      ? Math.round((1 - deliverable.quality_score) * 100)
-      : null;
+  const DestIcon = deliverable.destination ? PLATFORM_ICONS[deliverable.destination.platform] : null;
+  const destLabel = deliverable.destination ? PLATFORM_LABELS[deliverable.destination.platform] : null;
 
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
             <button
               onClick={() => router.push('/deliverables')}
-              className="p-2 hover:bg-muted rounded-lg transition-colors"
+              className="p-2 -ml-2 hover:bg-muted rounded-lg transition-colors"
               title="Back to Deliverables"
             >
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div>
               <h1 className="text-xl font-semibold">{deliverable.title}</h1>
-              <div className="flex items-center gap-3 text-sm text-muted-foreground mt-0.5">
-                <span className="flex items-center gap-1">
-                  <Clock className="w-3 h-3" />
-                  {formatSchedule()}
-                </span>
-                {deliverable.destination && (() => {
-                  const config = PLATFORM_CONFIG[deliverable.destination.platform];
-                  if (!config) return null;
-                  const Icon = config.icon;
-                  return (
-                    <span className={cn("flex items-center gap-1", config.color)}>
-                      <Icon className="w-3 h-3" />
-                      {config.label}
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                <Clock className="w-3.5 h-3.5" />
+                <span>{formatSchedule()}</span>
+                {DestIcon && destLabel && (
+                  <>
+                    <span>→</span>
+                    <span className="flex items-center gap-1">
+                      <DestIcon className="w-3.5 h-3.5" />
+                      {destLabel}
                     </span>
-                  );
-                })()}
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -260,8 +302,8 @@ export default function DeliverableDetailPage() {
             <button
               onClick={handleTogglePause}
               className={cn(
-                "p-2 border border-border rounded-md hover:bg-muted",
-                deliverable.status === 'paused' && "text-amber-600 border-amber-300 bg-amber-50"
+                "p-2 border border-border rounded-md hover:bg-muted transition-colors",
+                deliverable.status === 'paused' && "text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20"
               )}
               title={deliverable.status === 'paused' ? 'Resume' : 'Pause'}
             >
@@ -269,7 +311,7 @@ export default function DeliverableDetailPage() {
             </button>
             <button
               onClick={() => setSettingsOpen(true)}
-              className="p-2 border border-border rounded-md hover:bg-muted"
+              className="p-2 border border-border rounded-md hover:bg-muted transition-colors"
               title="Settings"
             >
               <Settings className="w-4 h-4" />
@@ -277,261 +319,198 @@ export default function DeliverableDetailPage() {
           </div>
         </div>
 
-        {/* Status Banner */}
-        {(deliverable.status === 'paused' || allRejected) && (
-          <div
-            className={cn(
-              'p-3 rounded-lg border flex items-start gap-3 mb-6',
-              deliverable.status === 'paused'
-                ? 'bg-amber-50 border-amber-200 text-amber-800'
-                : 'bg-red-50 border-red-200 text-red-800'
+        {/* Latest Output Section */}
+        {hasPendingReview && pendingVersion ? (
+          <div className="border border-border rounded-lg mb-6 overflow-hidden">
+            {/* Version Header */}
+            <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-medium">Latest Output</h2>
+                {getStatusBadge(pendingVersion.status)}
+              </div>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>v{pendingVersion.version_number}</span>
+                <span>·</span>
+                <span>{format(new Date(pendingVersion.created_at), 'MMM d, h:mm a')}</span>
+                <button
+                  onClick={handleCopy}
+                  className="ml-2 p-1.5 hover:bg-muted rounded transition-colors"
+                  title="Copy content"
+                >
+                  {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Source Snapshots */}
+            {pendingVersion.source_snapshots && pendingVersion.source_snapshots.length > 0 && (
+              <div className="px-4 py-3 border-b border-border bg-muted/20">
+                <SourceSnapshotsSummary snapshots={pendingVersion.source_snapshots} compact />
+              </div>
             )}
-          >
-            <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5" />
-            <div className="text-sm">
-              {deliverable.status === 'paused' ? (
+
+            {/* Content Editor */}
+            <div className="p-4">
+              <textarea
+                value={editedContent}
+                onChange={(e) => setEditedContent(e.target.value)}
+                className="w-full min-h-[300px] px-4 py-3 border border-border rounded-lg bg-background text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y font-mono"
+                placeholder="Generated content..."
+              />
+            </div>
+
+            {/* Feedback Input */}
+            <div className="px-4 pb-4">
+              <input
+                type="text"
+                value={feedbackNotes}
+                onChange={(e) => setFeedbackNotes(e.target.value)}
+                placeholder="Add feedback (required for reject)..."
+                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+            </div>
+
+            {/* Review Actions */}
+            <div className="px-4 py-3 border-t border-border bg-muted/20 flex items-center justify-between">
+              <button
+                onClick={handleReject}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md disabled:opacity-50 transition-colors"
+              >
+                <X className="w-4 h-4" />
+                Reject
+              </button>
+              <button
+                onClick={handleApprove}
+                disabled={saving}
+                className="inline-flex items-center gap-1.5 px-6 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                {saving ? 'Saving...' : 'Approve'}
+              </button>
+            </div>
+          </div>
+        ) : latestVersion ? (
+          /* No pending review - show last version status */
+          <div className="border border-border rounded-lg mb-6 p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h2 className="text-sm font-medium">Latest Output</h2>
+                {getStatusBadge(latestVersion.status)}
+              </div>
+              <span className="text-xs text-muted-foreground">
+                v{latestVersion.version_number} · {format(new Date(latestVersion.created_at), 'MMM d, h:mm a')}
+              </span>
+            </div>
+            {latestVersion.final_content && (
+              <p className="mt-3 text-sm text-muted-foreground line-clamp-3">
+                {latestVersion.final_content.slice(0, 200)}...
+              </p>
+            )}
+          </div>
+        ) : (
+          /* No versions yet */
+          <div className="border border-dashed border-border rounded-lg mb-6 p-8 text-center">
+            <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
+            <p className="text-muted-foreground mb-4">No output generated yet</p>
+            <button
+              onClick={handleRunNow}
+              disabled={running || deliverable.status === 'archived'}
+              className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50"
+            >
+              {running ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {running ? 'Generating...' : 'Run Now'}
+            </button>
+          </div>
+        )}
+
+        {/* Previous Versions */}
+        {versions.length > 1 && (
+          <div className="border border-border rounded-lg mb-6">
+            <div className="px-4 py-3 border-b border-border bg-muted/30">
+              <h2 className="text-sm font-medium">Previous Versions</h2>
+            </div>
+            <div className="divide-y divide-border">
+              {versions.slice(1, 10).map((version) => (
+                <div key={version.id}>
+                  <button
+                    onClick={() => setExpandedVersionId(expandedVersionId === version.id ? null : version.id)}
+                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      {expandedVersionId === version.id ? (
+                        <ChevronDown className="w-4 h-4 text-muted-foreground" />
+                      ) : (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                      )}
+                      <span className="text-sm font-medium">v{version.version_number}</span>
+                      {getStatusBadge(version.status)}
+                    </div>
+                    <span className="text-xs text-muted-foreground">
+                      {format(new Date(version.created_at), 'MMM d, h:mm a')}
+                    </span>
+                  </button>
+                  {expandedVersionId === version.id && (
+                    <div className="px-4 pb-4 pl-11">
+                      {version.source_snapshots && version.source_snapshots.length > 0 && (
+                        <div className="mb-3">
+                          <SourceSnapshotsSummary snapshots={version.source_snapshots} compact />
+                        </div>
+                      )}
+                      <pre className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 overflow-auto max-h-[200px] whitespace-pre-wrap">
+                        {version.final_content || version.draft_content || 'No content'}
+                      </pre>
+                      {version.feedback_notes && (
+                        <p className="mt-2 text-xs text-muted-foreground italic">
+                          Feedback: "{version.feedback_notes}"
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+            {versions.length > 10 && (
+              <div className="px-4 py-2 text-center border-t border-border">
+                <span className="text-xs text-muted-foreground">
+                  Showing 9 of {versions.length - 1} previous versions
+                </span>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Schedule Section */}
+        <div className="border border-border rounded-lg">
+          <div className="px-4 py-3 border-b border-border bg-muted/30">
+            <h2 className="text-sm font-medium">Schedule</h2>
+          </div>
+          <div className="p-4 flex items-center justify-between">
+            <div>
+              {deliverable.next_run_at ? (
                 <>
-                  <p className="font-medium">Deliverable is paused</p>
-                  <p className="text-xs opacity-80 mt-0.5">
-                    Scheduled runs are skipped. You can still run manually.
+                  <p className="text-sm">
+                    Next run: <span className="font-medium">{format(new Date(deliverable.next_run_at), 'EEE, MMM d')} at {format(new Date(deliverable.next_run_at), 'h:mm a')}</span>
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    {formatDistanceToNow(new Date(deliverable.next_run_at), { addSuffix: true })}
                   </p>
                 </>
               ) : (
-                <>
-                  <p className="font-medium">
-                    Last {recentRejections} version{recentRejections !== 1 ? 's were' : ' was'} rejected
-                  </p>
-                  <p className="text-xs opacity-80 mt-0.5">
-                    YARNNN will incorporate your feedback in the next run.
-                  </p>
-                </>
+                <p className="text-sm text-muted-foreground">No scheduled runs</p>
               )}
             </div>
-          </div>
-        )}
-
-        {/* Status Cards */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="p-4 border border-border rounded-lg">
-            <p className="text-xs text-muted-foreground mb-1">Next Run</p>
-            {deliverable.next_run_at ? (
-              <>
-                <p className="font-medium">
-                  {formatDistanceToNow(new Date(deliverable.next_run_at), { addSuffix: false })}
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  {format(new Date(deliverable.next_run_at), 'EEE, MMM d')}
-                </p>
-              </>
-            ) : (
-              <p className="text-sm text-muted-foreground">Not scheduled</p>
+            {!hasPendingReview && (
+              <button
+                onClick={handleRunNow}
+                disabled={running || deliverable.status === 'archived'}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 transition-colors"
+              >
+                {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+                Run Now
+              </button>
             )}
           </div>
-
-          <div className="p-4 border border-border rounded-lg">
-            <p className="text-xs text-muted-foreground mb-1">Quality</p>
-            {qualityPercent !== null ? (
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-lg">{qualityPercent}%</span>
-                {getTrendIcon()}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground">No data yet</p>
-            )}
-          </div>
-
-          <div className="p-4 border border-border rounded-lg">
-            <p className="text-xs text-muted-foreground mb-1">Status</p>
-            <div className="flex items-center gap-1.5">
-              <span
-                className={cn(
-                  'w-2 h-2 rounded-full',
-                  deliverable.status === 'active'
-                    ? 'bg-green-500'
-                    : deliverable.status === 'paused'
-                      ? 'bg-amber-500'
-                      : 'bg-gray-400'
-                )}
-              />
-              <span className="font-medium capitalize">{deliverable.status}</span>
-            </div>
-            <p className="text-xs text-muted-foreground">{versions.length} versions</p>
-          </div>
-        </div>
-
-        {/* Run Now Button */}
-        <button
-          onClick={handleRunNow}
-          disabled={running || deliverable.status === 'archived'}
-          className="w-full py-3 mb-6 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 disabled:opacity-50 flex items-center justify-center gap-2"
-        >
-          {running ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Generating...
-            </>
-          ) : (
-            <>
-              <Play className="w-4 h-4" />
-              Run Now
-            </>
-          )}
-        </button>
-
-        {/* What It Generates */}
-        <div className="border border-border rounded-lg mb-6">
-          <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <h2 className="text-sm font-medium">What It Generates</h2>
-          </div>
-          <div className="p-4 space-y-3 text-sm">
-            <div className="flex items-start gap-3">
-              <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-              <div>
-                <p className="font-medium">
-                  {DELIVERABLE_TYPE_LABELS[deliverable.deliverable_type] || deliverable.deliverable_type}
-                </p>
-                {deliverable.description && (
-                  <p className="text-muted-foreground text-xs mt-0.5">{deliverable.description}</p>
-                )}
-              </div>
-            </div>
-
-            {deliverable.recipient_context?.name && (
-              <div className="flex items-start gap-3">
-                <User className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                <div>
-                  <p>
-                    For <span className="font-medium">{deliverable.recipient_context.name}</span>
-                    {deliverable.recipient_context.role && (
-                      <span className="text-muted-foreground"> ({deliverable.recipient_context.role})</span>
-                    )}
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Data Sources */}
-        {deliverable.sources && deliverable.sources.length > 0 && (
-          <div className="border border-border rounded-lg mb-6">
-            <div className="px-4 py-3 border-b border-border bg-muted/30">
-              <h2 className="text-sm font-medium">Data Sources</h2>
-            </div>
-            <div className="p-4">
-              <div className="space-y-2">
-                {deliverable.sources.map((source, index) => (
-                  <div key={index} className="flex items-start gap-2 text-sm">
-                    {source.type === 'url' ? (
-                      <LinkIcon className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                    ) : (
-                      <FileText className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
-                    )}
-                    <span className="break-all">
-                      {source.type === 'url' ? (
-                        <a
-                          href={source.value}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          {source.label || source.value}
-                        </a>
-                      ) : (
-                        source.value
-                      )}
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Learned Preferences */}
-        {feedbackSummary?.learned_preferences && feedbackSummary.learned_preferences.length > 0 && (
-          <div className="border border-border rounded-lg mb-6">
-            <div className="px-4 py-3 border-b border-border bg-muted/30">
-              <h2 className="text-sm font-medium flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4" />
-                Learned From Your Edits
-              </h2>
-            </div>
-            <div className="p-4">
-              <ul className="space-y-1.5 text-sm">
-                {feedbackSummary.learned_preferences.map((pref, i) => (
-                  <li key={i} className="flex items-start gap-2">
-                    <span className="text-muted-foreground">·</span>
-                    <span>{pref}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        )}
-
-        {/* Version History */}
-        <div className="border border-border rounded-lg">
-          <div className="px-4 py-3 border-b border-border bg-muted/30">
-            <h2 className="text-sm font-medium">Version History</h2>
-          </div>
-          <div className="divide-y divide-border">
-            {versions.length === 0 ? (
-              <p className="px-4 py-6 text-sm text-muted-foreground text-center">
-                No versions yet. Run now to generate the first one.
-              </p>
-            ) : (
-              versions.slice(0, 10).map((version) => {
-                const hasContent = version.draft_content || version.final_content;
-                return (
-                  <button
-                    key={version.id}
-                    onClick={() => openVersionReview(version)}
-                    disabled={!hasContent}
-                    className={cn(
-                      'w-full px-4 py-3 text-left',
-                      hasContent ? 'hover:bg-muted cursor-pointer' : 'cursor-default opacity-60'
-                    )}
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        {getVersionStatusIcon(version.status)}
-                        <span className="text-sm font-medium">v{version.version_number}</span>
-                        <span className="text-xs text-muted-foreground capitalize">{version.status}</span>
-                      </div>
-                      <span className="text-xs text-muted-foreground">
-                        {format(new Date(version.created_at), 'MMM d, h:mm a')}
-                      </span>
-                    </div>
-
-                    {version.feedback_notes && (
-                      <p className="mt-1 text-xs text-muted-foreground truncate">"{version.feedback_notes}"</p>
-                    )}
-
-                    {/* ADR-049: Show source snapshots badge */}
-                    {version.source_snapshots && version.source_snapshots.length > 0 && (
-                      <div className="mt-1.5">
-                        <SourceSnapshotsBadge snapshots={version.source_snapshots} />
-                      </div>
-                    )}
-
-                    {hasContent && (
-                      <div className="flex items-center gap-1 mt-1.5 text-xs text-muted-foreground">
-                        <Eye className="w-3 h-3" />
-                        <span>View output</span>
-                        <ChevronRight className="w-3 h-3" />
-                      </div>
-                    )}
-                  </button>
-                );
-              })
-            )}
-          </div>
-          {versions.length > 10 && (
-            <div className="px-4 py-2 text-center border-t border-border">
-              <span className="text-xs text-muted-foreground">Showing 10 of {versions.length} versions</span>
-            </div>
-          )}
         </div>
       </div>
 
