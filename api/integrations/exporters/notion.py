@@ -1,7 +1,12 @@
 """
-Notion Exporter - ADR-028, ADR-032
+Notion Exporter - ADR-028, ADR-032, ADR-050
 
-Delivers content to Notion pages via MCP.
+Delivers content to Notion pages via Direct API.
+
+ADR-050: Uses NotionAPIClient (direct REST calls to api.notion.com) instead of spawning
+the @notionhq/notion-mcp-server via npx — the Notion MCP server requires internal
+integration tokens (ntn_...) and cannot use OAuth access tokens, making it incompatible
+with YARNNN's existing auth model. Direct API works perfectly with OAuth tokens.
 
 ADR-032 adds support for draft pages in a YARNNN Drafts database.
 
@@ -23,16 +28,143 @@ Destination Schema:
 import logging
 from typing import Any, Optional
 
+import httpx
+
 from integrations.core.types import ExportResult, ExportStatus
-from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+from integrations.core.notion_client import get_notion_client
 from .base import DestinationExporter, ExporterContext
 
 logger = logging.getLogger(__name__)
 
+# Notion API version header
+NOTION_VERSION = "2022-06-28"
+
+
+def _markdown_to_notion_blocks(content: str) -> list[dict]:
+    """
+    Convert markdown content to Notion block objects.
+
+    Notion's REST API accepts blocks when creating pages. This does a best-effort
+    conversion from markdown to paragraph/heading blocks.
+
+    For simplicity we create paragraph blocks from each non-empty line.
+    Headings (# / ##) are converted to heading_1 / heading_2.
+    """
+    blocks = []
+    for line in content.split("\n"):
+        stripped = line.rstrip()
+        if not stripped:
+            continue
+
+        if stripped.startswith("### "):
+            blocks.append({
+                "object": "block",
+                "type": "heading_3",
+                "heading_3": {
+                    "rich_text": [{"type": "text", "text": {"content": stripped[4:]}}]
+                }
+            })
+        elif stripped.startswith("## "):
+            blocks.append({
+                "object": "block",
+                "type": "heading_2",
+                "heading_2": {
+                    "rich_text": [{"type": "text", "text": {"content": stripped[3:]}}]
+                }
+            })
+        elif stripped.startswith("# "):
+            blocks.append({
+                "object": "block",
+                "type": "heading_1",
+                "heading_1": {
+                    "rich_text": [{"type": "text", "text": {"content": stripped[2:]}}]
+                }
+            })
+        elif stripped.startswith("- ") or stripped.startswith("* "):
+            blocks.append({
+                "object": "block",
+                "type": "bulleted_list_item",
+                "bulleted_list_item": {
+                    "rich_text": [{"type": "text", "text": {"content": stripped[2:]}}]
+                }
+            })
+        else:
+            blocks.append({
+                "object": "block",
+                "type": "paragraph",
+                "paragraph": {
+                    "rich_text": [{"type": "text", "text": {"content": stripped}}]
+                }
+            })
+
+    return blocks
+
+
+async def _create_notion_page(
+    access_token: str,
+    parent_id: str,
+    parent_type: str,  # "page_id" or "database_id"
+    title: str,
+    content: str,
+    properties: Optional[dict] = None,
+) -> dict:
+    """
+    Create a Notion page via Direct API (POST /v1/pages).
+
+    Args:
+        parent_type: "page_id" for sub-pages, "database_id" for DB entries
+        properties: Additional properties for database items (merged with title)
+
+    Returns:
+        Created page object from Notion API
+    """
+    # Build page title property (required for all pages)
+    title_property = {
+        "title": [{"type": "text", "text": {"content": title}}]
+    }
+
+    # Merge with any provided properties
+    page_properties = {**title_property, **(properties or {})}
+
+    # Convert content to blocks
+    children = _markdown_to_notion_blocks(content)
+
+    body: dict[str, Any] = {
+        "parent": {parent_type: parent_id},
+        "properties": page_properties,
+        "children": children,
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        response = await client.post(
+            "https://api.notion.com/v1/pages",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Notion-Version": NOTION_VERSION,
+                "Content-Type": "application/json",
+            },
+            json=body,
+        )
+
+        if response.status_code not in (200, 201):
+            error_data = response.json()
+            raise RuntimeError(
+                f"Notion API error ({response.status_code}): "
+                f"{error_data.get('message', response.text)}"
+            )
+
+        return response.json()
+
 
 class NotionExporter(DestinationExporter):
     """
-    Exports content to Notion via MCP.
+    Exports content to Notion via Direct API.
+
+    ADR-050: Uses NotionAPIClient / direct REST calls instead of MCP npx subprocess.
+    This is required because:
+    1. @notionhq/notion-mcp-server needs internal tokens (ntn_...), not OAuth
+    2. Python API on Render has no Node.js runtime for npx
+    3. Direct API works with our OAuth tokens and is simpler
 
     Supports:
     - Creating pages under a parent page
@@ -49,17 +181,14 @@ class NotionExporter(DestinationExporter):
 
     def validate_destination(self, destination: dict[str, Any]) -> bool:
         """Validate Notion destination config."""
-        # Must have a target (page ID)
         target = destination.get("target")
         if not target:
             return False
 
-        # Format must be supported
         fmt = destination.get("format", "page")
         if fmt not in self.get_supported_formats():
             return False
 
-        # Database items need database_id in options
         if fmt == "database_item":
             options = destination.get("options", {})
             if not options.get("database_id"):
@@ -81,13 +210,7 @@ class NotionExporter(DestinationExporter):
         metadata: dict[str, Any],
         context: ExporterContext
     ) -> ExportResult:
-        """Deliver content to Notion."""
-        if not MCP_AVAILABLE:
-            return ExportResult(
-                status=ExportStatus.FAILED,
-                error_message="MCP not available. Install: pip install mcp"
-            )
-
+        """Deliver content to Notion via Direct API."""
         target = destination.get("target")
         fmt = destination.get("format", "page")
         options = destination.get("options", {})
@@ -98,79 +221,50 @@ class NotionExporter(DestinationExporter):
                 error_message="No target page specified"
             )
 
-        try:
-            mcp = get_mcp_manager()
+        access_token = context.access_token
 
-            # ADR-032: Handle draft format (platform-centric drafts)
+        try:
             if fmt == "draft":
                 return await self._create_draft_page(
-                    mcp=mcp,
-                    context=context,
+                    access_token=access_token,
                     target=target,
                     title=title,
                     content=content,
-                    options=options
+                    options=options,
+                    context=context,
                 )
 
             if fmt == "page":
-                # Create a new page under the parent
-                # @notionhq/notion-mcp-server uses notion-create-pages
-                result = await mcp.call_tool(
-                    user_id=context.user_id,
-                    provider="notion",
-                    tool_name="notion-create-pages",
-                    arguments={
-                        "pages": [{
-                            "parent_id": target,
-                            "title": title,
-                            "content_markdown": content
-                        }]
-                    },
-                    env={"NOTION_TOKEN": context.access_token}
+                # Create a child page under the parent page
+                created = await _create_notion_page(
+                    access_token=access_token,
+                    parent_id=target,
+                    parent_type="page_id",
+                    title=title,
+                    content=content,
                 )
-            elif fmt == "database_item":
-                # Create a database item
-                database_id = options.get("database_id")
-                properties = options.get("properties", {})
 
-                result = await mcp.call_tool(
-                    user_id=context.user_id,
-                    provider="notion",
-                    tool_name="notion-create-pages",
-                    arguments={
-                        "pages": [{
-                            "parent_id": database_id,  # Database ID as parent
-                            "title": title,
-                            "content_markdown": content,
-                            "properties": properties
-                        }]
-                    },
-                    env={"NOTION_TOKEN": context.access_token}
+            elif fmt == "database_item":
+                database_id = options.get("database_id")
+                extra_properties = options.get("properties", {})
+
+                created = await _create_notion_page(
+                    access_token=access_token,
+                    parent_id=database_id,
+                    parent_type="database_id",
+                    title=title,
+                    content=content,
+                    properties=extra_properties,
                 )
+
             else:
                 return ExportResult(
                     status=ExportStatus.FAILED,
                     error_message=f"Unsupported format: {fmt}"
                 )
 
-            # Extract page ID and URL from result
-            page_id = None
-            page_url = None
-
-            if isinstance(result, dict):
-                page_id = result.get("id")
-                page_url = result.get("url")
-            # MCP returns CallToolResult with content
-            elif hasattr(result, "content"):
-                for content_item in result.content:
-                    if hasattr(content_item, "text"):
-                        import json
-                        try:
-                            parsed = json.loads(content_item.text)
-                            page_id = parsed.get("id")
-                            page_url = parsed.get("url")
-                        except (json.JSONDecodeError, TypeError):
-                            pass
+            page_id = created.get("id")
+            page_url = created.get("url")
 
             logger.info(
                 f"[NOTION_EXPORT] Delivered to {target} for user {context.user_id}, "
@@ -193,26 +287,24 @@ class NotionExporter(DestinationExporter):
 
     async def _create_draft_page(
         self,
-        mcp: Any,
-        context: ExporterContext,
+        access_token: str,
         target: str,
         title: str,
         content: str,
-        options: dict[str, Any]
+        options: dict[str, Any],
+        context: ExporterContext,
     ) -> ExportResult:
         """
         Create a draft page in the YARNNN Drafts database.
 
         ADR-032: Platform-centric drafts for Notion.
 
-        The draft page includes:
-        - Status property: "Draft"
-        - Target Location property: URL to destination page
-        - Target Name property: Human-readable destination
-        - Body: Content with destination context callout
+        Creates a database entry with:
+        - Status: "Draft"
+        - Target Name: human-readable destination
+        - Target Location: URL to the intended destination page
+        - Body: the deliverable content, ready to copy
         """
-        import json
-
         drafts_database_id = options.get("drafts_database_id")
         target_name = options.get("target_name", target)
         target_url = options.get("target_url", "")
@@ -223,59 +315,32 @@ class NotionExporter(DestinationExporter):
                 error_message="draft format requires drafts_database_id in options"
             )
 
-        # ADR-032: Draft content should be clean - no attribution or instructions
-        # that users might forget to remove before sending.
-        # The database properties (Status, Target) provide the context.
-        # The content itself is ready to copy/move.
-        draft_content = content
-
-        # Build properties for the database item
-        properties = {
+        # ADR-032: Draft content is clean — no attribution or instructions.
+        # Database properties carry the context (Status, Target).
+        properties: dict[str, Any] = {
             "Status": {
                 "select": {"name": "Draft"}
             },
             "Target Name": {
-                "rich_text": [{"text": {"content": target_name}}]
+                "rich_text": [{"type": "text", "text": {"content": target_name}}]
             },
         }
 
         if target_url:
-            properties["Target Location"] = {
-                "url": target_url
-            }
+            properties["Target Location"] = {"url": target_url}
 
         try:
-            result = await mcp.call_tool(
-                user_id=context.user_id,
-                provider="notion",
-                tool_name="notion-create-pages",
-                arguments={
-                    "pages": [{
-                        "parent_id": drafts_database_id,
-                        "title": title,
-                        "content_markdown": draft_content,
-                        "properties": properties
-                    }]
-                },
-                env={"NOTION_TOKEN": context.access_token}
+            created = await _create_notion_page(
+                access_token=access_token,
+                parent_id=drafts_database_id,
+                parent_type="database_id",
+                title=title,
+                content=content,
+                properties=properties,
             )
 
-            # Extract page ID and URL from result
-            page_id = None
-            page_url = None
-
-            if isinstance(result, dict):
-                page_id = result.get("id")
-                page_url = result.get("url")
-            elif hasattr(result, "content"):
-                for content_item in result.content:
-                    if hasattr(content_item, "text"):
-                        try:
-                            parsed = json.loads(content_item.text)
-                            page_id = parsed.get("id")
-                            page_url = parsed.get("url")
-                        except (json.JSONDecodeError, TypeError):
-                            pass
+            page_id = created.get("id")
+            page_url = created.get("url")
 
             logger.info(
                 f"[NOTION_EXPORT] Created draft in YARNNN Drafts for {target_name}, "
@@ -306,14 +371,11 @@ class NotionExporter(DestinationExporter):
         destination: dict[str, Any],
         context: ExporterContext
     ) -> tuple[bool, Optional[str]]:
-        """Verify integration has access to the page."""
-        if not MCP_AVAILABLE:
-            return (False, "MCP not available")
-
+        """Verify integration has access to the page via Direct API."""
         target = destination.get("target")
         fmt = destination.get("format", "page")
 
-        # For drafts, verify access to the drafts database instead
+        # For drafts, verify access to the drafts database
         if fmt == "draft":
             options = destination.get("options", {})
             drafts_db_id = options.get("drafts_database_id")
@@ -325,26 +387,20 @@ class NotionExporter(DestinationExporter):
             return (False, "Missing target page ID")
 
         try:
-            mcp = get_mcp_manager()
-
-            # Try to get page info to verify access
-            # @notionhq/notion-mcp-server uses notion-fetch
-            result = await mcp.call_tool(
-                user_id=context.user_id,
-                provider="notion",
-                tool_name="notion-fetch",
-                arguments={"resource_uri": f"notion://page/{target}"},
-                env={"NOTION_TOKEN": context.access_token}
+            notion_client = get_notion_client()
+            await notion_client.get_page(
+                access_token=context.access_token,
+                page_id=target,
             )
-
-            # If we get here without error, we have access
             return (True, None)
 
-        except Exception as e:
+        except RuntimeError as e:
             error_msg = str(e)
             if "object_not_found" in error_msg.lower():
                 return (False, f"Page '{target}' not found or not shared with integration")
             return (False, f"Cannot access page: {error_msg}")
+        except Exception as e:
+            return (False, f"Cannot access page: {e}")
 
     def infer_style_context(self) -> str:
         """Notion style: structured, headers, detailed."""

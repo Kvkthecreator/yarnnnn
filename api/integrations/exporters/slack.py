@@ -1,7 +1,10 @@
 """
-Slack Exporter - ADR-028, ADR-031, ADR-032
+Slack Exporter - ADR-028, ADR-031, ADR-032, ADR-050
 
-Delivers content to Slack channels via MCP.
+Delivers content to Slack channels via MCP Gateway.
+
+ADR-050: Routes through MCP Gateway (mcp-gateway/ Node.js service) instead of spawning
+npx subprocesses directly — required on Render where Python API has no Node.js runtime.
 
 ADR-031 adds support for Block Kit output when platform_variant is set.
 ADR-032 adds support for DM drafts (platform-centric draft delivery).
@@ -20,22 +23,29 @@ Destination Schema:
 
 import json
 import logging
+import httpx
 from typing import Any, Optional
 
 from integrations.core.types import ExportResult, ExportStatus
-from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+from integrations.core.tokens import get_token_manager
 from .base import DestinationExporter, ExporterContext
+from services.mcp_gateway import call_platform_tool, is_gateway_available
 
 logger = logging.getLogger(__name__)
 
 
 class SlackExporter(DestinationExporter):
     """
-    Exports content to Slack via MCP.
+    Exports content to Slack via MCP Gateway.
+
+    ADR-050: Routes through the Node.js MCP Gateway service instead of spawning
+    npx subprocesses directly from Python (not possible on Render).
 
     Supports:
     - Posting to channels (public and private)
     - Threading (reply to existing messages)
+    - Block Kit (structured message cards)
+    - DM drafts (send draft content as a DM to the user)
     """
 
     @property
@@ -47,17 +57,14 @@ class SlackExporter(DestinationExporter):
 
     def validate_destination(self, destination: dict[str, Any]) -> bool:
         """Validate Slack destination config."""
-        # Must have a target (channel ID or name)
         target = destination.get("target")
         if not target:
             return False
 
-        # Format must be supported
         fmt = destination.get("format", "message")
         if fmt not in self.get_supported_formats():
             return False
 
-        # If threading, must have thread_ts in options
         if fmt == "thread":
             options = destination.get("options", {})
             if not options.get("thread_ts"):
@@ -79,11 +86,11 @@ class SlackExporter(DestinationExporter):
         metadata: dict[str, Any],
         context: ExporterContext
     ) -> ExportResult:
-        """Deliver content to Slack."""
-        if not MCP_AVAILABLE:
+        """Deliver content to Slack via MCP Gateway."""
+        if not is_gateway_available():
             return ExportResult(
                 status=ExportStatus.FAILED,
-                error_message="MCP not available. Install: pip install mcp"
+                error_message="MCP Gateway not configured. Set MCP_GATEWAY_URL."
             )
 
         target = destination.get("target")
@@ -96,7 +103,7 @@ class SlackExporter(DestinationExporter):
                 error_message="No target channel specified"
             )
 
-        # Get team_id from context metadata
+        # Get team_id from context metadata (required for Slack MCP server)
         team_id = context.metadata.get("team_id")
         if not team_id:
             return ExportResult(
@@ -105,79 +112,36 @@ class SlackExporter(DestinationExporter):
             )
 
         try:
-            mcp = get_mcp_manager()
-
-            # ADR-032: Handle DM draft format (platform-centric drafts)
+            # ADR-032: Handle DM draft format
             if fmt == "dm_draft":
-                user_email = options.get("user_email")
-                if not user_email:
-                    return ExportResult(
-                        status=ExportStatus.FAILED,
-                        error_message="dm_draft format requires user_email in options"
-                    )
-
-                # Look up Slack user ID from email
-                slack_user_id = await mcp.lookup_slack_user_by_email(
-                    user_id=context.user_id,
-                    email=user_email,
-                    bot_token=context.access_token,
-                    team_id=team_id
-                )
-
-                if not slack_user_id:
-                    return ExportResult(
-                        status=ExportStatus.FAILED,
-                        error_message=f"Could not find Slack user for email: {user_email}"
-                    )
-
-                # Send DM draft with destination context
-                result = await mcp.send_slack_dm_draft(
-                    user_id=context.user_id,
-                    slack_user_id=slack_user_id,
+                return await self._deliver_dm_draft(
+                    target=target,
+                    title=title,
                     content=content,
-                    destination_context={
-                        "channel_name": target,
-                        "channel_id": options.get("channel_id", ""),
-                        "title": title,
-                    },
-                    bot_token=context.access_token,
-                    team_id=team_id
+                    options=options,
+                    context=context,
+                    team_id=team_id,
                 )
-
-                if result.status == ExportStatus.SUCCESS:
-                    logger.info(
-                        f"[SLACK_EXPORT] Sent DM draft to {user_email} for {target}, "
-                        f"ts={result.external_id}"
-                    )
-
-                return result
 
             # ADR-031: Check if we should use Block Kit
             platform_variant = metadata.get("platform_variant")
             use_blocks = fmt == "blocks" or platform_variant in ("slack_digest", "slack_update")
 
             # Build message arguments
-            arguments = {
-                "channel": target,
+            arguments: dict[str, Any] = {
+                "channel_id": target,
             }
 
             if use_blocks:
-                # Convert content to Slack blocks
                 from services.platform_output import generate_slack_blocks
 
                 blocks = generate_slack_blocks(
                     content=content,
                     variant=platform_variant or "default",
-                    metadata={
-                        "title": title,
-                        "channel_name": target,
-                    }
+                    metadata={"title": title, "channel_name": target}
                 )
-
                 arguments["blocks"] = json.dumps(blocks)
-                # Also include plain text fallback for notifications
                 arguments["text"] = f"{title} - View in Slack for full formatting"
-
                 logger.info(f"[SLACK_EXPORT] Using Block Kit ({len(blocks)} blocks) for variant={platform_variant}")
             else:
                 arguments["text"] = content
@@ -186,35 +150,26 @@ class SlackExporter(DestinationExporter):
             if fmt == "thread" and options.get("thread_ts"):
                 arguments["thread_ts"] = options["thread_ts"]
 
-            result = await mcp.call_tool(
-                user_id=context.user_id,
+            result = await call_platform_tool(
                 provider="slack",
-                tool_name="slack_post_message",
-                arguments=arguments,
-                env={
-                    "SLACK_BOT_TOKEN": context.access_token,
-                    "SLACK_TEAM_ID": team_id
-                }
+                tool="slack_post_message",
+                args=arguments,
+                token=context.access_token,
+                metadata={"team_id": team_id},
             )
 
-            # Extract message ts and permalink from result
-            message_ts = None
-            permalink = None
+            if not result.get("success"):
+                error = result.get("error", "Gateway error")
+                logger.error(f"[SLACK_EXPORT] Gateway error: {error}")
+                return ExportResult(
+                    status=ExportStatus.FAILED,
+                    error_message=error
+                )
 
-            if isinstance(result, dict):
-                message_ts = result.get("ts")
-                permalink = result.get("permalink")
-            # MCP returns CallToolResult with content
-            elif hasattr(result, "content"):
-                for content_item in result.content:
-                    if hasattr(content_item, "text"):
-                        import json
-                        try:
-                            parsed = json.loads(content_item.text)
-                            message_ts = parsed.get("ts")
-                            permalink = parsed.get("permalink")
-                        except (json.JSONDecodeError, TypeError):
-                            pass
+            # Extract message ts and permalink from gateway result
+            raw = result.get("result") or {}
+            message_ts = raw.get("ts") if isinstance(raw, dict) else None
+            permalink = raw.get("permalink") if isinstance(raw, dict) else None
 
             logger.info(
                 f"[SLACK_EXPORT] Delivered to {target} for user {context.user_id}, "
@@ -235,14 +190,176 @@ class SlackExporter(DestinationExporter):
                 error_message=str(e)
             )
 
+    async def _deliver_dm_draft(
+        self,
+        target: str,
+        title: str,
+        content: str,
+        options: dict[str, Any],
+        context: ExporterContext,
+        team_id: str,
+    ) -> ExportResult:
+        """
+        Send a draft message as a DM to a Slack user.
+
+        ADR-032: Uses Slack API directly (users.lookupByEmail, conversations.open,
+        chat.postMessage) since these are simple REST calls that don't need MCP.
+        """
+        user_email = options.get("user_email")
+        if not user_email:
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message="dm_draft format requires user_email in options"
+            )
+
+        bot_token = context.access_token
+
+        try:
+            # 1. Look up Slack user ID by email
+            slack_user_id = await self._lookup_user_by_email(user_email, bot_token)
+            if not slack_user_id:
+                return ExportResult(
+                    status=ExportStatus.FAILED,
+                    error_message=f"Could not find Slack user for email: {user_email}"
+                )
+
+            # 2. Open DM channel
+            dm_channel_id = await self._open_dm(slack_user_id, bot_token)
+            if not dm_channel_id:
+                return ExportResult(
+                    status=ExportStatus.FAILED,
+                    error_message="Could not open DM channel with user"
+                )
+
+            # 3. Build Block Kit message with destination context
+            from services.platform_output import generate_slack_blocks
+
+            channel_name = target
+            content_blocks = generate_slack_blocks(
+                content=content,
+                variant="default",
+                metadata={"title": title}
+            )
+
+            channel_id = options.get("channel_id", "")
+            channel_link = (
+                f"<#{channel_id}|{channel_name.lstrip('#')}>" if channel_id else channel_name
+            )
+
+            blocks: list[dict] = [
+                {
+                    "type": "header",
+                    "text": {"type": "plain_text", "text": f"Draft ready for {channel_name}", "emoji": True}
+                },
+                {"type": "divider"},
+            ]
+            blocks.extend(content_blocks)
+            blocks.extend([
+                {"type": "divider"},
+                {
+                    "type": "context",
+                    "elements": [
+                        {
+                            "type": "mrkdwn",
+                            "text": (
+                                f"This is a draft for {channel_link}. "
+                                "Copy the content above and paste it there when ready."
+                            )
+                        }
+                    ]
+                }
+            ])
+
+            # 4. Send via Slack API
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    "https://slack.com/api/chat.postMessage",
+                    headers={
+                        "Authorization": f"Bearer {bot_token}",
+                        "Content-Type": "application/json"
+                    },
+                    json={
+                        "channel": dm_channel_id,
+                        "blocks": blocks,
+                        "text": f"Draft ready for {channel_name}"
+                    }
+                )
+                api_result = response.json()
+
+            if api_result.get("ok"):
+                message_ts = api_result.get("ts")
+                logger.info(f"[SLACK_EXPORT] Sent draft DM to {slack_user_id}, ts={message_ts}")
+                return ExportResult(
+                    status=ExportStatus.SUCCESS,
+                    external_id=message_ts,
+                    metadata={
+                        "channel": dm_channel_id,
+                        "format": "dm_draft",
+                        "destination_channel": channel_name,
+                    }
+                )
+
+            error = api_result.get("error", "unknown")
+            logger.error(f"[SLACK_EXPORT] DM send failed: {error}")
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=f"Slack API error: {error}"
+            )
+
+        except Exception as e:
+            logger.error(f"[SLACK_EXPORT] DM draft failed: {e}")
+            return ExportResult(
+                status=ExportStatus.FAILED,
+                error_message=str(e)
+            )
+
+    async def _lookup_user_by_email(self, email: str, bot_token: str) -> Optional[str]:
+        """Look up Slack user ID by email via direct Slack REST API."""
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.get(
+                    "https://slack.com/api/users.lookupByEmail",
+                    headers={"Authorization": f"Bearer {bot_token}"},
+                    params={"email": email}
+                )
+                result = response.json()
+                if result.get("ok"):
+                    return result.get("user", {}).get("id")
+                logger.warning(f"[SLACK_EXPORT] User lookup failed: {result.get('error')}")
+                return None
+        except Exception as e:
+            logger.error(f"[SLACK_EXPORT] User lookup error: {e}")
+            return None
+
+    async def _open_dm(self, slack_user_id: str, bot_token: str) -> Optional[str]:
+        """Open a DM channel via direct Slack REST API."""
+        try:
+            async with httpx.AsyncClient(timeout=15.0) as client:
+                response = await client.post(
+                    "https://slack.com/api/conversations.open",
+                    headers={
+                        "Authorization": f"Bearer {bot_token}",
+                        "Content-Type": "application/json"
+                    },
+                    json={"users": slack_user_id}
+                )
+                result = response.json()
+                if result.get("ok"):
+                    return result.get("channel", {}).get("id")
+                logger.warning(f"[SLACK_EXPORT] DM open failed: {result.get('error')}")
+                return None
+        except Exception as e:
+            logger.error(f"[SLACK_EXPORT] DM open error: {e}")
+            return None
+
     async def verify_destination_access(
         self,
         destination: dict[str, Any],
         context: ExporterContext
     ) -> tuple[bool, Optional[str]]:
-        """Verify bot has access to the channel."""
-        if not MCP_AVAILABLE:
-            return (False, "MCP not available")
+        """Verify bot has access to the channel via MCP Gateway."""
+        if not is_gateway_available():
+            return (False, "MCP Gateway not configured")
 
         target = destination.get("target")
         team_id = context.metadata.get("team_id")
@@ -251,30 +368,26 @@ class SlackExporter(DestinationExporter):
             return (False, "Missing target or team_id")
 
         try:
-            mcp = get_mcp_manager()
-
-            # Try to get channel info to verify access
-            result = await mcp.call_tool(
-                user_id=context.user_id,
+            result = await call_platform_tool(
                 provider="slack",
-                tool_name="slack_get_channel_info",
-                arguments={"channel": target},
-                env={
-                    "SLACK_BOT_TOKEN": context.access_token,
-                    "SLACK_TEAM_ID": team_id
-                }
+                tool="slack_get_channel_info",
+                args={"channel": target},
+                token=context.access_token,
+                metadata={"team_id": team_id},
             )
 
-            # If we get here without error, bot has access
-            return (True, None)
+            if result.get("success"):
+                return (True, None)
 
-        except Exception as e:
-            error_msg = str(e)
+            error_msg = result.get("error", "")
             if "channel_not_found" in error_msg.lower():
                 return (False, f"Channel '{target}' not found or bot not added")
             if "not_in_channel" in error_msg.lower():
                 return (False, f"Bot is not a member of '{target}'")
             return (False, f"Cannot access channel: {error_msg}")
+
+        except Exception as e:
+            return (False, f"Cannot access channel: {e}")
 
     def infer_style_context(self) -> str:
         """Slack style: casual, brief, emoji-friendly."""

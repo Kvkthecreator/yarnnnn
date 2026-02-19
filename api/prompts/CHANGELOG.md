@@ -6,6 +6,31 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.11] - Rewrite Slack/Notion exporters to use production-compatible backends
+
+### Changed
+- `api/integrations/exporters/slack.py`: Route through MCP Gateway instead of spawning npx
+  - Removed `MCPClientManager` dependency (can't spawn npx on Render's Python service)
+  - Now calls `services.mcp_gateway.call_platform_tool()` (HTTP to Node.js MCP Gateway)
+  - `verify_destination_access()` also routes through Gateway
+  - DM draft (`dm_draft` format): uses Slack REST API directly (users.lookupByEmail, conversations.open, chat.postMessage) — no MCP needed for these simple calls
+  - Removed MCP_AVAILABLE guard (Gateway availability check replaces it)
+
+- `api/integrations/exporters/notion.py`: Route through Direct API instead of MCP npx
+  - Removed `MCPClientManager` dependency (Notion MCP server requires ntn_... internal tokens, incompatible with OAuth)
+  - Added `_create_notion_page()` helper using Notion REST API POST /v1/pages
+  - Added `_markdown_to_notion_blocks()` to convert deliverable markdown to Notion blocks
+  - Supported formats: page (child under parent_id), database_item (in database), draft (YARNNN Drafts DB)
+  - `verify_destination_access()` uses `NotionAPIClient.get_page()` instead of MCP notion-fetch
+  - Removed MCP_AVAILABLE guard
+
+### Behavior
+- Deliverable delivery (scheduled + semi_auto) now works on Render (no Node.js required in Python service)
+- Slack delivery uses MCP Gateway (same path as TP tools), Notion delivery uses Direct API
+- All existing destination schemas are preserved — no DB migration required
+
+---
+
 ## [2026.02.19.10] - Add platform_notion_get_page tool
 
 ### Added
