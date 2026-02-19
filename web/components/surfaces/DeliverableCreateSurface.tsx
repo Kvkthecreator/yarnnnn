@@ -12,6 +12,13 @@
  * - Lazy resource loading (only after type selection)
  * - No eager API calls on mount
  * - Clear Platform Monitor vs Synthesis categorization
+ *
+ * Delivery options (platform-agnostic):
+ * - Email: Send to user's registered email (default)
+ * - Slack DM: Send via Slack direct message
+ * - Platform channel: Platform-specific delivery (Slack channel, etc.)
+ *
+ * Instant run: Creates and immediately runs the deliverable for quick feedback
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -27,8 +34,11 @@ import {
   Users,
   Sparkles,
   Calendar,
+  Play,
+  MessageSquare,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
+import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
 import type {
   DeliverableType,
@@ -66,6 +76,41 @@ interface PlatformResource {
   name: string;
   type: string;
 }
+
+// Delivery mode: where to send the output
+type DeliveryMode = 'email' | 'slack_dm' | 'platform_channel';
+
+interface DeliveryOption {
+  mode: DeliveryMode;
+  label: string;
+  description: string;
+  icon: React.ReactNode;
+}
+
+// =============================================================================
+// Delivery Options (platform-agnostic)
+// =============================================================================
+
+const DELIVERY_OPTIONS: DeliveryOption[] = [
+  {
+    mode: 'email',
+    label: 'Email',
+    description: 'Send to your email inbox',
+    icon: <Mail className="w-4 h-4" />,
+  },
+  {
+    mode: 'slack_dm',
+    label: 'Slack DM',
+    description: 'Direct message in Slack',
+    icon: <MessageSquare className="w-4 h-4" />,
+  },
+  {
+    mode: 'platform_channel',
+    label: 'Channel',
+    description: 'Post to a specific channel',
+    icon: <Slack className="w-4 h-4" />,
+  },
+];
 
 // =============================================================================
 // Type Definitions (ADR-067: 6 visible types)
@@ -198,14 +243,44 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
     time: '16:00',
   });
 
+  // Delivery mode (platform-agnostic)
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>('email');
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [hasSlackConnection, setHasSlackConnection] = useState(false);
+
   // Data state
   const [resources, setResources] = useState<PlatformResource[]>([]);
   const [destinations, setDestinations] = useState<PlatformResource[]>([]);
   const [loadingResources, setLoadingResources] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [runningInstant, setRunningInstant] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Auto-select type from URL or initial platform
+  // Load user email and check Slack connection on mount
+  useEffect(() => {
+    const loadUserData = async () => {
+      try {
+        const supabase = createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user?.email) {
+          setUserEmail(user.email);
+        }
+
+        // Check if Slack is connected for DM option
+        const { integrations } = await api.integrations.list();
+        const slackConnection = integrations.find(
+          (i: { provider: string; status: string }) => i.provider === 'slack' && i.status === 'active'
+        );
+        setHasSlackConnection(!!slackConnection);
+      } catch (err) {
+        console.error('Failed to load user data:', err);
+      }
+    };
+
+    loadUserData();
+  }, []);
+
   useEffect(() => {
     if (typeFromUrl) {
       const type = DELIVERABLE_TYPES.find((t) => t.id === typeFromUrl);
@@ -346,10 +421,28 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
         };
       });
 
+      // Build destination based on delivery mode (platform-agnostic)
+      let finalDestination: Destination | undefined;
+      if (deliveryMode === 'email' && userEmail) {
+        finalDestination = {
+          platform: 'email',
+          target: userEmail,
+          format: 'html',
+        };
+      } else if (deliveryMode === 'slack_dm') {
+        finalDestination = {
+          platform: 'slack',
+          target: 'dm', // Special target for DM to self
+          format: 'message',
+        };
+      } else if (deliveryMode === 'platform_channel' && destination) {
+        finalDestination = destination;
+      }
+
       const createData: DeliverableCreate = {
         title: title.trim(),
         deliverable_type: selectedType.id,
-        destination: destination || undefined,
+        destination: finalDestination,
         sources,
         schedule,
         governance: 'manual',
@@ -357,12 +450,23 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
       };
 
       const deliverable = await api.deliverables.create(createData);
+
+      // Instant run: trigger immediately for quick feedback
+      setRunningInstant(true);
+      try {
+        await api.deliverables.run(deliverable.id);
+      } catch (runErr) {
+        // Don't fail the creation if instant run fails
+        console.warn('Instant run failed, deliverable created successfully:', runErr);
+      }
+
       router.push(`/deliverables/${deliverable.id}`);
     } catch (err) {
       console.error('Failed to create deliverable:', err);
       setError('Failed to create deliverable. Please try again.');
     } finally {
       setCreating(false);
+      setRunningInstant(false);
     }
   };
 
@@ -479,15 +583,15 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
         </div>
         <button
           onClick={handleCreate}
-          disabled={!canCreate() || creating}
+          disabled={!canCreate() || creating || runningInstant}
           className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          {creating ? (
+          {creating || runningInstant ? (
             <Loader2 className="w-4 h-4 animate-spin" />
           ) : (
-            <Check className="w-4 h-4" />
+            <Play className="w-4 h-4" />
           )}
-          Create
+          {runningInstant ? 'Running...' : 'Create & Run'}
         </button>
       </div>
 
@@ -559,12 +663,52 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
             </div>
           )}
 
-          {/* Destination (for platform-bound types) */}
-          {selectedType.primaryPlatform && destinations.length > 0 && (
-            <div>
-              <label className="block text-sm font-medium mb-2">Deliver to</label>
+          {/* Delivery Options (platform-agnostic) */}
+          <div>
+            <label className="block text-sm font-medium mb-2">Deliver to</label>
+            <div className="grid grid-cols-3 gap-2">
+              {DELIVERY_OPTIONS.map((option) => {
+                // Filter out unavailable options
+                if (option.mode === 'slack_dm' && !hasSlackConnection) return null;
+                if (option.mode === 'platform_channel' && destinations.length === 0) return null;
+
+                const isSelected = deliveryMode === option.mode;
+                return (
+                  <button
+                    key={option.mode}
+                    type="button"
+                    onClick={() => setDeliveryMode(option.mode)}
+                    className={cn(
+                      'p-3 border rounded-md text-left transition-all',
+                      isSelected
+                        ? 'border-primary bg-primary/5'
+                        : 'border-border hover:border-muted-foreground/50'
+                    )}
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className={isSelected ? 'text-primary' : 'text-muted-foreground'}>
+                        {option.icon}
+                      </span>
+                      <span className="text-sm font-medium">{option.label}</span>
+                      {isSelected && <Check className="w-3.5 h-3.5 text-primary ml-auto" />}
+                    </div>
+                    <p className="text-xs text-muted-foreground">{option.description}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Show email address when email is selected */}
+            {deliveryMode === 'email' && userEmail && (
+              <p className="text-xs text-muted-foreground mt-2">
+                Sending to: <span className="font-medium">{userEmail}</span>
+              </p>
+            )}
+
+            {/* Channel selector when platform_channel is selected */}
+            {deliveryMode === 'platform_channel' && destinations.length > 0 && (
               <select
-                value={destination?.target || ''}
+                value={destination?.target || destinations[0]?.id || ''}
                 onChange={(e) =>
                   setDestination({
                     platform: selectedType.primaryPlatform!,
@@ -572,7 +716,7 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
                     format: selectedType.primaryPlatform === 'gmail' ? 'draft' : 'message',
                   })
                 }
-                className="w-full px-3 py-2 border border-border rounded-md text-sm"
+                className="w-full mt-2 px-3 py-2 border border-border rounded-md text-sm"
               >
                 {destinations.map((dest) => (
                   <option key={dest.id} value={dest.id}>
@@ -580,8 +724,8 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
                   </option>
                 ))}
               </select>
-            </div>
-          )}
+            )}
+          </div>
 
           {/* Schedule */}
           <div>
@@ -627,10 +771,16 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
             </div>
           </div>
 
-          {/* Draft mode notice */}
-          <div className="p-3 bg-muted/50 rounded-md text-sm text-muted-foreground">
-            <Check className="w-4 h-4 inline mr-1 text-green-500" />
-            Draft mode: You'll review outputs before they're sent
+          {/* Instant run + draft mode notice */}
+          <div className="p-3 bg-muted/50 rounded-md space-y-1">
+            <div className="text-sm text-muted-foreground">
+              <Play className="w-4 h-4 inline mr-1 text-primary" />
+              Runs immediately after creation for instant results
+            </div>
+            <div className="text-sm text-muted-foreground">
+              <Check className="w-4 h-4 inline mr-1 text-green-500" />
+              Draft mode: You'll review outputs before they're sent
+            </div>
           </div>
         </div>
       </div>
