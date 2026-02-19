@@ -6,6 +6,23 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.5] - Tool system: wire list_integrations into PRIMITIVES; slim platforms.py
+
+### Changed
+- `api/services/primitives/registry.py`: Added `LIST_INTEGRATIONS_TOOL` and wired `handle_list_integrations` handler
+  - `list_integrations` was documented in `platforms.py` as a tool TP should call but was never in PRIMITIVES — a ghost tool
+  - TP now has the tool in its schema and can actually call it; handler routes to `services.project_tools.handle_list_integrations`
+  - `LIST_INTEGRATIONS_TOOL` description carries full behavioral docs (which platforms, what fields, agentic pattern)
+- `api/agents/tp_prompts/platforms.py`: Slimmed `PLATFORMS_SECTION` from ~130 lines to ~30 lines
+  - Removed all per-tool documentation (call sequences, arg names, etc.) — this now lives in each tool's `description` field
+  - Kept: agentic pattern (call list_integrations first), landing zones table, ADR-065 live→cache→sync reading pattern, notifications
+  - Tool descriptions are now the single source of truth; the prompt section provides behavioral framing only
+
+### Why
+Claude Code's pattern: tool `description` fields carry all model-facing workflow docs. No separate "here are your tools" prompt layer.
+The `get_channel_history` bug was a direct consequence of maintaining docs in a separate prompt layer that could diverge from execution.
+By keeping tool docs in schema definitions (co-located with the handler mapping), prompt and execution stay in sync automatically.
+
 ## [2026.02.19.4] - Fix Slack get_channel_history MCP tool name + platform result truncation
 
 ### Fixed

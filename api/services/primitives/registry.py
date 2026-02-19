@@ -16,6 +16,7 @@ from .execute import EXECUTE_TOOL, handle_execute
 from .todo import TODO_TOOL, handle_todo
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from services.platform_tools import is_platform_tool, handle_platform_tool
+from services.project_tools import handle_list_integrations
 
 
 # Communication primitives (kept from legacy for respond/clarify)
@@ -90,7 +91,27 @@ async def handle_clarify(auth: Any, input: dict) -> dict:
     }
 
 
-# All primitives exposed to TP (8 primitives - ADR-038 + ADR-045)
+LIST_INTEGRATIONS_TOOL = {
+    "name": "list_integrations",
+    "description": """List the user's connected platform integrations and their metadata.
+
+Call this first when about to use a platform tool, to get:
+- Which platforms are active (slack, gmail, notion, google/calendar)
+- Slack: authed_user_id — use as channel_id when sending DMs to self
+- Notion: designated_page_id — use as page_id when writing to user's YARNNN page
+- Gmail/Calendar: user_email and designated_calendar_id
+
+AGENTIC BEHAVIOR: Don't ask "are you connected to Slack?" — call list_integrations and find out.
+If not connected, suggest connecting in Settings.""",
+    "input_schema": {
+        "type": "object",
+        "properties": {},
+        "required": []
+    }
+}
+
+
+# All primitives exposed to TP
 # Excluded:
 # - Todo: conversation stream IS the progress indicator (Claude Code pattern)
 # - Respond: TP's natural text output serves as the response
@@ -105,6 +126,8 @@ PRIMITIVES = [
     EXECUTE_TOOL,
     # Web operations (ADR-045)
     WEB_SEARCH_PRIMITIVE,
+    # Platform discovery — resolves connection metadata (authed_user_id, designated_page_id, etc.)
+    LIST_INTEGRATIONS_TOOL,
     # Communication (Clarify only - Respond removed)
     CLARIFY_TOOL,
 ]
@@ -122,6 +145,7 @@ HANDLERS: dict[str, Callable] = {
     "WebSearch": handle_web_search,
     "Respond": handle_respond,
     "Clarify": handle_clarify,
+    "list_integrations": handle_list_integrations,
 }
 
 
