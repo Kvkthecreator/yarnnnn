@@ -491,6 +491,105 @@ class GoogleAPIClient:
 
             return data
 
+    async def update_calendar_event(
+        self,
+        event_id: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str,
+        calendar_id: str = "primary",
+        summary: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
+        description: Optional[str] = None,
+        location: Optional[str] = None,
+        attendees: Optional[list[str]] = None
+    ) -> dict[str, Any]:
+        """
+        Partially update a calendar event (PATCH semantics).
+
+        Only provided fields are changed; omitted fields keep their current values.
+
+        Args:
+            event_id: ID of the event to update
+            calendar_id: Calendar ID or 'primary'
+            summary: New event title (optional)
+            start_time: New start time in ISO format (optional)
+            end_time: New end time in ISO format (optional)
+            description: New event description (optional)
+            location: New location (optional)
+            attendees: New list of attendee email addresses (optional)
+
+        Returns updated event object.
+        """
+        access_token = await self._get_access_token(
+            client_id, client_secret, refresh_token
+        )
+
+        patch_body: dict[str, Any] = {}
+
+        if summary is not None:
+            patch_body["summary"] = summary
+        if start_time is not None:
+            patch_body["start"] = {"dateTime": start_time, "timeZone": "UTC"}
+        if end_time is not None:
+            patch_body["end"] = {"dateTime": end_time, "timeZone": "UTC"}
+        if description is not None:
+            patch_body["description"] = description
+        if location is not None:
+            patch_body["location"] = location
+        if attendees is not None:
+            patch_body["attendees"] = [{"email": e} for e in attendees]
+
+        async with httpx.AsyncClient() as client:
+            response = await client.patch(
+                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                },
+                json=patch_body
+            )
+            data = response.json()
+
+            if "error" in data:
+                raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
+
+            return data
+
+    async def delete_calendar_event(
+        self,
+        event_id: str,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str,
+        calendar_id: str = "primary"
+    ) -> None:
+        """
+        Delete (cancel) a calendar event.
+
+        Args:
+            event_id: ID of the event to delete
+            calendar_id: Calendar ID or 'primary'
+
+        Raises RuntimeError on API failure.
+        """
+        access_token = await self._get_access_token(
+            client_id, client_secret, refresh_token
+        )
+
+        async with httpx.AsyncClient() as client:
+            response = await client.delete(
+                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
+                headers={"Authorization": f"Bearer {access_token}"}
+            )
+
+            # 204 No Content = success; 410 Gone = already deleted (treat as success)
+            if response.status_code not in (200, 204, 410):
+                raise RuntimeError(
+                    f"Calendar DELETE failed ({response.status_code}): {response.text}"
+                )
+
     async def list_calendars(
         self,
         client_id: str,

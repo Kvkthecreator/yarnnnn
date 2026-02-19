@@ -20,9 +20,9 @@ logger = logging.getLogger(__name__)
 
 PROMPT_VERSIONS = {
     "platform_tools": {
-        "version": "2026-02-12",
+        "version": "2026-02-19",
         "adr_refs": ["ADR-046", "ADR-050"],
-        "changelog": "Added Gmail/Calendar direct API tools, fixed Notion MCP tool names",
+        "changelog": "Added calendar update_event and delete_event tools; full CRUD complete",
     },
     "slack": {
         "version": "2026-02-12",
@@ -40,9 +40,9 @@ PROMPT_VERSIONS = {
         "changelog": "Added search, get_thread, send, create_draft tools via Direct API",
     },
     "calendar": {
-        "version": "2026-02-12",
+        "version": "2026-02-19",
         "adr_refs": ["ADR-046", "ADR-050"],
-        "changelog": "Added list_events, get_event, create_event tools via Direct API, added designated_calendar_id pattern",
+        "changelog": "Added update_event and delete_event tools; full CRUD now complete. TP handles scheduling intelligence (conflict detection, free-slot reasoning) in-context.",
     },
 }
 
@@ -406,6 +406,85 @@ Uses designated_calendar_id if set, otherwise 'primary'.""",
                 }
             },
             "required": ["summary", "start_time", "end_time"]
+        }
+    },
+    {
+        "name": "platform_calendar_update_event",
+        "description": """Update an existing calendar event (partial update — only provided fields change).
+
+Workflow:
+1. platform_calendar_list_events() → find the event by title/time
+2. platform_calendar_get_event(event_id="...") → confirm it's the right event with the user
+3. Confirm what changes will be made before calling this tool
+4. platform_calendar_update_event(event_id="...", <only changed fields>) → apply changes
+
+IMPORTANT: Only pass fields that are actually changing. Omitted fields keep their current values.
+Do NOT guess event_id — always get it from list_events → get_event workflow first.""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {
+                    "type": "string",
+                    "description": "Event ID. Get from platform_calendar_list_events."
+                },
+                "calendar_id": {
+                    "type": "string",
+                    "description": "Calendar ID. Get from list_integrations designated_calendar_id, or use 'primary'"
+                },
+                "summary": {
+                    "type": "string",
+                    "description": "New event title (optional — omit to keep current)"
+                },
+                "start_time": {
+                    "type": "string",
+                    "description": "New start time in ISO format (optional — omit to keep current)"
+                },
+                "end_time": {
+                    "type": "string",
+                    "description": "New end time in ISO format (optional — omit to keep current)"
+                },
+                "description": {
+                    "type": "string",
+                    "description": "New event description (optional — omit to keep current)"
+                },
+                "location": {
+                    "type": "string",
+                    "description": "New location (optional — omit to keep current)"
+                },
+                "attendees": {
+                    "type": "array",
+                    "items": {"type": "string"},
+                    "description": "Replacement attendee list — email addresses (optional — omit to keep current)"
+                }
+            },
+            "required": ["event_id"]
+        }
+    },
+    {
+        "name": "platform_calendar_delete_event",
+        "description": """Delete (cancel) a calendar event. This is permanent.
+
+Workflow:
+1. platform_calendar_list_events() → find the event by title/time
+2. platform_calendar_get_event(event_id="...") → confirm with the user it's the right event
+3. Get explicit user confirmation before deleting
+4. platform_calendar_delete_event(event_id="...") → delete it
+
+NEVER delete without confirming the exact event with the user first.
+Do NOT guess event_id — always get it from list_events → get_event workflow.""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "event_id": {
+                    "type": "string",
+                    "description": "Event ID. Get from platform_calendar_list_events."
+                },
+                "calendar_id": {
+                    "type": "string",
+                    "description": "Calendar ID. Get from list_integrations designated_calendar_id, or use 'primary'"
+                }
+            },
+            "required": ["event_id"]
         }
     },
 ]
@@ -1203,6 +1282,50 @@ async def _execute_calendar_tool(
                 "success": True,
                 "event_id": created.get("id"),
                 "html_link": created.get("htmlLink"),
+            }
+
+        elif tool == "update_event":
+            if not args.get("event_id"):
+                return {"success": False, "error": "event_id is required"}
+
+            updated = await google_client.update_calendar_event(
+                event_id=args["event_id"],
+                client_id=client_id,
+                client_secret=client_secret,
+                refresh_token=refresh_token,
+                calendar_id=args.get("calendar_id", "primary"),
+                summary=args.get("summary"),
+                start_time=args.get("start_time"),
+                end_time=args.get("end_time"),
+                description=args.get("description"),
+                location=args.get("location"),
+                attendees=args.get("attendees"),
+            )
+
+            return {
+                "success": True,
+                "event_id": updated.get("id"),
+                "summary": updated.get("summary"),
+                "html_link": updated.get("htmlLink"),
+                "message": f"Event updated: {updated.get('summary', args['event_id'])}",
+            }
+
+        elif tool == "delete_event":
+            if not args.get("event_id"):
+                return {"success": False, "error": "event_id is required"}
+
+            await google_client.delete_calendar_event(
+                event_id=args["event_id"],
+                client_id=client_id,
+                client_secret=client_secret,
+                refresh_token=refresh_token,
+                calendar_id=args.get("calendar_id", "primary"),
+            )
+
+            return {
+                "success": True,
+                "event_id": args["event_id"],
+                "message": "Event deleted from calendar.",
             }
 
         else:
