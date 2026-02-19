@@ -1,9 +1,10 @@
 'use client';
 
 /**
- * ADR-037 + ADR-066: Chat-First Surface Architecture
+ * ADR-037 + ADR-066 + ADR-067: Surface Architecture
  *
  * Routes to the appropriate surface component based on type.
+ * Most surfaces now redirect to route-based pages.
  *
  * ADR-037 Migration Complete:
  * - Document surfaces → /docs route
@@ -14,8 +15,10 @@
  * ADR-066 Migration:
  * - deliverable-review → /deliverables/[id] (inline review)
  *
+ * ADR-067 Migration:
+ * - deliverable-create → /deliverables/new (user-driven creation)
+ *
  * Remaining surfaces (TP-invoked only):
- * - deliverable-create: Create new deliverable
  * - work-output, work-list: Work tracking
  * - context-editor: Edit specific memory
  * - idle: Default state
@@ -24,7 +27,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DeskSurface } from '@/types/desk';
-import { DeliverableCreateSurface } from '@/components/surfaces/DeliverableCreateSurface';
 import { WorkOutputSurface } from '@/components/surfaces/WorkOutputSurface';
 import { WorkListSurface } from '@/components/surfaces/WorkListSurface';
 import { ContextEditorSurface } from '@/components/surfaces/ContextEditorSurface';
@@ -68,6 +70,14 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
       case 'deliverable-review':
         router.replace(`/deliverables/${surface.deliverableId}`);
         break;
+      // ADR-067: Create redirects to route with optional type param
+      case 'deliverable-create':
+        if (surface.initialPlatform) {
+          router.replace(`/deliverables/new?platform=${surface.initialPlatform}`);
+        } else {
+          router.replace('/deliverables/new');
+        }
+        break;
 
       // Context browser deprecated
       case 'context-browser':
@@ -85,8 +95,9 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
       case 'deliverable-review':
         return <IdleSurface />;
 
+      // ADR-067: deliverable-create redirects via useEffect, show idle as fallback
       case 'deliverable-create':
-        return <DeliverableCreateSurface initialPlatform={surface.initialPlatform} />;
+        return <IdleSurface />;
 
       case 'work-output':
         return <WorkOutputSurface workId={surface.workId} outputId={surface.outputId} />;

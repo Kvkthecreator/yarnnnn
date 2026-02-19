@@ -697,6 +697,8 @@ export interface Deliverable {
   type_config?: TypeConfig;
   // ADR-031: Platform-native variants
   platform_variant?: PlatformVariant;  // e.g., "slack_digest" for status_report
+  // ADR-044: Type classification (binding + temporal pattern)
+  type_classification?: TypeClassification;
   project_id?: string;
   project_name?: string;  // For UI display
   recipient_context?: RecipientContext;

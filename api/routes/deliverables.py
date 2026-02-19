@@ -830,6 +830,8 @@ class DeliverableCreate(BaseModel):
     type_config: Optional[dict] = None  # Type-specific config, validated per type
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None  # e.g., "slack_digest" for status_report
+    # ADR-044: Type classification (binding + temporal pattern)
+    type_classification: Optional[dict] = None  # If provided, overrides auto-computed
     recipient_context: Optional[RecipientContext] = None
     # ADR-031 Phase 4: Trigger configuration
     trigger_type: Literal["schedule", "event", "manual"] = "schedule"
@@ -882,6 +884,8 @@ class DeliverableResponse(BaseModel):
     type_config: Optional[dict] = None
     # ADR-031: Platform-native variants
     platform_variant: Optional[str] = None  # e.g., "slack_digest" for status_report
+    # ADR-044: Type classification (binding + temporal pattern)
+    type_classification: Optional[dict] = None
     project_id: Optional[str] = None
     project_name: Optional[str] = None  # For UI display
     recipient_context: Optional[dict] = None
@@ -1080,8 +1084,8 @@ async def create_deliverable(
     # ADR-031: Compute governance ceiling from destination
     governance_ceiling = compute_governance_ceiling(request.destination)
 
-    # ADR-044/045: Compute type_classification for strategy selection
-    type_classification = get_type_classification(request.deliverable_type)
+    # ADR-044/045: Use provided type_classification or compute from deliverable_type
+    type_classification = request.type_classification or get_type_classification(request.deliverable_type)
 
     # Create deliverable
     deliverable_data = {
@@ -1135,6 +1139,8 @@ async def create_deliverable(
         type_config=deliverable.get("type_config"),
         # ADR-031: Platform-native variants
         platform_variant=deliverable.get("platform_variant"),
+        # ADR-044: Type classification
+        type_classification=deliverable.get("type_classification"),
         project_id=None,  # ADR-034: Deprecated
         recipient_context=deliverable.get("recipient_context"),
         schedule=deliverable["schedule"],
@@ -1247,6 +1253,8 @@ async def list_deliverables(
             type_config=d.get("type_config"),
             # ADR-031: Platform-native variants
             platform_variant=d.get("platform_variant"),
+            # ADR-044: Type classification
+            type_classification=d.get("type_classification"),
             project_id=None,  # ADR-034: Deprecated
             project_name=None,  # ADR-034: Deprecated
             recipient_context=d.get("recipient_context"),
@@ -1372,6 +1380,8 @@ async def get_deliverable(
             type_config=deliverable.get("type_config"),
             # ADR-031: Platform-native variants
             platform_variant=deliverable.get("platform_variant"),
+            # ADR-044: Type classification
+            type_classification=deliverable.get("type_classification"),
             project_id=None,  # ADR-034: Deprecated
             project_name=None,  # ADR-034: Deprecated
             recipient_context=deliverable.get("recipient_context"),
