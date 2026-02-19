@@ -6,6 +6,42 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.12] - Deliverable creation flow: delivery options + instant run
+
+### Changed
+- `web/components/surfaces/DeliverableCreateSurface.tsx`: Platform-agnostic delivery options + instant run
+  - Added delivery mode selector: Email (default), Slack DM, or Platform Channel
+  - Email sends to user's registered email address (fetched from Supabase auth)
+  - Slack DM sends as direct message to user (if Slack is connected)
+  - Platform Channel shows channel selector (original behavior)
+  - Instant run: Creates deliverable AND immediately triggers run for instant gratification
+  - Button changed from "Create" to "Create & Run" with Play icon
+  - Notice updated to explain instant run behavior
+
+### Behavior
+- Users get immediate feedback when creating a deliverable (runs on creation)
+- Default delivery is email, no longer requires selecting a platform channel
+- Builds trust by showing sample output immediately after setup
+
+---
+
+## [2026.02.19.12] - Rewrite GmailExporter to use GoogleAPIClient (Direct API)
+
+### Changed
+- `api/integrations/exporters/gmail.py`: Replace `get_mcp_manager()` with `get_google_client()`
+  - Old code called `get_mcp_manager()` then called `create_gmail_draft`, `send_gmail_message`,
+    `list_gmail_messages` — methods that don't exist on MCPClientManager, only on GoogleAPIClient. Was silently broken.
+  - Now imports `from integrations.core.google_client import get_google_client`
+  - Reads `context.refresh_token` (set by delivery.py) instead of wrong `context.metadata.get("refresh_token")`
+  - Removed `MCP_AVAILABLE` guard (no MCP used)
+  - `verify_destination_access()` also uses `google_client.list_gmail_messages()` instead of MCP
+
+### Behavior
+- Gmail deliverable delivery (draft, send, reply, html formats) now correctly routes through Google Direct API
+- All three exporters now use production-compatible backends: Slack → MCP Gateway, Notion → Direct API, Gmail → Direct API
+
+---
+
 ## [2026.02.19.11] - Rewrite Slack/Notion exporters to use production-compatible backends
 
 ### Changed

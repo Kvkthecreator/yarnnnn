@@ -1,7 +1,12 @@
 """
-Gmail Exporter - ADR-029, ADR-031
+Gmail Exporter - ADR-029, ADR-031, ADR-050
 
-Delivers content to Gmail via MCP (send or draft).
+Delivers content to Gmail via Direct API (GoogleAPIClient).
+
+ADR-050: Uses GoogleAPIClient (direct REST calls to Gmail API) instead of MCPClientManager.
+The old code called get_mcp_manager() but then called methods (create_gmail_draft,
+send_gmail_message, list_gmail_messages) that only exist on GoogleAPIClient — not on
+MCPClientManager. This was silently broken.
 
 ADR-031 adds support for platform variants with HTML formatting:
 - email_summary: Inbox digest with sections
@@ -27,7 +32,7 @@ import logging
 from typing import Any, Optional
 
 from integrations.core.types import ExportResult, ExportStatus
-from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+from integrations.core.google_client import get_google_client
 from .base import DestinationExporter, ExporterContext
 
 logger = logging.getLogger(__name__)
@@ -35,12 +40,19 @@ logger = logging.getLogger(__name__)
 
 class GmailExporter(DestinationExporter):
     """
-    Exports content to Gmail via MCP.
+    Exports content to Gmail via Direct API.
+
+    ADR-050: Uses GoogleAPIClient instead of MCPClientManager.
+    Gmail/Calendar use direct Google REST APIs — no MCP or Node.js required.
+
+    Auth: Uses refresh_token from ExporterContext.refresh_token (decrypted by
+    delivery.py from platform_connections.refresh_token_encrypted).
 
     Supports:
     - Sending emails directly
     - Creating drafts for user review
     - Replying to existing threads
+    - HTML-formatted emails (platform variants)
     """
 
     @property
@@ -52,17 +64,14 @@ class GmailExporter(DestinationExporter):
 
     def validate_destination(self, destination: dict[str, Any]) -> bool:
         """Validate Gmail destination config."""
-        # Must have a target (recipient email)
         target = destination.get("target")
         if not target or "@" not in target:
             return False
 
-        # Format must be supported
         fmt = destination.get("format", "send")
         if fmt not in self.get_supported_formats():
             return False
 
-        # Reply format requires thread_id
         if fmt == "reply":
             options = destination.get("options", {})
             if not options.get("thread_id"):
@@ -78,13 +87,7 @@ class GmailExporter(DestinationExporter):
         metadata: dict[str, Any],
         context: ExporterContext
     ) -> ExportResult:
-        """Deliver content to Gmail."""
-        if not MCP_AVAILABLE:
-            return ExportResult(
-                status=ExportStatus.FAILED,
-                error_message="MCP not available. Install: pip install mcp"
-            )
-
+        """Deliver content to Gmail via Direct API."""
         target = destination.get("target")
         fmt = destination.get("format", "send")
         options = destination.get("options", {})
@@ -95,16 +98,14 @@ class GmailExporter(DestinationExporter):
                 error_message="No recipient email specified"
             )
 
-        # Get Gmail credentials from context
-        # Note: Gmail uses refresh_token, not access_token
-        refresh_token = context.metadata.get("refresh_token")
+        # Gmail uses the refresh_token (not access_token) — decrypted by delivery.py
+        refresh_token = context.refresh_token
         if not refresh_token:
             return ExportResult(
                 status=ExportStatus.FAILED,
-                error_message="Missing refresh_token in integration metadata"
+                error_message="Missing refresh_token — reconnect Gmail in Settings"
             )
 
-        # Get Google OAuth credentials from environment
         client_id = os.getenv("GOOGLE_CLIENT_ID")
         client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
 
@@ -114,29 +115,25 @@ class GmailExporter(DestinationExporter):
                 error_message="Google OAuth credentials not configured"
             )
 
-        # Build subject - use title or custom from options
         subject = options.get("subject", title)
         cc = options.get("cc")
         thread_id = options.get("thread_id")
 
         try:
-            mcp = get_mcp_manager()
+            google_client = get_google_client()
 
-            # ADR-031 Phase 5: Check if we should use HTML formatting
+            # ADR-031 Phase 5: HTML formatting for email platform variants
             platform_variant = metadata.get("platform_variant")
             use_html = fmt == "html" or platform_variant in (
                 "email_summary", "email_draft_reply", "email_follow_up",
                 "email_weekly_digest", "email_triage"
             )
 
-            # Convert content to HTML if needed
             email_body = content
             if use_html:
                 from services.platform_output import generate_gmail_html
 
-                # ADR-032: Mark as draft for platform-centric footer
                 is_draft_mode = fmt == "draft"
-
                 email_body = generate_gmail_html(
                     content=content,
                     variant=platform_variant or "default",
@@ -145,16 +142,13 @@ class GmailExporter(DestinationExporter):
                         "recipient": target,
                         "date": options.get("date", ""),
                         "email_count": options.get("email_count", ""),
-                        "is_draft": is_draft_mode,  # ADR-032
+                        "is_draft": is_draft_mode,
                     }
                 )
-
                 logger.info(f"[GMAIL_EXPORT] Using HTML format for variant={platform_variant}, is_draft={is_draft_mode}")
 
             if fmt == "draft":
-                # Create draft for user review
-                result = await mcp.create_gmail_draft(
-                    user_id=context.user_id,
+                result = await google_client.create_gmail_draft(
                     to=target,
                     subject=subject,
                     body=email_body,
@@ -163,23 +157,19 @@ class GmailExporter(DestinationExporter):
                     refresh_token=refresh_token,
                     cc=cc,
                     thread_id=thread_id,
-                    is_html=use_html,  # ADR-031: Indicate HTML content
+                    is_html=use_html,
                 )
 
                 if result.status == ExportStatus.SUCCESS:
-                    logger.info(
-                        f"[GMAIL_EXPORT] Created draft for {target}, "
-                        f"draft_id={result.external_id}"
-                    )
+                    logger.info(f"[GMAIL_EXPORT] Created draft for {target}, draft_id={result.external_id}")
                     result.metadata["format"] = "draft"
                     result.metadata["recipient"] = target
 
                 return result
 
             else:
-                # Send directly (both "send", "reply", and "html" formats)
-                result = await mcp.send_gmail_message(
-                    user_id=context.user_id,
+                # "send", "reply", "html"
+                result = await google_client.send_gmail_message(
                     to=target,
                     subject=subject,
                     body=email_body,
@@ -188,14 +178,11 @@ class GmailExporter(DestinationExporter):
                     refresh_token=refresh_token,
                     cc=cc,
                     thread_id=thread_id if fmt == "reply" else None,
-                    is_html=use_html,  # ADR-031: Indicate HTML content
+                    is_html=use_html,
                 )
 
                 if result.status == ExportStatus.SUCCESS:
-                    logger.info(
-                        f"[GMAIL_EXPORT] Sent to {target}, "
-                        f"message_id={result.external_id}"
-                    )
+                    logger.info(f"[GMAIL_EXPORT] Sent to {target}, message_id={result.external_id}")
                     result.metadata["format"] = fmt
                     result.metadata["recipient"] = target
 
@@ -213,39 +200,32 @@ class GmailExporter(DestinationExporter):
         destination: dict[str, Any],
         context: ExporterContext
     ) -> tuple[bool, Optional[str]]:
-        """Verify Gmail integration is valid."""
-        if not MCP_AVAILABLE:
-            return (False, "MCP not available")
-
-        # Check refresh token exists
-        refresh_token = context.metadata.get("refresh_token")
+        """Verify Gmail integration is valid via Direct API."""
+        refresh_token = context.refresh_token
         if not refresh_token:
-            return (False, "Missing refresh token - reconnect Gmail")
+            return (False, "Missing refresh token — reconnect Gmail")
 
-        # Check OAuth credentials
         client_id = os.getenv("GOOGLE_CLIENT_ID")
         client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
         if not client_id or not client_secret:
             return (False, "Google OAuth not configured")
 
-        # Try to list messages as a connectivity test
         try:
-            mcp = get_mcp_manager()
-            await mcp.list_gmail_messages(
-                user_id=context.user_id,
+            google_client = get_google_client()
+            await google_client.list_gmail_messages(
                 client_id=client_id,
                 client_secret=client_secret,
                 refresh_token=refresh_token,
-                max_results=1
+                max_results=1,
             )
             return (True, None)
 
         except Exception as e:
             error_msg = str(e)
             if "invalid_grant" in error_msg.lower():
-                return (False, "Gmail access expired - please reconnect")
+                return (False, "Gmail access expired — please reconnect")
             if "insufficient_scope" in error_msg.lower():
-                return (False, "Missing Gmail permissions - please reconnect")
+                return (False, "Missing Gmail permissions — please reconnect")
             return (False, f"Cannot access Gmail: {error_msg}")
 
     def infer_style_context(self) -> str:
