@@ -5,9 +5,9 @@ Backend service for implicit memory extraction from multiple sources.
 Replaces explicit TP memory tools with boundary-triggered extraction.
 
 Write sources:
-  - Conversation: extracted at session end via process_conversation()
-  - Deliverable feedback: extracted when user approves edited version
-  - Activity patterns: extracted by daily background job
+  - Conversation: nightly cron (midnight UTC) processes prior day's sessions in batch via process_conversation()
+  - Deliverable feedback: triggered when user approves edited version via process_feedback()
+  - Activity patterns: daily background job via process_patterns()
 
 Read:
   - get_for_prompt(): formats memories for TP system prompt injection
@@ -46,7 +46,8 @@ class MemoryService:
         """
         Extract memories from a completed TP conversation.
 
-        Called at session end (timeout or explicit close).
+        Called by the nightly cron job (unified_scheduler.py, midnight UTC)
+        for all sessions from the previous day. Not triggered at real-time session end.
         Uses LLM to identify facts worth remembering.
 
         Args:

@@ -16,7 +16,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  What TP knows about you — stable, explicit, small          │
 │  Injected into every TP session (working memory block)      │
 └─────────────────────────────────────────────────────────────┘
-         Written by: user directly (Context page); Memory Service at session end
+         Written by: user directly (Context page); Memory Service nightly cron
 
 ┌─────────────────────────────────────────────────────────────┐
 │  ACTIVITY  (activity_log)                                    │
@@ -91,12 +91,12 @@ A single flat key-value store for everything TP knows *about the user*. Replaces
 
 **Written by**:
 - User directly via the Context page (Profile, Styles, Entries sections)
-- Backend Memory Service at pipeline boundaries (ADR-064):
-  - `process_conversation()` at session end
-  - `process_feedback()` when user approves edited deliverable
-  - `process_patterns()` from daily background job (activity_log analysis)
+- Backend Memory Service via nightly cron and pipeline hooks (ADR-064):
+  - `process_conversation()` — nightly cron (midnight UTC), processes prior day's sessions in batch
+  - `process_feedback()` — triggered when user approves an edited deliverable version
+  - `process_patterns()` — daily background job (activity_log analysis)
 
-**Never written by**: TP directly during conversation. The explicit `create_memory` / `update_memory` tools were removed in ADR-064. Memory extraction is invisible — it happens after the session ends.
+**Never written by**: TP directly during conversation. The explicit `create_memory` / `update_memory` tools were removed in ADR-064. Conversation memory extraction is a **batch nightly job**, not a real-time session-end hook. A preference stated today is available in working memory the next morning.
 
 **Read by**: `working_memory.py → build_working_memory()` — assembled into the system prompt block injected at the start of every TP session (~2,000 token budget).
 

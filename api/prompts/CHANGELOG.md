@@ -88,7 +88,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 ### Expected behavior
 - TP no longer has explicit memory tools
 - When users state preferences, TP acknowledges naturally without tool calls
-- Memory extraction happens at session end via backend service (not yet wired)
+- Memory extraction runs via nightly cron (midnight UTC, processes prior day's sessions in batch)
 - User edits via Context page continue to work (no change)
 
 ### Token budget impact

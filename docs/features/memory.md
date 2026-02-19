@@ -57,13 +57,13 @@ ADR-064: Memory is written by the **Memory Service** (`api/services/memory.py`),
 | Source | Trigger | What's extracted |
 |---|---|---|
 | **User directly** | Context page save | Profile, styles, manual entries |
-| **TP conversation** | Session end | Preferences, facts, instructions stated in chat |
+| **TP conversation** | Nightly cron (midnight UTC, processes yesterday's sessions) | Preferences, facts, instructions stated in chat |
 | **Deliverable feedback** | User approves edited version | Patterns from consistent edits |
 | **Activity patterns** | Daily background job | Behavioral patterns (e.g., runs digest every Monday) |
 
 ### How it works
 
-1. **Conversation extraction**: When a TP session ends, the Memory Service reviews the conversation and extracts facts worth remembering. This happens in the background — no tool call, no announcement.
+1. **Conversation extraction**: The nightly cron (`unified_scheduler.py`, midnight UTC) processes all TP sessions from the previous day. The Memory Service reviews each conversation and extracts facts worth remembering. This is **not** triggered at real-time session end — it's a batch job. A preference stated in a conversation today will be in working memory by the next morning.
 
 2. **Feedback extraction**: When a user edits and approves a deliverable, the service analyzes what changed. Consistent patterns (e.g., always shortens intro) become memories.
 
