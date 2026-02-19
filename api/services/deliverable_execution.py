@@ -1,7 +1,7 @@
 """
-Deliverable Execution Service - ADR-042 Simplified Flow
+Deliverable Execution Service - ADR-042 Simplified Flow + ADR-066 Delivery-First
 
-Single Execute call for deliverable generation, replacing the 3-step pipeline.
+Single Execute call for deliverable generation with immediate delivery (no approval gate).
 
 Flow:
   Execute(action="deliverable.generate", target="deliverable:uuid")
@@ -10,12 +10,18 @@ Flow:
     → gather_context_inline()
     → generate_draft_inline()
     → record_source_snapshots() (ADR-049)
+    → deliver immediately (ADR-066)
     → single work_ticket, single version row
 
 ADR-049 Integration:
 - Freshness check before generation
 - Targeted sync of stale sources
 - Source snapshots recorded for audit trail
+
+ADR-066 Integration:
+- No governance/approval gate - deliverables deliver immediately
+- Version status: generating → delivered | failed
+- Governance field ignored (backwards compatibility)
 
 This module replaces:
 - execute_deliverable_pipeline() - 3-step orchestrator
@@ -364,13 +370,35 @@ async def update_version_staged(
     version_id: str,
     draft_content: str,
 ):
-    """Update version to staged status with draft content."""
+    """
+    DEPRECATED: Use update_version_for_delivery instead.
+
+    Legacy function kept for backwards compatibility.
+    ADR-066 removed staged status in favor of direct delivery.
+    """
     now = datetime.now(timezone.utc).isoformat()
 
     client.table("deliverable_versions").update({
         "status": "staged",
         "draft_content": draft_content,
         "staged_at": now,
+    }).eq("id", version_id).execute()
+
+
+async def update_version_for_delivery(
+    client,
+    version_id: str,
+    draft_content: str,
+):
+    """
+    Prepare version for delivery by storing content.
+
+    ADR-066: Versions go directly to delivery, no staged status.
+    Status remains 'generating' until delivery completes.
+    """
+    client.table("deliverable_versions").update({
+        "draft_content": draft_content,
+        "final_content": draft_content,  # ADR-066: No editing step, content is final
     }).eq("id", version_id).execute()
 
 
@@ -426,7 +454,7 @@ async def fail_work_ticket(
 
 
 # =============================================================================
-# Main Entry Point - ADR-042 Simplified Execution + ADR-045 Type-Aware Strategies
+# Main Entry Point - ADR-042, ADR-045, ADR-066 Delivery-First
 # =============================================================================
 
 async def execute_deliverable_generation(
@@ -436,11 +464,12 @@ async def execute_deliverable_generation(
     trigger_context: Optional[dict] = None,
 ) -> dict:
     """
-    Execute deliverable generation with type-aware strategy selection.
+    Execute deliverable generation with immediate delivery (no approval gate).
 
     ADR-042: Simplified single-call flow
     ADR-045: Strategy selection based on type_classification.binding
     ADR-049: Context freshness checks and source snapshots
+    ADR-066: Delivery-first, no governance - always attempt delivery
 
     Args:
         client: Supabase client
@@ -449,7 +478,8 @@ async def execute_deliverable_generation(
         trigger_context: Optional trigger info (schedule, event, manual)
 
     Returns:
-        Result dict with version_id, status, draft, message
+        Result dict with version_id, status, message
+        Status is 'delivered' or 'failed' (no 'staged' per ADR-066)
     """
     from services.execution_strategies import get_execution_strategy
     from services.freshness import (
@@ -516,8 +546,8 @@ async def execute_deliverable_generation(
         # 6. Generate draft inline
         draft = await generate_draft_inline(client, user_id, deliverable, gathered_context)
 
-        # 7. Update version → staged
-        await update_version_staged(client, version_id, draft)
+        # 7. ADR-066: Prepare version for delivery (no staged status)
+        await update_version_for_delivery(client, version_id, draft)
 
         # ADR-049: Record source snapshots for audit trail
         sources_for_snapshot = []
@@ -541,25 +571,15 @@ async def execute_deliverable_generation(
             "last_run_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", deliverable_id).execute()
 
-        # 10. Handle full_auto governance (ADR-028)
-        governance = deliverable.get("governance", "manual")
+        # 10. ADR-066: Always attempt delivery (no governance check)
         destination = deliverable.get("destination")
-        final_status = "staged"
+        final_status = "delivered"
         delivery_result = None
+        delivery_error = None
 
-        if governance == "full_auto" and destination:
-            logger.info(f"[EXEC] Full-auto: auto-approving version={version_id}")
+        if destination:
+            logger.info(f"[EXEC] ADR-066 delivery-first: delivering version={version_id}")
 
-            # Auto-approve
-            now = datetime.now(timezone.utc).isoformat()
-            client.table("deliverable_versions").update({
-                "status": "approved",
-                "final_content": draft,
-                "approved_at": now,
-            }).eq("id", version_id).execute()
-            final_status = "approved"
-
-            # Trigger delivery
             try:
                 from services.delivery import get_delivery_service
                 delivery_service = get_delivery_service(client)
@@ -569,9 +589,36 @@ async def execute_deliverable_generation(
                 )
                 if delivery_result.status.value == "success":
                     final_status = "delivered"
+                    # Update version status to delivered
+                    now = datetime.now(timezone.utc).isoformat()
+                    client.table("deliverable_versions").update({
+                        "status": "delivered",
+                        "delivered_at": now,
+                    }).eq("id", version_id).execute()
+                else:
+                    final_status = "failed"
+                    delivery_error = delivery_result.error_message
+                    client.table("deliverable_versions").update({
+                        "status": "failed",
+                        "delivery_error": delivery_error,
+                    }).eq("id", version_id).execute()
                 logger.info(f"[EXEC] Delivery: {delivery_result.status.value}")
             except Exception as e:
                 logger.error(f"[EXEC] Delivery failed: {e}")
+                final_status = "failed"
+                delivery_error = str(e)
+                client.table("deliverable_versions").update({
+                    "status": "failed",
+                    "delivery_error": delivery_error,
+                }).eq("id", version_id).execute()
+        else:
+            # No destination configured - mark as delivered (content generated successfully)
+            now = datetime.now(timezone.utc).isoformat()
+            client.table("deliverable_versions").update({
+                "status": "delivered",
+                "delivered_at": now,
+            }).eq("id", version_id).execute()
+            logger.info(f"[EXEC] No destination - content ready (version={version_id})")
 
         logger.info(
             f"[EXEC] Complete: {title}, version={next_version}, "
@@ -585,25 +632,25 @@ async def execute_deliverable_generation(
                 client=client,
                 user_id=user_id,
                 event_type="deliverable_run",
-                summary=f"{title} v{next_version} generated ({final_status})",
+                summary=f"{title} v{next_version} {final_status}",
                 event_ref=version_id,
                 metadata={
                     "deliverable_id": str(deliverable_id),
                     "version_number": next_version,
                     "strategy": strategy.strategy_name,
                     "final_status": final_status,
+                    "delivery_error": delivery_error,
                 },
             )
         except Exception:
             pass  # Non-fatal — never block execution
 
         return {
-            "success": True,
+            "success": final_status == "delivered",
             "version_id": version_id,
             "version_number": next_version,
             "status": final_status,
-            "draft": draft if final_status == "staged" else None,
-            "message": f"Version {next_version} ready for review" if final_status == "staged" else f"Version {next_version} delivered",
+            "message": f"Version {next_version} {final_status}" + (f": {delivery_error}" if delivery_error else ""),
             "delivery": delivery_result.model_dump() if delivery_result else None,
             "strategy": strategy.strategy_name,  # ADR-045: Track which strategy was used
         }
@@ -611,11 +658,12 @@ async def execute_deliverable_generation(
     except Exception as e:
         logger.error(f"[EXEC] Error: {e}")
 
-        # Mark version as rejected
+        # ADR-066: Mark version as failed (not rejected)
         if version:
             try:
                 client.table("deliverable_versions").update({
-                    "status": "rejected",
+                    "status": "failed",
+                    "delivery_error": str(e),
                 }).eq("id", version["id"]).execute()
             except Exception:
                 pass
@@ -630,6 +678,6 @@ async def execute_deliverable_generation(
         return {
             "success": False,
             "version_id": version["id"] if version else None,
-            "status": "rejected",
+            "status": "failed",
             "message": str(e),
         }

@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.13] - ADR-066: Delivery-first, remove governance
+
+### Changed
+- `api/services/deliverable_execution.py`: Remove governance gate, always deliver immediately
+  - No more `staged` status — versions go directly to `delivered` or `failed`
+  - Removed governance check before delivery (manual/semi_auto/full_auto → always deliver)
+  - Added `update_version_for_delivery()` to replace `update_version_staged()`
+  - Error status changed from `rejected` to `failed`
+  - Activity log records delivery result, not governance state
+
+- `web/app/(authenticated)/deliverables/[id]/page.tsx`: Delivery-first detail page
+  - Removed Approve/Reject buttons (no governance workflow)
+  - "Latest Output" → "Latest Delivery" with delivery status
+  - "Previous Versions" → "Delivery History"
+  - Added platform badge in header
+  - Added external link to delivered content
+  - Added Retry button for failed deliveries
+
+- `web/app/(authenticated)/deliverables/page.tsx`: Enhanced list view per ADR-067
+  - Platform badges on every card (not just group headers)
+  - Delivery status (delivered/failed) instead of governance
+  - Schedule status (Active/Paused) independent from delivery
+  - Destination visibility with arrow indicator
+
+### Behavior
+- Deliverables now deliver immediately when generated — no approval step
+- Users control automation via Pause/Resume, not Approve/Reject
+- Single-user workflow: scheduling + pause is sufficient governance
+- Multi-user governance can be re-added as feature flag in future
+
+---
+
 ## [2026.02.19.12] - Deliverable creation flow: delivery options + instant run
 
 ### Changed

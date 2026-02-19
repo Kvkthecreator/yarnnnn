@@ -1,12 +1,16 @@
 'use client';
 
 /**
- * ADR-066: Deliverable Detail Page — Output-First with Inline Review
+ * ADR-066: Deliverable Detail Page — Delivery-First, No Governance
  *
- * Shows the latest generated output with inline approve/reject actions.
- * Configuration lives in settings modal; this page is for reviewing work.
+ * Shows delivery history and automation controls.
+ * No approve/reject workflow - deliverables deliver immediately.
  *
- * Replaces the previous metadata-heavy page and merges in the review functionality.
+ * Key elements:
+ * - Latest Delivery with status (delivered/failed)
+ * - Delivery History (replaces "Previous Versions")
+ * - Schedule controls (Pause/Resume, Run Now)
+ * - Settings modal for configuration
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -18,7 +22,6 @@ import {
   Settings,
   Clock,
   Check,
-  X,
   Copy,
   CheckCircle2,
   XCircle,
@@ -30,6 +33,8 @@ import {
   FileText,
   Download,
   ExternalLink,
+  RefreshCw,
+  BarChart3,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -44,6 +49,7 @@ import type { Deliverable, DeliverableVersion } from '@/types';
 
 const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   gmail: Mail,
+  email: Mail,
   slack: MessageSquare,
   notion: FileText,
   download: Download,
@@ -51,9 +57,18 @@ const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>
 
 const PLATFORM_LABELS: Record<string, string> = {
   gmail: 'Gmail',
+  email: 'Email',
   slack: 'Slack',
   notion: 'Notion',
   download: 'Download',
+};
+
+const PLATFORM_BADGES: Record<string, { icon: React.ComponentType<{ className?: string }>; label: string }> = {
+  slack: { icon: MessageSquare, label: '💬' },
+  gmail: { icon: Mail, label: '📧' },
+  email: { icon: Mail, label: '📧' },
+  notion: { icon: FileText, label: '📝' },
+  synthesis: { icon: BarChart3, label: '📊' },
 };
 
 // =============================================================================
@@ -71,14 +86,9 @@ export default function DeliverableDetailPage() {
   const [versions, setVersions] = useState<DeliverableVersion[]>([]);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
-  // Review state
-  const [editedContent, setEditedContent] = useState('');
-  const [feedbackNotes, setFeedbackNotes] = useState('');
-  const [saving, setSaving] = useState(false);
+  // UI state
   const [copied, setCopied] = useState(false);
   const [running, setRunning] = useState(false);
-
-  // Version history state
   const [expandedVersionId, setExpandedVersionId] = useState<string | null>(null);
 
   // Load deliverable data
@@ -87,14 +97,6 @@ export default function DeliverableDetailPage() {
       const detail = await api.deliverables.get(id);
       setDeliverable(detail.deliverable);
       setVersions(detail.versions);
-
-      // Initialize editor with latest pending version
-      const latestPending = detail.versions.find(
-        (v) => v.status === 'staged' || v.status === 'reviewing'
-      );
-      if (latestPending) {
-        setEditedContent(latestPending.draft_content || latestPending.final_content || '');
-      }
     } catch (err) {
       console.error('Failed to load deliverable:', err);
     } finally {
@@ -106,64 +108,12 @@ export default function DeliverableDetailPage() {
     loadDeliverable();
   }, [loadDeliverable]);
 
-  // Get the latest version that needs review (staged/reviewing/draft)
+  // Get the latest version
   const latestVersion = versions[0];
-  const pendingVersion = versions.find(
-    (v) => v.status === 'staged' || v.status === 'reviewing'
-  );
-  const hasPendingReview = !!pendingVersion;
 
   // =============================================================================
   // Actions
   // =============================================================================
-
-  const handleApprove = async () => {
-    if (!pendingVersion) return;
-
-    setSaving(true);
-    try {
-      const hasEdits = editedContent !== (pendingVersion.draft_content || pendingVersion.final_content);
-      await api.deliverables.updateVersion(id, pendingVersion.id, {
-        status: 'approved',
-        final_content: hasEdits ? editedContent : undefined,
-        feedback_notes: feedbackNotes || undefined,
-      });
-
-      // Reload to get updated state
-      await loadDeliverable();
-      setFeedbackNotes('');
-    } catch (err) {
-      console.error('Failed to approve:', err);
-      alert('Failed to approve. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleReject = async () => {
-    if (!pendingVersion) return;
-
-    if (!feedbackNotes.trim()) {
-      alert("Please add feedback explaining why you're rejecting this version.");
-      return;
-    }
-
-    setSaving(true);
-    try {
-      await api.deliverables.updateVersion(id, pendingVersion.id, {
-        status: 'rejected',
-        feedback_notes: feedbackNotes,
-      });
-
-      await loadDeliverable();
-      setFeedbackNotes('');
-    } catch (err) {
-      console.error('Failed to reject:', err);
-      alert('Failed to reject. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
 
   const handleTogglePause = async () => {
     if (!deliverable) return;
@@ -183,6 +133,7 @@ export default function DeliverableDetailPage() {
     setRunning(true);
     try {
       await api.deliverables.run(id);
+      // Refresh to see the new version
       await loadDeliverable();
     } catch (err) {
       console.error('Failed to run deliverable:', err);
@@ -192,8 +143,12 @@ export default function DeliverableDetailPage() {
     }
   };
 
-  const handleCopy = async () => {
-    const content = pendingVersion?.draft_content || pendingVersion?.final_content || editedContent;
+  const handleRetry = async (versionId: string) => {
+    // For now, just run a new version
+    await handleRunNow();
+  };
+
+  const handleCopy = async (content: string) => {
     await navigator.clipboard.writeText(content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -206,6 +161,18 @@ export default function DeliverableDetailPage() {
   // =============================================================================
   // Helpers
   // =============================================================================
+
+  const getPlatformBadge = () => {
+    const classification = deliverable?.type_classification;
+    if (classification?.binding === 'cross_platform' || classification?.binding === 'hybrid') {
+      return '📊';
+    }
+    const platform = classification?.primary_platform || deliverable?.destination?.platform;
+    if (platform === 'slack') return '💬';
+    if (platform === 'gmail' || platform === 'email') return '📧';
+    if (platform === 'notion') return '📝';
+    return '📊';
+  };
 
   const formatSchedule = () => {
     if (!deliverable?.schedule) return 'No schedule';
@@ -224,20 +191,61 @@ export default function DeliverableDetailPage() {
     }
   };
 
-  const getStatusBadge = (status: string) => {
-    switch (status) {
-      case 'approved':
-        return <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full"><CheckCircle2 className="w-3 h-3" />Approved</span>;
-      case 'rejected':
-        return <span className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full"><XCircle className="w-3 h-3" />Rejected</span>;
-      case 'staged':
-      case 'reviewing':
-        return <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full"><Clock className="w-3 h-3" />Pending Review</span>;
-      case 'generating':
-        return <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full"><Loader2 className="w-3 h-3 animate-spin" />Generating</span>;
-      default:
-        return <span className="text-xs text-muted-foreground">{status}</span>;
+  const formatDestination = () => {
+    const dest = deliverable?.destination;
+    if (!dest) return null;
+    const platform = PLATFORM_LABELS[dest.platform] || dest.platform;
+    const target = dest.target;
+    if (target === 'dm') return `${platform} DM`;
+    if (target?.includes('@')) return target;
+    if (target?.startsWith('#')) return `${platform} ${target}`;
+    return platform;
+  };
+
+  // ADR-066: Delivery status badges (not governance status)
+  const getDeliveryStatusBadge = (version: DeliverableVersion) => {
+    const status = version.status;
+    // Map legacy statuses to delivery-first model
+    if (status === 'delivered' || status === 'approved') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+          <CheckCircle2 className="w-3 h-3" />
+          Delivered
+        </span>
+      );
     }
+    if (status === 'failed' || status === 'rejected') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full">
+          <XCircle className="w-3 h-3" />
+          Failed
+        </span>
+      );
+    }
+    if (status === 'generating') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Generating
+        </span>
+      );
+    }
+    // Legacy staged/reviewing - treat as delivered for display
+    if (status === 'staged' || status === 'reviewing') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-green-600 bg-green-50 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+          <CheckCircle2 className="w-3 h-3" />
+          Delivered
+        </span>
+      );
+    }
+    return <span className="text-xs text-muted-foreground">{status}</span>;
+  };
+
+  const getDeliveryTimestamp = (version: DeliverableVersion) => {
+    // Prefer delivered_at, fall back to approved_at, then created_at
+    const timestamp = version.delivered_at || version.approved_at || version.created_at;
+    return format(new Date(timestamp), 'MMM d, h:mm a');
   };
 
   // =============================================================================
@@ -265,12 +273,13 @@ export default function DeliverableDetailPage() {
   }
 
   const DestIcon = deliverable.destination ? PLATFORM_ICONS[deliverable.destination.platform] : null;
-  const destLabel = deliverable.destination ? PLATFORM_LABELS[deliverable.destination.platform] : null;
+  const destDisplay = formatDestination();
+  const platformBadge = getPlatformBadge();
 
   return (
     <div className="h-full overflow-auto">
       <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
-        {/* Header */}
+        {/* Header with Platform Badge */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <button
@@ -281,16 +290,18 @@ export default function DeliverableDetailPage() {
               <ChevronLeft className="w-5 h-5" />
             </button>
             <div>
-              <h1 className="text-xl font-semibold">{deliverable.title}</h1>
+              <div className="flex items-center gap-2">
+                <span className="text-xl">{platformBadge}</span>
+                <h1 className="text-xl font-semibold">{deliverable.title}</h1>
+              </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
-                <Clock className="w-3.5 h-3.5" />
                 <span>{formatSchedule()}</span>
-                {DestIcon && destLabel && (
+                {destDisplay && (
                   <>
                     <span>→</span>
                     <span className="flex items-center gap-1">
-                      <DestIcon className="w-3.5 h-3.5" />
-                      {destLabel}
+                      {DestIcon && <DestIcon className="w-3.5 h-3.5" />}
+                      {destDisplay}
                     </span>
                   </>
                 )}
@@ -298,6 +309,18 @@ export default function DeliverableDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* Schedule Status Badge */}
+            {deliverable.status === 'paused' ? (
+              <span className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-full flex items-center gap-1">
+                <Pause className="w-3 h-3" />
+                Paused
+              </span>
+            ) : (
+              <span className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full flex items-center gap-1">
+                <Play className="w-3 h-3" />
+                Active
+              </span>
+            )}
             <button
               onClick={handleTogglePause}
               className={cn(
@@ -318,100 +341,88 @@ export default function DeliverableDetailPage() {
           </div>
         </div>
 
-        {/* Latest Output Section */}
-        {hasPendingReview && pendingVersion ? (
+        {/* Latest Delivery Section */}
+        {latestVersion ? (
           <div className="border border-border rounded-lg mb-6 overflow-hidden">
-            {/* Version Header */}
+            {/* Header */}
             <div className="px-4 py-3 border-b border-border bg-muted/30 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <h2 className="text-sm font-medium">Latest Output</h2>
-                {getStatusBadge(pendingVersion.status)}
+                <h2 className="text-sm font-medium">Latest Delivery</h2>
+                {getDeliveryStatusBadge(latestVersion)}
               </div>
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <span>v{pendingVersion.version_number}</span>
-                <span>·</span>
-                <span>{format(new Date(pendingVersion.created_at), 'MMM d, h:mm a')}</span>
-                <button
-                  onClick={handleCopy}
-                  className="ml-2 p-1.5 hover:bg-muted rounded transition-colors"
-                  title="Copy content"
-                >
-                  {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
-                </button>
+                <span>{getDeliveryTimestamp(latestVersion)}</span>
+                {/* External link if available */}
+                {latestVersion.delivery_external_url && (
+                  <a
+                    href={latestVersion.delivery_external_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="ml-2 p-1.5 hover:bg-muted rounded transition-colors text-primary"
+                    title="View in destination"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                )}
               </div>
             </div>
 
             {/* Source Snapshots */}
-            {pendingVersion.source_snapshots && pendingVersion.source_snapshots.length > 0 && (
+            {latestVersion.source_snapshots && latestVersion.source_snapshots.length > 0 && (
               <div className="px-4 py-3 border-b border-border bg-muted/20">
-                <SourceSnapshotsSummary snapshots={pendingVersion.source_snapshots} compact />
+                <SourceSnapshotsSummary snapshots={latestVersion.source_snapshots} compact />
               </div>
             )}
 
-            {/* Content Editor */}
-            <div className="p-4">
-              <textarea
-                value={editedContent}
-                onChange={(e) => setEditedContent(e.target.value)}
-                className="w-full min-h-[300px] px-4 py-3 border border-border rounded-lg bg-background text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary resize-y font-mono"
-                placeholder="Generated content..."
-              />
-            </div>
-
-            {/* Feedback Input */}
-            <div className="px-4 pb-4">
-              <input
-                type="text"
-                value={feedbackNotes}
-                onChange={(e) => setFeedbackNotes(e.target.value)}
-                placeholder="Add feedback (required for reject)..."
-                className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-
-            {/* Review Actions */}
-            <div className="px-4 py-3 border-t border-border bg-muted/20 flex items-center justify-between">
-              <button
-                onClick={handleReject}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-md disabled:opacity-50 transition-colors"
-              >
-                <X className="w-4 h-4" />
-                Reject
-              </button>
-              <button
-                onClick={handleApprove}
-                disabled={saving}
-                className="inline-flex items-center gap-1.5 px-6 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-md hover:bg-primary/90 disabled:opacity-50 transition-colors"
-              >
-                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
-                {saving ? 'Saving...' : 'Approve'}
-              </button>
-            </div>
-          </div>
-        ) : latestVersion ? (
-          /* No pending review - show last version status */
-          <div className="border border-border rounded-lg mb-6 p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <h2 className="text-sm font-medium">Latest Output</h2>
-                {getStatusBadge(latestVersion.status)}
+            {/* Content Preview (collapsible) */}
+            <details className="group">
+              <summary className="px-4 py-3 cursor-pointer hover:bg-muted/30 flex items-center gap-2 text-sm text-muted-foreground">
+                <ChevronRight className="w-4 h-4 transition-transform group-open:rotate-90" />
+                Show content
+              </summary>
+              <div className="px-4 pb-4">
+                <div className="relative">
+                  <pre className="text-sm bg-muted/50 rounded-md p-4 overflow-auto max-h-[400px] whitespace-pre-wrap font-mono">
+                    {latestVersion.final_content || latestVersion.draft_content || 'No content'}
+                  </pre>
+                  <button
+                    onClick={() => handleCopy(latestVersion.final_content || latestVersion.draft_content || '')}
+                    className="absolute top-2 right-2 p-1.5 bg-background/80 hover:bg-muted rounded transition-colors"
+                    title="Copy content"
+                  >
+                    {copied ? <CheckCircle2 className="w-4 h-4 text-green-600" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
-              <span className="text-xs text-muted-foreground">
-                v{latestVersion.version_number} · {format(new Date(latestVersion.created_at), 'MMM d, h:mm a')}
-              </span>
-            </div>
-            {latestVersion.final_content && (
-              <p className="mt-3 text-sm text-muted-foreground line-clamp-3">
-                {latestVersion.final_content.slice(0, 200)}...
-              </p>
+            </details>
+
+            {/* Failed delivery - show retry option */}
+            {(latestVersion.status === 'failed' || latestVersion.status === 'rejected') && (
+              <div className="px-4 py-3 border-t border-border bg-red-50/50 dark:bg-red-900/10">
+                <div className="flex items-center justify-between">
+                  <div className="text-sm">
+                    <span className="text-red-600 font-medium">Delivery failed</span>
+                    {latestVersion.delivery_error && (
+                      <span className="text-muted-foreground ml-2">— {latestVersion.delivery_error}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => handleRetry(latestVersion.id)}
+                    disabled={running}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 transition-colors"
+                  >
+                    {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5" />}
+                    Retry
+                  </button>
+                </div>
+              </div>
             )}
           </div>
         ) : (
           /* No versions yet */
           <div className="border border-dashed border-border rounded-lg mb-6 p-8 text-center">
             <FileText className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-            <p className="text-muted-foreground mb-4">No output generated yet</p>
+            <p className="text-muted-foreground mb-4">No deliveries yet</p>
             <button
               onClick={handleRunNow}
               disabled={running || deliverable.status === 'archived'}
@@ -423,11 +434,11 @@ export default function DeliverableDetailPage() {
           </div>
         )}
 
-        {/* Previous Versions */}
+        {/* Delivery History */}
         {versions.length > 1 && (
           <div className="border border-border rounded-lg mb-6">
             <div className="px-4 py-3 border-b border-border bg-muted/30">
-              <h2 className="text-sm font-medium">Previous Versions</h2>
+              <h2 className="text-sm font-medium">Delivery History</h2>
             </div>
             <div className="divide-y divide-border">
               {versions.slice(1, 10).map((version) => (
@@ -442,12 +453,21 @@ export default function DeliverableDetailPage() {
                       ) : (
                         <ChevronRight className="w-4 h-4 text-muted-foreground" />
                       )}
-                      <span className="text-sm font-medium">v{version.version_number}</span>
-                      {getStatusBadge(version.status)}
+                      <span className="text-sm">{getDeliveryTimestamp(version)}</span>
+                      {getDeliveryStatusBadge(version)}
                     </div>
-                    <span className="text-xs text-muted-foreground">
-                      {format(new Date(version.created_at), 'MMM d, h:mm a')}
-                    </span>
+                    {version.delivery_external_url && (
+                      <a
+                        href={version.delivery_external_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-1.5 hover:bg-muted rounded transition-colors text-primary"
+                        title="View in destination"
+                      >
+                        <ExternalLink className="w-3.5 h-3.5" />
+                      </a>
+                    )}
                   </button>
                   {expandedVersionId === version.id && (
                     <div className="px-4 pb-4 pl-11">
@@ -459,9 +479,9 @@ export default function DeliverableDetailPage() {
                       <pre className="text-xs text-muted-foreground bg-muted/50 rounded-md p-3 overflow-auto max-h-[200px] whitespace-pre-wrap">
                         {version.final_content || version.draft_content || 'No content'}
                       </pre>
-                      {version.feedback_notes && (
-                        <p className="mt-2 text-xs text-muted-foreground italic">
-                          Feedback: "{version.feedback_notes}"
+                      {(version.status === 'failed' || version.status === 'rejected') && version.delivery_error && (
+                        <p className="mt-2 text-xs text-red-600">
+                          Error: {version.delivery_error}
                         </p>
                       )}
                     </div>
@@ -472,7 +492,7 @@ export default function DeliverableDetailPage() {
             {versions.length > 10 && (
               <div className="px-4 py-2 text-center border-t border-border">
                 <span className="text-xs text-muted-foreground">
-                  Showing 9 of {versions.length - 1} previous versions
+                  Showing 9 of {versions.length - 1} previous deliveries
                 </span>
               </div>
             )}
@@ -489,7 +509,7 @@ export default function DeliverableDetailPage() {
               {deliverable.next_run_at ? (
                 <>
                   <p className="text-sm">
-                    Next run: <span className="font-medium">{format(new Date(deliverable.next_run_at), 'EEE, MMM d')} at {format(new Date(deliverable.next_run_at), 'h:mm a')}</span>
+                    Next: <span className="font-medium">{format(new Date(deliverable.next_run_at), 'EEE, MMM d')} at {format(new Date(deliverable.next_run_at), 'h:mm a')}</span>
                   </p>
                   <p className="text-xs text-muted-foreground mt-0.5">
                     {formatDistanceToNow(new Date(deliverable.next_run_at), { addSuffix: true })}
@@ -499,16 +519,14 @@ export default function DeliverableDetailPage() {
                 <p className="text-sm text-muted-foreground">No scheduled runs</p>
               )}
             </div>
-            {!hasPendingReview && (
-              <button
-                onClick={handleRunNow}
-                disabled={running || deliverable.status === 'archived'}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 transition-colors"
-              >
-                {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
-                Run Now
-              </button>
-            )}
+            <button
+              onClick={handleRunNow}
+              disabled={running || deliverable.status === 'archived'}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-md hover:bg-muted disabled:opacity-50 transition-colors"
+            >
+              {running ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Play className="w-3.5 h-3.5" />}
+              Run Now
+            </button>
           </div>
         </div>
       </div>

@@ -1,52 +1,102 @@
-# ADR-066: Deliverable Detail Page Redesign — Output-First with Inline Review
+# ADR-066: Deliverable Detail Page Redesign — Delivery-First, No Governance
 
-**Status**: Proposed
+**Status**: Implemented
 **Date**: 2026-02-19
-**Relates to**: ADR-063 (Four-Layer Model), ADR-042 (Deliverable Execution)
+**Relates to**: ADR-067 (Creation Simplification), ADR-042 (Execution), ADR-063 (Four-Layer Model)
+
+### Implementation Status
+
+**Backend** (`api/services/deliverable_execution.py`):
+- ✅ Removed governance gate — always delivers immediately
+- ✅ No more `staged` status — versions go to `delivered` or `failed`
+- ✅ Added `update_version_for_delivery()` function
+- ⚠️ Approval endpoints kept for backwards compatibility (deprecated)
+
+**Frontend** (`web/app/(authenticated)/deliverables/[id]/page.tsx`):
+- ✅ Removed Approve/Reject buttons
+- ✅ "Latest Output" → "Latest Delivery"
+- ✅ "Previous Versions" → "Delivery History"
+- ✅ Platform badge in header
+- ✅ External link to delivered content
+- ✅ Retry button for failed deliveries
 
 ---
 
 ## Context
 
-The current deliverable detail page (`/deliverables/[id]`) has accumulated features that fragment the user's workflow across multiple surfaces:
-
-1. **Detail page** — Shows metadata, stats, version history
-2. **Settings modal** — Configuration (title, schedule, sources, destination)
-3. **Review page** (`/dashboard/deliverable/[id]/review/[versionId]`) — View and approve/reject output
-
-This structure creates friction for the most common user action: **reviewing and approving generated output**.
-
 ### Current Problems
 
-**High-frequency actions are buried:**
-- Reviewing output requires 2 clicks (detail page → version → review page)
-- Approve/reject buttons live on a separate route
-- User must navigate away from the deliverable to see what it produced
+The deliverable detail page has accumulated complexity around a **governance model** (approve/reject before delivery) that creates friction without value for single-user workflows:
 
-**Low-frequency actions are prominent:**
-- "Quality %" metric with unclear meaning
-- "Run Now" as a giant button, even when versions are pending review
-- Trend indicators (improving/declining) without actionable context
+1. **Governance mismatch**: User creates scheduled automation → system generates output → user must manually "approve" → only then delivery happens. This defeats the purpose of automation.
 
-**Settings modal is overloaded:**
-- Mixes identity (title) with operational config (schedule, sources)
-- "Data Sources" only shows URL input — disconnected from connected platforms
-- "Recipient Context" is vague and redundant with destination
+2. **Version status confusion**: `staged` / `reviewing` / `approved` / `rejected` — a workflow designed for multi-user collaboration that doesn't exist yet.
 
-**Information architecture mismatch:**
-The UI treats a deliverable as a configuration object. Users think of it as "a thing YARNNN makes for me that I sometimes need to review."
+3. **Review as primary action**: The page centers on "Pending Review" with Approve/Reject buttons, but users want automated delivery, not a review queue.
+
+4. **Pause/Resume vs Governance confusion**: Two independent controls (schedule vs approval) that don't relate well and create cognitive overhead.
+
+### First Principles Assessment
+
+**What is a deliverable?**
+> A scheduled automation that generates content and delivers it to a destination.
+
+**What does the user want?**
+> Outputs delivered automatically on schedule. The ability to pause/resume, modify, or delete.
+
+**What doesn't fit?**
+> Self-approval before delivery. This is governance for future multi-user scenarios, not current single-user reality.
 
 ---
 
-## Decision: Output-First with Inline Review
-
-Redesign the deliverable detail page around the **latest generated output**, with inline review actions. Merge the review functionality into the detail page.
+## Decision: Delivery-First, Remove Governance
 
 ### Core Principle
 
-> The deliverable detail page answers: "What did YARNNN make, and is it good?"
+> A deliverable is a **scheduled automation**. When it runs, it delivers. User controls via schedule and pause/resume.
 
-Configuration and history are secondary.
+### What This Means
+
+1. **No approval gate**: Generated content delivers immediately (or fails)
+2. **Versions are delivery history**: Not pending items awaiting approval
+3. **Pause/Resume is the only schedule control**: Stop/start automated runs
+4. **Settings modify the automation**: Schedule, sources, destination
+
+---
+
+## New Mental Model
+
+### Version Status (Simplified)
+
+**Before:**
+```typescript
+type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected" | "suggested";
+```
+
+**After:**
+```typescript
+type VersionStatus = "generating" | "delivered" | "failed";
+```
+
+| Status | Meaning |
+|--------|---------|
+| `generating` | Currently being created |
+| `delivered` | Successfully sent to destination |
+| `failed` | Generation or delivery failed |
+
+### Controls (Simplified)
+
+| Control | Function |
+|---------|----------|
+| **Pause/Resume** | Stop/start scheduled runs |
+| **Settings** | Modify schedule, sources, destination |
+| **Run Now** | Trigger immediate generation + delivery |
+| **Archive** | Soft delete the deliverable |
+
+**Removed:**
+- Approve button
+- Reject button
+- Governance level selector
 
 ---
 
@@ -54,167 +104,143 @@ Configuration and history are secondary.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│ ← Back to Deliverables                            ⏸ Pause   ⚙   │
+│ ← Back                                             ⏸ Pause   ⚙   │
 │                                                                 │
-│ Competitive Research Brief                                      │
-│ Weekly on Monday at 09:00 → Slack #research                     │
+│ 💬 Engineering Digest                                           │
+│ Weekly on Monday at 09:00 → Slack #engineering                  │
 │                                                                 │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                 │
-│ ┌─ Latest Output ───────────────────────────────────────────┐   │
-│ │                                                           │   │
-│ │  v2 · Feb 19, 8:49 AM · ● Pending Review                  │   │
-│ │                                                           │   │
-│ │  ┌───────────────────────────────────────────────────┐    │   │
-│ │  │                                                   │    │   │
-│ │  │  [Generated content rendered here - markdown]     │    │   │
-│ │  │                                                   │    │   │
-│ │  │  - Competitor A launched new feature...           │    │   │
-│ │  │  - Market trend: 15% increase in...               │    │   │
-│ │  │                                                   │    │   │
-│ │  └───────────────────────────────────────────────────┘    │   │
-│ │                                                           │   │
-│ │  Sources: Slack #general (47 msgs) · Gmail (12 emails)    │   │
-│ │                                                           │   │
-│ │  ┌──────────────┐  ┌──────────────┐                       │   │
-│ │  │  ✓ Approve   │  │  ✗ Reject    │                       │   │
-│ │  └──────────────┘  └──────────────┘                       │   │
-│ │                                                           │   │
-│ │  [Optional feedback input on reject]                      │   │
-│ │                                                           │   │
-│ └───────────────────────────────────────────────────────────┘   │
+│ ┌─ Latest Delivery ───────────────────────────────────────────┐ │
+│ │                                                             │ │
+│ │  ✓ Delivered · Feb 19, 9:00 AM                              │ │
+│ │  [View in Slack ↗]                                          │ │
+│ │                                                             │ │
+│ │  ▸ Show content                                             │ │
+│ │                                                             │ │
+│ │  Sources: #general (47 msgs) · #product (23 msgs)           │ │
+│ │                                                             │ │
+│ └─────────────────────────────────────────────────────────────┘ │
 │                                                                 │
-│ ┌─ Previous Versions ───────────────────────────────────────┐   │
-│ │  ▸ v1 · Feb 19, 8:48 AM · Staged                          │   │
-│ │  ▸ v0 · Feb 12, 9:00 AM · Approved                        │   │
-│ └───────────────────────────────────────────────────────────┘   │
+│ ┌─ Delivery History ──────────────────────────────────────────┐ │
+│ │  ▸ Feb 12, 9:00 AM · ✓ Delivered                            │ │
+│ │  ▸ Feb 5, 9:00 AM · ✓ Delivered                             │ │
+│ │  ▸ Jan 29, 9:00 AM · ✗ Failed (Slack API error)             │ │
+│ └─────────────────────────────────────────────────────────────┘ │
 │                                                                 │
-│ ┌─ Schedule ────────────────────────────────────────────────┐   │
-│ │  Next run: Wed, Feb 25 at 09:00 AM (6 days)               │   │
-│ │  [Run Now]                                                │   │
-│ └───────────────────────────────────────────────────────────┘   │
+│ ┌─ Schedule ──────────────────────────────────────────────────┐ │
+│ │  Next: Mon, Feb 24 at 9:00 AM (5 days)                      │ │
+│ │                                              [Run Now]      │ │
+│ └─────────────────────────────────────────────────────────────┘ │
 │                                                                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Key Changes from Previous ADR-066
+
+| Before | After |
+|--------|-------|
+| "Latest Output" with Pending Review | "Latest Delivery" with delivery confirmation |
+| Approve/Reject buttons | Removed entirely |
+| "Previous Versions" | "Delivery History" (simpler mental model) |
+| Editable content textarea | Read-only view with "Show content" expander |
+| Feedback input for rejection | Removed |
+
+### New Elements
+
+1. **External link to delivered content**: "View in Slack ↗" / "View in Gmail ↗" when platform provides a permalink
+2. **Delivery timestamp emphasis**: When it was delivered, not when it was generated
+3. **Failed deliveries**: Show error reason with potential "Retry" option
+4. **Platform badge in header**: Visual indicator of destination type
+
 ---
 
-## Key Changes
+## Header Section
 
-### 1. Inline Latest Output
-
-The most recent version's content is displayed directly on the page — no click-through required.
-
-- Render `draft_content` or `final_content` as markdown
-- Show version number, timestamp, status prominently
-- If content is long (>500 words), show truncated with "Show full" expander
-
-### 2. Inline Approve/Reject
-
-Review actions move from the separate review page to the detail page.
-
-- Approve: Progresses status to `approved`, triggers delivery
-- Reject: Prompts for optional feedback, marks as `rejected`
-- Both actions update the UI immediately
-
-### 3. Source Attribution
-
-Show what data fed the generation, pulled from `source_snapshots`:
+Emphasize platform identity with badge:
 
 ```
-Sources: Slack #general (47 msgs, synced 2h ago) · Gmail/Inbox (12 emails)
+│ 💬 Engineering Digest                                           │
+│ Weekly on Monday at 09:00 → Slack #engineering                  │
 ```
 
-This gives users confidence in what informed the output.
+Platform badges:
+- 💬 Slack deliverables
+- 📧 Gmail/Email deliverables
+- 📝 Notion deliverables
+- 📊 Synthesis (cross-platform) deliverables
 
-### 4. Collapsible Previous Versions
+---
 
-Version history becomes an expandable list. Clicking a previous version shows its content inline (accordion-style), not a navigation.
+## Delivery History (Reconceptualized)
 
-### 5. Simplified Header
+"Previous Versions" implied pending items. "Delivery History" is a log of what was sent.
 
-Remove:
-- Quality % and trend indicators (unclear value)
-- Status cards grid (Next Run / Quality / Status)
+Each entry shows:
+- Delivery timestamp
+- Status (Delivered / Failed)
+- Expandable content preview
+- Source attribution
+- For failures: error message
 
-Keep:
-- Title + subtitle (schedule + destination)
-- Pause/Resume toggle
-- Settings gear
+---
 
-### 6. "Run Now" Demoted
+## Backend Changes Required
 
-Move "Run Now" to a smaller button in the Schedule section, not a full-width CTA. The primary action is reviewing pending output, not generating more.
+### Execution Pipeline
 
-Show "Run Now" only when:
-- No versions exist yet, OR
-- No versions are pending review (all approved/rejected)
+Modify `execute_deliverable_generation()` to:
+1. Generate content
+2. Immediately attempt delivery (if destination configured)
+3. Set version status to `delivered` or `failed`
+
+**Remove:**
+- `staged` status (versions don't wait for approval)
+- Governance check before delivery
+- Approval/rejection endpoints
+
+### Database (Minimal)
+
+- Keep `governance` field but ignore it (backwards compat)
+- `staged_at` and `approved_at` become unused (don't migrate, just ignore)
+- New: track `delivery_error` for failed deliveries (already exists)
 
 ---
 
 ## Settings Modal Simplification
 
-The modal becomes purely about configuration, not identity:
-
-### Remove
-- Title field (edit inline on page header, or keep in modal — low priority)
-- "Recipient Context" section (redundant with destination)
-- Quality-related fields (if any)
-
-### Simplify
-- **Destination**: Keep as-is (platform + format)
-- **Schedule**: Keep as-is (frequency + day + time)
-- **Data Sources**: Show connected platform sources (channels, labels, pages) instead of URL-only input
-  - Dropdown: "Slack #channel", "Gmail label:X", "Notion page"
-  - URL input as secondary option
+Keep it focused on automation configuration:
 
 ### Keep
-- Archive action (with confirmation)
+- **Schedule**: Frequency, day, time
+- **Destination**: Platform + target
+- **Sources**: Platform sources (channels, labels, pages)
+- **Archive action**
+
+### Remove
+- Governance level selector (if it exists)
+- Any approval-related settings
 
 ---
 
-## Routes
+## Migration Path
 
-### Delete
-- `/dashboard/deliverable/[id]/review/[versionId]` — functionality merged into detail page
+### Phase 1: Backend — Auto-deliver
+1. Update `execute_deliverable_generation()` to skip `staged`, go directly to delivery
+2. New versions get `delivered` or `failed` status
+3. Keep API backwards compatible (ignore governance param)
 
-### Modify
-- `/deliverables/[id]` — becomes the output-first review page
+### Phase 2: Frontend — Detail page
+1. Replace "Pending Review" UI with "Latest Delivery"
+2. Remove Approve/Reject buttons
+3. Rename "Previous Versions" to "Delivery History"
+4. Add external link to delivered content
+5. Add platform badge to header
 
----
-
-## Implementation Phases
-
-### Phase 1: Inline Output + Review Actions
-1. Fetch latest version with content in `loadDeliverable()`
-2. Render content as markdown in a new `LatestOutput` component
-3. Add Approve/Reject buttons with API calls
-4. Update version status in UI on action
-5. Remove Quality/Status cards, simplify header
-
-### Phase 2: Version History Accordion
-1. Replace click-through version list with expandable rows
-2. Lazy-load version content on expand
-3. Show source_snapshots per version
-
-### Phase 3: Settings Modal Cleanup
-1. Remove Recipient Context section
-2. Add platform source picker alongside URL input
-3. Clean up layout
-
-### Phase 4: Remove Review Route
-1. Delete review page and route
-2. Update all navigation references
-3. Redirect old URLs to detail page
-
----
-
-## What This Enables
-
-- **Faster review cycle**: See output and approve in one view
-- **Better context**: Source attribution visible alongside content
-- **Cleaner mental model**: One page per deliverable, not three surfaces
-- **Mobile-friendly**: Single scrollable page vs. multi-step navigation
+### Phase 3: Cleanup
+1. Remove approval endpoints from API
+2. Remove governance from types (or mark deprecated)
+3. Update create flow to not set governance
 
 ---
 
@@ -222,39 +248,46 @@ The modal becomes purely about configuration, not identity:
 
 | Removed | Reason |
 |---------|--------|
-| Quality % metric | Unclear definition, no actionable insight |
-| Trend indicators | Same — can reintroduce when meaningful |
-| Separate review route | Merged into detail page |
-| Recipient Context field | Redundant with destination |
-| Giant "Run Now" button | Demoted — review is the primary action |
+| Approve/Reject workflow | Single-user doesn't need self-approval |
+| `staged` / `reviewing` status | No longer needed without governance |
+| Governance level setting | Not applicable to single-user |
+| Editable content before approval | Can add "Edit & Resend" later if needed |
+| Feedback notes on rejection | No rejection workflow |
 
 ---
 
-## Open Questions
+## What This Enables
 
-### Resolved
-- **Multiple staged versions**: Show the latest. Previous are in history.
-- **Long content**: Truncate with "Show full" expander.
-
-### Deferred
-- **Edit before approve**: Keep as future feature. Users can reject with feedback, regenerate.
-- **Diff view between versions**: Valuable but not in initial scope.
-- **Inline title editing**: Nice-to-have, can keep in modal for now.
+- **True automation**: Scheduled runs deliver without user action
+- **Simpler mental model**: Deliverable = scheduled automation + history
+- **Cleaner UI**: One status (delivered/failed), not approval queue
+- **Future-ready**: Multi-user governance can be re-added as a feature flag
 
 ---
 
-## Migration
+## Future Considerations
 
-No database changes required. This is purely a frontend restructure.
+### Edit & Resend (Deferred)
+User views delivered content, wants to send a correction:
+- Creates new version
+- User edits
+- Delivers as correction
 
-Existing review page URLs (`/dashboard/deliverable/[id]/review/[versionId]`) should redirect to `/deliverables/[id]` after Phase 4.
+This is additive, not default governance.
+
+### Multi-User Governance (Future)
+When teams are supported:
+- Manager configures "require approval" on certain deliverables
+- Team member's scheduled run creates `pending_approval` version
+- Manager approves → delivers
+
+This would be opt-in per deliverable, not default behavior.
 
 ---
 
 ## Related
 
-- [ADR-063](ADR-063-activity-log-four-layer-model.md) — Four-layer model (Work layer definition)
-- [ADR-042](ADR-042-deliverable-execution-simplification.md) — Deliverable execution pipeline
-- [docs/features/deliverables.md](../features/deliverables.md) — Deliverables layer documentation
-- `web/app/(authenticated)/deliverables/[id]/page.tsx` — Current detail page
-- `web/components/modals/DeliverableSettingsModal.tsx` — Current settings modal
+- [ADR-067](ADR-067-deliverable-creation-simplification.md) — Creation flow (aligns with this)
+- [ADR-042](ADR-042-deliverable-execution-simplification.md) — Execution pipeline (needs update)
+- [ADR-063](ADR-063-activity-log-four-layer-model.md) — Four-layer model (Work layer)
+- [ADR-021](ADR-021-review-first-supervision-ux.md) — Superseded review-first model

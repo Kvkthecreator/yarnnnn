@@ -271,7 +271,9 @@ export interface PortalResponse {
 // =============================================================================
 
 export type DeliverableStatus = "active" | "paused" | "archived";
-export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected" | "suggested";
+// ADR-066: Added "delivered" and "failed" for delivery-first model
+// Legacy statuses (staged, reviewing, approved, rejected) kept for backwards compatibility
+export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected" | "suggested" | "delivered" | "failed";
 export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
 // ADR-029 Phase 2: Added integration_import for Gmail/Slack/Notion data sources
 export type DataSourceType = "url" | "document" | "description" | "integration_import";

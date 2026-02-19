@@ -1,8 +1,24 @@
 # ADR-067: Deliverable Creation & List Simplification — User-Driven with Platform Grouping
 
-**Status**: Proposed
+**Status**: Partially Implemented
 **Date**: 2026-02-19
 **Relates to**: ADR-028 (Destination-First), ADR-044 (Type Reconceptualization), ADR-066 (Detail Page Redesign)
+
+### Implementation Status
+
+**List Page** (`web/app/(authenticated)/deliverables/page.tsx`):
+- ✅ Platform grouping (Slack, Email, Notion, Synthesis)
+- ✅ Platform badges on every card
+- ✅ Delivery status (delivered/failed) per ADR-066
+- ✅ Schedule status (Active/Paused)
+- ✅ Destination visibility with arrow indicator
+- ✅ Uppercase group headers with separator lines
+
+**Create Page** (`web/components/surfaces/DeliverableCreateSurface.tsx`):
+- ✅ Platform-agnostic delivery options (Email/Slack DM/Channel)
+- ✅ Instant run on creation
+- ⏳ Simplified type selection (still has 12+ options)
+- ⏳ Lazy resource loading (partial)
 
 ---
 
@@ -149,37 +165,70 @@ When user selects a type (e.g., "Slack Digest"):
 
 ## New List View
 
-### `/deliverables` — Grouped by Platform
+### `/deliverables` — Grouped by Platform with Visual Emphasis
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │ Deliverables                                    [+ New]     │
 ├─────────────────────────────────────────────────────────────┤
 │                                                             │
-│ 💬 Slack                                                    │
+│ 💬 SLACK ──────────────────────────────────────────────     │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ Engineering Digest         Weekly Mon 9am    ● Pending  │ │
-│ │ Product Updates            Daily 8am         ✓ Sent     │ │
+│ │ 💬  Engineering Digest                                  │ │
+│ │     Weekly Mon 9am → #engineering        ✓ Delivered    │ │
+│ │     Last: Feb 19                          ⏸ Paused      │ │
+│ ├─────────────────────────────────────────────────────────┤ │
+│ │ 💬  Product Updates                                     │ │
+│ │     Daily 8am → #product                 ✓ Delivered    │ │
+│ │     Last: Today 8:00 AM                   ▶ Active      │ │
 │ └─────────────────────────────────────────────────────────┘ │
 │                                                             │
-│ 📧 Gmail                                                    │
+│ 📧 EMAIL ──────────────────────────────────────────────     │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ Inbox Brief                Daily 8am         ✓ Sent     │ │
+│ │ 📧  Inbox Brief                                         │ │
+│ │     Daily 8am → user@email.com           ✓ Delivered    │ │
+│ │     Last: Today 8:00 AM                   ▶ Active      │ │
 │ └─────────────────────────────────────────────────────────┘ │
 │                                                             │
-│ 📊 Synthesis                                                │
+│ 📊 SYNTHESIS ──────────────────────────────────────────     │
 │ ┌─────────────────────────────────────────────────────────┐ │
-│ │ Weekly Status to Sarah     Weekly Fri 4pm    ● Pending  │ │
-│ │ 1:1 Prep with Mike         Before meetings   ✓ Ready    │ │
+│ │ 📊  Weekly Status to Sarah                              │ │
+│ │     Weekly Fri 4pm → sarah@company.com   ✓ Delivered    │ │
+│ │     Last: Feb 14                          ▶ Active      │ │
+│ ├─────────────────────────────────────────────────────────┤ │
+│ │ 📊  1:1 Prep with Mike                                  │ │
+│ │     Before meetings → Slack DM           ✓ Delivered    │ │
+│ │     Last: Feb 18                          ▶ Active      │ │
 │ └─────────────────────────────────────────────────────────┘ │
 │                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Visual Emphasis Principles
+
+**Platform badges on every card** — not just group headers:
+- Each deliverable card shows its platform icon (💬/📧/📝/📊)
+- Provides instant visual differentiation even when scrolling
+- Maintains identity when groups are collapsed or filtered
+
+**Delivery status (not governance status)** — aligns with ADR-066:
+- `✓ Delivered` — most recent run succeeded
+- `✗ Failed` — most recent run failed (show retry option)
+- `⏳ Generating` — currently running
+
+**Schedule status** (independent from delivery):
+- `▶ Active` — automated runs enabled
+- `⏸ Paused` — automated runs disabled
+
+**Destination visibility**:
+- Show where deliverables go: `→ #channel`, `→ email@domain.com`, `→ Slack DM`
+- This reinforces the "scheduled automation with delivery" mental model
+
 **Grouping logic:**
 - Platform-bound deliverables grouped under their platform (Slack, Gmail, Notion)
 - Cross-platform/synthesis deliverables grouped under "Synthesis"
 - Use `type_classification.binding` and `type_classification.primary_platform` from ADR-044
+- Group headers are uppercase with visual separator line
 
 ---
 
@@ -233,7 +282,7 @@ function ConfigForm({ type }: { type: DeliverableType }) {
 }
 ```
 
-### Phase 2: Update List with Platform Grouping
+### Phase 2: Update List with Platform Grouping and Visual Emphasis
 
 ```tsx
 function DeliverableList({ deliverables }: { deliverables: Deliverable[] }) {
@@ -241,37 +290,84 @@ function DeliverableList({ deliverables }: { deliverables: Deliverable[] }) {
   const grouped = groupDeliverables(deliverables);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {grouped.slack.length > 0 && (
         <DeliverableGroup
           icon={<Slack />}
-          label="Slack"
+          label="SLACK"
           items={grouped.slack}
         />
       )}
-      {grouped.gmail.length > 0 && (
+      {grouped.email.length > 0 && (
         <DeliverableGroup
           icon={<Mail />}
-          label="Gmail"
-          items={grouped.gmail}
+          label="EMAIL"
+          items={grouped.email}
         />
       )}
       {grouped.notion.length > 0 && (
         <DeliverableGroup
           icon={<FileText />}
-          label="Notion"
+          label="NOTION"
           items={grouped.notion}
         />
       )}
       {grouped.synthesis.length > 0 && (
         <DeliverableGroup
           icon={<BarChart3 />}
-          label="Synthesis"
+          label="SYNTHESIS"
           items={grouped.synthesis}
         />
       )}
     </div>
   );
+}
+
+// Individual card with platform badge
+function DeliverableCard({ deliverable }: { deliverable: Deliverable }) {
+  const icon = getPlatformIcon(deliverable);
+  const latestVersion = deliverable.versions?.[0];
+
+  return (
+    <div className="p-4 border rounded-lg">
+      <div className="flex items-start gap-3">
+        {/* Platform badge on every card */}
+        <span className="text-xl">{icon}</span>
+
+        <div className="flex-1">
+          <h3 className="font-medium">{deliverable.title}</h3>
+
+          {/* Schedule + destination */}
+          <p className="text-sm text-muted-foreground">
+            {formatSchedule(deliverable)} → {formatDestination(deliverable)}
+          </p>
+
+          {/* Last delivery + schedule status */}
+          <div className="flex items-center gap-4 mt-1 text-sm">
+            <span>Last: {formatLastDelivery(latestVersion)}</span>
+            <DeliveryStatusBadge version={latestVersion} />
+            <ScheduleStatusBadge isPaused={deliverable.is_paused} />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Delivery status (from ADR-066)
+function DeliveryStatusBadge({ version }) {
+  if (!version) return null;
+  if (version.status === 'delivered') return <span>✓ Delivered</span>;
+  if (version.status === 'failed') return <span className="text-red-500">✗ Failed</span>;
+  if (version.status === 'generating') return <span>⏳ Generating</span>;
+  return null;
+}
+
+// Schedule status (independent)
+function ScheduleStatusBadge({ isPaused }) {
+  return isPaused
+    ? <span className="text-amber-500">⏸ Paused</span>
+    : <span className="text-green-500">▶ Active</span>;
 }
 
 function groupDeliverables(deliverables: Deliverable[]) {
@@ -280,9 +376,10 @@ function groupDeliverables(deliverables: Deliverable[]) {
       d.type_classification?.primary_platform === 'slack' &&
       d.type_classification?.binding === 'platform_bound'
     ),
-    gmail: deliverables.filter(d =>
-      d.type_classification?.primary_platform === 'gmail' &&
-      d.type_classification?.binding === 'platform_bound'
+    email: deliverables.filter(d =>
+      d.destination?.platform === 'email' ||
+      (d.type_classification?.primary_platform === 'gmail' &&
+       d.type_classification?.binding === 'platform_bound')
     ),
     notion: deliverables.filter(d =>
       d.type_classification?.primary_platform === 'notion' &&
@@ -354,7 +451,9 @@ Other types from ADR-044 remain in schema but aren't shown in primary UI — the
 | Wave 1/2/3 categorization | Internal complexity, not user-facing |
 | Eager platform resource loading | Load only after type selection |
 | Platform context sidebar | Remove (detail page shows sources) |
-| Flat deliverable list | Grouped by platform |
+| Flat deliverable list | Grouped by platform with visual emphasis |
+| "Pending Review" status in list | Replaced with delivery status (ADR-066) |
+| Governance-related status badges | Deliverables deliver immediately, no approval |
 
 ---
 
@@ -363,8 +462,10 @@ Other types from ADR-044 remain in schema but aren't shown in primary UI — the
 - **Clear mental model**: Platform Monitors vs Synthesis Work
 - **Faster creation**: 2 steps (type → config) not 5
 - **Resilient loading**: No 500 on page load
-- **Consistent philosophy**: Simple create + grouped list + simple detail
+- **Consistent philosophy**: Simple create + grouped list + delivery-first detail
 - **Platform-first organization**: List reflects how users think about deliverables
+- **Visual differentiation**: Platform badges on every card, not just group headers
+- **True automation clarity**: Delivery + schedule status, not governance status
 
 ---
 
@@ -373,11 +474,13 @@ Other types from ADR-044 remain in schema but aren't shown in primary UI — the
 | Surface | Driven By | Purpose |
 |---------|-----------|---------|
 | Chat | TP (AI) | Conversation, proposals, generation |
-| `/deliverables` | User | See and manage deliverables |
+| `/deliverables` | User | See and manage deliverables (grouped by platform) |
 | `/deliverables/new` | User | Explicit creation form |
-| `/deliverables/[id]` | User | Review and approve output |
+| `/deliverables/[id]` | User | View delivery history, manage automation |
 
 TP can still create deliverables via chat — that's the AI-driven path. The `/deliverables/new` route is the user-driven path.
+
+Note: Governance/approval workflow has been removed per ADR-066. Deliverables run on schedule and deliver immediately.
 
 ---
 

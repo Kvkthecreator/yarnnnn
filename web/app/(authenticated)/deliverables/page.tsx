@@ -1,18 +1,16 @@
 'use client';
 
 /**
- * ADR-037: Deliverables Page (Route-based)
- * ADR-060: Includes suggested deliverables from Conversation Analyst
- * ADR-063: Four-Layer Model — Work Layer
- * ADR-067: Platform-grouped list view
+ * ADR-067: Deliverables List Page — Platform-Grouped with Visual Emphasis
+ * ADR-066: Delivery-First, No Governance
  *
  * Layer 4: Work — What YARNNN produces
  *
- * Deliverables are grouped by platform:
- * - Slack: Platform-bound Slack deliverables
- * - Gmail: Platform-bound Gmail deliverables
- * - Notion: Platform-bound Notion deliverables
- * - Synthesis: Cross-platform, hybrid, and research deliverables
+ * Deliverables are grouped by platform with visual emphasis:
+ * - Platform badges on every card (not just group headers)
+ * - Delivery status (delivered/failed) not governance status
+ * - Schedule status (Active/Paused) independent from delivery
+ * - Destination visibility (where outputs go)
  */
 
 import { useState, useEffect, useMemo, useCallback } from 'react';
@@ -22,16 +20,17 @@ import {
   Play,
   Pause,
   Calendar,
-  Clock,
   FileText,
   Plus,
-  Send,
   Mail,
   MessageSquare,
   Sparkles,
   Check,
   X,
   BarChart3,
+  CheckCircle2,
+  XCircle,
+  ArrowRight,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -41,11 +40,11 @@ import type { Deliverable, DeliverableStatus, SuggestedVersion } from '@/types';
 // Types
 // =============================================================================
 
-type PlatformGroup = 'slack' | 'gmail' | 'notion' | 'synthesis';
+type PlatformGroup = 'slack' | 'email' | 'notion' | 'synthesis';
 
 interface GroupedDeliverables {
   slack: Deliverable[];
-  gmail: Deliverable[];
+  email: Deliverable[];
   notion: Deliverable[];
   synthesis: Deliverable[];
 }
@@ -57,7 +56,7 @@ interface GroupedDeliverables {
 function groupDeliverables(deliverables: Deliverable[]): GroupedDeliverables {
   const groups: GroupedDeliverables = {
     slack: [],
-    gmail: [],
+    email: [],
     notion: [],
     synthesis: [],
   };
@@ -65,11 +64,18 @@ function groupDeliverables(deliverables: Deliverable[]): GroupedDeliverables {
   for (const d of deliverables) {
     const binding = d.type_classification?.binding;
     const platform = d.type_classification?.primary_platform;
+    const destPlatform = d.destination?.platform;
+
+    // Email destination goes to email group (platform-agnostic delivery)
+    if (destPlatform === 'email') {
+      groups.email.push(d);
+      continue;
+    }
 
     // Platform-bound deliverables go under their platform
     if (binding === 'platform_bound' && platform) {
       if (platform === 'slack') groups.slack.push(d);
-      else if (platform === 'gmail') groups.gmail.push(d);
+      else if (platform === 'gmail') groups.email.push(d);
       else if (platform === 'notion') groups.notion.push(d);
       else groups.synthesis.push(d);
     }
@@ -77,11 +83,10 @@ function groupDeliverables(deliverables: Deliverable[]): GroupedDeliverables {
     else if (binding === 'cross_platform' || binding === 'hybrid' || binding === 'research') {
       groups.synthesis.push(d);
     }
-    // Fallback: try to infer from destination or type
-    else if (d.destination?.platform) {
-      const destPlatform = d.destination.platform;
+    // Fallback: try to infer from destination
+    else if (destPlatform) {
       if (destPlatform === 'slack') groups.slack.push(d);
-      else if (destPlatform === 'gmail') groups.gmail.push(d);
+      else if (destPlatform === 'gmail') groups.email.push(d);
       else if (destPlatform === 'notion') groups.notion.push(d);
       else groups.synthesis.push(d);
     }
@@ -94,90 +99,169 @@ function groupDeliverables(deliverables: Deliverable[]): GroupedDeliverables {
   return groups;
 }
 
-const PLATFORM_CONFIG: Record<PlatformGroup, { icon: React.ReactNode; label: string }> = {
-  slack: { icon: <MessageSquare className="w-4 h-4" />, label: 'Slack' },
-  gmail: { icon: <Mail className="w-4 h-4" />, label: 'Gmail' },
-  notion: { icon: <FileText className="w-4 h-4" />, label: 'Notion' },
-  synthesis: { icon: <BarChart3 className="w-4 h-4" />, label: 'Synthesis' },
+const PLATFORM_CONFIG: Record<PlatformGroup, { emoji: string; label: string }> = {
+  slack: { emoji: '💬', label: 'SLACK' },
+  email: { emoji: '📧', label: 'EMAIL' },
+  notion: { emoji: '📝', label: 'NOTION' },
+  synthesis: { emoji: '📊', label: 'SYNTHESIS' },
 };
+
+function getPlatformEmoji(deliverable: Deliverable): string {
+  const binding = deliverable.type_classification?.binding;
+  if (binding === 'cross_platform' || binding === 'hybrid' || binding === 'research') {
+    return '📊';
+  }
+  const platform = deliverable.type_classification?.primary_platform || deliverable.destination?.platform;
+  if (platform === 'slack') return '💬';
+  if (platform === 'gmail' || platform === 'email') return '📧';
+  if (platform === 'notion') return '📝';
+  return '📊';
+}
+
+function formatScheduleShort(schedule: Deliverable['schedule']): string {
+  const freq = schedule.frequency;
+  const day = schedule.day;
+  const time = schedule.time || '09:00';
+
+  let timeStr = time;
+  try {
+    const [hour, minute] = time.split(':').map(Number);
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const h12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
+    timeStr = `${h12}:${minute.toString().padStart(2, '0')}${ampm}`;
+  } catch {
+    // Keep original
+  }
+
+  switch (freq) {
+    case 'daily':
+      return `Daily ${timeStr}`;
+    case 'weekly':
+      return `${day ? day.charAt(0).toUpperCase() + day.slice(1, 3) : 'Mon'} ${timeStr}`;
+    case 'biweekly':
+      return `Biweekly`;
+    case 'monthly':
+      return `Monthly`;
+    default:
+      return freq || 'Custom';
+  }
+}
+
+function formatDestination(deliverable: Deliverable): string | null {
+  const dest = deliverable.destination;
+  if (!dest) return null;
+  const target = dest.target;
+  if (target === 'dm') return 'Slack DM';
+  if (target?.includes('@')) return target;
+  if (target?.startsWith('#')) return target;
+  if (target?.startsWith('C')) return `#${target.slice(0, 8)}`;
+  return dest.platform;
+}
 
 // =============================================================================
 // Components
 // =============================================================================
 
-function DeliverableRow({
+function DeliverableCard({
   deliverable,
   onClick,
 }: {
   deliverable: Deliverable;
   onClick: () => void;
 }) {
-  const getStatusIcon = (status: DeliverableStatus) => {
-    switch (status) {
-      case 'active':
-        return <Play className="w-4 h-4 text-green-600" />;
-      case 'paused':
-        return <Pause className="w-4 h-4 text-amber-500" />;
-      case 'archived':
-        return <FileText className="w-4 h-4 text-muted-foreground" />;
-      default:
-        return <Calendar className="w-4 h-4 text-muted-foreground" />;
+  const emoji = getPlatformEmoji(deliverable);
+  const destination = formatDestination(deliverable);
+  // Use latest_version_status from API (not full version object)
+  const latestStatus = deliverable.latest_version_status;
+
+  // ADR-066: Delivery status (not governance)
+  const getDeliveryStatus = () => {
+    if (!latestStatus) return null;
+    // Map to delivery-first model
+    if (latestStatus === 'delivered' || latestStatus === 'approved' || latestStatus === 'staged') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-green-600">
+          <CheckCircle2 className="w-3 h-3" />
+          Delivered
+        </span>
+      );
     }
+    if (latestStatus === 'failed' || latestStatus === 'rejected') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-red-600">
+          <XCircle className="w-3 h-3" />
+          Failed
+        </span>
+      );
+    }
+    if (latestStatus === 'generating') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+          <Loader2 className="w-3 h-3 animate-spin" />
+          Generating
+        </span>
+      );
+    }
+    return null;
   };
 
-  const formatSchedule = (schedule: Deliverable['schedule']) => {
-    const freq = schedule.frequency;
-    const day = schedule.day;
-    const time = schedule.time || '09:00';
-
-    let timeStr = time;
-    try {
-      const [hour, minute] = time.split(':').map(Number);
-      const ampm = hour >= 12 ? 'PM' : 'AM';
-      const h12 = hour > 12 ? hour - 12 : hour === 0 ? 12 : hour;
-      timeStr = `${h12}:${minute.toString().padStart(2, '0')} ${ampm}`;
-    } catch {
-      // Keep original
+  // Schedule status (independent from delivery)
+  const getScheduleStatus = () => {
+    if (deliverable.status === 'paused') {
+      return (
+        <span className="inline-flex items-center gap-1 text-xs text-amber-600">
+          <Pause className="w-3 h-3" />
+          Paused
+        </span>
+      );
     }
-
-    switch (freq) {
-      case 'daily':
-        return `Daily ${timeStr}`;
-      case 'weekly':
-        return `${day ? day.charAt(0).toUpperCase() + day.slice(1, 3) : 'Mon'} ${timeStr}`;
-      case 'biweekly':
-        return `Biweekly ${day ? day.charAt(0).toUpperCase() + day.slice(1, 3) : 'Mon'}`;
-      case 'monthly':
-        return `Monthly`;
-      default:
-        return freq;
-    }
+    return (
+      <span className="inline-flex items-center gap-1 text-xs text-green-600">
+        <Play className="w-3 h-3" />
+        Active
+      </span>
+    );
   };
 
-  const isAuto = deliverable.governance === 'semi_auto' || deliverable.governance === 'full_auto';
+  // Use last_run_at from deliverable (not version timestamps)
+  const lastDeliveryTime = deliverable.last_run_at
+    ? formatDistanceToNow(new Date(deliverable.last_run_at), { addSuffix: true })
+    : null;
 
   return (
     <button
       onClick={onClick}
-      className="w-full flex items-center justify-between p-3 hover:bg-muted/50 rounded-md transition-colors text-left"
+      className="w-full p-4 hover:bg-muted/50 transition-colors text-left"
     >
-      <div className="flex items-center gap-3 min-w-0">
-        {getStatusIcon(deliverable.status)}
-        <div className="min-w-0">
-          <span className="text-sm font-medium truncate block">{deliverable.title}</span>
-          <span className="text-xs text-muted-foreground">
-            {formatSchedule(deliverable.schedule)}
-            {isAuto && <span className="text-green-600 ml-1">(auto)</span>}
-          </span>
-        </div>
-      </div>
-      <div className="text-right shrink-0 ml-3">
-        {deliverable.next_run_at && (
-          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-            <Clock className="w-3 h-3" />
-            <span>{formatDistanceToNow(new Date(deliverable.next_run_at), { addSuffix: true })}</span>
+      <div className="flex items-start gap-3">
+        {/* Platform badge on every card */}
+        <span className="text-xl mt-0.5">{emoji}</span>
+
+        <div className="flex-1 min-w-0">
+          <h3 className="text-sm font-medium truncate">{deliverable.title}</h3>
+
+          {/* Schedule + destination */}
+          <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">
+            <span>{formatScheduleShort(deliverable.schedule)}</span>
+            {destination && (
+              <>
+                <ArrowRight className="w-3 h-3" />
+                <span>{destination}</span>
+              </>
+            )}
+          </p>
+
+          {/* Last delivery + statuses */}
+          <div className="flex items-center gap-3 mt-2">
+            {lastDeliveryTime && (
+              <span className="text-xs text-muted-foreground">
+                Last: {lastDeliveryTime}
+              </span>
+            )}
+            {getDeliveryStatus()}
+            {getScheduleStatus()}
           </div>
-        )}
+        </div>
       </div>
     </button>
   );
@@ -197,15 +281,17 @@ function DeliverableGroup({
   const config = PLATFORM_CONFIG[platform];
 
   return (
-    <div className="mb-6">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="text-muted-foreground">{config.icon}</span>
-        <h2 className="text-sm font-medium text-muted-foreground">{config.label}</h2>
-        <span className="text-xs text-muted-foreground">({deliverables.length})</span>
+    <div className="mb-8">
+      {/* Group header with uppercase label and separator line */}
+      <div className="flex items-center gap-2 mb-3 pb-2 border-b border-border">
+        <span className="text-lg">{config.emoji}</span>
+        <h2 className="text-xs font-semibold text-muted-foreground tracking-wider">
+          {config.label}
+        </h2>
       </div>
-      <div className="border border-border rounded-lg divide-y divide-border">
+      <div className="border border-border rounded-lg divide-y divide-border overflow-hidden">
         {deliverables.map((d) => (
-          <DeliverableRow
+          <DeliverableCard
             key={d.id}
             deliverable={d}
             onClick={() => onDeliverableClick(d.id)}
@@ -308,7 +394,7 @@ export default function DeliverablesPage() {
           <div>
             <h1 className="text-2xl font-bold">Deliverables</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Recurring outputs generated on schedule
+              Scheduled automations that generate and deliver content
             </p>
           </div>
           <button
@@ -425,15 +511,15 @@ export default function DeliverablesPage() {
           </div>
         ) : (
           <div>
-            {/* ADR-067: Platform-grouped list */}
+            {/* ADR-067: Platform-grouped list with visual emphasis */}
             <DeliverableGroup
               platform="slack"
               deliverables={grouped.slack}
               onDeliverableClick={handleDeliverableClick}
             />
             <DeliverableGroup
-              platform="gmail"
-              deliverables={grouped.gmail}
+              platform="email"
+              deliverables={grouped.email}
               onDeliverableClick={handleDeliverableClick}
             />
             <DeliverableGroup
