@@ -6,6 +6,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.2] - Slack channel history tool + sync hand-off fix
+
+### Added
+- `api/services/platform_tools.py`: Added `platform_slack_get_channel_history` to SLACK_TOOLS
+  - Parameters: `channel_id` (required), `limit` (default 50), `oldest` (unix timestamp, optional)
+  - Routes via MCP Gateway as `slack/get_channel_history`
+  - This is the primary tool for reading Slack message content in conversation
+
+### Changed
+- `api/agents/tp_prompts/behaviors.py`: Fixed "Platform Content Access" Step 1 example
+  - Replaced hallucinated `platform_slack_search` with correct `platform_slack_list_channels → platform_slack_get_channel_history` workflow
+- `api/agents/tp_prompts/behaviors.py`: Fixed Step 3 sync wait-loop
+  - Removed `get_sync_status()` poll (tool not in TP's tool list — it's in project_tools.py, not loaded by TP)
+  - Replaced with hand-off pattern: trigger sync, tell user ~30–60s, stop; user re-engages after sync completes
+- `api/agents/tp_prompts/platforms.py`: Updated Slack section with full tool inventory
+  - Added `platform_slack_get_channel_history` as primary read tool with workflow example
+  - Clarified `platform_slack_list_channels` purpose (find channel_id) vs `platform_slack_send_message` (output to self)
+
+### Behavior
+- TP can now read Slack channel messages directly (live) without needing a sync
+- Sync hand-off is explicit: trigger + inform user + stop (not spin-wait)
+- No more hallucinated `platform_slack_search` calls
+
+### Root cause documented
+- TP hallucinated `platform_slack_search` because behaviors.py referenced it as an example
+- TP tried `Execute(action="platform.sync.status")` because it had no real status-check tool
+- Both fixed by this entry
+
+---
+
 ## [2026.02.19.1] - Live-First Platform Context (ADR-065)
 
 ### Changed

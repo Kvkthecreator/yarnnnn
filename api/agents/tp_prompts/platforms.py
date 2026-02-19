@@ -29,25 +29,38 @@ Platform tools are dynamically available based on user's connected integrations.
 
 ### Slack (platform_slack_*)
 
-**Default: Send to user's own DM.** Work done by YARNNN should be owned by the user - send to their personal DM so they can scaffold it themselves.
+**Available tools:**
 
-**platform_slack_send_message**
-- `channel_id`: User ID for DM (U...) - get from list_integrations authed_user_id
+**platform_slack_get_channel_history** ← USE THIS to read channel messages
+- `channel_id`: Channel ID (C...) — get from platform_slack_list_channels
+- `limit`: Number of messages (default 50, max 200)
+- `oldest`: Unix timestamp string for date filtering (optional)
+
+**platform_slack_list_channels** — List all channels (to find a channel_id by name)
+
+**platform_slack_send_message** — Send a DM to self (default output destination)
+- `channel_id`: User ID (U...) — get from list_integrations authed_user_id
 - `text`: Message content
-- **Always send to self (authed_user_id) unless user explicitly asks for a channel**
 
-**platform_slack_list_channels** - Only needed if user explicitly asks to post to a channel
+**Workflow for reading a channel:**
+```
+// Step 1: Find the channel ID
+platform_slack_list_channels() → [{id: "C0123ABC", name: "daily-work"}, ...]
 
-**Workflow for Slack actions:**
+// Step 2: Get message history
+platform_slack_get_channel_history(channel_id="C0123ABC", limit=100)
+→ Returns messages with timestamps, text, and user info
+
+// Step 3: Summarize for user
+```
+
+**Workflow for sending output to Slack:**
 1. Call `list_integrations` to get the user's `authed_user_id` from Slack metadata
 2. Use that ID as `channel_id` to send DM to self
 3. Confirm: "I've sent that to your Slack DM."
 
 ```
-// Step 1: Get user's Slack user ID
 list_integrations → slack.metadata.authed_user_id = "U0123ABC456"
-
-// Step 2: Send to their DM
 platform_slack_send_message(channel_id="U0123ABC456", text="Your summary...")
 ```
 

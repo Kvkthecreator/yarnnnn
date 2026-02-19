@@ -88,11 +88,44 @@ The user's authed_user_id is in integration metadata. Always send to self unless
     },
     {
         "name": "platform_slack_list_channels",
-        "description": "List channels in the Slack workspace. Only needed if user explicitly asks to post to a channel.",
+        "description": "List channels in the Slack workspace. Returns channel IDs and names. Use to find a channel_id before calling platform_slack_get_channel_history.",
         "input_schema": {
             "type": "object",
             "properties": {},
             "required": []
+        }
+    },
+    {
+        "name": "platform_slack_get_channel_history",
+        "description": """Get recent message history from a Slack channel.
+
+USE THIS to read what was discussed in a channel — this is the primary way to get Slack message content.
+
+Workflow:
+1. platform_slack_list_channels() → find the channel_id for the channel name
+2. platform_slack_get_channel_history(channel_id="C...", limit=50) → get messages
+
+Parameters:
+- channel_id: Channel ID (C...) — get from platform_slack_list_channels
+- limit: Number of messages to retrieve (default 50, max 200)
+- oldest: Unix timestamp — filter messages after this time (optional, for date ranges)""",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "channel_id": {
+                    "type": "string",
+                    "description": "Channel ID (C...). Get from platform_slack_list_channels."
+                },
+                "limit": {
+                    "type": "integer",
+                    "description": "Number of messages to retrieve. Default: 50, max: 200."
+                },
+                "oldest": {
+                    "type": "string",
+                    "description": "Unix timestamp string. Only return messages after this time."
+                }
+            },
+            "required": ["channel_id"]
         }
     },
 ]

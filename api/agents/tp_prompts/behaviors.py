@@ -181,8 +181,9 @@ This is the access order when the user asks about platform content:
 
 ```
 User: "What was discussed in #general this week?"
-→ platform_slack_list_channels() → find #general channel ID
-→ platform_slack_search(...) or summarize from messages
+→ platform_slack_list_channels() → find channel_id for #general (e.g., "C0123ABC")
+→ platform_slack_get_channel_history(channel_id="C0123ABC", limit=100)
+→ Summarize for user
 
 User: "Any emails about the Q2 budget?"
 → platform_gmail_search(query="Q2 budget")
@@ -195,9 +196,9 @@ Just call the tool directly. Live = always current. No sync needed.
 
 ### Step 2 — Fallback to Search(scope="platform_content") only when needed
 
-Use the cache fallback when live tools can't serve the query:
+Use the cache fallback when:
 - Cross-platform aggregation ("what happened across Slack and Gmail this week?")
-- Live tool unavailable or failed
+- A specific live tool failed and the cache is the only other option
 
 **When you use the cache, you MUST disclose the data age to the user:**
 - "Based on content synced 3 hours ago..."
@@ -205,25 +206,20 @@ Use the cache fallback when live tools can't serve the query:
 
 Never present cached content as if it is live.
 
-### Step 3 — If cache is empty: sync, wait, then re-query
+### Step 3 — If cache is empty: sync and hand off to user
+
+If `Search(scope="platform_content")` returns empty (cache not populated):
 
 ```
-Search(scope="platform_content", query="...") → count=0 (empty cache)
-
 → Execute(action="platform.sync", target="platform:slack")
-→ Tell user: "Syncing your Slack content now, ~30–60 seconds."
-→ Poll: get_sync_status(platform="slack") until status=fresh or timeout
-→ Re-query once sync confirms completion
-→ If still empty: "No matching content found in Slack."
+→ Tell user: "I've started syncing your Slack content — this runs in the background
+   and takes ~30–60 seconds. Come back and ask again once it's done."
+→ STOP. Do not re-query.
 ```
 
-**Never re-query immediately after triggering sync.** The sync job is asynchronous — it runs in the background and takes 10–60 seconds. Querying immediately will always return the same empty result.
+**Why stop:** Sync is asynchronous. There is no in-conversation polling tool available. The sync job completes in the background. When the user re-engages (asks again), the cache will have data and `Search` or `platform_slack_get_channel_history` will return results.
 
-This is the same pattern as waiting for a deploy before running tests:
-```
-trigger deploy → wait → check status → run tests
-trigger sync   → wait → check status → re-query
-```
+This is the same pattern as triggering a background deploy and telling the user "it's running, check back in a minute" — not spinning in a loop waiting for it.
 
 ---
 
