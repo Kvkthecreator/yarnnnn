@@ -101,6 +101,35 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Migrations
 
+### Migration 064: Extend deliverable_type CHECK constraint (2026-02-19) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/064_deliverable_type_constraint.sql
+```
+
+**Changes**:
+- Drops and recreates `deliverables_deliverable_type_check` to include all 25 types from `TYPE_TIERS`
+- Previously missing: `slack_channel_digest`, `slack_standup`, `gmail_inbox_brief`, `notion_page_summary`, `meeting_prep`, `weekly_calendar_preview`, `weekly_status`, `project_brief`, `cross_platform_digest`, `activity_summary`, `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary`
+- These types were accepted by backend/frontend but rejected by DB, causing 500 on deliverable create
+
+---
+
+### Migration 063: Extend activity_log event_type CHECK constraint (2026-02-19) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/063_activity_log_event_types.sql
+```
+
+**Changes**:
+- Extends `activity_log_event_type_check` to include `integration_connected`, `integration_disconnected`, `deliverable_approved`, `deliverable_rejected`
+- ADR-063: Activity log lifecycle events for OAuth and deliverable review
+
+---
+
 ### Migration 061: Session compaction — summary + compaction_summary columns (2026-02-19) ✅
 
 **Status**: Applied
