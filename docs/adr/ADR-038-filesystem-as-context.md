@@ -20,18 +20,14 @@ The question: does YARNNN need a separate memory layer, or can it treat platform
 
 **Adopt the filesystem-as-context model.** Platform-synced content and uploaded documents are YARNNN's equivalent of a codebase. TP navigates and acts on this content directly rather than through an extracted memory layer.
 
-### Concrete Changes (Phase 1 - Implemented)
+### Concrete Changes
 
 1. **Reduce primitives from 9 to 7** — Remove Respond (redundant with model output) and Todo (no multi-step workflows yet)
-2. **Introduce context injection** — Preload user profile, active deliverables, platform summaries, and recent session summaries at session start (analogous to Claude Code reading CLAUDE.md)
+2. **Demote memory from first-class entity to background cache** — Memories still get written for audit/caching, but TP doesn't interact with them as tools
 3. **Demote domain entity** — Deferred; not essential for TP operations
-
-### Phase 2 Changes (Implemented 2026-02-11)
-
-4. **Stop dual-write to memories** — Import jobs no longer write to `memories` table. Platform content stored ONLY in `ephemeral_context`.
-5. **Replace memory scope with platform_content** — Search primitive now uses `scope="platform_content"` to query `ephemeral_context` table.
-6. **Narrow memory table usage** — `memories` table now reserved for user-stated facts only (`source_type` IN ('chat', 'user_stated', 'conversation', 'preference')). No platform imports.
-7. **Add legacy scope redirect** — Search with `scope="memory"` automatically redirects to `platform_content` for backwards compatibility.
+4. **Introduce context injection** — Preload user profile, active deliverables, platform summaries, and recent session summaries at session start (analogous to Claude Code reading CLAUDE.md)
+5. **Narrow Search scopes** — Replace `memory` scope with `platform_content`; keep `document`, `deliverable`, `all`
+6. **Move `memory.extract`** from Execute action catalog to background job triggered by `platform.sync`
 
 ### The Mapping
 
@@ -48,42 +44,6 @@ Write/Edit                    Write/Edit
 Bash (execute)                Execute (sync/generate/publish)
 ```
 
----
-
-## Where the Analogy Breaks: Temporal Dimension
-
-**Critical difference:** Claude Code's filesystem is static — files only change when the user edits them. YARNNN's "filesystem" has a temporal axis:
-
-| Claude Code | YARNNN |
-|-------------|--------|
-| Files are static until edited | Platforms update continuously |
-| User triggers all changes | System triggers on schedule |
-| No anticipation needed | Must anticipate when to act |
-| `Read(file)` = current state | `Read(platform:slack)` = cached state |
-
-### Scheduling as First-Class
-
-Deliverables are not just "build outputs" — they are **scheduled recurring commitments**:
-
-```python
-# Load-bearing fields on deliverables table:
-schedule: JSONB        # {frequency, day, time, timezone}
-next_run_at: TIMESTAMP # When to next execute
-last_run_at: TIMESTAMP # When last executed
-```
-
-The `_process_deliverable` function in `write.py` calculates `next_run_at` based on schedule — this is core infrastructure, not metadata.
-
-### Data Freshness
-
-TP should be aware of staleness. Context injection includes `last_synced_at` for platforms. If a platform was synced 2 weeks ago, TP should communicate this to users when referencing that data.
-
-### Bidirectional Sync
-
-When TP does `Execute(action="platform.publish", target="platform:slack")`, it writes to an external filesystem the user doesn't fully control. Platform ACLs don't map cleanly to file ownership.
-
----
-
 ## Consequences
 
 ### Positive
@@ -98,6 +58,7 @@ When TP does `Execute(action="platform.publish", target="platform:slack")`, it w
 
 - **Memory search at scale** — If/when YARNNN has users with hundreds of deliverables and months of platform history, context injection won't scale. Will need to re-introduce semantic retrieval, likely scoped to platform content rather than extracted memories.
 - **Loss of memory importance scoring** — The memory system's ability to weight retrieval by importance is lost. Context injection is flat — everything gets equal weight. Acceptable at current scale.
+- **Migration work** — Need to update TP prompt, primitives implementation, and remove dead code paths for Respond, Todo, memory-as-entity.
 
 ### Neutral
 
@@ -122,51 +83,23 @@ When TP does `Execute(action="platform.publish", target="platform:slack")`, it w
 - Cons: Model still sees 9 tools and may choose memory-related operations; prompt is longer than necessary
 - Rejected because: Tool count directly affects model decision quality; removing tools is more effective than deprioritizing them in prompt text
 
-## Implementation Status
+## Implementation Plan
 
-| Step | Action | Status |
-|------|--------|--------|
-| 1 | Remove Todo from primitive registry | ✅ Done |
-| 2 | Remove Respond from primitive registry | ✅ Done |
-| 3 | Add "Explore Before Asking" to TP prompt | ✅ Done |
-| 4 | Implement `build_session_context()` | ✅ Done |
-| 5 | Wire context injection into TP | ✅ Done |
-| 6 | Update tp-prompt-guide.md to v5 | ✅ Done |
-| 7 | Stop dual-write to memories in import_jobs.py | ✅ Done (Phase 2) |
-| 8 | Add `platform_content` scope to Search | ✅ Done (Phase 2) |
-| 9 | Redirect legacy `memory` scope to `platform_content` | ✅ Done (Phase 2) |
-| 10 | Update refs.py with platform_content entity type | ✅ Done (Phase 2) |
-| 11 | Add entity enrichment for complete data resolution | ✅ Done (Phase 3) |
+| Step | Action | Files Affected |
+|------|--------|----------------|
+| 1 | Update TP system prompt to v5 (7 primitives) | `api/agents/thinking_partner.py` |
+| 2 | Remove Respond from primitive registry | `api/services/primitives/registry.py` |
+| 3 | Remove Todo from primitive registry + delete file | `api/services/primitives/registry.py`, `todo.py` |
+| 4 | Remove `memory` scope from Search | `api/services/primitives/search.py` |
+| 5 | Add `platform_content` scope to Search | `api/services/primitives/search.py` |
+| 6 | Move `memory.extract` to background job on sync | `api/services/primitives/execute.py`, new background job |
+| 7 | Add `sync_summary` to platform schema | DB migration |
+| 8 | Implement `build_session_context()` | New file: `api/services/context.py` |
+| 9 | Wire context injection into session start | `api/agents/thinking_partner.py` |
+| 10 | Update primitives spec doc | `docs/primitives-v2.md` |
+| 11 | Update TP prompt guide | `docs/tp-prompt-guide.md` |
 
-### Phase 3: Entity Enrichment Pattern (2026-02-16)
-
-**Problem:** TP primitives queried single tables directly, missing auxiliary data stored in related tables. For example, `platform_connections` stores connection metadata but `sync_registry` stores per-resource sync status. TP reported "Never synced" while the Context page showed "87 items synced" because the Context page merged both tables.
-
-**Solution:** Introduced the **entity enrichment pattern** in `refs.py`. When resolving entity references, base table data is enriched with auxiliary table data:
-
-```
-Base Table                    Auxiliary Table              Enriched Entity
-──────────                    ───────────────              ───────────────
-platform_connections          sync_registry                platform + sync_status
-filesystem_items              filesystem_chunks            item + content_preview
-deliverables                  deliverable_versions         deliverable + latest_version
-```
-
-**Implementation in refs.py:**
-
-```python
-async def resolve_ref(client, auth, ref):
-    # Resolve from base table
-    entity = await _resolve_from_base_table(client, ref)
-
-    # Enrich with auxiliary data
-    if ref.entity_type == "platform":
-        entity = await _enrich_platform_with_sync_status(client, auth.user_id, entity)
-
-    return entity
-```
-
-**Key principle:** Any view (TP, Context page, API) that renders an entity should see the same complete data. Enrichment happens at the resolution layer, not at each consumer.
+Steps 1-6 can be done in one PR. Steps 7-9 in a second PR. Steps 10-11 are this ADR's companion docs.
 
 ---
 
@@ -174,5 +107,5 @@ async def resolve_ref(client, auth, ref):
 
 - Claude Code system prompt analysis (internal)
 - Anthropic Agent SDK documentation
-- [Primitives Architecture](../architecture/primitives.md)
-- [TP Prompt Guide](../architecture/tp-prompt-guide.md)
+- [Primitives Architecture v2](../docs/primitives-v2.md)
+- [TP Prompt Guide v5](../docs/tp-prompt-guide.md)
