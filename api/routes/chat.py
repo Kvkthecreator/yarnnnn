@@ -1,11 +1,9 @@
 """
 Chat routes - Thinking Partner conversations
 
-ADR-005: Unified memory with embeddings
 ADR-006: Session and message architecture
 ADR-007: Tool use for TP authority (unified streaming + tools)
-ADR-034: Domain-based context scoping
-ADR-049: Context freshness model (superseded by ADR-067 for session management)
+ADR-059/064: Memory via user_context table and build_working_memory()
 ADR-067: Session compaction and conversational continuity
 
 Session Philosophy (ADR-067):
@@ -32,8 +30,7 @@ from datetime import datetime
 from services.supabase import UserClient
 
 logger = logging.getLogger(__name__)
-from services.embeddings import get_embedding
-from agents.base import ContextBundle, Memory
+from agents.base import ContextBundle
 from agents.thinking_partner import ThinkingPartnerAgent
 
 router = APIRouter()
@@ -574,90 +571,6 @@ async def maybe_compact_history(
 
 
 # =============================================================================
-# Memory Loading (ADR-005, ADR-034)
-# =============================================================================
-
-async def load_memories(
-    client,
-    user_id: str,
-    domain_id: Optional[UUID] = None,
-    query: Optional[str] = None,
-    max_results: int = 20
-) -> ContextBundle:
-    """
-    Load memories for context assembly (ADR-005, ADR-034).
-
-    Domain scoping (ADR-034):
-    - If domain_id is provided: searches domain + default domain (user profile)
-    - If domain_id is None: searches all user's memories
-
-    Uses semantic search if query provided, otherwise importance-based retrieval.
-    """
-    memories = []
-
-    try:
-        use_semantic = query is not None
-
-        if use_semantic:
-            try:
-                query_embedding = await get_embedding(query)
-                result = client.rpc(
-                    "search_memories",
-                    {
-                        "query_embedding": query_embedding,
-                        "match_user_id": user_id,
-                        "match_domain_id": str(domain_id) if domain_id else None,
-                        "match_count": max_results,
-                        "similarity_threshold": 0.0
-                    }
-                ).execute()
-
-                for row in (result.data or []):
-                    memories.append(Memory(
-                        id=UUID(row["id"]),
-                        content=row["content"],
-                        importance=row.get("importance", 0.5),
-                        tags=row.get("tags", []),
-                        entities=row.get("entities", {}),
-                        source_type=row.get("source_type", "chat"),
-                        domain_id=UUID(row["domain_id"]) if row.get("domain_id") else None,
-                    ))
-            except Exception:
-                use_semantic = False
-
-        if not use_semantic:
-            # Use the get_memories_by_importance RPC for domain-scoped retrieval
-            result = client.rpc(
-                "get_memories_by_importance",
-                {
-                    "p_user_id": user_id,
-                    "p_domain_id": str(domain_id) if domain_id else None,
-                    "p_limit": max_results
-                }
-            ).execute()
-
-            for row in (result.data or []):
-                memories.append(Memory(
-                    id=UUID(row["id"]),
-                    content=row["content"],
-                    importance=row.get("importance", 0.5),
-                    tags=row.get("tags", []),
-                    entities=row.get("entities", {}),
-                    source_type=row.get("source_type", "chat"),
-                    domain_id=UUID(row["domain_id"]) if row.get("domain_id") else None,
-                ))
-
-    except Exception:
-        pass  # Continue with empty memories on error
-
-    return ContextBundle(
-        memories=memories,
-        documents=[],
-        domain_id=domain_id,
-    )
-
-
-# =============================================================================
 # Surface Context Loading (ADR-023)
 # =============================================================================
 
@@ -845,18 +758,9 @@ async def global_chat(
         + (f" (compaction block present)" if compaction_block else "")
     )
 
-    # ADR-059: Domains removed — no domain scoping
-    active_domain_id = None
-    active_domain_name = None
-
-    # Load memories with domain scoping (ADR-034)
-    context = await load_memories(
-        auth.client,
-        auth.user_id,
-        domain_id=active_domain_id,
-        query=request.content if request.include_context else None
-    )
-    context.domain_name = active_domain_name
+    # ADR-059/064: Memory now loaded via build_working_memory in execute_stream_with_tools
+    # ContextBundle is passed for backwards compatibility but is empty
+    context = ContextBundle()
 
     # Check if user has any deliverables (for onboarding mode)
     is_onboarding = False
