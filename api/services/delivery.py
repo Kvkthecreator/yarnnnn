@@ -372,11 +372,12 @@ class DeliveryService:
         """Send notification when deliverable is delivered (semi_auto governance)."""
         try:
             from services.notifications import notify_deliverable_delivered
+            from services.supabase import get_service_client
             destination_str = f"{platform}"
             if target:
                 destination_str += f" ({target})"
             await notify_deliverable_delivered(
-                db_client=self.client,
+                db_client=get_service_client(),
                 user_id=user_id,
                 deliverable_id=deliverable_id,
                 deliverable_title=title,
@@ -396,8 +397,9 @@ class DeliveryService:
         """Send notification when delivery fails."""
         try:
             from services.notifications import notify_deliverable_failed
+            from services.supabase import get_service_client
             await notify_deliverable_failed(
-                db_client=self.client,
+                db_client=get_service_client(),
                 user_id=user_id,
                 deliverable_id=deliverable_id,
                 deliverable_title=title,

@@ -190,7 +190,6 @@ async def create_work_ticket(
 
 
 async def log_execution_inputs(
-    client,
     ticket_id: str,
     deliverable: dict,
     context_summary: dict,
@@ -199,9 +198,12 @@ async def log_execution_inputs(
     Log execution inputs to work_execution_log for debugging.
 
     ADR-042: Replaces full context snapshots with lightweight input logging.
+    Uses service role client — work_execution_log has no user INSERT policy.
     """
     try:
-        client.table("work_execution_log").insert({
+        from services.supabase import get_service_client
+        service_client = get_service_client()
+        service_client.table("work_execution_log").insert({
             "ticket_id": ticket_id,
             "stage": "started",
             "message": f"Generating {deliverable.get('deliverable_type', 'custom')} deliverable",
@@ -605,7 +607,7 @@ async def execute_deliverable_generation(
         }
 
         # 5. Log inputs for debugging
-        await log_execution_inputs(client, ticket_id, deliverable, context_summary)
+        await log_execution_inputs(ticket_id, deliverable, context_summary)
 
         # 6. Generate draft inline
         draft = await generate_draft_inline(client, user_id, deliverable, gathered_context)
@@ -637,7 +639,9 @@ async def execute_deliverable_generation(
 
         # 10. ADR-066: Always attempt delivery (no governance check)
         # Email-first: normalize/fallback to user's email if destination incomplete
-        user_email = get_user_email(client, user_id)
+        # get_user_email requires service role (auth.admin API)
+        from services.supabase import get_service_client as _get_svc
+        user_email = get_user_email(_get_svc(), user_id)
         raw_destination = deliverable.get("destination")
         destination = normalize_destination_for_delivery(raw_destination, user_email)
 
@@ -704,10 +708,12 @@ async def execute_deliverable_generation(
         )
 
         # Activity log: record this deliverable run (ADR-063)
+        # Requires service role — activity_log has no user INSERT policy
         try:
             from services.activity_log import write_activity
+            from services.supabase import get_service_client as _get_svc2
             await write_activity(
-                client=client,
+                client=_get_svc2(),
                 user_id=user_id,
                 event_type="deliverable_run",
                 summary=f"{title} v{next_version} {final_status}",
