@@ -43,15 +43,17 @@ import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
+// Activity event types stored in database (ADR-063)
+// Only these 4 are valid for API filtering
+type ApiEventType = 'deliverable_run' | 'memory_written' | 'platform_synced' | 'chat_session';
+
+// Extended event types for UI display (some are legacy/planned)
 type EventType =
-  | 'deliverable_run'
+  | ApiEventType
   | 'deliverable_approved'
   | 'deliverable_rejected'
-  | 'memory_written'
-  | 'platform_synced'
   | 'integration_connected'
-  | 'integration_disconnected'
-  | 'chat_session';
+  | 'integration_disconnected';
 
 interface ActivityItem {
   id: string;
@@ -109,13 +111,12 @@ const EVENT_CONFIG: Record<EventType, {
   },
 };
 
-// Event types shown as filter chips (subset of all types — groups related events)
-const FILTER_TYPES: EventType[] = [
+// Event types shown as filter chips — only API-supported types
+// (deliverable_approved, deliverable_rejected, integration_* are UI-only display types)
+const FILTER_TYPES: ApiEventType[] = [
   'deliverable_run',
-  'deliverable_approved',
   'memory_written',
   'platform_synced',
-  'integration_connected',
   'chat_session',
 ];
 
@@ -124,7 +125,7 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [filter, setFilter] = useState<EventType | 'all'>('all');
+  const [filter, setFilter] = useState<ApiEventType | 'all'>('all');
 
   useEffect(() => {
     loadActivity();
