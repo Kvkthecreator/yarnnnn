@@ -51,6 +51,21 @@ ADR-059 collapsed `memories`, `knowledge_profile`, `knowledge_styles`, `knowledg
 
 ---
 
+## [2026.02.19.8] - Normalize list_channels result to eliminate model hallucination
+
+### Fixed
+- `_normalize_list_channels_result()` strips raw Slack `conversations.list` response to only `id`, `name`, `is_private`, `is_archived` per channel before TP sees the result
+- Root cause confirmed via debug log: names were present (`all-episode0`, `daily-work`, etc.) but Slack MCP returns 20+ fields per channel (internal metadata, timestamps, team IDs, etc.) — the model misread noise as "redacted" data and hallucinated "privacy" as the cause
+
+### Behavior before
+`result["result"]` = full `conversations.list` dict with 20+ fields per channel → model hallucinates "redacted for privacy"
+
+### Behavior after
+`result["result"]` = `{"channels": [{"id": "C...", "name": "daily-work", "is_private": false, "is_archived": false}], "count": 18}` → model reads `daily-work`, calls `get_channel_history` directly
+
+### Note
+`[2026.02.19.7]` warning detection is preserved inside the normalizer — if names are empty after normalization, `warning="channel_names_unavailable"` is still added.
+
 ## [2026.02.19.7] - Result-level failure detection for list_channels
 
 ### Changed

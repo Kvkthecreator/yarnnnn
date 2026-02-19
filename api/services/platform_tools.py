@@ -532,23 +532,23 @@ async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict
         metadata=metadata,
     )
 
-    # Result-level failure detection: annotate silent failures before TP sees them
+    # Normalize list_channels result before TP sees it
     if result.get("success") and tool == "list_channels":
-        raw = result.get("result")
-        logger.info(f"[PLATFORM-TOOLS] list_channels raw result type={type(raw).__name__} value={str(raw)[:500]}")
-        result = _detect_channel_names_unavailable(result)
+        result = _normalize_list_channels_result(result)
 
     return result
 
 
-def _detect_channel_names_unavailable(result: dict) -> dict:
+def _normalize_list_channels_result(result: dict) -> dict:
     """
-    Detect when list_channels returns channels with empty/missing names.
+    Normalize list_channels result to only the fields TP needs.
 
-    Slack's conversations.list returns channel IDs without names when the token
-    lacks channels:read or groups:read scope. This is a silent success — the API
-    call succeeds but the data is incomplete. Add a warning so TP has a runtime
-    signal rather than relying on description-level guidance.
+    The Slack MCP server returns the raw conversations.list response — 20+ fields
+    per channel including internal Slack metadata. This noise causes the model to
+    misread the data (e.g. treating valid channel names as "redacted").
+
+    Strip down to: id, name, is_private, is_archived.
+    If names are missing (scope issue), add a warning signal.
     """
     raw = result.get("result")
     channels = None
@@ -561,21 +561,32 @@ def _detect_channel_names_unavailable(result: dict) -> dict:
     if not channels or not isinstance(channels, list):
         return result
 
-    # Check if all channels have empty/missing names
-    names_missing = all(not ch.get("name") for ch in channels if isinstance(ch, dict))
-    if names_missing and len(channels) > 0:
-        result = dict(result)
+    # Normalize: keep only the fields TP needs
+    normalized = [
+        {
+            "id": ch.get("id"),
+            "name": ch.get("name") or ch.get("name_normalized"),
+            "is_private": ch.get("is_private", False),
+            "is_archived": ch.get("is_archived", False),
+        }
+        for ch in channels
+        if isinstance(ch, dict) and ch.get("id")
+    ]
+
+    result = dict(result)
+    result["result"] = {"channels": normalized, "count": len(normalized)}
+
+    # Detect missing names (token scope issue) — add warning signal
+    names_missing = all(not ch["name"] for ch in normalized)
+    if names_missing and len(normalized) > 0:
         result["warning"] = "channel_names_unavailable"
-        # Include channel IDs so TP can try them if user provides context
-        channel_ids = [ch.get("id") for ch in channels if isinstance(ch, dict) and ch.get("id")]
-        result["available_channel_ids"] = channel_ids[:20]  # Include up to 20
         result["hint"] = (
-            f"Channel names unavailable — found {len(channels)} channel IDs but Slack didn't return names. "
-            "Simply ask: 'Can you share the channel link from Slack?' (right-click channel → Copy link). "
-            "Extract the channel ID (starts with C) from the URL and use get_channel_history. "
-            "Keep it brief — one short question, not a tutorial."
+            "Channel names unavailable — Slack token may lack channels:read or groups:read scope. "
+            "Ask the user for the channel link (right-click → Copy link in Slack)."
         )
         logger.warning("[PLATFORM-TOOLS] list_channels: channel names unavailable (scope issue)")
+    else:
+        logger.info(f"[PLATFORM-TOOLS] list_channels: normalized {len(normalized)} channels")
 
     return result
 
