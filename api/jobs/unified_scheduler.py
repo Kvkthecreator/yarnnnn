@@ -964,14 +964,15 @@ async def run_unified_scheduler():
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")
 
     # -------------------------------------------------------------------------
-    # ADR-068: Signal Processing Phase (daily at 7 AM UTC)
+    # ADR-068: Signal Processing Phase (hourly during Phase 1+2 testing)
     # Extracts behavioral signals from platform cache, reasons over what the
     # user's world warrants, creates signal-emergent deliverables.
     # Only runs for users with recent platform activity (cost gate).
+    # TODO: Move to daily (now.hour == 7) after Phase 2 validation complete
     # -------------------------------------------------------------------------
     signal_users = 0
     signal_created = 0
-    if now.hour == 7 and now.minute < 5:
+    if now.minute < 5:  # Run every hour (not just 7 AM)
         try:
             from services.signal_extraction import extract_signal_summary
             from services.signal_processing import process_signal, execute_signal_actions
