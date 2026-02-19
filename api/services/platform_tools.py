@@ -88,7 +88,14 @@ The user's authed_user_id is in integration metadata. Always send to self unless
     },
     {
         "name": "platform_slack_list_channels",
-        "description": "List channels in the Slack workspace. Returns channel IDs and names. Use to find a channel_id before calling platform_slack_get_channel_history.",
+        "description": """List channels in the Slack workspace. Returns channel IDs and names.
+
+Use to find a channel_id before calling platform_slack_get_channel_history.
+
+If the result shows channel IDs but names appear missing or redacted:
+- The user's Slack token may lack scope to read channel names
+- Use Clarify to ask: "I can see your Slack channels but not their names. Can you tell me the name or ID of the channel you want?"
+- Do NOT guess channel IDs or fall back to Search — ask the user directly.""",
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -102,13 +109,18 @@ The user's authed_user_id is in integration metadata. Always send to self unless
 USE THIS to read what was discussed in a channel — this is the primary way to get Slack message content.
 
 Workflow:
-1. platform_slack_list_channels() → find the channel_id for the channel name
+1. platform_slack_list_channels() → find the channel_id matching the channel name the user gave
 2. platform_slack_get_channel_history(channel_id="C...", limit=50) → get messages
+
+If list_channels doesn't show readable names, use Clarify to ask for the channel ID directly.
+Do NOT fall back to Search — Search only queries old cached content, not live messages.
+
+For "last 7 days", use oldest = Unix timestamp of 7 days ago (e.g., str(int(time.time()) - 7*86400)).
 
 Parameters:
 - channel_id: Channel ID (C...) — get from platform_slack_list_channels
 - limit: Number of messages to retrieve (default 50, max 200)
-- oldest: Unix timestamp — filter messages after this time (optional, for date ranges)""",
+- oldest: Unix timestamp string — filter messages after this time (optional, for date ranges)""",
         "input_schema": {
             "type": "object",
             "properties": {

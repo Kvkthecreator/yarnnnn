@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.6] - Fix TP fallback when Slack channel names are unreadable
+
+### Fixed
+- `platform_slack_list_channels` description: added guidance for when channel names appear redacted/missing
+  - Instructs TP to use Clarify to ask user for channel name/ID — NOT to fall back to Search
+  - Root cause: Slack user OAuth token may lack `channels:read`/`groups:read` scope; API returns IDs without names
+- `platform_slack_get_channel_history` description: added explicit "do NOT fall back to Search" instruction
+  - Search only queries old cached `filesystem_items`; live channel history requires the live tool
+  - Added `oldest` timestamp example for date-range queries
+
+### Behavior before
+TP: list_channels → names unreadable → Search(cache) → empty → "sync is running, check back later"
+
+### Behavior after
+TP: list_channels → names unreadable → Clarify("Can you tell me the channel name or ID?") → get_channel_history(confirmed_id)
+
 ## [2026.02.19.5] - Tool system: wire list_integrations into PRIMITIVES; slim platforms.py
 
 ### Changed
