@@ -92,7 +92,7 @@ The user's authed_user_id is in integration metadata. Always send to self unless
 
 Use to find a channel_id before calling platform_slack_get_channel_history.
 
-If the result includes warning="channel_names_unavailable": use Clarify to ask the user for the channel name or ID — do NOT fall back to Search.""",
+If warning="channel_names_unavailable" in result: ask briefly for the channel link (one question, no tutorial).""",
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -566,10 +566,14 @@ def _detect_channel_names_unavailable(result: dict) -> dict:
     if names_missing and len(channels) > 0:
         result = dict(result)
         result["warning"] = "channel_names_unavailable"
+        # Include channel IDs so TP can try them if user provides context
+        channel_ids = [ch.get("id") for ch in channels if isinstance(ch, dict) and ch.get("id")]
+        result["available_channel_ids"] = channel_ids[:20]  # Include up to 20
         result["hint"] = (
-            "Slack token lacks channels:read or groups:read scope — "
-            "channel IDs were returned but names are missing. "
-            "Ask the user for the channel name or ID directly."
+            f"Channel names unavailable — found {len(channels)} channel IDs but Slack didn't return names. "
+            "Simply ask: 'Can you share the channel link from Slack?' (right-click channel → Copy link). "
+            "Extract the channel ID (starts with C) from the URL and use get_channel_history. "
+            "Keep it brief — one short question, not a tutorial."
         )
         logger.warning("[PLATFORM-TOOLS] list_channels: channel names unavailable (scope issue)")
 

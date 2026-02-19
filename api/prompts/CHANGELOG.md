@@ -6,6 +6,25 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.9] - Improve channel_names_unavailable hint (brevity)
+
+### Changed
+- `api/services/platform_tools.py`: Updated `_detect_channel_names_unavailable()` hint
+  - Old: Verbose hint telling TP to "use Clarify to ask the user for channel name or ID"
+  - New: Brief hint saying "ask for channel link (one question, no tutorial)"
+  - Also includes `available_channel_ids` in result for context
+- `platform_slack_list_channels` description: Shortened fallback guidance to match
+
+### Behavior
+- When channel names are unavailable, TP now asks briefly for the channel link
+- No more verbose 4-step tutorial about how to find channel IDs in Slack
+- TP can extract channel ID from the link URL the user pastes
+
+### Root cause
+TP was giving users a lengthy technical explanation of how to find channel IDs instead of simply asking "Can you share the channel link?" — a cleaner UX.
+
+---
+
 ## [2026.02.19.8] - Remove legacy load_memories (ADR-059/064 alignment)
 
 ### Removed
