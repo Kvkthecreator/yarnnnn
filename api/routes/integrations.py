@@ -553,6 +553,9 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             return IntegrationsSummaryResponse(platforms=[], total_deliverables=0)
 
         platforms = []
+        seen_providers: set[str] = set()
+        from datetime import timedelta
+
         for integration in integrations_result.data:
             provider = integration["platform"]  # ADR-058: DB column is 'platform'
             metadata = integration.get("metadata", {}) or {}
@@ -577,7 +580,6 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
 
             # Count recent activity from filesystem_items (last 7 days)
             # ADR-058: filesystem_items uses synced_at, not created_at
-            from datetime import timedelta
             seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
             activity_result = auth.client.table("filesystem_items").select(
                 "id", count="exact"
@@ -596,6 +598,31 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 deliverable_count=deliverable_count,
                 activity_7d=activity_7d
             ))
+            seen_providers.add(provider)
+
+        # ADR-046/ADR-058: Provider alias — gmail row may also have calendar capability.
+        # If a 'gmail' row has 'calendar' in capabilities and no 'google' row exists yet,
+        # emit a synthetic 'google' entry so the sidebar Calendar dot shows as connected.
+        if "gmail" in seen_providers and "google" not in seen_providers:
+            gmail_integration = next(
+                (i for i in integrations_result.data if i["platform"] == "gmail"), None
+            )
+            if gmail_integration:
+                gmail_meta = gmail_integration.get("metadata", {}) or {}
+                capabilities = gmail_meta.get("capabilities", [])
+                # Treat missing capabilities as having both (our scopes always include calendar)
+                has_calendar = "calendar" in capabilities or not capabilities
+                if has_calendar:
+                    platforms.append(PlatformSummary(
+                        provider="google",
+                        status=gmail_integration["status"],
+                        workspace_name=gmail_meta.get("workspace_name"),
+                        connected_at=gmail_integration["created_at"],
+                        resource_count=0,
+                        resource_type="calendars",
+                        deliverable_count=0,
+                        activity_7d=0,
+                    ))
 
         # Total deliverables count
         total_result = auth.client.table("deliverables").select(
