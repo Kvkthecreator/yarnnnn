@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.14] - Activity tracking gaps fixed
+
+### Added
+- `supabase/migrations/063_activity_log_event_types.sql`: Extends CHECK constraint with 4 new event types:
+  `integration_connected`, `integration_disconnected`, `deliverable_approved`, `deliverable_rejected`
+- `api/services/activity_log.py`: Added all 4 new types to `VALID_EVENT_TYPES`
+- `api/routes/integrations.py`: Logs `integration_connected` after OAuth callback success;
+  logs `integration_disconnected` after disconnect
+- `api/routes/deliverables.py`: Logs `deliverable_approved` / `deliverable_rejected` after version status change;
+  also fetches `title` from deliverables for human-readable summary
+- `web/app/(authenticated)/activity/page.tsx`: Added display config for all 4 new event types
+  (ThumbsUp/ThumbsDown icons for approvals, Link/Unlink for integrations); click navigation to
+  deliverable page or integration context page; `FILTER_TYPES` constant for curated filter chips
+
+---
+
 ## [2026.02.19.13] - ADR-066: Delivery-first, remove governance
 
 ### Changed

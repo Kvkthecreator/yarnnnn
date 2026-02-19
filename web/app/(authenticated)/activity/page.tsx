@@ -8,8 +8,12 @@
  *
  * Event types:
  *   - deliverable_run: Automated content generation
+ *   - deliverable_approved: User approved a version
+ *   - deliverable_rejected: User rejected a version
  *   - memory_written: TP learned something about user
  *   - platform_synced: Platform data synced
+ *   - integration_connected: User connected a platform
+ *   - integration_disconnected: User disconnected a platform
  *   - chat_session: TP conversation ended
  */
 
@@ -30,12 +34,24 @@ import {
   MessageSquare,
   Calendar,
   Filter,
+  Link,
+  Unlink,
+  ThumbsUp,
+  ThumbsDown,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-type EventType = 'deliverable_run' | 'memory_written' | 'platform_synced' | 'chat_session';
+type EventType =
+  | 'deliverable_run'
+  | 'deliverable_approved'
+  | 'deliverable_rejected'
+  | 'memory_written'
+  | 'platform_synced'
+  | 'integration_connected'
+  | 'integration_disconnected'
+  | 'chat_session';
 
 interface ActivityItem {
   id: string;
@@ -56,6 +72,16 @@ const EVENT_CONFIG: Record<EventType, {
     icon: <Play className="w-4 h-4" />,
     color: 'text-blue-500',
   },
+  deliverable_approved: {
+    label: 'Approved',
+    icon: <ThumbsUp className="w-4 h-4" />,
+    color: 'text-green-500',
+  },
+  deliverable_rejected: {
+    label: 'Rejected',
+    icon: <ThumbsDown className="w-4 h-4" />,
+    color: 'text-red-500',
+  },
   memory_written: {
     label: 'Learned',
     icon: <Brain className="w-4 h-4" />,
@@ -66,12 +92,32 @@ const EVENT_CONFIG: Record<EventType, {
     icon: <RefreshCw className="w-4 h-4" />,
     color: 'text-green-500',
   },
+  integration_connected: {
+    label: 'Connected',
+    icon: <Link className="w-4 h-4" />,
+    color: 'text-green-500',
+  },
+  integration_disconnected: {
+    label: 'Disconnected',
+    icon: <Unlink className="w-4 h-4" />,
+    color: 'text-muted-foreground',
+  },
   chat_session: {
     label: 'Chat',
     icon: <MessageSquare className="w-4 h-4" />,
     color: 'text-amber-500',
   },
 };
+
+// Event types shown as filter chips (subset of all types — groups related events)
+const FILTER_TYPES: EventType[] = [
+  'deliverable_run',
+  'deliverable_approved',
+  'memory_written',
+  'platform_synced',
+  'integration_connected',
+  'chat_session',
+];
 
 export default function ActivityPage() {
   const router = useRouter();
@@ -138,6 +184,8 @@ export default function ActivityPage() {
     // Navigate based on event type
     switch (item.event_type) {
       case 'deliverable_run':
+      case 'deliverable_approved':
+      case 'deliverable_rejected':
         if (metadata.deliverable_id) {
           router.push(`/deliverables/${metadata.deliverable_id}`);
         }
@@ -150,6 +198,12 @@ export default function ActivityPage() {
         if (metadata.provider) {
           const provider = metadata.provider === 'google' ? 'calendar' : metadata.provider;
           router.push(`/context/${provider}`);
+        }
+        break;
+      case 'integration_connected':
+      case 'integration_disconnected':
+        if (metadata.provider) {
+          router.push(`/context/${metadata.provider}`);
         }
         break;
       case 'chat_session':
@@ -179,7 +233,7 @@ export default function ActivityPage() {
         </div>
 
         <p className="text-muted-foreground mb-4">
-          What YARNNN has done — deliverables, syncs, learnings, and conversations.
+          What YARNNN has done — deliverables, approvals, integrations, syncs, learnings, and conversations.
         </p>
 
         {/* Filter */}
@@ -196,7 +250,7 @@ export default function ActivityPage() {
           >
             All
           </button>
-          {(Object.keys(EVENT_CONFIG) as EventType[]).map((type) => (
+          {FILTER_TYPES.map((type) => (
             <button
               key={type}
               onClick={() => setFilter(type)}

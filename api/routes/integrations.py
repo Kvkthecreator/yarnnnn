@@ -916,6 +916,20 @@ async def disconnect_integration(
 
         logger.info(f"[INTEGRATIONS] User {user_id} disconnected {provider}")
 
+        # Activity log: record integration disconnection (ADR-063)
+        try:
+            from services.activity_log import write_activity
+            import asyncio
+            asyncio.create_task(write_activity(
+                client=get_service_client(),
+                user_id=user_id,
+                event_type="integration_disconnected",
+                summary=f"Disconnected {provider.title()}",
+                metadata={"provider": provider},
+            ))
+        except Exception:
+            pass  # Non-fatal
+
         return {"success": True, "message": f"Disconnected {provider}"}
 
     except HTTPException:
@@ -2358,6 +2372,20 @@ async def oauth_callback(
             }).execute()
 
             logger.info(f"[INTEGRATIONS] Connected {provider} for user {token_data['user_id']}")
+
+        # Activity log: record integration connection (ADR-063)
+        try:
+            from services.activity_log import write_activity
+            import asyncio
+            asyncio.create_task(write_activity(
+                client=service_client,
+                user_id=token_data["user_id"],
+                event_type="integration_connected",
+                summary=f"Connected {provider.title()}",
+                metadata={"provider": provider},
+            ))
+        except Exception:
+            pass  # Non-fatal
 
         # Redirect to frontend with success
         return RedirectResponse(

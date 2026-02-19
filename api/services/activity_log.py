@@ -8,7 +8,9 @@ Table: activity_log
 
 Write points (all non-fatal — callers continue regardless of log failure):
   - deliverable_execution.py: 'deliverable_run' after version created
+  - routes/deliverables.py: 'deliverable_approved' / 'deliverable_rejected' on version status change
   - platform_worker.py: 'platform_synced' after sync batch completes
+  - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
   - TP memory tools: 'memory_written' after user_context upsert
   - chat.py: 'chat_session' when session ends
 
@@ -23,9 +25,16 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-VALID_EVENT_TYPES = frozenset(
-    {"deliverable_run", "memory_written", "platform_synced", "chat_session"}
-)
+VALID_EVENT_TYPES = frozenset({
+    "deliverable_run",
+    "deliverable_approved",
+    "deliverable_rejected",
+    "memory_written",
+    "platform_synced",
+    "integration_connected",
+    "integration_disconnected",
+    "chat_session",
+})
 
 
 async def write_activity(
@@ -45,7 +54,9 @@ async def write_activity(
     Args:
         client: Supabase service-role client
         user_id: The user this event belongs to
-        event_type: One of 'deliverable_run', 'memory_written', 'platform_synced', 'chat_session'
+        event_type: One of 'deliverable_run', 'deliverable_approved', 'deliverable_rejected',
+            'memory_written', 'platform_synced', 'integration_connected',
+            'integration_disconnected', 'chat_session'
         summary: Human-readable one-liner (shown in working memory block)
         event_ref: UUID of related record (version_id, session_id, etc.) — optional
         metadata: Structured detail dict — optional

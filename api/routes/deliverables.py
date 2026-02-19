@@ -1867,7 +1867,7 @@ async def update_version(
     # Verify ownership through deliverable and get destination/governance
     check = (
         auth.client.table("deliverables")
-        .select("id, destination, governance")
+        .select("id, title, destination, governance")
         .eq("id", str(deliverable_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -1932,6 +1932,25 @@ async def update_version(
     v = result.data[0]
 
     logger.info(f"[DELIVERABLE] Version updated: {version_id} -> {v['status']}")
+
+    # Activity log: record approval or rejection (ADR-063)
+    if request.status in ("approved", "rejected"):
+        try:
+            from services.activity_log import write_activity
+            from services.supabase import get_service_client
+            import asyncio
+            deliverable_title = check.data.get("title") or str(deliverable_id)
+            event_type = "deliverable_approved" if request.status == "approved" else "deliverable_rejected"
+            asyncio.create_task(write_activity(
+                client=get_service_client(),
+                user_id=auth.user_id,
+                event_type=event_type,
+                summary=f"{request.status.capitalize()} version of {deliverable_title}",
+                event_ref=str(version_id),
+                metadata={"deliverable_id": str(deliverable_id), "version_id": str(version_id)},
+            ))
+        except Exception:
+            pass  # Non-fatal
 
     # ADR-028: Auto-deliver if governance=semi_auto and status=approved
     delivery_result = None
