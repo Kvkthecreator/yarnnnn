@@ -22,12 +22,13 @@ grep -r "<keyword>" docs/adr/
 ```
 
 Key ADRs that define YARNNN's philosophy (not just implementation):
-- **ADR-049**: Context freshness model - explains why NO history compression/summarization
+- **ADR-049**: Context freshness model - session history approach (partially superseded by ADR-067)
 - **ADR-059**: Simplified context model - current Memory schema (user_context), inference removal
 - **ADR-062**: Platform context architecture - filesystem_items role (conversational search cache only)
 - **ADR-063**: Four-layer model (Memory / Activity / Context / Work) - activity_log, working memory injection
+- **ADR-067**: Session compaction and continuity - follows Claude Code's model (session summaries, inactivity boundary, in-session compaction)
 
-If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
+If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach. ADR-049's "no summarization" stance is superseded by ADR-067.
 
 ### 1. Documentation Alongside Code
 
@@ -101,7 +102,7 @@ You MUST:
 
 **Memory is implicit** — TP no longer has explicit memory tools (`create_memory`, `update_memory`, etc.)
 
-- Memory extraction happens at session end via `api/services/memory.py`
+- Memory extraction happens via nightly cron (midnight UTC) via `api/services/memory.py` — NOT at real-time session end
 - User can still edit memories directly via Context page
 - Working memory injected into TP prompt is unchanged
 

@@ -6,6 +6,45 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.19.3] - ADR-067: Session compaction and conversational continuity
+
+### Added
+- `api/routes/chat.py`: `maybe_compact_history()` — ADR-067 Phase 3 in-session compaction
+  - Triggers when session history exceeds `COMPACTION_THRESHOLD` (40k tokens = 80% of 50k budget)
+  - Makes a single LLM call (haiku) to generate a compaction summary of all session messages
+  - Persists summary to `chat_sessions.compaction_summary`
+  - Returns an assistant `<summary>` block in the same format as Claude Code auto-compaction
+  - On subsequent turns, reuses the stored compaction without re-generating
+- `api/routes/chat.py`: `COMPACTION_THRESHOLD = 40000` and `COMPACTION_PROMPT` constants
+- `api/services/memory.py`: `generate_session_summary()` — ADR-067 Phase 1
+  - Single haiku LLM call to produce 2-5 sentence prose summary of a completed session
+  - Called by nightly cron after `process_conversation()` for sessions with ≥ 5 user messages
+  - Output written to `chat_sessions.summary`
+- `supabase/migrations/061_session_compaction.sql`: Schema changes for all three phases
+  - `chat_sessions.summary TEXT` — cross-session memory (Phase 1)
+  - `chat_sessions.compaction_summary TEXT` — in-session compaction block (Phase 3)
+  - `get_or_create_chat_session()` — 5-arg version with inactivity boundary (Phase 2)
+
+### Changed
+- `api/routes/chat.py`: `build_history_for_claude()` — added `compaction_block` parameter
+  - If provided, the compaction block is prepended to the truncated history
+  - Messages prior to compaction are excluded from the API call (retained in `session_messages` for audit)
+- `api/routes/chat.py`: `global_chat` endpoint — loads `compaction_summary` from session, calls `maybe_compact_history()` before history build
+- `api/routes/chat.py`: `get_or_create_session()` fallback — updated to use `updated_at`-based inactivity check (4h window) instead of `DATE(started_at) = CURRENT_DATE`
+- `api/jobs/unified_scheduler.py`: Nightly cron wires `generate_session_summary()` after `process_conversation()`, writes result to `chat_sessions.summary`
+
+### Session philosophy update
+- **Before (ADR-049)**: "Sessions are for API coherence only; simple truncation; no compression needed"
+- **After (ADR-067)**: In-session compaction at 80% (no silent truncation); cross-session summaries via nightly cron; inactivity-based boundary (4h) decoupled from cron cadence
+
+### Behavior
+- Silent truncation eliminated: when history fills, model receives a `<summary>` of what was dropped
+- "Recent conversations" block in working memory will populate from next nightly cron run
+- Session boundary now reflects user inactivity (4h gap = new session) rather than UTC midnight
+- Nightly cron and session boundary are fully decoupled domains
+
+---
+
 ## [2026.02.19.2] - Slack channel history tool + sync hand-off fix
 
 ### Added

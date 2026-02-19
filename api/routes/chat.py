@@ -5,13 +5,14 @@ ADR-005: Unified memory with embeddings
 ADR-006: Session and message architecture
 ADR-007: Tool use for TP authority (unified streaming + tools)
 ADR-034: Domain-based context scoping
-ADR-049: Context freshness model - sessions are API coherence only
+ADR-049: Context freshness model (superseded by ADR-067 for session management)
+ADR-067: Session compaction and conversational continuity
 
-Session Philosophy (ADR-049):
-- Sessions are for API coherence (tool_use/tool_result blocks), not context memory
-- Context continuity comes from deliverable state and platform freshness, not history
-- Simple truncation (token budget), no compression or summarization needed
-- If user needs prior context, TP reads deliverable state fresh via Read primitive
+Session Philosophy (ADR-067):
+- In-session compaction at 80% of MAX_HISTORY_TOKENS (40k of 50k)
+- Cross-session continuity via chat_sessions.summary (written by nightly cron)
+- Inactivity-based session boundary (4h, not UTC midnight)
+- Compaction format: assistant <summary> block prepended to remaining history
 
 Endpoints:
 - POST /chat - Global chat with streaming + tools
@@ -84,9 +85,9 @@ async def get_or_create_session(
     """
     Get or create a chat session using the database RPC.
 
-    Scope behaviors:
+    Scope behaviors (ADR-067 Phase 2):
     - conversation: Always creates new session
-    - daily: Reuses today's active session
+    - daily: Reuses session active within last 4 hours (inactivity boundary)
 
     Returns:
         Session dict with 'id' and 'is_new' (bool indicating if session was just created)
@@ -110,17 +111,20 @@ async def get_or_create_session(
             return session
         raise Exception("No session returned from RPC")
     except Exception:
-        # Fallback: check if today's session exists first (for daily scope)
+        # Fallback: check for active session within inactivity window (ADR-067 Phase 2)
         is_new = True
         if scope == "daily":
-            from datetime import datetime
-            today = datetime.utcnow().date().isoformat()
+            from datetime import datetime, timedelta, timezone
+            inactivity_cutoff = (
+                datetime.now(timezone.utc) - timedelta(hours=4)
+            ).isoformat()
             existing = client.table("chat_sessions")\
                 .select("id")\
                 .eq("user_id", user_id)\
                 .eq("session_type", session_type)\
-                .gte("created_at", today)\
+                .gte("updated_at", inactivity_cutoff)\
                 .eq("status", "active")\
+                .order("updated_at", desc=True)\
                 .limit(1)\
                 .execute()
             if existing.data:
@@ -201,16 +205,21 @@ async def get_session_messages(
 # =============================================================================
 
 # =============================================================================
-# History Management (ADR-049: Token-Based Budgeting)
+# History Management (ADR-067: Session Compaction)
 # =============================================================================
-# Sessions are for API coherence (tool_use blocks), not context memory.
-# Context continuity comes from deliverable state, not accumulated history.
-# Simple truncation is sufficient - no compression or summarization needed.
+# Phase 3: In-session compaction at 80% of MAX_HISTORY_TOKENS.
+# When truncation would drop messages exceeding COMPACTION_THRESHOLD tokens,
+# a compaction LLM call generates a <summary> block that replaces the dropped
+# messages. The summary is persisted to chat_sessions.compaction_summary so
+# subsequent turns prepend it without re-generating.
 
 # Token budget for history
 # Conservative to leave room for system prompt (~8k) + context injection (~10k)
 # Opus-4.5 has 200k context, we target ~50k for history
 MAX_HISTORY_TOKENS = 50000
+
+# Compaction trigger: 80% of budget (ADR-067 Phase 3)
+COMPACTION_THRESHOLD = int(MAX_HISTORY_TOKENS * 0.8)  # 40,000 tokens
 
 # Character-to-token ratio (conservative estimate)
 # Claude tokenizes ~4 chars per token on average for English text
@@ -309,7 +318,8 @@ def truncate_history_by_tokens(
 def build_history_for_claude(
     messages: list[dict],
     use_structured_format: bool = True,
-    max_tokens: int = MAX_HISTORY_TOKENS
+    max_tokens: int = MAX_HISTORY_TOKENS,
+    compaction_block: Optional[dict] = None,
 ) -> list[dict]:
     """
     Build conversation history in Anthropic message format.
@@ -317,20 +327,24 @@ def build_history_for_claude(
     Claude Code uses structured tool_use/tool_result blocks for better coherence.
     This function reconstructs that format from our stored tool_history metadata.
 
-    ADR-049: Uses token-based budgeting instead of message count.
-    Sessions are for API coherence only - simple truncation is sufficient.
+    ADR-067: Token-based truncation with compaction support.
+    If a compaction_block is provided (assistant <summary> message), it is
+    prepended to the truncated history — messages prior to the compaction are
+    absent from the API call but retained in session_messages for audit.
 
     Args:
         messages: Raw session messages from database
         use_structured_format: If True, use tool_use/tool_result blocks.
                               If False, use simplified text-based format.
         max_tokens: Token budget for history (default: MAX_HISTORY_TOKENS)
+        compaction_block: Optional assistant message with <summary> block to
+                          prepend (ADR-067 Phase 3). If provided, messages are
+                          truncated relative to this block.
 
     Returns:
         List of messages in Anthropic API format
     """
-    # ADR-049: Token-based truncation instead of message count
-    # This handles the common case before we build the structured format
+    # ADR-067: Token-based truncation
     messages = truncate_history_by_tokens(messages, max_tokens)
 
     history = []
@@ -419,6 +433,13 @@ def build_history_for_claude(
             # Regular message (user or assistant without tools)
             history.append({"role": role, "content": content})
 
+    # ADR-067 Phase 3: prepend compaction block if present
+    # The model sees its own prior summary as the first message in history,
+    # followed by the recent window. All earlier messages are excluded from
+    # the API call (but remain in session_messages for audit).
+    if compaction_block:
+        history = [compaction_block] + history
+
     return history
 
 
@@ -433,6 +454,128 @@ def _parse_input_summary(input_summary: str) -> dict:
     except (ValueError, SyntaxError):
         # If parsing fails, return empty dict
         return {}
+
+
+# =============================================================================
+# In-Session Compaction (ADR-067 Phase 3)
+# =============================================================================
+
+COMPACTION_PROMPT = (
+    "Summarise the conversation above for continuity. "
+    "The reader will have no access to the original messages — only this summary. "
+    "Focus on: decisions made, work in progress, user preferences stated, "
+    "platform actions taken, and anything left unresolved. "
+    "Be concise but complete. Do not truncate important details."
+)
+
+
+async def maybe_compact_history(
+    client,
+    session_id: str,
+    messages: list[dict],
+    existing_compaction: Optional[str] = None,
+) -> Optional[dict]:
+    """
+    ADR-067 Phase 3: Check if in-session compaction is needed.
+
+    If the full message history would exceed COMPACTION_THRESHOLD tokens,
+    generate a compaction summary via a single LLM call, write it to
+    chat_sessions.compaction_summary, and return the compaction block.
+
+    If a compaction already exists for this session (existing_compaction),
+    return it directly without re-generating.
+
+    Args:
+        client: Supabase client (service client for DB writes)
+        session_id: Current session ID
+        messages: Raw session messages from database
+        existing_compaction: Existing compaction_summary text from chat_sessions
+
+    Returns:
+        compaction_block dict (assistant message) or None if not needed
+    """
+    # If a compaction already exists, return it as a block without re-generating
+    if existing_compaction:
+        return {
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": f"<summary>\n{existing_compaction}\n</summary>"
+            }]
+        }
+
+    # Calculate total tokens for all messages
+    total_tokens = sum(estimate_message_tokens(m) for m in messages)
+
+    if total_tokens <= COMPACTION_THRESHOLD:
+        return None  # Under threshold, no compaction needed
+
+    # Over threshold — generate compaction summary
+    logger.info(
+        f"[TP-COMPACT] Session {session_id}: {total_tokens} tokens exceeds "
+        f"threshold {COMPACTION_THRESHOLD}. Generating compaction summary."
+    )
+
+    try:
+        import anthropic as anthropic_sdk
+        from services.memory import EXTRACTION_MODEL
+
+        # Build a text-only history for the compaction prompt
+        # (tool_use/tool_result blocks are complex; summarise them as text)
+        compact_messages = []
+        for m in messages:
+            role = m.get("role", "user")
+            content = m.get("content") or ""
+            metadata = m.get("metadata") or {}
+            tool_history = metadata.get("tool_history", [])
+
+            if tool_history:
+                parts = []
+                for item in tool_history:
+                    if item.get("type") == "tool_call":
+                        parts.append(f"[Called {item['name']}: {item.get('result_summary', '')}]")
+                    elif item.get("type") == "text" and item.get("content"):
+                        parts.append(item["content"])
+                compact_messages.append({"role": role, "content": " ".join(parts) or content})
+            else:
+                compact_messages.append({"role": role, "content": content})
+
+        # Add the compaction instruction as the final user turn
+        compact_messages.append({"role": "user", "content": COMPACTION_PROMPT})
+
+        sdk_client = anthropic_sdk.Anthropic()
+        response = sdk_client.messages.create(
+            model=EXTRACTION_MODEL,
+            max_tokens=1024,
+            messages=compact_messages,
+        )
+
+        compaction_text = response.content[0].text.strip() if response.content else ""
+
+        if not compaction_text:
+            logger.warning(f"[TP-COMPACT] Session {session_id}: Empty compaction response, skipping.")
+            return None
+
+        # Persist to chat_sessions.compaction_summary
+        try:
+            client.table("chat_sessions").update(
+                {"compaction_summary": compaction_text}
+            ).eq("id", session_id).execute()
+            logger.info(f"[TP-COMPACT] Session {session_id}: Compaction summary written ({len(compaction_text)} chars).")
+        except Exception as db_err:
+            logger.warning(f"[TP-COMPACT] Session {session_id}: Failed to write compaction_summary: {db_err}")
+
+        return {
+            "role": "assistant",
+            "content": [{
+                "type": "text",
+                "text": f"<summary>\n{compaction_text}\n</summary>"
+            }]
+        }
+
+    except Exception as e:
+        logger.warning(f"[TP-COMPACT] Session {session_id}: Compaction failed, falling back to truncation: {e}")
+        return None
 
 
 # =============================================================================
@@ -674,12 +817,38 @@ async def global_chat(
                 }
             )
 
-    # Load existing messages from session and build history
-    # ADR-049: Sessions are API coherence only - simple truncation, no compression
-    # Using simple text format for robustness - structured format had ID mismatch issues
+    # Load existing messages and session-level compaction summary
+    # ADR-067: In-session compaction at 80% threshold; compaction block prepended if present
     existing_messages = await get_session_messages(auth.client, session_id)
-    history = build_history_for_claude(existing_messages, use_structured_format=False)
-    logger.info(f"[TP] Loaded {len(existing_messages)} messages, built {len(history)} history entries")
+
+    # Fetch compaction_summary from chat_sessions (may be None for most sessions)
+    existing_compaction = None
+    try:
+        session_row = auth.client.table("chat_sessions").select(
+            "compaction_summary"
+        ).eq("id", session_id).single().execute()
+        existing_compaction = (session_row.data or {}).get("compaction_summary")
+    except Exception:
+        pass  # Non-fatal: proceed without compaction
+
+    # ADR-067 Phase 3: check compaction threshold; generate or reuse summary
+    from services.supabase import get_service_client
+    compaction_block = await maybe_compact_history(
+        client=get_service_client(),
+        session_id=session_id,
+        messages=existing_messages,
+        existing_compaction=existing_compaction,
+    )
+
+    history = build_history_for_claude(
+        existing_messages,
+        use_structured_format=False,
+        compaction_block=compaction_block,
+    )
+    logger.info(
+        f"[TP] Loaded {len(existing_messages)} messages, built {len(history)} history entries"
+        + (f" (compaction block present)" if compaction_block else "")
+    )
 
     # ADR-059: Domains removed — no domain scoping
     active_domain_id = None

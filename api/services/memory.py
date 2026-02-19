@@ -557,6 +557,71 @@ CONVERSATION:
         return "\n\n".join(sections)
 
 
+    async def generate_session_summary(
+        self,
+        messages: list[dict],
+        session_date: str,
+    ) -> Optional[str]:
+        """
+        Generate a prose summary of a completed session for cross-session continuity.
+
+        ADR-067 Phase 1: YARNNN equivalent of Claude Code's auto memory (MEMORY.md).
+        Called by nightly cron after process_conversation() for each session.
+        Written to chat_sessions.summary; read by working_memory._get_recent_sessions().
+
+        Args:
+            messages: Conversation messages (role, content)
+            session_date: ISO date string (YYYY-MM-DD) for prefix in summary
+
+        Returns:
+            Prose summary string, or None if session too short/empty
+        """
+        import anthropic
+
+        user_messages = [m for m in messages if m.get("role") == "user"]
+        if len(user_messages) < MIN_MESSAGES_FOR_EXTRACTION:
+            return None
+
+        conversation_text = self._format_conversation(messages)
+
+        prompt = """Summarise this conversation in 2-4 sentences for use as context in a future session.
+
+Focus on:
+- Decisions made or agreed on
+- Work in progress or left unfinished
+- Actions taken (deliverables set up, platform actions executed)
+- Anything the user explicitly asked to continue or follow up on
+
+Do NOT include:
+- Questions that were fully answered and closed
+- General small talk
+- Information that won't be relevant next session
+
+Write in past tense, third-person neutral. Be specific and concrete — prefer "settled on 4-section board update format" over "discussed document structure."
+
+CONVERSATION:
+"""
+
+        try:
+            client = anthropic.Anthropic()
+            response = client.messages.create(
+                model=EXTRACTION_MODEL,
+                max_tokens=256,
+                messages=[
+                    {"role": "user", "content": prompt + conversation_text}
+                ],
+            )
+            summary_text = response.content[0].text.strip()
+            if not summary_text:
+                return None
+            # Prefix with date for working memory rendering
+            return f"[{session_date}] {summary_text}"
+
+        except Exception as e:
+            logger.error(f"[memory] Session summary LLM call failed: {e}")
+            return None
+
+
 # Module-level instance for convenience
 _service = MemoryService()
 
@@ -579,6 +644,16 @@ async def process_patterns(client, user_id: str) -> int:
 async def get_for_prompt(client, user_id: str, token_budget: int = 2000) -> str:
     """Format memories for system prompt injection."""
     return await _service.get_for_prompt(client, user_id, token_budget)
+
+
+async def generate_session_summary(messages: list[dict], session_date: str) -> Optional[str]:
+    """
+    Generate a prose summary of a session for cross-session continuity.
+
+    ADR-067 Phase 1. Called by nightly cron after process_conversation().
+    Written to chat_sessions.summary.
+    """
+    return await _service.generate_session_summary(messages, session_date)
 
 
 async def extract_from_text_to_user_context(user_id: str, text: str, db_client) -> int:

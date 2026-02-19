@@ -879,22 +879,23 @@ async def run_unified_scheduler():
             logger.warning(f"[ANALYSIS] Analysis phase skipped: {e}")
 
     # -------------------------------------------------------------------------
-    # Memory Extraction (ADR-064) - Process yesterday's sessions
-    # Only run once per day (midnight hour UTC)
+    # Memory Extraction + Session Summaries (ADR-064, ADR-067 Phase 1)
+    # Process yesterday's sessions — only run at midnight UTC
     # -------------------------------------------------------------------------
     memory_users = 0
     memory_extracted = 0
+    summaries_written = 0
     if now.hour == 0 and now.minute < 5:  # Only in first 5 minutes of midnight UTC
         try:
-            from services.memory import process_conversation
+            from services.memory import process_conversation, generate_session_summary
 
-            # Get sessions from yesterday that haven't been processed
+            # Get sessions from yesterday
             yesterday = (now - timedelta(days=1)).date().isoformat()
             today = now.date().isoformat()
 
             sessions_result = (
                 supabase.table("chat_sessions")
-                .select("id, user_id")
+                .select("id, user_id, created_at")
                 .gte("created_at", yesterday)
                 .lt("created_at", today)
                 .eq("session_type", "thinking_partner")
@@ -907,6 +908,7 @@ async def run_unified_scheduler():
                 try:
                     session_id = session["id"]
                     user_id = session["user_id"]
+                    session_date = session.get("created_at", yesterday)[:10]
 
                     # Get messages for this session
                     messages_result = (
@@ -917,9 +919,10 @@ async def run_unified_scheduler():
                         .execute()
                     )
                     messages = messages_result.data or []
+                    user_msg_count = len([m for m in messages if m.get("role") == "user"])
 
-                    if len([m for m in messages if m.get("role") == "user"]) >= 3:
-                        # Enough user messages to extract from
+                    if user_msg_count >= 3:
+                        # Memory extraction (ADR-064)
                         extracted = await process_conversation(
                             client=supabase,
                             user_id=user_id,
@@ -931,11 +934,27 @@ async def run_unified_scheduler():
                             memory_users += 1
                             logger.info(f"[MEMORY] Extracted {extracted} memories from session {session_id}")
 
+                        # Session summary (ADR-067 Phase 1)
+                        summary = await generate_session_summary(
+                            messages=messages,
+                            session_date=session_date,
+                        )
+                        if summary:
+                            supabase.table("chat_sessions").update(
+                                {"summary": summary}
+                            ).eq("id", session_id).execute()
+                            summaries_written += 1
+                            logger.info(f"[MEMORY] Wrote session summary for {session_id}")
+
                 except Exception as session_err:
                     logger.warning(f"[MEMORY] Error processing session {session['id']}: {session_err}")
 
-            if memory_users > 0:
-                logger.info(f"[MEMORY] Processed {memory_users} sessions, extracted {memory_extracted} memories")
+            if memory_users > 0 or summaries_written > 0:
+                logger.info(
+                    f"[MEMORY] Processed {memory_users} sessions, "
+                    f"extracted {memory_extracted} memories, "
+                    f"wrote {summaries_written} session summaries"
+                )
 
         except Exception as e:
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")

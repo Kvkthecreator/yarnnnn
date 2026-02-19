@@ -101,6 +101,23 @@ Example: `yarNNN!!@@##$$` → `yarNNN%21%21%40%40%23%23%24%24`
 
 ## Migrations
 
+### Migration 061: Session compaction — summary + compaction_summary columns (2026-02-19) ✅
+
+**Status**: Applied
+
+```bash
+psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@aws-1-ap-southeast-1.pooler.supabase.com:6543/postgres?sslmode=require" -f supabase/migrations/061_session_compaction.sql
+```
+
+**Changes**:
+- Adds `summary TEXT` to `chat_sessions` — session prose summary written by nightly cron (ADR-067 Phase 1); injected into next-session working memory as "Recent conversations"
+- Adds `compaction_summary TEXT` to `chat_sessions` — in-session compaction block written by `maybe_compact_history()` when history hits 80% of 50k budget (ADR-067 Phase 3)
+- Replaces `get_or_create_chat_session(uuid, uuid, text, text)` (4-arg) with 5-arg version using inactivity-based boundary (`updated_at >= NOW() - 4 hours`) instead of `DATE(started_at) = CURRENT_DATE` (ADR-067 Phase 2)
+- Drops old `idx_chat_sessions_daily` index; creates `idx_chat_sessions_inactivity` on `(user_id, project_id, session_type, status, updated_at DESC)`
+- ADR-067: Session compaction and conversational continuity
+
+---
+
 ### Migration 060: Create activity_log table (2026-02-18) ✅
 
 **Status**: Applied
