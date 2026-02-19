@@ -9,10 +9,11 @@
  * - Events are queried on-demand by TP (no background sync)
  * - No "sources to select" — TP can access any calendar the user grants
  * - User sets a DEFAULT calendar for TP-created events (designated_calendar_id)
+ * - Full CRUD: list, get, create, update, delete (TP handles scheduling intelligence)
  *
  * This page handles:
  * 1. Not connected → Connect CTA (Google OAuth, same as Gmail)
- * 2. Connected → Show designated calendar picker + capabilities summary
+ * 2. Connected → Designated calendar picker + capabilities summary + deliverables
  */
 
 import { useState, useEffect } from 'react';
@@ -58,6 +59,14 @@ interface PlatformDeliverable {
   destination?: { platform?: string };
 }
 
+const CAPABILITIES = [
+  'Ask about upcoming meetings, schedules, and free time',
+  'Create new events on your calendar',
+  'Update existing events — reschedule, add attendees, change details',
+  'Delete events with your confirmation',
+  'Reason about scheduling conflicts and find open slots',
+];
+
 export default function CalendarContextPage() {
   const router = useRouter();
 
@@ -94,7 +103,6 @@ export default function CalendarContextPage() {
       setDesignatedCalendarId(designatedResult?.designated_calendar_id || null);
       setDesignatedCalendarName(designatedResult?.designated_calendar_name || null);
 
-      // Filter deliverables targeting calendar/google
       const calendarDeliverables = (deliverablesResult || []).filter(
         (d: PlatformDeliverable) => ['calendar', 'google'].includes(d.destination?.platform || '')
       );
@@ -174,14 +182,10 @@ export default function CalendarContextPage() {
           </div>
 
           <div className="mb-6 space-y-2">
-            {[
-              'Ask TP about upcoming meetings and schedule',
-              'Create calendar events as deliverables',
-              'Get context-aware meeting prep',
-            ].map((benefit) => (
-              <div key={benefit} className="flex items-center gap-2 text-sm text-muted-foreground">
+            {CAPABILITIES.map((capability) => (
+              <div key={capability} className="flex items-center gap-2 text-sm text-muted-foreground">
                 <span className="w-1.5 h-1.5 rounded-full bg-muted-foreground/40 shrink-0" />
-                {benefit}
+                {capability}
               </div>
             ))}
           </div>
@@ -248,12 +252,12 @@ export default function CalendarContextPage() {
 
       <div className="p-6 space-y-8 max-w-2xl">
 
-        {/* Calendars section */}
+        {/* Default Calendar */}
         <section>
-          <h2 className="text-base font-semibold mb-1">Calendars</h2>
+          <h2 className="text-base font-semibold mb-1">Default calendar</h2>
           <p className="text-sm text-muted-foreground mb-4">
-            Select which calendar TP uses when creating events.
-            {calendars.length > 0 && ` ${calendars.length} calendar${calendars.length === 1 ? '' : 's'} found.`}
+            Where TP creates new events. Events are queried live — no sync needed.
+            {calendars.length > 0 && ` ${calendars.length} calendar${calendars.length === 1 ? '' : 's'} available.`}
           </p>
 
           {calendars.length === 0 ? (
@@ -262,7 +266,6 @@ export default function CalendarContextPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {/* Designated calendar picker */}
               <div className="relative">
                 <button
                   onClick={() => setShowPicker(v => !v)}
@@ -323,16 +326,35 @@ export default function CalendarContextPage() {
           )}
         </section>
 
-        {/* Deliverables Section */}
+        {/* Capabilities */}
+        <section>
+          <h2 className="text-base font-semibold mb-3">What TP can do</h2>
+          <div className="border border-border rounded-lg divide-y divide-border">
+            {CAPABILITIES.map((capability) => (
+              <div key={capability} className="flex items-center gap-3 px-4 py-3">
+                <Check className="w-4 h-4 text-green-500 shrink-0" />
+                <p className="text-sm text-foreground">{capability}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground mt-2">
+            TP queries your calendar live in conversation — no background sync.
+          </p>
+        </section>
+
+        {/* Deliverables */}
         <section>
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-base font-semibold">Deliverables → Calendar</h2>
+            <div>
+              <h2 className="text-base font-semibold">Deliverables → Calendar</h2>
+              <p className="text-sm text-muted-foreground mt-0.5">Scheduled outputs that create or update calendar events.</p>
+            </div>
             <button
               onClick={handleCreateDeliverable}
-              className="text-sm text-primary hover:underline flex items-center gap-1"
+              className="text-sm text-primary hover:underline flex items-center gap-1 shrink-0"
             >
               <Plus className="w-3 h-3" />
-              New deliverable
+              New
             </button>
           </div>
 

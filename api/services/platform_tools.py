@@ -320,7 +320,7 @@ Time filters use relative format:
 - "+2h" - 2 hours from now
 - "+7d" - 7 days from now
 
-Uses designated_calendar_id if set, otherwise 'primary'.""",
+Pass calendar_id from list_integrations designated_calendar_id, or omit for 'primary'.""",
         "input_schema": {
             "type": "object",
             "properties": {
@@ -369,9 +369,7 @@ Uses designated_calendar_id if set, otherwise 'primary'.""",
 
 PRIMARY USE: Create on user's designated calendar so they own the output.
 1. Call list_integrations to get designated_calendar_id
-2. Use that calendar ID as the target
-
-Uses designated_calendar_id if set, otherwise 'primary'.""",
+2. Pass that as calendar_id (or omit to fall back to 'primary')""",
         "input_schema": {
             "type": "object",
             "properties": {
