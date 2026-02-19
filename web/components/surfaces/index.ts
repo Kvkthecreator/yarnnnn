@@ -1,6 +1,7 @@
 /**
  * ADR-023: Supervisor Desk Architecture
  * ADR-037: Chat-First Surface Architecture
+ * ADR-066: Deliverable Detail Redesign
  *
  * Surface component exports
  *
@@ -11,17 +12,16 @@
  * - Activity: migrated to /activity
  * - Context browser: deprecated (use chat)
  *
+ * ADR-066 Migration:
+ * - DeliverableReviewSurface: DELETED — review happens inline on detail page
+ *
  * Remaining surfaces (TP-invoked only):
- * - DeliverableReviewSurface: Review/approve generated content
  * - DeliverableCreateSurface: Create new deliverable (chat-invoked)
  * - WorkOutputSurface: View work output details
  * - WorkListSurface: List work items
  * - ContextEditorSurface: Edit specific memory
  * - IdleSurface: Default chat state
  */
-
-// Review surface (TP-invoked for approval flow)
-export { DeliverableReviewSurface } from './DeliverableReviewSurface';
 
 // Create surface (TP-invoked for creation flow)
 export { DeliverableCreateSurface } from './DeliverableCreateSurface';

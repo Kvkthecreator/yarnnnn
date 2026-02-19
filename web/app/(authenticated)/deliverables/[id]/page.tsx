@@ -90,7 +90,7 @@ export default function DeliverableDetailPage() {
 
       // Initialize editor with latest pending version
       const latestPending = detail.versions.find(
-        (v) => v.status === 'staged' || v.status === 'reviewing' || v.status === 'draft'
+        (v) => v.status === 'staged' || v.status === 'reviewing'
       );
       if (latestPending) {
         setEditedContent(latestPending.draft_content || latestPending.final_content || '');
@@ -109,7 +109,7 @@ export default function DeliverableDetailPage() {
   // Get the latest version that needs review (staged/reviewing/draft)
   const latestVersion = versions[0];
   const pendingVersion = versions.find(
-    (v) => v.status === 'staged' || v.status === 'reviewing' || v.status === 'draft'
+    (v) => v.status === 'staged' || v.status === 'reviewing'
   );
   const hasPendingReview = !!pendingVersion;
 
@@ -232,7 +232,6 @@ export default function DeliverableDetailPage() {
         return <span className="inline-flex items-center gap-1 text-xs text-red-600 bg-red-50 dark:bg-red-900/30 px-2 py-0.5 rounded-full"><XCircle className="w-3 h-3" />Rejected</span>;
       case 'staged':
       case 'reviewing':
-      case 'draft':
         return <span className="inline-flex items-center gap-1 text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/30 px-2 py-0.5 rounded-full"><Clock className="w-3 h-3" />Pending Review</span>;
       case 'generating':
         return <span className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 dark:bg-blue-900/30 px-2 py-0.5 rounded-full"><Loader2 className="w-3 h-3 animate-spin" />Generating</span>;
