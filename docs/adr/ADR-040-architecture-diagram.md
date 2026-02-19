@@ -258,8 +258,10 @@ Platform Event (Slack mention)
 
 ## TP Tool Decision Tree
 
+> **Updated for ADR-065 (2026-02-19)**: Live platform tools are primary. `get_sync_status` is NOT in TP's tool list. Sync is async — TP hands off to the user rather than polling.
+
 ```
-User mentions a platform resource
+User asks about platform content
               │
               ▼
      ┌────────────────────┐
@@ -270,45 +272,33 @@ User mentions a platform resource
     ┌──────────┴──────────┐
     │ NO                  │ YES
     ▼                     ▼
-┌────────────┐    ┌────────────────────┐
-│ Suggest    │    │ list_platform_     │
-│ connecting │    │ resources          │
-│ in Settings│    └─────────┬──────────┘
-└────────────┘              │
-                            ▼
-                   ┌────────────────────┐
-                   │ Found the specific │
-                   │ resource?          │
-                   └─────────┬──────────┘
-                             │
-                  ┌──────────┴──────────┐
-                  │ NO                  │ YES
-                  ▼                     ▼
-           ┌────────────┐      ┌────────────────────┐
-           │ "I found   │      │ get_sync_status    │
-           │ these      │      │ (check freshness)  │
-           │ instead:"  │      └─────────┬──────────┘
-           │ [list]     │                │
-           └────────────┘                ▼
-                              ┌────────────────────┐
-                              │ Data stale or      │
-                              │ not synced?        │
-                              └─────────┬──────────┘
-                                        │
-                             ┌──────────┴──────────┐
-                             │ STALE/NONE         │ FRESH
-                             ▼                     ▼
-                     ┌─────────────────┐    ┌─────────────┐
-                     │ sync_platform_  │    │ Proceed     │
-                     │ resource        │    │ with task   │
-                     │ (proactively)   │    │ immediately │
-                     └────────┬────────┘    └─────────────┘
-                              │
-                              ▼
-                     ┌─────────────────┐
-                     │ "Syncing now,   │
-                     │ will create     │
-                     │ deliverable     │
-                     │ once ready"     │
-                     └─────────────────┘
+┌────────────┐    ┌──────────────────────────┐
+│ Suggest    │    │ Call live platform tool  │
+│ connecting │    │ directly (primary path)  │
+│ in Settings│    │                          │
+└────────────┘    │ platform_slack_*         │
+                  │ platform_gmail_*         │
+                  │ platform_notion_*        │
+                  └─────────────┬────────────┘
+                                │
+                   ┌────────────┴────────────┐
+                   │ RESULT                  │ CROSS-PLATFORM /
+                   │ RETURNED                │ LIVE TOOL FAILED
+                   ▼                         ▼
+          ┌─────────────┐        ┌───────────────────────┐
+          │ Summarize   │        │ Search(scope=          │
+          │ for user    │        │ "platform_content")    │
+          └─────────────┘        │ [cache fallback]       │
+                                 └───────────┬────────────┘
+                                             │
+                              ┌──────────────┴─────────────┐
+                              │ RESULTS                     │ EMPTY
+                              ▼                             ▼
+                   ┌────────────────────┐    ┌─────────────────────────┐
+                   │ Respond, disclose  │    │ Execute(platform.sync)  │
+                   │ cache age:         │    │ + tell user:            │
+                   │ "Based on sync     │    │ "Syncing now, ~30–60s.  │
+                   │ from Feb 18..."    │    │ Ask again once done."   │
+                   └────────────────────┘    │ → STOP                  │
+                                             └─────────────────────────┘
 ```

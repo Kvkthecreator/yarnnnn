@@ -486,7 +486,7 @@ VALUES (
    ```
 
 2. **Pipeline Integration**:
-   - `execute_synthesize_step` extracts `style_context` from `type_config`
+   - Inline synthesis (ADR-042, `deliverable_execution.py`) extracts `style_context` from `type_config`
    - Passes to content agent as parameter
    - Agent's `build_context_prompt` selects matching style memory
    - Style profile included in system prompt for generation

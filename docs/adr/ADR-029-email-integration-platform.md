@@ -240,7 +240,7 @@ Gmail-specific options:
 | File | Change |
 |------|--------|
 | `web/types/index.ts` | Added `integration_import` DataSourceType, IntegrationImportFilters |
-| `api/services/deliverable_pipeline.py` | Added `fetch_integration_source_data()`, updated `execute_gather_step()` |
+| `api/services/deliverable_pipeline.py` | Added `fetch_integration_source_data()` utility (still active); `execute_gather_step()` superseded by inline gather in `deliverable_execution.py` (ADR-042) |
 | `web/components/modals/DeliverableSettingsModal.tsx` | Full integration source UI with Gmail filters |
 
 ### Phase 3: Email-Specific Deliverables (COMPLETE) ✅

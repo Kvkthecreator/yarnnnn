@@ -277,7 +277,7 @@ async def assemble_work_agent_context(user_id: str, project_id: str, include_use
 ## Implementation Checklist
 
 - [x] Create `user_context` table with RLS → `docs/database/003_user_context.sql`
-- [x] Extend extraction service with dual-stream logic → `api/services/extraction.py`
+- [x] Extend extraction service with dual-stream logic → ~~`api/services/extraction.py`~~ (deleted ADR-064; replaced by `api/services/memory.py`)
 - [x] Update extraction prompt for layer classification → `DUAL_EXTRACTION_PROMPT`
 - [x] Modify ThinkingPartner context assembly → `api/agents/thinking_partner.py`
 - [x] Update chat route to pass user_id for extraction → `api/routes/chat.py`

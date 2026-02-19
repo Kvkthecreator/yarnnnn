@@ -172,7 +172,7 @@ Query ──→ Embedding ──→ Vector Search ──→ Relevant Memories
 | Service | File | Purpose |
 |---------|------|---------|
 | Embeddings | `api/services/embeddings.py` | OpenAI text-embedding-3-small |
-| Extraction | `api/services/extraction.py` | LLM-based memory extraction |
+| Memory Service | `api/services/memory.py` | Implicit memory extraction at pipeline boundaries (ADR-064; replaced `extraction.py`) |
 | Anthropic | `api/services/anthropic.py` | Streaming + tools |
 | Project Tools | `api/services/project_tools.py` | TP project management |
 | Documents | `api/services/documents.py` | PDF/DOCX parsing, chunking |

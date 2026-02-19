@@ -803,7 +803,7 @@ Emergent Context Domains solve the fundamental tension between:
 - [x] `Memory` and `ContextBundle` refactored to use `domain_id` (`api/agents/base.py`)
 - [x] `load_memories` function updated for domain scoping (`api/routes/chat.py`)
 - [x] Active domain detection from surface context (deliverable being viewed)
-- [x] Extraction service updated to route to domains (`api/services/extraction.py`)
+- [x] Extraction service updated to route to domains (`api/services/extraction.py` — deleted in ADR-064, replaced by `api/services/memory.py`)
 
 ### Remaining
 
@@ -830,7 +830,7 @@ Emergent Context Domains solve the fundamental tension between:
 | `api/routes/deliverables.py` | Domain recomputation on deliverable changes |
 | `api/routes/chat.py` | Domain-scoped context loading in TP |
 | `api/agents/base.py` | Memory/ContextBundle now use domain_id |
-| `api/services/extraction.py` | Extraction routes to domains |
+| `api/services/memory.py` | Unified Memory Service (replaced `extraction.py` per ADR-064) |
 
 ### Migration Notes
 

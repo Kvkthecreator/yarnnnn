@@ -46,7 +46,7 @@ This checklist tracks implementation of the Knowledge Base Architecture (ADR-058
 | `api/integrations/core/client.py` | Rename references to `platform_connections` | [ ] |
 | `api/services/ephemeral_context.py` | `api/services/filesystem.py` | [ ] |
 | `api/services/context.py` | `api/services/working_memory.py` | [ ] |
-| `api/services/extraction.py` | Update to use new tables | [ ] |
+| `api/services/extraction.py` | **DELETED** — replaced by `api/services/memory.py` (ADR-064) | ✅ |
 | `api/services/domain_inference.py` | Update to use `knowledge_domains` | [ ] |
 
 ### New Services

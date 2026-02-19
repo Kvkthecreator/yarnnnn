@@ -44,8 +44,9 @@ When the user asks about content in a connected platform, TP's first action is a
 
 ```
 User: "What was discussed in #general this week?"
-→ platform_slack_list_channels() to find #general channel ID
-→ platform_slack_search(query="this week") OR platform_slack_send_message to self with summary
+→ platform_slack_list_channels() to find #general channel ID (e.g., "C0123ABC")
+→ platform_slack_get_channel_history(channel_id="C0123ABC", limit=100)
+→ Summarize for user
 ```
 
 Not:

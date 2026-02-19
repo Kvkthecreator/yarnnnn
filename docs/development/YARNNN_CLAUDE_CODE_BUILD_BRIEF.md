@@ -1,5 +1,14 @@
 # YARNNN Build Brief: Recurring Deliverables Product
 
+> **⚠️ Historical document** — Feb 1, 2026. The architecture has evolved significantly since this was written.
+> Key superseded patterns in this doc:
+> - `execute_deliverable_pipeline` / `execute_gather_step` → replaced by `deliverable_execution.py` (ADR-042)
+> - `create_memory` tool calls → removed (ADR-064); memory extraction is now implicit via `services/memory.py`
+> - `chain_output_as_memory` flag → removed (ADR-064)
+> - Old 3-step pipeline pseudocode below reflects the **prior** design, not current
+>
+> For current architecture, see `docs/architecture/context-pipeline.md` and the ADR index.
+
 **For:** Claude Code implementation
 **Date:** February 1, 2026
 **Repo:** github.com/Kvkthecreator/yarnnnn

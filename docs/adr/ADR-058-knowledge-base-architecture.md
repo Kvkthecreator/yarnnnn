@@ -775,9 +775,9 @@ All schema changes and migrations applied:
 
 ### Conversation Extraction ✅
 
-- `api/services/extraction.py` - Already integrated in chat.py
-- Fires as background task after each TP conversation
-- Extracts facts, preferences, decisions to `knowledge_entries`
+- `api/services/memory.py` — Replaced `extraction.py` (ADR-064). Unified Memory Service with `process_conversation()`, `process_feedback()`, `process_patterns()`.
+- Fires at session end (not inline during conversation)
+- Extracts facts, preferences, instructions to `user_context` (not `knowledge_entries` — table superseded by ADR-059)
 
 ### Entity Enrichment Pattern ✅
 

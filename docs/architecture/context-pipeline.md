@@ -16,7 +16,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  What TP knows about you — stable, explicit, small          │
 │  Injected into every TP session (working memory block)      │
 └─────────────────────────────────────────────────────────────┘
-         Written by: user directly, TP during conversation
+         Written by: user directly (Context page); Memory Service at session end
 
 ┌─────────────────────────────────────────────────────────────┐
 │  ACTIVITY  (activity_log)                                    │
@@ -24,7 +24,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  Recent events injected into every TP session               │
 └─────────────────────────────────────────────────────────────┘
          Written by: deliverable pipeline, platform sync,
-                     chat pipeline, TP memory tools
+                     memory service (session end)
 
 ┌─────────────────────────────────────────────────────────────┐
 │  CONTEXT  (filesystem_items + live platform APIs)           │
@@ -64,7 +64,7 @@ Platform Sync (platform_worker.py)
   → Writes to filesystem_items (TTL cache)
   → Purpose: power conversational Search
 
-Deliverable Execution (deliverable_pipeline.py)
+Deliverable Execution (deliverable_execution.py)
   → Reads platform APIs live at generation time
   → Never reads filesystem_items
   → Purpose: produce authoritative, current content
@@ -91,9 +91,12 @@ A single flat key-value store for everything TP knows *about the user*. Replaces
 
 **Written by**:
 - User directly via the Context page (Profile, Styles, Entries sections)
-- TP during conversation using the `create_memory` / `update_memory` tools
+- Backend Memory Service at pipeline boundaries (ADR-064):
+  - `process_conversation()` at session end
+  - `process_feedback()` when user approves edited deliverable
+  - `process_patterns()` from daily background job (activity_log analysis)
 
-**Never written by**: background inference jobs. The prior inference pipeline (profile_inference.py, domain_inference.py, style_learning.py) has been removed. If TP learns something, it writes it during the conversation, in context, with the user present.
+**Never written by**: TP directly during conversation. The explicit `create_memory` / `update_memory` tools were removed in ADR-064. Memory extraction is invisible — it happens after the session ends.
 
 **Read by**: `working_memory.py → build_working_memory()` — assembled into the system prompt block injected at the start of every TP session (~2,000 token budget).
 

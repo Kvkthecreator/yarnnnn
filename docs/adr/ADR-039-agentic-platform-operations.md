@@ -1,9 +1,15 @@
 # ADR-039: Agentic Platform Operations
 
-> **Status**: Accepted
+> **Status**: Accepted — Sync model partially superseded by ADR-065 (2026-02-19)
 > **Date**: 2026-02-11
 > **Deciders**: Kevin (solo founder)
-> **Related**: ADR-038 (Filesystem-as-Context), ADR-025 (Claude Code Alignment)
+> **Related**: ADR-038 (Filesystem-as-Context), ADR-025 (Claude Code Alignment), ADR-065 (Live-First Platform Context)
+>
+> **⚠️ ADR-065 supersedes the sync interaction model in this ADR.** Specifically:
+> - `get_sync_status` is **not** in TP's tool list and should not be referenced as a TP tool
+> - Live platform tools (`platform_slack_get_channel_history`, `platform_gmail_search`, etc.) are now TP's **primary** path for platform content — not the sync cache
+> - After triggering `sync_platform_resource`, TP hands off to the user (informs + stops) rather than polling
+> - See ADR-065 for the current access model
 
 ---
 

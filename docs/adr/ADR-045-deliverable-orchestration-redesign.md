@@ -1,9 +1,10 @@
 # ADR-045: Deliverable Orchestration Redesign
 
 **Date**: 2026-02-11
-**Status**: Proposed
+**Status**: Accepted — type-awareness and execution strategy model implemented; old 3-step pipeline superseded by ADR-042
 **Supersedes**: ADR-016 (Layered Agent Architecture) - execution model
-**Relates to**: ADR-044 (Type Reconceptualization), ADR-038 (Primitives)
+**Superseded by (execution)**: ADR-042 (Deliverable Execution Simplification) — replaced execute_gather_step/execute_synthesize_step/execute_stage_step with inline execution in deliverable_execution.py
+**Relates to**: ADR-044 (Type Reconceptualization), ADR-038 (Primitives), ADR-042
 
 ---
 

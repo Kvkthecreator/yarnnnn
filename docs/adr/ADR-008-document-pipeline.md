@@ -92,7 +92,7 @@ Upload → Store → Parse → Chunk → Embed → Extract Memories
 - Update `chunks.embedding`
 
 **Stage 5: Extract Memories**
-- Use existing `extraction.py` service
+- ~~Use existing `extraction.py` service~~ → `extraction.py` deleted (ADR-064). Memory Service (`api/services/memory.py`) handles extraction at session end.
 - Process chunks in groups (3-5 chunks for context)
 - Extract memories with `source_type='document'`, `source_ref={document_id, chunk_ids}`
 - Embed and store memories
@@ -214,7 +214,7 @@ The backend supports all patterns via the API.
 
 ### Phase 4: Memory Extraction
 - [x] Group chunks for extraction context
-- [x] Use existing `extraction.py` service
+- [x] ~~Use existing `extraction.py` service~~ → deleted (ADR-064); memory.py handles extraction
 - [x] Link memories to document via `source_ref`
 
 ### Phase 5: Polish
