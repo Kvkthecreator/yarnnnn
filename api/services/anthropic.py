@@ -38,7 +38,7 @@ def get_anthropic_client() -> AsyncAnthropic:
     return AsyncAnthropic(api_key=api_key)
 
 
-def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int = 200) -> str:
+def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int = 200, max_depth: int = 3) -> str:
     """
     Truncate tool result to prevent context overflow.
 
@@ -49,6 +49,8 @@ def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int
         result: Tool result dict
         max_items: Max items to include in lists
         max_content_len: Max length for content strings
+        max_depth: Maximum nesting depth before collapsing to "..."
+                   Platform tools need depth>=5: result→result→channels→[item]→field
 
     Returns:
         JSON string of truncated result
@@ -56,7 +58,7 @@ def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int
     import json
 
     def truncate_value(v, depth=0):
-        if depth > 3:
+        if depth > max_depth:
             return "..."
         if isinstance(v, str):
             if len(v) > max_content_len:
@@ -348,7 +350,7 @@ async def chat_completion_stream_with_tools(
                 # and enough messages to answer the user's question.
                 if tool_use.name.startswith("platform_"):
                     truncated_result = _truncate_tool_result(
-                        result, max_items=100, max_content_len=1000
+                        result, max_items=100, max_content_len=1000, max_depth=6
                     )
                 else:
                     truncated_result = _truncate_tool_result(result)
