@@ -1087,6 +1087,35 @@ export const api = {
       request<{
         calendars: Array<{ id: string; summary: string; primary?: boolean }>;
       }>("/api/integrations/google/calendars"),
+
+    // Get calendar events for visual calendar display
+    getCalendarEvents: (options?: {
+      calendarId?: string;
+      timeMin?: string;  // RFC3339 format
+      timeMax?: string;  // RFC3339 format
+      maxResults?: number;
+    }) => {
+      const params = new URLSearchParams();
+      if (options?.calendarId) params.append("calendar_id", options.calendarId);
+      if (options?.timeMin) params.append("time_min", options.timeMin);
+      if (options?.timeMax) params.append("time_max", options.timeMax);
+      if (options?.maxResults) params.append("max_results", String(options.maxResults));
+      const query = params.toString();
+      return request<{
+        events: Array<{
+          id: string;
+          title: string;
+          start: string;
+          end: string;
+          attendees: Array<{ email: string; name?: string; self?: boolean }>;
+          location?: string;
+          description?: string;
+          meeting_link?: string;
+          recurring: boolean;
+        }>;
+        calendar_id: string;
+      }>(`/api/integrations/google/events${query ? `?${query}` : ""}`);
+    },
   },
 
   // ADR-063: Activity Log (what YARNNN has done)

@@ -26,10 +26,13 @@ import {
   Loader2,
   Plus,
   Sparkles,
+  CalendarDays,
+  List,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
+import { CalendarView } from '@/components/calendar/CalendarView';
 
 interface CalendarOption {
   id: string;
@@ -80,6 +83,7 @@ export default function CalendarContextPage() {
   const [saved, setSaved] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
   const [showConnectionModal, setShowConnectionModal] = useState(false);
+  const [viewMode, setViewMode] = useState<'calendar' | 'details'>('calendar');
 
   useEffect(() => {
     loadData();
@@ -221,6 +225,8 @@ export default function CalendarContextPage() {
     ? calendars.find(c => c.id === designatedCalendarId) || { id: designatedCalendarId, summary: designatedCalendarName || designatedCalendarId }
     : calendars.find(c => c.primary) || null;
 
+  const activeCalendarId = designatedCalendarId || currentCalendar?.id || 'primary';
+
   return (
     <div className="h-full overflow-auto">
       {/* Header */}
@@ -241,15 +247,53 @@ export default function CalendarContextPage() {
               <h1 className="text-lg font-semibold">Calendar</h1>
             </div>
           </div>
-          <button
-            onClick={() => setShowConnectionModal(true)}
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            Connection details
-          </button>
+          <div className="flex items-center gap-4">
+            {/* View Toggle */}
+            <div className="flex items-center border border-border rounded-lg p-0.5">
+              <button
+                onClick={() => setViewMode('calendar')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors',
+                  viewMode === 'calendar'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <CalendarDays className="w-4 h-4" />
+                Calendar
+              </button>
+              <button
+                onClick={() => setViewMode('details')}
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors',
+                  viewMode === 'details'
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                <List className="w-4 h-4" />
+                Details
+              </button>
+            </div>
+            <button
+              onClick={() => setShowConnectionModal(true)}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              Connection details
+            </button>
+          </div>
         </div>
       </div>
 
+      {/* Calendar View */}
+      {viewMode === 'calendar' && (
+        <div className="p-6">
+          <CalendarView calendarId={activeCalendarId} />
+        </div>
+      )}
+
+      {/* Details View */}
+      {viewMode === 'details' && (
       <div className="p-6 space-y-8 max-w-2xl">
 
         {/* Default Calendar */}
@@ -387,6 +431,7 @@ export default function CalendarContextPage() {
           )}
         </section>
       </div>
+      )}
 
       {/* Connection Details Modal */}
       <ConnectionDetailsModal
