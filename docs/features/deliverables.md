@@ -1,5 +1,8 @@
 # Deliverables
 
+**Status:** Superseded by [docs/architecture/deliverables.md](../architecture/deliverables.md)
+**Note:** This document predates ADR-044, ADR-045, ADR-060, ADR-066, and ADR-068. See the architecture doc for current canonical reference.
+
 > Layer 4 of 4 in the YARNNN four-layer model (ADR-063)
 
 ---
