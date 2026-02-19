@@ -4,13 +4,13 @@
 
 ---
 
-## The short version
+## The short version (current model)
 
-- One session per day (UTC). New day = new session.
-- Within a session, TP has the full conversation history (up to a token budget).
+- One session per UTC day. New day = new session. This is a known limitation — see [Proposed changes](#proposed-changes-adr-067).
+- Within a session, TP has the full conversation history (up to a 50,000 token budget).
 - Across sessions, TP only knows what's in **working memory** — profile, preferences, recent activity, active deliverables. Raw conversation history does not carry over.
-- There is no summarization. Old messages are just truncated when the budget fills.
-- There is no explicit session close. Sessions stay `active` indefinitely.
+- Session summaries (`chat_sessions.summary`) exist in the schema but are not yet written — the "Recent conversations" working memory block is currently always empty.
+- There is no in-session compaction. When the token budget fills, oldest messages are silently truncated.
 
 ---
 
@@ -49,7 +49,7 @@ When a new session starts, TP gets a fresh **working memory block** injected int
 | Active deliverables (up to 5) | `deliverables` | Always live |
 | Connected platforms + sync freshness | `platform_connections` | Always live |
 | Recent activity (last 10 events, 7-day window) | `activity_log` | Written by pipeline + sync |
-| Recent session summaries | `chat_sessions.summary` | Not currently generated |
+| Recent session summaries | `chat_sessions.summary` | **Not currently written — always empty** |
 
 **What does NOT carry over:**
 - Raw conversation history (previous sessions' messages are not fetched)
@@ -60,39 +60,64 @@ When a new session starts, TP gets a fresh **working memory block** injected int
 
 Preferences stated during a conversation are extracted by the **nightly cron** (`unified_scheduler.py`, midnight UTC) which processes all prior day's sessions in batch. A preference stated today becomes part of working memory tomorrow morning.
 
-There is no real-time session-end extraction wired yet. The Context page is the only way to get something into working memory immediately.
+There is no real-time session-end extraction. The Context page is the only way to get something into working memory immediately.
 
 ---
 
 ## Contrast with Claude Code
 
-Claude Code compacts conversation history via auto-summarization when context fills up. YARNNN does not do this — the design decision (ADR-049) is that sessions are for **API coherence** (tool_use/tool_result pairing), not memory. Context continuity comes from working memory and live platform reads, not conversation history.
+Claude Code uses auto-compaction — context-window-pressure-driven, not time-based — and maintains cross-session continuity via CLAUDE.md and auto memory. YARNNN uses a time-based daily boundary with no compaction.
 
-| | Claude Code | YARNNN |
-|---|---|---|
-| Session boundary | Unlimited (compacts on overflow) | Daily (UTC midnight) |
-| History in session | Compressed when full | Truncated (oldest dropped) |
-| Cross-session memory | CLAUDE.md + compacted history | Working memory block (user_context + deliverables + activity) |
-| Summarization | Auto-compaction | Not implemented |
-| Session end | Explicit close / context limit | None (always active) |
+| | Claude Code | YARNNN (current) | YARNNN (proposed, ADR-067) |
+|---|---|---|---|
+| **Session boundary** | Context-window-driven | UTC midnight (daily) | Inactivity-based (4h default) |
+| **In-session overflow** | Auto-compaction (summary prepended) | Hard truncation (oldest dropped) | Deferred compaction |
+| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | Working memory block (user_context + deliverables + activity) | + session summaries |
+| **Session summaries** | Auto-generated during compaction | Schema exists, never written | Written by nightly cron |
+| **Session resumption** | `--continue` / `--resume <id>` | Not supported (session_id ignored) | Deferred |
 
-The practical implication: if a user had a long conversation yesterday about their preferences, TP won't remember the conversation details today — but it will know the extracted preferences (after the nightly cron runs).
+The practical implication today: if a user had a long conversation yesterday about their preferences, TP won't remember the conversation details today — but it will know the extracted preferences (after the nightly cron runs).
 
 ---
 
-## Known gaps
+## Proposed changes (ADR-067)
+
+Two changes are proposed in [ADR-067](../adr/ADR-067-session-compaction-architecture.md):
+
+### Phase 1 — Session summaries (no UX change)
+
+The nightly cron will write a prose summary to `chat_sessions.summary` after processing memory extraction for each session. The working memory "Recent conversations" block — currently always empty — will be populated with the last 3 summaries (within a 14-day window).
+
+**Example summary**:
+> [2026-02-19] Worked on Q2 board update structure — settled on 4-section format. User wants financials added; deliverable paused pending numbers. Also set up weekly #engineering digest.
+
+This closes the gap between "what the user discussed yesterday" and "what TP knows today."
+
+### Phase 2 — Inactivity-based session boundary
+
+The UTC midnight hard cut is replaced with an inactivity-based boundary (default: 4 hours of no messages). A user continuing a thread from this morning stays in the same session; a user starting a new work context after a break gets a new one.
+
+The nightly cron continues to run at UTC midnight regardless — backend scheduling and conversational session management are decoupled.
+
+---
+
+## Known gaps (current state)
 
 1. **No real-time extraction** — preferences from a conversation land in working memory overnight, not immediately.
-2. **No session summaries** — `chat_sessions.summary` is never written, so the "Recent conversations" block in working memory always renders empty.
-3. **No explicit close** — sessions accumulate as `active` indefinitely.
+2. **No session summaries** — `chat_sessions.summary` is never written; "Recent conversations" always renders empty.
+3. **No explicit close** — sessions accumulate as `active` indefinitely; `ended_at` is never set.
 4. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses daily-scope auto-create; users can't resume a specific old session from the frontend.
+5. **No in-session compaction** — 50k hard truncation with no summary of dropped content.
+6. **UTC midnight boundary is timezone-naive** — a user in Singapore at 11:30pm UTC gets a 30-minute session before reset.
 
 ---
 
 ## Related
 
 - [Memory](./memory.md) — what persists across sessions and how it's written
-- [ADR-049](../adr/ADR-049-context-freshness-model.md) — why no summarization
+- [Backend Orchestration](./backend-orchestration.md) — nightly cron context (different domain from session management)
+- [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Proposed session compaction and continuity architecture
+- [ADR-049](../adr/ADR-049-context-freshness-model.md) — original session philosophy (partially superseded by ADR-067)
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — activity log in working memory
 - `api/routes/chat.py` — session creation, message append, history building
 - `supabase/migrations/008_chat_sessions.sql` — schema and RPC
