@@ -146,7 +146,7 @@ Platform tools are dynamically added based on user's connected integrations:
 | Provider | Tools | Backend |
 |----------|-------|---------|
 | **Slack** | `platform_slack_send_message`, `platform_slack_list_channels`, `platform_slack_get_channel_history` | MCP Gateway |
-| **Notion** | `platform_notion_search`, `platform_notion_create_comment` | MCP Gateway |
+| **Notion** | `platform_notion_search`, `platform_notion_get_page`, `platform_notion_create_comment` | Direct API |
 | **Gmail** | `platform_gmail_search`, `platform_gmail_get_thread`, `platform_gmail_send`, `platform_gmail_create_draft` | Direct API |
 | **Calendar** | `platform_calendar_list_events`, `platform_calendar_get_event`, `platform_calendar_create_event` | Direct API |
 

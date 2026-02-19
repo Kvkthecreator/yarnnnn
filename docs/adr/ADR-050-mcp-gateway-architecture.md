@@ -2,7 +2,7 @@
 
 > **Status**: Implemented
 > **Created**: 2026-02-12
-> **Updated**: 2026-02-12
+> **Updated**: 2026-02-19
 > **Deciders**: Kevin (solo founder)
 > **Related**: ADR-048 (Direct MCP Access), ADR-041 (MCP Server Exposure), ADR-046 (Google Calendar Integration)
 
@@ -27,6 +27,13 @@
 - OAuth tokens work perfectly with Notion REST API
 
 **Prompt Versioning**: Added in `api/services/platform_tools.py:PROMPT_VERSIONS`
+
+**Exporter Alignment** (2026-02-19): All deliverable exporters now use the same backends as TP platform tools:
+- `integrations/exporters/slack.py` → MCP Gateway (`call_platform_tool()`)
+- `integrations/exporters/notion.py` → Direct API (`POST /v1/pages`)
+- `integrations/exporters/gmail.py` → Direct API (`GoogleAPIClient`)
+
+Previously all three exporters incorrectly called `MCPClientManager` from `client.py`, which either failed at runtime (npx unavailable on Render) or called methods that don't exist on that class.
 
 **Default Landing Zones** (user owns the output):
 
