@@ -1721,7 +1721,7 @@ async def list_google_calendars(
         calendars = [
             {
                 "id": cal.get("id"),
-                "name": cal.get("summary", "Untitled Calendar"),
+                "summary": cal.get("summary", "Untitled Calendar"),
                 "primary": cal.get("primary", False),
                 "access_role": cal.get("accessRole"),
                 "background_color": cal.get("backgroundColor"),
