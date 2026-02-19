@@ -92,7 +92,10 @@ The user's authed_user_id is in integration metadata. Always send to self unless
 
 Use to find a channel_id before calling platform_slack_get_channel_history.
 
-If warning="channel_names_unavailable" in result: ask briefly for the channel link (one question, no tutorial).""",
+After getting the list:
+- If the user's channel name matches exactly → call get_channel_history immediately
+- If no exact match → show the channel list to the user and ask which one they meant. Do NOT fall back to Search.
+- If warning="channel_names_unavailable" → ask briefly for the channel link (one question, no tutorial)""",
         "input_schema": {
             "type": "object",
             "properties": {},
@@ -109,7 +112,7 @@ Workflow:
 1. platform_slack_list_channels() → find the channel_id matching the channel name the user gave
 2. platform_slack_get_channel_history(channel_id="C...", limit=50) → get messages
 
-Do NOT fall back to Search — Search only queries old cached content, not live messages.
+Do NOT fall back to Search at any point — Search only queries old cached content, not live messages. If the channel isn't found in list_channels, ask the user which channel they meant.
 
 For "last 7 days", use oldest = Unix timestamp of 7 days ago (e.g., str(int(time.time()) - 7*86400)).
 
