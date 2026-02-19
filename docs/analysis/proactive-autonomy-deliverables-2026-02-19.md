@@ -1,8 +1,9 @@
 # Proactive Autonomy — Next-Generation Deliverable Types
 
 **Date**: 2026-02-19
-**Status**: Working draft — strategic discourse
-**Context**: Continuation of discourse on TP agent architecture and what it enables beyond current deliverable types
+**Status**: Superseded by ADR-068 — retained for strategic context and ideation record
+**See**: [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md) for the architectural decision
+**Note**: The "TP agent running autonomously with a task brief" framing in this doc was architecturally incorrect — it violates the Path A/B boundary (ADR-061). The correct model is the orchestrator's Signal Processing phase (Path B). The examples and use cases remain valid; the mechanism was wrong.
 
 ---
 
@@ -90,32 +91,32 @@ These deliverables produce things that can be *sent or acted on*, not just read.
 
 ---
 
-## The TP Agent Execution Model
+## Execution Model — Architectural Correction
 
-The right execution model for these types is **TP running autonomously with a task brief**.
+**The "TP running autonomously with a task brief" framing in the original draft was wrong.** TP is Path A (conversational, real-time, session-scoped). It does not generate deliverable content — that is Path B (ADR-061).
+
+The correct execution model is the **orchestrator's Signal Processing phase** (ADR-068):
 
 ```
-deliverable_brief = {
-  "task": "...",         # What to produce
-  "context_keys": [...], # Which memory keys to inject
-  "tools_allowed": [...],# Which platform tools TP can call
-  "time_window": "...",  # Lookback window for platform queries
-  "output_format": "...",# email_draft | slack_message | structured_brief
-  "delivery": {...},     # Where to send after user review (optional gate)
-}
+Cron fires
+  → Signal extraction pass over Layer 3 (what happened in user's world)
+  → Orchestration agent reasons: what does this warrant?
+  → Creates signal_emergent deliverable (origin=signal_emergent, trigger_type=manual)
+  → Queues execution using existing DeliverableAgent + execution strategies
+  → Version surfaces to user with governance=manual (review gate)
 ```
 
-TP receives the brief as its system prompt, calls tools autonomously to gather what it needs, reasons across the data, produces the output, and captures it as a deliverable version. No human in the loop during execution — but optionally gated before delivery.
+The "task brief" concept maps to the signal summary fed to the orchestration agent — structured behavioral signal extracted from platform data, not raw content. The orchestration agent is not TP. It is the same DeliverableAgent that handles all Path B execution, operating over a richer context input.
 
-This is not a major architectural leap from where TP already is. The changes required:
+The changes required (from ADR-068):
 
-1. **Output capture path** — TP currently streams to a chat session. An autonomous run needs to write to `deliverable_versions` instead. This is a new execution mode, not a new agent.
+1. **Signal extraction pass** — Deterministic read of `filesystem_items` metadata producing a structured behavioral signal summary (no LLM needed for extraction).
 
-2. **Trigger/condition layer** — A lightweight periodic job (or webhook) that evaluates whether conditions for proactive deliverables are met. Runs on a short interval (e.g., hourly), evaluates each user's active proactive deliverables, fires execution when triggered.
+2. **Signal processing function** — Single LLM call (orchestration agent) reasoning over signal summary + user memory + recent activity. Produces: trigger existing deliverable, create signal-emergent deliverable, or nothing.
 
-3. **Review gate UX** — For action-producing deliverables (draft emails, stakeholder updates), the detail page needs an "Approve & Send" path distinct from the current passive delivery model.
+3. **`origin` field on `deliverables`** — Distinguishes `user_configured` | `analyst_suggested` | `signal_emergent`. One schema addition.
 
-4. **Cost model** — TP with 4-6 tool calls per autonomous run is materially more expensive than the current single-LLM-call pipeline. This needs to be priced or rate-limited at the deliverable level.
+4. **Review gate** — Already exists. `governance=manual` → version lands as `staged`, user reviews before delivery. No new UX pattern needed.
 
 ---
 

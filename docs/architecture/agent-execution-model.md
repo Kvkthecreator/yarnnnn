@@ -6,6 +6,7 @@
 **Codifies:** ADR-061 (Two-Path Architecture Consolidation)
 **Related:**
 - [ADR-061: Two-Path Architecture](../adr/ADR-061-two-path-architecture.md)
+- [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md) — extends Path B with Signal Processing phase
 - [ADR-042: Deliverable Execution Simplification](../adr/ADR-042-deliverable-execution-simplification.md)
 - [ADR-045: Deliverable Orchestration Redesign](../adr/ADR-045-deliverable-orchestration-redesign.md)
 - [Supervision Model](supervision-model.md) — the complementary UI/UX framing
@@ -72,10 +73,9 @@ Trigger → Orchestrator → Output → Notification
 | Agent | `DeliverableAgent` (`api/agents/deliverable.py`) |
 
 **Orchestrator's responsibilities:**
-- Execute deliverables on schedule or on manual trigger
-- Select and run execution strategy based on `type_classification.binding`
-- Produce `deliverable_versions` records
-- Deliver outputs (email, Slack, Notion)
+- **Signal Processing phase** (ADR-068): Extract behavioral signal from connected platform data, reason over what the user's world warrants, create signal-emergent deliverables
+- **Analysis phase** (ADR-060): Mine TP session content for recurring patterns, create analyst-suggested deliverables
+- **Execution phase**: Execute deliverables on schedule or on manual trigger, select and run execution strategy based on `type_classification.binding`, produce `deliverable_versions` records, deliver outputs (email, Slack, Notion)
 
 **Orchestrator explicitly does NOT:**
 - Participate in conversation
@@ -126,25 +126,28 @@ Strategy is selected at execution time from `deliverable.type_classification.bin
 
 ## What This Means for Proactive / Autonomous Deliverables
 
-The proactive autonomy roadmap (see `docs/analysis/proactive-autonomy-deliverables-2026-02-19.md`) must be implemented within this model, not around it.
+The proactive autonomy roadmap is implemented through **ADR-068: Signal-Emergent Deliverables** — entirely within Path B. TP is not involved.
 
-**Correct framing:**
+**Correct framing (all Path B):**
 
 | Concept | Belongs in | Rationale |
 |---|---|---|
-| Condition evaluation (drift detection, conflict detection) | Path B — condition layer added to scheduler | Non-conversational, background, trigger-based |
-| Cross-signal correlation (Notion + Slack) | Path B — new execution strategy (`ProactiveStrategy`) | Context gathering is the strategy's job |
-| Commitment tracking, state comparison | Path B — richer context gathering in strategy | Extends `gather_context()`, not a new agent type |
-| "Agent reviews and drafts" | Path B — `DeliverableAgent` with richer context brief | Same agent, different brief |
-| Review-before-send gate | Path B output + Path A UX | Orchestrator produces draft; TP/UI provides the approval surface |
+| "What happened in user's world?" | Signal Processing phase — behavioral signal extraction from Layer 3 | Deterministic metadata read, no LLM |
+| "What does this warrant?" | Signal Processing phase — orchestration agent reasoning pass | Single LLM call over signal summary |
+| Drift detection, conflict detection, meeting prep | Signal-emergent deliverable creation | `origin=signal_emergent`, `trigger_type=manual` |
+| Cross-signal correlation (Notion + Slack) | Signal summary input to orchestration agent | Cross-platform extraction, not cross-platform agent |
+| Review-before-send gate | `governance=manual` on signal-emergent deliverable | Existing mechanism — no new UX pattern needed |
+| User promotes output to recurring | `promote-to-recurring` endpoint | `trigger_type` updated; `origin` preserved as provenance |
 
 **Incorrect framing (violates the boundary):**
 
 - "TP runs autonomously with a task brief" — TP is conversational, not a batch processor
 - "Wire TP to run deliverable generation" — TP does not generate deliverable content
-- "A new agent that combines TP and orchestration" — agent proliferation, not strategy extension
+- "Condition evaluation layer for TP" — conditions are evaluated in the orchestrator, not in a session
 
-The mental model shift: proactive deliverables are not TP being more autonomous. They are the orchestrator growing a **condition layer** (evaluates whether to trigger) and **richer strategies** (multi-step context gathering across time and signals).
+The mental model: proactive deliverables are not TP being more autonomous. They are the orchestrator gaining a **signal processing phase** that observes the user's platform world directly — without waiting for the user to report it — and creates deliverables in response.
+
+See [ADR-068](../adr/ADR-068-signal-emergent-deliverables.md) for the full decision, schema addition, and implementation sequence.
 
 ---
 
