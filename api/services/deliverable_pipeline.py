@@ -1358,6 +1358,173 @@ INSTRUCTIONS:
 - Keep it concise - 200-400 words
 
 Write the page summary now:""",
+
+    # ADR-046: Calendar Types
+    "meeting_prep": """You are preparing a brief for an upcoming meeting.
+
+MEETING: {meeting_title}
+WHEN: {meeting_time}
+ATTENDEES: {attendees_list}
+{meeting_description}
+
+CONTEXT SOURCES:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+INSTRUCTIONS:
+- Focus on what the user needs to know BEFORE this meeting
+- Summarize recent interactions with each attendee from the context
+- Highlight any open items, pending decisions, or unresolved discussions
+- Include relevant project updates or blockers
+- Suggest 2-3 talking points or questions to raise
+- Keep it scannable - use bullet points and clear headers
+- If recurring meeting, note what was discussed in previous occurrence if available
+
+Write the meeting prep brief now:""",
+
+    "weekly_calendar_preview": """You are creating a weekly calendar preview for the user.
+
+WEEK OF: {week_start}
+CALENDAR SUMMARY:
+{calendar_summary}
+
+ADDITIONAL CONTEXT:
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+STRUCTURE:
+
+## 📅 Week Overview
+{meeting_count} meetings, {total_hours} hours of scheduled time.
+Busiest day: {busiest_day}
+Free blocks: {free_blocks}
+
+## 👥 Key People This Week
+Who you're meeting with most, and notable external meetings.
+
+## 🔄 Recurring Meetings
+Your regular 1:1s, syncs, and standups this week.
+
+## ⚡ High-Priority
+Meetings that likely need prep or are particularly important.
+
+## 💭 Suggested Prep
+Meetings that would benefit from a meeting prep deliverable.
+
+INSTRUCTIONS:
+- Provide a high-level view of the week ahead
+- Identify patterns (heavy meeting days, back-to-back blocks)
+- Call out meetings with external attendees
+- Suggest which meetings need prep work
+- Keep it brief and scannable
+
+Generate the weekly calendar preview now:""",
+
+    # Phase 2: Strategic Intelligence Types
+    "deep_research": """You are conducting {depth} research on the following topic:
+
+TOPIC: {topic}
+
+RESEARCH TYPE: {research_type}
+TIME HORIZON: {time_horizon_text}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+SOURCES REQUIRED: Minimum {sources_required} credible sources
+CITATIONS: Include inline citations when required
+
+GATHERED CONTEXT (Research materials, documents, web sources):
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Executive summary: 3-5 key findings that directly answer the research question
+- Background: Provide sufficient context for non-experts to understand the domain
+- Key findings: Organize by theme, not by source. Each finding should be substantive and evidenced
+- Analysis: Go beyond description - identify patterns, tensions, implications
+- Recommendations: Specific, prioritized actions based on the research
+- Sources: List all sources consulted with brief relevance notes
+- Depth level: {depth} (comprehensive: 1500-2500 words, exhaustive: 2500+ words)
+- Time horizon: Frame findings and recommendations for {time_horizon_text} perspective
+- Research type: Ensure {research_type} angle is central to analysis
+
+This is deep research - be thorough, analytical, and evidence-based.
+
+Write the deep research deliverable now:""",
+
+    "daily_strategy_reflection": """You are writing a strategic reflection for end of day.
+
+FOCUS AREA: {focus_area_text}
+LOOKBACK PERIOD: Past {lookback_days} day(s)
+REFLECTION TIME: {reflection_time}
+TONE: {tone}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT (Activity log, completed work, conversations, deliverables):
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Strategic movements: What significant developments occurred that affect strategy? Not task completion, but shifts in landscape
+- Decision points: What decisions (made or pending) have strategic weight? Focus on implications, not mechanics
+- Pattern recognition: What patterns emerge from the day's activity? Connect micro-actions to macro-trends
+- Action prioritization: Based on today's insights, what are the top 2-3 strategic priorities for tomorrow/this week?
+- Learning insights: What did you learn about your own strategic process or blind spots today?
+- Tone: {tone} (analytical = data-driven, reflective = introspective, directive = action-oriented)
+- Length: 400-800 words - concise but substantive
+- Focus area: {focus_area_text} - use this as the lens for all analysis
+
+This is strategic reflection, not task tracking. Elevate the discussion.
+
+Write the daily strategy reflection now:""",
+
+    "intelligence_brief": """You are writing an intelligence brief for {audience}.
+
+BRIEF TYPE: {brief_type}
+TIME SENSITIVITY: {time_sensitivity}
+
+SECTIONS TO INCLUDE:
+{sections_list}
+
+GATHERED CONTEXT (Current intelligence, platform data, research sources):
+{gathered_context}
+
+{recipient_context}
+
+{past_versions}
+
+INSTRUCTIONS:
+- Situation summary: Current state in 2-3 sentences. What's the headline?
+- Key developments: What changed since last brief? Focus on signal, not noise
+- Threat/opportunities: What risks or openings emerged? Be specific about impact
+- Recommended actions: Immediate next steps (24-48 hours). Prioritized list
+- Monitoring indicators: What metrics/events should we watch to track this?
+- Brief type: {brief_type} angle should be primary lens
+- Audience: {audience} - adjust detail level and framing accordingly
+- Time sensitivity: {time_sensitivity} - this determines currency requirements
+- Maximum length: {max_length_words} words - brevity is critical for intelligence
+
+Intelligence briefs are factual, current, and action-oriented. No speculation without flagging it.
+
+Write the intelligence brief now:""",
 }
 
 
@@ -1505,6 +1672,30 @@ SECTION_TEMPLATES = {
         "recurring": "Recurring Meetings - Regular syncs and 1:1s",
         "high_priority": "High Priority - Meetings needing extra attention",
         "prep_suggestions": "Prep Suggestions - Meetings worth preparing for",
+    },
+    # Phase 2: Strategic Intelligence Types
+    "deep_research": {
+        "executive_summary": "Executive Summary - 3-5 key findings that answer the research question",
+        "background": "Background - Context needed to understand the domain",
+        "key_findings": "Key Findings - Substantive discoveries organized by theme",
+        "analysis": "Analysis - Patterns, tensions, and implications beyond description",
+        "recommendations": "Recommendations - Specific, prioritized actions based on research",
+        "sources": "Sources - All sources consulted with relevance notes",
+        "appendix": "Appendix - Supporting data, detailed charts, extended analysis",
+    },
+    "daily_strategy_reflection": {
+        "strategic_movements": "Strategic Movements - Developments affecting strategic landscape",
+        "decision_points": "Decision Points - Decisions with strategic weight and implications",
+        "pattern_recognition": "Pattern Recognition - Emerging patterns from activity and signals",
+        "action_prioritization": "Action Prioritization - Top 2-3 strategic priorities for next period",
+        "learning_insights": "Learning Insights - Meta-learnings about strategic process",
+    },
+    "intelligence_brief": {
+        "situation_summary": "Situation Summary - Current state in 2-3 sentences",
+        "key_developments": "Key Developments - What changed since last brief (signal, not noise)",
+        "threat_opportunities": "Threats & Opportunities - Risks and openings with specific impact",
+        "recommended_actions": "Recommended Actions - Immediate next steps (24-48 hours), prioritized",
+        "monitoring_indicators": "Monitoring Indicators - Metrics/events to track going forward",
     },
 }
 
@@ -1962,80 +2153,9 @@ INSTRUCTIONS:
 - Make it actionable - what should the user do next?
 
 Generate the activity summary now:""",
-
-    # ==========================================================================
-    # ADR-046: Calendar-Triggered Deliverable Prompts
-    # ==========================================================================
-
-    "meeting_prep": """You are preparing a context brief for an upcoming meeting.
-
-MEETING: {meeting_title}
-WHEN: {meeting_time}
-ATTENDEES: {attendees_list}
-{meeting_description}
-
-CONTEXT SOURCES:
-{gathered_context}
-
-{recipient_context}
-
-{past_versions}
-
-SECTIONS TO INCLUDE:
-{sections_list}
-
-INSTRUCTIONS:
-- Focus on what the user needs to know BEFORE this meeting
-- Summarize recent interactions with each attendee from the context
-- Highlight any open items, pending decisions, or unresolved discussions
-- Include relevant project updates or blockers
-- Suggest 2-3 talking points or questions to raise
-- Keep it scannable - use bullet points and clear headers
-- If recurring meeting, note what was discussed in previous occurrence if available
-
-Write the meeting prep brief now:""",
-
-    "weekly_calendar_preview": """You are creating a weekly calendar preview for the user.
-
-WEEK OF: {week_start}
-CALENDAR SUMMARY:
-{calendar_summary}
-
-ADDITIONAL CONTEXT:
-{gathered_context}
-
-{recipient_context}
-
-{past_versions}
-
-STRUCTURE:
-
-## 📅 Week Overview
-{meeting_count} meetings, {total_hours} hours of scheduled time.
-Busiest day: {busiest_day}
-Free blocks: {free_blocks}
-
-## 👥 Key People This Week
-Who you're meeting with most, and notable external meetings.
-
-## 🔄 Recurring Meetings
-Your regular 1:1s, syncs, and standups this week.
-
-## ⚡ High-Priority
-Meetings that likely need prep or are particularly important.
-
-## 💭 Suggested Prep
-Meetings that would benefit from a meeting prep deliverable.
-
-INSTRUCTIONS:
-- Provide a high-level view of the week ahead
-- Identify patterns (heavy meeting days, back-to-back blocks)
-- Call out meetings with external attendees
-- Suggest which meetings need prep work
-- Keep it brief and scannable
-
-Generate the weekly calendar preview now:""",
 }
+
+
 
 
 def _build_variant_prompt(
@@ -2374,6 +2494,45 @@ def build_type_prompt(
             "busiest_day": calendar_summary.get("busiest_day", "N/A"),
             "free_blocks": calendar_summary.get("free_blocks", "See calendar for details"),
             "sections_list": build_sections_list(deliverable_type, config),
+        })
+
+    # Phase 2: Strategic Intelligence Types
+    elif deliverable_type == "deep_research":
+        time_horizon_map = {
+            "current": "current state/near-term",
+            "1_year": "1-year outlook",
+            "3_year": "3-year strategic horizon",
+            "5_year": "5-year long-term vision",
+        }
+        fields.update({
+            "topic": config.get("topic", "Research topic"),
+            "research_type": config.get("research_type", "strategic"),
+            "depth": config.get("depth", "comprehensive"),
+            "time_horizon_text": time_horizon_map.get(config.get("time_horizon", "current"), "current"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "sources_required": str(config.get("sources_required", 10)),
+            "include_citations": config.get("include_citations", True),
+        })
+
+    elif deliverable_type == "daily_strategy_reflection":
+        focus_area = config.get("focus_area")
+        fields.update({
+            "focus_area_text": focus_area if focus_area else "general strategic development",
+            "lookback_days": str(config.get("lookback_days", 1)),
+            "reflection_time": config.get("reflection_time", "evening"),
+            "tone": config.get("tone", "reflective"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "context_synthesis": "CONTEXT SYNTHESIS (Layer 3 user context):\n" + gathered_context if config.get("include_context_synthesis", True) else "",
+        })
+
+    elif deliverable_type == "intelligence_brief":
+        fields.update({
+            "brief_type": config.get("brief_type", "strategic"),
+            "audience": config.get("audience", "executive"),
+            "time_sensitivity": config.get("time_sensitivity", "daily"),
+            "sections_list": build_sections_list(deliverable_type, config),
+            "include_confidence_levels": config.get("include_confidence_levels", True),
+            "max_length_words": str(config.get("max_length_words", 800)),
         })
 
     else:  # custom and any unknown types
@@ -3075,6 +3234,129 @@ def validate_notion_page_summary(content: str, config: dict) -> dict:
     return {"valid": len(issues) == 0, "issues": issues, "score": score}
 
 
+def validate_deep_research(content: str, config: dict) -> dict:
+    """Validate deep research output (Phase 2)."""
+    issues = []
+    content_lower = content.lower()
+    word_count = len(content.split())
+
+    # Depth-based word count requirements
+    depth = config.get("depth", "comprehensive")
+    min_words = 1500 if depth == "comprehensive" else 2500
+    if word_count < min_words:
+        issues.append(f"Research too brief for {depth} depth: {word_count} words (expected {min_words}+)")
+
+    # Check for required sections
+    sections = normalize_sections(config.get("sections", {}))
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "executive_summary": ["executive summary", "key findings", "summary"],
+        "background": ["background", "context", "introduction"],
+        "key_findings": ["findings", "discovered", "research shows"],
+        "analysis": ["analysis", "implications", "patterns"],
+        "recommendations": ["recommend", "suggest", "next steps", "actions"],
+        "sources": ["source", "reference", "citation"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check for citations if required
+    if config.get("include_citations", True):
+        has_citations = "[" in content or "(" in content or "source:" in content_lower
+        if not has_citations:
+            issues.append("Citations required but not found in output")
+
+    score = max(0, 1.0 - (len(issues) * 0.15))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_daily_strategy_reflection(content: str, config: dict) -> dict:
+    """Validate daily strategy reflection output (Phase 2)."""
+    issues = []
+    content_lower = content.lower()
+    word_count = len(content.split())
+
+    # Target length: 400-800 words
+    if word_count < 300:
+        issues.append(f"Reflection too brief: {word_count} words (expected 400-800)")
+    if word_count > 1000:
+        issues.append(f"Reflection too long: {word_count} words (expected 400-800)")
+
+    # Check for required sections
+    sections = normalize_sections(config.get("sections", {}))
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "strategic_movements": ["strategic", "development", "shift", "movement"],
+        "decision_points": ["decision", "choice", "implications"],
+        "pattern_recognition": ["pattern", "trend", "emerging", "signal"],
+        "action_prioritization": ["priorit", "next", "focus", "action"],
+        "learning_insights": ["learn", "insight", "realize", "understand"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Should be reflective, not just task listing
+    task_indicators = content_lower.count("completed") + content_lower.count("finished") + content_lower.count("done")
+    if task_indicators > 10:
+        issues.append("Reflection should focus on strategy, not task completion")
+
+    score = max(0, 1.0 - (len(issues) * 0.2))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
+def validate_intelligence_brief(content: str, config: dict) -> dict:
+    """Validate intelligence brief output (Phase 2)."""
+    issues = []
+    content_lower = content.lower()
+    word_count = len(content.split())
+
+    # Strict length requirement
+    max_words = config.get("max_length_words", 800)
+    if word_count > max_words:
+        issues.append(f"Brief too long: {word_count} words (max {max_words})")
+    if word_count < max_words * 0.5:
+        issues.append(f"Brief too short: {word_count} words (expected {max_words * 0.6}-{max_words})")
+
+    # Check for required sections
+    sections = normalize_sections(config.get("sections", {}))
+    required_sections = [k for k, v in sections.items() if v]
+
+    section_keywords = {
+        "situation_summary": ["situation", "summary", "current state"],
+        "key_developments": ["development", "changed", "update", "new"],
+        "threat_opportunities": ["threat", "opportunit", "risk", "opening"],
+        "recommended_actions": ["recommend", "action", "next steps", "should"],
+        "monitoring_indicators": ["monitor", "watch", "track", "indicator"],
+    }
+
+    for section in required_sections:
+        keywords = section_keywords.get(section, [section])
+        if not any(kw in content_lower for kw in keywords):
+            issues.append(f"Missing section: {section}")
+
+    # Check for confidence levels if required
+    if config.get("include_confidence_levels", True):
+        has_confidence = "high" in content_lower and "medium" in content_lower
+        if not has_confidence:
+            issues.append("Confidence levels required but not consistently marked")
+
+    # Should be concise and action-oriented
+    has_bullets = "- " in content or "• " in content
+    if not has_bullets:
+        issues.append("Intelligence brief should use bullet points for scannability")
+
+    score = max(0, 1.0 - (len(issues) * 0.15))
+    return {"valid": len(issues) == 0, "issues": issues, "score": score}
+
+
 def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
     """
     Validate generated content based on deliverable type.
@@ -3110,6 +3392,10 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
         "slack_standup": validate_slack_standup,
         "gmail_inbox_brief": validate_gmail_inbox_brief,
         "notion_page_summary": validate_notion_page_summary,
+        # Phase 2: Strategic Intelligence Types
+        "deep_research": validate_deep_research,
+        "daily_strategy_reflection": validate_daily_strategy_reflection,
+        "intelligence_brief": validate_intelligence_brief,
     }
 
     validator = validators.get(deliverable_type, validate_custom)

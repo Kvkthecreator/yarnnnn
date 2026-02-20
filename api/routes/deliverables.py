@@ -75,6 +75,10 @@ DeliverableType = Literal[
     # ADR-046: Calendar Types
     "meeting_prep",
     "weekly_calendar_preview",
+    # Phase 2: Strategic Intelligence Types
+    "deep_research",
+    "daily_strategy_reflection",
+    "intelligence_brief",
 ]
 
 # Type tier mapping for UI display
@@ -108,6 +112,10 @@ TYPE_TIERS = {
     # ADR-046: Calendar Types
     "meeting_prep": "stable",
     "weekly_calendar_preview": "stable",
+    # Phase 2: Strategic Intelligence Types
+    "deep_research": "beta",
+    "daily_strategy_reflection": "beta",
+    "intelligence_brief": "beta",
 }
 
 # ADR-035: Wave classification for type taxonomy
@@ -217,6 +225,28 @@ def get_type_classification(deliverable_type: str) -> dict:
             "binding": "research",
             "temporal_pattern": "on_demand",
             "freshness_requirement_hours": 24,
+        }
+
+    # Phase 2: Strategic Intelligence Types
+    if deliverable_type == "deep_research":
+        return {
+            "binding": "research",  # Web research with comprehensive depth
+            "temporal_pattern": "on_demand",
+            "freshness_requirement_hours": 12,  # More current than research_brief
+        }
+
+    if deliverable_type == "daily_strategy_reflection":
+        return {
+            "binding": "cross_platform",  # Synthesize across all user activity
+            "temporal_pattern": "scheduled",  # Daily reflection
+            "freshness_requirement_hours": 4,
+        }
+
+    if deliverable_type == "intelligence_brief":
+        return {
+            "binding": "hybrid",  # Research + platform grounding for current intelligence
+            "temporal_pattern": "scheduled",
+            "freshness_requirement_hours": 2,  # High currency requirement
         }
 
     # Cross-platform: Multi-source synthesis
@@ -590,6 +620,70 @@ class NotionPageSummaryConfig(BaseModel):
     time_range_days: int = 7
 
 
+# =============================================================================
+# Phase 2: Strategic Intelligence Types
+# =============================================================================
+
+class DeepResearchSections(BaseModel):
+    """Sections to include in deep research deliverable."""
+    executive_summary: bool = True
+    background: bool = True
+    key_findings: bool = True
+    analysis: bool = True
+    recommendations: bool = True
+    sources: bool = True
+    appendix: bool = False
+
+
+class DeepResearchConfig(BaseModel):
+    """Configuration for deep research type (Phase 2)."""
+    topic: str  # Research topic or question
+    research_type: Literal["competitive", "market", "technology", "industry", "strategic"] = "strategic"
+    depth: Literal["comprehensive", "exhaustive"] = "comprehensive"
+    time_horizon: Literal["current", "1_year", "3_year", "5_year"] = "current"
+    sections: DeepResearchSections = Field(default_factory=DeepResearchSections)
+    sources_required: int = 10  # Minimum number of sources
+    include_citations: bool = True
+
+
+class DailyStrategyReflectionSections(BaseModel):
+    """Sections to include in daily strategy reflection."""
+    strategic_movements: bool = True  # Key developments in strategic landscape
+    decision_points: bool = True  # Decisions requiring strategic consideration
+    pattern_recognition: bool = True  # Emerging patterns from activity
+    action_prioritization: bool = True  # Strategic priorities for next period
+    learning_insights: bool = True  # Meta-learnings from the day
+
+
+class DailyStrategyReflectionConfig(BaseModel):
+    """Configuration for daily strategy reflection type (Phase 2)."""
+    focus_area: Optional[str] = None  # e.g., "Product strategy", "Team growth"
+    reflection_time: Literal["morning", "evening", "eod"] = "evening"
+    lookback_days: int = 1  # How many days of activity to analyze
+    sections: DailyStrategyReflectionSections = Field(default_factory=DailyStrategyReflectionSections)
+    include_context_synthesis: bool = True  # Synthesize with Layer 3 context
+    tone: Literal["analytical", "reflective", "directive"] = "reflective"
+
+
+class IntelligenceBriefSections(BaseModel):
+    """Sections to include in intelligence brief."""
+    situation_summary: bool = True  # Current state of affairs
+    key_developments: bool = True  # What changed recently
+    threat_opportunities: bool = True  # Risks and opportunities
+    recommended_actions: bool = True  # Immediate next steps
+    monitoring_indicators: bool = True  # What to watch
+
+
+class IntelligenceBriefConfig(BaseModel):
+    """Configuration for intelligence brief type (Phase 2)."""
+    brief_type: Literal["competitive", "market", "operational", "strategic"] = "strategic"
+    audience: Literal["executive", "team", "board", "stakeholders"] = "executive"
+    time_sensitivity: Literal["immediate", "daily", "weekly"] = "daily"
+    sections: IntelligenceBriefSections = Field(default_factory=IntelligenceBriefSections)
+    include_confidence_levels: bool = True  # Mark findings with confidence scores
+    max_length_words: int = 800  # Tight word count for brevity
+
+
 # Union type for type_config
 TypeConfig = Union[
     # Tier 1 - Stable
@@ -615,6 +709,10 @@ TypeConfig = Union[
     SlackStandupConfig,
     GmailInboxBriefConfig,
     NotionPageSummaryConfig,
+    # Phase 2: Strategic Intelligence Types
+    DeepResearchConfig,
+    DailyStrategyReflectionConfig,
+    IntelligenceBriefConfig,
 ]
 
 
@@ -746,6 +844,12 @@ def get_default_config(deliverable_type: DeliverableType) -> dict:
         "slack_standup": SlackStandupConfig(),
         "gmail_inbox_brief": GmailInboxBriefConfig(),
         "notion_page_summary": NotionPageSummaryConfig(),
+        # Phase 2: Strategic Intelligence Types
+        "deep_research": DeepResearchConfig(
+            topic=""
+        ),
+        "daily_strategy_reflection": DailyStrategyReflectionConfig(),
+        "intelligence_brief": IntelligenceBriefConfig(),
     }
     return defaults.get(deliverable_type, defaults["custom"]).model_dump()
 
@@ -2332,6 +2436,10 @@ def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dic
         "slack_standup": SlackStandupConfig,
         "gmail_inbox_brief": GmailInboxBriefConfig,
         "notion_page_summary": NotionPageSummaryConfig,
+        # Phase 2: Strategic Intelligence Types
+        "deep_research": DeepResearchConfig,
+        "daily_strategy_reflection": DailyStrategyReflectionConfig,
+        "intelligence_brief": IntelligenceBriefConfig,
     }
 
     try:
