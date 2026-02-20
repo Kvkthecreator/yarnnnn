@@ -5,7 +5,6 @@
  *
  * Provides operational visibility into background orchestration:
  * - Platform sync status (per-platform last/next sync)
- * - Scheduled deliverables (next 7 days)
  * - Background job status (signal processing, memory extraction, conversation analyst)
  *
  * This is distinct from Activity (audit trail) - Jobs shows operational state,
@@ -19,13 +18,13 @@ import {
   RefreshCw,
   Zap,
   Clock,
-  Calendar,
   CheckCircle2,
   XCircle,
   AlertTriangle,
   Slack,
   Mail,
   FileCode,
+  Calendar,
   ArrowRight,
   Activity,
   Brain,
@@ -46,14 +45,6 @@ interface PlatformSyncStatus {
   next_sync_at: string | null;
   source_count: number;
   status: 'healthy' | 'stale' | 'pending' | 'disconnected' | 'unknown';
-}
-
-interface ScheduledDeliverable {
-  id: string;
-  title: string;
-  deliverable_type: string;
-  next_run_at: string;
-  destination_platform: string | null;
 }
 
 interface BackgroundJobStatus {
@@ -167,7 +158,6 @@ export default function JobsPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [platformSync, setPlatformSync] = useState<PlatformSyncStatus[]>([]);
-  const [scheduledDeliverables, setScheduledDeliverables] = useState<ScheduledDeliverable[]>([]);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobStatus[]>([]);
   const [tier, setTier] = useState('free');
   const [syncFrequency, setSyncFrequency] = useState('2x_daily');
@@ -177,7 +167,6 @@ export default function JobsPage() {
     try {
       const result = await api.jobs.getStatus();
       setPlatformSync(result.platform_sync);
-      setScheduledDeliverables(result.scheduled_deliverables);
       setBackgroundJobs(result.background_jobs);
       setTier(result.tier);
       setSyncFrequency(result.sync_frequency);
@@ -218,7 +207,7 @@ export default function JobsPage() {
 
   return (
     <div className="h-full overflow-auto">
-      <div className="max-w-4xl mx-auto px-4 md:px-6 py-6">
+      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
@@ -236,7 +225,7 @@ export default function JobsPage() {
         </div>
 
         <p className="text-muted-foreground mb-6">
-          System operations — platform syncs, scheduled deliverables, and background processing.
+          System operations — platform syncs and background processing.
         </p>
 
         {loading ? (
@@ -303,53 +292,6 @@ export default function JobsPage() {
                   );
                 })}
               </div>
-            </section>
-
-            {/* Scheduled Deliverables */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Scheduled Deliverables</h2>
-                <span className="text-sm text-muted-foreground">Next 7 days</span>
-              </div>
-
-              {scheduledDeliverables.length === 0 ? (
-                <div className="border border-dashed border-border rounded-lg p-8 text-center">
-                  <Calendar className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">No deliverables scheduled</p>
-                  <button
-                    onClick={() => router.push('/deliverables/new')}
-                    className="mt-2 text-sm text-primary hover:underline"
-                  >
-                    Create a deliverable
-                  </button>
-                </div>
-              ) : (
-                <div className="border border-border rounded-lg divide-y divide-border">
-                  {scheduledDeliverables.map((deliverable) => (
-                    <button
-                      key={deliverable.id}
-                      onClick={() => router.push(`/deliverables/${deliverable.id}`)}
-                      className="w-full px-4 py-3 flex items-center justify-between hover:bg-muted/50 transition-colors text-left"
-                    >
-                      <div>
-                        <span className="font-medium">{deliverable.title}</span>
-                        <div className="text-xs text-muted-foreground mt-0.5 capitalize">
-                          {deliverable.deliverable_type.replace(/_/g, ' ')}
-                          {deliverable.destination_platform && (
-                            <> → {deliverable.destination_platform}</>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm text-muted-foreground">
-                          {format(new Date(deliverable.next_run_at), 'EEE, MMM d · h:mm a')}
-                        </span>
-                        <ArrowRight className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              )}
             </section>
 
             {/* Background Jobs */}

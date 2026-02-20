@@ -3,7 +3,6 @@ Jobs routes - System operations status
 
 Provides operational visibility into background orchestration:
 - Platform sync status (per-platform last/next sync)
-- Scheduled deliverables (next 7 days)
 - Background job status (signal processing, memory extraction, conversation analyst)
 
 Mounted at /api/jobs
@@ -33,15 +32,6 @@ class PlatformSyncStatus(BaseModel):
     status: str = "unknown"  # healthy, stale, pending, disconnected
 
 
-class ScheduledDeliverable(BaseModel):
-    """A deliverable scheduled to run soon."""
-    id: str
-    title: str
-    deliverable_type: str
-    next_run_at: str
-    destination_platform: Optional[str] = None
-
-
 class BackgroundJobStatus(BaseModel):
     """Status of a background job type."""
     job_type: str
@@ -54,7 +44,7 @@ class BackgroundJobStatus(BaseModel):
 class JobsStatusResponse(BaseModel):
     """Complete jobs status overview."""
     platform_sync: list[PlatformSyncStatus]
-    scheduled_deliverables: list[ScheduledDeliverable]
+    scheduled_deliverables: list = []  # Deprecated, kept for backwards compat
     background_jobs: list[BackgroundJobStatus]
     tier: str = "free"
     sync_frequency: str = "2x_daily"
@@ -71,7 +61,6 @@ async def get_jobs_status(auth: UserClient):
 
     Returns:
     - Platform sync status per connected platform
-    - Scheduled deliverables for next 7 days
     - Background job last-run status
     """
     user_id = auth.user_id
@@ -147,28 +136,6 @@ async def get_jobs_status(auth: UserClient):
                 status="disconnected",
             ))
 
-    # ─── Scheduled Deliverables ───────────────────────────────────────────────
-    scheduled_deliverables = []
-
-    seven_days = (now + timedelta(days=7)).isoformat()
-    deliverables_result = auth.client.table("deliverables").select(
-        "id, title, deliverable_type, next_run_at, recipient_context"
-    ).eq("user_id", user_id).eq(
-        "status", "active"
-    ).not_.is_("next_run_at", "null").lte(
-        "next_run_at", seven_days
-    ).order("next_run_at").limit(10).execute()
-
-    for d in deliverables_result.data or []:
-        recipient = d.get("recipient_context", {}) or {}
-        scheduled_deliverables.append(ScheduledDeliverable(
-            id=d["id"],
-            title=d["title"],
-            deliverable_type=d["deliverable_type"],
-            next_run_at=d["next_run_at"],
-            destination_platform=recipient.get("platform"),
-        ))
-
     # ─── Background Jobs Status ───────────────────────────────────────────────
     background_jobs = []
 
@@ -205,7 +172,6 @@ async def get_jobs_status(auth: UserClient):
 
     return JobsStatusResponse(
         platform_sync=platform_sync,
-        scheduled_deliverables=scheduled_deliverables,
         background_jobs=background_jobs,
         tier=tier,
         sync_frequency=sync_frequency,

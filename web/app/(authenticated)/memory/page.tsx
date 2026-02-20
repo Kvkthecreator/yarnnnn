@@ -752,7 +752,8 @@ export default function MemoryPage() {
       </div>
 
       {/* Content */}
-      <main className="flex-1 p-6 overflow-auto">
+      <main className="flex-1 overflow-auto">
+        <div className="max-w-3xl mx-auto px-6 py-6">
         {activeSection === 'profile' && (
           <ProfileSection
             profile={profile}
@@ -777,6 +778,7 @@ export default function MemoryPage() {
             onDelete={handleDeleteEntry}
           />
         )}
+        </div>
       </main>
     </div>
   );

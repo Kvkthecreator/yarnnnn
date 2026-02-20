@@ -404,10 +404,10 @@ Frontend changes to surface ADR-072 concepts:
 ### Jobs Page (`/jobs`)
 New operational visibility page showing:
 - Platform sync status (per-platform last/next sync, source count)
-- Scheduled deliverables (next runs)
 - Background job status (signal processing, memory extraction, conversation analyst)
 
 Distinct from Activity (audit trail) — Jobs shows operational state.
+Deliverable schedules are shown on the dedicated Deliverables page, not duplicated here.
 
 ### Context Page Enhancements
 - Retention badges on content items (`Retained` badge)
@@ -429,6 +429,6 @@ Distinct from Activity (audit trail) — Jobs shows operational state.
 Added Jobs to navigation bar: Chat | Deliverables | Memory | Context | Activity | Jobs | Settings
 
 ### API Endpoints
-- `GET /api/jobs/status` — Returns platform sync status, scheduled deliverables, background job status
+- `GET /api/jobs/status` — Returns platform sync status, background job status
 - `GET /api/integrations/{platform}/context` — Extended with `retained`, `retained_reason`, `retained_at`, `expires_at`, `retained_count`
 - `GET /api/memory/context` — Extended with `source_ref`, `source_type`
