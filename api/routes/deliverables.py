@@ -732,6 +732,15 @@ def get_default_config(deliverable_type: DeliverableType) -> dict:
         "board_update": BoardUpdateConfig(
             company_name=""
         ),
+        # ADR-031 Phase 6: Cross-Platform Synthesizers
+        "weekly_status": WeeklyStatusConfig(
+            project_name=""
+        ),
+        "project_brief": ProjectBriefConfig(
+            project_name=""
+        ),
+        "cross_platform_digest": CrossPlatformDigestConfig(),
+        "activity_summary": ActivitySummaryConfig(),
         # ADR-035: Platform-First Wave 1 Types
         "slack_channel_digest": SlackChannelDigestConfig(),
         "slack_standup": SlackStandupConfig(),
@@ -2313,6 +2322,16 @@ def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dic
         "changelog": ChangelogConfig,
         "one_on_one_prep": OneOnOnePrepConfig,
         "board_update": BoardUpdateConfig,
+        # ADR-031 Phase 6: Cross-Platform Synthesizers
+        "weekly_status": WeeklyStatusConfig,
+        "project_brief": ProjectBriefConfig,
+        "cross_platform_digest": CrossPlatformDigestConfig,
+        "activity_summary": ActivitySummaryConfig,
+        # ADR-035: Platform-First Wave 1 Types
+        "slack_channel_digest": SlackChannelDigestConfig,
+        "slack_standup": SlackStandupConfig,
+        "gmail_inbox_brief": GmailInboxBriefConfig,
+        "notion_page_summary": NotionPageSummaryConfig,
     }
 
     try:
