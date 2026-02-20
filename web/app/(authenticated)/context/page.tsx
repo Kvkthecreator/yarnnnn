@@ -132,7 +132,8 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
           const config = PLATFORM_CONFIG[platformKey];
           const summary = platformMap[platformKey];
           const isConnected = summary?.status === 'active';
-          const navTarget = platformKey === 'calendar' && summary?.provider === 'google' ? 'google' : platformKey;
+          // Always navigate to the platform's dedicated page (calendar has its own page)
+          const navTarget = platformKey;
 
           return (
             <button

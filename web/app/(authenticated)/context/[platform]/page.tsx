@@ -373,6 +373,14 @@ export default function PlatformDetailPage() {
   const router = useRouter();
   const platform = params.platform as PlatformProvider;
 
+  // Redirect /context/google to /context/gmail (Google OAuth provides both Gmail + Calendar)
+  // Calendar has its own dedicated page at /context/calendar
+  useEffect(() => {
+    if (platform === 'google') {
+      router.replace('/context/gmail');
+    }
+  }, [platform, router]);
+
   // Validate platform
   const config = PLATFORM_CONFIG[platform];
   const isValidPlatform = !!config;
