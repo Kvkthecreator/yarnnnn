@@ -397,8 +397,8 @@ Injected into TP's system prompt (~2,000 token budget). During a session, TP acc
 | 058 | Fix SECURITY DEFINER view | Applied |
 | 059 | ADR-059: Drop dead columns from session_messages | Applied |
 | 060 | ADR-063: Create activity_log table | Applied |
-| 077 | ADR-072: Create platform_content, migrate filesystem_items, drop legacy | Pending |
-| 078 | ADR-072: Add source_ref/source_type to user_context | Pending |
+| 077 | ADR-072: Create platform_content, migrate filesystem_items, drop legacy | Applied |
+| 078 | ADR-072: Add source_ref/source_type to user_context | Applied |
 
 ---
 
