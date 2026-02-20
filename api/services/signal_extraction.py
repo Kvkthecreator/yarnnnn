@@ -120,19 +120,19 @@ async def _extract_calendar_signals(
     from integrations.core.google_client import get_google_client
     from integrations.core.tokens import get_token_manager
 
-    # Get user's Google Calendar connection
+    # Get user's Gmail/Google connection (Calendar uses same OAuth scope)
     conn_result = (
         client.table("platform_connections")
         .select("credentials_encrypted, refresh_token_encrypted, settings")
         .eq("user_id", user_id)
-        .eq("platform", "google")
+        .eq("platform", "gmail")
         .eq("status", "active")
         .single()
         .execute()
     )
 
     if not conn_result.data:
-        return []  # No Google connection
+        return []  # No Gmail/Google connection
 
     token_manager = get_token_manager()
     refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
