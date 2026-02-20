@@ -1145,6 +1145,33 @@ export const api = {
     },
   },
 
+  // ADR-068: Signal Processing
+  signalProcessing: {
+    // Manually trigger signal processing
+    trigger: (signalsFilter?: "all" | "calendar_only" | "non_calendar") =>
+      request<{
+        status: "completed" | "rate_limited" | "no_platforms";
+        signals_detected: number;
+        actions_taken: Array<{
+          action_type: string;
+          deliverable_id?: string;
+          deliverable_type: string;
+          title: string;
+          signal_reference?: string;
+          advanced_from?: string;
+          advanced_to?: string;
+        }>;
+        deliverables_created: number;
+        existing_triggered: number;
+        last_run_at?: string;
+        next_eligible_at?: string;
+        message?: string;
+      }>("/api/signal-processing/trigger", {
+        method: "POST",
+        body: JSON.stringify({ signals_filter: signalsFilter || "all" }),
+      }),
+  },
+
   // ADR-034: Context Domains (Context v2)
   domains: {
     // List user's domains with summary stats

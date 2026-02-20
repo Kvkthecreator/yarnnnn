@@ -138,6 +138,15 @@ export default function SettingsPage() {
   // Import modal state (ADR-027, ADR-029, ADR-046)
   const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | "google" | "calendar" | null>(null);
 
+  // Signal processing state (ADR-068)
+  const [isTriggeringSignals, setIsTriggeringSignals] = useState(false);
+  const [signalTriggerResult, setSignalTriggerResult] = useState<{
+    status: string;
+    message?: string;
+    deliverables_created?: number;
+    existing_triggered?: number;
+  } | null>(null);
+
   // Usage metrics state
   const [usageMetrics, setUsageMetrics] = useState<{
     deliverables: number;
@@ -283,6 +292,34 @@ export default function SettingsPage() {
       console.error(`Failed to disconnect ${provider}:`, err);
     } finally {
       setDisconnectingProvider(null);
+    }
+  };
+
+  const handleTriggerSignalProcessing = async () => {
+    setIsTriggeringSignals(true);
+    setSignalTriggerResult(null);
+
+    try {
+      const result = await api.signalProcessing.trigger("all");
+      setSignalTriggerResult({
+        status: result.status,
+        message: result.message,
+        deliverables_created: result.deliverables_created,
+        existing_triggered: result.existing_triggered,
+      });
+
+      // Auto-dismiss success message after 5 seconds
+      if (result.status === "completed") {
+        setTimeout(() => setSignalTriggerResult(null), 5000);
+      }
+    } catch (err) {
+      console.error("Failed to trigger signal processing:", err);
+      setSignalTriggerResult({
+        status: "error",
+        message: err instanceof Error ? err.message : "Failed to scan for signals",
+      });
+    } finally {
+      setIsTriggeringSignals(false);
     }
   };
 
@@ -1084,6 +1121,63 @@ export default function SettingsPage() {
                           >
                             Manage
                           </button>
+                        </div>
+
+                        {/* Signal Processing Trigger (ADR-068) */}
+                        <div className="col-span-2 mt-2 p-3 rounded-md bg-muted/50 border border-border/50">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Sparkles className="w-4 h-4 text-primary" />
+                                <span className="text-sm font-medium">Proactive Signal Detection</span>
+                              </div>
+                              <p className="text-xs text-muted-foreground">
+                                Scan your Gmail and Calendar for signals like upcoming meetings, silent threads, or contact drift. Creates deliverables automatically.
+                              </p>
+                            </div>
+                            <button
+                              onClick={handleTriggerSignalProcessing}
+                              disabled={isTriggeringSignals}
+                              className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                            >
+                              {isTriggeringSignals ? (
+                                <>
+                                  <Loader2 className="w-3 h-3 animate-spin" />
+                                  Scanning...
+                                </>
+                              ) : (
+                                <>
+                                  <Sparkles className="w-3 h-3" />
+                                  Scan Now
+                                </>
+                              )}
+                            </button>
+                          </div>
+
+                          {/* Result notification */}
+                          {signalTriggerResult && (
+                            <div className={`mt-3 p-2 rounded text-xs ${
+                              signalTriggerResult.status === "completed"
+                                ? "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800"
+                                : signalTriggerResult.status === "rate_limited"
+                                ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800"
+                                : signalTriggerResult.status === "no_platforms"
+                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
+                                : "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800"
+                            }`}>
+                              <div className="flex items-center justify-between">
+                                <span>{signalTriggerResult.message}</span>
+                                {signalTriggerResult.status !== "rate_limited" && (
+                                  <button
+                                    onClick={() => setSignalTriggerResult(null)}
+                                    className="ml-2 p-0.5 hover:opacity-70"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}
