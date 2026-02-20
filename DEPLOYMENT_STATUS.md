@@ -1,7 +1,7 @@
 # Phase 1-3 Deployment Status
 
 **Date**: 2026-02-20
-**Status**: ✅ DEPLOYED TO PRODUCTION
+**Status**: ✅ DEPLOYED TO PRODUCTION + SIGNAL PROCESSING FIXES APPLIED
 
 ---
 
@@ -10,6 +10,8 @@
 All Phase 1-3 implementation work has been successfully deployed to production.
 
 ### Commits Pushed to Remote
+
+**Phase 1-3 Implementation:**
 - `4152b4c` - Testing guide and validation framework
 - `d989c94` - Layer 4 content fix for manual signal processing
 - `b3ae8f4` - Phase 3B-C: Feature docs + strategic ADR
@@ -21,13 +23,25 @@ All Phase 1-3 implementation work has been successfully deployed to production.
 - `27f8376` - Phase 1A: Layer 4 content in signal reasoning
 - `a6fdf68` - Manual signal processing trigger endpoint (prior)
 
-**Total**: 10 commits covering all phases
+**Signal Processing Expansion:**
+- `b641416` - Updated signal processing diagnosis with fixes
+- `cbba6d2` - Phase 2 strategic types database constraint fix
+- `bc0b9d5` - Slack and Notion signal detection implementation
+- `ae28e3e` - Signal processing hourly frequency fix
 
-### Database Migration
+**Total**: 14 commits (10 Phase 1-3 + 4 signal processing)
+
+### Database Migrations
 
 ✅ Migration 074 applied successfully
 - Added `user_notification_preferences.signal_last_manual_trigger_at` column
 - Enables 5-minute rate limiting for manual signal processing trigger
+- Applied via direct psql connection to Supabase
+
+✅ Migration 075 applied successfully (2026-02-20)
+- Added Phase 2 strategic types to deliverable_type CHECK constraint
+- Types: `deep_research`, `daily_strategy_reflection`, `intelligence_brief`
+- Fixes database constraint violations for new deliverable types
 - Applied via direct psql connection to Supabase
 
 ---
@@ -78,6 +92,30 @@ Each type includes:
 
 **3C: Strategic Principles**
 - ✅ ADR-071 created documenting 8 architectural principles
+
+### Signal Processing Expansion (Post-Deployment)
+
+**Platform Coverage**:
+- ✅ Slack signal detection implemented (SlackSignal dataclass, _extract_slack_signals)
+- ✅ Notion signal detection implemented (NotionSignal dataclass, _extract_notion_signals)
+- ✅ Signal processing reasoning prompts updated for 4-platform handling
+- ✅ UI updated to show proactive signal detection for all platforms
+
+**Scheduler Fixes**:
+- ✅ Non-calendar signals changed from daily to hourly (unified_scheduler.py:1139)
+- ✅ Verified hourly execution via Render MCP logs
+
+**Database Constraint Fixes**:
+- ✅ Phase 2 strategic types added to deliverable_type constraint (migration 075)
+- ✅ Fixes database constraint violations for new deliverable types
+
+**OAuth Resolution**:
+- ✅ User reconnected Google OAuth on production (2026-02-20)
+- ✅ Calendar and Gmail signal extraction now functional
+
+**Documentation**:
+- ✅ SIGNAL_PROCESSING_DIAGNOSIS.md created with technical analysis
+- ✅ ADR-068 updated with Slack and Notion implementation status
 
 ---
 
@@ -254,18 +292,22 @@ DROP COLUMN IF EXISTS signal_last_manual_trigger_at;
 
 ## Success Criteria
 
-Phase 1-3 deployment is successful when:
-- ✅ All commits pushed to remote
-- ✅ Migration applied successfully
+Phase 1-3 deployment + signal processing expansion is successful when:
+- ✅ All commits pushed to remote (14 commits)
+- ✅ Migrations applied successfully (074, 075)
 - ✅ Auto-deployment completes without errors
 - ✅ Manual signal processing includes Layer 4 content
 - ✅ Memory extraction triggers on approval
 - ✅ Pattern detection runs at midnight UTC
 - ✅ New deliverable types execute successfully
+- ✅ Phase 2 types constraint fixed (migration 075)
+- ✅ Slack and Notion signal detection implemented
+- ✅ Signal processing hourly frequency verified
+- ✅ Google OAuth reconnected by user
 - ⏳ No production errors in first 24 hours
 - ⏳ User acceptance testing passes
 
-**Current Status**: 7/9 complete (awaiting post-deployment validation)
+**Current Status**: 11/13 complete (awaiting 24-hour validation + UAT)
 
 ---
 
