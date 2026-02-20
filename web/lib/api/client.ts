@@ -857,7 +857,7 @@ export const api = {
         };
       }>(`/api/integrations/${provider}/landscape${refresh ? "?refresh=true" : ""}`),
 
-    // ADR-058: Get synced platform content from filesystem_items
+    // ADR-072: Get synced platform content from platform_content
     getPlatformContext: (
       provider: "slack" | "notion" | "gmail" | "calendar",
       options?: { limit?: number; resourceId?: string; offset?: number }
@@ -870,7 +870,8 @@ export const api = {
           resource_id: string;
           resource_name: string | null;
           source_timestamp: string | null;
-          synced_at: string;  // ADR-058: filesystem_items uses synced_at
+          fetched_at: string;  // ADR-072: platform_content uses fetched_at
+          retained: boolean;  // ADR-072: retention flag
           metadata: Record<string, unknown>;
         }>;
         total_count: number;

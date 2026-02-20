@@ -1,6 +1,7 @@
 # Four-Layer Model
 
 > ADR-063 — Architectural overview of YARNNN's data and state model
+> **Updated**: 2026-02-20 — ADR-072 unified content layer and TP execution pipeline
 
 ---
 
@@ -13,8 +14,8 @@ YARNNN organises all persistent state into four layers. Each layer has a distinc
 │  Layer 1 — Memory                                   │
 │  What the user has explicitly stated and what      │
 │  YARNNN has learned about their preferences         │
-│  Table: user_context                                │
-│  Stable · Explicit + Implicit · Cross-session      │
+│  Table: user_context (with source_ref provenance)   │
+│  Stable · Explicit + Implicit · Auditable          │
 └─────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────┐
 │  Layer 2 — Activity                                 │
@@ -25,10 +26,9 @@ YARNNN organises all persistent state into four layers. Each layer has a distinc
 └─────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────┐
 │  Layer 3 — Context                                  │
-│  Live platform state: the user's current work      │
-│  environment and information landscape              │
-│  Tables: filesystem_items (cache) + live APIs       │
-│  Ephemeral · Large · Platform-authoritative        │
+│  Platform content with retention-based accumulation │
+│  Table: platform_content (ADR-072)                  │
+│  Versioned · Retention-policy-driven · Semantic    │
 └─────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────┐
 │  Layer 4 — Work                                     │
@@ -111,46 +111,107 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 
 ## Layer 3 — Context
 
-**What it is**: The current working material — emails, Slack messages, Notion pages, calendar events. It is ephemeral, large, and lives on the platforms themselves. YARNNN accesses it two ways.
+> **ADR-072 UPDATE**: Layer 3 is now the **unified content layer** (`platform_content`), replacing the previous `filesystem_items` cache. Content is retention-policy-driven rather than TTL-only.
 
-### Access path A — Conversational search (cache)
+**What it is**: Platform content — emails, Slack messages, Notion pages, calendar events — with **retention-based accumulation**. Content that proves significant (referenced by deliverables, signal processing, or TP sessions) is retained indefinitely. Unreferenced content expires after TTL.
 
-`filesystem_items` is a local cache of recent platform content, populated by `platform_worker.py` on a schedule. When TP calls `Search(scope="platform_content")`, it runs an ILIKE query against this table.
+**Table**: `platform_content` — versioned, semantically indexed, retention-policy-driven.
 
-The cache exists because live multi-platform search during a streaming conversation would be too slow and composable cross-platform queries would be impossible.
+### The Unified Content Model (ADR-072)
 
-### Access path B — Live platform APIs
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    platform_content                          │
+│                                                              │
+│  Ephemeral content          │   Retained content            │
+│  (retained=false)           │   (retained=true)             │
+│  ───────────────────────    │   ─────────────────────────   │
+│  • Expires after TTL        │   • Never expires             │
+│  • Synced by platform_worker│   • Marked by signal proc,    │
+│  • Most content starts here │     deliverable exec, or TP   │
+│  • Never referenced         │   • Accumulates over time     │
+│                             │   • The compounding moat      │
+└─────────────────────────────────────────────────────────────┘
+```
 
-Three sub-paths use live API calls:
+### Two writers to `platform_content`
 
-1. **Deliverable execution** — `deliverable_pipeline.py → fetch_integration_source_data()` decrypts credentials from `platform_connections` and calls platform APIs directly at the moment of generation. No cache consulted.
+**Platform Sync** (`platform_worker.py`):
+- Runs continuously on tier-appropriate frequency
+- Fetches content from external platforms
+- Writes with `retained=false`, `expires_at=NOW()+TTL`
+- Knows nothing about significance — just syncs
 
-2. **Signal processing** — `signal_extraction.py → extract_signal_summary()` fetches live platform content for signal processing reasoning (ADR-068). Uses same infrastructure as deliverable execution: queries `platform_connections`, decrypts credentials, calls platform APIs directly. **Critically**: Signal processing NEVER reads `filesystem_items` — the cache is too stale (2-24h) for time-sensitive signals like "meeting in 6 hours" or "thread went silent yesterday".
+**Signal Processing** (`signal_extraction.py`):
+- Reads live platform APIs for time-sensitive signals
+- When it identifies significant content, writes directly with `retained=true`
+- Sets `retained_reason='signal_processing'`, `retained_ref=signal_action_id`
 
-3. **TP platform tools** — `platform_gmail_search`, `platform_notion_search`, `platform_calendar_list_events`, `platform_slack_list_channels`, and action tools. Targeted live calls, not cross-platform content search.
+Additionally, **Deliverable Execution** and **TP Sessions** mark existing records as retained after use.
 
-**Key property**: These three paths are completely independent. The cache and live APIs serve different purposes and cannot replace each other.
+### Retention policy
 
-| | Cache (`filesystem_items`) | Live APIs |
-|---|---|---|
-| Used for | `Search(scope="platform_content")` in TP conversations | Deliverable execution, signal processing, TP platform tools |
-| Freshness | Tier-dependent (2–24h stale) | Always current |
-| Authority | No — convenience index | Yes — direct from platform |
-| Signal processing access | ❌ Never used | ✅ Only source (hourly reads) |
+| Condition | `retained` | `expires_at` | Outcome |
+|---|---|---|---|
+| Content never referenced | `false` | `NOW() + TTL` | Expires after TTL |
+| Referenced by deliverable_version | `true` | `NULL` | Retained indefinitely |
+| Referenced by signal_processing | `true` | `NULL` | Retained indefinitely |
+| Accessed during TP session | `true` | `NULL` | Retained indefinitely |
 
-**Lifecycle**: TTL-based. Slack items expire after 72 hours; Gmail/Notion/Calendar after 168 hours. Refreshed on each sync run.
+**TTL by platform** (for unreferenced content):
+- Slack: 7 days
+- Gmail: 14 days
+- Notion: 30 days
+- Calendar: 1 day
+
+### How content is accessed
+
+**TP primitives** are the single access path for all use cases:
+- `Search(scope="platform_content")` — semantic search via pgvector embeddings
+- `FetchPlatformContent` — targeted retrieval by resource
+- `CrossPlatformQuery` — multi-platform search
+
+**Deliverable execution** (ADR-072) now uses TP in headless mode — same primitives, same search capabilities. The previous parallel fetch pipeline (`fetch_integration_source_data()`) is deleted.
+
+**Signal processing** reads live APIs for time-sensitive signals, then marks corresponding `platform_content` records as retained.
+
+### The accumulation moat
+
+Over time, `platform_content` accumulates retained records that represent the user's **significant work history**:
+- Slack threads that informed weekly digests
+- Email exchanges that became client briefs
+- Calendar events that triggered meeting prep
+
+This is the content that proved its value through downstream consumption. It compounds intelligence. It is the moat.
+
+**Key insight**: Don't accumulate everything. Don't expire everything. **Accumulate what proved significant.**
 
 ---
 
 ## Layer 4 — Work
 
+> **ADR-072 UPDATE**: Deliverable execution now uses **TP in headless mode** — same agent, same primitives, unified quality.
+
 **What it is**: What YARNNN produces. Scheduled digests, meeting briefs, weekly summaries, drafted emails. Every generation run creates a versioned, immutable output record. **Layer 4 is both the output of the system and a learning signal for future work quality.**
 
 **Tables**:
 - `deliverables` — Standing configuration for a recurring output (what to read, how to format, where to send, when to run)
-- `deliverable_versions` — Immutable record of each generated output (content, source_snapshots, status progression, edit history)
+- `deliverable_versions` — Immutable record of each generated output (content, source_snapshots with `platform_content_ids`, status progression)
 
-**How it is produced**: Headless execution triggered by `unified_scheduler.py`. Credentials decrypted from `platform_connections`. Platform data fetched live. LLM call (Claude API). Version created. Activity event written.
+### TP as Execution Pipeline (ADR-072)
+
+Deliverable execution is a **headless TP session**. Same agent, same primitives, same reasoning capability — but operating without a human in the loop.
+
+| Aspect | TP Live Mode | TP Execution Mode |
+|---|---|---|
+| **Streaming** | Streaming responses to user | Collect full output, write to version |
+| **Clarification** | Can ask user for details | Must complete with available context |
+| **Tool rounds** | `max_tool_rounds=5` | May be higher for complex deliverables |
+| **Context** | Working memory + user message | Deliverable config + pre-loaded `platform_content` |
+
+**Why this matters**: Improvements to TP primitives automatically improve deliverable quality. One codebase, not two. No quality gap between interactive and scheduled outputs.
+
+**How it is produced**: Headless execution triggered by `unified_scheduler.py`. TP invoked in execution mode with deliverable configuration. TP uses full primitives to gather content from `platform_content`. LLM call (Claude API). Version created with `platform_content_ids` in source_snapshots. Source content marked `retained=true`. Activity event written.
 
 **Three origins** (ADR-068):
 - `user_configured` — Explicitly created by user in UI or via TP
@@ -160,11 +221,13 @@ Three sub-paths use live API calls:
 **Status progression**: `generating` → `delivered` (ADR-066 simplified flow)
 
 **Key properties**:
-1. **Live platform reads**: Deliverable execution never reads `filesystem_items`. Platform data is always fetched live to ensure output reflects actual platform state at generation time.
+1. **Provenance closure**: `source_snapshots` now includes `platform_content_ids[]` — specific record IDs that were synthesized. This answers "what content informed this deliverable?"
 
-2. **Content as learning signal** (ADR-069): Recent deliverable version content (400-char preview) is included in signal reasoning prompts. This enables the LLM to assess whether existing deliverables are stale or still current, improving `trigger_existing` vs `create_signal_emergent` decisions.
+2. **Content as learning signal** (ADR-069): Recent deliverable version content (400-char preview) is included in signal reasoning prompts. This enables the LLM to assess whether existing deliverables are stale or still current.
 
 3. **Feedback extraction** (ADR-064): When users approve edited versions, the system extracts learning patterns (length preferences, format preferences) to Memory layer.
+
+4. **Retention marking**: After generation, source `platform_content` records are marked `retained=true`, `retained_reason='deliverable_execution'`, `retained_ref=version_id`. This is how significant content accumulates.
 
 **Lifecycle**: Versions are immutable after generation (content does not change; `status` may progress). Versions are retained even if the parent deliverable is deleted. Deliverables can be promoted from one-time (`signal_emergent`) to recurring (`user_configured`).
 
@@ -172,7 +235,7 @@ Three sub-paths use live API calls:
 
 ## Cross-layer interaction
 
-The layers interact in a defined, unidirectional way. Data flows in one direction; no layer writes upward into a "higher" layer.
+The layers interact in defined ways. Data flows downward for generation; learning flows upward through feedback loops.
 
 ```
                     TP session start
@@ -187,32 +250,60 @@ The layers interact in a defined, unidirectional way. Data flows in one directio
 
                     During conversation
                           │
-                 ┌────────┴────────┐
-                 ▼                 ▼
-           Search tool        Platform tools
-      (filesystem_items       (live Gmail /
-        ILIKE cache)           Notion / etc.)
-              │
-              │ reads Context
+                          ▼
+                    TP Primitives
+                          │
+         ┌────────────────┼────────────────┐
+         ▼                ▼                ▼
+      Search         FetchContent    CrossPlatformQuery
+         │                │                │
+         └────────────────┴────────────────┘
+                          │
+                          ▼
+               reads platform_content (L3)
+                          │
+            marks accessed records retained=true
 
-                    Deliverable execution
+                    Deliverable execution (ADR-072)
                           │
-              decrypts platform_connections
+              TP invoked in headless mode
                           │
-              fetches live platform APIs  ──► reads Context (live)
+         uses same primitives as live session
                           │
-                    LLM call
+               reads platform_content (L3)
                           │
-              creates deliverable_version ──► writes Work
+                    LLM synthesis
                           │
-              write_activity()            ──► writes Activity
+              creates deliverable_version ──► writes Work (L4)
+                          │
+         marks source records retained=true ──► updates Context (L3)
+                          │
+         source_snapshots includes platform_content_ids
+                          │
+              write_activity()            ──► writes Activity (L2)
+
+                    Signal processing
+                          │
+              reads live platform APIs
+                          │
+         identifies significant content
+                          │
+         writes to platform_content       ──► writes Context (L3)
+         with retained=true
+                          │
+         creates/triggers deliverables    ──► writes Work (L4)
 ```
 
 **What never happens**:
 - Memory is written by backend extraction at session end (ADR-064), not by TP tool calls
 - Activity is never written by user-facing clients
-- Deliverable execution never reads `filesystem_items`
 - Context (platform content) is never pre-loaded into the TP system prompt
+
+**What now happens** (ADR-072):
+- TP sessions mark accessed `platform_content` records as retained
+- Deliverable execution uses TP primitives (same agent, headless mode)
+- Signal processing writes significant content directly to `platform_content` with `retained=true`
+- `source_snapshots` includes specific `platform_content_ids` for provenance
 
 ---
 
@@ -281,19 +372,22 @@ The more deliverables a user runs, the more the system learns what they value. T
 
 | Question | Answer |
 |---|---|
-| Why does `filesystem_items` exist if deliverables use live APIs? | Cache is for conversational search (ILIKE, cross-platform, low latency). Live APIs are for authoritative point-in-time reads. Neither can replace the other. |
+| What is `platform_content`? | The unified content layer (ADR-072). Replaces `filesystem_items`. Versioned, retention-policy-driven, semantically indexed. |
+| How does retention work? | Content starts with `retained=false` and TTL expiry. When referenced (by deliverable, signal processing, or TP session), marked `retained=true` and never expires. |
 | Why does `activity_log` exist if `deliverable_versions` records runs? | `deliverable_versions` holds full generated content. `activity_log` holds lightweight event summaries for prompt injection and pattern detection. Neither replaces the other. |
-| Can platform content become Memory automatically? | No. Automatic promotion was removed in ADR-059. "Promote document to Memory" is a deferred feature (ADR-062). |
-| Does TP get platform content in its system prompt? | No. Context is fetched on demand via Search or tools, never pre-loaded. |
+| Does TP get platform content in its system prompt? | No. Context is fetched on demand via primitives, never pre-loaded. |
 | Is Memory updated during a session? | Memory is read at session start and does not update mid-session. Memory extraction happens at session end or via background jobs (ADR-064), taking effect in the *next* session's working memory. |
+| What is `source_ref` on `user_context`? | Provenance tracking (ADR-072). Every memory entry links to its origin (session_message, deliverable_version, platform_content, activity_log). |
+| How does deliverable execution work? | TP invoked in headless mode (ADR-072). Same agent, same primitives as live sessions. No streaming, no clarification, bounded tool rounds. |
 | What happens if `write_activity()` fails? | The calling operation continues. All log writes are non-fatal by design. |
 | Can a user write to `activity_log`? | No. Service-role writes only. Users can SELECT their own rows. |
 | Is a `deliverable_version` mutable after generation? | The `final_content` field is immutable. The `status` field progresses (generating → delivered). |
 | How does Layer 4 content influence future work? | Recent deliverable version content (400-char preview) is included in signal reasoning prompts (ADR-069). This enables quality-aware orchestration decisions. |
 | What are the three memory extraction sources? | 1) Conversation (nightly batch), 2) Deliverable feedback (on approval), 3) Activity patterns (daily detection). See ADR-064. |
-| Is signal processing real-time? | No. Signals are extracted on cron schedule (hourly for all platforms: calendar, Gmail, Slack, Notion). Near-real-time via webhooks is future work. |
-| Does signal processing read `filesystem_items`? | No. Signal extraction uses live platform APIs exclusively. The cache is too stale for time-sensitive signals. |
+| Is signal processing real-time? | No. Signals are extracted on cron schedule (hourly). Near-real-time via webhooks is future work. |
+| Does signal processing write to `platform_content`? | Yes (ADR-072). Signal processing is a dual-role: reads live APIs for time-sensitive signals, writes significant content to `platform_content` with `retained=true`. |
 | Can signal-emergent deliverables become recurring? | Yes. Deliverables can be promoted from one-time (`origin=signal_emergent`, no schedule) to recurring (add schedule). Origin field preserves provenance. |
+| What is the "accumulation moat"? | Retained `platform_content` accumulates over time — the content that proved significant through downstream consumption. This is the compounding intelligence layer that makes YARNNN's outputs improve with tenure. |
 
 ---
 
@@ -305,25 +399,40 @@ The more deliverables a user runs, the more the system learns what they value. T
 
 **Non-fatal logging.** Activity writes are wrapped in `try/except pass` everywhere. The provenance log is valuable but never mission-critical. A log failure is a missing entry, not a broken pipeline.
 
-**Separation of freshness and authority.** The cache (`filesystem_items`) is fresh enough for conversation. Live APIs are authoritative for generation. Using the cache for deliverables would introduce silent staleness risk. Using live APIs for every conversational search would be prohibitively slow.
+**Retention-based accumulation.** (ADR-072) Content that proves significant is retained indefinitely. Significance is determined by downstream consumption: if a deliverable used it, a signal identified it, or a TP session accessed it, the content is retained. Unreferenced content expires. This is how the accumulation moat compounds without infinite storage growth.
 
-**Immutability where it matters.** Work versions are immutable records. Activity rows are immutable. Only Memory and deliverable metadata are mutable — and Memory mutability is boundary-controlled (extraction happens at defined points, not arbitrarily).
+**Immutability where it matters.** Work versions are immutable records. Activity rows are immutable. Retained `platform_content` records are immutable (their `retained` flag can be set to true, never back to false). Only Memory and deliverable metadata are mutable — and Memory mutability is boundary-controlled.
 
-**Headless execution.** Work is produced by a scheduler that runs without a user session. It depends only on credentials stored in `platform_connections`. The user does not need to be online.
+**Unified execution.** (ADR-072) TP is the single execution agent for both live sessions and deliverable generation. Headless mode disables streaming and clarification but uses the same primitives. Improvements to TP improve deliverable quality automatically.
 
 **Quality flywheel through Layer 4.** The more deliverables a user runs, the more the system learns what they value. Layer 4 content becomes training signal for future work. This creates a feedback loop: better deliverables → more usage → more learning → better deliverables.
+
+**Provenance everywhere.** (ADR-072) Every deliverable version links to specific `platform_content_ids`. Every memory entry has a `source_ref`. The system can answer "what informed this output?" at every layer.
 
 ---
 
 ## Related
 
-- [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design, removal of inference pipeline
-- [ADR-062](../adr/ADR-062-platform-context-architecture.md) — `filesystem_items` role and mandate
+**Core ADRs**:
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Activity layer and four-layer model formalisation
-- [memory.md](../features/memory.md) — Memory layer detail
-- [activity.md](../features/activity.md) — Activity layer detail
-- [context.md](../features/context.md) — Context layer detail
-- [deliverables.md](../features/deliverables.md) — Deliverables layer detail
+- [ADR-072](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Unified content layer and TP execution pipeline (current governing ADR for Layer 3 and Layer 4 execution)
+
+**Superseded ADRs** (historical context only):
+- [ADR-049](../adr/ADR-049-context-freshness-model-SUPERSEDED.md) — Superseded by ADR-072 (retention-based accumulation replaces TTL-only)
+- [ADR-062](../adr/ADR-062-platform-context-architecture-SUPERSEDED.md) — Superseded by ADR-072 (unified content layer replaces filesystem_items cache)
+
+**Layer-specific ADRs**:
+- [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design
+- [ADR-064](../adr/ADR-064-unified-memory-service.md) — Implicit memory extraction
+- [ADR-068](../adr/ADR-068-signal-emergent-deliverables.md) — Signal processing and deliverable origins
+- [ADR-069](../adr/ADR-069-layer-4-content-in-signal-reasoning.md) — Layer 4 content in signal reasoning
+- [ADR-071](../adr/ADR-071-strategic-architecture-principles.md) — Strategic architecture principles
+
+**Architecture docs**:
+- [deliverables.md](deliverables.md) — Deliverables architecture
 - [context-pipeline.md](context-pipeline.md) — Technical pipeline detail for Context
+
+**Implementation**:
 - `api/services/working_memory.py` — Working memory build and format
 - `api/services/activity_log.py` — `write_activity()`, `get_recent_activity()`
+- `api/services/platform_content.py` — (ADR-072) Unified content layer (replaces `filesystem.py`)

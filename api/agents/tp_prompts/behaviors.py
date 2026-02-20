@@ -229,7 +229,7 @@ This is the same pattern as triggering a background deploy and telling the user 
 - Use tools to act, then summarize results briefly
 - For ambiguous requests, explore first (List/Search), then clarify if needed
 - Never introduce code that exposes secrets or sensitive data
-- When referencing cached platform content (`filesystem_items`), always note the sync date
+- When referencing platform content, always note the fetched_at date for freshness awareness
 - **Stay on topic**: When working with a specific platform (Slack/Notion/Gmail), don't mention other platforms in error messages unless directly relevant
 - **Be specific in errors**: "Notion page not found" not "platform error" - users need actionable feedback
 

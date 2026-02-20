@@ -8,7 +8,7 @@ Flow:
 1. Query pending import jobs from integration_import_jobs table
 2. Fetch user's platform credentials from platform_connections
 3. Fetch data via MCP (Slack channels, Gmail labels, Notion pages)
-4. Store results in filesystem_items (ADR-058 Knowledge Base Architecture)
+4. Store results in platform_content (ADR-058 Knowledge Base Architecture)
 5. Update sync_registry with sync status
 6. Update job status
 
@@ -241,7 +241,7 @@ async def update_coverage_state(
     )
 
 
-# NOTE: Platform content stored in filesystem_items table (ADR-058).
+# NOTE: Platform content stored in platform_content table (ADR-058).
 # Knowledge entries (knowledge_entries) are reserved for user-stated facts and inferred preferences.
 # See: ADR-058-knowledge-base-architecture.md
 
@@ -256,7 +256,7 @@ async def process_slack_import(
 ) -> dict:
     """Process a Slack channel import job."""
     from agents.integration.platform_semantics import extract_slack_channel_signals
-    from services.filesystem import store_slack_items_batch
+    from services.platform_content import store_slack_items_batch
 
     user_id = job["user_id"]
     metadata = integration.get("metadata", {}) or {}
@@ -352,7 +352,7 @@ async def process_slack_import(
         current_resource=resource_name,
     )
 
-    # 4. ADR-058: Store raw messages to filesystem_items (with signals)
+    # 4. ADR-072: Store raw messages to platform_content (with signals)
     items_stored = await store_slack_items_batch(
         db_client=supabase_client,
         user_id=user_id,
@@ -360,10 +360,10 @@ async def process_slack_import(
         channel_name=resource_name,
         messages=messages,
     )
-    logger.info(f"[IMPORT] Stored {items_stored} messages to filesystem_items")
+    logger.info(f"[IMPORT] Stored {items_stored} messages to platform_content")
 
-    # ADR-058: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in filesystem_items only
+    # ADR-072: Extracted blocks count tracked but NOT stored to memories
+    # Platform content lives in platform_content table
     blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
@@ -422,7 +422,7 @@ async def process_notion_import(
     token_manager,
 ) -> dict:
     """Process a Notion page import job."""
-    from services.filesystem import store_notion_item
+    from services.platform_content import store_notion_item
 
     user_id = job["user_id"]
 
@@ -501,7 +501,7 @@ async def process_notion_import(
         current_resource=resource_name,
     )
 
-    # ADR-058: Store page content to filesystem_items
+    # ADR-058: Store page content to platform_content
     item_id = await store_notion_item(
         db_client=supabase_client,
         user_id=user_id,
@@ -513,10 +513,10 @@ async def process_notion_import(
             "child_pages": len(page_content.get("child_pages", [])),
         },
     )
-    logger.info(f"[IMPORT] Stored Notion page to filesystem_items: {item_id}")
+    logger.info(f"[IMPORT] Stored Notion page to platform_content: {item_id}")
 
     # ADR-058: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in filesystem_items only
+    # Platform content lives in platform_content only
     blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
@@ -577,7 +577,7 @@ async def process_gmail_import(
     - query:<query>: Messages matching Gmail search query
     """
     import os
-    from services.filesystem import store_gmail_items_batch
+    from services.platform_content import store_gmail_items_batch
 
     user_id = job["user_id"]
     metadata = integration.get("metadata", {}) or {}
@@ -753,7 +753,7 @@ async def process_gmail_import(
         current_resource=resource_name,
     )
 
-    # ADR-058: Store raw messages to filesystem_items
+    # ADR-058: Store raw messages to platform_content
     # Use resource_id for proper association (especially for label: imports)
     items_stored = await store_gmail_items_batch(
         db_client=supabase_client,
@@ -761,10 +761,10 @@ async def process_gmail_import(
         label=resource_id,  # ADR-055: Use resource_id for proper filtering
         messages=full_messages,
     )
-    logger.info(f"[IMPORT] Stored {items_stored} emails to filesystem_items")
+    logger.info(f"[IMPORT] Stored {items_stored} emails to platform_content")
 
     # ADR-058: Extracted blocks count tracked but NOT stored to memories
-    # Platform content lives in filesystem_items only
+    # Platform content lives in platform_content only
     blocks_extracted = len(import_result.blocks) if import_result.blocks else 0
 
     # ADR-030: Update progress - nearly complete
@@ -870,7 +870,7 @@ async def process_import_job(supabase_client, job: dict) -> bool:
 
         logger.info(
             f"[IMPORT] ✓ Completed job {job_id}: "
-            f"{result.get('ephemeral_stored', 0)} items stored to filesystem_items, "
+            f"{result.get('ephemeral_stored', 0)} items stored to platform_content, "
             f"{result.get('blocks_extracted', 0)} blocks extracted"
         )
         return True

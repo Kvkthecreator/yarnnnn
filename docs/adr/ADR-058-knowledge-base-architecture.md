@@ -821,6 +821,6 @@ if ref.entity_type == "your_type":
 
 - [ADR-038: Claude Code Architecture Mapping](ADR-038-claude-code-architecture-mapping.md)
 - [ADR-039: Unified Context Surface](ADR-039-unified-context-surface.md)
-- [ADR-049: Context Freshness Model](ADR-049-context-freshness-model.md)
+- [ADR-049: Context Freshness Model](ADR-049-context-freshness-model-SUPERSEDED.md)
 - [Moltbot Architecture Analysis](../research/CLAWDBOT_ANALYSIS.md)
 - Claude Code `/docs` and `CLAUDE.md` patterns

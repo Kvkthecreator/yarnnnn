@@ -2,8 +2,9 @@
 
 **Supabase Project**: `noxgqcwynkzqabljjyon`
 **Architecture**: ADR-063 Four-Layer Model (Memory / Activity / Context / Work)
-**Extensions**: pgvector (for embeddings on filesystem_chunks)
-**Last Updated**: 2026-02-18
+**Extensions**: pgvector (for embeddings on platform_content, filesystem_chunks)
+**Last Updated**: 2026-02-20
+**Key ADR**: ADR-072 (Unified Content Layer)
 
 ---
 
@@ -11,13 +12,14 @@
 
 ```
 user      1──n platform_connections    (OAuth connections to platforms)
-user      1──n filesystem_items        (synced platform content — conversational search cache)
+user      1──n platform_content        (unified content layer — synced content with retention)
 user      1──n filesystem_documents    (uploaded files)
 user      1──n user_context            (Memory — what TP knows about the user)
 user      1──n activity_log            (Activity — what YARNNN has done)
 user      1──n chat_sessions           (TP conversations)
 user      1──n deliverables            (scheduled outputs)
 
+platform_content    n──1 platform_content   (version chain via version_of)
 filesystem_documents 1──n filesystem_chunks  (document segments)
 chat_sessions 1──n session_messages          (conversation turns)
 deliverables 1──n deliverable_versions       (generated outputs)
@@ -43,14 +45,14 @@ What YARNNN has done — system provenance log. Append-only. Recent events injec
 |-------|---------|
 | `activity_log` | Timestamped event log across all pipelines (deliverable runs, syncs, memory writes, chat sessions) |
 
-### Layer 3: Context (Filesystem)
+### Layer 3: Context (Platform Content)
 
-The current working material — what's in their platforms right now.
+The current working material — what's in their platforms right now. ADR-072 unified content layer with retention-based accumulation.
 
 | Table | Purpose |
 |-------|---------|
 | `platform_connections` | OAuth connections to external platforms |
-| `filesystem_items` | Synced content cache for conversational Search |
+| `platform_content` | Unified content layer with retention (replaces filesystem_items) |
 | `filesystem_documents` | Uploaded PDF, DOCX, TXT, MD files |
 | `filesystem_chunks` | Document segments with embeddings (for Search) |
 | `sync_registry` | Per-resource sync state tracking |
@@ -78,8 +80,10 @@ Single flat key-value Memory store. Replaces `knowledge_profile`, `knowledge_sty
 | user_id | UUID | FK → auth.users |
 | key | TEXT | Namespaced key (see below) |
 | value | TEXT | The stored value |
-| source | TEXT | `user_stated`, `tp_extracted`, `document` |
-| confidence | FLOAT | 0.0–1.0. user_stated = 1.0 |
+| source | TEXT | `user_stated`, `tp_extracted`, `document`, `feedback`, `pattern` |
+| confidence | FLOAT | 0.0–1.0. user_stated = 1.0, feedback = 0.7, pattern = 0.6 |
+| source_ref | UUID | ADR-072: FK to source record (session_id, version_id, etc.) |
+| source_type | TEXT | ADR-072: Type of source: `session_message`, `deliverable_version`, `platform_content`, `activity_log` |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto |
 
@@ -162,29 +166,56 @@ OAuth connections to external platforms.
 
 ---
 
-### 4. filesystem_items
+### 4. platform_content
 
-Synced platform content — conversational search cache. Not used by deliverable execution.
+ADR-072: Unified content layer with retention-based accumulation. Replaces `filesystem_items`.
+
+Content that proves significant (referenced by deliverables, signals, or TP) is retained indefinitely.
+Unreferenced content expires after TTL.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
 | user_id | UUID | FK → auth.users |
-| platform | TEXT | Source platform |
-| resource_id | TEXT | Channel ID, label, page ID |
+| platform | TEXT | Source platform (`slack`, `gmail`, `notion`, `calendar`) |
+| resource_id | TEXT | Channel ID, label, page ID, calendar ID |
 | resource_name | TEXT | Human-readable resource name |
 | item_id | TEXT | Unique item identifier from platform |
-| content | TEXT | Message/email/page content |
+| content | TEXT | Full text content |
 | content_type | TEXT | `message`, `email`, `page`, `event` |
+| content_hash | TEXT | SHA-256 for deduplication on re-fetch |
+| title | TEXT | Subject line, page title, event title |
+| content_embedding | vector(1536) | Semantic search via pgvector |
+| version_of | UUID | FK → platform_content (version chain) |
+| fetched_at | TIMESTAMPTZ | When fetched from platform |
+| retained | BOOLEAN | When true, content never expires |
+| retained_reason | TEXT | `deliverable_execution`, `signal_processing`, `tp_session` |
+| retained_ref | UUID | FK to the record that marked this retained |
+| retained_at | TIMESTAMPTZ | When marked retained |
+| expires_at | TIMESTAMPTZ | NULL if retained=true, otherwise TTL |
 | author | TEXT | Who authored this content |
+| author_id | TEXT | Platform-specific author ID |
 | is_user_authored | BOOLEAN | True if user wrote this |
 | source_timestamp | TIMESTAMPTZ | When created on platform |
 | metadata | JSONB | Platform-specific metadata |
 | sync_batch_id | UUID | Batch identifier |
-| synced_at | TIMESTAMPTZ | When synced |
-| expires_at | TIMESTAMPTZ | TTL for cleanup |
+| created_at | TIMESTAMPTZ | Auto |
 
-**Unique constraint**: `(user_id, platform, resource_id, item_id)`
+**Unique constraint**: `(user_id, platform, resource_id, item_id, content_hash)`
+
+**Retention policy**:
+| Condition | `retained` | `expires_at` | Outcome |
+|---|---|---|---|
+| Content never referenced | `false` | `NOW() + TTL` | Expires after TTL |
+| Referenced by deliverable_version | `true` | `NULL` | Retained indefinitely |
+| Referenced by signal_processing | `true` | `NULL` | Retained indefinitely |
+| Accessed during TP session | `true` | `NULL` | Retained indefinitely |
+
+**TTL by platform**:
+- Slack: 7 days
+- Gmail: 14 days
+- Notion: 30 days
+- Calendar: 1 day
 
 ---
 
@@ -347,7 +378,7 @@ Built at session start from **Memory + Activity** layers. Raw platform content i
 {last 10 events from activity_log, last 7 days}
 ```
 
-Injected into TP's system prompt (~2,000 token budget). During a session, TP accesses live platform content via `Search(scope="platform_content")` (hits `filesystem_items`) or direct platform tools (live API calls).
+Injected into TP's system prompt (~2,000 token budget). During a session, TP accesses platform content via `Search(scope="platform_content")` (hits `platform_content` table with semantic search) or direct platform tools (live API calls).
 
 ---
 
@@ -366,10 +397,15 @@ Injected into TP's system prompt (~2,000 token budget). During a session, TP acc
 | 058 | Fix SECURITY DEFINER view | Applied |
 | 059 | ADR-059: Drop dead columns from session_messages | Applied |
 | 060 | ADR-063: Create activity_log table | Applied |
+| 077 | ADR-072: Create platform_content, migrate filesystem_items, drop legacy | Pending |
+| 078 | ADR-072: Add source_ref/source_type to user_context | Pending |
 
 ---
 
 ## Removed Tables (do not reference in new code)
+
+Per ADR-072 (migration 077):
+- `filesystem_items` — replaced by `platform_content` with retention-based accumulation
 
 Per ADR-059 (migration 057):
 - `knowledge_profile` — replaced by `user_context` keys: `name`, `role`, `company`, `timezone`, `summary`

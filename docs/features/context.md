@@ -126,8 +126,8 @@ Deliverables use live reads because they must be authoritative at the moment of 
 
 ## Related
 
-- [ADR-062](../adr/ADR-062-platform-context-architecture.md) — filesystem_items role and mandate
-- [ADR-049](../adr/ADR-049-context-freshness-model.md) — TTL and sync frequency
+- [ADR-062](../adr/ADR-062-platform-context-architecture-SUPERSEDED.md) — filesystem_items role and mandate
+- [ADR-049](../adr/ADR-049-context-freshness-model-SUPERSEDED.md) — TTL and sync frequency
 - [ADR-056](../adr/ADR-056-per-source-sync-implementation.md) — Per-source sync design
 - [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview
 - [context-pipeline.md](../architecture/context-pipeline.md) — Technical pipeline detail

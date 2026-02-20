@@ -18,7 +18,7 @@ What goes in the prompt (~2,000 tokens):
   - Connected platforms + sync freshness
   - Recent activity (last 10 events, 7-day window) ← ADR-063
 
-Raw filesystem_items content is NOT included here.
+Raw platform_content is NOT included here.
 TP fetches it via Search when needed.
 """
 

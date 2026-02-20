@@ -1,8 +1,31 @@
 # ADR-062: Platform Context Architecture — Live Reads, Internal Mirror, and the Role of filesystem_items
 
-**Status**: Accepted
+**Status**: ⚠️ SUPERSEDED by ADR-072
+**Superseded by**: [ADR-072: Unified Content Layer and TP Execution Pipeline](ADR-072-unified-content-layer-tp-execution-pipeline.md)
 **Date**: 2026-02-18
 **Relates to**: ADR-038 (Filesystem-as-Context), ADR-049 (Context Freshness), ADR-059 (Simplified Context Model)
+
+---
+
+## Supersession Note (2026-02-20)
+
+**This ADR is superseded by ADR-072.** The decisions made here created architectural tensions:
+
+1. `filesystem_items` as "cache only" created a provenance gap — deliverables couldn't link back to source content
+2. "Do not expand the mirror's role" prevented accumulation of significant content
+3. Separate "live reads for execution, cache for search" created two parallel pipelines with a quality gap
+
+**What changed (ADR-072):**
+- `filesystem_items` is replaced by `platform_content` — a unified content layer with retention semantics
+- Content that proves significant is retained indefinitely (accumulation moat)
+- Deliverable execution uses TP in headless mode (same primitives as live sessions)
+- `source_snapshots` now includes `platform_content_ids` for provenance
+
+**The three-layer model defined here (Memory / Context / Work) evolves into the four-layer model (Memory / Activity / Context / Work) documented in ADR-063 and updated in ADR-072.**
+
+---
+
+## Original ADR (Historical Context)
 
 ---
 

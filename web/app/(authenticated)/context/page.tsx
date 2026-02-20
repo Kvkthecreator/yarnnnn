@@ -9,9 +9,9 @@
  * - Platforms: Connected integrations (Slack, Gmail, Notion, Calendar)
  * - Documents: Uploaded files (PDF, DOC, TXT, MD)
  *
- * Data lives in: platform_connections, filesystem_items, filesystem_documents
+ * Data lives in: platform_connections, platform_content, filesystem_documents
  * Written by: OAuth flow, platform_worker sync, document upload
- * Read by: TP via Search tool (cache), deliverable pipeline (live APIs)
+ * Read by: TP via Search tool, deliverable pipeline via TP execution mode
  *
  * Note: Profile, Styles, and Entries moved to /memory (Memory layer)
  */

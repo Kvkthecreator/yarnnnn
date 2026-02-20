@@ -156,33 +156,47 @@ Each deliverable type has a `type_classification` object that determines executi
 
 ---
 
-## Execution Model (ADR-045)
+## Execution Model (ADR-072)
+
+> **ADR-072 UPDATE**: Deliverable execution now uses **TP in headless mode**. The previous parallel fetch pipeline and strategy pattern are replaced by unified TP primitives.
 
 When a deliverable is due to run (scheduled, event-triggered, or manual), the `unified_scheduler.py` orchestrator:
 
-1. Fetches the deliverable row
-2. Selects an **execution strategy** based on `type_classification.binding`
-3. Instantiates `DeliverableAgent` with the selected strategy
-4. The strategy gathers context (live API calls or `filesystem_items` cache)
-5. The agent generates content via LLM call (using the gathered context)
+1. Fetches the deliverable row and configuration
+2. Pre-loads relevant `platform_content` records for configured sources
+3. Invokes **TP in execution mode** (headless, no streaming, no clarification)
+4. TP uses full primitives (`Search`, `FetchPlatformContent`, `CrossPlatformQuery`) to gather and reason over content
+5. TP generates output via LLM call (same agent as live sessions)
 6. A `deliverable_version` row is created with `status=delivered`
-7. The content is delivered to the configured destination(s)
-8. An `activity_log` event is written (non-fatal)
+7. `source_snapshots` records `platform_content_ids[]` — specific content records used
+8. Source `platform_content` records marked `retained=true` (accumulation)
+9. Content delivered to configured destination(s)
+10. `activity_log` event written (non-fatal)
 
-### Execution Strategies
+### TP Execution Mode vs Live Mode
 
-| Binding | Strategy | Context Source | Use Case |
-|---|---|---|---|
-| `platform_bound` | `PlatformBoundStrategy` | Live platform API (Gmail, Slack, Notion, Calendar) | Single-platform types — authoritative, fresh |
-| `cross_platform` | `CrossPlatformStrategy` | `filesystem_items` cache | Cross-platform synthesizers — fast, cached |
-| `hybrid` | `HybridStrategy` | Web research (Tavily) + platform fetch | Research briefs, external context needed |
+| Aspect | TP Live Mode | TP Execution Mode |
+|---|---|---|
+| **Streaming** | Streams responses to user | Collects full output, writes to version |
+| **Clarification** | Can ask user for details | Must complete with available context |
+| **Tool rounds** | `max_tool_rounds=5` | May be higher for complex deliverables |
+| **Context injection** | Working memory + user message | Deliverable config + pre-loaded `platform_content` |
+| **Output** | Displayed in chat | Written to `deliverable_version.final_content` |
 
-**Why two context paths?**
-- Live APIs are authoritative but slow. Good for deliverables (scheduled, latency-tolerant).
-- The cache is fast but stale (2-24h depending on tier). Good for TP conversational search.
-- Neither can replace the other — they serve different purposes (see [Four-Layer Model](four-layer-model.md)).
+### Why unified execution?
 
-The agent is the same (`DeliverableAgent`) in all cases. The strategy determines what context it receives. This is **strategy pattern**, not agent proliferation.
+**Before (ADR-045)**: `DeliverableAgent` with strategy pattern — different fetch pipelines for different deliverable types. Quality gap between TP conversations and scheduled outputs.
+
+**After (ADR-072)**: TP is the single execution agent. Same primitives, same reasoning capability, same content access. Improvements to TP primitives automatically improve deliverable quality. One codebase, not two.
+
+### Content source
+
+All content comes from `platform_content` (the unified content layer):
+- Retained content (significant, never expires) — accumulated intelligence
+- Recent ephemeral content (TTL-bounded) — fresh platform state
+- Semantic search via pgvector embeddings
+
+The previous distinction between "live API reads" and "cache reads" is eliminated. `platform_content` is the single source, populated by platform sync (ephemeral) and signal processing (retained).
 
 ---
 

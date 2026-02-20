@@ -95,15 +95,16 @@ interface PlatformDeliverable {
   destination?: { platform?: string };
 }
 
-// ADR-058: Platform context items from filesystem_items table
-interface PlatformContextItem {
+// ADR-072: Platform content items from platform_content table
+interface PlatformContentItem {
   id: string;
   content: string;
   content_type: string | null;
   resource_id: string;
   resource_name: string | null;
   source_timestamp: string | null;
-  synced_at: string;  // ADR-058: filesystem_items uses synced_at
+  fetched_at: string;  // ADR-072: platform_content uses fetched_at
+  retained: boolean;  // ADR-072: retention flag
   metadata: Record<string, unknown>;
 }
 
@@ -407,12 +408,12 @@ export default function PlatformDetailPage() {
   const [originalIds, setOriginalIds] = useState<Set<string>>(new Set());
   const [tierLimits, setTierLimits] = useState<TierLimits | null>(null);
   const [deliverables, setDeliverables] = useState<PlatformDeliverable[]>([]);
-  // ADR-058: Platform context from filesystem_items table
-  const [platformContext, setPlatformContext] = useState<PlatformContextItem[]>([]);
+  // ADR-072: Platform context from platform_content table
+  const [platformContext, setPlatformContext] = useState<PlatformContentItem[]>([]);
 
   // ADR-055: Expanded resources (for showing context within rows)
   const [expandedResourceIds, setExpandedResourceIds] = useState<Set<string>>(new Set());
-  const [resourceContextCache, setResourceContextCache] = useState<Record<string, PlatformContextItem[]>>({});
+  const [resourceContextCache, setResourceContextCache] = useState<Record<string, PlatformContentItem[]>>({});
   const [loadingResourceContext, setLoadingResourceContext] = useState<Record<string, boolean>>({});
   const [resourceContextTotalCount, setResourceContextTotalCount] = useState<Record<string, number>>({});
   const [loadingMoreContext, setLoadingMoreContext] = useState<Record<string, boolean>>({});
@@ -455,7 +456,7 @@ export default function PlatformDetailPage() {
         api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
         api.deliverables.list().catch(() => []),
-        // ADR-058: Load platform context from filesystem_items table
+        // ADR-072: Load platform context from platform_content table
         api.integrations.getPlatformContext(platform as "slack" | "notion" | "gmail" | "calendar", { limit: 10 })
           .catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
         // Load available calendars for Calendar platform (for source selection, not output)
@@ -493,7 +494,7 @@ export default function PlatformDetailPage() {
       );
       setDeliverables(platformDeliverables);
 
-      // ADR-058: Set platform context from filesystem_items
+      // ADR-072: Set platform context from platform_content
       setPlatformContext(platformContextResult?.items || []);
 
     } catch (err) {
@@ -1137,7 +1138,7 @@ function ResourceRow({
   platform: PlatformProvider;
   isExpanded: boolean;
   onToggleExpand: () => void;
-  contextItems: PlatformContextItem[];
+  contextItems: PlatformContentItem[];
   loadingContext: boolean;
   totalCount: number;
   loadingMore: boolean;

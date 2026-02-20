@@ -1,22 +1,26 @@
 """
-Filesystem Service - ADR-058 Knowledge Base Architecture
+Platform Content Service - ADR-072 Unified Content Layer
 
-Manages platform-synced content (filesystem_items) and documents.
-This is the "raw data" layer - synced content from platforms.
+Manages platform-synced content with retention-based accumulation.
+This replaces the old filesystem.py (which used filesystem_items).
 
-ADR-058 Terminology:
-- filesystem_items: Synced platform content (was ephemeral_context)
-- filesystem_documents: Uploaded files (was documents)
-- filesystem_chunks: Document chunks (was chunks)
+ADR-072 Key Changes:
+- platform_content: Unified content table (replaces filesystem_items)
+- Retention policy: Content starts ephemeral, becomes retained when referenced
+- Semantic search: pgvector embeddings for similarity search
+- Content versioning: version_of FK chain for content updates
+- Provenance tracking: retained_reason, retained_ref
 
 Usage:
-- Writer: Store synced platform data with TTL
-- Reader: Fetch content for deliverable generation or knowledge inference
-- Cleanup: Delete expired entries (run periodically)
+- Writer: Store synced platform data with TTL (retained=false, expires_at set)
+- Retention: Mark content retained when referenced (retained=true, expires_at=NULL)
+- Reader: Fetch content for TP search, deliverable execution, signal processing
+- Cleanup: Delete expired non-retained entries (run periodically)
 """
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from datetime import datetime, timedelta, timezone
 from typing import Optional, Literal
@@ -31,26 +35,33 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 PlatformType = Literal["slack", "gmail", "notion", "calendar"]
+RetainedReason = Literal["deliverable_execution", "signal_processing", "tp_session"]
 
 
 @dataclass
-class FilesystemItem:
-    """A single filesystem item (synced platform content)."""
+class PlatformContentItem:
+    """A single platform content item (replaces FilesystemItem)."""
     id: str
     platform: PlatformType
     resource_id: str
     resource_name: Optional[str]
     item_id: str
     content: str
-    content_type: Optional[str]  # message, thread_summary, page_update, event, email
+    content_type: Optional[str]
+    content_hash: Optional[str]
     title: Optional[str]
     author: Optional[str]
     author_id: Optional[str]
     is_user_authored: bool
     metadata: dict
     source_timestamp: Optional[datetime]
-    synced_at: datetime
-    expires_at: datetime
+    fetched_at: datetime
+    # Retention fields (ADR-072)
+    retained: bool
+    retained_reason: Optional[str]
+    retained_ref: Optional[str]
+    retained_at: Optional[datetime]
+    expires_at: Optional[datetime]
 
 
 @dataclass
@@ -62,11 +73,11 @@ class PlatformSemanticSignals:
     # Thread signals (Slack)
     thread_reply_count: int = 0
     has_unanswered_question: bool = False
-    is_stalled_thread: bool = False  # No replies in 24h after question
+    is_stalled_thread: bool = False
 
     # Engagement signals
     reaction_count: int = 0
-    reaction_types: list[str] = None  # emoji names
+    reaction_types: list[str] = None
 
     # Urgency signals
     mentions_deadline: bool = False
@@ -101,10 +112,10 @@ class PlatformSemanticSignals:
 # =============================================================================
 
 DEFAULT_TTL_HOURS = {
-    "slack": 168,      # 7 days - messages age quickly
-    "gmail": 336,      # 14 days - emails have longer relevance
-    "notion": 720,     # 30 days - docs change less frequently
-    "calendar": 24,    # 1 day - events are immediately relevant then stale
+    "slack": 168,      # 7 days
+    "gmail": 336,      # 14 days
+    "notion": 720,     # 30 days
+    "calendar": 24,    # 1 day
 }
 
 
@@ -114,11 +125,16 @@ def get_ttl(platform: PlatformType, custom_hours: Optional[int] = None) -> timed
     return timedelta(hours=hours)
 
 
+def compute_content_hash(content: str) -> str:
+    """Compute SHA-256 hash of content for deduplication."""
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()
+
+
 # =============================================================================
 # Writer Functions
 # =============================================================================
 
-async def store_filesystem_item(
+async def store_platform_content(
     db_client,
     user_id: str,
     platform: PlatformType,
@@ -134,9 +150,13 @@ async def store_filesystem_item(
     metadata: Optional[dict] = None,
     source_timestamp: Optional[datetime] = None,
     ttl_hours: Optional[int] = None,
+    # Retention fields (for signal processing dual-writer)
+    retained: bool = False,
+    retained_reason: Optional[RetainedReason] = None,
+    retained_ref: Optional[str] = None,
 ) -> str:
     """
-    Store a single filesystem item.
+    Store a single platform content item.
 
     Args:
         db_client: Supabase client
@@ -154,12 +174,23 @@ async def store_filesystem_item(
         metadata: Platform-specific metadata
         source_timestamp: When it happened at source
         ttl_hours: Custom TTL override
+        retained: Whether to mark as retained (signal processing uses this)
+        retained_reason: Why it's retained
+        retained_ref: FK to the record that marked it retained
 
     Returns:
         ID of created entry
     """
     now = datetime.now(timezone.utc)
-    expires_at = now + get_ttl(platform, ttl_hours)
+    content_hash = compute_content_hash(content)
+
+    # Retention logic
+    if retained:
+        expires_at = None
+        retained_at = now
+    else:
+        expires_at = now + get_ttl(platform, ttl_hours)
+        retained_at = None
 
     record = {
         "user_id": user_id,
@@ -169,27 +200,31 @@ async def store_filesystem_item(
         "item_id": item_id,
         "content": content,
         "content_type": content_type,
+        "content_hash": content_hash,
         "title": title,
         "author": author,
         "author_id": author_id,
         "is_user_authored": is_user_authored,
         "source_timestamp": source_timestamp.isoformat() if source_timestamp else None,
-        "synced_at": now.isoformat(),
-        "expires_at": expires_at.isoformat(),
+        "fetched_at": now.isoformat(),
+        "retained": retained,
+        "retained_reason": retained_reason,
+        "retained_ref": retained_ref,
+        "retained_at": retained_at.isoformat() if retained_at else None,
+        "expires_at": expires_at.isoformat() if expires_at else None,
         "metadata": metadata or {},
-        "sync_metadata": {},
     }
 
-    result = db_client.table("filesystem_items").upsert(
+    result = db_client.table("platform_content").upsert(
         record,
-        on_conflict="user_id,platform,resource_id,item_id"
+        on_conflict="user_id,platform,resource_id,item_id,content_hash"
     ).execute()
 
     if result.data:
-        logger.debug(f"[FILESYSTEM] Stored {platform}/{resource_id}/{item_id}: {content[:50]}...")
+        logger.debug(f"[PLATFORM_CONTENT] Stored {platform}/{resource_id}/{item_id}: {content[:50]}...")
         return result.data[0]["id"]
 
-    raise ValueError("Failed to store filesystem item")
+    raise ValueError("Failed to store platform content")
 
 
 async def store_slack_items_batch(
@@ -202,9 +237,7 @@ async def store_slack_items_batch(
     signals: Optional[PlatformSemanticSignals] = None,
 ) -> int:
     """
-    Store Slack messages as filesystem items.
-
-    Enriches each message with platform-semantic signals.
+    Store Slack messages as platform content.
     Returns count of entries stored.
     """
     if not messages:
@@ -215,11 +248,9 @@ async def store_slack_items_batch(
 
     records = []
     for msg in messages:
-        # Skip bot/system messages
         if msg.get("subtype") in ("bot_message", "channel_join", "channel_leave"):
             continue
 
-        # Extract message timestamp
         source_ts = None
         ts = msg.get("ts", "")
         try:
@@ -227,7 +258,9 @@ async def store_slack_items_batch(
         except (ValueError, TypeError):
             pass
 
-        # Build metadata with platform-semantic signals
+        content = msg.get("text", "")
+        content_hash = compute_content_hash(content)
+
         metadata = {
             "ts": ts,
             "user": msg.get("user"),
@@ -236,7 +269,6 @@ async def store_slack_items_batch(
             "reactions": msg.get("reactions", []),
         }
 
-        # Add signals if this is a thread parent
         if signals and not msg.get("thread_ts"):
             metadata["signals"] = signals.to_dict()
 
@@ -244,7 +276,6 @@ async def store_slack_items_batch(
         if msg.get("thread_ts") and msg.get("thread_ts") != msg.get("ts"):
             content_type = "thread_reply"
 
-        # Determine if user-authored
         is_user_authored = user_slack_id and msg.get("user") == user_slack_id
 
         records.append({
@@ -252,30 +283,30 @@ async def store_slack_items_batch(
             "platform": "slack",
             "resource_id": channel_id,
             "resource_name": channel_name,
-            "item_id": ts,  # Use timestamp as item_id
-            "content": msg.get("text", ""),
+            "item_id": ts,
+            "content": content,
             "content_type": content_type,
+            "content_hash": content_hash,
             "title": None,
             "author": msg.get("user"),
             "author_id": msg.get("user"),
             "is_user_authored": is_user_authored,
             "source_timestamp": source_ts.isoformat() if source_ts else None,
-            "synced_at": now.isoformat(),
+            "fetched_at": now.isoformat(),
+            "retained": False,
             "expires_at": expires_at.isoformat(),
             "metadata": metadata,
-            "sync_metadata": {},
         })
 
     if not records:
         return 0
 
-    result = db_client.table("filesystem_items").upsert(
+    result = db_client.table("platform_content").upsert(
         records,
-        on_conflict="user_id,platform,resource_id,item_id"
+        on_conflict="user_id,platform,resource_id,item_id,content_hash"
     ).execute()
     count = len(result.data) if result.data else 0
 
-    # Update sync_registry after storing
     if count > 0:
         await _update_sync_registry_after_store(
             db_client,
@@ -287,7 +318,7 @@ async def store_slack_items_batch(
             source_latest_at=_get_latest_source_timestamp(messages, platform="slack"),
         )
 
-    logger.info(f"[FILESYSTEM] Stored {count} Slack messages from #{channel_name}")
+    logger.info(f"[PLATFORM_CONTENT] Stored {count} Slack messages from #{channel_name}")
     return count
 
 
@@ -299,7 +330,7 @@ async def store_gmail_items_batch(
     user_email: Optional[str] = None,
 ) -> int:
     """
-    Store Gmail messages as filesystem items.
+    Store Gmail messages as platform content.
     Returns count of entries stored.
     """
     if not messages:
@@ -312,7 +343,6 @@ async def store_gmail_items_batch(
     for msg in messages:
         headers = msg.get("headers", {})
 
-        # Parse date
         source_ts = None
         date_str = headers.get("Date", headers.get("date", ""))
         if date_str:
@@ -322,15 +352,13 @@ async def store_gmail_items_batch(
             except (ValueError, TypeError):
                 pass
 
-        # Build content from body and subject
         subject = headers.get("Subject", headers.get("subject", ""))
         body = msg.get("body", msg.get("snippet", ""))
         content = f"Subject: {subject}\n\n{body}" if subject else body
+        content_hash = compute_content_hash(content)
 
-        # Get sender info
         from_header = headers.get("From", headers.get("from", ""))
 
-        # Determine if user-authored (sent by user)
         is_user_authored = False
         if user_email and from_header:
             is_user_authored = user_email.lower() in from_header.lower()
@@ -349,29 +377,29 @@ async def store_gmail_items_batch(
             "resource_id": label,
             "resource_name": label,
             "item_id": msg.get("id", ""),
-            "content": content[:10000],  # Truncate very long emails
+            "content": content[:10000],
             "content_type": "email",
+            "content_hash": content_hash,
             "title": subject,
             "author": from_header,
             "author_id": None,
             "is_user_authored": is_user_authored,
             "source_timestamp": source_ts.isoformat() if source_ts else None,
-            "synced_at": now.isoformat(),
+            "fetched_at": now.isoformat(),
+            "retained": False,
             "expires_at": expires_at.isoformat(),
             "metadata": metadata,
-            "sync_metadata": {},
         })
 
     if not records:
         return 0
 
-    result = db_client.table("filesystem_items").upsert(
+    result = db_client.table("platform_content").upsert(
         records,
-        on_conflict="user_id,platform,resource_id,item_id"
+        on_conflict="user_id,platform,resource_id,item_id,content_hash"
     ).execute()
     count = len(result.data) if result.data else 0
 
-    # Update sync_registry after storing
     if count > 0:
         await _update_sync_registry_after_store(
             db_client,
@@ -383,7 +411,7 @@ async def store_gmail_items_batch(
             source_latest_at=_get_latest_source_timestamp(messages, platform="gmail"),
         )
 
-    logger.info(f"[FILESYSTEM] Stored {count} Gmail messages from {label}")
+    logger.info(f"[PLATFORM_CONTENT] Stored {count} Gmail messages from {label}")
     return count
 
 
@@ -397,15 +425,15 @@ async def store_notion_item(
     is_user_authored: bool = False,
 ) -> str:
     """
-    Store Notion page content as filesystem item.
+    Store Notion page content.
     Returns ID of created entry.
     """
-    entry_id = await store_filesystem_item(
+    entry_id = await store_platform_content(
         db_client=db_client,
         user_id=user_id,
         platform="notion",
         resource_id=page_id,
-        item_id=page_id,  # Page ID is also the item ID
+        item_id=page_id,
         resource_name=page_title,
         content=content,
         content_type="page",
@@ -414,7 +442,6 @@ async def store_notion_item(
         metadata=metadata,
     )
 
-    # Update sync_registry after storing
     if entry_id:
         source_latest_at = None
         if metadata:
@@ -436,20 +463,68 @@ async def store_notion_item(
 
 
 # =============================================================================
+# Retention Functions (ADR-072)
+# =============================================================================
+
+async def mark_content_retained(
+    db_client,
+    content_ids: list[str],
+    reason: RetainedReason,
+    ref: Optional[str] = None,
+) -> int:
+    """
+    Mark content items as retained.
+
+    Called by:
+    - Deliverable execution after synthesis (reason='deliverable_execution')
+    - Signal processing when content is significant (reason='signal_processing')
+    - TP session when content is accessed (reason='tp_session')
+
+    Args:
+        db_client: Supabase client
+        content_ids: List of platform_content IDs to retain
+        reason: Why content is being retained
+        ref: FK to the record that triggered retention
+
+    Returns:
+        Count of items marked retained
+    """
+    if not content_ids:
+        return 0
+
+    now = datetime.now(timezone.utc)
+
+    # Use the SQL function we created in migration
+    result = db_client.rpc(
+        "mark_content_retained",
+        {
+            "p_content_ids": content_ids,
+            "p_reason": reason,
+            "p_ref": ref,
+        }
+    ).execute()
+
+    count = result.data if result.data else 0
+    logger.info(f"[PLATFORM_CONTENT] Marked {count} items retained ({reason})")
+    return count
+
+
+# =============================================================================
 # Reader Functions
 # =============================================================================
 
-async def get_filesystem_items(
+async def get_platform_content(
     db_client,
     user_id: str,
     platforms: Optional[list[PlatformType]] = None,
     resource_ids: Optional[list[str]] = None,
     limit: int = 100,
     include_expired: bool = False,
+    retained_only: bool = False,
     user_authored_only: bool = False,
-) -> list[FilesystemItem]:
+) -> list[PlatformContentItem]:
     """
-    Fetch filesystem items for a user.
+    Fetch platform content for a user.
 
     Args:
         db_client: Supabase client
@@ -457,17 +532,18 @@ async def get_filesystem_items(
         platforms: Filter by platforms (None = all)
         resource_ids: Filter by resource IDs (None = all)
         limit: Max items to return
-        include_expired: Include expired items (for debugging)
-        user_authored_only: Only return user-authored items (for style inference)
+        include_expired: Include expired non-retained items
+        retained_only: Only return retained items (ADR-072)
+        user_authored_only: Only return user-authored items
 
     Returns:
-        List of FilesystemItem
+        List of PlatformContentItem
     """
     query = (
-        db_client.table("filesystem_items")
+        db_client.table("platform_content")
         .select("*")
         .eq("user_id", user_id)
-        .order("source_timestamp", desc=True)
+        .order("fetched_at", desc=True)
         .limit(limit)
     )
 
@@ -477,9 +553,12 @@ async def get_filesystem_items(
     if resource_ids:
         query = query.in_("resource_id", resource_ids)
 
-    if not include_expired:
+    if retained_only:
+        query = query.eq("retained", True)
+    elif not include_expired:
+        # Non-expired: either retained=true OR expires_at > now
         now = datetime.now(timezone.utc).isoformat()
-        query = query.gt("expires_at", now)
+        query = query.or_(f"retained.eq.true,expires_at.gt.{now}")
 
     if user_authored_only:
         query = query.eq("is_user_authored", True)
@@ -488,7 +567,7 @@ async def get_filesystem_items(
 
     items = []
     for row in result.data or []:
-        items.append(FilesystemItem(
+        items.append(PlatformContentItem(
             id=row["id"],
             platform=row["platform"],
             resource_id=row["resource_id"],
@@ -496,48 +575,127 @@ async def get_filesystem_items(
             item_id=row["item_id"],
             content=row["content"],
             content_type=row.get("content_type"),
+            content_hash=row.get("content_hash"),
             title=row.get("title"),
             author=row.get("author"),
             author_id=row.get("author_id"),
             is_user_authored=row.get("is_user_authored", False),
             metadata=row.get("metadata", {}),
             source_timestamp=_parse_datetime(row.get("source_timestamp")),
-            synced_at=_parse_datetime(row["synced_at"]),
-            expires_at=_parse_datetime(row["expires_at"]),
+            fetched_at=_parse_datetime(row["fetched_at"]),
+            retained=row.get("retained", False),
+            retained_reason=row.get("retained_reason"),
+            retained_ref=row.get("retained_ref"),
+            retained_at=_parse_datetime(row.get("retained_at")),
+            expires_at=_parse_datetime(row.get("expires_at")),
         ))
 
     return items
 
 
-async def get_items_for_deliverable(
+async def search_platform_content(
+    db_client,
+    user_id: str,
+    query_text: Optional[str] = None,
+    query_embedding: Optional[list[float]] = None,
+    platforms: Optional[list[str]] = None,
+    resource_ids: Optional[list[str]] = None,
+    retained_only: bool = False,
+    limit: int = 50,
+    similarity_threshold: float = 0.7,
+) -> list[tuple[PlatformContentItem, float]]:
+    """
+    Search platform content using semantic or text search.
+
+    ADR-072: Uses pgvector for semantic search when embedding provided,
+    falls back to full-text search otherwise.
+
+    Args:
+        db_client: Supabase client
+        user_id: User UUID
+        query_text: Text query for full-text search
+        query_embedding: Embedding vector for semantic search
+        platforms: Filter by platforms
+        resource_ids: Filter by resource IDs
+        retained_only: Only search retained content
+        limit: Max results
+        similarity_threshold: Min similarity for semantic search
+
+    Returns:
+        List of (PlatformContentItem, similarity_score) tuples
+    """
+    # Use the SQL function we created in migration
+    result = db_client.rpc(
+        "search_platform_content",
+        {
+            "p_user_id": user_id,
+            "p_query_embedding": query_embedding,
+            "p_query_text": query_text,
+            "p_platforms": platforms,
+            "p_resource_ids": resource_ids,
+            "p_retained_only": retained_only,
+            "p_limit": limit,
+            "p_similarity_threshold": similarity_threshold,
+        }
+    ).execute()
+
+    items = []
+    for row in result.data or []:
+        item = PlatformContentItem(
+            id=row["id"],
+            platform=row["platform"],
+            resource_id=row["resource_id"],
+            resource_name=row.get("resource_name"),
+            item_id=row["item_id"],
+            content=row["content"],
+            content_type=row.get("content_type"),
+            content_hash=None,
+            title=row.get("title"),
+            author=row.get("author"),
+            author_id=None,
+            is_user_authored=False,
+            metadata={},
+            source_timestamp=_parse_datetime(row.get("source_timestamp")),
+            fetched_at=datetime.now(timezone.utc),
+            retained=row.get("retained", False),
+            retained_reason=None,
+            retained_ref=None,
+            retained_at=None,
+            expires_at=None,
+        )
+        items.append((item, row.get("similarity", 1.0)))
+
+    return items
+
+
+async def get_content_for_deliverable(
     db_client,
     user_id: str,
     deliverable_sources: list[dict],
     limit_per_source: int = 50,
-) -> list[FilesystemItem]:
+) -> list[PlatformContentItem]:
     """
-    Fetch filesystem items relevant to a deliverable's sources.
+    Fetch platform content relevant to a deliverable's sources.
 
     Args:
         db_client: Supabase client
         user_id: User UUID
         deliverable_sources: List of source configs from deliverable
-            Each has: provider, resource_id, resource_name
         limit_per_source: Max items per source
 
     Returns:
-        Combined list of FilesystemItem, sorted by recency
+        Combined list sorted by recency
     """
     all_items = []
 
     for source in deliverable_sources:
-        provider = source.get("provider")
+        provider = source.get("provider") or source.get("platform")
         resource_id = source.get("resource_id")
 
         if not provider or not resource_id:
             continue
 
-        items = await get_filesystem_items(
+        items = await get_platform_content(
             db_client=db_client,
             user_id=user_id,
             platforms=[provider],
@@ -547,28 +705,28 @@ async def get_items_for_deliverable(
 
         all_items.extend(items)
 
-    # Sort by source_timestamp (most recent first)
     all_items.sort(
-        key=lambda x: x.source_timestamp or x.synced_at,
+        key=lambda x: x.source_timestamp or x.fetched_at,
         reverse=True,
     )
 
     return all_items
 
 
-async def get_items_summary_for_generation(
+async def get_content_summary_for_generation(
     db_client,
     user_id: str,
     deliverable_sources: list[dict],
     max_items: int = 100,
-) -> str:
+) -> tuple[str, list[str]]:
     """
-    Get filesystem items formatted for LLM generation prompt.
+    Get platform content formatted for LLM generation prompt.
 
-    Returns a formatted string ready to include in generation context.
-    Includes provenance (source, timestamps) and freshness indicators.
+    Returns:
+        Tuple of (formatted_string, list_of_content_ids)
+        The content_ids can be used to mark content as retained after synthesis.
     """
-    items = await get_items_for_deliverable(
+    items = await get_content_for_deliverable(
         db_client=db_client,
         user_id=user_id,
         deliverable_sources=deliverable_sources,
@@ -576,11 +734,11 @@ async def get_items_summary_for_generation(
     )
 
     if not items:
-        return ""
+        return "", []
 
+    content_ids = [item.id for item in items]
     now = datetime.now(timezone.utc)
 
-    # Group by source
     by_source = {}
     for item in items:
         key = f"{item.platform}:{item.resource_name or item.resource_id}"
@@ -588,18 +746,15 @@ async def get_items_summary_for_generation(
             by_source[key] = []
         by_source[key].append(item)
 
-    # Format for prompt with clear provenance
     sections = []
     for source_key, source_items in by_source.items():
         platform, source_name = source_key.split(":", 1)
 
-        # Calculate freshness for this source
         newest = max(
-            (i.source_timestamp or i.synced_at for i in source_items),
+            (i.source_timestamp or i.fetched_at for i in source_items),
             default=now
         )
 
-        # Format time range
         age = now - newest
         if age.days > 0:
             freshness = f"{age.days}d ago"
@@ -608,24 +763,20 @@ async def get_items_summary_for_generation(
         else:
             freshness = "just now"
 
-        # Section header with provenance
         header = f"## {platform.title()}: {source_name}"
         header += f"\n_({len(source_items)} items, most recent: {freshness})_"
 
         section_lines = [header]
 
-        for item in source_items[:20]:  # Cap per source
-            # Format timestamp
+        for item in source_items[:20]:
             ts_str = ""
             if item.source_timestamp:
                 ts_str = f"[{item.source_timestamp.strftime('%m/%d %H:%M')}] "
 
-            # Add author if available
             author_str = ""
             if item.author:
                 author_str = f"<{item.author}> "
 
-            # Add metadata signals if present
             signals_str = ""
             if item.metadata.get("signals"):
                 signals = item.metadata["signals"]
@@ -643,95 +794,65 @@ async def get_items_summary_for_generation(
                 if signal_markers:
                     signals_str = " [" + ", ".join(signal_markers) + "]"
 
-            # Build line
             content = item.content[:500] if len(item.content) > 500 else item.content
             section_lines.append(f"{ts_str}{author_str}{content}{signals_str}")
 
         sections.append("\n".join(section_lines))
 
-    return "\n\n".join(sections)
+    return "\n\n".join(sections), content_ids
 
 
 # =============================================================================
 # Cleanup Functions
 # =============================================================================
 
-async def cleanup_expired_items(db_client) -> int:
+async def cleanup_expired_content(db_client, batch_size: int = 1000) -> int:
     """
-    Delete expired filesystem items.
+    Delete expired non-retained content.
     Should be run periodically (e.g., hourly).
 
     Returns count of deleted entries.
     """
-    now = datetime.now(timezone.utc).isoformat()
+    # Use the SQL function we created in migration
+    result = db_client.rpc(
+        "cleanup_expired_platform_content",
+        {"p_batch_size": batch_size}
+    ).execute()
 
-    # First count
-    count_result = (
-        db_client.table("filesystem_items")
-        .select("id", count="exact")
-        .lt("expires_at", now)
-        .execute()
-    )
-
-    count = count_result.count or 0
-
-    if count == 0:
-        return 0
-
-    # Delete in batches to avoid timeout
-    deleted = 0
-    batch_size = 100
-
-    while deleted < count:
-        result = (
-            db_client.table("filesystem_items")
-            .delete()
-            .lt("expires_at", now)
-            .limit(batch_size)
-            .execute()
-        )
-
-        batch_deleted = len(result.data) if result.data else 0
-        deleted += batch_deleted
-
-        if batch_deleted == 0:
-            break
-
-    logger.info(f"[FILESYSTEM] Cleaned up {deleted} expired items")
-    return deleted
+    count = result.data if result.data else 0
+    if count > 0:
+        logger.info(f"[PLATFORM_CONTENT] Cleaned up {count} expired items")
+    return count
 
 
 # =============================================================================
 # Freshness Check
 # =============================================================================
 
-async def has_fresh_items_since(
+async def has_fresh_content_since(
     db_client,
     user_id: str,
     deliverable_sources: list[dict],
     since: datetime,
 ) -> tuple[bool, int]:
     """
-    Check if there's new filesystem items since a given time.
-
-    Used by scheduler to skip deliverable generation if no new content.
+    Check if there's new platform content since a given time.
 
     Args:
         db_client: Supabase client
         user_id: User UUID
         deliverable_sources: List of source configs from deliverable
-        since: Timestamp to check against (usually last_run_at)
+        since: Timestamp to check against
 
     Returns:
-        Tuple of (has_fresh_items, count_of_new_items)
+        Tuple of (has_fresh_content, count_of_new_items)
     """
     if not deliverable_sources:
         return False, 0
 
-    # Build list of (provider, resource_id) tuples
     source_filters = []
     for source in deliverable_sources:
-        provider = source.get("provider")
+        provider = source.get("provider") or source.get("platform")
         resource_id = source.get("resource_id")
         if provider and resource_id:
             source_filters.append((provider, resource_id))
@@ -744,13 +865,13 @@ async def has_fresh_items_since(
 
     for provider, resource_id in source_filters:
         result = (
-            db_client.table("filesystem_items")
+            db_client.table("platform_content")
             .select("id", count="exact")
             .eq("user_id", user_id)
             .eq("platform", provider)
             .eq("resource_id", resource_id)
-            .gt("synced_at", since.isoformat())
-            .gt("expires_at", now.isoformat())
+            .gt("fetched_at", since.isoformat())
+            .or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}")
             .execute()
         )
 
@@ -758,89 +879,9 @@ async def has_fresh_items_since(
         total_new += count
 
     has_fresh = total_new > 0
-    logger.debug(f"[FILESYSTEM] Fresh items check: {total_new} new items since {since.isoformat()}")
+    logger.debug(f"[PLATFORM_CONTENT] Fresh content check: {total_new} new items since {since.isoformat()}")
 
     return has_fresh, total_new
-
-
-async def get_latest_item_timestamp(
-    db_client,
-    user_id: str,
-    deliverable_sources: list[dict],
-) -> Optional[datetime]:
-    """
-    Get the timestamp of the most recent filesystem item for given sources.
-
-    Useful for understanding data freshness before generation.
-
-    Returns:
-        Most recent synced_at timestamp, or None if no items
-    """
-    if not deliverable_sources:
-        return None
-
-    latest = None
-    now = datetime.now(timezone.utc)
-
-    for source in deliverable_sources:
-        provider = source.get("provider")
-        resource_id = source.get("resource_id")
-
-        if not provider or not resource_id:
-            continue
-
-        result = (
-            db_client.table("filesystem_items")
-            .select("synced_at")
-            .eq("user_id", user_id)
-            .eq("platform", provider)
-            .eq("resource_id", resource_id)
-            .gt("expires_at", now.isoformat())
-            .order("synced_at", desc=True)
-            .limit(1)
-            .execute()
-        )
-
-        if result.data:
-            ts = _parse_datetime(result.data[0]["synced_at"])
-            if ts and (latest is None or ts > latest):
-                latest = ts
-
-    return latest
-
-
-# =============================================================================
-# User-Authored Content (for Style Inference)
-# =============================================================================
-
-async def get_user_authored_items(
-    db_client,
-    user_id: str,
-    platform: Optional[PlatformType] = None,
-    limit: int = 100,
-) -> list[FilesystemItem]:
-    """
-    Get items authored by the user for style inference.
-
-    This is used by the inference engine to analyze the user's
-    writing style across platforms.
-
-    Args:
-        db_client: Supabase client
-        user_id: User UUID
-        platform: Optional platform filter
-        limit: Max items to return
-
-    Returns:
-        List of user-authored FilesystemItem
-    """
-    return await get_filesystem_items(
-        db_client=db_client,
-        user_id=user_id,
-        platforms=[platform] if platform else None,
-        limit=limit,
-        user_authored_only=True,
-    )
 
 
 # =============================================================================
@@ -854,17 +895,12 @@ def _parse_datetime(value) -> Optional[datetime]:
     if isinstance(value, datetime):
         return value
     try:
-        # Handle ISO format with or without timezone
         if value.endswith("Z"):
             value = value[:-1] + "+00:00"
         return datetime.fromisoformat(value)
     except (ValueError, TypeError):
         return None
 
-
-# =============================================================================
-# Sync Registry Helpers
-# =============================================================================
 
 async def _update_sync_registry_after_store(
     db_client,
@@ -875,11 +911,7 @@ async def _update_sync_registry_after_store(
     item_count: int,
     source_latest_at: Optional[datetime],
 ) -> None:
-    """
-    Update sync_registry after storing filesystem items.
-
-    Called by store_*_items functions to track sync state.
-    """
+    """Update sync_registry after storing platform content."""
     from services.freshness import update_sync_registry
 
     await update_sync_registry(
@@ -894,23 +926,13 @@ async def _update_sync_registry_after_store(
 
 
 def _get_latest_source_timestamp(messages: list[dict], platform: str = "slack") -> Optional[datetime]:
-    """
-    Extract the latest source timestamp from a batch of messages.
-
-    Args:
-        messages: List of message dicts
-        platform: Platform type to determine timestamp field
-
-    Returns:
-        Most recent timestamp, or None if no valid timestamps
-    """
+    """Extract the latest source timestamp from a batch of messages."""
     latest = None
 
     for msg in messages:
         ts = None
 
         if platform == "slack":
-            # Slack uses Unix timestamp in "ts" field
             try:
                 ts_str = msg.get("ts", "")
                 ts = datetime.fromtimestamp(float(ts_str), tz=timezone.utc)
@@ -918,7 +940,6 @@ def _get_latest_source_timestamp(messages: list[dict], platform: str = "slack") 
                 pass
 
         elif platform == "gmail":
-            # Gmail uses Date header
             date_str = msg.get("headers", {}).get("Date") or msg.get("headers", {}).get("date", "")
             if date_str:
                 try:
@@ -928,7 +949,6 @@ def _get_latest_source_timestamp(messages: list[dict], platform: str = "slack") 
                     pass
 
         elif platform == "notion":
-            # Notion uses last_edited_time
             edited = msg.get("last_edited_time") or msg.get("lastEditedTime")
             if edited:
                 ts = _parse_datetime(edited)
@@ -940,51 +960,51 @@ def _get_latest_source_timestamp(messages: list[dict], platform: str = "slack") 
 
 
 # =============================================================================
-# Backwards Compatibility Aliases (TEMPORARY - will be removed)
+# Backwards Compatibility (imports only - functions call new implementations)
 # =============================================================================
 
-# These exist only for the migration period. Remove after all callers are updated.
-# DO NOT use these in new code.
+# Type aliases for transition
+FilesystemItem = PlatformContentItem
 
-EphemeralContextItem = FilesystemItem
-SourceType = PlatformType
+# Function aliases that map old names to new implementations
+async def store_filesystem_item(*args, **kwargs):
+    """DEPRECATED: Use store_platform_content instead."""
+    logger.warning("store_filesystem_item is deprecated. Use store_platform_content.")
+    return await store_platform_content(*args, **kwargs)
 
-async def store_ephemeral_context(*args, **kwargs):
-    """DEPRECATED: Use store_filesystem_item instead."""
-    logger.warning("store_ephemeral_context is deprecated. Use store_filesystem_item.")
-    return await store_filesystem_item(*args, **kwargs)
+async def get_filesystem_items(*args, **kwargs):
+    """DEPRECATED: Use get_platform_content instead."""
+    logger.warning("get_filesystem_items is deprecated. Use get_platform_content.")
+    return await get_platform_content(*args, **kwargs)
 
-async def store_slack_context_batch(*args, **kwargs):
-    """DEPRECATED: Use store_slack_items_batch instead."""
-    logger.warning("store_slack_context_batch is deprecated. Use store_slack_items_batch.")
-    return await store_slack_items_batch(*args, **kwargs)
+async def get_items_for_deliverable(*args, **kwargs):
+    """DEPRECATED: Use get_content_for_deliverable instead."""
+    logger.warning("get_items_for_deliverable is deprecated. Use get_content_for_deliverable.")
+    return await get_content_for_deliverable(*args, **kwargs)
 
-async def store_gmail_context_batch(*args, **kwargs):
-    """DEPRECATED: Use store_gmail_items_batch instead."""
-    logger.warning("store_gmail_context_batch is deprecated. Use store_gmail_items_batch.")
-    return await store_gmail_items_batch(*args, **kwargs)
+async def get_items_summary_for_generation(*args, **kwargs):
+    """DEPRECATED: Use get_content_summary_for_generation instead."""
+    logger.warning("get_items_summary_for_generation is deprecated. Use get_content_summary_for_generation.")
+    result, _ = await get_content_summary_for_generation(*args, **kwargs)
+    return result
 
-async def store_notion_context(*args, **kwargs):
-    """DEPRECATED: Use store_notion_item instead."""
-    logger.warning("store_notion_context is deprecated. Use store_notion_item.")
-    return await store_notion_item(*args, **kwargs)
+async def cleanup_expired_items(*args, **kwargs):
+    """DEPRECATED: Use cleanup_expired_content instead."""
+    logger.warning("cleanup_expired_items is deprecated. Use cleanup_expired_content.")
+    return await cleanup_expired_content(*args, **kwargs)
 
-async def get_ephemeral_context(*args, **kwargs):
-    """DEPRECATED: Use get_filesystem_items instead."""
-    logger.warning("get_ephemeral_context is deprecated. Use get_filesystem_items.")
-    return await get_filesystem_items(*args, **kwargs)
+async def has_fresh_items_since(*args, **kwargs):
+    """DEPRECATED: Use has_fresh_content_since instead."""
+    logger.warning("has_fresh_items_since is deprecated. Use has_fresh_content_since.")
+    return await has_fresh_content_since(*args, **kwargs)
 
-async def get_context_for_deliverable(*args, **kwargs):
-    """DEPRECATED: Use get_items_for_deliverable instead."""
-    logger.warning("get_context_for_deliverable is deprecated. Use get_items_for_deliverable.")
-    return await get_items_for_deliverable(*args, **kwargs)
-
-async def cleanup_expired_context(*args, **kwargs):
-    """DEPRECATED: Use cleanup_expired_items instead."""
-    logger.warning("cleanup_expired_context is deprecated. Use cleanup_expired_items.")
-    return await cleanup_expired_items(*args, **kwargs)
-
-async def has_fresh_context_since(*args, **kwargs):
-    """DEPRECATED: Use has_fresh_items_since instead."""
-    logger.warning("has_fresh_context_since is deprecated. Use has_fresh_items_since.")
-    return await has_fresh_items_since(*args, **kwargs)
+async def get_user_authored_items(db_client, user_id: str, platform=None, limit: int = 100):
+    """DEPRECATED: Use get_platform_content with user_authored_only=True."""
+    logger.warning("get_user_authored_items is deprecated. Use get_platform_content.")
+    return await get_platform_content(
+        db_client=db_client,
+        user_id=user_id,
+        platforms=[platform] if platform else None,
+        limit=limit,
+        user_authored_only=True,
+    )

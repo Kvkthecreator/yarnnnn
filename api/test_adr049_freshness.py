@@ -250,11 +250,11 @@ def test_sync_status_endpoint():
     print("✅ sync_status_endpoint: PASSED")
 
 
-def test_filesystem_updates_sync_registry():
-    """Test that filesystem functions update sync_registry."""
-    print("\nTesting filesystem sync_registry updates...")
+def test_platform_content_updates_sync_registry():
+    """Test that platform_content functions update sync_registry."""
+    print("\nTesting platform_content sync_registry updates...")
 
-    from services.filesystem import store_slack_items_batch
+    from services.platform_content import store_slack_items_batch
     import inspect
 
     source = inspect.getsource(store_slack_items_batch)
@@ -264,19 +264,19 @@ def test_filesystem_updates_sync_registry():
         "Should update sync_registry after storing"
     print("  ✓ store_slack_items_batch updates sync_registry")
 
-    from services.filesystem import store_gmail_items_batch
+    from services.platform_content import store_gmail_items_batch
     source = inspect.getsource(store_gmail_items_batch)
     assert "_update_sync_registry_after_store" in source or "update_sync_registry" in source, \
         "Gmail should update sync_registry"
     print("  ✓ store_gmail_items_batch updates sync_registry")
 
-    from services.filesystem import store_notion_item
+    from services.platform_content import store_notion_item
     source = inspect.getsource(store_notion_item)
     assert "_update_sync_registry_after_store" in source or "update_sync_registry" in source, \
         "Notion should update sync_registry"
     print("  ✓ store_notion_item updates sync_registry")
 
-    print("✅ filesystem_updates_sync_registry: PASSED")
+    print("✅ platform_content_updates_sync_registry: PASSED")
 
 
 def test_deliverable_execution_freshness_check():

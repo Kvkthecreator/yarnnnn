@@ -1,9 +1,28 @@
 # ADR-049: Context Freshness Model
 
-> **Status**: Accepted
+> **Status**: ⚠️ SUPERSEDED by ADR-072
+> **Superseded by**: [ADR-072: Unified Content Layer and TP Execution Pipeline](ADR-072-unified-content-layer-tp-execution-pipeline.md)
 > **Created**: 2026-02-12
 > **Deciders**: Kevin (solo founder)
 > **Related**: ADR-038 (Single Storage Layer), ADR-039 (Unified Context Surface), ADR-048 (Direct MCP Access)
+
+---
+
+## Supersession Note (2026-02-20)
+
+**This ADR is superseded by ADR-072.** The "freshness over accumulation" decision made here was correct for its context but predated the flywheel moat thesis, signal processing, and strategic deliverable types.
+
+**What changed:**
+- ADR-049 chose TTL-based expiry for all content
+- ADR-072 introduces retention-based accumulation: content that proves significant is retained indefinitely
+
+**Key insight:** Don't accumulate everything. Don't expire everything. Accumulate what proved significant. This is implemented via the `retained` flag on `platform_content`.
+
+The concepts in this ADR (source snapshots, freshness checks, sync registry) remain valid as implementation details. The high-level decision ("freshness over accumulation") is reversed.
+
+---
+
+## Original ADR (Historical Context)
 
 ---
 

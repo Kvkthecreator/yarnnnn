@@ -123,7 +123,7 @@ Compaction text is stored in `chat_sessions.compaction_summary` and reused on su
 - [Memory](./memory.md) — what persists across sessions and how it's written
 - [Backend Orchestration](./backend-orchestration.md) — nightly cron context (different domain from session management)
 - [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Session compaction and continuity architecture (implemented)
-- [ADR-049](../adr/ADR-049-context-freshness-model.md) — original session philosophy (partially superseded by ADR-067)
+- [ADR-049](../adr/ADR-049-context-freshness-model-SUPERSEDED.md) — original session philosophy (partially superseded by ADR-067)
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — activity log in working memory
 - `api/routes/chat.py` — session creation, message append, history building
 - `supabase/migrations/008_chat_sessions.sql` — schema and RPC

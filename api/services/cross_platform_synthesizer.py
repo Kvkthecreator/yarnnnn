@@ -239,16 +239,16 @@ async def suggest_project_resources(
     name_lower = project_name.lower()
     name_tokens = set(name_lower.split())
 
-    # Get user's ephemeral context to find resources they've used
+    # Get user's platform content to find resources they've used (ADR-072)
     now = datetime.now(timezone.utc)
     since = now - timedelta(days=30)
 
     result = (
-        db_client.table("filesystem_items")
+        db_client.table("platform_content")
         .select("platform, resource_id, resource_name")
         .eq("user_id", user_id)
-        .gt("synced_at", since.isoformat())
-        .gt("expires_at", now.isoformat())
+        .gt("fetched_at", since.isoformat())
+        .or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}")
         .execute()
     )
 
@@ -356,15 +356,15 @@ async def assemble_cross_platform_context(
     content_hashes = set()  # For deduplication
 
     for resource in resources:
-        # Query ephemeral context for this resource
+        # Query platform_content for this resource (ADR-072)
         result = (
-            db_client.table("filesystem_items")
+            db_client.table("platform_content")
             .select("*")
             .eq("user_id", user_id)
             .eq("platform", resource.platform)
             .eq("resource_id", resource.resource_id)
-            .gt("created_at", since.isoformat())
-            .gt("expires_at", now.isoformat())
+            .gt("fetched_at", since.isoformat())
+            .or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}")
             .order("source_timestamp", desc=True)
             .limit(max_items_per_platform)
             .execute()

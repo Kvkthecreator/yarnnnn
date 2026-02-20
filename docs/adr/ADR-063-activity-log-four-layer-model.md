@@ -220,6 +220,6 @@ Replacing `filesystem_items` with `activity_log` was considered and rejected. Th
 ## Related
 
 - [ADR-059](ADR-059-simplified-context-model.md) — Memory table consolidation (user_context)
-- [ADR-062](ADR-062-platform-context-architecture.md) — Three-layer model, filesystem_items mandate
+- [ADR-062](ADR-062-platform-context-architecture-SUPERSEDED.md) — Three-layer model, filesystem_items mandate
 - [context-pipeline.md](../architecture/context-pipeline.md) — Architectural overview (to be updated)
 - [SCHEMA.md](../database/SCHEMA.md) — Database schema reference (to be updated)

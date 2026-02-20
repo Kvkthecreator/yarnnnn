@@ -22,13 +22,14 @@ grep -r "<keyword>" docs/adr/
 ```
 
 Key ADRs that define YARNNN's philosophy (not just implementation):
-- **ADR-049**: Context freshness model - session history approach (partially superseded by ADR-067)
+- **ADR-049**: Context freshness model - SUPERSEDED by ADR-072 (accumulation moat thesis)
 - **ADR-059**: Simplified context model - current Memory schema (user_context), inference removal
-- **ADR-062**: Platform context architecture - filesystem_items role (conversational search cache only)
+- **ADR-062**: Platform context architecture - SUPERSEDED by ADR-072 (unified content layer)
 - **ADR-063**: Four-layer model (Memory / Activity / Context / Work) - activity_log, working memory injection
-- **ADR-067**: Session compaction and continuity - follows Claude Code's model (session summaries, inactivity boundary, in-session compaction)
+- **ADR-067**: Session compaction and continuity - follows Claude Code's model
+- **ADR-072**: Unified Content Layer - platform_content with retention-based accumulation, TP execution pipeline
 
-If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach. ADR-049's "no summarization" stance is superseded by ADR-067.
+If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
 ### 1. Documentation Alongside Code
 

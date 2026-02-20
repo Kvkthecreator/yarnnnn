@@ -1,5 +1,5 @@
 """
-Reference Parsing and Resolution (ADR-058 Knowledge Base Architecture)
+Reference Parsing and Resolution (ADR-072 Unified Content Layer)
 
 Grammar: <type>:<identifier>[/<subpath>][?<query>]
 
@@ -8,13 +8,13 @@ Examples:
   deliverable:latest            # Most recent
   platform:slack                # By provider name
   platform:slack/credentials    # Sub-entity
-  platform_content:*            # All platform content (filesystem_items)
+  platform_content:*            # All platform content
   session:current               # Special reference
 
 Entity types:
   - deliverable: Content deliverables
   - platform: Connected platforms (platform_connections)
-  - platform_content: Imported platform data (filesystem_items)
+  - platform_content: Unified content layer (ADR-072)
   - memory: Knowledge entries (user facts, preferences)
   - session: Chat sessions
   - domain: Knowledge domains
@@ -23,7 +23,7 @@ Entity types:
   - action: Executable actions (for discovery)
 
 NOTE: Per ADR-059, 'memory' maps to user_context (replaces knowledge_entries).
-      Platform content (Slack/Gmail/Notion imports) lives in filesystem_items.
+      Platform content (Slack/Gmail/Notion imports) lives in platform_content (ADR-072).
 
 Special identifiers:
   - new: For Write operations (create)
@@ -72,7 +72,7 @@ class EntityRef:
 ENTITY_TYPES = {
     "deliverable",
     "platform",
-    "platform_content",  # ADR-058: filesystem_items
+    "platform_content",  # ADR-072: unified content layer
     "memory",  # ADR-059: user_context
     "session",
     "domain",
@@ -155,7 +155,7 @@ def parse_ref(ref: str) -> EntityRef:
 TABLE_MAP = {
     "deliverable": "deliverables",
     "platform": "platform_connections",
-    "platform_content": "filesystem_items",  # ADR-058
+    "platform_content": "platform_content",  # ADR-072: unified content layer
     "memory": "user_context",  # ADR-059: Replaces knowledge_entries
     "session": "chat_sessions",
     "domain": "user_context",  # ADR-059: knowledge_domains removed

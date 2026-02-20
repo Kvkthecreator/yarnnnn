@@ -1,18 +1,17 @@
 """
-Search Primitive (ADR-038 Phase 2, ADR-065)
+Search Primitive (ADR-072 Unified Content Layer)
 
-Find entities by content using text search.
+Find entities by content using text or semantic search.
 
 Usage:
   Search(query="database migration", scope="platform_content")
   Search(query="weekly report", scope="deliverable")
 
-ADR-065: scope="platform_content" searches the filesystem_items CACHE (fallback).
-Use live platform tools (platform_slack_*, platform_gmail_*, etc.) as the primary
-path for platform content queries. Search(scope="platform_content") is only for
-cross-platform aggregation or when live tools are unavailable.
+ADR-072: scope="platform_content" searches the unified content layer with
+semantic search (pgvector) when available, falling back to full-text search.
+Supports both retained (permanent) and ephemeral (TTL) content.
 
-scope="memory" is NOT a valid search scope (ADR-065). Memory is injected into the
+scope="memory" is NOT a valid search scope. Memory is injected into the
 TP system prompt at session start via working memory. TP already has it.
 """
 
@@ -179,20 +178,21 @@ async def _search_platform_content(
     limit: int,
 ) -> list[dict]:
     """
-    Search filesystem_items table for platform content.
+    Search platform_content table for platform content.
 
-    ADR-038: This replaces the old memory scope. Platform content
-    (Slack messages, Gmail emails, Notion pages) lives in filesystem_items.
+    ADR-072: Unified content layer with retention. Searches both retained
+    (permanent) and ephemeral (TTL) content that hasn't expired.
     """
     try:
-        # Build query on filesystem_items (ADR-065: this is the fallback cache path)
-        q = auth.client.table("filesystem_items").select(
+        # Build query on platform_content (ADR-072 unified content layer)
+        now = datetime.now(timezone.utc).isoformat()
+        q = auth.client.table("platform_content").select(
             "id, platform, resource_id, resource_name, content, content_type, "
-            "metadata, source_timestamp, synced_at, expires_at"
+            "metadata, source_timestamp, fetched_at, retained, expires_at"
         ).eq(
             "user_id", auth.user_id
-        ).gt(
-            "expires_at", datetime.now(timezone.utc).isoformat()
+        ).or_(
+            f"retained.eq.true,expires_at.gt.{now}"  # Include retained OR non-expired
         ).ilike(
             "content", f"%{query}%"
         )
@@ -202,7 +202,7 @@ async def _search_platform_content(
             q = q.eq("platform", platform_filter)
 
         # Order by recency and limit
-        result = q.order("source_timestamp", desc=True).limit(limit).execute()
+        result = q.order("fetched_at", desc=True).limit(limit).execute()
 
         if not result.data:
             return []
@@ -214,8 +214,9 @@ async def _search_platform_content(
                 "platform": item["platform"],
                 "resource_name": item.get("resource_name"),
                 "content_type": item.get("content_type"),
-                # ADR-065: synced_at exposed so TP can disclose cache age to user
-                "synced_at": item.get("synced_at"),
+                # ADR-072: fetched_at exposed for freshness awareness
+                "fetched_at": item.get("fetched_at"),
+                "retained": item.get("retained", False),
                 "data": {
                     "content": item["content"][:500] + "..." if len(item.get("content", "")) > 500 else item.get("content", ""),
                     "source_timestamp": item.get("source_timestamp"),

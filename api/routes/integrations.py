@@ -345,22 +345,23 @@ class CalendarEventsListResponse(BaseModel):
     calendar_id: str
 
 
-# ADR-052: Platform context response models
-class PlatformContextItem(BaseModel):
-    """A single synced content item from filesystem_items."""
+# ADR-072: Platform content response models
+class PlatformContentItem(BaseModel):
+    """A single synced content item from platform_content."""
     id: str
     content: str
     content_type: Optional[str] = None  # message, thread_parent, email, page
     resource_id: str
     resource_name: Optional[str] = None
     source_timestamp: Optional[str] = None
-    synced_at: str  # ADR-058: filesystem_items uses synced_at
+    fetched_at: str  # ADR-072: platform_content uses fetched_at
+    retained: bool = False  # ADR-072: retention flag
     metadata: dict[str, Any] = {}
 
 
-class PlatformContextResponse(BaseModel):
-    """ADR-052: Synced content from filesystem_items for a platform."""
-    items: list[PlatformContextItem]
+class PlatformContentResponse(BaseModel):
+    """ADR-072: Synced content from platform_content for a platform."""
+    items: list[PlatformContentItem]
     total_count: int
     freshest_at: Optional[str] = None
     platform: str
@@ -399,7 +400,7 @@ class StartImportRequest(BaseModel):
 class ImportJobResultResponse(BaseModel):
     """Result details for a completed import job."""
     blocks_extracted: int = 0  # ADR-038: renamed from blocks_created (no longer stored to memories)
-    ephemeral_stored: int = 0  # ADR-038: items stored to filesystem_items
+    content_stored: int = 0  # ADR-072: items stored to platform_content
     items_processed: int = 0
     items_filtered: int = 0
     summary: Optional[str] = None
@@ -578,14 +579,14 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             ).execute()
             deliverable_count = deliverables_result.count or 0
 
-            # Count recent activity from filesystem_items (last 7 days)
-            # ADR-058: filesystem_items uses synced_at, not created_at
+            # Count recent activity from platform_content (last 7 days)
+            # ADR-072: platform_content uses fetched_at
             seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
-            activity_result = auth.client.table("filesystem_items").select(
+            activity_result = auth.client.table("platform_content").select(
                 "id", count="exact"
             ).eq("user_id", user_id).eq(
                 "platform", provider
-            ).gte("synced_at", seven_days_ago).execute()
+            ).gte("fetched_at", seven_days_ago).execute()
             activity_7d = activity_result.count or 0
 
             platforms.append(PlatformSummary(
@@ -2363,9 +2364,9 @@ async def oauth_callback(
                 "landscape_discovered_at": None,
             }).eq("id", existing.data[0]["id"]).execute()
 
-            # Purge stale data from old workspace (ADR-058 tables)
-            # Delete filesystem_items from this platform
-            service_client.table("filesystem_items").delete().eq(
+            # Purge stale data from old workspace (ADR-072 tables)
+            # Delete platform_content from this platform
+            service_client.table("platform_content").delete().eq(
                 "user_id", user_id
             ).eq("platform", provider).execute()
 
@@ -2574,9 +2575,9 @@ async def get_platform_context(
     limit: int = Query(20, ge=1, le=100, description="Max items to return"),
     resource_id: Optional[str] = Query(None, description="Filter by specific resource"),
     auth: UserClient = None
-) -> PlatformContextResponse:
+) -> PlatformContentResponse:
     """
-    ADR-052: Get synced content from filesystem_items for a platform.
+    ADR-072: Get synced content from platform_content for a platform.
 
     This is the actual platform content (messages, emails, pages) that TP knows about.
     Different from landscape (which shows available resources) and memories (user-stated facts).
@@ -2587,15 +2588,16 @@ async def get_platform_context(
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     user_id = auth.user_id
+    now = datetime.utcnow().isoformat()
 
-    # Build query
+    # Build query (ADR-072: include retained OR non-expired)
     query = (
-        auth.client.table("filesystem_items")
+        auth.client.table("platform_content")
         .select("*")
         .eq("user_id", user_id)
         .eq("platform", provider)
-        .gt("expires_at", datetime.utcnow().isoformat())  # Only non-expired
-        .order("source_timestamp", desc=True)
+        .or_(f"retained.eq.true,expires_at.gt.{now}")
+        .order("fetched_at", desc=True)
         .limit(limit)
     )
 
@@ -2606,11 +2608,11 @@ async def get_platform_context(
 
     # Get total count
     count_query = (
-        auth.client.table("filesystem_items")
+        auth.client.table("platform_content")
         .select("id", count="exact")
         .eq("user_id", user_id)
         .eq("platform", provider)
-        .gt("expires_at", datetime.utcnow().isoformat())
+        .or_(f"retained.eq.true,expires_at.gt.{now}")
     )
     if resource_id:
         count_query = count_query.eq("resource_id", resource_id)
@@ -2627,20 +2629,21 @@ async def get_platform_context(
         if source_ts and (freshest_at is None or source_ts > freshest_at):
             freshest_at = source_ts
 
-        items.append(PlatformContextItem(
+        items.append(PlatformContentItem(
             id=row["id"],
             content=row["content"][:500] if row["content"] else "",  # Truncate for list view
             content_type=row.get("content_type"),
             resource_id=row["resource_id"],
             resource_name=row.get("resource_name"),
             source_timestamp=source_ts,
-            synced_at=row["synced_at"],  # ADR-058: Use synced_at instead of created_at
+            fetched_at=row["fetched_at"],  # ADR-072: Use fetched_at
+            retained=row.get("retained", False),  # ADR-072: retention flag
             metadata=row.get("metadata", {}),
         ))
 
-    logger.info(f"[INTEGRATIONS] User {user_id} fetched {len(items)} context items from {provider}")
+    logger.info(f"[INTEGRATIONS] User {user_id} fetched {len(items)} content items from {provider}")
 
-    return PlatformContextResponse(
+    return PlatformContentResponse(
         items=items,
         total_count=total_count,
         freshest_at=freshest_at,

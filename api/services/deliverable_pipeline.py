@@ -3718,22 +3718,23 @@ async def execute_gather_step(
     if integration_data_sections:
         integration_context = "\n\n## Integration Data (Fetched)\n\n" + "\n\n".join(integration_data_sections)
 
-    # ADR-058: Fetch filesystem items for this deliverable's sources
-    filesystem_context_text = ""
+    # ADR-072: Fetch platform content for this deliverable's sources
+    platform_context_text = ""
+    platform_content_ids = []
     try:
-        from services.filesystem import get_items_summary_for_generation
+        from services.platform_content import get_content_summary_for_generation
 
-        filesystem_summary = await get_items_summary_for_generation(
+        content_summary, platform_content_ids = await get_content_summary_for_generation(
             db_client=client,
             user_id=user_id,
             deliverable_sources=sources,
             max_items=100,
         )
-        if filesystem_summary:
-            filesystem_context_text = f"\n\n## Recent Platform Content\n\n{filesystem_summary}"
-            logger.info(f"[GATHER] Included filesystem items ({len(filesystem_summary)} chars)")
+        if content_summary:
+            platform_context_text = f"\n\n## Recent Platform Content\n\n{content_summary}"
+            logger.info(f"[GATHER] Included platform content ({len(content_summary)} chars, {len(platform_content_ids)} items)")
     except Exception as e:
-        logger.warning(f"[GATHER] Failed to fetch filesystem items (non-fatal): {e}")
+        logger.warning(f"[GATHER] Failed to fetch platform content (non-fatal): {e}")
 
     gather_prompt = f"""Gather the latest context and information for producing: {title}
 
@@ -3742,11 +3743,11 @@ Description: {deliverable.get('description', 'No description provided')}
 Configured sources:
 {sources_text}
 {integration_context}
-{filesystem_context_text}
+{platform_context_text}
 
 Your task:
 1. Review and synthesize any available information from the sources
-2. Pay special attention to signals in the filesystem content (hot threads, unanswered questions, stalled items)
+2. Pay special attention to signals in the platform content (hot threads, unanswered questions, stalled items)
 3. Identify key updates, changes, or new data since the last delivery
 4. Note any gaps or missing information that might be needed
 5. Summarize the gathered context in a structured format

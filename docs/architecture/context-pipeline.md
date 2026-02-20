@@ -2,7 +2,7 @@
 
 How platform data flows from OAuth connection through to the TP system prompt and deliverable execution.
 
-> **Last updated**: 2026-02-19 (ADR-065 — live-first platform context; filesystem_items as fallback)
+> **Last updated**: 2026-02-20 (ADR-072 — unified content layer and TP execution pipeline)
 
 ---
 
@@ -13,8 +13,9 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │  MEMORY  (user_context)                                      │
-│  What TP knows about you — stable, explicit, small          │
+│  What TP knows about you — stable, explicit, auditable      │
 │  Injected into every TP session (working memory block)      │
+│  source_ref tracks provenance of each entry                  │
 └─────────────────────────────────────────────────────────────┘
          Written by: user directly (Context page); Memory Service nightly cron
 
@@ -24,22 +25,23 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  Recent events injected into every TP session               │
 └─────────────────────────────────────────────────────────────┘
          Written by: deliverable pipeline, platform sync,
-                     memory service (nightly cron)
+                     signal processing, memory service
 
 ┌─────────────────────────────────────────────────────────────┐
-│  CONTEXT  (filesystem_items + live platform APIs)           │
-│  What's in your platforms right now — ephemeral, large      │
-│  Accessed on demand: Search (cache) or live fetch           │
+│  CONTEXT  (platform_content) — ADR-072                       │
+│  Unified content layer with retention-based accumulation     │
+│  Versioned · Semantically indexed · Provenance-tracked      │
 └─────────────────────────────────────────────────────────────┘
-         Written by: background sync worker (cache),
-                     live API calls at execution time
+         Written by: platform sync (ephemeral content)
+                     signal processing (retained content)
+         Marked retained by: deliverable execution, TP sessions
 
 ┌─────────────────────────────────────────────────────────────┐
 │  WORK  (deliverables + deliverable_versions)                 │
 │  What TP produces — structured, versioned, exported         │
-│  Always generated from live Context reads                   │
+│  source_snapshots includes platform_content_ids             │
 └─────────────────────────────────────────────────────────────┘
-         Written by: deliverable execution pipeline
+         Written by: TP in execution mode (headless)
 ```
 
 ### Reference models
@@ -48,29 +50,58 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 |---|---|---|---|
 | **Memory** | CLAUDE.md | SOUL.md / USER.md | `user_context` |
 | **Activity** | Git commit log | Script execution log | `activity_log` |
-| **Context** | Source files (read on demand) | Local filesystem | `filesystem_items` + live APIs |
+| **Context** | Source files (read on demand) | Local filesystem | `platform_content` |
 | **Work** | Build output | Script output | `deliverable_versions` |
-| **Execution** | Shell / Bash | Skills | Deliverable pipeline (live reads) |
+| **Execution** | Shell / Bash | Skills | TP (headless mode) |
 
 ---
 
-## Two Independent Data Paths
+## Unified Content Layer (ADR-072)
 
-A common source of confusion: the platform sync pipeline and the deliverable execution pipeline both talk to the same upstream platforms (Slack, Gmail, Notion, Calendar) but are **completely independent systems** with different purposes.
+> **Note**: This section replaces the previous "Two Independent Data Paths" section. ADR-072 unifies content access.
+
+### The `platform_content` table
+
+All platform content flows through a single table with retention semantics:
 
 ```
-Platform Sync (platform_worker.py)
-  → Reads platform APIs on a schedule
-  → Writes to filesystem_items (TTL cache)
-  → Purpose: power conversational Search
-
-Deliverable Execution (deliverable_execution.py)
-  → Reads platform APIs live at generation time
-  → Never reads filesystem_items
-  → Purpose: produce authoritative, current content
+platform_content
+├── Ephemeral content (retained=false, expires_at set)
+│   └── Written by platform sync, expires after TTL
+│
+└── Retained content (retained=true, expires_at NULL)
+    └── Marked significant by deliverable execution, signal processing, or TP sessions
 ```
 
-Scheduled deliverables run entirely on live reads. `filesystem_items` is not consulted. This is by design and correct — deliverables should reflect the state of platforms at the moment of generation, not a cached snapshot.
+### Two writers
+
+**Platform Sync** (`platform_worker.py`):
+- Runs continuously on tier-appropriate frequency
+- Writes with `retained=false`, `expires_at=NOW()+TTL`
+- Knows nothing about significance — just syncs
+
+**Signal Processing** (`signal_extraction.py`):
+- Reads live APIs for time-sensitive signals
+- Writes significant content with `retained=true`
+- Sets `retained_reason='signal_processing'`
+
+### Retention marking
+
+When content is consumed by a downstream system, it's marked retained:
+
+| Consumer | When | Sets |
+|---|---|---|
+| Deliverable execution | After synthesis | `retained=true`, `retained_reason='deliverable_execution'`, `retained_ref=version_id` |
+| TP session | After semantic search hit | `retained=true`, `retained_reason='tp_session'`, `retained_ref=session_id` |
+| Signal processing | When identified as significant | `retained=true`, `retained_reason='signal_processing'` |
+
+### The accumulation moat
+
+Content that proves significant accumulates indefinitely. Over time, `platform_content` contains:
+- Recent ephemeral content (TTL-bounded, most expires unused)
+- Accumulated significant content (never expires, the compounding moat)
+
+This is how YARNNN builds intelligence over time. A user with 6 months of deliverable history has a rich archive of content that mattered.
 
 ---
 

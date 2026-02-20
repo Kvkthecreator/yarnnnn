@@ -253,7 +253,7 @@ async def should_skip_deliverable(
     Returns:
         Tuple of (should_skip, reason)
     """
-    from services.filesystem import has_fresh_items_since
+    from services.platform_content import has_fresh_content_since
 
     sources = deliverable.get("sources", [])
     if not sources:
@@ -274,9 +274,9 @@ async def should_skip_deliverable(
     except (ValueError, TypeError):
         return False, ""
 
-    # Check for fresh filesystem items
+    # Check for fresh platform content (ADR-072)
     try:
-        has_fresh, count = await has_fresh_items_since(
+        has_fresh, count = await has_fresh_content_since(
             db_client=supabase_client,
             user_id=deliverable["user_id"],
             deliverable_sources=sources,
@@ -284,7 +284,7 @@ async def should_skip_deliverable(
         )
 
         if not has_fresh:
-            return True, "No new items since last run"
+            return True, "No new content since last run"
 
         return False, ""
 
@@ -724,17 +724,17 @@ async def run_unified_scheduler():
                 logger.error(f"[DIGEST] Unexpected error for {ws.get('workspace_name')}: {e}")
 
     # -------------------------------------------------------------------------
-    # ADR-031: Cleanup Expired Ephemeral Context (hourly)
+    # ADR-072: Cleanup Expired Platform Content (hourly)
     # -------------------------------------------------------------------------
-    filesystem_cleaned = 0
+    content_cleaned = 0
     if now.minute < 5:  # Only run cleanup in first 5 minutes of each hour
         try:
-            from services.filesystem import cleanup_expired_items
-            filesystem_cleaned = await cleanup_expired_items(supabase)
-            if filesystem_cleaned > 0:
-                logger.info(f"[FILESYSTEM] Cleaned up {filesystem_cleaned} expired items")
+            from services.platform_content import cleanup_expired_content
+            content_cleaned = await cleanup_expired_content(supabase)
+            if content_cleaned > 0:
+                logger.info(f"[PLATFORM_CONTENT] Cleaned up {content_cleaned} expired items")
         except Exception as e:
-            logger.warning(f"[FILESYSTEM] Cleanup failed (non-fatal): {e}")
+            logger.warning(f"[PLATFORM_CONTENT] Cleanup failed (non-fatal): {e}")
 
     # -------------------------------------------------------------------------
     # ADR-031 Phase 4: Cleanup Expired Event Trigger Cooldowns (hourly)

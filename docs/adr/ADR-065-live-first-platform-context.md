@@ -160,7 +160,7 @@ Answer user with live data (no disclosure needed — it's live)
 
 ## Related
 
-- [ADR-062](ADR-062-platform-context-architecture.md) — Prior model (filesystem_items as primary); this ADR amends its "conversational search" mandate
+- [ADR-062](ADR-062-platform-context-architecture-SUPERSEDED.md) — Prior model (filesystem_items as primary); this ADR amends its "conversational search" mandate
 - [ADR-063](ADR-063-activity-log-four-layer-model.md) — Four-layer model (Memory / Activity / Context / Work)
 - [ADR-050](ADR-050-mcp-gateway-architecture.md) — Platform tools (live API calls during conversation)
 - [context-pipeline.md](../architecture/context-pipeline.md) — Updated to reflect this ADR

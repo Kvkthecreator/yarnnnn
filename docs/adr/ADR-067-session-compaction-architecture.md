@@ -198,7 +198,7 @@ No infrastructure changes. Just wire the nightly cron writer:
 - [Sessions](../features/sessions.md) — Session lifecycle documentation
 - [Memory](../features/memory.md) — Memory extraction (nightly cron, same job as session summaries)
 - [Backend Orchestration](../features/backend-orchestration.md) — Nightly cron context (independent domain)
-- [ADR-049](ADR-049-context-freshness-model.md) — Superseded: session scope and history sections
+- [ADR-049](ADR-049-context-freshness-model-SUPERSEDED.md) — Superseded: session scope and history sections
 - [ADR-006](ADR-006-session-message-architecture.md) — Session and message schema
 - [ADR-064](ADR-064-unified-memory-service.md) — Memory extraction service (Phase 1 extends this)
 - `api/routes/chat.py` — Session creation, history building

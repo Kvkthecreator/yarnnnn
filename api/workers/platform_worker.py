@@ -9,10 +9,10 @@ ADR-056: Per-Source Sync Implementation
 - Respects tier limits via selected_sources list
 - Enables monetization based on source count
 
-This refreshes the filesystem_items for a provider by:
-1. Filtering to selected sources only
-2. Fetching recent content per source
-3. Storing in filesystem_items table with TTL
+ADR-072: Unified Content Layer
+- Writes to platform_content table (replaces filesystem_items)
+- Content starts as ephemeral (retained=false, expires_at set)
+- Downstream systems mark content as retained when referenced
 """
 
 import asyncio
@@ -228,10 +228,10 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                 limit=50,
             )
 
-            # Store in filesystem_items
+            # Store in platform_content (ADR-072)
             for msg in messages:
                 msg_ts = msg.get("ts", "")
-                await _store_filesystem_items(
+                await _store_platform_content(
                     client=client,
                     user_id=user_id,
                     source_type="slack",
@@ -346,7 +346,7 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                         sender = headers.get("from", "")
                         date_str = headers.get("date", "")
 
-                        await _store_filesystem_items(
+                        await _store_platform_content(
                             client=client,
                             user_id=user_id,
                             source_type="gmail",
@@ -442,7 +442,7 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
                 blocks = await notion_client.get_page_content(access_token, page_id)
                 content = _extract_text_from_notion_blocks(blocks)
 
-                await _store_filesystem_items(
+                await _store_platform_content(
                     client=client,
                     user_id=user_id,
                     source_type="notion",
@@ -573,7 +573,7 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
                         content_parts.append(f"Location: {location}")
                     content = "\n".join(content_parts)
 
-                    await _store_filesystem_items(
+                    await _store_platform_content(
                         client=client,
                         user_id=user_id,
                         source_type="calendar",
@@ -610,7 +610,7 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
         return {"error": str(e), "items_synced": items_synced}
 
 
-async def _store_filesystem_items(
+async def _store_platform_content(
     client,
     user_id: str,
     source_type: str,
@@ -622,7 +622,7 @@ async def _store_filesystem_items(
     metadata: dict,
     source_timestamp: Optional[str] = None,
 ) -> None:
-    """Store item in filesystem_items table with TTL.
+    """Store item in platform_content table with TTL (ADR-072).
 
     item_id is the platform-native identifier for the specific item within the resource:
     - Slack: message ts
@@ -630,24 +630,26 @@ async def _store_filesystem_items(
     - Calendar: event_id
     - Notion: page_id (same as resource_id for Notion since each page is its own resource)
 
-    Upserts on (user_id, platform, resource_id, item_id) — matching the UNIQUE constraint —
-    so re-syncing the same item refreshes content and extends TTL rather than duplicating.
+    Upserts on (user_id, platform, resource_id, item_id, content_hash) — matching the UNIQUE constraint.
+    Content starts as ephemeral (retained=false); downstream systems mark as retained when referenced.
     """
     from datetime import timedelta
+    import hashlib
 
-    # TTL based on source type
+    # TTL based on source type (ADR-072)
     ttl_hours = {
-        "slack": 72,
-        "gmail": 168,  # 1 week
-        "notion": 168,
-        "calendar": 168,  # 1 week
-    }.get(source_type, 72)
+        "slack": 168,     # 7 days
+        "gmail": 336,     # 14 days
+        "notion": 720,    # 30 days
+        "calendar": 24,   # 1 day
+    }.get(source_type, 168)
 
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(hours=ttl_hours)
+    content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
 
     try:
-        client.table("filesystem_items").upsert({
+        client.table("platform_content").upsert({
             "user_id": user_id,
             "platform": source_type,
             "resource_id": resource_id,
@@ -655,14 +657,16 @@ async def _store_filesystem_items(
             "item_id": item_id,
             "content": content[:10000],
             "content_type": content_type,
+            "content_hash": content_hash,
             "metadata": metadata,
             "source_timestamp": source_timestamp,
-            "synced_at": now.isoformat(),
+            "fetched_at": now.isoformat(),
+            "retained": False,
             "expires_at": expires_at.isoformat(),
-        }, on_conflict="user_id,platform,resource_id,item_id").execute()
+        }, on_conflict="user_id,platform,resource_id,item_id,content_hash").execute()
 
     except Exception as e:
-        logger.warning(f"[PLATFORM_WORKER] Failed to store context: {e}")
+        logger.warning(f"[PLATFORM_WORKER] Failed to store content: {e}")
 
 
 # For direct execution (development/testing)
