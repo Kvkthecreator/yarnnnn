@@ -152,21 +152,7 @@ A single flat key-value store for everything TP knows *about the user*. Replaces
 
 ---
 
-## Context Layer: filesystem_items
-
-**Table**: `filesystem_items`
-**ADR**: ADR-049, ADR-062
-
-An internal cache of recent platform content. Short TTL. Exists specifically to serve `Search(scope="platform_content")` during conversational TP sessions.
-
-### What it is and is not
-
-- **Is**: A fallback search index for conversational queries that live platform tools can't serve cheaply (e.g., cross-platform aggregation)
-- **Is not**: The primary path for platform content access — live platform tools are. Is not a source of truth. Is not used by deliverable execution.
-
-**ADR-065**: The prior model treated `filesystem_items` as TP's primary platform content path. This has been revised. TP uses live platform tools first; `filesystem_items` is a fallback. When fallback is used, TP discloses the cache age to the user.
-
-### Sync frequency (ADR-053)
+## Sync Frequency (ADR-053)
 
 | Tier | Frequency | Min interval |
 |---|---|---|
@@ -174,57 +160,44 @@ An internal cache of recent platform content. Short TTL. Exists specifically to 
 | Starter | 4x/day | 4 hours |
 | Pro | Hourly | 45 minutes |
 
-Triggered by `unified_scheduler.py` → `platform_sync_scheduler.py` → `platform_worker.py` every 5 minutes.
+Triggered by `unified_scheduler.py` → `platform_worker.py` every 5 minutes.
 
 ### What each platform extracts
 
 | Platform | Method | What is stored |
 |---|---|---|
 | Slack | MCPClientManager → `@modelcontextprotocol/server-slack` | Last 50 messages per selected channel |
-| Notion | `NotionAPIClient` direct REST (fixed 580f378) | Full page content per selected page |
+| Notion | `NotionAPIClient` direct REST | Full page content per selected page |
 | Gmail | `GoogleAPIClient` direct REST | Last 50 emails per selected label, 7-day window |
 | Calendar | `GoogleAPIClient` direct REST | Next 7 days of events |
 
-### TTL
+### TTL by platform (for unreferenced content)
 
 | Platform | Expiry |
 |---|---|
-| Slack | 72 hours |
-| Notion | 168 hours |
-| Gmail | 168 hours |
-| Calendar | 168 hours |
-
-### Upsert key
-
-`(user_id, platform, resource_id)` — one row per source+resource, refreshed on each sync.
-
-### Known issue: Notion sync
-
-`_sync_notion()` in `platform_worker.py` currently uses `MCPClientManager` which spawns `@notionhq/notion-mcp-server` via `npx`. This server requires internal integration tokens (`ntn_...`), not OAuth tokens. Notion content is likely **not landing in `filesystem_items`** — the sync is silently failing.
-
-**Fix**: Replace with direct `NotionAPIClient.get_page_content()` calls, identical to the landscape discovery fix already applied. This is the correct and ready fix; it is now a prioritised bug.
+| Slack | 7 days |
+| Gmail | 14 days |
+| Notion | 30 days |
+| Calendar | 1 day |
 
 ---
 
-## Context Layer: Live Platform APIs (Deliverable Execution)
+## Deliverable Execution (ADR-072)
 
-When a deliverable runs (scheduled or on-demand), data is fetched **live** from platform APIs at execution time. No cache is consulted.
+> **Note**: Deliverable execution now uses TP in headless mode with unified primitives. The previous parallel fetch pipeline is deleted.
 
-**Entry point**: `deliverable_pipeline.py → fetch_integration_source_data()`
+When a deliverable runs (scheduled, event-triggered, or manual):
 
-**Flow**:
-```
-unified_scheduler.py (every 5 min)
-  → get_due_deliverables()
-  → execute_deliverable_generation()   [deliverable_execution.py]
-  → get_execution_strategy()           [execution_strategies.py]
-  → strategy.gather_context()
-  → fetch_integration_source_data()    [deliverable_pipeline.py]
-  → _fetch_gmail_data() / _fetch_slack_data() / _fetch_notion_data() / _fetch_calendar_data()
-  → Live API call using decrypted credentials from platform_connections
-```
+1. `unified_scheduler.py` fetches deliverable configuration
+2. TP invoked in **execution mode** (headless, no streaming, no clarification)
+3. TP uses primitives (`Search`, `FetchPlatformContent`) to gather content from `platform_content`
+4. LLM synthesis produces output
+5. `deliverable_version` created with `platform_content_ids` in `source_snapshots`
+6. Source content marked `retained=true`, `retained_reason='deliverable_execution'`
+7. Content delivered to configured destination(s)
+8. `activity_log` event written
 
-Credentials are decrypted from `platform_connections` at execution time. Google tokens are refreshed automatically if expired. No user session is required — scheduled deliverables run fully headless.
+**Why unified execution?** Improvements to TP primitives automatically improve deliverable quality. One codebase, not two.
 
 ---
 
@@ -290,12 +263,8 @@ Three different connection mechanisms exist — understanding the distinction pr
 
 ---
 
-## Known Gaps (as of 2026-02-19)
+## Known Gaps (as of 2026-02-20)
 
-1. **Notion sync fixed** — `_sync_notion()` now uses `NotionAPIClient` directly (580f378). Resolved.
+1. **Document-to-Memory extraction removed** — Documents populate filesystem_chunks only. Intentional for now; "promote to Memory" is a deferred feature.
 
-2. **Document-to-Memory extraction removed** — Documents populate filesystem_chunks only. Intentional for now; "promote to Memory" is a deferred feature.
-
-3. **filesystem_items not used by execution** — documented here as intended behaviour, not a gap. Prevents confusion about the mirror's purpose.
-
-4. **Live-first access model (ADR-065)** — TP now uses live platform tools as the primary path for conversational platform queries. `filesystem_items` is fallback only. TP must disclose when a response is generated from cached content. See [ADR-065](../adr/ADR-065-live-first-platform-context.md).
+2. **Unified content layer (ADR-072)** — `platform_content` is now the single content table. The previous `filesystem_items` table was dropped in migration 077. All content access goes through unified primitives.

@@ -110,7 +110,7 @@ This block is injected as part of the TP system prompt (~2,000 token budget tota
 |---|---|
 | Can TP write Memory during conversation? | No — Memory is extracted at session end by backend jobs |
 | Does the user see memory writes? | No — writes are invisible. User reviews in Context page |
-| Can Memory contain platform content? | No — platform content lives in `filesystem_items` (Context layer) |
+| Can Memory contain platform content? | No — platform content lives in `platform_content` (Context layer) |
 | Does Memory grow automatically? | Yes — through implicit extraction from conversation, deliverable feedback, and activity patterns |
 | What happens when a key conflicts? | Upsert on `(user_id, key)` — last write wins |
 | Is Memory persistent across sessions? | Yes — it's the only layer that is explicitly persistent and stable |

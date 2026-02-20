@@ -47,7 +47,7 @@ get_due_deliverables()
        should_skip_deliverable()    — ADR-031: skip if no new context since last run
        process_deliverable()
          → get_execution_strategy() — type-driven (ADR-045)
-         → strategy.gather_context() — live platform reads (never filesystem_items)
+         → strategy.gather_context() — reads from platform_content (ADR-072)
          → DeliverableAgent LLM call
          → create deliverable_version (staged)
          → record source_snapshots
@@ -64,7 +64,7 @@ get_due_deliverables()
 - Slack: MCP gateway
 - Notion: `NotionAPIClient` direct REST
 
-`filesystem_items` is never consulted during execution.
+Content is accessed via the unified `platform_content` table (ADR-072).
 
 ### Phase 2 — Work Tickets (every 5 minutes)
 
@@ -77,7 +77,7 @@ Finds `work` records where `is_active=true AND next_run_at ≤ now`. Executes vi
 Runs when `now.minute < 5`:
 
 - **Weekly digests**: `get_workspaces_due_for_digest()` → `process_workspace_digest()`
-- **filesystem_items TTL cleanup**: Removes expired cached platform content
+- **platform_content TTL cleanup**: Removes expired non-retained content (ADR-072)
 - **Event trigger cooldown cleanup**: Removes expired rate-limit entries
 
 ### Phase 4 — Analysis Phase (daily, gated at midnight UTC)

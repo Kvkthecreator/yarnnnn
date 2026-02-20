@@ -121,7 +121,7 @@ unified_scheduler.py (every 5 min)
   → send email notification to user
 ```
 
-**Live reads only**: Execution never reads `filesystem_items`. Platform data is fetched live at the moment of generation — the output reflects the actual state of platforms at generation time, not a cached snapshot.
+**Unified content access (ADR-072)**: Execution uses `platform_content` (the unified content layer) via TP primitives. Content that proves significant is marked retained for future accumulation.
 
 **OAuth credentials**: Decrypted from `platform_connections` at execution time. Google tokens are refreshed automatically if expired.
 
@@ -183,7 +183,7 @@ This is a background process — TP does not prompt the user about suggestions m
 
 | Question | Answer |
 |---|---|
-| Does execution read from `filesystem_items`? | No — always live reads from platform APIs at generation time |
+| How does execution access content? | Via `platform_content` (unified layer, ADR-072) using TP primitives. Source content is marked retained after synthesis. |
 | Is a version mutable after generation? | The `final_content` field is immutable. The `status` field progresses (generating → delivered). |
 | Can a deliverable run without an active platform connection? | No — credentials are required at execution time |
 | Does deleting a deliverable delete its versions? | No — versions are retained for audit |

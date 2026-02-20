@@ -1,16 +1,17 @@
 # Context
 
 > Layer 3 of 4 in the YARNNN four-layer model (ADR-063)
+> **Updated**: 2026-02-20 — ADR-072 unified content layer
 
 ---
 
 ## What it is
 
-Context is the current working material — what's in the user's platforms right now. Emails, Slack messages, Notion pages, calendar events. It is ephemeral, large, and lives on the platforms themselves. YARNNN accesses it in two ways: through a local cache for conversational search, and through live API calls for deliverable generation.
+Context is the unified content layer — platform content with retention-based accumulation. Emails, Slack messages, Notion pages, calendar events. Content that proves significant (referenced by deliverables, signal processing, or TP sessions) is retained indefinitely. Unreferenced content expires after TTL.
 
-Context is never injected wholesale into the TP system prompt. It is fetched on demand, during a session, in response to a specific query or task.
+Context is never injected wholesale into the TP system prompt. It is fetched on demand, during a session, via TP primitives (`Search`, `FetchPlatformContent`, `CrossPlatformQuery`).
 
-**Analogy**: Context is the filesystem that Claude Code reads — source files exist on disk, but only the relevant ones are opened and read when needed. YARNNN's "disk" is the user's connected platforms.
+**Analogy**: Context is the filesystem that Claude Code reads — source files exist on disk, but only the relevant ones are opened and read when needed. YARNNN's "disk" is the user's connected platforms, with significant content accumulating over time.
 
 ---
 
@@ -23,52 +24,73 @@ Context is never injected wholesale into the TP system prompt. It is fetched on 
 
 ---
 
-## Two access paths
+## The `platform_content` table (ADR-072)
 
-Context is accessed in two distinct ways. They are completely independent.
+All platform content flows through a single table with retention semantics:
 
-### Path 1: Conversational Search (via `filesystem_items` cache)
+```
+platform_content
+├── Ephemeral content (retained=false, expires_at set)
+│   └── Written by platform sync, expires after TTL
+│
+└── Retained content (retained=true, expires_at NULL)
+    └── Marked significant by deliverable execution, signal processing, or TP sessions
+```
 
-When a user asks TP something like "what was discussed in #general this week?", TP calls `Search(scope="platform_content")`. This hits the `filesystem_items` table — a local cache of recent platform content — using an ILIKE text search.
+### Two writers
 
-The cache exists because fetching live from multiple platforms during a streaming response would be slow and composable cross-platform search would be impossible. The cache trades freshness for speed.
+**Platform Sync** (`platform_worker.py`):
+- Runs continuously on tier-appropriate frequency
+- Writes with `retained=false`, `expires_at=NOW()+TTL`
+- Knows nothing about significance — just syncs
 
-**Cache is populated by**: `platform_worker.py` on a schedule (Free: 2x/day, Starter: 4x/day, Pro: hourly). Each sync run reads from the platform APIs and writes to `filesystem_items` with a TTL.
+**Signal Processing** (`signal_extraction.py`):
+- Reads live APIs for time-sensitive signals
+- Writes significant content with `retained=true`
+- Sets `retained_reason='signal_processing'`
 
-**Cache is read by**: `api/services/primitives/search.py → _search_platform_content()` — ILIKE on `content` column.
+### Retention marking
 
-**Cache is NOT used by**: deliverable execution. Deliverables always read live. This is documented as intended behaviour, not a gap.
+When content is consumed by a downstream system, it's marked retained:
 
-### Path 2: Live Platform APIs (deliverable execution + TP tools)
-
-Two sub-paths here, both making live API calls:
-
-**Deliverable execution**: When a scheduled or on-demand deliverable runs, `deliverable_pipeline.py → fetch_integration_source_data()` decrypts credentials from `platform_connections` and calls the platform APIs directly. No cache is consulted. This ensures deliverables always reflect the state of platforms at the moment of generation.
-
-**TP platform tools**: During a conversation, TP can make targeted live calls via dedicated tools:
-- `platform_gmail_search` — searches Gmail directly
-- `platform_notion_search` — searches Notion directly
-- `platform_calendar_list_events` — lists calendar events
-- `platform_slack_list_channels` — lists Slack channels
-- `platform_slack_send_message`, `platform_gmail_create_draft`, etc. — action tools
-
-These are distinct from Search — they are action-oriented and precise, not cross-platform content queries.
+| Consumer | When | Sets |
+|---|---|---|
+| Deliverable execution | After synthesis | `retained=true`, `retained_reason='deliverable_execution'`, `retained_ref=version_id` |
+| TP session | After semantic search hit | `retained=true`, `retained_reason='tp_session'`, `retained_ref=session_id` |
+| Signal processing | When identified as significant | `retained=true`, `retained_reason='signal_processing'` |
 
 ---
 
-## Tables
+## Table Schema
 
-### `filesystem_items` — Conversational search cache
+### `platform_content` — Unified content layer
 
 | Column | Notes |
 |---|---|
 | `platform` | `slack`, `gmail`, `notion`, `calendar` |
-| `resource_id` | Channel ID, label, page ID |
-| `content` | Full message / email / page text |
+| `resource_id` | Channel ID, label, page ID, calendar ID |
+| `resource_name` | Human-readable name |
+| `item_id` | Unique item identifier from platform |
+| `content` | Full text content |
 | `content_type` | `message`, `email`, `page`, `event` |
-| `expires_at` | TTL — 72 hours (Slack) or 168 hours (Gmail/Notion/Calendar) |
+| `content_hash` | SHA-256 for deduplication on re-fetch |
+| `content_embedding` | vector(1536) for semantic search |
+| `fetched_at` | When fetched from platform |
+| `retained` | When true, content never expires |
+| `retained_reason` | `deliverable_execution`, `signal_processing`, `tp_session` |
+| `retained_ref` | FK to the record that marked this retained |
+| `expires_at` | NULL if retained=true, otherwise TTL |
 
-Upsert key: `(user_id, platform, resource_id, item_id)` — refreshed on each sync.
+**Unique constraint**: `(user_id, platform, resource_id, item_id, content_hash)`
+
+### TTL by platform (for unreferenced content)
+
+| Platform | Expiry |
+|---|---|
+| Slack | 7 days |
+| Gmail | 14 days |
+| Notion | 30 days |
+| Calendar | 1 day |
 
 ### `platform_connections` — OAuth credentials and settings
 
@@ -76,17 +98,30 @@ Stores encrypted OAuth tokens, sync preferences, selected sources, and last_sync
 
 ### `filesystem_documents` + `filesystem_chunks` — Uploaded documents
 
-User-uploaded PDFs, DOCX, TXT, MD files are chunked, embedded, and stored in `filesystem_chunks`. Searchable via `Search(scope="document")` — semantic vector search, not ILIKE. Documents are Context, not Memory — they are working material, not standing instructions.
+User-uploaded PDFs, DOCX, TXT, MD files are chunked, embedded, and stored in `filesystem_chunks`. Searchable via `Search(scope="document")` — semantic vector search. Documents are Context, not Memory — they are working material, not standing instructions.
 
 ### `sync_registry` — Per-resource sync state
 
-Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by `platform_worker.py` to track sync progress across runs without re-reading content that hasn't changed.
+Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by `platform_worker.py` to track sync progress across runs.
+
+---
+
+## How content is accessed
+
+**TP primitives** are the single access path:
+- `Search(scope="platform_content")` — semantic search via pgvector embeddings
+- `FetchPlatformContent` — targeted retrieval by resource
+- `CrossPlatformQuery` — multi-platform search
+
+**Deliverable execution** (ADR-072) uses TP in headless mode — same primitives, same search capabilities.
+
+**Signal processing** reads live APIs for time-sensitive signals, then marks corresponding `platform_content` records as retained.
 
 ---
 
 ## What each platform syncs
 
-| Platform | Sync method | What is cached |
+| Platform | Sync method | What is stored |
 |---|---|---|
 | Slack | MCPClientManager → `@modelcontextprotocol/server-slack` | Last 50 messages per selected channel |
 | Gmail | `GoogleAPIClient` direct REST | Last 50 emails per selected label, 7-day window |
@@ -95,19 +130,15 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by
 
 ---
 
-## Why the cache and live paths coexist
+## The accumulation moat
 
-The cache and live API paths serve different purposes and cannot replace each other:
+Content that proves significant accumulates indefinitely. Over time, `platform_content` contains:
+- Recent ephemeral content (TTL-bounded, most expires unused)
+- Accumulated significant content (never expires, the compounding moat)
 
-| | Cache (`filesystem_items`) | Live APIs |
-|---|---|---|
-| **Used for** | `Search(scope="platform_content")` during conversation | Deliverable execution, TP platform tools |
-| **Latency** | Fast (local DB query) | Slower (external API round trip) |
-| **Freshness** | Tier-dependent (2–24 hours stale possible) | Always current |
-| **Cross-platform** | Single ILIKE query across all platforms | Separate call per platform |
-| **Authoritative** | No — a cache, not source of truth | Yes — direct from platform |
+This is how YARNNN builds intelligence over time. A user with 6 months of deliverable history has a rich archive of content that mattered.
 
-Deliverables use live reads because they must be authoritative at the moment of generation. Conversational Search uses the cache because composable cross-platform text search during a streaming response requires a local index.
+**Key insight**: Don't accumulate everything. Don't expire everything. **Accumulate what proved significant.**
 
 ---
 
@@ -115,22 +146,21 @@ Deliverables use live reads because they must be authoritative at the moment of 
 
 | Question | Answer |
 |---|---|
-| Does TP get platform content in its system prompt? | No — Context is fetched on demand via Search or tools, never pre-loaded |
+| Does TP get platform content in its system prompt? | No — Context is fetched on demand via primitives, never pre-loaded |
 | Can Context be used as Memory? | No — platform content must be promoted explicitly. Automatic promotion was removed in ADR-059 |
-| Is `filesystem_items` the source of truth? | No — platforms are. The cache is a convenience index |
-| Does a stale cache affect deliverables? | No — deliverables always read live |
-| Can a document upload add Memory entries? | Not automatically. "Promote document to Memory" is a deferred feature (ADR-062) |
-| Why does `filesystem_items` exist if deliverables use live APIs? | Cache is for conversational search (ILIKE, cross-platform, low latency). Live APIs are for authoritative point-in-time reads. Neither can replace the other. |
+| Is `platform_content` the source of truth? | No — platforms are. `platform_content` is a working cache with retention semantics |
+| Does a stale cache affect deliverables? | No — deliverables use TP primitives which query `platform_content` with retention-aware filtering |
+| Can a document upload add Memory entries? | Not automatically. "Promote document to Memory" is a deferred feature |
+| What replaces `filesystem_items`? | `platform_content` (ADR-072). The old table was dropped in migration 077. |
 
 ---
 
 ## Related
 
-- [ADR-062](../adr/ADR-062-platform-context-architecture-SUPERSEDED.md) — filesystem_items role and mandate
-- [ADR-049](../adr/ADR-049-context-freshness-model-SUPERSEDED.md) — TTL and sync frequency
-- [ADR-056](../adr/ADR-056-per-source-sync-implementation.md) — Per-source sync design
+- [ADR-072](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Unified content layer and TP execution pipeline
+- [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Four-layer model
 - [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview
 - [context-pipeline.md](../architecture/context-pipeline.md) — Technical pipeline detail
+- `api/services/platform_content.py` — Unified content service
 - `api/workers/platform_worker.py` — sync worker
 - `api/services/primitives/search.py` — `Search(scope="platform_content")`
-- `api/services/deliverable_pipeline.py` — live reads for deliverable execution

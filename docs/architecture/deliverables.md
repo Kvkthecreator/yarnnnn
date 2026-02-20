@@ -137,9 +137,11 @@ Each deliverable type has a `type_classification` object that determines executi
 ```
 
 **`binding`** — Determines execution strategy (see Execution Model below)
-- `platform_bound` → `PlatformBoundStrategy` (single platform, API-native fetch)
-- `cross_platform` → `CrossPlatformStrategy` (multi-platform, filesystem_items cache)
-- `hybrid` → `HybridStrategy` (web research + platform fetch in parallel)
+- `platform_bound` → Single platform focus
+- `cross_platform` → Multi-platform search via `platform_content`
+- `hybrid` → Web research + platform fetch in parallel
+
+> **Note (ADR-072)**: All strategies now use unified `platform_content` access via TP primitives. The strategy distinction remains for prompt specialization.
 
 **`primary_platform`** — For platform-bound types, which platform to query
 
@@ -426,7 +428,7 @@ If `quality_trend = "declining"` for 3+ consecutive versions, the system could s
 | **Backend Orchestrator** | `unified_scheduler.py` executes deliverables. Three phases: Signal Processing → Analysis → Execution. |
 | **Memory (Layer 1)** | Memory informs deliverable generation (user preferences, tone, context) but is not sourced by deliverables. |
 | **Activity (Layer 2)** | Each deliverable execution writes an `activity_log` event. Activity log is read for signal processing deduplication. |
-| **Context (Layer 3)** | Deliverables read Context via live APIs (platform_bound) or `filesystem_items` cache (cross_platform). |
+| **Context (Layer 3)** | Deliverables read Context via `platform_content` (unified layer, ADR-072). TP primitives provide access. |
 | **Conversation Analyst** | Creates `analyst_suggested` deliverables by mining TP sessions. Runs daily, produces suggestions. |
 | **Signal Processing** | Creates `signal_emergent` deliverables by observing platform world. Runs hourly (testing) or daily (production). |
 

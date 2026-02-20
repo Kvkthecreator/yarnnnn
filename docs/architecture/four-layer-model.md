@@ -57,7 +57,7 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 |---|---|---|---|
 | Memory | `user_context` | `CLAUDE.md` | — |
 | Activity | `activity_log` | — | commit log |
-| Context | `filesystem_items` + live APIs | source files on disk | working tree |
+| Context | `platform_content` (unified layer) | source files on disk | working tree |
 | Work | `deliverable_versions` | build output | tagged release |
 
 **Claude Code analogy**: Memory is the `CLAUDE.md` Claude reads at startup. Context is the filesystem — files exist on disk, but only the relevant ones are opened when needed. Work is the build artifact the pipeline produces.

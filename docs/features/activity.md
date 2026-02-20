@@ -18,7 +18,7 @@ Recent activity is injected into every TP session at startup, so TP can answer "
 
 ## What it is not
 
-- Not platform content — that is Context (`filesystem_items`)
+- Not platform content — that is Context (`platform_content`)
 - Not generated output — that is Work (`deliverable_versions`)
 - Not stable user knowledge — that is Memory (`user_context`)
 - Not a replacement for `deliverable_versions` or `session_messages` — those still hold the full records; Activity holds lightweight summaries
