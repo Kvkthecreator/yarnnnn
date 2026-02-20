@@ -31,6 +31,10 @@ logger = logging.getLogger(__name__)
 CALENDAR_LOOKAHEAD_HOURS = 48       # Surface events within this window
 SILENCE_THRESHOLD_DAYS = 5          # Gmail threads quiet for this long
 SILENCE_MAX_THREADS = 10            # Cap on silence signals per run
+SLACK_SILENCE_DAYS = 7              # Slack channels quiet for this long
+SLACK_MAX_SIGNALS = 10              # Cap on Slack signals per run
+NOTION_STALE_DAYS = 14              # Notion pages not edited in this long
+NOTION_MAX_SIGNALS = 10             # Cap on Notion signals per run
 
 
 @dataclass
@@ -56,6 +60,30 @@ class SilenceSignal:
 
 
 @dataclass
+class SlackSignal:
+    """A Slack channel or DM that has gone quiet or needs response."""
+    channel_id: str
+    channel_name: str
+    signal_type: str                 # "channel_silence" or "unanswered_dm"
+    last_message_ts: str             # Slack timestamp of last message
+    days_silent: float               # Days since last activity
+    last_sender: Optional[str]       # Who sent last message (for DMs)
+    message_preview: Optional[str]   # First 100 chars of last message
+
+
+@dataclass
+class NotionSignal:
+    """A Notion page or task that needs attention."""
+    page_id: str
+    page_title: str
+    signal_type: str                 # "stale_page" or "overdue_task"
+    last_edited: str                 # ISO8601 of last edit
+    days_stale: float                # Days since last edit
+    database_name: Optional[str]     # Parent database name if applicable
+    status: Optional[str]            # Status property value (for tasks)
+
+
+@dataclass
 class SignalSummary:
     """
     Structured behavioral signal extracted from live platform APIs.
@@ -67,6 +95,8 @@ class SignalSummary:
     extracted_at: datetime
     calendar_signals: list[CalendarSignal] = field(default_factory=list)
     silence_signals: list[SilenceSignal] = field(default_factory=list)
+    slack_signals: list[SlackSignal] = field(default_factory=list)
+    notion_signals: list[NotionSignal] = field(default_factory=list)
     platform_activity: dict = field(default_factory=dict)  # counts per platform
     has_signals: bool = False
 
@@ -77,8 +107,11 @@ async def extract_signal_summary(
     """
     Extract behavioral signals from live platform APIs for a user.
 
-    Queries Google Calendar and Gmail APIs directly (NOT filesystem_items cache).
-    Decrypts credentials from platform_connections.
+    Queries all connected platforms directly (NOT filesystem_items cache):
+    - Google Calendar (events in next 48h)
+    - Gmail (silent threads)
+    - Slack (silent channels)
+    - Notion (stale pages, overdue tasks)
 
     Args:
         client: Supabase service-role client
@@ -110,12 +143,35 @@ async def extract_signal_summary(
         except Exception as e:
             logger.warning(f"[SIGNAL_EXTRACTION] Silence signal extraction failed for {user_id}: {e}")
 
-    summary.has_signals = bool(summary.calendar_signals or summary.silence_signals)
+    # Extract Slack signals (live Slack MCP)
+    if signals_filter in ("all", "non_calendar"):
+        try:
+            slack_signals = await _extract_slack_signals(client, user_id, now)
+            summary.slack_signals = slack_signals
+        except Exception as e:
+            logger.warning(f"[SIGNAL_EXTRACTION] Slack signal extraction failed for {user_id}: {e}")
+
+    # Extract Notion signals (live Notion API)
+    if signals_filter in ("all", "non_calendar"):
+        try:
+            notion_signals = await _extract_notion_signals(client, user_id, now)
+            summary.notion_signals = notion_signals
+        except Exception as e:
+            logger.warning(f"[SIGNAL_EXTRACTION] Notion signal extraction failed for {user_id}: {e}")
+
+    summary.has_signals = bool(
+        summary.calendar_signals or
+        summary.silence_signals or
+        summary.slack_signals or
+        summary.notion_signals
+    )
 
     logger.info(
         f"[SIGNAL_EXTRACTION] user={user_id} filter={signals_filter}: "
         f"calendar={len(summary.calendar_signals)}, "
-        f"silence={len(summary.silence_signals)}"
+        f"silence={len(summary.silence_signals)}, "
+        f"slack={len(summary.slack_signals)}, "
+        f"notion={len(summary.notion_signals)}"
     )
 
     return summary
@@ -317,4 +373,273 @@ async def _extract_silence_signals(
             continue
 
     logger.info(f"[SIGNAL_EXTRACTION] Found {len(signals)} silence signals for {user_id}")
+    return signals
+"""
+Slack and Notion signal extraction functions.
+
+Temporary file for implementation - will be integrated into signal_extraction.py
+"""
+
+import logging
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+
+logger = logging.getLogger(__name__)
+
+# Import constants from signal_extraction.py
+SLACK_SILENCE_DAYS = 7
+SLACK_MAX_SIGNALS = 10
+NOTION_STALE_DAYS = 14
+NOTION_MAX_SIGNALS = 10
+
+
+async def _extract_slack_signals(
+    client, user_id: str, now: datetime
+) -> list:
+    """
+    Extract Slack signals: silent channels and unanswered DMs.
+
+    Uses MCP Slack server via MCPClientManager to query:
+    - Channel message history (last 7 days)
+    - DM conversations awaiting response
+
+    Returns list of SlackSignal objects.
+    """
+    from dataclasses import dataclass
+    from typing import Optional
+
+    @dataclass
+    class SlackSignal:
+        channel_id: str
+        channel_name: str
+        signal_type: str
+        last_message_ts: str
+        days_silent: float
+        last_sender: Optional[str]
+        message_preview: Optional[str]
+
+    # Get Slack connection
+    conn_result = (
+        client.table("platform_connections")
+        .select("credentials_encrypted, settings")
+        .eq("user_id", user_id)
+        .eq("platform", "slack")
+        .eq("status", "active")
+        .single()
+        .execute()
+    )
+
+    if not conn_result.data:
+        return []  # No Slack connection
+
+    settings = conn_result.data.get("settings", {})
+    selected_channels = settings.get("selected_channels", [])
+
+    if not selected_channels:
+        return []  # No channels configured
+
+    # Query Slack via MCP
+    from integrations.mcp.client_manager import MCPClientManager
+
+    signals = []
+    mcp_manager = MCPClientManager()
+
+    try:
+        # Get Slack client
+        slack_client = await mcp_manager.get_client("slack")
+
+        if not slack_client:
+            logger.warning(f"[SIGNAL_EXTRACTION] Slack MCP client not available for {user_id}")
+            return []
+
+        cutoff_time = now - timedelta(days=SLACK_SILENCE_DAYS)
+
+        # Check each selected channel for silence
+        for channel in selected_channels[:SLACK_MAX_SIGNALS]:
+            channel_id = channel.get("id")
+            channel_name = channel.get("name", "unknown")
+
+            try:
+                # Call slack_read_channel via MCP
+                result = await slack_client.call_tool(
+                    "slack_read_channel",
+                    {
+                        "channel_id": channel_id,
+                        "limit": 20,  # Last 20 messages
+                    }
+                )
+
+                messages = result.get("messages", [])
+
+                if not messages:
+                    # Channel has no messages - treat as silent
+                    signals.append(SlackSignal(
+                        channel_id=channel_id,
+                        channel_name=channel_name,
+                        signal_type="channel_silence",
+                        last_message_ts="",
+                        days_silent=SLACK_SILENCE_DAYS,
+                        last_sender=None,
+                        message_preview=None,
+                    ))
+                    continue
+
+                # Find last message timestamp
+                last_msg = messages[0]  # MCP returns newest first
+                last_ts = last_msg.get("ts", "")
+                last_text = last_msg.get("text", "")
+                last_user = last_msg.get("user")
+
+                # Parse Slack timestamp (Unix epoch with decimal)
+                try:
+                    last_msg_time = datetime.fromtimestamp(float(last_ts), tz=timezone.utc)
+                    days_silent = (now - last_msg_time).total_seconds() / 86400
+
+                    if days_silent >= SLACK_SILENCE_DAYS:
+                        signals.append(SlackSignal(
+                            channel_id=channel_id,
+                            channel_name=channel_name,
+                            signal_type="channel_silence",
+                            last_message_ts=last_ts,
+                            days_silent=days_silent,
+                            last_sender=last_user,
+                            message_preview=last_text[:100] if last_text else None,
+                        ))
+                except (ValueError, TypeError):
+                    pass
+
+            except Exception as e:
+                logger.warning(f"[SIGNAL_EXTRACTION] Failed to query Slack channel {channel_id}: {e}")
+                continue
+
+    finally:
+        await mcp_manager.cleanup()
+
+    logger.info(f"[SIGNAL_EXTRACTION] Found {len(signals)} Slack signals for {user_id}")
+    return signals
+
+
+async def _extract_notion_signals(
+    client, user_id: str, now: datetime
+) -> list:
+    """
+    Extract Notion signals: stale pages and overdue tasks.
+
+    Uses live Notion API to query:
+    - Pages not edited in 14+ days (from selected databases)
+    - Database items with status != "Done" and due_date < today
+
+    Returns list of NotionSignal objects.
+    """
+    from dataclasses import dataclass
+    from typing import Optional
+
+    @dataclass
+    class NotionSignal:
+        page_id: str
+        page_title: str
+        signal_type: str
+        last_edited: str
+        days_stale: float
+        database_name: Optional[str]
+        status: Optional[str]
+
+    # Get Notion connection
+    conn_result = (
+        client.table("platform_connections")
+        .select("credentials_encrypted, settings")
+        .eq("user_id", user_id)
+        .eq("platform", "notion")
+        .eq("status", "active")
+        .single()
+        .execute()
+    )
+
+    if not conn_result.data:
+        return []  # No Notion connection
+
+    settings = conn_result.data.get("settings", {})
+    selected_pages = settings.get("selected_pages", [])
+
+    if not selected_pages:
+        return []  # No pages configured
+
+    # Decrypt Notion integration token
+    from integrations.core.tokens import get_token_manager
+
+    token_manager = get_token_manager()
+    notion_token = token_manager.decrypt(conn_result.data["credentials_encrypted"])
+
+    # Query Notion API
+    from integrations.notion.client import NotionAPIClient
+
+    notion_client = NotionAPIClient(notion_token)
+    signals = []
+
+    cutoff_time = now - timedelta(days=NOTION_STALE_DAYS)
+
+    # Check each selected page for staleness
+    for page in selected_pages[:NOTION_MAX_SIGNALS]:
+        page_id = page.get("id")
+        page_name = page.get("name", "Untitled")
+
+        try:
+            # Get page metadata
+            page_data = await notion_client.get_page(page_id)
+
+            last_edited_str = page_data.get("last_edited_time", "")
+
+            # Parse last edited time
+            try:
+                last_edited = datetime.fromisoformat(last_edited_str.replace("Z", "+00:00"))
+                days_stale = (now - last_edited).total_seconds() / 86400
+
+                if days_stale >= NOTION_STALE_DAYS:
+                    # Check if this is a database (for task detection)
+                    parent = page_data.get("parent", {})
+                    database_id = parent.get("database_id")
+
+                    signal_type = "stale_page"
+                    status = None
+                    database_name = None
+
+                    # If part of a database, check for overdue task properties
+                    if database_id:
+                        try:
+                            database_data = await notion_client.get_database(database_id)
+                            database_name = database_data.get("title", [{}])[0].get("plain_text", "Database")
+
+                            # Check for Status and Due Date properties
+                            props = page_data.get("properties", {})
+                            status_prop = props.get("Status", {})
+                            status = status_prop.get("status", {}).get("name") if status_prop else None
+
+                            due_date_prop = props.get("Due Date", {}) or props.get("Due", {})
+                            due_date_str = due_date_prop.get("date", {}).get("start") if due_date_prop else None
+
+                            if due_date_str and status and status != "Done":
+                                due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00"))
+                                if due_date < now:
+                                    signal_type = "overdue_task"
+                        except Exception:
+                            pass  # Database query failed, treat as stale page
+
+                    signals.append(NotionSignal(
+                        page_id=page_id,
+                        page_title=page_name,
+                        signal_type=signal_type,
+                        last_edited=last_edited_str,
+                        days_stale=days_stale,
+                        database_name=database_name,
+                        status=status,
+                    ))
+
+            except (ValueError, TypeError):
+                pass
+
+        except Exception as e:
+            logger.warning(f"[SIGNAL_EXTRACTION] Failed to query Notion page {page_id}: {e}")
+            continue
+
+    logger.info(f"[SIGNAL_EXTRACTION] Found {len(signals)} Notion signals for {user_id}")
     return signals

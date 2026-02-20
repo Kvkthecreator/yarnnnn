@@ -1,10 +1,26 @@
 # ADR-068: Signal-Emergent Deliverables
 
 **Date**: 2026-02-19
-**Status**: Proposed
+**Status**: Implemented
+**Updated**: 2026-02-20 — Extended to all platforms (Slack, Notion)
 **Extends**: ADR-061 (Two-Path Architecture) — adds a new Phase B orchestrator phase
 **Extends**: ADR-060 (Background Conversation Analyst) — widens the signal input beyond TP sessions
 **Relates to**: ADR-063 (Four-Layer Model), ADR-045 (Execution Strategies), ADR-018 (Recurring Deliverables)
+
+---
+
+## Implementation Status (2026-02-20)
+
+Signal detection now supports **all 4 connected platforms**:
+
+| Platform | Signal Types | Implementation |
+|---|---|---|
+| **Google Calendar** | Upcoming events (next 48h) | ✅ Live Google Calendar API |
+| **Gmail** | Silent threads (5+ days quiet) | ✅ Live Gmail API |
+| **Slack** | Channel silence (7+ days), unanswered DMs | ✅ MCP Slack server |
+| **Notion** | Stale pages (14+ days), overdue tasks | ✅ Live Notion API |
+
+See `api/services/signal_extraction.py` for full implementation.
 
 ---
 

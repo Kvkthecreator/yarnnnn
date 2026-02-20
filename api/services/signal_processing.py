@@ -356,6 +356,44 @@ def _build_reasoning_prompt(
     else:
         silence_text = "QUIET THREADS: None detected"
 
+    # Format Slack signals
+    slack_text = ""
+    if signal_summary.slack_signals:
+        items = []
+        for sig in signal_summary.slack_signals:
+            if sig.signal_type == "channel_silence":
+                items.append(
+                    f"- Channel #{sig.channel_name}: "
+                    f"quiet for {sig.days_silent:.1f} days (channel_id: {sig.channel_id})"
+                )
+            elif sig.signal_type == "unanswered_dm":
+                items.append(
+                    f"- DM from {sig.last_sender}: "
+                    f"awaiting response for {sig.days_silent:.1f} days"
+                )
+        slack_text = "SLACK SIGNALS:\n" + "\n".join(items)
+    else:
+        slack_text = "SLACK SIGNALS: None detected"
+
+    # Format Notion signals
+    notion_text = ""
+    if signal_summary.notion_signals:
+        items = []
+        for sig in signal_summary.notion_signals:
+            if sig.signal_type == "stale_page":
+                items.append(
+                    f"- Page \"{sig.page_title}\": "
+                    f"not edited in {sig.days_stale:.1f} days (page_id: {sig.page_id})"
+                )
+            elif sig.signal_type == "overdue_task":
+                items.append(
+                    f"- Task \"{sig.page_title}\" (Status: {sig.status}): "
+                    f"overdue by {sig.days_stale:.1f} days"
+                )
+        notion_text = "NOTION SIGNALS:\n" + "\n".join(items)
+    else:
+        notion_text = "NOTION SIGNALS: None detected"
+
     # Format user context (memory)
     context_text = ""
     if user_context:
@@ -424,6 +462,10 @@ def _build_reasoning_prompt(
 
 {silence_text}
 
+{slack_text}
+
+{notion_text}
+
 {context_text}
 
 {activity_text}
@@ -455,16 +497,28 @@ The EXISTING DELIVERABLES section includes recent output content from each deliv
 
 Example: If a meeting_prep deliverable exists but its last output was 2 weeks ago for different attendees, the current meeting signal warrants create_signal_emergent (one-time prep for THIS meeting) rather than trigger_existing (which would reuse stale configuration).
 
-For meeting_prep:
-- If user has recurring meeting_prep deliverable: Use "trigger_existing" to run it early
-- If no recurring meeting_prep exists: Use "create_signal_emergent" for one-time prep brief
-- Signal warrants action if: calendar event in next 48h with external attendees
+SIGNAL TYPES AND HANDLING:
 
-For silence_alert:
-- Gmail thread quiet for 5+ days warrants a nudge
-- Currently no recurring silence_alert deliverables exist, so use "create_signal_emergent"
+1. **Calendar signals** (upcoming meetings):
+   - If user has recurring meeting_prep deliverable: Use "trigger_existing" to run it early
+   - If no recurring meeting_prep exists: Use "create_signal_emergent" for one-time prep brief
+   - Signal warrants action if: calendar event in next 48h with external attendees
 
-IMPORTANT: Always include event_id (for calendar signals) or thread_id (for silence signals) in signal_context for deduplication tracking.
+2. **Gmail silence signals** (quiet threads):
+   - Gmail thread quiet for 5+ days warrants a nudge
+   - Currently no recurring silence_alert deliverables exist, so use "create_signal_emergent"
+
+3. **Slack signals** (channel silence, unanswered DMs):
+   - Channel quiet for 7+ days may warrant digest or check-in
+   - Unanswered DMs may warrant response reminder
+   - Create appropriate deliverable type based on context
+
+4. **Notion signals** (stale pages, overdue tasks):
+   - Pages not edited in 14+ days may warrant review
+   - Overdue tasks warrant action reminder
+   - Create appropriate deliverable type based on context
+
+IMPORTANT: Always include signal_context with platform-specific IDs (event_id, thread_id, channel_id, page_id) for deduplication tracking.
 
 Respond ONLY with valid JSON in this exact format:
 

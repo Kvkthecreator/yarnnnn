@@ -35,7 +35,7 @@ This validates:
 **Objective**: Verify manual trigger includes recent deliverable content in reasoning
 
 **Prerequisites**:
-- User has active platform connections (Google Calendar or Gmail)
+- User has active platform connections (Google Calendar, Gmail, Slack, or Notion)
 - User has at least 1 existing deliverable with generated versions
 
 **Test Steps**:
