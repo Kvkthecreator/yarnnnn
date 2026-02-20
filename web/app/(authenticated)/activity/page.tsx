@@ -222,9 +222,11 @@ export default function ActivityPage() {
       <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Activity className="w-6 h-6" />
+          <div>
             <h1 className="text-2xl font-bold">Activity</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Deliverables, approvals, integrations, syncs, and learnings
+            </p>
           </div>
           <button
             onClick={() => loadActivity()}
@@ -235,10 +237,6 @@ export default function ActivityPage() {
             Refresh
           </button>
         </div>
-
-        <p className="text-muted-foreground mb-4">
-          What YARNNN has done — deliverables, approvals, integrations, syncs, learnings, and conversations.
-        </p>
 
         {/* Filter */}
         <div className="flex items-center gap-2 mb-6 flex-wrap">

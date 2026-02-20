@@ -210,9 +210,11 @@ export default function JobsPage() {
       <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Zap className="w-6 h-6" />
+          <div>
             <h1 className="text-2xl font-bold">Jobs</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              System operations — platform syncs and background processing
+            </p>
           </div>
           <button
             onClick={() => loadData()}
@@ -223,10 +225,6 @@ export default function JobsPage() {
             Refresh
           </button>
         </div>
-
-        <p className="text-muted-foreground mb-6">
-          System operations — platform syncs and background processing.
-        </p>
 
         {loading ? (
           <div className="flex items-center justify-center py-12">

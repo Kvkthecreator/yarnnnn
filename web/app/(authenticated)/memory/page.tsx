@@ -24,7 +24,6 @@ import {
   User,
   Palette,
   BookOpen,
-  Brain,
   Slack,
   Mail,
   FileCode,
@@ -707,53 +706,48 @@ export default function MemoryPage() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="border-b border-border bg-card px-6 py-4 flex items-center justify-between shrink-0">
-        <div className="flex items-center gap-3">
-          <Brain className="w-6 h-6 text-purple-500" />
+    <div className="h-full overflow-auto">
+      <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-xl font-semibold text-foreground">Memory</h1>
-            <p className="text-sm text-muted-foreground">What YARNNN knows about you</p>
+            <h1 className="text-2xl font-bold">Memory</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              What YARNNN knows about you
+            </p>
           </div>
+          <button
+            onClick={() => {
+              setRefreshing(true);
+              loadData().finally(() => setRefreshing(false));
+            }}
+            disabled={refreshing}
+            className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
+          >
+            <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
+            Refresh
+          </button>
         </div>
-        <button
-          onClick={() => {
-            setRefreshing(true);
-            loadData().finally(() => setRefreshing(false));
-          }}
-          disabled={refreshing}
-          className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground"
-        >
-          <RefreshCw className={cn("w-4 h-4", refreshing && "animate-spin")} />
-          Refresh
-        </button>
-      </div>
 
-      {/* Section Navigation */}
-      <div className="border-b border-border bg-card px-6 shrink-0">
-        <nav className="flex gap-6">
+        {/* Section Navigation (filter chip style) */}
+        <div className="flex items-center gap-2 mb-6">
           {SECTIONS.map((section) => (
             <button
               key={section.id}
               onClick={() => handleSectionChange(section.id)}
-              className={cn(
-                "flex items-center gap-2 py-3 text-sm border-b-2 transition-colors",
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-full border ${
                 activeSection === section.id
-                  ? "border-primary text-primary font-medium"
-                  : "border-transparent text-muted-foreground hover:text-foreground"
-              )}
+                  ? 'bg-primary text-primary-foreground border-primary'
+                  : 'border-border hover:bg-muted'
+              }`}
             >
               {section.icon}
               {section.label}
             </button>
           ))}
-        </nav>
-      </div>
+        </div>
 
-      {/* Content */}
-      <main className="flex-1 overflow-auto">
-        <div className="max-w-3xl mx-auto px-6 py-6">
+        {/* Content */}
         {activeSection === 'profile' && (
           <ProfileSection
             profile={profile}
@@ -778,8 +772,7 @@ export default function MemoryPage() {
             onDelete={handleDeleteEntry}
           />
         )}
-        </div>
-      </main>
+      </div>
     </div>
   );
 }
