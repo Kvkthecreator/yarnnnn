@@ -84,10 +84,21 @@ export default function CalendarContextPage() {
   const [showPicker, setShowPicker] = useState(false);
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'details'>('calendar');
+  const [activeCalendarId, setActiveCalendarId] = useState<string>('primary');
 
   useEffect(() => {
     loadData();
   }, []);
+
+  // Update active calendar when designated calendar or calendars list changes
+  useEffect(() => {
+    if (designatedCalendarId) {
+      setActiveCalendarId(designatedCalendarId);
+    } else if (calendars.length > 0) {
+      const primary = calendars.find(c => c.primary);
+      setActiveCalendarId(primary?.id || calendars[0].id);
+    }
+  }, [designatedCalendarId, calendars]);
 
   const loadData = async () => {
     setLoading(true);
@@ -224,18 +235,6 @@ export default function CalendarContextPage() {
   const currentCalendar = designatedCalendarId
     ? calendars.find(c => c.id === designatedCalendarId) || { id: designatedCalendarId, summary: designatedCalendarName || designatedCalendarId }
     : calendars.find(c => c.primary) || null;
-
-  const [activeCalendarId, setActiveCalendarId] = useState<string>('primary');
-
-  // Update active calendar when designated calendar or calendars list changes
-  useEffect(() => {
-    if (designatedCalendarId) {
-      setActiveCalendarId(designatedCalendarId);
-    } else if (calendars.length > 0) {
-      const primary = calendars.find(c => c.primary);
-      setActiveCalendarId(primary?.id || calendars[0].id);
-    }
-  }, [designatedCalendarId, calendars]);
 
   const handleCalendarChange = (calendarId: string) => {
     setActiveCalendarId(calendarId);
