@@ -116,10 +116,11 @@ Deliverables use live reads because they must be authoritative at the moment of 
 | Question | Answer |
 |---|---|
 | Does TP get platform content in its system prompt? | No — Context is fetched on demand via Search or tools, never pre-loaded |
-| Can Context be used as Memory? | No — platform content must be promoted explicitly. Automatic extraction was removed in ADR-059 |
+| Can Context be used as Memory? | No — platform content must be promoted explicitly. Automatic promotion was removed in ADR-059 |
 | Is `filesystem_items` the source of truth? | No — platforms are. The cache is a convenience index |
 | Does a stale cache affect deliverables? | No — deliverables always read live |
 | Can a document upload add Memory entries? | Not automatically. "Promote document to Memory" is a deferred feature (ADR-062) |
+| Why does `filesystem_items` exist if deliverables use live APIs? | Cache is for conversational search (ILIKE, cross-platform, low latency). Live APIs are for authoritative point-in-time reads. Neither can replace the other. |
 
 ---
 

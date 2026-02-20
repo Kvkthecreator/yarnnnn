@@ -13,7 +13,13 @@ Deliverables are structured, recurring outputs — digests, meeting briefs, week
 
 Every generation run produces a versioned output (`deliverable_version`). Versions are staged for review, approved by the user, and exported to the configured destination (Slack channel, Gmail draft, Notion page, etc.).
 
+**Layer 4 serves dual purpose** (ADR-069):
+- **Output**: Versioned work products delivered to users
+- **Learning signal**: Training data for what quality looks like — recent deliverable content informs future signal processing decisions, and user edits feed back into Memory extraction
+
 **Conceptual analogy**: A deliverable is a standing order — "every Monday at 9am, read #engineering, summarise it, and send it to my Slack DM." The deliverable record is the configuration. The backend orchestrator is the worker that executes it. The version is the build artefact.
+
+**Strategic principle**: As user tenure increases, Layer 4 becomes the richest signal input. New users rely on Memory + Context; mature users benefit from months of accumulated intelligence in Work.
 
 ---
 
@@ -36,13 +42,19 @@ A deliverable defines what to read, how to format it, where to send it, and when
 |---|---|
 | `title` | Human-readable name ("Monday Slack Digest") |
 | `deliverable_type` | Type identifier (`digest`, `meeting_prep`, etc.) |
+| `origin` | `user_configured`, `analyst_suggested`, or `signal_emergent` (ADR-068) |
 | `status` | `active`, `paused`, `archived` |
 | `sources` | `[{platform, resource_id, resource_name}]` — what to read |
-| `schedule` | `{frequency, day, time, timezone}` — when to run |
+| `schedule` | `{frequency, day, time, timezone}` — when to run (nullable for signal_emergent) |
 | `recipient_context` | Destination configuration (channel, label, page) |
 | `template` | Template settings for the generation prompt |
 | `next_run_at` | When the scheduler will next trigger this deliverable |
 | `governance` | `manual` (default) or `full_auto` |
+
+**Three origins** (ADR-068):
+- `user_configured`: Explicitly created by user in UI or via TP (recurring)
+- `analyst_suggested`: Detected from TP conversation patterns (ADR-060)
+- `signal_emergent`: Created by signal processing from behavioral signals (one-time, promotable to recurring)
 
 ### `deliverable_versions` — Generated outputs
 
@@ -60,6 +72,13 @@ Every execution produces a new, immutable version. Status progresses forward; co
 | `published_at` | When it was sent to the destination |
 
 `source_snapshots` is the audit trail — it records `{platform, resource_id, resource_name, synced_at, item_count}` for each source consulted at generation time.
+
+**Learning signal role** (ADR-069): Recent version content (400-char preview) is included in signal processing prompts, enabling the LLM to:
+- Assess whether existing deliverable configuration is stale
+- Determine if recent work already covers a new signal
+- Make quality-aware `trigger_existing` vs `create_signal_emergent` decisions
+
+When users edit and approve versions, the diff between `draft_content` and `final_content` triggers memory extraction (`process_feedback()`) to learn format and length preferences (ADR-064).
 
 ---
 
@@ -165,11 +184,14 @@ This is a background process — TP does not prompt the user about suggestions m
 | Question | Answer |
 |---|---|
 | Does execution read from `filesystem_items`? | No — always live reads from platform APIs at generation time |
-| Is a version mutable after generation? | Content is immutable; `status` progresses forward only |
+| Is a version mutable after generation? | The `final_content` field is immutable. The `status` field progresses (generating → delivered). |
 | Can a deliverable run without an active platform connection? | No — credentials are required at execution time |
 | Does deleting a deliverable delete its versions? | No — versions are retained for audit |
 | Does the scheduler run if the user is offline? | Yes — execution is fully headless |
 | Does TP generate deliverable content during conversation? | No — TP creates the configuration; the orchestrator generates on schedule |
+| How does Layer 4 content influence future work? | Recent deliverable version content (400-char preview) is included in signal reasoning prompts (ADR-069). This enables quality-aware orchestration decisions. |
+| Can signal-emergent deliverables become recurring? | Yes. Deliverables can be promoted from one-time (`origin=signal_emergent`, no schedule) to recurring (add schedule). Origin field preserves provenance. |
+| Is deliverable approval wired to memory extraction? | Yes. Approval with edits triggers `process_feedback()` to extract length/format preferences to Memory (ADR-064). |
 
 ---
 
@@ -181,8 +203,12 @@ This is a background process — TP does not prompt the user about suggestions m
 - [ADR-045](../adr/ADR-045-deliverable-orchestration-redesign.md) — Type-aware execution strategies
 - [ADR-060](../adr/ADR-060-background-conversation-analyst.md) — Suggested deliverables (background analyst)
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Four-layer model
-- [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview
+- [ADR-064](../adr/ADR-064-unified-memory-service.md) — Memory extraction from deliverable feedback
+- [ADR-068](../adr/ADR-068-signal-emergent-deliverables.md) — Signal-emergent deliverables (third origin)
+- [ADR-069](../adr/ADR-069-layer-4-content-in-signal-reasoning.md) — Layer 4 content in signal processing
+- [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview (bidirectional learning)
 - `api/services/deliverable_execution.py` — Main execution entry point
 - `api/services/deliverable_pipeline.py` — Source data fetching and version creation
 - `api/services/execution_strategies.py` — Type-driven strategy selection
-- `api/jobs/unified_scheduler.py` — Cron trigger and orchestration loop
+- `api/jobs/unified_scheduler.py` — Cron trigger, orchestration loop, signal processing with Layer 4 content
+- `api/routes/deliverables.py` — Approval endpoint, triggers memory feedback extraction
