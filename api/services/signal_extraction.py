@@ -57,11 +57,16 @@ class SignalSummary:
         if self.platforms_queried is None:
             self.platforms_queried = []
 
+    @property
+    def has_signals(self) -> bool:
+        """Check if any platform content was fetched."""
+        return self.total_items > 0
+
 
 async def extract_signal_summary(
     client,
     user_id: str,
-    filter_mode: str = "all",
+    signals_filter: str = "all",
 ) -> SignalSummary:
     """
     Fetch live platform content for signal processing.
@@ -73,7 +78,7 @@ async def extract_signal_summary(
     Args:
         client: Supabase client
         user_id: User UUID
-        filter_mode: "all", "calendar_only", "non_calendar" (for cron scheduling)
+        signals_filter: "all", "calendar_only", "non_calendar" (for cron scheduling)
 
     Returns:
         SignalSummary with live content from connected platforms
@@ -102,7 +107,7 @@ async def extract_signal_summary(
     logger.info(f"[SIGNAL] User {user_id} has {len(active_platforms)} active platforms: {active_platforms}")
 
     # Fetch content from each platform based on filter mode
-    if filter_mode in ("all", "calendar_only") and "google" in active_platforms:
+    if signals_filter in ("all", "calendar_only") and "google" in active_platforms:
         summary.calendar_content = await _fetch_calendar_content(
             client, user_id, now, get_google_client(), get_token_manager()
         )
@@ -110,7 +115,7 @@ async def extract_signal_summary(
             summary.total_items += summary.calendar_content.items_count
             summary.platforms_queried.append("calendar")
 
-    if filter_mode in ("all", "non_calendar"):
+    if signals_filter in ("all", "non_calendar"):
         if "google" in active_platforms:
             summary.gmail_content = await _fetch_gmail_content(
                 client, user_id, now, get_google_client(), get_token_manager()
