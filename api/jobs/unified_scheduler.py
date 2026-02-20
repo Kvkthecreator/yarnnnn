@@ -964,6 +964,46 @@ async def run_unified_scheduler():
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")
 
     # -------------------------------------------------------------------------
+    # ADR-064: Activity Pattern Detection (daily at midnight UTC)
+    # Analyzes activity_log for behavioral patterns and writes to user_context
+    # -------------------------------------------------------------------------
+    pattern_users = 0
+    pattern_extracted = 0
+
+    if now.hour == 0 and now.minute < 5:
+        try:
+            from services.memory import process_patterns
+
+            # Get all users (pattern detection is lightweight, run for everyone)
+            users_result = (
+                supabase.table("users")
+                .select("id")
+                .execute()
+            )
+
+            for user_row in (users_result.data or []):
+                user_id = user_row["id"]
+                try:
+                    extracted = await process_patterns(
+                        client=supabase,
+                        user_id=user_id,
+                    )
+                    if extracted > 0:
+                        pattern_extracted += extracted
+                        pattern_users += 1
+                except Exception as e:
+                    logger.warning(f"[PATTERN] Error detecting patterns for {user_id}: {e}")
+
+            if pattern_users > 0:
+                logger.info(
+                    f"[PATTERN] Activity pattern detection complete: {pattern_users} users, "
+                    f"{pattern_extracted} patterns extracted"
+                )
+
+        except Exception as e:
+            logger.warning(f"[PATTERN] Activity pattern detection phase skipped: {e}")
+
+    # -------------------------------------------------------------------------
     # ADR-068 Phase 4: Split Signal Processing
     # - Calendar signals (hourly): Time-sensitive meeting prep briefs
     # - Other signals (daily 7 AM): Silence alerts, contact drift, etc.
