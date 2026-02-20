@@ -1133,10 +1133,10 @@ async def run_unified_scheduler():
         except Exception as e:
             logger.warning(f"[SIGNAL] Hourly calendar signal processing skipped: {e}")
 
-    # Daily 7 AM: Other signals (silence, contact drift) — less time-sensitive
+    # Hourly: Other signals (Gmail silence, Slack, Notion) — now time-sensitive too
     signal_daily_users = 0
     signal_daily_created = 0
-    if now.hour == 7 and now.minute < 5:
+    if now.minute < 5:
         try:
             from services.signal_extraction import extract_signal_summary
             from services.signal_processing import process_signal, execute_signal_actions
