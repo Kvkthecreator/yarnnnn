@@ -367,13 +367,18 @@ CONVERSATION:
     def _detect_activity_patterns(self, events: list[dict]) -> list[dict]:
         """
         Rule-based detection of behavioral patterns from activity log.
+
+        ADR-064 Phase 1B: Enhanced pattern detection beyond day-of-week.
+        Detects: day-of-week, time-of-day, deliverable type preferences, formatting patterns.
         """
         patterns = []
-
-        # Count deliverable runs by day of week
         from collections import Counter
 
+        # 1. Day-of-week patterns
         day_counts = Counter()
+        hour_counts = Counter()
+        type_counts = Counter()
+
         for event in events:
             if event.get("event_type") == "deliverable_run":
                 created_at = event.get("created_at", "")
@@ -381,18 +386,117 @@ CONVERSATION:
                     try:
                         dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
                         day_counts[dt.strftime("%A")] += 1
+                        hour_counts[dt.hour] += 1
                     except ValueError:
                         pass
 
-        # If clear pattern (one day has 3x more than others)
+                # Extract deliverable type from metadata
+                metadata = event.get("metadata", {})
+                if isinstance(metadata, dict):
+                    dtype = metadata.get("deliverable_type")
+                    if dtype:
+                        type_counts[dtype] += 1
+
+        # Day of week pattern (one day has >50% of activity and ≥3 runs)
         if day_counts:
             most_common_day, count = day_counts.most_common(1)[0]
             total = sum(day_counts.values())
             if count > total * 0.5 and count >= 3:
                 patterns.append({
-                    "key": f"pattern:deliverable_day",
+                    "key": "pattern:deliverable_day",
                     "value": f"Typically runs deliverables on {most_common_day}s",
                 })
+
+        # 2. Time-of-day patterns
+        if hour_counts:
+            total_runs = sum(hour_counts.values())
+            if total_runs >= 5:
+                # Group into time blocks
+                morning = sum(hour_counts[h] for h in range(6, 12))  # 6am-12pm
+                afternoon = sum(hour_counts[h] for h in range(12, 18))  # 12pm-6pm
+                evening = sum(hour_counts[h] for h in range(18, 24))  # 6pm-12am
+                night = sum(hour_counts[h] for h in range(0, 6))  # 12am-6am
+
+                blocks = {
+                    "morning (6am-12pm)": morning,
+                    "afternoon (12pm-6pm)": afternoon,
+                    "evening (6pm-12am)": evening,
+                    "late night (12am-6am)": night,
+                }
+
+                # If one block has >50% of activity
+                for block_name, block_count in blocks.items():
+                    if block_count > total_runs * 0.5 and block_count >= 3:
+                        patterns.append({
+                            "key": "pattern:deliverable_time",
+                            "value": f"Typically runs deliverables in the {block_name}",
+                        })
+                        break
+
+        # 3. Deliverable type preferences
+        if type_counts:
+            total_types = sum(type_counts.values())
+            if total_types >= 5:
+                most_common_type, type_count = type_counts.most_common(1)[0]
+                if type_count > total_types * 0.6:
+                    patterns.append({
+                        "key": "pattern:deliverable_type_preference",
+                        "value": f"Frequently uses {most_common_type} deliverables (primary workflow type)",
+                    })
+
+        # 4. Edit location patterns (from deliverable_approved events)
+        edit_locations = Counter()
+        for event in events:
+            if event.get("event_type") == "deliverable_approved":
+                metadata = event.get("metadata", {})
+                if isinstance(metadata, dict) and metadata.get("had_edits"):
+                    # Heuristic: analyze summary text for location hints
+                    summary = event.get("summary", "").lower()
+                    if "intro" in summary or "opening" in summary or "beginning" in summary:
+                        edit_locations["intro"] += 1
+                    elif "conclusion" in summary or "closing" in summary or "ending" in summary:
+                        edit_locations["conclusion"] += 1
+                    elif "body" in summary or "middle" in summary:
+                        edit_locations["body"] += 1
+
+        if edit_locations:
+            most_common_loc, loc_count = edit_locations.most_common(1)[0]
+            total_edits = sum(edit_locations.values())
+            if loc_count > total_edits * 0.6 and loc_count >= 3:
+                patterns.append({
+                    "key": "pattern:edit_location",
+                    "value": f"Tends to edit {most_common_loc} sections when revising deliverables",
+                })
+
+        # 5. Formatting patterns (from length/structure in metadata)
+        length_preferences = []
+        for event in events:
+            if event.get("event_type") == "deliverable_approved":
+                metadata = event.get("metadata", {})
+                if isinstance(metadata, dict):
+                    final_length = metadata.get("final_length")
+                    draft_length = metadata.get("draft_length")
+                    if final_length and draft_length:
+                        if final_length < draft_length * 0.7:
+                            length_preferences.append("shorter")
+                        elif final_length > draft_length * 1.3:
+                            length_preferences.append("longer")
+
+        if length_preferences:
+            from collections import Counter
+            length_counter = Counter(length_preferences)
+            most_common_pref, pref_count = length_counter.most_common(1)[0]
+            if pref_count >= 3:
+                if most_common_pref == "shorter":
+                    patterns.append({
+                        "key": "pattern:formatting_length",
+                        "value": "Prefers concise output; typically shortens generated content",
+                    })
+                elif most_common_pref == "longer":
+                    patterns.append({
+                        "key": "pattern:formatting_length",
+                        "value": "Prefers detailed output; typically expands generated content",
+                    })
 
         return patterns
 

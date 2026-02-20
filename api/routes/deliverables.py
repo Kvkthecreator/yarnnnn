@@ -1951,13 +1951,46 @@ async def update_version(
             import asyncio
             deliverable_title = check.data.get("title") or str(deliverable_id)
             event_type = "deliverable_approved" if request.status == "approved" else "deliverable_rejected"
+
+            # ADR-064: Enhanced metadata for pattern detection
+            metadata = {
+                "deliverable_id": str(deliverable_id),
+                "version_id": str(version_id),
+                "deliverable_type": check.data.get("deliverable_type"),
+            }
+
+            # Track edit patterns for memory extraction
+            if request.status == "approved":
+                had_edits = bool(request.final_content and current.get("draft_content") and request.final_content.strip() != current.get("draft_content", "").strip())
+                metadata["had_edits"] = had_edits
+                if had_edits and request.final_content and current.get("draft_content"):
+                    metadata["final_length"] = len(request.final_content)
+                    metadata["draft_length"] = len(current.get("draft_content", ""))
+
             asyncio.create_task(write_activity(
                 client=get_service_client(),
                 user_id=auth.user_id,
                 event_type=event_type,
                 summary=f"{request.status.capitalize()} version of {deliverable_title}",
                 event_ref=str(version_id),
-                metadata={"deliverable_id": str(deliverable_id), "version_id": str(version_id)},
+                metadata=metadata,
+            ))
+        except Exception:
+            pass  # Non-fatal
+
+    # ADR-064: Memory extraction from deliverable feedback
+    # When user approves with edits, extract learning patterns
+    if request.status == "approved" and request.final_content and current.get("draft_content"):
+        try:
+            from services.memory import process_feedback
+            from services.supabase import get_service_client
+            import asyncio
+            asyncio.create_task(process_feedback(
+                client=get_service_client(),
+                user_id=auth.user_id,
+                deliverable_id=str(deliverable_id),
+                original=current.get("draft_content", ""),
+                edited=request.final_content,
             ))
         except Exception:
             pass  # Non-fatal

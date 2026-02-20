@@ -721,6 +721,7 @@ async def execute_deliverable_generation(
                 metadata={
                     "deliverable_id": str(deliverable_id),
                     "version_number": next_version,
+                    "deliverable_type": deliverable_type,  # ADR-064: For pattern detection
                     "strategy": strategy.strategy_name,
                     "final_status": final_status,
                     "delivery_error": delivery_error,
