@@ -175,7 +175,16 @@ async def _create_signal_emergent_deliverable(
     user_id: str,
     action: SignalAction,
 ) -> Optional[str]:
-    """Create a signal-emergent deliverable row."""
+    """Create a signal-emergent deliverable row with deduplication check."""
+    # Check signal_history for recent trigger (ADR-068 Phase 4)
+    signal_ref = action.signal_context.get("event_id") or action.signal_context.get("thread_id", "")
+    if signal_ref and not await _check_signal_eligible(client, user_id, action.deliverable_type, signal_ref):
+        logger.info(
+            f"[SIGNAL_PROCESSING] Skipping {action.deliverable_type} for {signal_ref} — "
+            f"already triggered within deduplication window"
+        )
+        return None
+
     now = datetime.now(timezone.utc).isoformat()
     deliverable_id = str(uuid4())
 
@@ -210,6 +219,13 @@ async def _create_signal_emergent_deliverable(
             f"[SIGNAL_PROCESSING] Created signal_emergent deliverable "
             f"{deliverable_id} ({action.deliverable_type}) for {user_id}: {action.title}"
         )
+
+        # Record signal trigger in deduplication history (ADR-068 Phase 4)
+        if signal_ref:
+            await _record_signal_trigger(
+                client, user_id, action.deliverable_type, signal_ref, deliverable_id
+            )
+
         return deliverable_id
 
     except Exception as e:
@@ -453,3 +469,77 @@ def _filter_actions(
         filtered.append(action)
 
     return filtered
+
+
+# =============================================================================
+# ADR-068 Phase 4: Per-Signal Deduplication
+# =============================================================================
+
+# Deduplication windows (hours) per signal type
+DEDUPLICATION_WINDOWS = {
+    "meeting_prep": 24,          # Don't recreate for same event within 24h
+    "silence_alert": 168,        # 7 days - don't nag about same thread weekly
+    "contact_drift": 336,        # 14 days - longer window for drift signals
+}
+
+
+async def _check_signal_eligible(
+    client, user_id: str, signal_type: str, signal_ref: str
+) -> bool:
+    """
+    Check if a signal is eligible to create a new deliverable.
+
+    Returns False if the signal was triggered recently (within deduplication window).
+    """
+    from datetime import timedelta
+
+    window_hours = DEDUPLICATION_WINDOWS.get(signal_type, 24)
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=window_hours)
+
+    try:
+        result = (
+            client.table("signal_history")
+            .select("id, last_triggered_at")
+            .eq("user_id", user_id)
+            .eq("signal_type", signal_type)
+            .eq("signal_ref", signal_ref)
+            .gte("last_triggered_at", cutoff.isoformat())
+            .execute()
+        )
+
+        if result.data:
+            # Signal was triggered recently — not eligible
+            return False
+
+        return True
+
+    except Exception as e:
+        logger.warning(f"[SIGNAL_DEDUP] Failed to check eligibility: {e}")
+        # On error, allow signal through (fail-open)
+        return True
+
+
+async def _record_signal_trigger(
+    client, user_id: str, signal_type: str, signal_ref: str, deliverable_id: str
+) -> None:
+    """
+    Record that a signal triggered a deliverable creation.
+
+    Upserts into signal_history to update last_triggered_at timestamp.
+    """
+    try:
+        client.table("signal_history").upsert({
+            "user_id": user_id,
+            "signal_type": signal_type,
+            "signal_ref": signal_ref,
+            "last_triggered_at": datetime.now(timezone.utc).isoformat(),
+            "deliverable_id": deliverable_id,
+        }, on_conflict="user_id,signal_type,signal_ref").execute()
+
+        logger.info(
+            f"[SIGNAL_DEDUP] Recorded {signal_type} trigger for {signal_ref}"
+        )
+
+    except Exception as e:
+        logger.warning(f"[SIGNAL_DEDUP] Failed to record trigger: {e}")
+        # Non-fatal — signal was already created, history is just metadata

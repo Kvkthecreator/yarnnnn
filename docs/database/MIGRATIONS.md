@@ -9,6 +9,35 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ---
 
+### 073 — Drop governance columns (2026-02-19) ✅
+
+- Removes `governance` and `governance_ceiling` columns from `deliverables`
+- ADR-066 removed governance gates (delivery-first for all deliverables)
+- Columns were marked deprecated on 2026-02-19, now fully removed
+- CLAUDE.md discipline: "Delete legacy code when replacing with new implementation"
+
+---
+
+### 072 — Signal preferences (2026-02-19) ✅
+
+- Extends `user_notification_preferences` with signal type toggles
+- Columns: `signal_meeting_prep`, `signal_silence_alert`, `signal_contact_drift` (all BOOLEAN DEFAULT true)
+- Users can opt-in/opt-out of specific proactive signal types
+- ADR-068 Phase 3
+
+---
+
+### 071 — Signal history table (2026-02-19) ✅
+
+- Creates `signal_history` table for per-signal deduplication tracking
+- Schema: `(user_id, signal_type, signal_ref, last_triggered_at, deliverable_id, metadata)`
+- UNIQUE constraint on `(user_id, signal_type, signal_ref)`
+- Prevents re-creating signal-emergent deliverables for same signal within deduplication windows
+- Deduplication windows: meeting_prep (24h), silence_alert (7d), contact_drift (14d)
+- ADR-068 Phase 4
+
+---
+
 ### 070 — ADR-068 deliverables.origin column (2026-02-19) ✅
 
 - Adds `origin TEXT NOT NULL DEFAULT 'user_configured'` with CHECK constraint `('user_configured', 'analyst_suggested', 'signal_emergent')`
