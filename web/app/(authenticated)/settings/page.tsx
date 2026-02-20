@@ -1122,68 +1122,70 @@ export default function SettingsPage() {
                             Manage
                           </button>
                         </div>
-
-                        {/* Signal Processing Trigger (ADR-068) */}
-                        <div className="col-span-2 mt-2 p-3 rounded-md bg-muted/50 border border-border/50">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="flex-1">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Sparkles className="w-4 h-4 text-primary" />
-                                <span className="text-sm font-medium">Proactive Signal Detection</span>
-                              </div>
-                              <p className="text-xs text-muted-foreground">
-                                Scan your Gmail and Calendar for signals like upcoming meetings, silent threads, or contact drift. Creates deliverables automatically.
-                              </p>
-                            </div>
-                            <button
-                              onClick={handleTriggerSignalProcessing}
-                              disabled={isTriggeringSignals}
-                              className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
-                            >
-                              {isTriggeringSignals ? (
-                                <>
-                                  <Loader2 className="w-3 h-3 animate-spin" />
-                                  Scanning...
-                                </>
-                              ) : (
-                                <>
-                                  <Sparkles className="w-3 h-3" />
-                                  Scan Now
-                                </>
-                              )}
-                            </button>
-                          </div>
-
-                          {/* Result notification */}
-                          {signalTriggerResult && (
-                            <div className={`mt-3 p-2 rounded text-xs ${
-                              signalTriggerResult.status === "completed"
-                                ? "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800"
-                                : signalTriggerResult.status === "rate_limited"
-                                ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800"
-                                : signalTriggerResult.status === "no_platforms"
-                                ? "bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
-                                : "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800"
-                            }`}>
-                              <div className="flex items-center justify-between">
-                                <span>{signalTriggerResult.message}</span>
-                                {signalTriggerResult.status !== "rate_limited" && (
-                                  <button
-                                    onClick={() => setSignalTriggerResult(null)}
-                                    className="ml-2 p-0.5 hover:opacity-70"
-                                  >
-                                    <X className="w-3 h-3" />
-                                  </button>
-                                )}
-                              </div>
-                            </div>
-                          )}
-                        </div>
                       </div>
                     )}
                   </div>
                 );
               })()}
+
+              {/* Signal Processing Trigger (ADR-068) - For all connected integrations */}
+              {integrations.length > 0 && (
+                <div className="p-4 border border-border rounded-lg bg-gradient-to-br from-primary/5 to-primary/10">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-2">
+                        <Sparkles className="w-5 h-5 text-primary" />
+                        <span className="font-medium">Proactive Signal Detection</span>
+                      </div>
+                      <p className="text-sm text-muted-foreground">
+                        Scan your connected platforms (Gmail, Calendar, Slack, Notion) for signals like upcoming meetings, silent threads, or contact drift. Creates deliverables automatically.
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleTriggerSignalProcessing}
+                      disabled={isTriggeringSignals}
+                      className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap"
+                    >
+                      {isTriggeringSignals ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Scanning...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles className="w-4 h-4" />
+                          Scan Now
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  {/* Result notification */}
+                  {signalTriggerResult && (
+                    <div className={`mt-3 p-3 rounded-md text-sm ${
+                      signalTriggerResult.status === "completed"
+                        ? "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800"
+                        : signalTriggerResult.status === "rate_limited"
+                        ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800"
+                        : signalTriggerResult.status === "no_platforms"
+                        ? "bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
+                        : "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800"
+                    }`}>
+                      <div className="flex items-center justify-between">
+                        <span>{signalTriggerResult.message}</span>
+                        {signalTriggerResult.status !== "rate_limited" && (
+                          <button
+                            onClick={() => setSignalTriggerResult(null)}
+                            className="ml-2 p-1 hover:opacity-70"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Info note */}
               <div className="mt-6 p-4 bg-muted/50 rounded-lg text-sm text-muted-foreground">
