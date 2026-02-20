@@ -376,14 +376,45 @@ def _build_reasoning_prompt(
             lines.append(f"- {event.get('summary', '')}")
         activity_text = "RECENT SYSTEM ACTIVITY:\n" + "\n".join(lines)
 
-    # Format existing deliverables for deduplication awareness
+    # Format existing deliverables with Layer 4 content (ADR-069)
+    # Include recent output to enable quality-aware reasoning
     deliverables_text = ""
     if existing_deliverables:
         lines = []
         for d in existing_deliverables[:10]:
+            title = d.get('title', '')
+            dtype = d.get('deliverable_type', '')
+            next_run = d.get('next_run_at', 'manual')
+
+            # Add content preview if available
+            content = d.get('recent_content')
+            version_date = d.get('recent_version_date')
+            content_preview = ""
+
+            if content and version_date:
+                # Extract first 400 chars as preview
+                preview = content[:400].replace('\n', ' ').strip()
+                if len(content) > 400:
+                    preview += "..."
+
+                # Format date for readability
+                try:
+                    from datetime import datetime
+                    date_obj = datetime.fromisoformat(version_date.replace('Z', '+00:00'))
+                    days_ago = (datetime.now(date_obj.tzinfo) - date_obj).days
+                    if days_ago == 0:
+                        date_str = "today"
+                    elif days_ago == 1:
+                        date_str = "yesterday"
+                    else:
+                        date_str = f"{days_ago} days ago"
+                except:
+                    date_str = version_date[:10]  # Fallback to ISO date
+
+                content_preview = f"\n    Last output ({date_str}): {preview}"
+
             lines.append(
-                f"- {d.get('title')} ({d.get('deliverable_type')}, "
-                f"next run: {d.get('next_run_at', 'manual')})"
+                f"- {title} ({dtype}, next run: {next_run}){content_preview}"
             )
         deliverables_text = "EXISTING DELIVERABLES:\n" + "\n".join(lines)
     else:
@@ -414,6 +445,15 @@ You can suggest one of three action types:
 DECISION PRIORITY:
 - First check: Does an existing deliverable already handle this signal? If yes, use "trigger_existing" instead of creating a new one.
 - Only use "create_signal_emergent" when the work is novel and no suitable recurring deliverable exists.
+
+LAYER 4 CONTENT USAGE (ADR-069):
+The EXISTING DELIVERABLES section includes recent output content from each deliverable. Use this to:
+- Assess whether existing deliverables are still current or have become stale
+- Determine if a new signal is already addressed by recent work
+- Make quality-aware decisions: if a deliverable's last output was weeks ago with different context, consider create_signal_emergent instead of trigger_existing
+- Avoid creating duplicate work: if recent output already covers the signal, use no_action
+
+Example: If a meeting_prep deliverable exists but its last output was 2 weeks ago for different attendees, the current meeting signal warrants create_signal_emergent (one-time prep for THIS meeting) rather than trigger_existing (which would reuse stale configuration).
 
 For meeting_prep:
 - If user has recurring meeting_prep deliverable: Use "trigger_existing" to run it early
