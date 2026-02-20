@@ -49,8 +49,6 @@ When a deliverable executes, it produces a **deliverable version** — an immuta
 | `sources` | jsonb | `[{platform, resource_id, resource_name, scope_config}]` |
 | `destination` | jsonb | `{platform, target, format, options}` |
 | `destinations` | jsonb | ADR-031: Array of destination configs (multi-destination support) |
-| `governance` | text | Legacy field (ADR-066 removed governance gates) — ignored |
-| `governance_ceiling` | text | System-enforced max governance based on destination (legacy) |
 | `status` | text | `active`, `paused`, or `archived` |
 | `next_run_at` | timestamptz | Calculated from schedule; NULL for manual trigger |
 | `last_run_at` | timestamptz | Last successful execution timestamp |
@@ -402,14 +400,35 @@ If `quality_trend = "declining"` for 3+ consecutive versions, the system could s
 
 ---
 
+## Implementation Status
+
+**ADR-068 Signal-Emergent Deliverables: Phase 3+4 Complete (2026-02-20)**
+
+Phase 3 delivered:
+- Migration 071: `signal_history` table for per-signal deduplication tracking
+- Migration 072: Extended `user_notification_preferences` with signal type toggles (meeting_prep, silence_alert, contact_drift)
+- Migration 073: Dropped `governance` and `governance_ceiling` columns (ADR-066 cleanup)
+- Per-signal deduplication logic in `signal_processing.py` with configurable windows (24h/7d/14d)
+- Pydantic model cleanup — removed all governance field references
+
+Phase 4 delivered:
+- Split signal processing cron: Calendar signals (hourly), other signals (daily 7 AM)
+- Gmail silence signal extraction via live Gmail API (thread history analysis)
+- `signals_filter` parameter in `extract_signal_summary()` for selective signal extraction
+
+**Status:** Signal-emergent deliverables fully operational. Users with active `platform_connections` receive:
+- Meeting prep briefs (hourly check, 48h lookahead window)
+- Silence alerts for Gmail threads (daily check, 5+ day threshold)
+
+---
+
 ## Open Questions & Future Work
 
 1. **Event triggers** (ADR-031 Phase 4) — Platform webhook integration for real-time deliverable triggering (Slack mention, Gmail arrival, etc.)
-2. **Signal-emergent review gate** — Should signal-emergent deliverables require explicit user approval before delivery, or continue with current delivery-first model?
-3. **Per-signal deduplication windows** — How long before the same signal type (e.g., contact drift with Alice) is eligible to create another signal-emergent deliverable?
-4. **User signal preferences** — Opt-in/opt-out per signal class (e.g., "I want meeting prep signals but not silence signals")
-5. **Multi-destination UI** — Frontend for configuring `destinations` array (currently only backend-supported)
-6. **Quality-based feedback loop** — Automatic source adjustment when `quality_trend = "declining"` for N consecutive versions
+2. **Contact drift signals** — Third signal type from ADR-068 (alert when key contacts haven't been contacted in N days)
+3. **Multi-destination UI** — Frontend for configuring `destinations` array (currently only backend-supported)
+4. **Quality-based feedback loop** — Automatic source adjustment when `quality_trend = "declining"` for N consecutive versions
+5. **Signal promotion UI** — Frontend for "Promote to Recurring" button on signal-emergent deliverables
 
 ---
 

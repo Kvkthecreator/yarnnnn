@@ -71,7 +71,9 @@ class SignalSummary:
     has_signals: bool = False
 
 
-async def extract_signal_summary(client, user_id: str) -> SignalSummary:
+async def extract_signal_summary(
+    client, user_id: str, signals_filter: str = "all"
+) -> SignalSummary:
     """
     Extract behavioral signals from live platform APIs for a user.
 
@@ -81,6 +83,10 @@ async def extract_signal_summary(client, user_id: str) -> SignalSummary:
     Args:
         client: Supabase service-role client
         user_id: The user to extract signals for
+        signals_filter: Which signals to extract:
+            - "all": Extract all signal types (default)
+            - "calendar_only": Extract only calendar signals (hourly cron)
+            - "non_calendar": Extract only non-calendar signals (daily cron)
 
     Returns:
         SignalSummary with extracted signals. Empty summary if no platforms connected.
@@ -89,23 +95,25 @@ async def extract_signal_summary(client, user_id: str) -> SignalSummary:
     summary = SignalSummary(user_id=user_id, extracted_at=now)
 
     # Extract calendar signals (live Google Calendar API)
-    try:
-        calendar_signals = await _extract_calendar_signals(client, user_id, now)
-        summary.calendar_signals = calendar_signals
-    except Exception as e:
-        logger.warning(f"[SIGNAL_EXTRACTION] Calendar signal extraction failed for {user_id}: {e}")
+    if signals_filter in ("all", "calendar_only"):
+        try:
+            calendar_signals = await _extract_calendar_signals(client, user_id, now)
+            summary.calendar_signals = calendar_signals
+        except Exception as e:
+            logger.warning(f"[SIGNAL_EXTRACTION] Calendar signal extraction failed for {user_id}: {e}")
 
     # Extract silence signals (live Gmail API)
-    try:
-        silence_signals = await _extract_silence_signals(client, user_id, now)
-        summary.silence_signals = silence_signals
-    except Exception as e:
-        logger.warning(f"[SIGNAL_EXTRACTION] Silence signal extraction failed for {user_id}: {e}")
+    if signals_filter in ("all", "non_calendar"):
+        try:
+            silence_signals = await _extract_silence_signals(client, user_id, now)
+            summary.silence_signals = silence_signals
+        except Exception as e:
+            logger.warning(f"[SIGNAL_EXTRACTION] Silence signal extraction failed for {user_id}: {e}")
 
     summary.has_signals = bool(summary.calendar_signals or summary.silence_signals)
 
     logger.info(
-        f"[SIGNAL_EXTRACTION] user={user_id}: "
+        f"[SIGNAL_EXTRACTION] user={user_id} filter={signals_filter}: "
         f"calendar={len(summary.calendar_signals)}, "
         f"silence={len(summary.silence_signals)}"
     )
@@ -202,16 +210,111 @@ async def _extract_silence_signals(
     """
     Extract Gmail threads that have gone silent (no user reply in N days).
 
-    Note: Simplified Phase 1 implementation. Full thread tracking requires
-    Gmail API thread history analysis to determine last user-sent message.
-    For now, returns empty — silence signals deferred to Phase 2.
+    ADR-068 Phase 4: Full implementation using live Gmail API.
+    Queries threads from INBOX, analyzes message history to detect threads
+    where user has not replied in SILENCE_THRESHOLD_DAYS.
     """
-    # TODO Phase 2: Implement Gmail thread silence detection via live API
-    # Requires:
-    # 1. Query Gmail threads from selected labels (INBOX, etc.)
-    # 2. For each thread, find last message
-    # 3. Check if user sent a reply after last received message
-    # 4. If not, compute days since last received
-    # 5. Return threads silent >= SILENCE_THRESHOLD_DAYS
+    from integrations.core.google_client import get_google_client
+    from integrations.core.tokens import get_token_manager
 
-    return []
+    # Get user's Gmail connection
+    conn_result = (
+        client.table("platform_connections")
+        .select("credentials_encrypted, refresh_token_encrypted, settings")
+        .eq("user_id", user_id)
+        .eq("platform", "gmail")
+        .eq("status", "active")
+        .single()
+        .execute()
+    )
+
+    if not conn_result.data:
+        return []  # No Gmail connection
+
+    token_manager = get_token_manager()
+    refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
+
+    # Get OAuth credentials from environment
+    import os
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        logger.error("[SIGNAL_EXTRACTION] Google OAuth credentials not configured")
+        return []
+
+    # Query live Gmail API for threads in INBOX from last 14 days
+    google_client = get_google_client()
+    cutoff_date = (now - timedelta(days=SILENCE_THRESHOLD_DAYS)).strftime("%Y/%m/%d")
+
+    # Gmail query: messages in INBOX from the last 14 days, not sent by user
+    query = f"in:inbox after:{cutoff_date} -from:me"
+
+    try:
+        messages = await google_client.list_gmail_messages(
+            client_id=client_id,
+            client_secret=client_secret,
+            refresh_token=refresh_token,
+            query=query,
+            max_results=50,  # Limit to top 50 threads for cost control
+        )
+    except Exception as e:
+        logger.warning(f"[SIGNAL_EXTRACTION] Gmail API query failed: {e}")
+        return []
+
+    # Group messages by thread_id and analyze each thread
+    thread_ids = list(set(msg.get("threadId") for msg in messages if msg.get("threadId")))
+    signals = []
+
+    for thread_id in thread_ids[:SILENCE_MAX_THREADS]:  # Cap at 10 threads
+        try:
+            thread = await google_client.get_gmail_thread(
+                thread_id=thread_id,
+                client_id=client_id,
+                client_secret=client_secret,
+                refresh_token=refresh_token,
+            )
+
+            # Analyze thread messages to determine silence
+            thread_messages = thread.get("messages", [])
+            if not thread_messages:
+                continue
+
+            # Find last message timestamp and check if user replied
+            last_msg = thread_messages[-1]
+            last_msg_headers = {
+                h["name"].lower(): h["value"]
+                for h in last_msg.get("payload", {}).get("headers", [])
+            }
+
+            sender = last_msg_headers.get("from", "Unknown")
+            subject = last_msg_headers.get("subject", "No subject")
+            last_msg_time_ms = int(last_msg.get("internalDate", 0))
+            last_msg_time = datetime.fromtimestamp(last_msg_time_ms / 1000, tz=timezone.utc)
+
+            # Check if last message was FROM user (then thread is not silent)
+            # User's email is in the connection settings or we can check label_ids
+            # For simplicity, check if last message has SENT label
+            last_msg_labels = last_msg.get("labelIds", [])
+            if "SENT" in last_msg_labels:
+                # User sent last message - not silent
+                continue
+
+            # Compute days since last received message
+            days_silent = (now - last_msg_time).total_seconds() / 86400
+
+            if days_silent >= SILENCE_THRESHOLD_DAYS:
+                signals.append(SilenceSignal(
+                    thread_subject=subject,
+                    sender=sender,
+                    last_received=last_msg_time.isoformat(),
+                    days_silent=days_silent,
+                    label_id=thread_id,  # Store thread_id in label_id field
+                ))
+
+        except Exception as e:
+            logger.warning(f"[SIGNAL_EXTRACTION] Failed to analyze thread {thread_id}: {e}")
+            continue
+
+    logger.info(f"[SIGNAL_EXTRACTION] Found {len(signals)} silence signals for {user_id}")
+    return signals

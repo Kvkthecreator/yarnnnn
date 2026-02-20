@@ -964,15 +964,16 @@ async def run_unified_scheduler():
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")
 
     # -------------------------------------------------------------------------
-    # ADR-068: Signal Processing Phase (hourly during Phase 1+2 testing)
-    # Queries LIVE platform APIs for fresh state of user's world, compares against
-    # YARNNN internal state (Memory, Activity, deliverables) to determine proactive actions.
+    # ADR-068 Phase 4: Split Signal Processing
+    # - Calendar signals (hourly): Time-sensitive meeting prep briefs
+    # - Other signals (daily 7 AM): Silence alerts, contact drift, etc.
     # Cost gate: Only runs for users with active platform connections.
-    # TODO: Move to daily (now.hour == 7) after Phase 2 validation complete
     # -------------------------------------------------------------------------
     signal_users = 0
     signal_created = 0
-    if now.minute < 5:  # Run every hour (not just 7 AM)
+
+    # Hourly: Calendar signals only (time-sensitive)
+    if now.minute < 5:
         try:
             from services.signal_extraction import extract_signal_summary
             from services.signal_processing import process_signal, execute_signal_actions
@@ -980,7 +981,6 @@ async def run_unified_scheduler():
             from services.activity_log import get_recent_activity
 
             # Get users with active platform connections (cost gate)
-            # Signal extraction queries live APIs, so only process users who have connected platforms
             active_result = (
                 supabase.table("platform_connections")
                 .select("user_id")
@@ -991,17 +991,19 @@ async def run_unified_scheduler():
                 row["user_id"] for row in (active_result.data or [])
             ))
 
-            logger.info(f"[SIGNAL] Found {len(active_user_ids)} users with active platform connections")
+            logger.info(f"[SIGNAL] Hourly calendar check: {len(active_user_ids)} users with active platforms")
 
             for user_id in active_user_ids:
                 try:
-                    # Extract behavioral signals from LIVE platform APIs
-                    signal_summary = await extract_signal_summary(supabase, user_id)
+                    # Extract only calendar signals (hourly)
+                    signal_summary = await extract_signal_summary(
+                        supabase, user_id, signals_filter="calendar_only"
+                    )
 
                     if not signal_summary.has_signals:
                         continue
 
-                    # Fetch inputs for reasoning pass
+                    # Fetch context for reasoning
                     user_context_result = (
                         supabase.table("user_context")
                         .select("key, value")
@@ -1027,7 +1029,7 @@ async def run_unified_scheduler():
                     )
                     existing_deliverables = existing_deliverables_result.data or []
 
-                    # Single LLM call — reason over signals
+                    # Single LLM call — reason over calendar signals
                     processing_result = await process_signal(
                         client=supabase,
                         user_id=user_id,
@@ -1047,21 +1049,116 @@ async def run_unified_scheduler():
                         if created > 0:
                             signal_users += 1
                             logger.info(
-                                f"[SIGNAL] Created {created} signal-emergent deliverable(s) "
+                                f"[SIGNAL] Created {created} calendar signal deliverable(s) "
                                 f"for {user_id}"
                             )
 
                 except Exception as e:
-                    logger.warning(f"[SIGNAL] Error processing signals for {user_id}: {e}")
+                    logger.warning(f"[SIGNAL] Error processing calendar signals for {user_id}: {e}")
 
             if signal_users > 0:
                 logger.info(
-                    f"[SIGNAL] Phase complete: {signal_users} users, "
+                    f"[SIGNAL] Hourly calendar phase complete: {signal_users} users, "
                     f"{signal_created} deliverables created"
                 )
 
         except Exception as e:
-            logger.warning(f"[SIGNAL] Signal processing phase skipped: {e}")
+            logger.warning(f"[SIGNAL] Hourly calendar signal processing skipped: {e}")
+
+    # Daily 7 AM: Other signals (silence, contact drift) — less time-sensitive
+    signal_daily_users = 0
+    signal_daily_created = 0
+    if now.hour == 7 and now.minute < 5:
+        try:
+            from services.signal_extraction import extract_signal_summary
+            from services.signal_processing import process_signal, execute_signal_actions
+            from services.working_memory import _get_active_deliverables
+            from services.activity_log import get_recent_activity
+
+            # Get users with active platform connections
+            active_result = (
+                supabase.table("platform_connections")
+                .select("user_id")
+                .eq("status", "active")
+                .execute()
+            )
+            active_user_ids = list(set(
+                row["user_id"] for row in (active_result.data or [])
+            ))
+
+            logger.info(f"[SIGNAL] Daily check (7 AM): {len(active_user_ids)} users with active platforms")
+
+            for user_id in active_user_ids:
+                try:
+                    # Extract all OTHER signals (silence, contact drift, etc.)
+                    signal_summary = await extract_signal_summary(
+                        supabase, user_id, signals_filter="non_calendar"
+                    )
+
+                    if not signal_summary.has_signals:
+                        continue
+
+                    # Fetch context for reasoning
+                    user_context_result = (
+                        supabase.table("user_context")
+                        .select("key, value")
+                        .eq("user_id", user_id)
+                        .limit(20)
+                        .execute()
+                    )
+                    user_context = user_context_result.data or []
+
+                    recent_activity = await get_recent_activity(
+                        client=supabase,
+                        user_id=user_id,
+                        limit=10,
+                        days=7,
+                    )
+
+                    existing_deliverables_result = (
+                        supabase.table("deliverables")
+                        .select("id, title, deliverable_type, next_run_at, status")
+                        .eq("user_id", user_id)
+                        .in_("status", ["active", "paused"])
+                        .execute()
+                    )
+                    existing_deliverables = existing_deliverables_result.data or []
+
+                    # Single LLM call — reason over non-calendar signals
+                    processing_result = await process_signal(
+                        client=supabase,
+                        user_id=user_id,
+                        signal_summary=signal_summary,
+                        user_context=user_context,
+                        recent_activity=recent_activity,
+                        existing_deliverables=existing_deliverables,
+                    )
+
+                    if processing_result.actions:
+                        created = await execute_signal_actions(
+                            client=supabase,
+                            user_id=user_id,
+                            result=processing_result,
+                        )
+                        signal_daily_created += created
+                        if created > 0:
+                            signal_daily_users += 1
+                            logger.info(
+                                f"[SIGNAL] Created {created} daily signal deliverable(s) "
+                                f"for {user_id}"
+                            )
+
+                except Exception as e:
+                    logger.warning(f"[SIGNAL] Error processing daily signals for {user_id}: {e}")
+
+            if signal_daily_users > 0:
+                logger.info(
+                    f"[SIGNAL] Daily signal phase complete: {signal_daily_users} users, "
+                    f"{signal_daily_created} deliverables created"
+                )
+
+        except Exception as e:
+            logger.warning(f"[SIGNAL] Daily signal processing skipped: {e}")
 
     # -------------------------------------------------------------------------
     # Summary
