@@ -121,19 +121,22 @@ The cache exists because live multi-platform search during a streaming conversat
 
 ### Access path B — Live platform APIs
 
-Two sub-paths use live API calls:
+Three sub-paths use live API calls:
 
 1. **Deliverable execution** — `deliverable_pipeline.py → fetch_integration_source_data()` decrypts credentials from `platform_connections` and calls platform APIs directly at the moment of generation. No cache consulted.
 
-2. **TP platform tools** — `platform_gmail_search`, `platform_notion_search`, `platform_calendar_list_events`, `platform_slack_list_channels`, and action tools. Targeted live calls, not cross-platform content search.
+2. **Signal processing** — `signal_extraction.py → extract_signal_summary()` fetches live platform content for signal processing reasoning (ADR-068). Uses same infrastructure as deliverable execution: queries `platform_connections`, decrypts credentials, calls platform APIs directly. **Critically**: Signal processing NEVER reads `filesystem_items` — the cache is too stale (2-24h) for time-sensitive signals like "meeting in 6 hours" or "thread went silent yesterday".
 
-**Key property**: These two paths are completely independent. The cache and live APIs serve different purposes and cannot replace each other.
+3. **TP platform tools** — `platform_gmail_search`, `platform_notion_search`, `platform_calendar_list_events`, `platform_slack_list_channels`, and action tools. Targeted live calls, not cross-platform content search.
+
+**Key property**: These three paths are completely independent. The cache and live APIs serve different purposes and cannot replace each other.
 
 | | Cache (`filesystem_items`) | Live APIs |
 |---|---|---|
-| Used for | `Search(scope="platform_content")` | Deliverable execution, TP platform tools |
+| Used for | `Search(scope="platform_content")` in TP conversations | Deliverable execution, signal processing, TP platform tools |
 | Freshness | Tier-dependent (2–24h stale) | Always current |
 | Authority | No — convenience index | Yes — direct from platform |
+| Signal processing access | ❌ Never used | ✅ Only source (hourly reads) |
 
 **Lifecycle**: TTL-based. Slack items expire after 72 hours; Gmail/Notion/Calendar after 168 hours. Refreshed on each sync run.
 
@@ -288,7 +291,8 @@ The more deliverables a user runs, the more the system learns what they value. T
 | Is a `deliverable_version` mutable after generation? | The `final_content` field is immutable. The `status` field progresses (generating → delivered). |
 | How does Layer 4 content influence future work? | Recent deliverable version content (400-char preview) is included in signal reasoning prompts (ADR-069). This enables quality-aware orchestration decisions. |
 | What are the three memory extraction sources? | 1) Conversation (nightly batch), 2) Deliverable feedback (on approval), 3) Activity patterns (daily detection). See ADR-064. |
-| Is signal processing real-time? | No. Signals are extracted on cron schedule (hourly for calendar, daily for silence). Near-real-time via webhooks is future work. |
+| Is signal processing real-time? | No. Signals are extracted on cron schedule (hourly for all platforms: calendar, Gmail, Slack, Notion). Near-real-time via webhooks is future work. |
+| Does signal processing read `filesystem_items`? | No. Signal extraction uses live platform APIs exclusively. The cache is too stale for time-sensitive signals. |
 | Can signal-emergent deliverables become recurring? | Yes. Deliverables can be promoted from one-time (`origin=signal_emergent`, no schedule) to recurring (add schedule). Origin field preserves provenance. |
 
 ---
