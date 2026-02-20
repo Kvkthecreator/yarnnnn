@@ -6,34 +6,46 @@
 
 ## The model
 
-YARNNN organises all persistent state into four layers. Each layer has a distinct purpose, a distinct lifecycle, and distinct access rules.
+YARNNN organises all persistent state into four layers. Each layer has a distinct purpose, lifecycle, and access rules. **The layers form both a generation pipeline (unidirectional) and a learning system (bidirectional feedback).**
 
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Layer 1 — Memory                                   │
-│  What YARNNN knows about the user                   │
+│  What the user has explicitly stated and what      │
+│  YARNNN has learned about their preferences         │
 │  Table: user_context                                │
-│  Stable · Explicit · Persistent across sessions    │
+│  Stable · Explicit + Implicit · Cross-session      │
 └─────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────┐
 │  Layer 2 — Activity                                 │
-│  What YARNNN has done                               │
+│  Behavioral provenance: what YARNNN has done and   │
+│  when, enabling pattern detection and recency       │
 │  Table: activity_log                                │
-│  Append-only · System-written · Non-fatal           │
+│  Append-only · System-written · Pattern source     │
 └─────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────┐
 │  Layer 3 — Context                                  │
-│  What is on the user's platforms right now          │
+│  Live platform state: the user's current work      │
+│  environment and information landscape              │
 │  Tables: filesystem_items (cache) + live APIs       │
-│  Ephemeral · Large · Platform-resident             │
+│  Ephemeral · Large · Platform-authoritative        │
 └─────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────┐
 │  Layer 4 — Work                                     │
-│  What YARNNN produces                               │
+│  Synthesized output: what YARNNN produces and      │
+│  learns from through content quality assessment     │
 │  Tables: deliverables, deliverable_versions         │
-│  Generated · Versioned · Delivered                 │
+│  Versioned · Delivered · Learning signal source    │
 └─────────────────────────────────────────────────────┘
 ```
+
+### Strategic principle: Weighting shift over time
+
+**New users** (first 30 days): Rely heavily on **L1 (Memory) + L3 (Context)** because they have little Layer 4 history. The system uses stated preferences and live platform data.
+
+**Mature users** (90+ days): Rely increasingly on **L4 (Work)** as the system learns what quality looks like from prior deliverable versions. Layer 4 content becomes the strongest signal for what the user values.
+
+This weighting shift is implicit in signal reasoning (ADR-069) and pattern detection (ADR-064/070).
 
 ---
 
@@ -129,23 +141,29 @@ Two sub-paths use live API calls:
 
 ## Layer 4 — Work
 
-**What it is**: What YARNNN produces. Scheduled digests, meeting briefs, weekly summaries, drafted emails. Every generation run creates a versioned, immutable output record.
+**What it is**: What YARNNN produces. Scheduled digests, meeting briefs, weekly summaries, drafted emails. Every generation run creates a versioned, immutable output record. **Layer 4 is both the output of the system and a learning signal for future work quality.**
 
 **Tables**:
 - `deliverables` — Standing configuration for a recurring output (what to read, how to format, where to send, when to run)
-- `deliverable_versions` — Immutable record of each generated output (content, source_snapshots, status progression)
+- `deliverable_versions` — Immutable record of each generated output (content, source_snapshots, status progression, edit history)
 
 **How it is produced**: Headless execution triggered by `unified_scheduler.py`. Credentials decrypted from `platform_connections`. Platform data fetched live. LLM call (Claude API). Version created. Activity event written.
 
-**Status progression**: `draft` → `staged` → `approved` → `published`
+**Three origins** (ADR-068):
+- `user_configured` — Explicitly created by user in UI or via TP
+- `analyst_suggested` — Detected from TP conversation patterns (ADR-060)
+- `signal_emergent` — Created by signal processing from behavioral signals (ADR-068)
 
-**Governance modes**:
-- `manual` (default): Version is staged, user reviews and approves in the UI
-- `full_auto`: Version is automatically approved and delivered without user review
+**Status progression**: `generating` → `delivered` (ADR-066 simplified flow)
 
-**Key property**: Deliverable execution never reads `filesystem_items`. Platform data is always fetched live to ensure the output reflects actual platform state at generation time.
+**Key properties**:
+1. **Live platform reads**: Deliverable execution never reads `filesystem_items`. Platform data is always fetched live to ensure output reflects actual platform state at generation time.
 
-**Lifecycle**: Versions are immutable after generation (content does not change; `status` progresses). Versions are retained even if the parent deliverable is deleted.
+2. **Content as learning signal** (ADR-069): Recent deliverable version content (400-char preview) is included in signal reasoning prompts. This enables the LLM to assess whether existing deliverables are stale or still current, improving `trigger_existing` vs `create_signal_emergent` decisions.
+
+3. **Feedback extraction** (ADR-064): When users approve edited versions, the system extracts learning patterns (length preferences, format preferences) to Memory layer.
+
+**Lifecycle**: Versions are immutable after generation (content does not change; `status` may progress). Versions are retained even if the parent deliverable is deleted. Deliverables can be promoted from one-time (`signal_emergent`) to recurring (`user_configured`).
 
 ---
 
@@ -195,32 +213,101 @@ The layers interact in a defined, unidirectional way. Data flows in one directio
 
 ---
 
+## Bidirectional learning loops
+
+While data flows **unidirectionally downward** for generation (Memory → Activity → Context → Work), **learning flows upward** through feedback loops that improve future quality:
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                    GENERATION (Downward)                      │
+│                                                               │
+│   Memory (L1) ───────┐                                       │
+│                      │                                       │
+│   Activity (L2) ─────┤                                       │
+│                      ├──► Signal Processing ──► Work (L4)   │
+│   Context (L3) ──────┘     (ADR-068/069)                     │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+
+┌──────────────────────────────────────────────────────────────┐
+│                    LEARNING (Upward)                          │
+│                                                               │
+│   Work (L4) ─────► Deliverable Feedback ──► Memory (L1)     │
+│                    (ADR-064: process_feedback)                │
+│                                                               │
+│   Work (L4) ─────► Content Quality Signal ──► Signal (L4)   │
+│                    (ADR-069: recent_content in reasoning)     │
+│                                                               │
+│   Activity (L2) ──► Pattern Detection ────► Memory (L1)     │
+│                    (ADR-064/070: process_patterns)            │
+│                                                               │
+└──────────────────────────────────────────────────────────────┘
+```
+
+### Three feedback mechanisms (ADR-064 completion)
+
+1. **Deliverable feedback loop** (Work → Memory)
+   - When: User approves edited deliverable version
+   - What: `process_feedback()` analyzes diff between draft and final
+   - Writes: Length preferences, format preferences to `user_context`
+   - Source: `feedback` (confidence: 0.7)
+
+2. **Pattern detection loop** (Activity → Memory)
+   - When: Daily at midnight UTC for all users
+   - What: `process_patterns()` detects 5 behavioral patterns from activity_log
+   - Writes: Day/time preferences, type preferences, edit/format patterns
+   - Source: `pattern` (confidence: 0.6)
+
+3. **Content quality signal** (Work → Work)
+   - When: Signal processing runs (hourly/daily)
+   - What: Recent deliverable content included in signal reasoning prompts
+   - Effect: LLM assesses whether existing deliverables still address current signals
+   - Enables: Smart `trigger_existing` vs `create_signal_emergent` decisions
+
+### Key insight: Layer 4 is both output and input
+
+Layer 4 serves dual purpose:
+- **Output**: Versioned work products delivered to users
+- **Input**: Training signal for what quality looks like (recency, edits, staleness)
+
+The more deliverables a user runs, the more the system learns what they value. This creates a **quality flywheel**: better deliverables → more usage → more learning → better deliverables.
+
+---
+
 ## Boundary reference
 
 | Question | Answer |
 |---|---|
 | Why does `filesystem_items` exist if deliverables use live APIs? | Cache is for conversational search (ILIKE, cross-platform, low latency). Live APIs are for authoritative point-in-time reads. Neither can replace the other. |
-| Why does `activity_log` exist if `deliverable_versions` records runs? | `deliverable_versions` holds full generated content. `activity_log` holds lightweight event summaries for prompt injection. Neither replaces the other. |
+| Why does `activity_log` exist if `deliverable_versions` records runs? | `deliverable_versions` holds full generated content. `activity_log` holds lightweight event summaries for prompt injection and pattern detection. Neither replaces the other. |
 | Can platform content become Memory automatically? | No. Automatic promotion was removed in ADR-059. "Promote document to Memory" is a deferred feature (ADR-062). |
 | Does TP get platform content in its system prompt? | No. Context is fetched on demand via Search or tools, never pre-loaded. |
-| Is Memory updated during a session? | Memory is read at session start and does not update mid-session. Memory extraction happens at session end (ADR-064), taking effect in the *next* session's working memory. |
+| Is Memory updated during a session? | Memory is read at session start and does not update mid-session. Memory extraction happens at session end or via background jobs (ADR-064), taking effect in the *next* session's working memory. |
 | What happens if `write_activity()` fails? | The calling operation continues. All log writes are non-fatal by design. |
 | Can a user write to `activity_log`? | No. Service-role writes only. Users can SELECT their own rows. |
-| Is a `deliverable_version` mutable after generation? | The `content` field is immutable. The `status` field progresses (staged → approved → published). |
+| Is a `deliverable_version` mutable after generation? | The `final_content` field is immutable. The `status` field progresses (generating → delivered). |
+| How does Layer 4 content influence future work? | Recent deliverable version content (400-char preview) is included in signal reasoning prompts (ADR-069). This enables quality-aware orchestration decisions. |
+| What are the three memory extraction sources? | 1) Conversation (nightly batch), 2) Deliverable feedback (on approval), 3) Activity patterns (daily detection). See ADR-064. |
+| Is signal processing real-time? | No. Signals are extracted on cron schedule (hourly for calendar, daily for silence). Near-real-time via webhooks is future work. |
+| Can signal-emergent deliverables become recurring? | Yes. Deliverables can be promoted from one-time (`origin=signal_emergent`, no schedule) to recurring (add schedule). Origin field preserves provenance. |
 
 ---
 
 ## Design principles
 
-**Explicit over implicit.** Every write to Memory, Activity, and Work is an explicit operation at a known call site. No background inference, no automatic promotion, no side effects.
+**Unidirectional generation, bidirectional learning.** Data flows downward (L1→L2→L3→L4) for generation. Learning flows upward (L4→L1, L2→L1) through feedback loops. This separation enables predictable generation while allowing quality improvement over time.
 
-**Non-fatal logging.** Activity writes are wrapped in `try/except pass` everywhere. The provenance log is valuable but never mission-critical. A log failure is a missing entry in a log, not a broken pipeline.
+**Explicit writes at boundaries.** Every write to Memory, Activity, and Work happens at a known boundary: session end, deliverable approval, pattern detection cron. No scattered inference, no automatic promotion mid-operation.
+
+**Non-fatal logging.** Activity writes are wrapped in `try/except pass` everywhere. The provenance log is valuable but never mission-critical. A log failure is a missing entry, not a broken pipeline.
 
 **Separation of freshness and authority.** The cache (`filesystem_items`) is fresh enough for conversation. Live APIs are authoritative for generation. Using the cache for deliverables would introduce silent staleness risk. Using live APIs for every conversational search would be prohibitively slow.
 
-**Immutability where it matters.** Work versions are immutable records. Activity rows are immutable. Only Memory and the deliverable `status` field are mutable — and Memory mutability is user-controlled.
+**Immutability where it matters.** Work versions are immutable records. Activity rows are immutable. Only Memory and deliverable metadata are mutable — and Memory mutability is boundary-controlled (extraction happens at defined points, not arbitrarily).
 
 **Headless execution.** Work is produced by a scheduler that runs without a user session. It depends only on credentials stored in `platform_connections`. The user does not need to be online.
+
+**Quality flywheel through Layer 4.** The more deliverables a user runs, the more the system learns what they value. Layer 4 content becomes training signal for future work. This creates a feedback loop: better deliverables → more usage → more learning → better deliverables.
 
 ---
 
