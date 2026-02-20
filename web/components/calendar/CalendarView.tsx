@@ -19,7 +19,7 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { EventClickArg, DatesSetArg } from '@fullcalendar/core';
-import { Loader2, MapPin, Users, Video, X, ExternalLink } from 'lucide-react';
+import { Loader2, MapPin, Users, Video, X, ExternalLink, ChevronDown, Calendar } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -36,16 +36,29 @@ interface CalendarEvent {
   recurring: boolean;
 }
 
+interface CalendarOption {
+  id: string;
+  summary: string;
+  primary?: boolean;
+}
+
 interface CalendarViewProps {
   calendarId?: string;
+  calendars?: CalendarOption[];
+  onCalendarChange?: (calendarId: string) => void;
   className?: string;
 }
 
-export function CalendarView({ calendarId = 'primary', className }: CalendarViewProps) {
+export function CalendarView({ calendarId = 'primary', calendars = [], onCalendarChange, className }: CalendarViewProps) {
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
+  const [showCalendarPicker, setShowCalendarPicker] = useState(false);
+
+  // Find the current calendar name
+  const currentCalendar = calendars.find(c => c.id === calendarId);
+  const currentCalendarName = currentCalendar?.summary || calendarId;
 
   const fetchEvents = useCallback(async (start: Date, end: Date) => {
     setLoading(true);
@@ -110,9 +123,76 @@ export function CalendarView({ calendarId = 'primary', className }: CalendarView
 
   return (
     <div className={cn('relative', className)}>
+      {/* Calendar Selector Header */}
+      {calendars.length > 0 && (
+        <div className="mb-4 flex items-center justify-between">
+          <div className="relative">
+            <button
+              onClick={() => setShowCalendarPicker(v => !v)}
+              className="flex items-center gap-2 px-3 py-2 border border-border rounded-lg hover:bg-muted/50 transition-colors"
+            >
+              <Calendar className="w-4 h-4 text-blue-500" />
+              <span className="text-sm font-medium">{currentCalendarName}</span>
+              {currentCalendar?.primary && (
+                <span className="text-xs text-muted-foreground">(primary)</span>
+              )}
+              <ChevronDown className={cn('w-4 h-4 text-muted-foreground transition-transform', showCalendarPicker && 'rotate-180')} />
+            </button>
+
+            {showCalendarPicker && (
+              <div className="absolute z-20 top-full left-0 mt-1 bg-background border border-border rounded-lg shadow-lg overflow-hidden min-w-[250px]">
+                {calendars.map((cal) => (
+                  <button
+                    key={cal.id}
+                    onClick={() => {
+                      setShowCalendarPicker(false);
+                      if (onCalendarChange) {
+                        onCalendarChange(cal.id);
+                      }
+                    }}
+                    className={cn(
+                      'w-full flex items-center justify-between px-4 py-2.5 text-left hover:bg-muted transition-colors',
+                      cal.id === calendarId && 'bg-muted/50'
+                    )}
+                  >
+                    <div>
+                      <p className="text-sm font-medium">
+                        {cal.summary}
+                        {cal.primary && <span className="ml-1.5 text-xs text-muted-foreground">(primary)</span>}
+                      </p>
+                    </div>
+                    {cal.id === calendarId && (
+                      <span className="w-2 h-2 rounded-full bg-primary shrink-0" />
+                    )}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <p className="text-xs text-muted-foreground">
+            {events.length} event{events.length !== 1 ? 's' : ''} in view
+          </p>
+        </div>
+      )}
+
       {loading && (
         <div className="absolute inset-0 bg-background/50 flex items-center justify-center z-10">
           <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+        </div>
+      )}
+
+      {/* Empty state when no events */}
+      {!loading && events.length === 0 && (
+        <div className="mb-4 p-4 border border-dashed border-border rounded-lg text-center">
+          <p className="text-sm text-muted-foreground">
+            No events found in this calendar for the current view.
+          </p>
+          {calendars.length > 1 && (
+            <p className="text-xs text-muted-foreground mt-1">
+              Try selecting a different calendar above.
+            </p>
+          )}
         </div>
       )}
 

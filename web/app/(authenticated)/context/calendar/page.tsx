@@ -225,7 +225,21 @@ export default function CalendarContextPage() {
     ? calendars.find(c => c.id === designatedCalendarId) || { id: designatedCalendarId, summary: designatedCalendarName || designatedCalendarId }
     : calendars.find(c => c.primary) || null;
 
-  const activeCalendarId = designatedCalendarId || currentCalendar?.id || 'primary';
+  const [activeCalendarId, setActiveCalendarId] = useState<string>('primary');
+
+  // Update active calendar when designated calendar or calendars list changes
+  useEffect(() => {
+    if (designatedCalendarId) {
+      setActiveCalendarId(designatedCalendarId);
+    } else if (calendars.length > 0) {
+      const primary = calendars.find(c => c.primary);
+      setActiveCalendarId(primary?.id || calendars[0].id);
+    }
+  }, [designatedCalendarId, calendars]);
+
+  const handleCalendarChange = (calendarId: string) => {
+    setActiveCalendarId(calendarId);
+  };
 
   return (
     <div className="h-full overflow-auto">
@@ -288,7 +302,11 @@ export default function CalendarContextPage() {
       {/* Calendar View */}
       {viewMode === 'calendar' && (
         <div className="p-6">
-          <CalendarView calendarId={activeCalendarId} />
+          <CalendarView
+            calendarId={activeCalendarId}
+            calendars={calendars}
+            onCalendarChange={handleCalendarChange}
+          />
         </div>
       )}
 
