@@ -1,20 +1,30 @@
 """
-Signal Processing Service — ADR-068
+Signal Processing Service — ADR-068 Phase 3+4
 
-Single LLM call (Haiku) that reasons over a SignalSummary and decides what
-the user's platform world warrants. Creates signal-emergent deliverables
-and queues their execution.
+Two-phase model (hardened 2026-02-20):
+
+PHASE 1: ORCHESTRATION (Ephemeral)
+- Extract behavioral signals from live platform APIs (signal_extraction.py)
+- Reason with LLM (Haiku): "What does this user's world warrant?"
+- Produce action recommendations (ephemeral SignalAction objects)
+
+PHASE 2: SELECTIVE ARTIFACT CREATION (Persistent)
+- create_signal_emergent: Create deliverable row (origin=signal_emergent) for novel work
+- trigger_existing: Advance next_run_at of existing deliverable (pure orchestration)
+- no_action: Signal doesn't meet threshold or is deduplicated
 
 This is Path B (orchestrator). TP is not involved.
 
-Actions this service can take:
-- create_signal_emergent: Create a deliverable (origin=signal_emergent,
-  trigger_type=manual) and immediately queue execution
-- trigger_existing: Advance the next_run of an existing deliverable
-- no_action: Signal doesn't meet confidence threshold or is deduplicated
+Signal-emergent deliverables are:
+- Normal deliverable rows with origin=signal_emergent (provenance)
+- Initially one-time (trigger_type=manual, no schedule)
+- Can be promoted to recurring (origin stays signal_emergent)
+- Delivered immediately (ADR-066 delivery-first)
+- Tracked in signal_history for per-signal deduplication
 
-Signal-emergent deliverables are delivery-first (ADR-066) — they deliver
-immediately after generation, same as all deliverables.
+Key insight: Signals observe platforms, deliverables synthesize across them.
+The system creates deliverable artifacts when it detects novel work not covered
+by existing configurations.
 """
 
 import json
@@ -147,25 +157,35 @@ async def execute_signal_actions(
     result: SignalProcessingResult,
 ) -> int:
     """
-    Execute the actions from signal processing.
+    Execute the actions from signal processing (Phase 2: Selective Artifact Creation).
 
-    Creates signal-emergent deliverables and queues execution.
-    Returns count of deliverables created.
+    Two execution paths:
+    1. create_signal_emergent: Creates NEW deliverable row (artifact creation)
+    2. trigger_existing: Updates existing deliverable's next_run_at (pure orchestration)
+
+    Returns count of NEW deliverables created (not count of all actions executed).
     """
     created = 0
 
     for action in result.actions:
         if action.action_type == "create_signal_emergent":
+            # Artifact creation: Create new deliverable row with origin=signal_emergent
             deliverable_id = await _create_signal_emergent_deliverable(
                 client, user_id, action
             )
             if deliverable_id:
+                # Immediate execution (doesn't wait for next cron cycle)
                 await _queue_signal_emergent_execution(client, user_id, deliverable_id)
                 created += 1
 
         elif action.action_type == "trigger_existing":
+            # Pure orchestration: Advance existing deliverable's schedule (no new row)
             if action.trigger_deliverable_id:
                 await _advance_deliverable_run(client, action.trigger_deliverable_id)
+                logger.info(
+                    f"[SIGNAL_PROCESSING] Triggered existing deliverable "
+                    f"{action.trigger_deliverable_id} for {user_id}"
+                )
 
     return created
 
@@ -175,8 +195,18 @@ async def _create_signal_emergent_deliverable(
     user_id: str,
     action: SignalAction,
 ) -> Optional[str]:
-    """Create a signal-emergent deliverable row with deduplication check."""
-    # Check signal_history for recent trigger (ADR-068 Phase 4)
+    """
+    Create a signal-emergent deliverable row with deduplication check.
+
+    This is ARTIFACT CREATION (Phase 2). Creates a persistent deliverable row that:
+    - Has origin=signal_emergent (immutable provenance)
+    - Is initially one-time (trigger_type=manual, no schedule)
+    - Can be promoted to recurring (origin stays signal_emergent)
+    - Is tracked in signal_history for per-signal deduplication
+
+    Returns deliverable_id if created, None if deduplicated.
+    """
+    # Check signal_history for recent trigger (ADR-068 Phase 4 deduplication)
     signal_ref = action.signal_context.get("event_id") or action.signal_context.get("thread_id", "")
     if signal_ref and not await _check_signal_eligible(client, user_id, action.deliverable_type, signal_ref):
         logger.info(
@@ -269,7 +299,17 @@ async def _queue_signal_emergent_execution(client, user_id: str, deliverable_id:
 
 
 async def _advance_deliverable_run(client, deliverable_id: str) -> None:
-    """Advance an existing deliverable's next_run_at to now."""
+    """
+    Advance an existing deliverable's next_run_at to now.
+
+    This is PURE ORCHESTRATION (no artifact creation). Updates an existing
+    recurring deliverable to run early in response to a signal, rather than
+    creating a new one-time deliverable.
+
+    Example: User has weekly meeting_prep deliverable. Signal detects urgent
+    meeting tomorrow. Instead of creating NEW signal_emergent deliverable,
+    advance the existing recurring one to run now.
+    """
     try:
         now = datetime.now(timezone.utc).isoformat()
         client.table("deliverables").update({
@@ -367,16 +407,42 @@ _REASONING_SYSTEM_PROMPT = """You are the signal processing component of a produ
 Your job is to look at a snapshot of a user's platform world and decide what proactive work, if any, is warranted.
 
 You can suggest one of three action types:
-- "create_signal_emergent": Create and immediately run a one-time deliverable
-- "trigger_existing": Advance the schedule of an existing deliverable that already covers this signal
-- "no_action": The signals don't warrant anything (too low confidence, already covered, or not meaningful)
+1. "trigger_existing" — PREFER THIS when an existing deliverable already handles the signal (pure orchestration, advance its schedule)
+2. "create_signal_emergent" — Use only when NO existing deliverable covers this work (creates new deliverable row)
+3. "no_action" — Signal doesn't warrant anything (too low confidence, already covered, or not meaningful)
 
-For meeting_prep: suggest it if there's a calendar event in the next 48h with external attendees that doesn't already have a meeting_prep deliverable running for it.
-For silence_alert: suggest it if a Gmail thread has been quiet for 5+ days and warrants a nudge.
+DECISION PRIORITY:
+- First check: Does an existing deliverable already handle this signal? If yes, use "trigger_existing" instead of creating a new one.
+- Only use "create_signal_emergent" when the work is novel and no suitable recurring deliverable exists.
+
+For meeting_prep:
+- If user has recurring meeting_prep deliverable: Use "trigger_existing" to run it early
+- If no recurring meeting_prep exists: Use "create_signal_emergent" for one-time prep brief
+- Signal warrants action if: calendar event in next 48h with external attendees
+
+For silence_alert:
+- Gmail thread quiet for 5+ days warrants a nudge
+- Currently no recurring silence_alert deliverables exist, so use "create_signal_emergent"
 
 IMPORTANT: Always include event_id (for calendar signals) or thread_id (for silence signals) in signal_context for deduplication tracking.
 
 Respond ONLY with valid JSON in this exact format:
+
+For triggering existing deliverable:
+{
+  "actions": [
+    {
+      "action_type": "trigger_existing",
+      "deliverable_type": "<type from EXISTING DELIVERABLES list>",
+      "trigger_deliverable_id": "<id from EXISTING DELIVERABLES list>",
+      "confidence": 0.85,
+      "reasoning": "User already has recurring meeting_prep, advancing it to cover this signal"
+    }
+  ],
+  "reasoning": "Explanation of decisions"
+}
+
+For creating new deliverable:
 {
   "actions": [
     {
@@ -387,18 +453,9 @@ Respond ONLY with valid JSON in this exact format:
       "confidence": 0.85,
       "sources": [{"type": "integration_import", "provider": "google", "source": "calendar"}],
       "signal_context": {"event_id": "<event_id from input>", "event_title": "...", "hours_until": 12}
-    },
-    {
-      "action_type": "create_signal_emergent",
-      "deliverable_type": "silence_alert",
-      "title": "Thread Quiet: <subject>",
-      "description": "Gmail thread with <sender> quiet for <N> days",
-      "confidence": 0.75,
-      "sources": [{"type": "integration_import", "provider": "google", "source": "gmail"}],
-      "signal_context": {"thread_id": "<thread_id from input>", "sender": "...", "days_silent": 7}
     }
   ],
-  "reasoning": "Brief explanation of decisions made"
+  "reasoning": "Explanation of decisions"
 }
 
 If no action is warranted, return: {"actions": [], "reasoning": "..."}

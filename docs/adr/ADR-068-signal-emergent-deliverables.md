@@ -46,11 +46,31 @@ All deliverables are classified by how they came to exist:
 
 ### Signal-emergent deliverables
 
-A signal-emergent deliverable is created by the orchestration agent **in response to what it observed in the user's platform world** — not in response to anything the user said or configured.
+**CLARIFICATION (2026-02-20):** The name "signal-emergent deliverables" creates conceptual confusion. **Signals are behavioral observations; deliverables are work artifacts.** The term "signal-emergent" refers to **provenance** (how it came to exist), not **nature** (what it is).
 
-It has two lifecycle states:
+A signal-emergent deliverable is a normal `deliverables` row with:
+- `origin=signal_emergent` — Immutable provenance tracking
+- `trigger_type=manual` — Initially one-time (no recurring schedule)
+- Can be promoted to recurring (same as any deliverable)
 
-**One-time (ephemeral)**: The signal warrants immediate action that won't recur on a fixed schedule. A meeting prep brief for tomorrow's call. A catch-up draft for a contact thread that's gone quiet. A conflict note when stated priorities and actual activity diverge this week. The deliverable runs once, produces a version, surfaces to the user for review, and does not re-run unless the user promotes it.
+**The two-phase model:**
+
+**Phase 1: Signal Processing (Orchestration)**
+- Extract behavioral signals from live platform APIs (deterministic, no LLM)
+- Reason with LLM: "What does this user's world warrant right now?"
+- Produce action recommendations (ephemeral data structures):
+  - `create_signal_emergent` — Create new deliverable for novel work
+  - `trigger_existing` — Advance next_run_at of existing deliverable
+  - `no_action` — Signal doesn't meet confidence threshold
+
+**Phase 2: Action Execution (Selective Artifact Creation)**
+- For `create_signal_emergent`: Create deliverable row + execute immediately
+- For `trigger_existing`: Update existing deliverable's next_run_at (pure orchestration)
+- Record in `signal_history` for deduplication
+
+**Lifecycle states:**
+
+**One-time (default)**: The signal warrants immediate action that won't recur on a fixed schedule. A meeting prep brief for tomorrow's call. A catch-up draft for a contact thread that's gone quiet. The deliverable runs once, produces a version, and does not re-run unless the user promotes it.
 
 **Promoted to recurring**: The user finds the output valuable and elects to make it recurring. The origin field stays `signal_emergent` but `trigger_type` becomes `schedule`, and the deliverable thereafter behaves identically to a `user_configured` scheduled deliverable.
 
@@ -191,6 +211,8 @@ POST /deliverables/{id}/promote-to-recurring
 **Not replacing user-configured deliverables.** `user_configured` deliverables remain the primary model. Signal-emergent deliverables are additive — they fill gaps the user didn't configure for.
 
 **Not real-time.** Signal processing runs on a cron schedule. The latency is bounded by the cron frequency and the platform sync freshness. Near-real-time processing via platform webhooks is a future extension; the `EventTriggerConfig` schema already supports it.
+
+**Not pure orchestration.** While Phase 1 is orchestration (signal extraction → reasoning), Phase 2 creates persistent deliverable artifacts for novel work. The system uses `trigger_existing` for pure orchestration when an existing deliverable already handles the signal, but creates new `signal_emergent` deliverables when no suitable recurring deliverable exists. This hybrid model allows both smart scheduling (triggering existing work early) and proactive discovery (creating new work the user didn't configure).
 
 ---
 

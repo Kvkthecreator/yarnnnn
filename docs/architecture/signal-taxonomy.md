@@ -168,6 +168,39 @@ Signal processing **creates deliverables of existing types**:
 
 ---
 
+## Orchestration vs. Artifacts — The Core Distinction
+
+### First-Principles Answer (2026-02-20)
+
+**Question:** Are signals orchestration (triggering existing deliverables) or artifacts (creating new deliverable rows)?
+
+**Answer:** Both, at different phases.
+
+Signal processing implements a **two-phase model**:
+
+**Phase 1: Pure Orchestration (Ephemeral)**
+- Extract behavioral signals from live platform APIs
+- Reason with LLM over signals + context + existing deliverables
+- Produce action recommendations (ephemeral `SignalAction` objects):
+  - `create_signal_emergent` — For novel work not covered by existing deliverables
+  - `trigger_existing` — For work already handled by recurring deliverables (advance next_run_at)
+  - `no_action` — Signal doesn't meet confidence threshold or is redundant
+
+**Phase 2: Selective Artifact Creation (Persistent)**
+- For `create_signal_emergent`: Create new deliverable row (`origin=signal_emergent`) + execute immediately
+- For `trigger_existing`: Update existing deliverable's next_run_at (pure orchestration, no new row)
+- For `no_action`: Nothing
+- Record all actions in `signal_history` for deduplication
+
+**This is analogous to GitHub Actions:**
+- **Trigger event** (push, PR) → **Ephemeral signal** (calendar event, thread silence)
+- **Workflow definition** (YAML file persists) → **Deliverable row** (config persists)
+- **Workflow run** (execution instance) → **Deliverable version** (execution result)
+
+The key insight: **Signals observe platforms, deliverables synthesize across them.** Signal processing creates deliverable artifacts when it detects novel work that isn't covered by the user's existing configurations.
+
+---
+
 ## The Naming Problem
 
 ### Current Confusion
@@ -179,6 +212,11 @@ The signal processing code uses signal type names (`meeting_prep`, `silence_aler
 3. **Deduplication key** (signal_history) — `signal_type = "meeting_prep"`
 
 This conflates **what we observed** with **what we created**.
+
+However, after first-principles analysis, this conflation is **acceptable** because:
+- Signal processing creates deliverables using existing types (`meeting_prep` already exists)
+- The `signal_history.signal_type` matches `deliverable_type` by design (tracks which type of deliverable was created)
+- Alternative (separate signal taxonomy) adds complexity without clear benefit
 
 ---
 
@@ -405,26 +443,41 @@ signal: str  # Is this a signal observation or a deliverable type?
 
 ## Summary
 
-### Three-Layer Model
+### Hardened Conceptual Framework (2026-02-20)
+
+**Signal processing is orchestration that creates artifacts.**
+
+**Three-Layer Model:**
 
 1. **Signals** (behavioral observations) — Extracted from live APIs, ephemeral
 2. **Deliverables** (content artifacts) — Created in database, versioned, delivered
 3. **UI Grouping** (visual organization) — Platform vs Synthesis
 
-### Key Principles
+**Key Principles:**
 
+- **Two-phase execution**: Orchestration (signal reasoning) → Selective artifact creation (deliverable rows)
+- **Hybrid action model**: `trigger_existing` (pure orchestration) + `create_signal_emergent` (artifact creation)
 - **Signals observe platforms, deliverables synthesize across them**
-- **SYNTHESIS = cross-platform work** (including signal-emergent)
-- **Signal types ≠ deliverable types** (but currently conflated for simplicity)
-- **Origin records provenance**, not current state
+- **SYNTHESIS = cross-platform work** (including all signal-emergent deliverables)
+- **Origin records provenance**, not current state (`signal_emergent` is immutable)
 - **Type classification drives execution**, not UI grouping
+- **Schema evidence**: `signal_history.deliverable_id` FK proves artifact creation pattern
 
-### Current Status
+**Implementation Status:**
 
 - ✅ `meeting_prep` fully implemented (reuses existing type)
+- ✅ Two-phase model implemented (create + trigger actions)
+- ✅ Infrastructure complete (signal_history, preferences, split cron)
 - ⚠️ `silence_alert` needs prompt template + type classification
 - ⚠️ `contact_drift` needs prompt template + type classification + extraction logic
-- ✅ Infrastructure complete (signal_history, preferences, split cron)
+- ⚠️ LLM prompt currently favors `create_signal_emergent` over `trigger_existing`
+
+**Architectural Alignment:**
+
+- All three deliverable origins (user/analyst/signal) create deliverable rows
+- Signal-emergent deliverables are **not special cases** — they're normal deliverables with different provenance
+- Promotion preserves `origin=signal_emergent` (provenance tracking)
+- Fits cleanly into Path B Phase 1 (orchestrator, not TP)
 
 ---
 

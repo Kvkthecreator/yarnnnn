@@ -230,32 +230,50 @@ If enabled: behaves identically to user_configured (scheduled execution)
 
 ### Signal-Emergent Deliverable Lifecycle (ADR-068)
 
+**Hardened Two-Phase Model (2026-02-20):**
+
 ```
-Signal Processing phase runs (hourly cron during testing, daily in production)
+PHASE 1: ORCHESTRATION (Ephemeral)
+──────────────────────────────────
+Signal Processing phase runs (hourly for calendar, daily 7AM for silence)
    ↓
 Queries LIVE platform APIs (Google Calendar, Gmail) for fresh external state
    ↓
-Extracts behavioral signals (upcoming events, quiet threads, activity)
+Extracts behavioral signals (upcoming events, quiet threads, activity gaps)
    ↓
 LLM reasoning pass (Haiku): "What does this user's world warrant?"
    ↓
-If confidence ≥ 0.60 and not deduplicated:
-   deliverables row created (origin=signal_emergent, trigger_type=manual, status=active)
-   ↓
-Deliverable immediately executed (no waiting for next cron cycle)
-   ↓
-deliverable_version created (status=delivered)
-   ↓
-Content delivered to user's inbox (email, Slack DM, etc.)
-   ↓
-User reviews output:
-  - Approves → deliverable archived (one-time, done)
+Produces action recommendations (ephemeral SignalAction objects):
+  - trigger_existing: Advance existing deliverable's next_run_at (pure orchestration)
+  - create_signal_emergent: Create new deliverable for novel work (artifact creation)
+  - no_action: Signal doesn't meet threshold or is redundant
+
+PHASE 2: SELECTIVE ARTIFACT CREATION (Persistent)
+──────────────────────────────────────────────────
+For trigger_existing action:
+   → Updates existing deliverable.next_run_at = now
+   → No new deliverable row created (pure orchestration)
+   → Existing recurring deliverable runs early
+
+For create_signal_emergent action:
+   → Checks signal_history for deduplication (per event_id/thread_id)
+   → If not deduplicated (confidence ≥ 0.60):
+      → deliverables row created (origin=signal_emergent, trigger_type=manual)
+      → Records in signal_history (tracks which deliverable was created)
+      → Immediately executes (doesn't wait for next cron cycle)
+      → deliverable_version created (status=delivered)
+      → Content delivered to user's inbox
+
+User reviews delivered output:
+  - Approves → deliverable stays in history (can view in UI)
   - Dismisses → deliverable archived
   - Promotes to recurring → POST /deliverables/{id}/promote-to-recurring
       → trigger_type=schedule, schedule set, next_run_at calculated
-      → origin stays signal_emergent (provenance preserved)
-      → behaves as recurring from this point forward
+      → origin stays signal_emergent (immutable provenance)
+      → behaves as recurring deliverable from this point forward
 ```
+
+**Key Insight:** Signals are orchestration that creates artifacts. The system prefers `trigger_existing` (pure orchestration) when a recurring deliverable already handles the signal, but creates new `signal_emergent` deliverables (artifacts) when no suitable recurring deliverable exists.
 
 ---
 
@@ -416,9 +434,21 @@ Phase 4 delivered:
 - Gmail silence signal extraction via live Gmail API (thread history analysis)
 - `signals_filter` parameter in `extract_signal_summary()` for selective signal extraction
 
-**Status:** Signal-emergent deliverables fully operational. Users with active `platform_connections` receive:
-- Meeting prep briefs (hourly check, 48h lookahead window)
-- Silence alerts for Gmail threads (daily check, 5+ day threshold)
+**Status (2026-02-20):** Signal-emergent deliverables fully operational with hardened two-phase model.
+
+**What works:**
+- ✅ Two-phase execution (orchestration → selective artifact creation)
+- ✅ Hybrid action model (trigger_existing + create_signal_emergent)
+- ✅ Meeting prep deliverables (hourly check, 48h lookahead, calendar signals)
+- ✅ Gmail silence extraction (daily check, 5+ day threshold)
+- ✅ Per-signal deduplication via signal_history table
+- ✅ User preferences via user_notification_preferences
+- ✅ Split cron frequency (hourly/daily based on signal urgency)
+
+**What's pending:**
+- ⚠️ `silence_alert` deliverable type needs prompt template (extraction works, generation doesn't)
+- ⚠️ `contact_drift` signal extraction not yet implemented
+- ⚠️ LLM prompt updated to prioritize trigger_existing, but needs real-world testing
 
 ---
 
