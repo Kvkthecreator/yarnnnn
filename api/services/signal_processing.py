@@ -104,6 +104,25 @@ async def process_signal(
             processed_at=datetime.now(timezone.utc),
         )
 
+    # Content sufficiency check (cold-start graceful exit)
+    total_items = (
+        (signal_summary.calendar_content.items_count if signal_summary.calendar_content else 0) +
+        (signal_summary.gmail_content.items_count if signal_summary.gmail_content else 0) +
+        (signal_summary.slack_content.items_count if signal_summary.slack_content else 0) +
+        (signal_summary.notion_content.items_count if signal_summary.notion_content else 0)
+    )
+
+    if total_items < 3:
+        logger.info(
+            f"[SIGNAL_PROCESSING] Insufficient content for {user_id} "
+            f"({total_items} items total), returning no_action"
+        )
+        return SignalProcessingResult(
+            user_id=user_id,
+            processed_at=datetime.now(timezone.utc),
+            reasoning_summary="Insufficient platform content for signal detection",
+        )
+
     # Build the reasoning prompt
     prompt = _build_reasoning_prompt(
         signal_summary=signal_summary,
@@ -327,74 +346,50 @@ def _build_reasoning_prompt(
     recent_activity: list[dict],
     existing_deliverables: list[dict],
 ) -> str:
-    """Build the structured prompt for the reasoning pass."""
+    """
+    Build the structured prompt for content-based reasoning.
 
-    # Format calendar signals
-    calendar_text = ""
-    if signal_summary.calendar_signals:
-        items = []
-        for sig in signal_summary.calendar_signals:
-            attendees = ", ".join(sig.attendee_emails[:5]) if sig.attendee_emails else "no attendees listed"
-            items.append(
-                f"- \"{sig.title}\" in {sig.hours_until:.1f}h "
-                f"(event_id: {sig.event_id}, attendees: {attendees})"
-            )
-        calendar_text = "UPCOMING EVENTS (next 48h):\n" + "\n".join(items)
+    Reframed (2026-02-20): This prompt presents LIVE PLATFORM CONTENT, not absence/thresholds.
+    The LLM reasons about what's significant in the actual content, aligned with strategic
+    deliverable types (daily_strategy_reflection, intelligence_brief, deep_research).
+    """
+
+    # Format platform content (not signals/thresholds)
+    platform_sections = []
+
+    if signal_summary.calendar_content and signal_summary.calendar_content.items_count > 0:
+        calendar = signal_summary.calendar_content
+        platform_sections.append(
+            f"CALENDAR (upcoming {(calendar.time_range_end - calendar.time_range_start).days} days, {calendar.items_count} events):\n"
+            f"{calendar.content_summary}"
+        )
+
+    if signal_summary.gmail_content and signal_summary.gmail_content.items_count > 0:
+        gmail = signal_summary.gmail_content
+        platform_sections.append(
+            f"GMAIL (last {(gmail.time_range_end - gmail.time_range_start).days} days, {gmail.items_count} messages):\n"
+            f"{gmail.content_summary}"
+        )
+
+    if signal_summary.slack_content and signal_summary.slack_content.items_count > 0:
+        slack = signal_summary.slack_content
+        platform_sections.append(
+            f"SLACK (last {(slack.time_range_end - slack.time_range_start).days} days, {slack.items_count} messages):\n"
+            f"{slack.content_summary}"
+        )
+
+    if signal_summary.notion_content and signal_summary.notion_content.items_count > 0:
+        notion = signal_summary.notion_content
+        platform_sections.append(
+            f"NOTION ({notion.items_count} items):\n{notion.content_summary}"
+        )
+
+    if not platform_sections:
+        platform_content_text = "PLATFORM CONTENT: No recent activity across connected platforms"
     else:
-        calendar_text = "UPCOMING EVENTS: None in next 48h"
+        platform_content_text = "\n\n".join(platform_sections)
 
-    # Format silence signals
-    silence_text = ""
-    if signal_summary.silence_signals:
-        items = []
-        for sig in signal_summary.silence_signals:
-            items.append(
-                f"- Thread \"{sig.thread_subject}\" with {sig.sender}: "
-                f"quiet for {sig.days_silent:.1f} days (thread_id: {sig.label_id})"
-            )
-        silence_text = "QUIET THREADS (no recent activity):\n" + "\n".join(items)
-    else:
-        silence_text = "QUIET THREADS: None detected"
-
-    # Format Slack signals
-    slack_text = ""
-    if signal_summary.slack_signals:
-        items = []
-        for sig in signal_summary.slack_signals:
-            if sig.signal_type == "channel_silence":
-                items.append(
-                    f"- Channel #{sig.channel_name}: "
-                    f"quiet for {sig.days_silent:.1f} days (channel_id: {sig.channel_id})"
-                )
-            elif sig.signal_type == "unanswered_dm":
-                items.append(
-                    f"- DM from {sig.last_sender}: "
-                    f"awaiting response for {sig.days_silent:.1f} days"
-                )
-        slack_text = "SLACK SIGNALS:\n" + "\n".join(items)
-    else:
-        slack_text = "SLACK SIGNALS: None detected"
-
-    # Format Notion signals
-    notion_text = ""
-    if signal_summary.notion_signals:
-        items = []
-        for sig in signal_summary.notion_signals:
-            if sig.signal_type == "stale_page":
-                items.append(
-                    f"- Page \"{sig.page_title}\": "
-                    f"not edited in {sig.days_stale:.1f} days (page_id: {sig.page_id})"
-                )
-            elif sig.signal_type == "overdue_task":
-                items.append(
-                    f"- Task \"{sig.page_title}\" (Status: {sig.status}): "
-                    f"overdue by {sig.days_stale:.1f} days"
-                )
-        notion_text = "NOTION SIGNALS:\n" + "\n".join(items)
-    else:
-        notion_text = "NOTION SIGNALS: None detected"
-
-    # Format user context (memory)
+    # Format user context (memory) - unchanged
     context_text = ""
     if user_context:
         lines = []
@@ -404,9 +399,9 @@ def _build_reasoning_prompt(
             if key.startswith(("fact:", "preference:", "instruction:")):
                 lines.append(f"- {value}")
         if lines:
-            context_text = "USER CONTEXT:\n" + "\n".join(lines)
+            context_text = "USER CONTEXT (Memory Layer):\n" + "\n".join(lines)
 
-    # Format recent activity
+    # Format recent activity - unchanged
     activity_text = ""
     if recent_activity:
         lines = []
@@ -414,8 +409,7 @@ def _build_reasoning_prompt(
             lines.append(f"- {event.get('summary', '')}")
         activity_text = "RECENT SYSTEM ACTIVITY:\n" + "\n".join(lines)
 
-    # Format existing deliverables with Layer 4 content (ADR-069)
-    # Include recent output to enable quality-aware reasoning
+    # Format existing deliverables with Layer 4 content (ADR-069) - unchanged
     deliverables_text = ""
     if existing_deliverables:
         lines = []
@@ -458,13 +452,7 @@ def _build_reasoning_prompt(
     else:
         deliverables_text = "EXISTING DELIVERABLES: None configured"
 
-    return f"""{calendar_text}
-
-{silence_text}
-
-{slack_text}
-
-{notion_text}
+    return f"""{platform_content_text}
 
 {context_text}
 
@@ -472,53 +460,65 @@ def _build_reasoning_prompt(
 
 {deliverables_text}
 
-Based on the above, what does this user's world warrant right now?
+Given the above platform content, what is significant? What patterns are emerging?
+What deliverable would add value right now?
+
 Respond with JSON only."""
 
 
 _REASONING_SYSTEM_PROMPT = """You are the signal processing component of a productivity system.
-Your job is to look at a snapshot of a user's platform world and decide what proactive work, if any, is warranted.
 
-You can suggest one of three action types:
-1. "trigger_existing" — PREFER THIS when an existing deliverable already handles the signal (pure orchestration, advance its schedule)
-2. "create_signal_emergent" — Use only when NO existing deliverable covers this work (creates new deliverable row)
-3. "no_action" — Signal doesn't warrant anything (too low confidence, already covered, or not meaningful)
+You read LIVE PLATFORM CONTENT (emails, calendar events, Slack messages, Notion pages) and determine
+what's significant enough to warrant creating or triggering a deliverable.
+
+ARCHITECTURAL REFRAME (2026-02-20):
+This is NOT absence/threshold detection. You reason about CONTENT SIGNIFICANCE, not gaps.
+The question is: "Given what's actually here across platforms, what patterns are emerging,
+what decisions are pending, what topic warrants synthesis?"
+
+THREE STRATEGIC DELIVERABLE TYPES DEFINE "SIGNIFICANT":
+
+1. **daily_strategy_reflection** — Strategic movements, decision points, pattern recognition
+   - Look for: Developments affecting strategic landscape, gap between stated priorities and actual activity
+   - Example: Email thread reveals decision point on pricing, Slack shows team alignment shifting
+   - Creates: Strategic journal entry synthesizing cross-platform movements
+
+2. **intelligence_brief** — Entity-specific developments (person, company, topic)
+   - Look for: What changed since last brief about this entity? New information with specific impact?
+   - Example: Calendar shows upcoming meeting with contact X, Gmail has 3 new threads from X's company
+   - Creates: Priority-ranked intelligence digest for that entity
+
+3. **deep_research** — Emerging topic appearing across platforms with substance worth deeper synthesis
+   - Look for: Topic mentioned in multiple contexts, requires web research + platform grounding
+   - Example: "AI regulation" in 3 Slack channels, 2 email threads, upcoming meeting agenda
+   - Creates: Research brief combining platform context + external sources
+
+ACTION TYPES:
+
+1. "trigger_existing" — An existing deliverable already handles this content (advance its schedule)
+2. "create_signal_emergent" — No suitable recurring deliverable exists (create new one-time deliverable)
+3. "no_action" — Content doesn't warrant action (insufficient significance, already covered, too sparse)
 
 DECISION PRIORITY:
-- First check: Does an existing deliverable already handle this signal? If yes, use "trigger_existing" instead of creating a new one.
-- Only use "create_signal_emergent" when the work is novel and no suitable recurring deliverable exists.
+- First check EXISTING DELIVERABLES: Does one already handle this content? If yes, prefer "trigger_existing"
+- Only use "create_signal_emergent" when the work is novel and no suitable recurring deliverable exists
+- Use LAYER 4 CONTENT (recent deliverable output) to assess if existing deliverable is still relevant or stale
 
-LAYER 4 CONTENT USAGE (ADR-069):
-The EXISTING DELIVERABLES section includes recent output content from each deliverable. Use this to:
-- Assess whether existing deliverables are still current or have become stale
-- Determine if a new signal is already addressed by recent work
-- Make quality-aware decisions: if a deliverable's last output was weeks ago with different context, consider create_signal_emergent instead of trigger_existing
-- Avoid creating duplicate work: if recent output already covers the signal, use no_action
+CONTENT SUFFICIENCY:
+- If platform content is too sparse (only 1-2 items total), default to "no_action"
+- Significance requires substance: multiple data points, clear pattern, or high-impact single event
+- Don't force signal detection when content doesn't warrant it
 
-Example: If a meeting_prep deliverable exists but its last output was 2 weeks ago for different attendees, the current meeting signal warrants create_signal_emergent (one-time prep for THIS meeting) rather than trigger_existing (which would reuse stale configuration).
+EXAMPLES:
 
-SIGNAL TYPES AND HANDLING:
+Content: Calendar has 1 upcoming meeting "Weekly Team Sync", Gmail has 2 internal emails, no Slack activity
+→ no_action (routine internal activity, insufficient significance)
 
-1. **Calendar signals** (upcoming meetings):
-   - If user has recurring meeting_prep deliverable: Use "trigger_existing" to run it early
-   - If no recurring meeting_prep exists: Use "create_signal_emergent" for one-time prep brief
-   - Signal warrants action if: calendar event in next 48h with external attendees
+Content: Calendar shows "Client Meeting with Acme Corp CEO", Gmail has 3 threads about Acme pricing concerns, Slack #sales mentions Acme 4 times
+→ create_signal_emergent (intelligence_brief type, entity=Acme Corp, significant multi-platform pattern)
 
-2. **Gmail silence signals** (quiet threads):
-   - Gmail thread quiet for 5+ days warrants a nudge
-   - Currently no recurring silence_alert deliverables exist, so use "create_signal_emergent"
-
-3. **Slack signals** (channel silence, unanswered DMs):
-   - Channel quiet for 7+ days may warrant digest or check-in
-   - Unanswered DMs may warrant response reminder
-   - Create appropriate deliverable type based on context
-
-4. **Notion signals** (stale pages, overdue tasks):
-   - Pages not edited in 14+ days may warrant review
-   - Overdue tasks warrant action reminder
-   - Create appropriate deliverable type based on context
-
-IMPORTANT: Always include signal_context with platform-specific IDs (event_id, thread_id, channel_id, page_id) for deduplication tracking.
+Content: User has existing daily_strategy_reflection deliverable (last run: 3 days ago), Gmail shows 5 decision-point emails today, Slack shows strategy discussion
+→ trigger_existing (advance the daily_strategy_reflection to run now, fresh strategic movements detected)
 
 Respond ONLY with valid JSON in this exact format:
 
@@ -530,10 +530,10 @@ For triggering existing deliverable:
       "deliverable_type": "<type from EXISTING DELIVERABLES list>",
       "trigger_deliverable_id": "<id from EXISTING DELIVERABLES list>",
       "confidence": 0.85,
-      "reasoning": "User already has recurring meeting_prep, advancing it to cover this signal"
+      "reasoning": "Existing deliverable handles this content, advancing schedule"
     }
   ],
-  "reasoning": "Explanation of decisions"
+  "reasoning": "Explanation of what content patterns warranted this action"
 }
 
 For creating new deliverable:
@@ -541,18 +541,18 @@ For creating new deliverable:
   "actions": [
     {
       "action_type": "create_signal_emergent",
-      "deliverable_type": "meeting_prep",
-      "title": "Meeting Prep: <event title>",
-      "description": "One-time brief for <event> with <attendees>",
+      "deliverable_type": "intelligence_brief",
+      "title": "Intelligence Brief: Acme Corp Developments",
+      "description": "Synthesis of recent Acme-related activity across platforms",
       "confidence": 0.85,
       "sources": [{"type": "integration_import", "provider": "google", "source": "calendar"}],
-      "signal_context": {"event_id": "<event_id from input>", "event_title": "...", "hours_until": 12}
+      "signal_context": {"entity": "Acme Corp", "platforms": ["calendar", "gmail", "slack"]}
     }
   ],
-  "reasoning": "Explanation of decisions"
+  "reasoning": "Cross-platform pattern indicates significant entity developments"
 }
 
-If no action is warranted, return: {"actions": [], "reasoning": "..."}
+If no action is warranted, return: {"actions": [], "reasoning": "Insufficient content significance"}
 Confidence must be 0.0–1.0. Only suggest actions with confidence >= 0.60."""
 
 
