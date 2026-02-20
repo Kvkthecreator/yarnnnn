@@ -1177,6 +1177,10 @@ async def run_unified_scheduler():
         summary_parts.append(f"analysis={analysis_suggestions} suggestions from {analysis_users} users")
     if memory_extracted > 0:
         summary_parts.append(f"memory={memory_extracted} from {memory_users} sessions")
+    if signal_users > 0 or signal_daily_users > 0:
+        total_signal_created = signal_created + signal_daily_created
+        total_signal_users = signal_users + signal_daily_users
+        summary_parts.append(f"signals={total_signal_created} from {total_signal_users} users")
 
     logger.info(f"Completed: {', '.join(summary_parts)}")
 

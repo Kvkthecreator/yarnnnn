@@ -296,8 +296,8 @@ def _build_reasoning_prompt(
         for sig in signal_summary.calendar_signals:
             attendees = ", ".join(sig.attendee_emails[:5]) if sig.attendee_emails else "no attendees listed"
             items.append(
-                f"- \"{sig.title}\" in {sig.hours_until}h "
-                f"(attendees: {attendees})"
+                f"- \"{sig.title}\" in {sig.hours_until:.1f}h "
+                f"(event_id: {sig.event_id}, attendees: {attendees})"
             )
         calendar_text = "UPCOMING EVENTS (next 48h):\n" + "\n".join(items)
     else:
@@ -310,7 +310,7 @@ def _build_reasoning_prompt(
         for sig in signal_summary.silence_signals:
             items.append(
                 f"- Thread \"{sig.thread_subject}\" with {sig.sender}: "
-                f"quiet for {sig.days_silent} days"
+                f"quiet for {sig.days_silent:.1f} days (thread_id: {sig.label_id})"
             )
         silence_text = "QUIET THREADS (no recent activity):\n" + "\n".join(items)
     else:
@@ -372,6 +372,9 @@ You can suggest one of three action types:
 - "no_action": The signals don't warrant anything (too low confidence, already covered, or not meaningful)
 
 For meeting_prep: suggest it if there's a calendar event in the next 48h with external attendees that doesn't already have a meeting_prep deliverable running for it.
+For silence_alert: suggest it if a Gmail thread has been quiet for 5+ days and warrants a nudge.
+
+IMPORTANT: Always include event_id (for calendar signals) or thread_id (for silence signals) in signal_context for deduplication tracking.
 
 Respond ONLY with valid JSON in this exact format:
 {
@@ -383,7 +386,16 @@ Respond ONLY with valid JSON in this exact format:
       "description": "One-time brief for <event> with <attendees>",
       "confidence": 0.85,
       "sources": [{"type": "integration_import", "provider": "google", "source": "calendar"}],
-      "signal_context": {"event_title": "...", "hours_until": 12, "attendees": ["..."]}
+      "signal_context": {"event_id": "<event_id from input>", "event_title": "...", "hours_until": 12}
+    },
+    {
+      "action_type": "create_signal_emergent",
+      "deliverable_type": "silence_alert",
+      "title": "Thread Quiet: <subject>",
+      "description": "Gmail thread with <sender> quiet for <N> days",
+      "confidence": 0.75,
+      "sources": [{"type": "integration_import", "provider": "google", "source": "gmail"}],
+      "signal_context": {"thread_id": "<thread_id from input>", "sender": "...", "days_silent": 7}
     }
   ],
   "reasoning": "Brief explanation of decisions made"
