@@ -1138,7 +1138,7 @@ export default function SettingsPage() {
                         <span className="font-medium">Proactive Signal Detection</span>
                       </div>
                       <p className="text-sm text-muted-foreground">
-                        Scan your connected platforms (Gmail, Calendar, Slack, Notion) for signals like upcoming meetings, silent threads, or contact drift. Creates deliverables automatically.
+                        Scan your connected platforms for behavioral signals (upcoming meetings, silent threads, contact drift). Currently supports Gmail and Calendar, with Slack and Notion signal detection coming soon.
                       </p>
                     </div>
                     <button
