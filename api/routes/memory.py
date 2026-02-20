@@ -66,6 +66,8 @@ class ContextEntry(BaseModel):
     value: str
     source: str
     confidence: float
+    source_ref: Optional[UUID] = None  # ADR-072: FK to source record (deliverable_version_id, session_id)
+    source_type: Optional[str] = None  # ADR-072: type of source (deliverable_feedback, conversation_extraction, pattern_analysis)
     created_at: datetime
     updated_at: datetime
 

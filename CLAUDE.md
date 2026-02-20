@@ -116,8 +116,8 @@ You MUST:
 
 **Tables** (use these names, not legacy):
 - `platform_connections` (not `user_integrations`)
-- `filesystem_items` (not `ephemeral_context`)
-- `filesystem_documents` / `filesystem_chunks`
+- `platform_content` — unified content layer with retention (ADR-072, replaces `filesystem_items`)
+- `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_context` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
 
 **Removed files** (ADR-064):

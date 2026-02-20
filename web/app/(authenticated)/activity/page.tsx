@@ -44,16 +44,19 @@ import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
 // Activity event types stored in database (ADR-063)
-// Only these 4 are valid for API filtering
-type ApiEventType = 'deliverable_run' | 'memory_written' | 'platform_synced' | 'chat_session';
-
-// Extended event types for UI display (some are legacy/planned)
-type EventType =
-  | ApiEventType
+// All valid event types that can be filtered via API
+type ApiEventType =
+  | 'deliverable_run'
   | 'deliverable_approved'
   | 'deliverable_rejected'
+  | 'memory_written'
+  | 'platform_synced'
   | 'integration_connected'
-  | 'integration_disconnected';
+  | 'integration_disconnected'
+  | 'chat_session';
+
+// Alias for consistency
+type EventType = ApiEventType;
 
 interface ActivityItem {
   id: string;
@@ -111,13 +114,13 @@ const EVENT_CONFIG: Record<EventType, {
   },
 };
 
-// Event types shown as filter chips — only API-supported types
-// (deliverable_approved, deliverable_rejected, integration_* are UI-only display types)
+// Event types shown as filter chips — ADR-063 unified event types
 const FILTER_TYPES: ApiEventType[] = [
   'deliverable_run',
   'memory_written',
   'platform_synced',
   'chat_session',
+  'integration_connected',
 ];
 
 export default function ActivityPage() {
@@ -291,6 +294,10 @@ export default function ActivityPage() {
                 const metadata = item.metadata || {};
                 const provider = metadata.provider as string | undefined;
                 const source = metadata.source as string | undefined;
+                const deliverableTitle = metadata.deliverable_title as string | undefined;
+                const versionNumber = metadata.version_number as number | undefined;
+                const origin = metadata.origin as string | undefined;
+                const itemCount = metadata.item_count as number | undefined;
 
                 return (
                   <button
@@ -301,7 +308,7 @@ export default function ActivityPage() {
                     <div className="flex items-start gap-3">
                       <div className="mt-0.5">{getStatusIcon(item)}</div>
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium truncate">{item.summary}</span>
                           {provider && (
                             <span className="flex items-center gap-1 text-xs text-muted-foreground">
@@ -319,9 +326,29 @@ export default function ActivityPage() {
                               {source}
                             </span>
                           )}
+                          {/* Origin badge for signal-emergent deliverables */}
+                          {(item.event_type === 'deliverable_run' || item.event_type === 'deliverable_approved') && origin === 'signal_emergent' && (
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                              signal
+                            </span>
+                          )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
                           <span className={config.color}>{config.label}</span>
+                          {/* Version number for deliverable events */}
+                          {versionNumber && (
+                            <>
+                              <span>·</span>
+                              <span>v{versionNumber}</span>
+                            </>
+                          )}
+                          {/* Item count for platform syncs */}
+                          {item.event_type === 'platform_synced' && itemCount !== undefined && (
+                            <>
+                              <span>·</span>
+                              <span>{itemCount} items</span>
+                            </>
+                          )}
                           <span>·</span>
                           <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
                         </div>

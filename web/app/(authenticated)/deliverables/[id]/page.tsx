@@ -35,6 +35,7 @@ import {
   ExternalLink,
   RefreshCw,
   BarChart3,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -179,6 +180,27 @@ export default function DeliverableDetailPage() {
     return '📊';
   };
 
+  // ADR-068: Origin badge for signal-emergent and analyst-suggested deliverables
+  const getOriginBadge = () => {
+    if (deliverable?.origin === 'signal_emergent') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+          <Sparkles className="w-3 h-3" />
+          Signal-emergent
+        </span>
+      );
+    }
+    if (deliverable?.origin === 'analyst_suggested') {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+          <BarChart3 className="w-3 h-3" />
+          Analyst-suggested
+        </span>
+      );
+    }
+    return null;
+  };
+
   const formatSchedule = () => {
     if (!deliverable?.schedule) return 'No schedule';
     const s = deliverable.schedule;
@@ -298,6 +320,7 @@ export default function DeliverableDetailPage() {
               <div className="flex items-center gap-2">
                 <span className="text-xl">{platformBadge}</span>
                 <h1 className="text-xl font-semibold">{deliverable.title}</h1>
+                {getOriginBadge()}
               </div>
               <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
                 <span>{formatSchedule()}</span>

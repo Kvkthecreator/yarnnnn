@@ -356,6 +356,9 @@ class PlatformContentItem(BaseModel):
     source_timestamp: Optional[str] = None
     fetched_at: str  # ADR-072: platform_content uses fetched_at
     retained: bool = False  # ADR-072: retention flag
+    retained_reason: Optional[str] = None  # ADR-072: why retained (deliverable_execution, signal_processing, tp_session)
+    retained_at: Optional[str] = None  # ADR-072: when marked retained
+    expires_at: Optional[str] = None  # ADR-072: for ephemeral content, when it expires
     metadata: dict[str, Any] = {}
 
 
@@ -363,6 +366,7 @@ class PlatformContentResponse(BaseModel):
     """ADR-072: Synced content from platform_content for a platform."""
     items: list[PlatformContentItem]
     total_count: int
+    retained_count: int = 0  # ADR-072: count of retained items (accumulation visibility)
     freshest_at: Optional[str] = None
     platform: str
 
@@ -2620,6 +2624,19 @@ async def get_platform_context(
     count_result = count_query.execute()
     total_count = count_result.count or 0
 
+    # ADR-072: Get retained count for accumulation visibility
+    retained_count_query = (
+        auth.client.table("platform_content")
+        .select("id", count="exact")
+        .eq("user_id", user_id)
+        .eq("platform", provider)
+        .eq("retained", True)
+    )
+    if resource_id:
+        retained_count_query = retained_count_query.eq("resource_id", resource_id)
+    retained_count_result = retained_count_query.execute()
+    retained_count = retained_count_result.count or 0
+
     # Build response
     items = []
     freshest_at = None
@@ -2638,14 +2655,18 @@ async def get_platform_context(
             source_timestamp=source_ts,
             fetched_at=row["fetched_at"],  # ADR-072: Use fetched_at
             retained=row.get("retained", False),  # ADR-072: retention flag
+            retained_reason=row.get("retained_reason"),  # ADR-072: why retained
+            retained_at=row.get("retained_at"),  # ADR-072: when marked retained
+            expires_at=row.get("expires_at"),  # ADR-072: expiry for ephemeral content
             metadata=row.get("metadata", {}),
         ))
 
-    logger.info(f"[INTEGRATIONS] User {user_id} fetched {len(items)} content items from {provider}")
+    logger.info(f"[INTEGRATIONS] User {user_id} fetched {len(items)} content items from {provider} (retained={retained_count})")
 
     return PlatformContentResponse(
         items=items,
         total_count=total_count,
+        retained_count=retained_count,  # ADR-072: accumulation visibility
         freshest_at=freshest_at,
         platform=provider,
     )

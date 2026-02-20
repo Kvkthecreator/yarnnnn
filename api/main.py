@@ -24,7 +24,7 @@ logging.basicConfig(
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from routes import memory, chat, documents, admin, webhooks, subscription, work, deliverables, account, integrations, domains, signal_processing
+from routes import memory, chat, documents, admin, webhooks, subscription, work, deliverables, account, integrations, domains, signal_processing, jobs
 
 app = FastAPI(
     title="YARNNN API",
@@ -81,3 +81,6 @@ app.include_router(domains.router, tags=["domains"])
 
 # Signal processing routes (ADR-068)
 app.include_router(signal_processing.router, prefix="/api", tags=["signal-processing"])
+
+# Jobs/Operations status routes (ADR-072)
+app.include_router(jobs.router, prefix="/api/jobs", tags=["jobs"])

@@ -174,6 +174,27 @@ function DeliverableCard({
   // Use latest_version_status from API (not full version object)
   const latestStatus = deliverable.latest_version_status;
 
+  // ADR-068: Origin badge for signal-emergent and analyst-suggested deliverables
+  const getOriginBadge = () => {
+    if (deliverable.origin === 'signal_emergent') {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+          <Sparkles className="w-2.5 h-2.5" />
+          Signal
+        </span>
+      );
+    }
+    if (deliverable.origin === 'analyst_suggested') {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+          <BarChart3 className="w-2.5 h-2.5" />
+          Suggested
+        </span>
+      );
+    }
+    return null;
+  };
+
   // ADR-066: Delivery status (not governance)
   const getDeliveryStatus = () => {
     if (!latestStatus) return null;
@@ -238,7 +259,10 @@ function DeliverableCard({
         <span className="text-xl mt-0.5">{emoji}</span>
 
         <div className="flex-1 min-w-0">
-          <h3 className="text-sm font-medium truncate">{deliverable.title}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="text-sm font-medium truncate">{deliverable.title}</h3>
+            {getOriginBadge()}
+          </div>
 
           {/* Schedule + destination */}
           <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1">

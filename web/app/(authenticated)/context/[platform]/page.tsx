@@ -1285,11 +1285,22 @@ function ResourceRow({
               {contextItems.map((item) => (
                 <div
                   key={item.id}
-                  className="flex items-start gap-2 text-xs py-1.5 px-2 rounded bg-muted/50"
+                  className={cn(
+                    "flex items-start gap-2 text-xs py-1.5 px-2 rounded",
+                    item.retained ? "bg-green-50 dark:bg-green-950/20" : "bg-muted/50"
+                  )}
                 >
                   <span className="text-muted-foreground shrink-0">└─</span>
                   <div className="flex-1 min-w-0">
-                    <p className="text-foreground/80 line-clamp-2">{item.content}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-foreground/80 line-clamp-2 flex-1">{item.content}</p>
+                      {/* ADR-072: Retention badge */}
+                      {item.retained && (
+                        <span className="shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                          Retained
+                        </span>
+                      )}
+                    </div>
                     <p className="text-muted-foreground mt-0.5">
                       {item.source_timestamp && formatDistanceToNow(new Date(item.source_timestamp), { addSuffix: true })}
                     </p>

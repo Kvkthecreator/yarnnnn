@@ -872,9 +872,13 @@ export const api = {
           source_timestamp: string | null;
           fetched_at: string;  // ADR-072: platform_content uses fetched_at
           retained: boolean;  // ADR-072: retention flag
+          retained_reason: string | null;  // ADR-072: why retained
+          retained_at: string | null;  // ADR-072: when marked retained
+          expires_at: string | null;  // ADR-072: for ephemeral content
           metadata: Record<string, unknown>;
         }>;
         total_count: number;
+        retained_count: number;  // ADR-072: accumulation visibility
         freshest_at: string | null;
         platform: string;
       }>(
@@ -1219,6 +1223,38 @@ export const api = {
           body: JSON.stringify(data),
         }),
     },
+  },
+
+  // ADR-072: Jobs/Operations status
+  jobs: {
+    // Get comprehensive jobs status
+    getStatus: () =>
+      request<{
+        platform_sync: Array<{
+          platform: string;
+          connected: boolean;
+          last_synced_at: string | null;
+          next_sync_at: string | null;
+          source_count: number;
+          status: "healthy" | "stale" | "pending" | "disconnected" | "unknown";
+        }>;
+        scheduled_deliverables: Array<{
+          id: string;
+          title: string;
+          deliverable_type: string;
+          next_run_at: string;
+          destination_platform: string | null;
+        }>;
+        background_jobs: Array<{
+          job_type: string;
+          last_run_at: string | null;
+          last_run_status: "success" | "failed" | "never_run" | "unknown";
+          last_run_summary: string | null;
+          items_processed: number;
+        }>;
+        tier: string;
+        sync_frequency: string;
+      }>("/api/jobs/status"),
   },
 };
 

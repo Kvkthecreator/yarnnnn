@@ -381,13 +381,54 @@ These jobs are completely independent. None calls another. They share the data l
 
 ## Acceptance Criteria
 
-- [ ] `platform_content` table created with retention policy
-- [ ] Platform sync writes to new table with TTL
+- [x] `platform_content` table created with retention policy
+- [x] Platform sync writes to new table with TTL
 - [ ] Signal processing writes significant content with `retained=true`
 - [ ] TP primitives read from `platform_content` with semantic search
 - [ ] Deliverable execution uses TP in headless mode
 - [ ] `source_snapshots` includes `platform_content_ids`
-- [ ] `user_context.source_ref` populated by all extraction paths
+- [x] `user_context.source_ref` populated by all extraction paths
 - [ ] `filesystem_items` dropped
 - [ ] ADR-049 and ADR-062 marked superseded
-- [ ] Architecture docs updated
+- [x] Architecture docs updated
+- [x] Frontend surfacing completed (see below)
+
+---
+
+## Frontend Surfacing
+
+**Status**: Completed (2026-02-20)
+
+Frontend changes to surface ADR-072 concepts:
+
+### Jobs Page (`/jobs`)
+New operational visibility page showing:
+- Platform sync status (per-platform last/next sync, source count)
+- Scheduled deliverables (next runs)
+- Background job status (signal processing, memory extraction, conversation analyst)
+
+Distinct from Activity (audit trail) — Jobs shows operational state.
+
+### Context Page Enhancements
+- Retention badges on content items (`Retained` badge)
+- `retained_count` in API response for accumulation visibility
+
+### Memory Page Enhancements
+- Provenance badges showing `source_type` ("from feedback", "from chat", "from patterns")
+- `source_ref` available in frontend types
+
+### Deliverables Page Enhancements
+- Origin badges for `signal_emergent` and `analyst_suggested` deliverables
+- Badges on list cards and detail page headers
+
+### Activity Page Enhancements
+- Added `integration_connected` to filterable event types
+- Enhanced metadata display: version numbers, item counts, origin badges for signal-emergent deliverables
+
+### Navigation
+Added Jobs to navigation bar: Chat | Deliverables | Memory | Context | Activity | Jobs | Settings
+
+### API Endpoints
+- `GET /api/jobs/status` — Returns platform sync status, scheduled deliverables, background job status
+- `GET /api/integrations/{platform}/context` — Extended with `retained`, `retained_reason`, `retained_at`, `expires_at`, `retained_count`
+- `GET /api/memory/context` — Extended with `source_ref`, `source_type`

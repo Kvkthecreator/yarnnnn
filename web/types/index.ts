@@ -38,12 +38,15 @@ export interface Memory {
 }
 
 // ADR-059: User context entry (key-value pairs in user_context table)
+// ADR-072: Added source_ref and source_type for provenance tracking
 export interface UserContextEntry {
   id: string;
   key: string;
   value: string;
   source: string;
   confidence: number;
+  source_ref?: string | null;  // ADR-072: FK to source record (deliverable_version_id, session_id)
+  source_type?: string | null;  // ADR-072: type of source (deliverable_feedback, conversation_extraction, pattern_analysis)
   created_at: string;
   updated_at: string;
 }
@@ -718,6 +721,8 @@ export interface Deliverable {
   governance: GovernanceLevel;
   // ADR-031: System-enforced governance ceiling
   governance_ceiling?: GovernanceLevel;  // Max governance based on destination
+  // ADR-068: Deliverable origin
+  origin?: 'user_configured' | 'analyst_suggested' | 'signal_emergent';
   // Quality metrics (ADR-018: feedback loop)
   quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
@@ -938,4 +943,65 @@ export interface ActiveDomainResponse {
   } | null;
   source: "deliverable" | "single_domain" | "ambiguous";
   domain_count?: number;
+}
+
+// =============================================================================
+// ADR-072: Jobs/Operations Status
+// =============================================================================
+
+export interface PlatformSyncStatus {
+  platform: string;
+  connected: boolean;
+  last_synced_at?: string | null;
+  next_sync_at?: string | null;
+  source_count: number;
+  status: "healthy" | "stale" | "pending" | "disconnected" | "unknown";
+}
+
+export interface ScheduledDeliverable {
+  id: string;
+  title: string;
+  deliverable_type: string;
+  next_run_at: string;
+  destination_platform?: string | null;
+}
+
+export interface BackgroundJobStatus {
+  job_type: string;
+  last_run_at?: string | null;
+  last_run_status: "success" | "failed" | "never_run" | "unknown";
+  last_run_summary?: string | null;
+  items_processed: number;
+}
+
+export interface JobsStatusResponse {
+  platform_sync: PlatformSyncStatus[];
+  scheduled_deliverables: ScheduledDeliverable[];
+  background_jobs: BackgroundJobStatus[];
+  tier: string;
+  sync_frequency: string;
+}
+
+// ADR-072: Platform content with retention fields
+export interface PlatformContentItem {
+  id: string;
+  content: string;
+  content_type?: string | null;
+  resource_id: string;
+  resource_name?: string | null;
+  source_timestamp?: string | null;
+  fetched_at: string;
+  retained: boolean;
+  retained_reason?: string | null;  // ADR-072: why retained
+  retained_at?: string | null;  // ADR-072: when marked retained
+  expires_at?: string | null;  // ADR-072: for ephemeral content
+  metadata: Record<string, unknown>;
+}
+
+export interface PlatformContentResponse {
+  items: PlatformContentItem[];
+  total_count: number;
+  retained_count: number;  // ADR-072: accumulation visibility
+  freshest_at?: string | null;
+  platform: string;
 }

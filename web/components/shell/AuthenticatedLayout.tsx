@@ -22,7 +22,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { MessageCircle, ChevronDown, Settings, Calendar, Activity, Layers, Brain } from 'lucide-react';
+import { MessageCircle, ChevronDown, Settings, Calendar, Activity, Layers, Brain, Zap } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -105,13 +105,14 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-063: Four-Layer Model Navigation
-// Chat | Deliverables (Work) | Memory | Context | Activity | Settings
+// ADR-063: Four-Layer Model Navigation + ADR-072: Jobs (Operations)
+// Chat | Deliverables (Work) | Memory | Context | Activity | Jobs | Settings
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' },
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
   { id: 'context', label: 'Context', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
+  { id: 'jobs', label: 'Jobs', icon: Zap, path: '/jobs' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 
