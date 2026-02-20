@@ -167,14 +167,41 @@ async def trigger_signal_processing(
             days=7,
         )
 
-        existing_deliverables_result = (
+        # ADR-069: Fetch Layer 4 content for signal reasoning
+        existing_deliverables_raw = (
             supabase.table("deliverables")
-            .select("id, title, deliverable_type, next_run_at, status")
+            .select("""
+                id, title, deliverable_type, next_run_at, status,
+                deliverable_versions!inner(
+                    final_content,
+                    draft_content,
+                    created_at,
+                    status
+                )
+            """)
             .eq("user_id", user_id)
             .in_("status", ["active", "paused"])
+            .order("deliverable_versions(created_at)", desc=True)
             .execute()
         )
-        existing_deliverables = existing_deliverables_result.data or []
+
+        # Extract most recent version per deliverable
+        existing_deliverables = []
+        for d in (existing_deliverables_raw.data or []):
+            versions = d.get("deliverable_versions", [])
+            recent_version = versions[0] if versions else None
+            existing_deliverables.append({
+                "id": d["id"],
+                "title": d["title"],
+                "deliverable_type": d["deliverable_type"],
+                "next_run_at": d.get("next_run_at"),
+                "status": d["status"],
+                "recent_content": (
+                    recent_version.get("final_content") or
+                    recent_version.get("draft_content")
+                ) if recent_version else None,
+                "recent_version_date": recent_version.get("created_at") if recent_version else None,
+            })
 
         # Phase 1: Signal reasoning (orchestration)
         processing_result = await process_signal(
