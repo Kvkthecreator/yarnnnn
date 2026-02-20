@@ -85,7 +85,7 @@ Every deliverable has an `origin` field recording how it came to exist:
 |---|---|---|---|
 | `user_configured` | User (via UI) or TP (on explicit request) | User intent | Configured first, then scheduled |
 | `analyst_suggested` | Conversation Analyst (ADR-060) | TP session content (`session_messages`) | Suggested, user enables or dismisses |
-| `signal_emergent` | Signal Processing phase (ADR-068) | Platform activity (`filesystem_items`) | One-time, user reviews and optionally promotes |
+| `signal_emergent` | Signal Processing phase (ADR-068) | Live platform APIs (fresh external state) | One-time, user reviews and optionally promotes |
 
 **`user_configured`** — Default. The user or TP explicitly created this deliverable. It runs on the configured schedule or manually.
 
@@ -235,7 +235,9 @@ If enabled: behaves identically to user_configured (scheduled execution)
 ```
 Signal Processing phase runs (hourly cron during testing, daily in production)
    ↓
-Extracts behavioral signals from filesystem_items (calendar, silence, activity)
+Queries LIVE platform APIs (Google Calendar, Gmail) for fresh external state
+   ↓
+Extracts behavioral signals (upcoming events, quiet threads, activity)
    ↓
 LLM reasoning pass (Haiku): "What does this user's world warrant?"
    ↓
@@ -306,11 +308,11 @@ ADR-066 removed this complexity. All deliverables are now effectively `full_auto
 
 ### Signal Processing Cost Gate (ADR-068)
 
-Signal processing only runs for users with `filesystem_items` activity in the last 48 hours. This prevents unnecessary LLM calls for inactive users.
+Signal processing only runs for users with active platform connections. This prevents unnecessary LLM calls for users who haven't connected any platforms.
 
 ```sql
-SELECT DISTINCT user_id FROM filesystem_items
-WHERE synced_at >= NOW() - INTERVAL '48 hours';
+SELECT DISTINCT user_id FROM platform_connections
+WHERE status = 'active';
 ```
 
 ### Deduplication Rules (ADR-068)

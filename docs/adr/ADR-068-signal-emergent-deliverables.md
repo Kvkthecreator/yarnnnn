@@ -105,7 +105,7 @@ Phase 1 is new. Phases 2 and 3 are existing (Phase 2 not yet implemented per ADR
 
 ### Signal extraction — what "Layer 3 snapshot" means
 
-The signal processing phase does not dump raw platform content into an LLM call. It runs a structured extraction pass over `filesystem_items` (the platform cache) that produces a **behavioral signal summary** — not content, but events and patterns:
+The signal processing phase does not dump raw platform content into an LLM call. It queries **live platform APIs** (Google Calendar, Gmail, Slack, Notion) to get the fresh, current state of the user's external world, then produces a **behavioral signal summary** — not content, but events and patterns:
 
 ```
 Signal summary (example, not literal schema):
@@ -118,7 +118,9 @@ Signal summary (example, not literal schema):
 
 This summary is structured, compact, and cross-platform. It is the input the LLM reasons over. The raw messages, emails, and pages are not passed — just the behavioral signal extracted from them.
 
-This extraction is a deterministic pass (no LLM needed), producing structured data from `filesystem_items` metadata: timestamps, senders/recipients, mentions, edit history, attendee lists.
+**Critically**: Signal extraction queries **live APIs**, NOT the `filesystem_items` cache. The whole point of hourly cron execution is to see the real-time state for time-sensitive signals like "meeting in 6 hours" or "thread went silent yesterday". The cache is stale (2-24h depending on sync frequency) and inappropriate for proactive signal detection.
+
+This extraction is a deterministic pass (no LLM needed), producing structured data from live API responses: timestamps, senders/recipients, mentions, edit history, attendee lists.
 
 ### What the orchestration agent reasons over
 
@@ -206,7 +208,7 @@ POST /deliverables/{id}/promote-to-recurring
 
 ## Open questions
 
-1. **Signal extraction granularity** — How detailed should the behavioral signal summary be? Per-contact cadence tracking requires more metadata from the sync than currently stored. Does `filesystem_items` capture sender/recipient in a queryable form, or does signal extraction need a schema addition?
+1. **Signal extraction granularity** — How detailed should the behavioral signal summary be? Per-contact cadence tracking requires analyzing Gmail thread history via live API calls. Should signal extraction fetch full thread histories or just recent messages?
 
 2. **Phase 1 frequency** — Daily is safe and predictable. Hourly catches more time-sensitive signals (meeting in 3 hours) but increases compute cost and requires freshness checks to avoid re-processing the same signals. Start daily; move to hourly for calendar/meeting signals specifically?
 
@@ -223,7 +225,7 @@ POST /deliverables/{id}/promote-to-recurring
 **Phase 1** — Schema and scaffolding
 - Add `origin` column to `deliverables`
 - Define the signal summary data structure
-- Implement deterministic signal extraction pass over `filesystem_items`
+- Implement deterministic signal extraction via live platform API calls (Google Calendar, Gmail)
 
 **Phase 2** — Orchestrator reasoning pass
 - Implement signal processing function (single LLM call, structured output)

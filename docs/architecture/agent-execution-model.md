@@ -132,7 +132,7 @@ The proactive autonomy roadmap is implemented through **ADR-068: Signal-Emergent
 
 | Concept | Belongs in | Rationale |
 |---|---|---|
-| "What happened in user's world?" | Signal Processing phase — behavioral signal extraction from Layer 3 | Deterministic metadata read, no LLM |
+| "What happened in user's world?" | Signal Processing phase — live platform API queries | Deterministic, fresh external state, no LLM |
 | "What does this warrant?" | Signal Processing phase — orchestration agent reasoning pass | Single LLM call over signal summary |
 | Drift detection, conflict detection, meeting prep | Signal-emergent deliverable creation | `origin=signal_emergent`, `trigger_type=manual` |
 | Cross-signal correlation (Notion + Slack) | Signal summary input to orchestration agent | Cross-platform extraction, not cross-platform agent |

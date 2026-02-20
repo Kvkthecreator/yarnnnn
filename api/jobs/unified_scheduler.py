@@ -965,9 +965,9 @@ async def run_unified_scheduler():
 
     # -------------------------------------------------------------------------
     # ADR-068: Signal Processing Phase (hourly during Phase 1+2 testing)
-    # Extracts behavioral signals from platform cache, reasons over what the
-    # user's world warrants, creates signal-emergent deliverables.
-    # Only runs for users with recent platform activity (cost gate).
+    # Queries LIVE platform APIs for fresh state of user's world, compares against
+    # YARNNN internal state (Memory, Activity, deliverables) to determine proactive actions.
+    # Cost gate: Only runs for users with active platform connections.
     # TODO: Move to daily (now.hour == 7) after Phase 2 validation complete
     # -------------------------------------------------------------------------
     signal_users = 0
@@ -979,23 +979,23 @@ async def run_unified_scheduler():
             from services.working_memory import _get_active_deliverables
             from services.activity_log import get_recent_activity
 
-            # Get users with recent platform activity (filesystem_items populated in last 48h)
-            since_48h = (now - timedelta(hours=48)).isoformat()
+            # Get users with active platform connections (cost gate)
+            # Signal extraction queries live APIs, so only process users who have connected platforms
             active_result = (
-                supabase.table("filesystem_items")
+                supabase.table("platform_connections")
                 .select("user_id")
-                .gte("synced_at", since_48h)
+                .eq("status", "active")
                 .execute()
             )
             active_user_ids = list(set(
                 row["user_id"] for row in (active_result.data or [])
             ))
 
-            logger.info(f"[SIGNAL] Found {len(active_user_ids)} users with recent platform activity")
+            logger.info(f"[SIGNAL] Found {len(active_user_ids)} users with active platform connections")
 
             for user_id in active_user_ids:
                 try:
-                    # Extract behavioral signals from platform cache
+                    # Extract behavioral signals from LIVE platform APIs
                     signal_summary = await extract_signal_summary(supabase, user_id)
 
                     if not signal_summary.has_signals:

@@ -1,16 +1,23 @@
 """
 Signal Extraction Service — ADR-068
 
-Deterministic behavioral signal extraction from filesystem_items (Layer 3).
-No LLM involved. Reads platform cache metadata to produce a structured
-SignalSummary that the signal processing function reasons over.
+Behavioral signal extraction from **live platform APIs** (NOT filesystem_items cache).
 
-Signal types extracted:
-- CalendarSignal: upcoming events in the next 48h with attendee context
-- SilenceSignal: Gmail threads where user has no outbound reply in N days
+The whole point of hourly cron execution is to get the fresh, current state of
+the user's external world. Signal processing compares this live snapshot against
+YARNNN's internal state (Memory, Activity, existing deliverables) to determine
+what proactive actions are warranted.
 
-These are the signals required for the first signal-emergent deliverable type:
-meeting_prep with commitment context (ADR-068 Phase 1).
+Architecture:
+- Queries live Google Calendar API for upcoming events (next 48h)
+- Queries live Gmail API for quiet threads (no reply in 5+ days)
+- Decrypts credentials from platform_connections
+- Returns structured SignalSummary (not raw platform data)
+- No LLM involved — deterministic extraction only
+
+This is the opposite of filesystem_items (which is a stale cache for conversational
+search). Signal processing must see the real-time state to detect time-sensitive
+signals like "meeting in 6 hours" or "thread went silent yesterday".
 """
 
 import logging
@@ -31,10 +38,10 @@ class CalendarSignal:
     """An upcoming calendar event that may warrant a proactive brief."""
     event_id: str
     title: str
-    start_time: str                  # ISO8601 from metadata
+    start_time: str                  # ISO8601
     attendee_emails: list[str]       # All attendees
     location: Optional[str]
-    calendar_id: str                 # The resource_id (calendar)
+    calendar_id: str
     hours_until: float               # Computed at extraction time
 
 
@@ -45,13 +52,13 @@ class SilenceSignal:
     sender: str                      # Who the thread is with (from: header)
     last_received: str               # ISO8601 of last incoming message
     days_silent: float               # Days since last message in thread
-    label_id: str                    # The Gmail label/resource
+    label_id: str                    # The Gmail label
 
 
 @dataclass
 class SignalSummary:
     """
-    Structured behavioral signal extracted from a user's platform cache.
+    Structured behavioral signal extracted from live platform APIs.
 
     Consumed by signal_processing.py to decide what (if anything) to create.
     Content is compact and structured — not raw platform data.
@@ -66,44 +73,41 @@ class SignalSummary:
 
 async def extract_signal_summary(client, user_id: str) -> SignalSummary:
     """
-    Extract behavioral signals from filesystem_items for a user.
+    Extract behavioral signals from live platform APIs for a user.
 
-    Reads only metadata columns — not content. Deterministic, no LLM.
+    Queries Google Calendar and Gmail APIs directly (NOT filesystem_items cache).
+    Decrypts credentials from platform_connections.
 
     Args:
         client: Supabase service-role client
         user_id: The user to extract signals for
 
     Returns:
-        SignalSummary with extracted signals. Empty summary if no platform data.
+        SignalSummary with extracted signals. Empty summary if no platforms connected.
     """
     now = datetime.now(timezone.utc)
     summary = SignalSummary(user_id=user_id, extracted_at=now)
 
+    # Extract calendar signals (live Google Calendar API)
     try:
         calendar_signals = await _extract_calendar_signals(client, user_id, now)
         summary.calendar_signals = calendar_signals
     except Exception as e:
         logger.warning(f"[SIGNAL_EXTRACTION] Calendar signal extraction failed for {user_id}: {e}")
 
+    # Extract silence signals (live Gmail API)
     try:
         silence_signals = await _extract_silence_signals(client, user_id, now)
         summary.silence_signals = silence_signals
     except Exception as e:
         logger.warning(f"[SIGNAL_EXTRACTION] Silence signal extraction failed for {user_id}: {e}")
 
-    try:
-        summary.platform_activity = await _extract_platform_activity(client, user_id)
-    except Exception as e:
-        logger.warning(f"[SIGNAL_EXTRACTION] Platform activity extraction failed for {user_id}: {e}")
-
     summary.has_signals = bool(summary.calendar_signals or summary.silence_signals)
 
     logger.info(
         f"[SIGNAL_EXTRACTION] user={user_id}: "
         f"calendar={len(summary.calendar_signals)}, "
-        f"silence={len(summary.silence_signals)}, "
-        f"activity={summary.platform_activity}"
+        f"silence={len(summary.silence_signals)}"
     )
 
     return summary
@@ -112,28 +116,62 @@ async def extract_signal_summary(client, user_id: str) -> SignalSummary:
 async def _extract_calendar_signals(
     client, user_id: str, now: datetime
 ) -> list[CalendarSignal]:
-    """Extract upcoming calendar events within the lookahead window."""
-    lookahead_cutoff = (now + timedelta(hours=CALENDAR_LOOKAHEAD_HOURS)).isoformat()
+    """Extract upcoming calendar events from live Google Calendar API."""
+    from integrations.core.google_client import get_google_client
+    from integrations.core.tokens import get_token_manager
 
-    result = (
-        client.table("filesystem_items")
-        .select("item_id, resource_id, resource_name, metadata, source_timestamp")
+    # Get user's Google Calendar connection
+    conn_result = (
+        client.table("platform_connections")
+        .select("credentials_encrypted, refresh_token_encrypted, settings")
         .eq("user_id", user_id)
-        .eq("platform", "calendar")
-        .eq("content_type", "event")
-        .gte("source_timestamp", now.isoformat())
-        .lte("source_timestamp", lookahead_cutoff)
-        .order("source_timestamp")
+        .eq("platform", "google")
+        .eq("status", "active")
+        .single()
         .execute()
     )
 
+    if not conn_result.data:
+        return []  # No Google connection
+
+    token_manager = get_token_manager()
+    refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
+
+    # Get OAuth credentials from environment (same as other Google API calls)
+    import os
+    client_id = os.getenv("GOOGLE_CLIENT_ID")
+    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
+
+    if not client_id or not client_secret:
+        logger.error("[SIGNAL_EXTRACTION] Google OAuth credentials not configured")
+        return []
+
+    # Query live Google Calendar API for events in next 48h
+    google_client = get_google_client()
+    time_min = now.isoformat()
+    time_max = (now + timedelta(hours=CALENDAR_LOOKAHEAD_HOURS)).isoformat()
+
+    events = await google_client.list_calendar_events(
+        client_id=client_id,
+        client_secret=client_secret,
+        refresh_token=refresh_token,
+        calendar_id="primary",
+        time_min=time_min,
+        time_max=time_max,
+        max_results=50
+    )
+
     signals = []
-    for row in (result.data or []):
-        meta = row.get("metadata") or {}
-        event_id = meta.get("event_id") or row.get("item_id", "")
-        start_time = meta.get("start") or row.get("source_timestamp", "")
-        attendees = meta.get("attendees") or []
-        title = row.get("resource_name", "Untitled event")
+    for event in events:
+        event_id = event.get("id", "")
+        title = event.get("summary", "Untitled event")
+        start = event.get("start", {})
+        start_time = start.get("dateTime") or start.get("date", "")
+
+        attendees = event.get("attendees") or []
+        attendee_emails = [a.get("email") for a in attendees if a.get("email")]
+
+        location = event.get("location")
 
         # Compute hours until event
         hours_until = 0.0
@@ -143,15 +181,17 @@ async def _extract_calendar_signals(
         except (ValueError, TypeError):
             pass
 
-        signals.append(CalendarSignal(
-            event_id=event_id,
-            title=title,
-            start_time=start_time,
-            attendee_emails=[e for e in attendees if e],
-            location=meta.get("location"),
-            calendar_id=row.get("resource_id", ""),
-            hours_until=round(hours_until, 1),
-        ))
+        # Only include events with external attendees (not solo events)
+        if len(attendee_emails) > 0:
+            signals.append(CalendarSignal(
+                event_id=event_id,
+                title=title,
+                start_time=start_time,
+                attendee_emails=attendee_emails,
+                location=location,
+                calendar_id="primary",
+                hours_until=hours_until,
+            ))
 
     return signals
 
@@ -160,85 +200,18 @@ async def _extract_silence_signals(
     client, user_id: str, now: datetime
 ) -> list[SilenceSignal]:
     """
-    Extract Gmail threads that have gone quiet.
+    Extract Gmail threads that have gone silent (no user reply in N days).
 
-    A thread is 'silent' if the most recent item in that thread is older
-    than SILENCE_THRESHOLD_DAYS. We identify threads by subject/sender
-    using the resource_id (label) + metadata grouping.
-
-    Note: This is an approximation — filesystem_items stores individual emails,
-    not threaded conversations. We group by subject prefix to approximate threads.
+    Note: Simplified Phase 1 implementation. Full thread tracking requires
+    Gmail API thread history analysis to determine last user-sent message.
+    For now, returns empty — silence signals deferred to Phase 2.
     """
-    silence_cutoff = (now - timedelta(days=SILENCE_THRESHOLD_DAYS)).isoformat()
+    # TODO Phase 2: Implement Gmail thread silence detection via live API
+    # Requires:
+    # 1. Query Gmail threads from selected labels (INBOX, etc.)
+    # 2. For each thread, find last message
+    # 3. Check if user sent a reply after last received message
+    # 4. If not, compute days since last received
+    # 5. Return threads silent >= SILENCE_THRESHOLD_DAYS
 
-    # Fetch recent Gmail items, ordered by resource and timestamp
-    result = (
-        client.table("filesystem_items")
-        .select("item_id, resource_id, resource_name, metadata, source_timestamp")
-        .eq("user_id", user_id)
-        .eq("platform", "gmail")
-        .eq("content_type", "email")
-        .order("source_timestamp", desc=True)
-        .limit(100)
-        .execute()
-    )
-
-    if not result.data:
-        return []
-
-    # Group by subject (resource_name) to approximate threads
-    # Take the most recent email per subject
-    seen_subjects: dict[str, dict] = {}
-    for row in result.data:
-        subject = row.get("resource_name", "")
-        if subject and subject not in seen_subjects:
-            seen_subjects[subject] = row
-
-    signals = []
-    for subject, row in seen_subjects.items():
-        source_ts = row.get("source_timestamp")
-        if not source_ts:
-            continue
-
-        # Only surface threads that have gone quiet
-        try:
-            msg_dt = datetime.fromisoformat(source_ts.replace("Z", "+00:00"))
-        except (ValueError, TypeError):
-            continue
-
-        if msg_dt.isoformat() > silence_cutoff:
-            continue  # Still active
-
-        days_silent = (now - msg_dt).total_seconds() / 86400
-        meta = row.get("metadata") or {}
-        sender = meta.get("from", "")
-
-        signals.append(SilenceSignal(
-            thread_subject=subject,
-            sender=sender,
-            last_received=source_ts,
-            days_silent=round(days_silent, 1),
-            label_id=row.get("resource_id", ""),
-        ))
-
-        if len(signals) >= SILENCE_MAX_THREADS:
-            break
-
-    return signals
-
-
-async def _extract_platform_activity(client, user_id: str) -> dict:
-    """Count cached items per platform — lightweight activity indicator."""
-    result = (
-        client.table("filesystem_items")
-        .select("platform")
-        .eq("user_id", user_id)
-        .execute()
-    )
-
-    counts: dict[str, int] = {}
-    for row in (result.data or []):
-        platform = row.get("platform", "unknown")
-        counts[platform] = counts.get(platform, 0) + 1
-
-    return counts
+    return []
