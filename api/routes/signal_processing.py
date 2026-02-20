@@ -286,10 +286,8 @@ async def trigger_signal_processing(
         except Exception as e:
             logger.warning(f"[SIGNAL_TRIGGER] Failed to update last trigger timestamp: {e}")
 
-        total_signals = (
-            signal_summary.calendar_signals_count +
-            signal_summary.silence_signals_count
-        )
+        # Total content items (not "signals" in threshold sense, but platform content items)
+        total_signals = signal_summary.total_items
 
         return TriggerSignalProcessingResponse(
             status="completed",
