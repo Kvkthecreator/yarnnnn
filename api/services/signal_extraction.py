@@ -189,14 +189,14 @@ async def _extract_calendar_signals(
         client.table("platform_connections")
         .select("credentials_encrypted, refresh_token_encrypted, settings")
         .eq("user_id", user_id)
-        .eq("platform", "gmail")
+        .eq("platform", "google")
         .eq("status", "active")
         .single()
         .execute()
     )
 
     if not conn_result.data:
-        return []  # No Gmail/Google connection
+        return []  # No Google connection
 
     token_manager = get_token_manager()
     refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
@@ -273,19 +273,19 @@ async def _extract_silence_signals(
     from integrations.core.google_client import get_google_client
     from integrations.core.tokens import get_token_manager
 
-    # Get user's Gmail connection
+    # Get user's Google connection (Gmail uses Google OAuth)
     conn_result = (
         client.table("platform_connections")
         .select("credentials_encrypted, refresh_token_encrypted, settings")
         .eq("user_id", user_id)
-        .eq("platform", "gmail")
+        .eq("platform", "google")
         .eq("status", "active")
         .single()
         .execute()
     )
 
     if not conn_result.data:
-        return []  # No Gmail connection
+        return []  # No Google connection
 
     token_manager = get_token_manager()
     refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
