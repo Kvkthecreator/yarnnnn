@@ -38,14 +38,24 @@ coverage/
 # Misc
 *.pem
 
-# IR/Presentation documents (binary files stored locally only)
-docs/ir/*.pdf
-docs/ir/*.pptx
-docs/ir/*.ppt
-docs/ir/*.docx
-docs/ir/*.doc
-docs/ir/*.xlsx
-docs/ir/*.xls
-docs/ir/*.key
-docs/ir/*.numbers
-docs/ir/*.pages
+# Working documents (binary files stored locally only)
+docs/working_docs/*.pdf
+docs/working_docs/*.pptx
+docs/working_docs/*.ppt
+docs/working_docs/*.docx
+docs/working_docs/*.doc
+docs/working_docs/*.xlsx
+docs/working_docs/*.xls
+docs/working_docs/*.key
+docs/working_docs/*.numbers
+docs/working_docs/*.pages
+docs/working_docs/previous_versions/*.pdf
+docs/working_docs/previous_versions/*.pptx
+docs/working_docs/previous_versions/*.ppt
+docs/working_docs/previous_versions/*.docx
+docs/working_docs/previous_versions/*.doc
+docs/working_docs/previous_versions/*.xlsx
+docs/working_docs/previous_versions/*.xls
+docs/working_docs/previous_versions/*.key
+docs/working_docs/previous_versions/*.numbers
+docs/working_docs/previous_versions/*.pages
