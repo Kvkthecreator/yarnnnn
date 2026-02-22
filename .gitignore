@@ -37,3 +37,15 @@ coverage/
 
 # Misc
 *.pem
+
+# IR/Presentation documents (binary files stored locally only)
+docs/ir/*.pdf
+docs/ir/*.pptx
+docs/ir/*.ppt
+docs/ir/*.docx
+docs/ir/*.doc
+docs/ir/*.xlsx
+docs/ir/*.xls
+docs/ir/*.key
+docs/ir/*.numbers
+docs/ir/*.pages
