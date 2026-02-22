@@ -339,6 +339,8 @@ async def _fetch_slack_content(
     Focus: Channel discussions, mentions, threads that might indicate
     strategic developments or decisions.
     """
+    import json
+
     # Get Slack connection
     conn_result = (
         client.table("platform_connections")
@@ -353,11 +355,26 @@ async def _fetch_slack_content(
     if not conn_result.data:
         return None
 
-    credentials = token_manager.decrypt(conn_result.data["credentials_encrypted"])
+    # Decrypt credentials (JSON with bot_token, team_id)
+    credentials_str = token_manager.decrypt(conn_result.data["credentials_encrypted"])
+    try:
+        credentials = json.loads(credentials_str) if isinstance(credentials_str, str) else credentials_str
+    except json.JSONDecodeError:
+        logger.error("[SIGNAL] Failed to parse Slack credentials")
+        return None
+
+    bot_token = credentials.get("bot_token") or credentials.get("access_token")
+    team_id = credentials.get("team_id") or credentials.get("team", {}).get("id")
+
+    if not bot_token or not team_id:
+        logger.error("[SIGNAL] Missing Slack bot_token or team_id")
+        return None
+
     settings = conn_result.data.get("settings", {})
     selected_channels = settings.get("selected_channels", [])
 
     if not selected_channels:
+        logger.info(f"[SIGNAL] No Slack channels selected for user {user_id}")
         return PlatformContent(
             platform="slack",
             items_count=0,
@@ -367,22 +384,26 @@ async def _fetch_slack_content(
         )
 
     try:
-        slack_client = mcp_manager.get_client("slack")
-        if not slack_client:
-            return None
-
-        # Fetch recent messages from selected channels (last 2 days)
-        oldest_ts = (now - timedelta(days=2)).timestamp()
+        # Fetch recent messages from selected channels using MCPClientManager
         all_messages = []
 
         for channel_id in selected_channels[:5]:  # Cap at 5 channels for performance
             try:
-                messages = await slack_client.read_channel(
+                messages = await mcp_manager.get_slack_channel_history(
+                    user_id=user_id,
                     channel_id=channel_id,
-                    oldest=str(oldest_ts),
+                    bot_token=bot_token,
+                    team_id=team_id,
                     limit=20,
+                    auto_join=True,
                 )
-                all_messages.extend(messages)
+                # Filter to last 2 days
+                oldest_ts = (now - timedelta(days=2)).timestamp()
+                recent_messages = [
+                    m for m in messages
+                    if float(m.get("ts", 0)) >= oldest_ts
+                ]
+                all_messages.extend(recent_messages)
             except Exception as e:
                 logger.warning(f"[SIGNAL] Failed to read Slack channel {channel_id}: {e}")
                 continue
