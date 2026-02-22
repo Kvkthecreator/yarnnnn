@@ -16,7 +16,7 @@ Governance was removed - delivery is always automatic when destination is set.
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Any
 
 from integrations.core.types import ExportResult, ExportStatus
@@ -322,7 +322,7 @@ class DeliveryService:
         if external_url:
             update["delivery_external_url"] = external_url
         if status == "delivered":
-            update["delivered_at"] = datetime.utcnow().isoformat()
+            update["delivered_at"] = datetime.now(timezone.utc).isoformat()
 
         self.client.table("deliverable_versions").update(update).eq(
             "id", version_id
@@ -347,7 +347,7 @@ class DeliveryService:
                 "external_id": result.external_id,
                 "external_url": result.external_url,
                 "error_message": result.error_message,
-                "completed_at": datetime.utcnow().isoformat() if result.status == ExportStatus.SUCCESS else None
+                "completed_at": datetime.now(timezone.utc).isoformat() if result.status == ExportStatus.SUCCESS else None
             }).execute()
         except Exception as e:
             logger.warning(f"[DELIVERY] Failed to log export: {e}")
@@ -597,7 +597,7 @@ class DeliveryService:
                 "external_id": result.external_id,
                 "external_url": result.external_url,
                 "error_message": result.error_message,
-                "completed_at": datetime.utcnow().isoformat() if result.status == ExportStatus.SUCCESS else None,
+                "completed_at": datetime.now(timezone.utc).isoformat() if result.status == ExportStatus.SUCCESS else None,
             }).execute()
         except Exception as e:
             logger.warning(f"[DELIVERY] Failed to log destination delivery: {e}")

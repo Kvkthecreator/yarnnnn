@@ -994,14 +994,22 @@ async def run_unified_scheduler():
         try:
             from services.memory import process_patterns
 
-            # Get all users (pattern detection is lightweight, run for everyone)
+            # Get users with recent activity (bounded — pattern detection only useful for active users)
+            since_patterns = (now - timedelta(days=14)).isoformat()
             users_result = (
-                supabase.table("users")
-                .select("id")
+                supabase.table("activity_log")
+                .select("user_id")
+                .gte("created_at", since_patterns)
+                .limit(200)
                 .execute()
             )
+            # Deduplicate
+            _pattern_user_ids = list(set(
+                row["user_id"] for row in (users_result.data or [])
+            ))
+            users_result_data = [{"id": uid} for uid in _pattern_user_ids]
 
-            for user_row in (users_result.data or []):
+            for user_row in users_result_data:
                 user_id = user_row["id"]
                 try:
                     extracted = await process_patterns(
@@ -1026,18 +1034,18 @@ async def run_unified_scheduler():
     # -------------------------------------------------------------------------
     # ADR-068 Phase 4: Split Signal Processing
     # - Calendar signals (hourly): Time-sensitive meeting prep briefs
-    # - Other signals (daily 7 AM): Silence alerts, contact drift, etc.
+    # - Other signals (hourly): Gmail, Slack, Notion signals
     # Cost gate: Only runs for users with active platform connections.
     # -------------------------------------------------------------------------
     signal_users = 0
     signal_created = 0
+    signal_daily_users = 0
+    signal_daily_created = 0
 
-    # Hourly: Calendar signals only (time-sensitive)
     if now.minute < 5:
         try:
             from services.signal_extraction import extract_signal_summary
             from services.signal_processing import process_signal, execute_signal_actions
-            from services.working_memory import _get_active_deliverables
             from services.activity_log import get_recent_activity
 
             # Get users with active platform connections (cost gate)
@@ -1051,230 +1059,118 @@ async def run_unified_scheduler():
                 row["user_id"] for row in (active_result.data or [])
             ))
 
-            logger.info(f"[SIGNAL] Hourly calendar check: {len(active_user_ids)} users with active platforms")
+            logger.info(f"[SIGNAL] Signal check: {len(active_user_ids)} users with active platforms")
 
+            # Run both signal phases per user (calendar + non_calendar)
             for user_id in active_user_ids:
-                try:
-                    # Extract only calendar signals (hourly)
-                    signal_summary = await extract_signal_summary(
-                        supabase, user_id, signals_filter="calendar_only"
-                    )
+                for signals_filter, label in [("calendar_only", "calendar"), ("non_calendar", "daily")]:
+                    try:
+                        signal_summary = await extract_signal_summary(
+                            supabase, user_id, signals_filter=signals_filter
+                        )
 
-                    if not signal_summary.has_signals:
-                        continue
+                        if not signal_summary.has_signals:
+                            continue
 
-                    # Fetch context for reasoning
-                    user_context_result = (
-                        supabase.table("user_context")
-                        .select("key, value")
-                        .eq("user_id", user_id)
-                        .limit(20)
-                        .execute()
-                    )
-                    user_context = user_context_result.data or []
+                        # Fetch context for reasoning
+                        user_context_result = (
+                            supabase.table("user_context")
+                            .select("key, value")
+                            .eq("user_id", user_id)
+                            .limit(20)
+                            .execute()
+                        )
+                        user_context = user_context_result.data or []
 
-                    recent_activity = await get_recent_activity(
-                        client=supabase,
-                        user_id=user_id,
-                        limit=10,
-                        days=7,
-                    )
-
-                    # ADR-069: Fetch Layer 4 content for signal reasoning
-                    # Include recent deliverable version content to enable quality-aware decisions
-                    existing_deliverables_raw = (
-                        supabase.table("deliverables")
-                        .select("""
-                            id, title, deliverable_type, next_run_at, status,
-                            deliverable_versions!inner(
-                                final_content,
-                                draft_content,
-                                created_at,
-                                status
-                            )
-                        """)
-                        .eq("user_id", user_id)
-                        .in_("status", ["active", "paused"])
-                        .order("deliverable_versions(created_at)", desc=True)
-                        .execute()
-                    )
-
-                    # Extract most recent version per deliverable
-                    existing_deliverables = []
-                    for d in (existing_deliverables_raw.data or []):
-                        versions = d.get("deliverable_versions", [])
-                        recent_version = versions[0] if versions else None
-                        existing_deliverables.append({
-                            "id": d["id"],
-                            "title": d["title"],
-                            "deliverable_type": d["deliverable_type"],
-                            "next_run_at": d.get("next_run_at"),
-                            "status": d["status"],
-                            "recent_content": (
-                                recent_version.get("final_content") or
-                                recent_version.get("draft_content")
-                            ) if recent_version else None,
-                            "recent_version_date": recent_version.get("created_at") if recent_version else None,
-                        })
-
-                    # Single LLM call — reason over calendar signals
-                    processing_result = await process_signal(
-                        client=supabase,
-                        user_id=user_id,
-                        signal_summary=signal_summary,
-                        user_context=user_context,
-                        recent_activity=recent_activity,
-                        existing_deliverables=existing_deliverables,
-                    )
-
-                    if processing_result.actions:
-                        created = await execute_signal_actions(
+                        recent_activity = await get_recent_activity(
                             client=supabase,
                             user_id=user_id,
-                            result=processing_result,
+                            limit=10,
+                            days=7,
                         )
-                        signal_created += created
-                        if created > 0:
-                            signal_users += 1
-                            logger.info(
-                                f"[SIGNAL] Created {created} calendar signal deliverable(s) "
-                                f"for {user_id}"
+
+                        # ADR-069: Fetch Layer 4 content for signal reasoning
+                        # Bounded: limit to 5 most recent versions per deliverable
+                        existing_deliverables_raw = (
+                            supabase.table("deliverables")
+                            .select("""
+                                id, title, deliverable_type, next_run_at, status,
+                                deliverable_versions!inner(
+                                    final_content,
+                                    draft_content,
+                                    created_at,
+                                    status
+                                )
+                            """)
+                            .eq("user_id", user_id)
+                            .in_("status", ["active", "paused"])
+                            .order("deliverable_versions(created_at)", desc=True)
+                            .limit(20)
+                            .execute()
+                        )
+
+                        # Extract most recent version per deliverable
+                        existing_deliverables = []
+                        for d in (existing_deliverables_raw.data or []):
+                            versions = d.get("deliverable_versions", [])
+                            recent_version = versions[0] if versions else None
+                            existing_deliverables.append({
+                                "id": d["id"],
+                                "title": d["title"],
+                                "deliverable_type": d["deliverable_type"],
+                                "next_run_at": d.get("next_run_at"),
+                                "status": d["status"],
+                                "recent_content": (
+                                    recent_version.get("final_content") or
+                                    recent_version.get("draft_content")
+                                ) if recent_version else None,
+                                "recent_version_date": recent_version.get("created_at") if recent_version else None,
+                            })
+
+                        # Single LLM call — reason over signals
+                        processing_result = await process_signal(
+                            client=supabase,
+                            user_id=user_id,
+                            signal_summary=signal_summary,
+                            user_context=user_context,
+                            recent_activity=recent_activity,
+                            existing_deliverables=existing_deliverables,
+                        )
+
+                        if processing_result.actions:
+                            created = await execute_signal_actions(
+                                client=supabase,
+                                user_id=user_id,
+                                result=processing_result,
                             )
+                            if label == "calendar":
+                                signal_created += created
+                                if created > 0:
+                                    signal_users += 1
+                            else:
+                                signal_daily_created += created
+                                if created > 0:
+                                    signal_daily_users += 1
 
-                except Exception as e:
-                    logger.warning(f"[SIGNAL] Error processing calendar signals for {user_id}: {e}")
+                            if created > 0:
+                                logger.info(
+                                    f"[SIGNAL] Created {created} {label} signal deliverable(s) "
+                                    f"for {user_id}"
+                                )
 
-            if signal_users > 0:
+                    except Exception as e:
+                        logger.warning(f"[SIGNAL] Error processing {label} signals for {user_id}: {e}")
+
+            total_su = signal_users + signal_daily_users
+            total_sc = signal_created + signal_daily_created
+            if total_su > 0:
                 logger.info(
-                    f"[SIGNAL] Hourly calendar phase complete: {signal_users} users, "
-                    f"{signal_created} deliverables created"
+                    f"[SIGNAL] Signal phase complete: {total_su} users, "
+                    f"{total_sc} deliverables created"
                 )
 
         except Exception as e:
-            logger.warning(f"[SIGNAL] Hourly calendar signal processing skipped: {e}")
-
-    # Hourly: Other signals (Gmail silence, Slack, Notion) — now time-sensitive too
-    signal_daily_users = 0
-    signal_daily_created = 0
-    if now.minute < 5:
-        try:
-            from services.signal_extraction import extract_signal_summary
-            from services.signal_processing import process_signal, execute_signal_actions
-            from services.working_memory import _get_active_deliverables
-            from services.activity_log import get_recent_activity
-
-            # Get users with active platform connections
-            active_result = (
-                supabase.table("platform_connections")
-                .select("user_id")
-                .eq("status", "active")
-                .execute()
-            )
-            active_user_ids = list(set(
-                row["user_id"] for row in (active_result.data or [])
-            ))
-
-            logger.info(f"[SIGNAL] Daily check (7 AM): {len(active_user_ids)} users with active platforms")
-
-            for user_id in active_user_ids:
-                try:
-                    # Extract all OTHER signals (silence, contact drift, etc.)
-                    signal_summary = await extract_signal_summary(
-                        supabase, user_id, signals_filter="non_calendar"
-                    )
-
-                    if not signal_summary.has_signals:
-                        continue
-
-                    # Fetch context for reasoning
-                    user_context_result = (
-                        supabase.table("user_context")
-                        .select("key, value")
-                        .eq("user_id", user_id)
-                        .limit(20)
-                        .execute()
-                    )
-                    user_context = user_context_result.data or []
-
-                    recent_activity = await get_recent_activity(
-                        client=supabase,
-                        user_id=user_id,
-                        limit=10,
-                        days=7,
-                    )
-
-                    # ADR-069: Fetch Layer 4 content for signal reasoning
-                    # Include recent deliverable version content to enable quality-aware decisions
-                    existing_deliverables_raw = (
-                        supabase.table("deliverables")
-                        .select("""
-                            id, title, deliverable_type, next_run_at, status,
-                            deliverable_versions!inner(
-                                final_content,
-                                draft_content,
-                                created_at,
-                                status
-                            )
-                        """)
-                        .eq("user_id", user_id)
-                        .in_("status", ["active", "paused"])
-                        .order("deliverable_versions(created_at)", desc=True)
-                        .execute()
-                    )
-
-                    # Extract most recent version per deliverable
-                    existing_deliverables = []
-                    for d in (existing_deliverables_raw.data or []):
-                        versions = d.get("deliverable_versions", [])
-                        recent_version = versions[0] if versions else None
-                        existing_deliverables.append({
-                            "id": d["id"],
-                            "title": d["title"],
-                            "deliverable_type": d["deliverable_type"],
-                            "next_run_at": d.get("next_run_at"),
-                            "status": d["status"],
-                            "recent_content": (
-                                recent_version.get("final_content") or
-                                recent_version.get("draft_content")
-                            ) if recent_version else None,
-                            "recent_version_date": recent_version.get("created_at") if recent_version else None,
-                        })
-
-                    # Single LLM call — reason over non-calendar signals
-                    processing_result = await process_signal(
-                        client=supabase,
-                        user_id=user_id,
-                        signal_summary=signal_summary,
-                        user_context=user_context,
-                        recent_activity=recent_activity,
-                        existing_deliverables=existing_deliverables,
-                    )
-
-                    if processing_result.actions:
-                        created = await execute_signal_actions(
-                            client=supabase,
-                            user_id=user_id,
-                            result=processing_result,
-                        )
-                        signal_daily_created += created
-                        if created > 0:
-                            signal_daily_users += 1
-                            logger.info(
-                                f"[SIGNAL] Created {created} daily signal deliverable(s) "
-                                f"for {user_id}"
-                            )
-
-                except Exception as e:
-                    logger.warning(f"[SIGNAL] Error processing daily signals for {user_id}: {e}")
-
-            if signal_daily_users > 0:
-                logger.info(
-                    f"[SIGNAL] Daily signal phase complete: {signal_daily_users} users, "
-                    f"{signal_daily_created} deliverables created"
-                )
-
-        except Exception as e:
-            logger.warning(f"[SIGNAL] Daily signal processing skipped: {e}")
+            logger.warning(f"[SIGNAL] Signal processing skipped: {e}")
 
     # -------------------------------------------------------------------------
     # Summary

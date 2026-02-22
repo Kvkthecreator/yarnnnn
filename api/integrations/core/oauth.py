@@ -9,7 +9,7 @@ import os
 import logging
 import secrets
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from urllib.parse import urlencode
 
 import httpx
@@ -132,7 +132,11 @@ OAUTH_CONFIGS: dict[str, OAuthConfig] = {
 
 
 # =============================================================================
-# OAuth State Management (in-memory for simplicity, could use Redis)
+# OAuth State Management
+#
+# LIMITATION: In-memory state dict. OAuth flows started on one process/instance
+# will fail if the callback lands on a different one. Acceptable for single-instance
+# Render deployments. If scaling to multiple instances, migrate to Redis or DB.
 # =============================================================================
 
 # Maps state -> (user_id, provider, created_at)
@@ -142,10 +146,10 @@ _oauth_states: dict[str, tuple[str, str, datetime]] = {}
 def generate_oauth_state(user_id: str, provider: str) -> str:
     """Generate a secure state parameter for OAuth."""
     state = secrets.token_urlsafe(32)
-    _oauth_states[state] = (user_id, provider, datetime.utcnow())
+    _oauth_states[state] = (user_id, provider, datetime.now(timezone.utc))
 
     # Clean up old states (>10 min)
-    cutoff = datetime.utcnow() - timedelta(minutes=10)
+    cutoff = datetime.now(timezone.utc) - timedelta(minutes=10)
     expired = [k for k, v in _oauth_states.items() if v[2] < cutoff]
     for k in expired:
         del _oauth_states[k]
@@ -165,7 +169,7 @@ def validate_oauth_state(state: str) -> Optional[tuple[str, str]]:
     user_id, provider, created_at = _oauth_states[state]
 
     # Check expiration (10 min)
-    if datetime.utcnow() - created_at > timedelta(minutes=10):
+    if datetime.now(timezone.utc) - created_at > timedelta(minutes=10):
         del _oauth_states[state]
         return None
 

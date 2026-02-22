@@ -17,7 +17,7 @@ Endpoints:
 """
 
 import logging
-from fastapi import APIRouter, HTTPException, BackgroundTasks
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
 from typing import Optional, Literal, Union, Annotated
 from uuid import UUID
@@ -27,14 +27,6 @@ from services.supabase import UserClient
 
 logger = logging.getLogger(__name__)
 
-
-# =============================================================================
-# ADR-034: Domain Inference Hook
-# =============================================================================
-
-async def _trigger_domain_recomputation(deliverable_id: str, user_id: str):
-    # ADR-059: Domain inference removed — no-op
-    pass
 
 router = APIRouter()
 
@@ -1157,7 +1149,6 @@ def _parse_analyst_metadata(metadata_dict: Optional[dict]) -> Optional[AnalystMe
 async def create_deliverable(
     request: DeliverableCreate,
     auth: UserClient,
-    background_tasks: BackgroundTasks,
 ) -> DeliverableResponse:
     """
     Create a new recurring deliverable.
@@ -1238,14 +1229,6 @@ async def create_deliverable(
 
     deliverable = result.data[0]
     logger.info(f"[DELIVERABLE] Created: {deliverable['id']} - {deliverable['title']}")
-
-    # ADR-034: Trigger domain recomputation if deliverable has sources
-    if request.sources:
-        background_tasks.add_task(
-            _trigger_domain_recomputation,
-            deliverable["id"],
-            auth.user_id
-        )
 
     return DeliverableResponse(
         id=deliverable["id"],
@@ -1554,7 +1537,6 @@ async def update_deliverable(
     deliverable_id: UUID,
     request: DeliverableUpdate,
     auth: UserClient,
-    background_tasks: BackgroundTasks,
 ) -> DeliverableResponse:
     """
     Update deliverable settings.
@@ -1622,14 +1604,6 @@ async def update_deliverable(
         raise HTTPException(status_code=500, detail="Failed to update deliverable")
 
     d = result.data[0]
-
-    # ADR-034: Trigger domain recomputation if sources changed
-    if request.sources is not None:
-        background_tasks.add_task(
-            _trigger_domain_recomputation,
-            str(deliverable_id),
-            auth.user_id
-        )
 
     return DeliverableResponse(
         id=d["id"],

@@ -4,7 +4,7 @@
 > These are independent of YARNNN workflow/product decisions and can be executed immediately.
 > Ref: CLAUDE.md Execution Disciplines #2 (Singular Implementation), #4 (Code Quality Checks)
 
-**Status**: Not started
+**Status**: Complete (3 sessions)
 **Estimated sessions**: 3 focused sessions
 **Approach**: Fix in priority order. Each session = commit when complete.
 
@@ -154,20 +154,22 @@ Not breaking today, but will break at growth. Plus quick cleanups.
 
 ## Verification Checklist (Post-Execution)
 
-After all three sessions:
+All items verified across 3 sessions:
 
-- [ ] `import_jobs.py` — Slack and Gmail imports complete without `NameError`
-- [ ] `platform_worker.py` — All four platforms use consistent token decryption
-- [ ] Env vars — Single canonical name, startup validation catches missing vars
-- [ ] `tokens.py` — Missing encryption key is a hard failure, not silent fallback
-- [ ] `signal_extraction.py` — `.maybe_single()` used, decrypt wrapped in try/except
-- [ ] No bare `except:` handlers remain in modified files
-- [ ] `working_memory.py` — All exception handlers log before returning defaults
-- [ ] `google_client.py` — Token caching, backoff on 429, timeouts set
-- [ ] `unified_scheduler.py` — Bounded queries, deduplicated signal processing blocks
-- [ ] No `datetime.utcnow()` in codebase
-- [ ] Model name matches intent (comment and code agree)
-- [ ] Dead code removed
+- [x] `import_jobs.py` — `ephemeral_stored` → `items_stored` (Session 1, commit 4046c56)
+- [x] `platform_worker.py` — Gmail/Calendar use TokenManager decryption (Session 1)
+- [x] Env vars — Standardized to `SUPABASE_SERVICE_KEY` across 7 files (Session 1)
+- [x] `tokens.py` — Missing encryption key raises `ValueError` (Session 1)
+- [x] `signal_extraction.py` — `.maybe_single()` × 4, decrypt wrapped × 4 (Session 2, commit e15d8b1)
+- [x] No bare `except:` in `documents.py`, `signal_processing.py` (Session 2)
+- [x] `working_memory.py` — All 12 exception handlers now log (Session 2)
+- [x] `main.py` — Startup env validation with `_validate_environment()` (Session 2)
+- [x] `google_client.py` — Token caching, `_request_with_retry` (backoff on 429/5xx), `_GOOGLE_API_TIMEOUT` (Session 3)
+- [x] `unified_scheduler.py` — Bounded user query (activity_log), `.limit(20)` on deliverables join, signal blocks deduplicated into shared loop (Session 3)
+- [x] `datetime.utcnow()` fixed in: `signal_extraction.py`, `delivery.py`, `google_client.py`, `oauth.py` (Sessions 2-3). Note: other files (`deliverable_pipeline.py`, `integrations.py`, etc.) still have occurrences — tracked as follow-up
+- [x] `signal_processing.py` — Model changed to `claude-haiku-4-5-20251001`, comment updated (Session 3)
+- [x] `deliverables.py` — `_trigger_domain_recomputation` removed + `BackgroundTasks` import cleaned (Session 3)
+- [x] `oauth.py` — In-memory limitation documented in comment block (Session 3)
 
 ---
 

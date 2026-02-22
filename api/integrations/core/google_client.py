@@ -15,18 +15,27 @@ Why separate?
 3. Keeps naming honest - "MCP" means MCP protocol
 """
 
+import asyncio
 import os
 import logging
 import base64
 from typing import Optional, Any
 from email.mime.text import MIMEText
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+import time
 
 import httpx
 
 from .types import ExportResult, ExportStatus
 
 logger = logging.getLogger(__name__)
+
+# Shared timeout for all Google API calls
+_GOOGLE_API_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
+
+# Max retries for transient failures (429, 5xx)
+_MAX_RETRIES = 3
+_RETRY_BACKOFF_SECONDS = [1, 2, 4]
 
 
 class GoogleAPIClient:
@@ -49,6 +58,10 @@ class GoogleAPIClient:
         )
     """
 
+    def __init__(self):
+        # Token cache: refresh_token → (access_token, expires_at_monotonic)
+        self._token_cache: dict[str, tuple[str, float]] = {}
+
     async def _get_access_token(
         self,
         client_id: str,
@@ -56,11 +69,19 @@ class GoogleAPIClient:
         refresh_token: str
     ) -> str:
         """
-        Exchange refresh token for access token.
+        Exchange refresh token for access token, with caching.
 
-        Google OAuth tokens expire after 1 hour, so we refresh each time.
+        Google OAuth tokens are valid for 1 hour. We cache and reuse them,
+        refreshing only when within 60 seconds of expiry.
         """
-        async with httpx.AsyncClient() as client:
+        # Check cache — reuse if >60s remaining
+        cached = self._token_cache.get(refresh_token)
+        if cached:
+            access_token, expires_at = cached
+            if time.monotonic() < expires_at - 60:
+                return access_token
+
+        async with httpx.AsyncClient(timeout=_GOOGLE_API_TIMEOUT) as client:
             response = await client.post(
                 "https://oauth2.googleapis.com/token",
                 data={
@@ -75,7 +96,58 @@ class GoogleAPIClient:
                 raise RuntimeError(f"Token refresh failed: {response.text}")
 
             data = response.json()
-            return data["access_token"]
+            access_token = data["access_token"]
+            # Google tokens last 3600s by default
+            expires_in = data.get("expires_in", 3600)
+            self._token_cache[refresh_token] = (
+                access_token,
+                time.monotonic() + expires_in,
+            )
+            return access_token
+
+    async def _request_with_retry(
+        self,
+        method: str,
+        url: str,
+        headers: dict,
+        **kwargs,
+    ) -> httpx.Response:
+        """
+        Make an HTTP request with retry on transient failures (429, 5xx).
+
+        Retries up to _MAX_RETRIES times with exponential backoff.
+        Does NOT retry on 4xx (except 429).
+        """
+        last_error = None
+        for attempt in range(_MAX_RETRIES):
+            try:
+                async with httpx.AsyncClient(timeout=_GOOGLE_API_TIMEOUT) as client:
+                    response = await getattr(client, method)(url, headers=headers, **kwargs)
+
+                if response.status_code == 429 or response.status_code >= 500:
+                    wait = _RETRY_BACKOFF_SECONDS[attempt] if attempt < len(_RETRY_BACKOFF_SECONDS) else 4
+                    logger.warning(
+                        f"[GOOGLE_API] {method.upper()} {url} returned {response.status_code}, "
+                        f"retrying in {wait}s (attempt {attempt + 1}/{_MAX_RETRIES})"
+                    )
+                    await asyncio.sleep(wait)
+                    continue
+
+                return response
+
+            except httpx.TimeoutException as e:
+                last_error = e
+                wait = _RETRY_BACKOFF_SECONDS[attempt] if attempt < len(_RETRY_BACKOFF_SECONDS) else 4
+                logger.warning(
+                    f"[GOOGLE_API] {method.upper()} {url} timed out, "
+                    f"retrying in {wait}s (attempt {attempt + 1}/{_MAX_RETRIES})"
+                )
+                await asyncio.sleep(wait)
+
+        # All retries exhausted
+        if last_error:
+            raise RuntimeError(f"Google API request failed after {_MAX_RETRIES} retries: {last_error}")
+        raise RuntimeError(f"Google API returned {response.status_code} after {_MAX_RETRIES} retries: {response.text}")
 
     # =========================================================================
     # Gmail Operations
@@ -96,17 +168,17 @@ class GoogleAPIClient:
             client_id, client_secret, refresh_token
         )
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://gmail.googleapis.com/gmail/v1/users/me/labels",
-                headers={"Authorization": f"Bearer {access_token}"}
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "get",
+            "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
 
-            return data.get("labels", [])
+        return data.get("labels", [])
 
     async def list_gmail_messages(
         self,
@@ -138,18 +210,18 @@ class GoogleAPIClient:
             # Gmail API accepts multiple labelIds parameters
             params["labelIds"] = label_ids
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://gmail.googleapis.com/gmail/v1/users/me/messages",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params=params
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "get",
+            "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params=params,
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
 
-            return data.get("messages", [])
+        return data.get("messages", [])
 
     async def get_gmail_message(
         self,
@@ -167,18 +239,18 @@ class GoogleAPIClient:
             client_id, client_secret, refresh_token
         )
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{message_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={"format": "full"}
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "get",
+            f"https://gmail.googleapis.com/gmail/v1/users/me/messages/{message_id}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"format": "full"},
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
 
-            return data
+        return data
 
     async def get_gmail_thread(
         self,
@@ -196,18 +268,18 @@ class GoogleAPIClient:
             client_id, client_secret, refresh_token
         )
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"https://gmail.googleapis.com/gmail/v1/users/me/threads/{thread_id}",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={"format": "full"}
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "get",
+            f"https://gmail.googleapis.com/gmail/v1/users/me/threads/{thread_id}",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={"format": "full"},
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
 
-            return data
+        return data
 
     async def send_gmail_message(
         self,
@@ -255,25 +327,25 @@ class GoogleAPIClient:
             if thread_id:
                 request_body["threadId"] = thread_id
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Content-Type": "application/json"
-                    },
-                    json=request_body
-                )
-                data = response.json()
+            response = await self._request_with_retry(
+                "post",
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                },
+                json=request_body,
+            )
+            data = response.json()
 
-                if "error" in data:
-                    raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+            if "error" in data:
+                raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
 
-                return ExportResult(
-                    status=ExportStatus.SUCCESS,
-                    external_id=data.get("id"),
-                    metadata={"result": data}
-                )
+            return ExportResult(
+                status=ExportStatus.SUCCESS,
+                external_id=data.get("id"),
+                metadata={"result": data}
+            )
 
         except Exception as e:
             logger.error(f"[GMAIL] Send failed: {e}")
@@ -316,25 +388,25 @@ class GoogleAPIClient:
 
             request_body = {"message": {"raw": raw}}
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
-                    headers={
-                        "Authorization": f"Bearer {access_token}",
-                        "Content-Type": "application/json"
-                    },
-                    json=request_body
-                )
-                data = response.json()
+            response = await self._request_with_retry(
+                "post",
+                "https://gmail.googleapis.com/gmail/v1/users/me/drafts",
+                headers={
+                    "Authorization": f"Bearer {access_token}",
+                    "Content-Type": "application/json"
+                },
+                json=request_body,
+            )
+            data = response.json()
 
-                if "error" in data:
-                    raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+            if "error" in data:
+                raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
 
-                return ExportResult(
-                    status=ExportStatus.SUCCESS,
-                    external_id=data.get("id"),
-                    metadata={"result": data}
-                )
+            return ExportResult(
+                status=ExportStatus.SUCCESS,
+                external_id=data.get("id"),
+                metadata={"result": data}
+            )
 
         except Exception as e:
             logger.error(f"[GMAIL] Create draft failed: {e}")
@@ -374,33 +446,33 @@ class GoogleAPIClient:
 
         # Parse time filters
         if not time_min or time_min == "now":
-            time_min = datetime.utcnow().isoformat() + "Z"
+            time_min = datetime.now(timezone.utc).isoformat()
         elif time_min.startswith("+"):
             time_min = self._parse_relative_time(time_min)
 
         if not time_max:
-            time_max = (datetime.utcnow() + timedelta(days=7)).isoformat() + "Z"
+            time_max = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
         elif time_max.startswith("+"):
             time_max = self._parse_relative_time(time_max)
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
-                headers={"Authorization": f"Bearer {access_token}"},
-                params={
-                    "timeMin": time_min,
-                    "timeMax": time_max,
-                    "maxResults": min(max_results, 100),
-                    "singleEvents": "true",
-                    "orderBy": "startTime",
-                }
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "get",
+            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params={
+                "timeMin": time_min,
+                "timeMax": time_max,
+                "maxResults": min(max_results, 100),
+                "singleEvents": "true",
+                "orderBy": "startTime",
+            },
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
 
-            return data.get("items", [])
+        return data.get("items", [])
 
     async def get_calendar_event(
         self,
@@ -419,17 +491,17 @@ class GoogleAPIClient:
             client_id, client_secret, refresh_token
         )
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
-                headers={"Authorization": f"Bearer {access_token}"}
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "get",
+            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
 
-            return data
+        return data
 
     async def create_calendar_event(
         self,
@@ -475,21 +547,21 @@ class GoogleAPIClient:
         if attendees:
             event_body["attendees"] = [{"email": e} for e in attendees]
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json"
-                },
-                json=event_body
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "post",
+            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            },
+            json=event_body,
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
 
-            return data
+        return data
 
     async def update_calendar_event(
         self,
@@ -541,21 +613,21 @@ class GoogleAPIClient:
         if attendees is not None:
             patch_body["attendees"] = [{"email": e} for e in attendees]
 
-        async with httpx.AsyncClient() as client:
-            response = await client.patch(
-                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
-                headers={
-                    "Authorization": f"Bearer {access_token}",
-                    "Content-Type": "application/json"
-                },
-                json=patch_body
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "patch",
+            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
+            headers={
+                "Authorization": f"Bearer {access_token}",
+                "Content-Type": "application/json"
+            },
+            json=patch_body,
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
 
-            return data
+        return data
 
     async def delete_calendar_event(
         self,
@@ -578,17 +650,17 @@ class GoogleAPIClient:
             client_id, client_secret, refresh_token
         )
 
-        async with httpx.AsyncClient() as client:
-            response = await client.delete(
-                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
-                headers={"Authorization": f"Bearer {access_token}"}
-            )
+        response = await self._request_with_retry(
+            "delete",
+            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events/{event_id}",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
 
-            # 204 No Content = success; 410 Gone = already deleted (treat as success)
-            if response.status_code not in (200, 204, 410):
-                raise RuntimeError(
-                    f"Calendar DELETE failed ({response.status_code}): {response.text}"
-                )
+        # 204 No Content = success; 410 Gone = already deleted (treat as success)
+        if response.status_code not in (200, 204, 410):
+            raise RuntimeError(
+                f"Calendar DELETE failed ({response.status_code}): {response.text}"
+            )
 
     async def list_calendars(
         self,
@@ -605,17 +677,17 @@ class GoogleAPIClient:
             client_id, client_secret, refresh_token
         )
 
-        async with httpx.AsyncClient() as client:
-            response = await client.get(
-                "https://www.googleapis.com/calendar/v3/users/me/calendarList",
-                headers={"Authorization": f"Bearer {access_token}"}
-            )
-            data = response.json()
+        response = await self._request_with_retry(
+            "get",
+            "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+            headers={"Authorization": f"Bearer {access_token}"},
+        )
+        data = response.json()
 
-            if "error" in data:
-                raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
+        if "error" in data:
+            raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
 
-            return data.get("items", [])
+        return data.get("items", [])
 
     def _parse_relative_time(self, val: str) -> str:
         """Parse relative time like '+2h' or '+7d' to ISO format."""
@@ -626,7 +698,7 @@ class GoogleAPIClient:
             delta = timedelta(days=int(val[:-1]))
         else:
             delta = timedelta(days=int(val))
-        return (datetime.utcnow() + delta).isoformat() + "Z"
+        return (datetime.now(timezone.utc) + delta).isoformat()
 
 
 # Singleton instance
