@@ -185,8 +185,13 @@ async def execute_signal_actions(
     Returns count of NEW deliverables created (not count of all actions executed).
     """
     created = 0
+    triggered_ids: list[str] = []
+    action_types: list[str] = []
+    content_retained_count = 0
 
     for action in result.actions:
+        action_types.append(action.action_type)
+
         if action.action_type == "create_signal_emergent":
             # Artifact creation: Create new deliverable row with origin=signal_emergent
             deliverable_id = await _create_signal_emergent_deliverable(
@@ -196,17 +201,77 @@ async def execute_signal_actions(
                 # Immediate execution (doesn't wait for next cron cycle)
                 await _queue_signal_emergent_execution(client, user_id, deliverable_id)
                 created += 1
+                triggered_ids.append(deliverable_id)
 
         elif action.action_type == "trigger_existing":
             # Pure orchestration: Advance existing deliverable's schedule (no new row)
             if action.trigger_deliverable_id:
                 await _advance_deliverable_run(client, action.trigger_deliverable_id)
+                triggered_ids.append(action.trigger_deliverable_id)
                 logger.info(
                     f"[SIGNAL_PROCESSING] Triggered existing deliverable "
                     f"{action.trigger_deliverable_id} for {user_id}"
                 )
 
+    # ADR-072: Write signal_processed event to activity_log
+    await _write_signal_processed_event(
+        client=client,
+        user_id=user_id,
+        result=result,
+        actions_taken=action_types,
+        deliverables_triggered=triggered_ids,
+        content_retained_count=content_retained_count,
+    )
+
     return created
+
+
+async def _write_signal_processed_event(
+    client,
+    user_id: str,
+    result: SignalProcessingResult,
+    actions_taken: list[str],
+    deliverables_triggered: list[str],
+    content_retained_count: int,
+) -> None:
+    """
+    Write signal_processed event to activity_log (ADR-072: System State Awareness).
+
+    Called after signal processing reasoning pass completes.
+    Non-fatal — failure doesn't block signal processing.
+    """
+    from services.activity_log import write_activity
+
+    signals_evaluated = len(result.actions)
+    created_count = len([a for a in actions_taken if a == "create_signal_emergent"])
+    triggered_count = len([a for a in actions_taken if a == "trigger_existing"])
+
+    # Build human-readable summary
+    if created_count > 0 and triggered_count > 0:
+        summary = f"Signal processing: {created_count} deliverable(s) created, {triggered_count} triggered"
+    elif created_count > 0:
+        summary = f"Signal processing: {created_count} deliverable(s) created"
+    elif triggered_count > 0:
+        summary = f"Signal processing: {triggered_count} deliverable(s) triggered"
+    else:
+        summary = "Signal processing: no actions taken"
+
+    try:
+        await write_activity(
+            client=client,
+            user_id=user_id,
+            event_type="signal_processed",
+            summary=summary,
+            metadata={
+                "signals_evaluated": signals_evaluated,
+                "actions_taken": actions_taken,
+                "deliverables_triggered": deliverables_triggered,
+                "content_retained_count": content_retained_count,
+                "reasoning_summary": result.reasoning_summary[:500] if result.reasoning_summary else None,
+            },
+        )
+    except Exception as e:
+        logger.warning(f"[SIGNAL_PROCESSING] Failed to write activity log: {e}")
 
 
 async def _create_signal_emergent_deliverable(

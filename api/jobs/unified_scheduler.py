@@ -303,6 +303,7 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
     Returns True if successful.
     """
     from services.deliverable_execution import execute_deliverable_generation
+    from services.activity_log import write_activity
 
     deliverable_id = deliverable["id"]
     user_id = deliverable["user_id"]
@@ -311,6 +312,25 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
     schedule = deliverable.get("schedule", {})
 
     logger.info(f"[DELIVERABLE] Processing: {title} ({deliverable_id})")
+
+    # ADR-072: Write deliverable_scheduled event when queued for execution
+    try:
+        next_run = calculate_next_run_from_schedule(schedule)
+        await write_activity(
+            client=supabase_client,
+            user_id=user_id,
+            event_type="deliverable_scheduled",
+            summary=f"Queued: {title}",
+            event_ref=deliverable_id,
+            metadata={
+                "deliverable_id": deliverable_id,
+                "scheduled_for": datetime.now(timezone.utc).isoformat(),
+                "trigger_reason": "schedule",
+                "deliverable_type": deliverable_type,
+            },
+        )
+    except Exception as e:
+        logger.warning(f"[DELIVERABLE] Failed to write scheduled event: {e}")
 
     try:
         # ADR-042: Single call replaces version creation + 3-step pipeline
@@ -1277,6 +1297,52 @@ async def run_unified_scheduler():
         total_signal_created = signal_created + signal_daily_created
         total_signal_users = signal_users + signal_daily_users
         summary_parts.append(f"signals={total_signal_created} from {total_signal_users} users")
+
+    # -------------------------------------------------------------------------
+    # ADR-072: Write scheduler_heartbeat event for system state awareness
+    # -------------------------------------------------------------------------
+    errors_encountered: list[str] = []
+    # Note: Errors are already logged inline; heartbeat captures aggregate counts
+
+    try:
+        from services.activity_log import write_activity
+
+        # Build heartbeat summary
+        total_checked = len(deliverables) + len(work_items) + digest_count + import_count
+        total_triggered = deliverable_success + work_success + digest_success + import_success
+
+        heartbeat_summary = f"Scheduler cycle: {total_triggered}/{total_checked} items processed"
+
+        # Get distinct user IDs for per-user heartbeat
+        # For simplicity, write a single system-level heartbeat (no user_id scoping)
+        # This uses a sentinel user_id that the system_state service can query
+        SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+
+        await write_activity(
+            client=supabase,
+            user_id=SYSTEM_USER_ID,
+            event_type="scheduler_heartbeat",
+            summary=heartbeat_summary,
+            metadata={
+                "deliverables_checked": len(deliverables),
+                "deliverables_triggered": deliverable_success,
+                "deliverables_skipped": deliverable_skipped,
+                "work_checked": len(work_items),
+                "work_triggered": work_success,
+                "digests_checked": digest_count,
+                "digests_triggered": digest_success,
+                "imports_checked": import_count,
+                "imports_triggered": import_success,
+                "signals_created": signal_created + signal_daily_created,
+                "memory_extracted": memory_extracted,
+                "analysis_suggestions": analysis_suggestions,
+                "errors": errors_encountered if errors_encountered else None,
+                "cycle_started_at": now.isoformat(),
+                "cycle_completed_at": datetime.now(timezone.utc).isoformat(),
+            },
+        )
+    except Exception as e:
+        logger.warning(f"[SCHEDULER] Failed to write heartbeat event: {e}")
 
     logger.info(f"Completed: {', '.join(summary_parts)}")
 

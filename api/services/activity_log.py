@@ -1,5 +1,5 @@
 """
-Activity Log — ADR-063: Four-Layer Model
+Activity Log — ADR-063: Four-Layer Model + ADR-072: System State Awareness
 
 Append-only system provenance log. Records what YARNNN has done across all pipelines.
 
@@ -13,10 +13,14 @@ Write points (all non-fatal — callers continue regardless of log failure):
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
   - TP memory tools: 'memory_written' after user_context upsert
   - chat.py: 'chat_session' when session ends
+  - signal_processing.py: 'signal_processed' after signal reasoning pass (ADR-072)
+  - unified_scheduler.py: 'deliverable_scheduled' when deliverable queued (ADR-072)
+  - unified_scheduler.py: 'scheduler_heartbeat' on each execution cycle (ADR-072)
 
-Read point:
+Read points:
   - working_memory.py: get_recent_activity() → injected as "Recent activity" block
     in TP system prompt (~300 tokens, last 10 events, 7-day window)
+  - system_state.py: Aggregates operational state for TP GetSystemState primitive (ADR-072)
 """
 
 import logging
@@ -29,11 +33,14 @@ VALID_EVENT_TYPES = frozenset({
     "deliverable_run",
     "deliverable_approved",
     "deliverable_rejected",
+    "deliverable_scheduled",    # ADR-072: System state awareness - queued for execution
     "memory_written",
     "platform_synced",
     "integration_connected",
     "integration_disconnected",
     "chat_session",
+    "signal_processed",         # ADR-072: System state awareness - signal reasoning pass
+    "scheduler_heartbeat",      # ADR-072: System state awareness - scheduler execution cycle
 })
 
 

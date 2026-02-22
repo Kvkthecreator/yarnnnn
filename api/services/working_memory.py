@@ -1,5 +1,5 @@
 """
-Working Memory Builder - ADR-063: Four-Layer Model
+Working Memory Builder - ADR-063: Four-Layer Model + ADR-072: System State Awareness
 
 Builds the working memory injected into the TP system prompt at session start.
 Analogous to Claude Code reading CLAUDE.md — TP reads what's explicitly stated,
@@ -15,11 +15,12 @@ What goes in the prompt (~2,000 tokens):
   - Preferences: tone_*, verbosity_*, preference:*
   - What you've told me: fact:*, instruction:*
   - Active deliverables (max 5)
-  - Connected platforms + sync freshness
-  - Recent activity (last 10 events, 7-day window) ← ADR-063
+  - Connected platforms + sync freshness (structured, not just strings) ← ADR-072
+  - System summary: last signal pass, pending reviews, failed jobs ← ADR-072
 
 Raw platform_content is NOT included here.
 TP fetches it via Search when needed.
+TP can invoke GetSystemState primitive for detailed operational state.
 """
 
 import json
@@ -60,7 +61,8 @@ async def build_working_memory(user_id: str, client: Any) -> dict:
         "deliverables": await _get_active_deliverables(user_id, client),
         "platforms": await _get_connected_platforms(user_id, client),
         "recent_sessions": await _get_recent_sessions(user_id, client),
-        "recent_activity": await _get_recent_activity(user_id, client),  # ADR-063
+        # ADR-072: Replace raw activity dump with structured system summary
+        "system_summary": await _get_system_summary(user_id, client),
     }
 
     return working_memory
@@ -279,6 +281,9 @@ async def _get_recent_activity(user_id: str, client: Any) -> list[dict]:
 
     ADR-063: Activity layer — records what YARNNN has done.
     Returns last MAX_ACTIVITY_EVENTS events within ACTIVITY_LOOKBACK_DAYS.
+
+    NOTE: Deprecated in favor of _get_system_summary (ADR-072).
+    Kept for backwards compatibility during transition.
     """
     try:
         from services.activity_log import get_recent_activity
@@ -290,6 +295,155 @@ async def _get_recent_activity(user_id: str, client: Any) -> list[dict]:
         )
     except Exception:
         return []
+
+
+async def _get_system_summary(user_id: str, client: Any) -> dict:
+    """
+    Build structured system summary for working memory (ADR-072).
+
+    Replaces raw activity_log dump with actionable system state:
+    - last_signal_pass: When, what triggered
+    - platform_sync_freshness: Per-platform structured freshness
+    - pending_reviews_count: Items awaiting user action
+    - failed_jobs_24h: Any failed jobs in last 24 hours
+
+    This gives TP ambient awareness of system state without requiring
+    explicit GetSystemState invocation.
+    """
+    now = datetime.now(timezone.utc)
+    summary: dict[str, Any] = {
+        "last_signal_pass": None,
+        "platform_sync_freshness": [],
+        "pending_reviews_count": 0,
+        "failed_jobs_24h": 0,
+    }
+
+    try:
+        # 1. Last signal processing pass
+        signal_result = (
+            client.table("activity_log")
+            .select("created_at, metadata")
+            .eq("user_id", user_id)
+            .eq("event_type", "signal_processed")
+            .order("created_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+
+        if signal_result.data:
+            row = signal_result.data[0]
+            metadata = row.get("metadata", {}) or {}
+            created_at = row.get("created_at")
+            freshness = _calculate_freshness(created_at, now)
+
+            actions_taken = metadata.get("actions_taken", [])
+            deliverables_triggered = metadata.get("deliverables_triggered", [])
+
+            summary["last_signal_pass"] = {
+                "when": freshness,
+                "actions_count": len(actions_taken),
+                "deliverables_triggered": len(deliverables_triggered),
+            }
+
+    except Exception:
+        pass
+
+    try:
+        # 2. Per-platform sync freshness (from platform_connections + sync_registry)
+        platforms_result = (
+            client.table("platform_connections")
+            .select("platform, status, last_synced_at")
+            .eq("user_id", user_id)
+            .execute()
+        )
+
+        platform_freshness = []
+        for p in (platforms_result.data or []):
+            platform = p.get("platform", "unknown")
+            last_synced = p.get("last_synced_at")
+            status = p.get("status", "unknown")
+
+            # Get resource count from sync_registry
+            try:
+                resource_result = (
+                    client.table("sync_registry")
+                    .select("resource_id", count="exact")
+                    .eq("user_id", user_id)
+                    .eq("platform", platform)
+                    .execute()
+                )
+                resource_count = resource_result.count or 0
+            except Exception:
+                resource_count = 0
+
+            platform_freshness.append({
+                "platform": platform,
+                "status": status,
+                "freshness": _calculate_freshness(last_synced, now),
+                "resources_synced": resource_count,
+            })
+
+        summary["platform_sync_freshness"] = platform_freshness
+
+    except Exception:
+        pass
+
+    try:
+        # 3. Pending reviews (deliverable versions with status=draft or suggested)
+        # Use a direct query approach that works with the schema
+        pending_result = (
+            client.table("deliverable_versions")
+            .select("id, deliverable_id, deliverables!inner(user_id)")
+            .eq("deliverables.user_id", user_id)
+            .in_("status", ["draft", "suggested"])
+            .execute()
+        )
+
+        summary["pending_reviews_count"] = len(pending_result.data or [])
+
+    except Exception:
+        # Fallback: try simpler query
+        try:
+            # Get user's deliverable IDs first
+            deliverables_result = (
+                client.table("deliverables")
+                .select("id")
+                .eq("user_id", user_id)
+                .execute()
+            )
+            deliverable_ids = [d["id"] for d in (deliverables_result.data or [])]
+
+            if deliverable_ids:
+                pending_result = (
+                    client.table("deliverable_versions")
+                    .select("id", count="exact")
+                    .in_("deliverable_id", deliverable_ids)
+                    .in_("status", ["draft", "suggested"])
+                    .execute()
+                )
+                summary["pending_reviews_count"] = pending_result.count or 0
+        except Exception:
+            pass
+
+    try:
+        # 4. Failed jobs in last 24 hours
+        cutoff = (now - timedelta(hours=24)).isoformat()
+
+        failed_result = (
+            client.table("integration_import_jobs")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .eq("status", "failed")
+            .gte("updated_at", cutoff)
+            .execute()
+        )
+
+        summary["failed_jobs_24h"] = failed_result.count or 0
+
+    except Exception:
+        pass
+
+    return summary
 
 
 # --- Formatting ---
@@ -386,19 +540,59 @@ def format_for_prompt(working_memory: dict) -> str:
         for s in sessions:
             lines.append(f"- {s.get('date')}: {s.get('summary')}")
 
-    # Recent Activity (ADR-063) — system provenance log
-    activity = working_memory.get("recent_activity", [])
-    if activity:
-        lines.append(f"\n### Recent activity")
-        for event in activity:
-            created_at = event.get("created_at", "")
-            # Format: "2026-02-18T09:00:00+00:00" → "2026-02-18 09:00"
-            try:
-                dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                ts = dt.strftime("%Y-%m-%d %H:%M")
-            except Exception:
-                ts = created_at[:16]
-            summary = event.get("summary", "")
-            lines.append(f"- {ts} · {summary}")
+    # System Summary (ADR-072) — structured operational state
+    system_summary = working_memory.get("system_summary", {})
+    if system_summary:
+        lines.append(f"\n### System status")
+
+        # Last signal pass
+        signal_pass = system_summary.get("last_signal_pass")
+        if signal_pass:
+            when = signal_pass.get("when", "unknown")
+            actions = signal_pass.get("actions_count", 0)
+            triggered = signal_pass.get("deliverables_triggered", 0)
+            if actions > 0 or triggered > 0:
+                lines.append(f"- Signal processing: {when} ({actions} actions, {triggered} triggered)")
+            else:
+                lines.append(f"- Signal processing: {when} (no actions)")
+
+        # Platform sync freshness
+        platform_freshness = system_summary.get("platform_sync_freshness", [])
+        if platform_freshness:
+            for p in platform_freshness:
+                platform = p.get("platform", "unknown")
+                status = p.get("status", "unknown")
+                freshness = p.get("freshness", "unknown")
+                resources = p.get("resources_synced", 0)
+
+                if status == "active":
+                    lines.append(f"- {platform}: {freshness} ({resources} resource{'s' if resources != 1 else ''})")
+                else:
+                    lines.append(f"- {platform}: {status}")
+
+        # Pending reviews
+        pending = system_summary.get("pending_reviews_count", 0)
+        if pending > 0:
+            lines.append(f"- Pending reviews: {pending} item{'s' if pending != 1 else ''}")
+
+        # Failed jobs
+        failed = system_summary.get("failed_jobs_24h", 0)
+        if failed > 0:
+            lines.append(f"- Failed jobs (24h): {failed}")
+
+    # Fallback: Recent Activity (ADR-063) — for backwards compatibility
+    elif working_memory.get("recent_activity"):
+        activity = working_memory.get("recent_activity", [])
+        if activity:
+            lines.append(f"\n### Recent activity")
+            for event in activity:
+                created_at = event.get("created_at", "")
+                try:
+                    dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
+                    ts = dt.strftime("%Y-%m-%d %H:%M")
+                except Exception:
+                    ts = created_at[:16]
+                summary = event.get("summary", "")
+                lines.append(f"- {ts} · {summary}")
 
     return "\n".join(lines)

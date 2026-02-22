@@ -15,6 +15,7 @@ from .list import LIST_TOOL, handle_list
 from .execute import EXECUTE_TOOL, handle_execute
 from .todo import TODO_TOOL, handle_todo
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
+from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
 from services.platform_tools import is_platform_tool, handle_platform_tool
 from services.project_tools import handle_list_integrations
 
@@ -128,6 +129,8 @@ PRIMITIVES = [
     WEB_SEARCH_PRIMITIVE,
     # Platform discovery — resolves connection metadata (authed_user_id, designated_page_id, etc.)
     LIST_INTEGRATIONS_TOOL,
+    # System state introspection (ADR-072)
+    GET_SYSTEM_STATE_TOOL,
     # Communication (Clarify only - Respond removed)
     CLARIFY_TOOL,
 ]
@@ -143,6 +146,7 @@ HANDLERS: dict[str, Callable] = {
     "Execute": handle_execute,
     "Todo": handle_todo,
     "WebSearch": handle_web_search,
+    "GetSystemState": handle_get_system_state,
     "Respond": handle_respond,
     "Clarify": handle_clarify,
     "list_integrations": handle_list_integrations,
