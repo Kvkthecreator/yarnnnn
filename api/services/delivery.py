@@ -1,20 +1,17 @@
 """
-Delivery Service - ADR-028, ADR-031 Phase 6, ADR-040
+Delivery Service - ADR-028, ADR-031 Phase 6, ADR-040, ADR-066
 
-Governance-aware delivery orchestration for destination-first deliverables.
+Delivery orchestration for destination-first deliverables.
 
 This service handles:
-1. Determining when delivery should occur based on governance level
-2. Orchestrating the actual delivery via exporters
-3. Tracking delivery status on versions
-4. Retry logic for failed deliveries
-5. Multi-destination delivery for synthesizers (ADR-031 Phase 6)
-6. Sending notifications on delivery events (ADR-040)
+1. Orchestrating delivery via exporters
+2. Tracking delivery status on versions
+3. Retry logic for failed deliveries
+4. Multi-destination delivery for synthesizers (ADR-031 Phase 6)
+5. Sending notifications on delivery events (ADR-040)
 
-Governance Levels:
-- manual: User must explicitly trigger delivery (click Export button)
-- semi_auto: Delivery triggers automatically when version is approved
-- full_auto: Delivery happens immediately after generation (skip staging)
+ADR-066: All deliverables auto-deliver immediately after generation.
+Governance was removed - delivery is always automatic when destination is set.
 """
 
 import logging
@@ -64,7 +61,9 @@ class DeliveryService:
 
     def should_auto_deliver(self, deliverable: dict[str, Any]) -> bool:
         """
-        Determine if a deliverable should auto-deliver on approval.
+        Determine if a deliverable should auto-deliver.
+
+        ADR-066: All deliverables auto-deliver when destination is set.
 
         Args:
             deliverable: The deliverable record
@@ -72,15 +71,14 @@ class DeliveryService:
         Returns:
             True if auto-delivery should occur
         """
-        governance = deliverable.get("governance", "manual")
         destination = deliverable.get("destination")
 
         # Must have destination configured
         if not destination:
             return False
 
-        # Only semi_auto and full_auto trigger automatic delivery
-        return governance in ("semi_auto", "full_auto")
+        # ADR-066: All deliverables auto-deliver
+        return True
 
     def get_style_context(self, deliverable: dict[str, Any]) -> Optional[str]:
         """
@@ -140,7 +138,7 @@ class DeliveryService:
 
             # 2. Get deliverable with destination
             deliverable = self.client.table("deliverables").select(
-                "id, title, destination, governance, user_id"
+                "id, title, destination, user_id"
             ).eq("id", version.data["deliverable_id"]).single().execute()
 
             if not deliverable.data:
@@ -214,17 +212,15 @@ class DeliveryService:
                     destination=destination,
                     result=result
                 )
-                # ADR-040: Send notification for semi_auto governance
-                governance = deliverable.data.get("governance", "manual")
-                if governance == "semi_auto":
-                    await self._notify_delivered(
-                        user_id=user_id,
-                        deliverable_id=deliverable.data["id"],
-                        title=title,
-                        platform=platform,
-                        target=destination.get("target"),
-                        external_url=result.external_url,
-                    )
+                # ADR-040: Send notification on successful delivery
+                await self._notify_delivered(
+                    user_id=user_id,
+                    deliverable_id=deliverable.data["id"],
+                    title=title,
+                    platform=platform,
+                    target=destination.get("target"),
+                    external_url=result.external_url,
+                )
             else:
                 self._update_delivery_status(
                     version_id,
@@ -369,7 +365,7 @@ class DeliveryService:
         target: Optional[str],
         external_url: Optional[str],
     ) -> None:
-        """Send notification when deliverable is delivered (semi_auto governance)."""
+        """Send notification when deliverable is delivered."""
         try:
             from services.notifications import notify_deliverable_delivered
             from services.supabase import get_service_client
