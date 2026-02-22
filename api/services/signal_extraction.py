@@ -141,7 +141,7 @@ async def extract_signal_summary(
                 summary.platforms_queried.append("notion")
 
     logger.info(
-        f"[SIGNAL_EXTRACTION] user={user_id} filter={filter_mode}: "
+        f"[SIGNAL_EXTRACTION] user={user_id} filter={signals_filter}: "
         f"platforms={len(summary.platforms_queried)}, total_items={summary.total_items}"
     )
 
