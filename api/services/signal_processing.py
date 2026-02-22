@@ -506,7 +506,7 @@ def _build_reasoning_prompt(
                         date_str = "yesterday"
                     else:
                         date_str = f"{days_ago} days ago"
-                except:
+                except (ValueError, TypeError):
                     date_str = version_date[:10]  # Fallback to ISO date
 
                 content_preview = f"\n    Last output ({date_str}): {preview}"

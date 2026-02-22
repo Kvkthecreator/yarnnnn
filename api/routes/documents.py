@@ -11,11 +11,15 @@ Endpoints:
 - DELETE /documents/{id} - Delete document (cascades to chunks, memories)
 """
 
+import logging
+
 from fastapi import APIRouter, HTTPException, UploadFile, File, Form
 from pydantic import BaseModel
 from typing import Optional
 from uuid import UUID
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from services.supabase import UserClient, get_supabase_url, get_service_client
 from services.documents import process_document
@@ -169,8 +173,8 @@ async def upload_document(
         # Clean up storage if DB insert fails
         try:
             auth.client.storage.from_("documents").remove([storage_path])
-        except:
-            pass
+        except Exception as e:
+            logger.warning(f"[DOCUMENTS] Failed to clean up storage after DB insert failure: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to create document record: {e}")
 
     # Process document (synchronous for MVP)

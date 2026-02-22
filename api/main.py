@@ -21,6 +21,33 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
+logger = logging.getLogger(__name__)
+
+
+def _validate_environment():
+    """Validate required environment variables at startup. Fail fast, not mid-request."""
+    required = [
+        "SUPABASE_URL",
+        "SUPABASE_ANON_KEY",
+        "SUPABASE_SERVICE_KEY",
+        "ANTHROPIC_API_KEY",
+        "INTEGRATION_ENCRYPTION_KEY",
+    ]
+    missing = [var for var in required if not os.getenv(var)]
+    if missing:
+        raise RuntimeError(
+            f"Missing required environment variables: {', '.join(missing)}. "
+            "Check your .env file or deployment config."
+        )
+
+    optional = ["REDIS_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "LEMONSQUEEZY_API_KEY"]
+    for var in optional:
+        if not os.getenv(var):
+            logger.warning(f"[STARTUP] Optional env var not set: {var}")
+
+
+_validate_environment()
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

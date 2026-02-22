@@ -24,8 +24,11 @@ TP can invoke GetSystemState primitive for detailed operational state.
 """
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+
+logger = logging.getLogger(__name__)
 
 # --- Configuration ---
 
@@ -81,7 +84,8 @@ async def _get_user_context(user_id: str, client: Any) -> list[dict]:
 
         return result.data or []
 
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch user_context: {e}")
         return []
 
 
@@ -183,8 +187,8 @@ async def _get_active_deliverables(user_id: str, client: Any) -> list:
                 "_note": f"... and {total_count - MAX_DELIVERABLES} more active deliverables"
             })
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch deliverables: {e}")
 
     return deliverables
 
@@ -214,8 +218,8 @@ async def _get_connected_platforms(user_id: str, client: Any) -> list:
                     "freshness": freshness,
                 })
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch platforms: {e}")
 
     return platforms
 
@@ -269,8 +273,8 @@ async def _get_recent_sessions(user_id: str, client: Any) -> list:
                         "summary": summary[:300],
                     })
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch recent sessions: {e}")
 
     return sessions
 
@@ -293,7 +297,8 @@ async def _get_recent_activity(user_id: str, client: Any) -> list[dict]:
             limit=MAX_ACTIVITY_EVENTS,
             days=ACTIVITY_LOOKBACK_DAYS,
         )
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch recent activity: {e}")
         return []
 
 
@@ -345,8 +350,8 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
                 "deliverables_triggered": len(deliverables_triggered),
             }
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch last signal pass: {e}")
 
     try:
         # 2. Per-platform sync freshness (from platform_connections + sync_registry)
@@ -373,7 +378,8 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
                     .execute()
                 )
                 resource_count = resource_result.count or 0
-            except Exception:
+            except Exception as e:
+                logger.warning(f"[WORKING_MEMORY] Failed to fetch sync_registry count for {platform}: {e}")
                 resource_count = 0
 
             platform_freshness.append({
@@ -385,8 +391,8 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
 
         summary["platform_sync_freshness"] = platform_freshness
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch platform sync freshness: {e}")
 
     try:
         # 3. Pending reviews (deliverable versions with status=draft or suggested)
@@ -401,7 +407,8 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
 
         summary["pending_reviews_count"] = len(pending_result.data or [])
 
-    except Exception:
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch pending reviews (join query): {e}")
         # Fallback: try simpler query
         try:
             # Get user's deliverable IDs first
@@ -422,8 +429,8 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
                     .execute()
                 )
                 summary["pending_reviews_count"] = pending_result.count or 0
-        except Exception:
-            pass
+        except Exception as e2:
+            logger.warning(f"[WORKING_MEMORY] Failed to fetch pending reviews (fallback): {e2}")
 
     try:
         # 4. Failed jobs in last 24 hours
@@ -440,8 +447,8 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
 
         summary["failed_jobs_24h"] = failed_result.count or 0
 
-    except Exception:
-        pass
+    except Exception as e:
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch failed jobs count: {e}")
 
     return summary
 

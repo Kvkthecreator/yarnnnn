@@ -18,7 +18,7 @@ Key principles:
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -87,7 +87,7 @@ async def extract_signal_summary(
     from integrations.core.google_client import get_google_client
     from integrations.core.tokens import get_token_manager
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     summary = SignalSummary()
 
     # Query active platform connections
@@ -170,7 +170,7 @@ async def _fetch_calendar_content(
         .eq("user_id", user_id)
         .eq("platform", "google")
         .eq("status", "active")
-        .single()
+        .maybe_single()
         .execute()
     )
 
@@ -184,7 +184,11 @@ async def _fetch_calendar_content(
         logger.error("[SIGNAL] Google OAuth credentials not configured")
         return None
 
-    refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
+    try:
+        refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
+    except Exception as e:
+        logger.error(f"[SIGNAL] Failed to decrypt Google refresh token for user {user_id}: {e}")
+        return None
 
     try:
         # Fetch next 7 days of calendar events
@@ -260,7 +264,7 @@ async def _fetch_gmail_content(
         .eq("user_id", user_id)
         .eq("platform", "google")
         .eq("status", "active")
-        .single()
+        .maybe_single()
         .execute()
     )
 
@@ -274,7 +278,11 @@ async def _fetch_gmail_content(
         logger.error("[SIGNAL] Google OAuth credentials not configured")
         return None
 
-    refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
+    try:
+        refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
+    except Exception as e:
+        logger.error(f"[SIGNAL] Failed to decrypt Google refresh token for user {user_id}: {e}")
+        return None
 
     try:
         # Fetch last 3 days of inbox messages
@@ -348,7 +356,7 @@ async def _fetch_slack_content(
         .eq("user_id", user_id)
         .eq("platform", "slack")
         .eq("status", "active")
-        .single()
+        .maybe_single()
         .execute()
     )
 
@@ -356,7 +364,11 @@ async def _fetch_slack_content(
         return None
 
     # Decrypt credentials (JSON with bot_token, team_id)
-    credentials_str = token_manager.decrypt(conn_result.data["credentials_encrypted"])
+    try:
+        credentials_str = token_manager.decrypt(conn_result.data["credentials_encrypted"])
+    except Exception as e:
+        logger.error(f"[SIGNAL] Failed to decrypt Slack credentials for user {user_id}: {e}")
+        return None
     try:
         credentials = json.loads(credentials_str) if isinstance(credentials_str, str) else credentials_str
     except json.JSONDecodeError:
@@ -471,14 +483,18 @@ async def _fetch_notion_content(
         .eq("user_id", user_id)
         .eq("platform", "notion")
         .eq("status", "active")
-        .single()
+        .maybe_single()
         .execute()
     )
 
     if not conn_result.data:
         return None
 
-    credentials = token_manager.decrypt(conn_result.data["credentials_encrypted"])
+    try:
+        credentials = token_manager.decrypt(conn_result.data["credentials_encrypted"])
+    except Exception as e:
+        logger.error(f"[SIGNAL] Failed to decrypt Notion credentials for user {user_id}: {e}")
+        return None
     # ADR-056: Extract page IDs from landscape.selected_sources
     landscape = conn_result.data.get("landscape", {})
     selected_sources = landscape.get("selected_sources", [])
