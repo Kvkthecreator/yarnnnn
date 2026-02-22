@@ -21,8 +21,8 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
-# Extraction model — use fast model for cost efficiency
-EXTRACTION_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-3-haiku-20240307")
+# Extraction model — using sonnet as haiku-4 is not yet available
+EXTRACTION_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-sonnet-4-20250514")
 
 # Minimum messages to trigger extraction
 MIN_MESSAGES_FOR_EXTRACTION = 3
@@ -83,7 +83,7 @@ class MemoryService:
                 user_id=user_id,
                 key=fact["key"],
                 value=fact["value"],
-                source="conversation",
+                source="tp_extracted",
                 confidence=fact.get("confidence", 0.8),
             )
             if success:
@@ -137,7 +137,7 @@ class MemoryService:
                 user_id=user_id,
                 key=pattern["key"],
                 value=pattern["value"],
-                source="feedback",
+                source="tp_extracted",
                 confidence=0.7,
             )
             if success:
@@ -198,7 +198,7 @@ class MemoryService:
                 user_id=user_id,
                 key=pattern["key"],
                 value=pattern["value"],
-                source="pattern",
+                source="tp_extracted",
                 confidence=0.6,
             )
             if success:

@@ -104,11 +104,12 @@ async def _sync_platform_async(
 
         integration = result.data
 
-        # Check if integration is connected
-        if integration.get("status") != "connected":
+        # Check if integration is connected (accept both "connected" and "active")
+        status = integration.get("status")
+        if status not in ("connected", "active"):
             return {
                 "success": False,
-                "error": f"{provider} integration is not connected",
+                "error": f"{provider} integration is not connected (status={status})",
             }
 
         # ADR-056: Extract selected_sources from landscape if not provided
@@ -179,10 +180,23 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
     ADR-056: Only syncs channels in selected_sources list.
     """
     from integrations.core.client import MCPClientManager
+    from integrations.core.tokens import get_token_manager
 
-    settings = integration.get("settings", {})
-    bot_token = settings.get("bot_token") or integration.get("access_token")
-    team_id = settings.get("team_id")
+    settings = integration.get("settings", {}) or {}
+    metadata = integration.get("metadata", {}) or {}
+
+    # Try multiple sources for bot token
+    bot_token = settings.get("bot_token") or metadata.get("bot_token") or integration.get("access_token")
+
+    # If not found, try decrypting credentials_encrypted
+    if not bot_token and integration.get("credentials_encrypted"):
+        try:
+            token_manager = get_token_manager()
+            bot_token = token_manager.decrypt(integration["credentials_encrypted"])
+        except Exception as e:
+            logger.warning(f"[PLATFORM_WORKER] Failed to decrypt Slack token: {e}")
+
+    team_id = settings.get("team_id") or metadata.get("team_id")
 
     if not bot_token:
         return {"error": "Missing Slack bot token", "items_synced": 0}

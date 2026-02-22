@@ -41,8 +41,9 @@ logger = logging.getLogger(__name__)
 # Minimum confidence to act on a signal
 CONFIDENCE_THRESHOLD = 0.60
 
-# Haiku for the reasoning pass — this is a routing/classification call
-SIGNAL_REASONING_MODEL = "claude-haiku-4-20250514"
+# Model for the reasoning pass — this is a routing/classification call
+# Using sonnet as haiku-4 is not yet available in this environment
+SIGNAL_REASONING_MODEL = "claude-sonnet-4-20250514"
 
 # Type config for the first signal-emergent type: meeting_prep
 MEETING_PREP_TYPE_CLASSIFICATION = {

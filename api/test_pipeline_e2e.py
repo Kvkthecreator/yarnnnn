@@ -882,11 +882,16 @@ async def run_memory_extraction(
         final_content = version_result.data.get("final_content", "")
         draft_content = version_result.data.get("draft_content", "")
 
-        # Simulate a conversation where user reviewed and edited the deliverable
+        # Simulate a richer conversation that triggers extraction
+        # MIN_MESSAGES_FOR_EXTRACTION = 3 user messages required
         simulated_messages = [
+            {"role": "user", "content": f"Can you generate my {persona.deliverable_config['title']}?"},
             {"role": "assistant", "content": f"Here's your {persona.deliverable_config['title']}:\n\n{draft_content}"},
-            {"role": "user", "content": f"I've edited this to be more concise. Here are my changes:\n\n{final_content}"},
-            {"role": "assistant", "content": "I'll remember your preferences for future versions."},
+            {"role": "user", "content": "I prefer shorter, more concise content. Can you trim this down?"},
+            {"role": "assistant", "content": "I'll make it more concise. Here's a shorter version."},
+            {"role": "user", "content": f"I've edited this further. Here are my final changes:\n\n{final_content}"},
+            {"role": "assistant", "content": "I'll remember your preference for concise content."},
+            {"role": "user", "content": "Yes, always keep my deliverables brief and to the point."},
         ]
 
         # Run memory extraction
@@ -897,7 +902,7 @@ async def run_memory_extraction(
             session_id=str(uuid4()),
         )
 
-        # Query what was written to user_context
+        # Query what was written to user_context (source="tp_extracted" per memory.py)
         context_result = (
             client.table("user_context")
             .select("key, value, source")
