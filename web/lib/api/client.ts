@@ -1225,9 +1225,9 @@ export const api = {
     },
   },
 
-  // ADR-072: Jobs/Operations status
-  jobs: {
-    // Get comprehensive jobs status
+  // ADR-072: System/Operations status
+  system: {
+    // Get system operations status
     getStatus: () =>
       request<{
         platform_sync: Array<{
@@ -1238,13 +1238,6 @@ export const api = {
           source_count: number;
           status: "healthy" | "stale" | "pending" | "disconnected" | "unknown";
         }>;
-        scheduled_deliverables: Array<{
-          id: string;
-          title: string;
-          deliverable_type: string;
-          next_run_at: string;
-          destination_platform: string | null;
-        }>;
         background_jobs: Array<{
           job_type: string;
           last_run_at: string | null;
@@ -1254,7 +1247,7 @@ export const api = {
         }>;
         tier: string;
         sync_frequency: string;
-      }>("/api/jobs/status"),
+      }>("/api/system/status"),
   },
 };
 

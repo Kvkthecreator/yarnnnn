@@ -1,13 +1,13 @@
 'use client';
 
 /**
- * ADR-072: Jobs Page — Operations Status
+ * ADR-072: System Page — Operations Status
  *
  * Provides operational visibility into background orchestration:
  * - Platform sync status (per-platform last/next sync)
  * - Background job status (signal processing, memory extraction, conversation analyst)
  *
- * This is distinct from Activity (audit trail) - Jobs shows operational state,
+ * This is distinct from Activity (audit trail) - System shows operational state,
  * Activity shows historical events.
  */
 
@@ -154,7 +154,7 @@ function StatusBadge({ status }: { status: string }) {
 // Main Component
 // =============================================================================
 
-export default function JobsPage() {
+export default function SystemPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [platformSync, setPlatformSync] = useState<PlatformSyncStatus[]>([]);
@@ -165,13 +165,13 @@ export default function JobsPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const result = await api.jobs.getStatus();
+      const result = await api.system.getStatus();
       setPlatformSync(result.platform_sync);
       setBackgroundJobs(result.background_jobs);
       setTier(result.tier);
       setSyncFrequency(result.sync_frequency);
     } catch (err) {
-      console.error('Failed to load jobs status:', err);
+      console.error('Failed to load system status:', err);
     } finally {
       setLoading(false);
     }
@@ -211,9 +211,9 @@ export default function JobsPage() {
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-2xl font-bold">Jobs</h1>
+            <h1 className="text-2xl font-bold">System</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              System operations — platform syncs and background processing
+              Platform syncs and background processing
             </p>
           </div>
           <button

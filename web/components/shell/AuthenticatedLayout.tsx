@@ -105,14 +105,14 @@ interface RouteItem {
   path: string;
 }
 
-// ADR-063: Four-Layer Model Navigation + ADR-072: Jobs (Operations)
-// Chat | Deliverables (Work) | Memory | Context | Activity | Jobs | Settings
+// ADR-063: Four-Layer Model Navigation + ADR-072: System (Operations)
+// Chat | Deliverables (Work) | Memory | Context | Activity | System | Settings
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' },
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
   { id: 'context', label: 'Context', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
-  { id: 'jobs', label: 'Jobs', icon: Zap, path: '/jobs' },
+  { id: 'system', label: 'System', icon: Zap, path: '/system' },
   { id: 'settings', label: 'Settings', icon: Settings, path: '/settings' },
 ];
 

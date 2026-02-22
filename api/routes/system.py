@@ -1,11 +1,11 @@
 """
-Jobs routes - System operations status
+System routes - Operations status
 
 Provides operational visibility into background orchestration:
 - Platform sync status (per-platform last/next sync)
 - Background job status (signal processing, memory extraction, conversation analyst)
 
-Mounted at /api/jobs
+Mounted at /api/system
 """
 
 from fastapi import APIRouter
@@ -41,10 +41,9 @@ class BackgroundJobStatus(BaseModel):
     items_processed: int = 0
 
 
-class JobsStatusResponse(BaseModel):
-    """Complete jobs status overview."""
+class SystemStatusResponse(BaseModel):
+    """System operations status overview."""
     platform_sync: list[PlatformSyncStatus]
-    scheduled_deliverables: list = []  # Deprecated, kept for backwards compat
     background_jobs: list[BackgroundJobStatus]
     tier: str = "free"
     sync_frequency: str = "2x_daily"
@@ -54,10 +53,10 @@ class JobsStatusResponse(BaseModel):
 # Endpoints
 # =============================================================================
 
-@router.get("/status", response_model=JobsStatusResponse)
-async def get_jobs_status(auth: UserClient):
+@router.get("/status", response_model=SystemStatusResponse)
+async def get_system_status(auth: UserClient):
     """
-    Get comprehensive jobs/operations status.
+    Get system operations status.
 
     Returns:
     - Platform sync status per connected platform
@@ -170,7 +169,7 @@ async def get_jobs_status(auth: UserClient):
                 last_run_status="never_run",
             ))
 
-    return JobsStatusResponse(
+    return SystemStatusResponse(
         platform_sync=platform_sync,
         background_jobs=background_jobs,
         tier=tier,

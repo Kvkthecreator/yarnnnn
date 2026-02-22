@@ -401,12 +401,12 @@ These jobs are completely independent. None calls another. They share the data l
 
 Frontend changes to surface ADR-072 concepts:
 
-### Jobs Page (`/jobs`)
-New operational visibility page showing:
+### System Page (`/system`)
+Operational visibility page showing:
 - Platform sync status (per-platform last/next sync, source count)
 - Background job status (signal processing, memory extraction, conversation analyst)
 
-Distinct from Activity (audit trail) — Jobs shows operational state.
+Distinct from Activity (audit trail) — System shows operational state.
 Deliverable schedules are shown on the dedicated Deliverables page, not duplicated here.
 
 ### Context Page Enhancements
@@ -426,9 +426,9 @@ Deliverable schedules are shown on the dedicated Deliverables page, not duplicat
 - Enhanced metadata display: version numbers, item counts, origin badges for signal-emergent deliverables
 
 ### Navigation
-Added Jobs to navigation bar: Chat | Deliverables | Memory | Context | Activity | Jobs | Settings
+Navigation bar: Chat | Deliverables | Memory | Context | Activity | System | Settings
 
 ### API Endpoints
-- `GET /api/jobs/status` — Returns platform sync status, background job status
+- `GET /api/system/status` — Returns platform sync status, background job status
 - `GET /api/integrations/{platform}/context` — Extended with `retained`, `retained_reason`, `retained_at`, `expires_at`, `retained_count`
 - `GET /api/memory/context` — Extended with `source_ref`, `source_type`
