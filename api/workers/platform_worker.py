@@ -61,7 +61,7 @@ def sync_platform(
         provider=provider,
         selected_sources=selected_sources,
         supabase_url=supabase_url or os.environ.get("SUPABASE_URL"),
-        supabase_key=supabase_key or os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+        supabase_key=supabase_key or os.environ.get("SUPABASE_SERVICE_KEY"),
     ))
 
     logger.info(f"[PLATFORM_WORKER] Completed: provider={provider}, success={result.get('success')}")
@@ -287,14 +287,16 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
     selected_sources format: ["label:Label_123", "label:Label_456"] or ["Label_123", "Label_456"]
     """
     from integrations.core.google_client import GoogleAPIClient
+    from integrations.core.tokens import get_token_manager
     from datetime import timedelta
     import os
 
-    settings = integration.get("settings", {})
-    refresh_token = integration.get("refresh_token")
-
-    if not refresh_token:
+    refresh_token_encrypted = integration.get("refresh_token_encrypted")
+    if not refresh_token_encrypted:
         return {"error": "Missing Gmail refresh token", "items_synced": 0}
+
+    token_manager = get_token_manager()
+    refresh_token = token_manager.decrypt(refresh_token_encrypted)
 
     # ADR-056: If no sources selected, nothing to sync
     if not selected_sources:
@@ -525,13 +527,15 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
     Fetches upcoming events for the next 7 days.
     """
     from integrations.core.google_client import GoogleAPIClient
+    from integrations.core.tokens import get_token_manager
     import os
 
-    settings = integration.get("settings", {})
-    refresh_token = integration.get("refresh_token")
-
-    if not refresh_token:
+    refresh_token_encrypted = integration.get("refresh_token_encrypted")
+    if not refresh_token_encrypted:
         return {"error": "Missing Calendar refresh token", "items_synced": 0}
+
+    token_manager = get_token_manager()
+    refresh_token = token_manager.decrypt(refresh_token_encrypted)
 
     # ADR-056: If no sources selected, nothing to sync
     if not selected_sources:

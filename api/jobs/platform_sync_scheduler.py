@@ -199,7 +199,7 @@ async def process_user_sync(supabase_client, user: dict) -> dict:
                 provider=provider,
                 selected_sources=selected_sources,
                 supabase_url=os.environ.get("SUPABASE_URL"),
-                supabase_key=os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+                supabase_key=os.environ.get("SUPABASE_SERVICE_KEY"),
             )
             results[provider] = result
 
@@ -255,7 +255,7 @@ async def run_platform_sync_scheduler():
     and triggers syncs for eligible users.
     """
     supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY") or os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
 
     if not supabase_url or not supabase_key:
         logger.error("SUPABASE_URL and SUPABASE_SERVICE_KEY must be set")

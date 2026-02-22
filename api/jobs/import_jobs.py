@@ -396,7 +396,7 @@ async def process_slack_import(
 
     return {
         "blocks_extracted": blocks_extracted,  # ADR-038: renamed from blocks_created
-        "ephemeral_stored": ephemeral_stored,  # ADR-031
+        "ephemeral_stored": items_stored,
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
         "summary": import_result.summary,
@@ -797,7 +797,7 @@ async def process_gmail_import(
 
     return {
         "blocks_extracted": blocks_extracted,  # ADR-038: renamed from blocks_created
-        "ephemeral_stored": ephemeral_stored,  # ADR-031
+        "ephemeral_stored": items_stored,
         "items_processed": import_result.items_processed,
         "items_filtered": import_result.items_filtered,
         "summary": import_result.summary,

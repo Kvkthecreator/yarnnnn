@@ -50,7 +50,7 @@ def generate_deliverable(
         version_id=version_id,
         user_id=user_id,
         supabase_url=supabase_url or os.environ.get("SUPABASE_URL"),
-        supabase_key=supabase_key or os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+        supabase_key=supabase_key or os.environ.get("SUPABASE_SERVICE_KEY"),
     ))
 
     logger.info(f"[DELIVERABLE_WORKER] Completed: success={result.get('success')}")

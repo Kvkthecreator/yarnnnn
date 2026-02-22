@@ -139,7 +139,9 @@ async def run_scheduler():
 
     # Initialize Supabase client (service role for admin access)
     supabase_url = os.environ["SUPABASE_URL"]
-    supabase_key = os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY")
+    if not supabase_key:
+        raise ValueError("SUPABASE_SERVICE_KEY must be set")
     supabase = create_client(supabase_url, supabase_key)
 
     print(f"[{datetime.now(timezone.utc).isoformat()}] Starting digest scheduler...")

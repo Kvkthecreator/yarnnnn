@@ -35,11 +35,10 @@ class TokenManager:
         key = encryption_key or os.getenv("INTEGRATION_ENCRYPTION_KEY")
 
         if not key:
-            logger.warning(
-                "[TOKENS] INTEGRATION_ENCRYPTION_KEY not set. "
-                "Using a generated key - tokens will NOT persist across restarts!"
+            raise ValueError(
+                "INTEGRATION_ENCRYPTION_KEY environment variable is required. "
+                "Generate one with: python -c 'from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())'"
             )
-            key = Fernet.generate_key().decode()
 
         self._fernet = Fernet(key.encode() if isinstance(key, str) else key)
 

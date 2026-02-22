@@ -57,7 +57,7 @@ def execute_work_background(
         ticket_id=ticket_id,
         user_id=user_id,
         supabase_url=supabase_url or os.environ.get("SUPABASE_URL"),
-        supabase_key=supabase_key or os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+        supabase_key=supabase_key or os.environ.get("SUPABASE_SERVICE_KEY"),
     ))
 
     logger.info(f"[WORKER] Completed: ticket={ticket_id}, success={result.get('success')}")

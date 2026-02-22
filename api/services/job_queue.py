@@ -182,7 +182,7 @@ async def enqueue_work(
             args=(ticket_id, user_id),
             kwargs={
                 "supabase_url": supabase_url or os.environ.get("SUPABASE_URL"),
-                "supabase_key": supabase_key or os.environ.get("SUPABASE_SERVICE_ROLE_KEY"),
+                "supabase_key": supabase_key or os.environ.get("SUPABASE_SERVICE_KEY"),
             },
             job_timeout=JOB_TIMEOUT_SECONDS,
             result_ttl=JOB_RESULT_TTL_SECONDS,
