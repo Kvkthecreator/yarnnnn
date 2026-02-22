@@ -341,10 +341,10 @@ async def _fetch_slack_content(
     """
     import json
 
-    # Get Slack connection
+    # Get Slack connection - ADR-056: sources in landscape.selected_sources
     conn_result = (
         client.table("platform_connections")
-        .select("credentials_encrypted, settings")
+        .select("credentials_encrypted, landscape")
         .eq("user_id", user_id)
         .eq("platform", "slack")
         .eq("status", "active")
@@ -370,8 +370,14 @@ async def _fetch_slack_content(
         logger.error("[SIGNAL] Missing Slack bot_token or team_id")
         return None
 
-    settings = conn_result.data.get("settings", {})
-    selected_channels = settings.get("selected_channels", [])
+    # ADR-056: Extract channel IDs from landscape.selected_sources
+    landscape = conn_result.data.get("landscape", {})
+    selected_sources = landscape.get("selected_sources", [])
+    # selected_sources can be list of objects {id: "C123", name: "general"} or strings
+    selected_channels = [
+        s.get("id") if isinstance(s, dict) else s
+        for s in selected_sources
+    ]
 
     if not selected_channels:
         logger.info(f"[SIGNAL] No Slack channels selected for user {user_id}")
@@ -458,10 +464,10 @@ async def _fetch_notion_content(
     Focus: Page edits, new pages, task updates that might indicate
     strategic shifts or emerging topics.
     """
-    # Get Notion connection
+    # Get Notion connection - ADR-056: sources in landscape.selected_sources
     conn_result = (
         client.table("platform_connections")
-        .select("credentials_encrypted, settings")
+        .select("credentials_encrypted, landscape")
         .eq("user_id", user_id)
         .eq("platform", "notion")
         .eq("status", "active")
@@ -473,8 +479,13 @@ async def _fetch_notion_content(
         return None
 
     credentials = token_manager.decrypt(conn_result.data["credentials_encrypted"])
-    settings = conn_result.data.get("settings", {})
-    selected_pages = settings.get("selected_pages", [])
+    # ADR-056: Extract page IDs from landscape.selected_sources
+    landscape = conn_result.data.get("landscape", {})
+    selected_sources = landscape.get("selected_sources", [])
+    selected_pages = [
+        s.get("id") if isinstance(s, dict) else s
+        for s in selected_sources
+    ]
 
     if not selected_pages:
         return PlatformContent(
