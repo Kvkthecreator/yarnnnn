@@ -32,6 +32,11 @@ import {
   Repeat,
   Gauge,
   Play,
+  FileText,
+  TrendingUp,
+  MessageCircle,
+  FileOutput,
+  Trash2,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -678,7 +683,11 @@ export default function SystemPage() {
                     'Platform Sync': <RefreshCw className="w-4 h-4 text-green-500" />,
                     'Signal Processing': <Zap className="w-4 h-4 text-amber-500" />,
                     'Memory Extraction': <Brain className="w-4 h-4 text-purple-500" />,
-                    'Deliverable Scheduler': <Gauge className="w-4 h-4 text-indigo-500" />,
+                    'Session Summaries': <FileText className="w-4 h-4 text-blue-500" />,
+                    'Pattern Detection': <TrendingUp className="w-4 h-4 text-orange-500" />,
+                    'Conversation Analysis': <MessageCircle className="w-4 h-4 text-cyan-500" />,
+                    'Deliverable Generation': <FileOutput className="w-4 h-4 text-emerald-500" />,
+                    'Content Cleanup': <Trash2 className="w-4 h-4 text-red-400" />,
                     'Scheduler Heartbeat': <Activity className="w-4 h-4 text-gray-500" />,
                   };
 

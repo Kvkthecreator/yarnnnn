@@ -376,6 +376,20 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
 
         if success:
             logger.info(f"[DELIVERABLE] ✓ Complete: {title}")
+            try:
+                await write_activity(
+                    client=supabase_client,
+                    user_id=user_id,
+                    event_type="deliverable_generated",
+                    summary=f"Generated: {title}",
+                    event_ref=deliverable_id,
+                    metadata={
+                        "deliverable_type": deliverable_type,
+                        "version_id": result.get("version_id"),
+                    },
+                )
+            except Exception:
+                pass
         else:
             logger.warning(f"[DELIVERABLE] ✗ Failed: {title} - {result.get('error')}")
 
@@ -753,6 +767,22 @@ async def run_unified_scheduler():
             content_cleaned = await cleanup_expired_content(supabase)
             if content_cleaned > 0:
                 logger.info(f"[PLATFORM_CONTENT] Cleaned up {content_cleaned} expired items")
+                # Write per-user cleanup events
+                try:
+                    from services.activity_log import write_activity as _cw
+                    active_users = supabase.table("platform_connections").select(
+                        "user_id"
+                    ).eq("status", "active").execute()
+                    for uid in set(row["user_id"] for row in (active_users.data or [])):
+                        await _cw(
+                            client=supabase,
+                            user_id=uid,
+                            event_type="content_cleanup",
+                            summary=f"Cleaned {content_cleaned} expired content items",
+                            metadata={"items_deleted": content_cleaned},
+                        )
+                except Exception:
+                    pass
         except Exception as e:
             logger.warning(f"[PLATFORM_CONTENT] Cleanup failed (non-fatal): {e}")
 
@@ -885,6 +915,23 @@ async def run_unified_scheduler():
                     f"created {analysis_suggestions} suggestions, "
                     f"sent {analysis_cold_starts} cold starts"
                 )
+                # Write per-user analysis events
+                try:
+                    from services.activity_log import write_activity as _aw
+                    for uid in user_ids:
+                        await _aw(
+                            client=supabase,
+                            user_id=uid,
+                            event_type="conversation_analyzed",
+                            summary=f"Conversation analysis: {analysis_suggestions} suggestion(s) created",
+                            metadata={
+                                "users_analyzed": analysis_users,
+                                "suggestions_created": analysis_suggestions,
+                                "cold_starts_sent": analysis_cold_starts,
+                            },
+                        )
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.warning(f"[ANALYSIS] Analysis phase skipped: {e}")
@@ -971,6 +1018,29 @@ async def run_unified_scheduler():
                     f"wrote {summaries_written} session summaries"
                 )
 
+            # Write session_summary_written events (aggregate per user who had sessions)
+            if summaries_written > 0:
+                try:
+                    from services.activity_log import write_activity as _ssw
+                    # Get unique user_ids from yesterday's sessions
+                    session_user_ids = list(set(
+                        s.get("user_id") for s in (sessions_result.data or []) if s.get("user_id")
+                    ))
+                    for uid in session_user_ids:
+                        await _ssw(
+                            client=supabase,
+                            user_id=uid,
+                            event_type="session_summary_written",
+                            summary=f"Session summaries: {summaries_written} written, {memory_extracted} memories extracted",
+                            metadata={
+                                "summaries_written": summaries_written,
+                                "memories_extracted": memory_extracted,
+                                "sessions_processed": memory_users,
+                            },
+                        )
+                except Exception:
+                    pass
+
         except Exception as e:
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")
 
@@ -1018,6 +1088,22 @@ async def run_unified_scheduler():
                     f"[PATTERN] Activity pattern detection complete: {pattern_users} users, "
                     f"{pattern_extracted} patterns extracted"
                 )
+                # Write per-user pattern events
+                try:
+                    from services.activity_log import write_activity as _pw
+                    for user_row in users_result_data:
+                        await _pw(
+                            client=supabase,
+                            user_id=user_row["id"],
+                            event_type="pattern_detected",
+                            summary=f"Pattern detection: {pattern_extracted} pattern(s) found",
+                            metadata={
+                                "patterns_extracted": pattern_extracted,
+                                "users_analyzed": pattern_users,
+                            },
+                        )
+                except Exception:
+                    pass
 
         except Exception as e:
             logger.warning(f"[PATTERN] Activity pattern detection phase skipped: {e}")

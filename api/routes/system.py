@@ -273,7 +273,11 @@ async def get_system_status(auth: UserClient):
         ("platform_synced", "Platform Sync"),
         ("signal_processed", "Signal Processing"),
         ("memory_written", "Memory Extraction"),
-        ("deliverable_scheduled", "Deliverable Scheduler"),
+        ("session_summary_written", "Session Summaries"),
+        ("pattern_detected", "Pattern Detection"),
+        ("conversation_analyzed", "Conversation Analysis"),
+        ("deliverable_generated", "Deliverable Generation"),
+        ("content_cleanup", "Content Cleanup"),
         ("scheduler_heartbeat", "Scheduler Heartbeat"),
     ]
 
