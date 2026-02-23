@@ -144,6 +144,18 @@ async def trigger_signal_processing(
         )
 
         if not signal_summary.has_signals:
+            # Log even when no signals found so system page shows last run
+            try:
+                from services.activity_log import write_activity as _write
+                await _write(
+                    client=supabase,
+                    user_id=user_id,
+                    event_type="signal_processed",
+                    summary=f"Signal processing: scanned {len(connections_result.data)} platform(s), 0 items in window",
+                    metadata={"signals_evaluated": 0, "actions_taken": [], "items_processed": 0},
+                )
+            except Exception:
+                pass
             return TriggerSignalProcessingResponse(
                 status="completed",
                 signals_detected=0,

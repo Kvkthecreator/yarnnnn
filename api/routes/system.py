@@ -278,27 +278,84 @@ async def get_system_status(auth: UserClient):
     ]
 
     for event_type, label in job_types:
-        event_result = auth.client.table("activity_log").select(
-            "id, summary, metadata, created_at"
-        ).eq("user_id", user_id).eq(
-            "event_type", event_type
-        ).order("created_at", desc=True).limit(1).execute()
+        if event_type == "platform_synced":
+            # Aggregate recent platform_synced events (multiple platforms sync in parallel)
+            sync_window = (now - timedelta(minutes=30)).isoformat()
+            event_result = auth.client.table("activity_log").select(
+                "id, summary, metadata, created_at"
+            ).eq("user_id", user_id).eq(
+                "event_type", event_type
+            ).gte("created_at", sync_window).order(
+                "created_at", desc=True
+            ).limit(10).execute()
 
-        if event_result.data:
-            event = event_result.data[0]
-            metadata = event.get("metadata", {}) or {}
-            background_jobs.append(BackgroundJobStatus(
-                job_type=label,
-                last_run_at=event["created_at"],
-                last_run_status="success" if not metadata.get("error") else "failed",
-                last_run_summary=event.get("summary"),
-                items_processed=metadata.get("items_processed", 0),
-            ))
+            if event_result.data:
+                # Aggregate: combine summaries, sum items, use most recent timestamp
+                latest = event_result.data[0]
+                total_items = sum(
+                    (e.get("metadata", {}) or {}).get("items_synced", 0)
+                    for e in event_result.data
+                )
+                platforms = [
+                    (e.get("metadata", {}) or {}).get("platform", "")
+                    for e in event_result.data
+                ]
+                has_error = any(
+                    (e.get("metadata", {}) or {}).get("error")
+                    for e in event_result.data
+                )
+                summary = f"Synced {', '.join(p for p in platforms if p)}: {total_items} items"
+                background_jobs.append(BackgroundJobStatus(
+                    job_type=label,
+                    last_run_at=latest["created_at"],
+                    last_run_status="failed" if has_error else "success",
+                    last_run_summary=summary,
+                    items_processed=total_items,
+                ))
+            else:
+                # Fall back to the single most recent event (outside 30min window)
+                fallback = auth.client.table("activity_log").select(
+                    "id, summary, metadata, created_at"
+                ).eq("user_id", user_id).eq(
+                    "event_type", event_type
+                ).order("created_at", desc=True).limit(1).execute()
+                if fallback.data:
+                    event = fallback.data[0]
+                    metadata = event.get("metadata", {}) or {}
+                    background_jobs.append(BackgroundJobStatus(
+                        job_type=label,
+                        last_run_at=event["created_at"],
+                        last_run_status="success" if not metadata.get("error") else "failed",
+                        last_run_summary=event.get("summary"),
+                        items_processed=metadata.get("items_processed", 0),
+                    ))
+                else:
+                    background_jobs.append(BackgroundJobStatus(
+                        job_type=label,
+                        last_run_status="never_run",
+                    ))
         else:
-            background_jobs.append(BackgroundJobStatus(
-                job_type=label,
-                last_run_status="never_run",
-            ))
+            event_result = auth.client.table("activity_log").select(
+                "id, summary, metadata, created_at"
+            ).eq("user_id", user_id).eq(
+                "event_type", event_type
+            ).order("created_at", desc=True).limit(1).execute()
+
+            if event_result.data:
+                event = event_result.data[0]
+                metadata = event.get("metadata", {}) or {}
+                background_jobs.append(BackgroundJobStatus(
+                    job_type=label,
+                    last_run_at=event["created_at"],
+                    last_run_status="success" if not metadata.get("error") else "failed",
+                    last_run_summary=event.get("summary"),
+                    items_processed=metadata.get("items_processed", 0),
+                ))
+            else:
+                background_jobs.append(BackgroundJobStatus(
+                    job_type=label,
+                    last_run_status="never_run",
+                ))
 
     return SystemStatusResponse(
         platform_sync=platform_sync,
