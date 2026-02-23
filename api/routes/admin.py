@@ -1197,7 +1197,7 @@ async def admin_trigger_sync(
     Admin endpoint to trigger platform sync for a specific user+provider.
     Protected by service key header. Runs synchronously and returns results.
     """
-    from workers.platform_worker import _sync_platform_impl
+    from workers.platform_worker import _sync_platform_async
 
     supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
     if not x_service_key or x_service_key != supabase_key:
@@ -1208,7 +1208,7 @@ async def admin_trigger_sync(
         raise HTTPException(status_code=500, detail="Missing Supabase credentials")
 
     try:
-        result = await _sync_platform_impl(
+        result = await _sync_platform_async(
             user_id=user_id,
             provider=provider,
             selected_sources=None,  # Will be fetched from landscape
