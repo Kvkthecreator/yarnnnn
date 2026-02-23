@@ -131,3 +131,6 @@ ORDER BY sm.created_at DESC LIMIT 5;
 | Gmail content quality | PASS | title, author, thread_id populated on all 17 emails |
 | Token persistence SQL | PASS | `get_daily_token_usage()` returns 0 (no post-deploy messages yet) |
 | Token budget enforcement | CODE VERIFIED | `check_daily_token_budget()` in chat.py, tested via function existence |
+| TP signal.process Execute | DEPLOYED | `Execute(action="signal.process", target="system:signals")` added to primitives |
+| Granular background jobs | PASS | 9 job types in system status (was 5), all have events in activity_log |
+| Activity log CHECK constraint | PASS | Migration 080 adds 5 new event types, all insertable |
