@@ -1222,3 +1222,68 @@ async def admin_trigger_sync(
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
+
+
+@router.post("/trigger-signal-processing/{user_id}")
+async def admin_trigger_signal_processing(
+    user_id: str,
+    x_service_key: Optional[str] = Header(None),
+) -> dict:
+    """
+    Admin endpoint to trigger signal processing for a specific user.
+    Protected by service key header. Runs synchronously and returns results.
+    """
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    if not x_service_key or x_service_key != supabase_key:
+        raise HTTPException(status_code=403, detail="Invalid service key")
+
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=500, detail="Missing Supabase credentials")
+
+    from supabase import create_client
+    from services.signal_extraction import extract_signals
+    from services.signal_processing import process_signals
+
+    client = create_client(supabase_url, supabase_key)
+
+    try:
+        # Extract signals from platform_content
+        summary = await extract_signals(client, user_id)
+        extraction_result = {
+            "platforms_queried": summary.platforms_queried,
+            "total_items": summary.total_items,
+            "has_calendar": summary.calendar_content is not None,
+            "has_gmail": summary.gmail_content is not None,
+            "has_slack": summary.slack_content is not None,
+            "has_notion": summary.notion_content is not None,
+        }
+
+        if summary.total_items == 0:
+            return {
+                "user_id": user_id,
+                "status": "no_content",
+                "extraction": extraction_result,
+                "processing": None,
+            }
+
+        # Process signals (LLM triage)
+        processing_result = await process_signals(client, user_id, summary)
+
+        return {
+            "user_id": user_id,
+            "status": "completed",
+            "extraction": extraction_result,
+            "processing": {
+                "signals_detected": processing_result.get("signals_detected", 0),
+                "actions_taken": processing_result.get("actions_taken", []),
+            } if processing_result else None,
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "user_id": user_id,
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
