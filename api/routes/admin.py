@@ -1267,17 +1267,34 @@ async def admin_trigger_signal_processing(
                 "processing": None,
             }
 
+        # Gather context needed by process_signal
+        uc_result = client.table("user_context").select("*").eq("user_id", user_id).execute()
+        user_context = uc_result.data or []
+
+        al_result = client.table("activity_log").select("*").eq(
+            "user_id", user_id
+        ).order("created_at", desc=True).limit(20).execute()
+        recent_activity = al_result.data or []
+
+        dl_result = client.table("deliverables").select("*").eq(
+            "user_id", user_id
+        ).in_("status", ["active", "paused"]).execute()
+        existing_deliverables = dl_result.data or []
+
         # Process signals (LLM triage)
-        processing_result = await process_signal(client, user_id, summary)
+        processing_result = await process_signal(
+            client, user_id, summary, user_context, recent_activity, existing_deliverables
+        )
 
         return {
             "user_id": user_id,
             "status": "completed",
             "extraction": extraction_result,
             "processing": {
-                "signals_detected": processing_result.get("signals_detected", 0),
-                "actions_taken": processing_result.get("actions_taken", []),
-            } if processing_result else None,
+                "signals_detected": getattr(processing_result, "signals_detected", 0),
+                "actions": [str(a) for a in getattr(processing_result, "actions", [])],
+                "reasoning": getattr(processing_result, "reasoning_summary", ""),
+            },
         }
     except Exception as e:
         import traceback
