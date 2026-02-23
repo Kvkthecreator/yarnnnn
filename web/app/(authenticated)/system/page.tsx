@@ -26,7 +26,6 @@ import {
   ArrowRight,
   Activity,
   Brain,
-  MessageSquare,
   ChevronDown,
   ChevronRight,
   Database,
@@ -680,7 +679,6 @@ export default function SystemPage() {
                     'Memory Extraction': <Brain className="w-4 h-4 text-purple-500" />,
                     'Deliverable Scheduler': <Gauge className="w-4 h-4 text-indigo-500" />,
                     'Scheduler Heartbeat': <Activity className="w-4 h-4 text-gray-500" />,
-                    'Conversation Analyst': <MessageSquare className="w-4 h-4 text-blue-500" />,
                   };
 
                   return (

@@ -192,7 +192,7 @@ async def handle_get_system_state(auth: Any, input: dict) -> dict:
             )
 
         if scope in ("full", "scheduler"):
-            snapshot.scheduler_health = await _get_scheduler_health(client)
+            snapshot.scheduler_health = await _get_scheduler_health(client, user_id)
             snapshot.pending_reviews_count = await _get_pending_reviews_count(client, user_id)
 
         if scope in ("full", "jobs"):
@@ -377,15 +377,13 @@ def _parse_landscape(landscape_raw: dict, platform: str) -> list[dict]:
     return resources[:20]  # Cap at 20 resources
 
 
-async def _get_scheduler_health(client: Any) -> Optional[SchedulerHealth]:
-    """Fetch the most recent scheduler_heartbeat event."""
-    SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
-
+async def _get_scheduler_health(client: Any, user_id: str) -> Optional[SchedulerHealth]:
+    """Fetch the most recent scheduler_heartbeat event for this user."""
     try:
         result = (
             client.table("activity_log")
             .select("created_at, summary, metadata")
-            .eq("user_id", SYSTEM_USER_ID)
+            .eq("user_id", user_id)
             .eq("event_type", "scheduler_heartbeat")
             .order("created_at", desc=True)
             .limit(1)

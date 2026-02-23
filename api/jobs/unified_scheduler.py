@@ -1095,15 +1095,18 @@ async def run_unified_scheduler():
                             """)
                             .eq("user_id", user_id)
                             .in_("status", ["active", "paused"])
-                            .order("deliverable_versions(created_at)", desc=True)
                             .limit(20)
                             .execute()
                         )
 
-                        # Extract most recent version per deliverable
+                        # Extract most recent version per deliverable (sort versions client-side)
                         existing_deliverables = []
                         for d in (existing_deliverables_raw.data or []):
-                            versions = d.get("deliverable_versions", [])
+                            versions = sorted(
+                                d.get("deliverable_versions", []),
+                                key=lambda v: v.get("created_at", ""),
+                                reverse=True,
+                            )
                             recent_version = versions[0] if versions else None
                             existing_deliverables.append({
                                 "id": d["id"],

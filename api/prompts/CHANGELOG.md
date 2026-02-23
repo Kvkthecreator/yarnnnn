@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.4] - Fix signal processing crash + scheduler health query
+
+### Changed
+- `api/routes/signal_processing.py`: Removed `.order("deliverable_versions(created_at)")` — PostgREST PGRST118 error on one-to-many related table ordering. Sort versions client-side instead.
+- `api/jobs/unified_scheduler.py`: Same PGRST118 fix for scheduler signal processing path.
+- `api/services/primitives/system_state.py`: `_get_scheduler_health()` now queries per-user heartbeats instead of non-existent sentinel UUID `00000000-...`.
+- `web/app/(authenticated)/system/page.tsx`: Removed dead Conversation Analyst icon map entry + unused MessageSquare import.
+
+### Behavior
+- Signal processing no longer crashes with 500 when deliverables exist
+- TP GetSystemState primitive now correctly retrieves scheduler heartbeat data
+- No prompt/tool definition changes
+
+---
+
 ## [2026.02.23.3] - Sync pipeline reliability + status surfacing fixes
 
 ### Changed
