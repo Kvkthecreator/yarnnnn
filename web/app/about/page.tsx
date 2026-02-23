@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "About",
-  description: "yarnnn is a supervision layer between your work platforms and your recurring deliverables. Connect, configure, approve.",
+  description: "yarnnn is autonomous AI that connects to your work platforms, accumulates context, and works on your behalf. It gets smarter the longer you use it.",
 };
 
 export default function AboutPage() {
@@ -26,19 +26,19 @@ export default function AboutPage() {
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
               We built yarnnn because
               <br />
-              <span className="text-white/50">writing updates is a chore.</span>
+              <span className="text-white/50">AI should work for you, not just with you.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                You know the feeling. It&apos;s Monday morning and you need to send a status
-                report. All the information is there—in Slack, in your inbox, in your notes.
-                But you still have to pull it together, format it, and make it sound right.
+                You use AI every day. And every day, it forgets everything. Your preferences,
+                your context, your last conversation. You start from scratch, re-explain your
+                world, and do all the assembly yourself.
               </p>
               <p>
-                It&apos;s not hard. It&apos;s just... time. Time you could spend on actual work.
+                AI is powerful. But stateless, one-shot AI can&apos;t actually work on your behalf.
               </p>
               <p className="text-white font-medium">
-                So we made yarnnn to do that part for you.
+                So we built yarnnn—autonomous AI that accumulates your context and gets smarter the longer you use it.
               </p>
             </div>
           </section>
@@ -51,13 +51,30 @@ export default function AboutPage() {
               <div className="space-y-16">
                 <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">You&apos;re a supervisor, not a writer</h3>
+                    <h3 className="text-lg font-medium text-white">Context is what makes AI useful</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      The information already exists in your tools. Synthesizing it into
-                      a deliverable shouldn&apos;t require you to do the manual labor of reading,
-                      copying, and reformatting.
+                      Raw intelligence without context is just a fancy autocomplete.
+                      The difference between generic AI and useful AI is whether it
+                      understands your world.
+                    </p>
+                    <p className="text-white/30 text-sm">
+                      yarnnn connects to your platforms and accumulates context continuously.
+                      The longer you use it, the deeper it understands.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
+                  <div>
+                    <h3 className="text-lg font-medium text-white">Autonomy, not assistance</h3>
+                  </div>
+                  <div className="text-white/50">
+                    <p className="mb-4">
+                      Most AI tools assist you—they help you do work faster. yarnnn
+                      works on your behalf. It produces your deliverables on schedule.
+                      You shift from operator to supervisor.
                     </p>
                     <p className="text-white/30 text-sm">
                       Your job is to decide what matters and approve when it&apos;s right.
@@ -68,47 +85,32 @@ export default function AboutPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">AI should remember</h3>
+                    <h3 className="text-lg font-medium text-white">AI should compound</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Most AI tools forget everything between sessions. Your corrections
-                      evaporate. You explain the same preferences again and again.
+                      Every sync cycle, every edit, every approval deepens yarnnn&apos;s
+                      understanding. After 90 days, the accumulated context is irreplaceable.
                     </p>
                     <p className="text-white/30 text-sm">
-                      yarnnn builds a persistent understanding of your work and your style.
-                      Every approval makes the next draft better.
+                      This isn&apos;t a feature moat. It&apos;s a data moat. The value grows
+                      monotonically with tenure.
                     </p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Platforms have the context</h3>
+                    <h3 className="text-lg font-medium text-white">Platforms have the signal</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
                       Your Slack channels, email threads, and Notion docs already contain
-                      everything needed for your weekly report. The raw material is there.
+                      everything needed. The raw material for autonomous work is already there.
                     </p>
                     <p className="text-white/30 text-sm">
                       yarnnn connects directly to where your work happens—so you never
                       have to paste, summarize, or manually update context again.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
-                  <div>
-                    <h3 className="text-lg font-medium text-white">Recurring work should be automatic</h3>
-                  </div>
-                  <div className="text-white/50">
-                    <p className="mb-4">
-                      If you owe someone something on a regular cadence—weekly, monthly,
-                      quarterly—the system should produce it on schedule.
-                    </p>
-                    <p className="text-white/30 text-sm">
-                      Set it up once. Review when ready. That&apos;s supervision.
                     </p>
                   </div>
                 </div>
@@ -128,30 +130,29 @@ export default function AboutPage() {
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not a chatbot</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    You don&apos;t prompt yarnnn with endless questions.
-                    You set up deliverables, and your Thinking Partner
-                    produces them on schedule.
+                    TP is a partner, not a prompt box. You have conversations
+                    that set up autonomous work—not endless back-and-forth.
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium mb-2">Not a writing app</h3>
+                  <h3 className="text-lg font-medium mb-2">Not stateless AI</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    You&apos;re not typing in yarnnn. You&apos;re reviewing
-                    what it wrote. The draft is the output, not the workspace.
+                    ChatGPT and Claude forget between sessions. yarnnn accumulates
+                    context continuously. It knows your world and it remembers.
                   </p>
                 </div>
                 <div>
                   <h3 className="text-lg font-medium mb-2">Not a template tool</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
                     yarnnn doesn&apos;t fill in blanks. It synthesizes fresh
-                    content from current context, every time.
+                    content from accumulated context, every time.
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium mb-2">Not a generic AI</h3>
+                  <h3 className="text-lg font-medium mb-2">Not another agent startup</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    yarnnn is specifically for recurring deliverables that
-                    pull from your existing work platforms. That&apos;s it.
+                    Agent platforms are powerful but context-free. yarnnn&apos;s autonomy
+                    is meaningful because it&apos;s powered by your actual work context.
                   </p>
                 </div>
               </div>
@@ -165,26 +166,26 @@ export default function AboutPage() {
 
               <div className="space-y-6">
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">People who send recurring things</h3>
+                  <h3 className="text-base font-medium mb-2">Solo professionals with recurring obligations</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Weekly status reports. Monthly investor updates. Client check-ins.
-                    If you owe someone something on a regular cadence, yarnnn can help.
+                    Consultants, founders, ops leads. If you owe people recurring work
+                    and you&apos;re tired of assembling it yourself, yarnnn handles it autonomously.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">People whose work is spread across tools</h3>
+                  <h3 className="text-base font-medium mb-2">People whose work is spread across platforms</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Slack for team chat. Gmail for clients. Notion for docs.
-                    The more scattered the context, the more time yarnnn saves you.
+                    Slack for team chat. Gmail for clients. Notion for docs. Calendar for meetings.
+                    The more platforms you connect, the more powerful yarnnn becomes.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-2xl p-6">
-                  <h3 className="text-base font-medium mb-2">People who&apos;d rather review than write</h3>
+                  <h3 className="text-base font-medium mb-2">People who want to supervise, not operate</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Not everyone likes drafting. If you&apos;d rather skim, tweak, and approve
-                    than stare at a blank page, yarnnn is built for you.
+                    If you&apos;d rather review and approve than draft and assemble,
+                    yarnnn shifts you from operator to supervisor. That&apos;s the model.
                   </p>
                 </div>
               </div>
@@ -195,11 +196,11 @@ export default function AboutPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Ready to supervise instead of write?
+                Ready to supervise instead of operate?
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Connect your tools. Tell TP what you need.
-                See your first draft in minutes.
+                Connect your platforms. Talk to TP.
+                Watch your AI get smarter every day.
               </p>
               <Link
                 href="/auth/login"

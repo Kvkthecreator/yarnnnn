@@ -7,7 +7,7 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 
 export const metadata: Metadata = {
   title: "Meet TP",
-  description: "Meet your Thinking Partner. TP connects to your work platforms, understands your context, and produces your recurring deliverables.",
+  description: "Meet your Thinking Partner. TP is the intelligent interface to an autonomous AI that connects to your platforms, accumulates context, and works on your behalf.",
 };
 
 export default function HowItWorksPage() {
@@ -30,8 +30,9 @@ export default function HowItWorksPage() {
               <span className="text-white/50">your Thinking Partner.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              TP is who you talk to. Not a form to fill out. Not a prompt to craft.
-              Just a conversation about what you need—and TP handles the rest.
+              TP is the intelligent interface to yarnnn. Not a chatbot. Not a prompt box.
+              A partner that understands your world, connects to your platforms,
+              and works autonomously on your behalf.
             </p>
           </section>
 
@@ -40,8 +41,8 @@ export default function HowItWorksPage() {
             <div className="max-w-4xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">You talk. TP listens.</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                No wizards. No forms. Just describe what you need in plain language,
-                and TP asks the right follow-up questions.
+                No wizards. No configuration screens. Just describe what you need in plain language,
+                and TP figures out the rest.
               </p>
 
               {/* Chat Example */}
@@ -116,42 +117,42 @@ export default function HowItWorksPage() {
           {/* What TP Does */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">What TP does for you</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">The three pillars</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                TP isn&apos;t just a chatbot. It&apos;s a partner that understands your work,
-                connects to your tools, and produces deliverables on your behalf.
+                yarnnn combines three things no other AI does: an intelligent partner,
+                autonomous output, and context that compounds over time.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Connects to your platforms</div>
+                  <div className="text-lg font-medium mb-3">Thinking Partner (TP)</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Slack, Gmail, Notion, Calendar. TP guides you through connecting them,
-                    then pulls context automatically every cycle.
+                    Your intelligent interface. TP understands your work context, sets up
+                    deliverables through conversation, and coordinates everything behind the scenes.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Understands your work</div>
+                  <div className="text-lg font-medium mb-3">Autonomous deliverables</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    TP reads your channels, threads, and docs. It knows what happened
-                    this week—so you don&apos;t have to summarize it yourself.
+                    Status reports, investor updates, client briefs—produced on schedule
+                    without you lifting a finger. You review and approve.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Drafts in your voice</div>
+                  <div className="text-lg font-medium mb-3">Context accumulation</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Status reports, investor updates, client briefs. TP synthesizes
-                    your context into deliverables that sound like you wrote them.
+                    Slack, Gmail, Notion, Calendar sync continuously. Every cycle deepens
+                    yarnnn&apos;s understanding of your work. The context compounds.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Learns from your feedback</div>
+                  <div className="text-lg font-medium mb-3">Gets smarter over time</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Every edit, every approval teaches TP. Over time, drafts need
-                    fewer tweaks. Eventually, you just approve.
+                    Every approval, every edit, every sync cycle. After 90 days,
+                    yarnnn knows your work better than any tool you&apos;ve ever used.
                   </p>
                 </div>
               </div>
@@ -163,7 +164,7 @@ export default function HowItWorksPage() {
             <div className="max-w-5xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">The flow</h2>
               <p className="text-white/50 leading-relaxed mb-16 max-w-2xl">
-                From first conversation to recurring drafts.
+                From first conversation to full autonomy.
               </p>
 
               <div className="space-y-16">
@@ -175,7 +176,7 @@ export default function HowItWorksPage() {
                     <p className="text-white/50 leading-relaxed">
                       &ldquo;I need a weekly status report for my manager&rdquo; or
                       &ldquo;Monthly investor update, first Tuesday&rdquo;.
-                      Just say it. TP asks clarifying questions.
+                      Just say it. TP asks clarifying questions and sets everything up.
                     </p>
                   </div>
                 </div>
@@ -184,10 +185,10 @@ export default function HowItWorksPage() {
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">02</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Connect your sources</h3>
+                    <h3 className="text-xl font-medium mb-3">Connect your platforms</h3>
                     <p className="text-white/50 leading-relaxed">
                       TP guides you through connecting Slack, Gmail, Notion—wherever
-                      your work lives. One-time OAuth. After that, TP can see what you see.
+                      your work lives. One-time OAuth. Context starts accumulating immediately.
                     </p>
                   </div>
                 </div>
@@ -196,10 +197,10 @@ export default function HowItWorksPage() {
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">03</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Review when ready</h3>
+                    <h3 className="text-xl font-medium mb-3">Supervise, don&apos;t write</h3>
                     <p className="text-white/50 leading-relaxed">
-                      On schedule, TP pulls fresh context and drafts your deliverable.
-                      You get pinged. Read through it. Tweak if needed. Approve when it&apos;s right.
+                      On schedule, yarnnn produces your deliverable autonomously.
+                      You review, tweak if needed, and approve. That&apos;s supervision.
                     </p>
                   </div>
                 </div>
@@ -208,10 +209,10 @@ export default function HowItWorksPage() {
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">04</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Watch it improve</h3>
+                    <h3 className="text-xl font-medium mb-3">Watch autonomy grow</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Every approval teaches TP. Structure preferences. Tone. What to highlight.
-                      By week 8, you&apos;re approving with barely a glance.
+                      Every cycle deepens context, every approval teaches preferences.
+                      By week 8, you&apos;re approving with barely a glance. That&apos;s the moat.
                     </p>
                   </div>
                 </div>
@@ -219,48 +220,48 @@ export default function HowItWorksPage() {
             </div>
           </section>
 
-          {/* TP Learns */}
+          {/* Context Accumulation */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">TP remembers everything</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">Context that compounds</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Unlike other AI tools that reset every session, TP builds a persistent
-                understanding of your work and preferences.
+                Unlike other AI tools that reset every session, yarnnn accumulates a persistent,
+                deepening understanding of your work across every platform you connect.
               </p>
 
               <div className="border border-white/10 rounded-xl p-6 bg-white/5">
-                <div className="text-xs text-white/30 uppercase tracking-wider mb-6">What TP learns from you</div>
+                <div className="text-xs text-white/30 uppercase tracking-wider mb-6">What accumulates over time</div>
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
                     <p className="text-white/70 text-sm">
-                      Which Slack channels have the signal, which are noise
+                      Conversations, decisions, and patterns from your Slack channels
                     </p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
                     <p className="text-white/70 text-sm">
-                      How you structure updates—sections, order, level of detail
+                      Your writing style, structure preferences, and tone for each audience
                     </p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
                     <p className="text-white/70 text-sm">
-                      The tone that fits each recipient—formal for board, casual for team
+                      Client relationships, project context, and team dynamics from email and docs
                     </p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
                     <p className="text-white/70 text-sm">
-                      What metrics matter, what wins to call out, what context to include
+                      What metrics matter, what wins to highlight, what context each stakeholder needs
                     </p>
                   </div>
                 </div>
               </div>
 
               <p className="text-white/30 text-sm mt-6">
-                The goal: your approval becomes a rubber stamp.
-                Not because TP is guessing—because TP knows.
+                90 days of accumulated context is irreplaceable.
+                That&apos;s not a feature—it&apos;s a moat.
               </p>
             </div>
           </section>
@@ -303,8 +304,8 @@ export default function HowItWorksPage() {
                 Ready to meet TP?
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Start a conversation. Tell TP what you need.
-                See your first draft in minutes.
+                Start a conversation. Connect your platforms.
+                Watch autonomy grow.
               </p>
               <Link
                 href="/auth/login"
