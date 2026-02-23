@@ -12,9 +12,10 @@ Endpoints:
 - POST /trigger-analysis-all - Trigger analysis for all active users
 """
 
+import os
 from io import BytesIO
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Header
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
@@ -1180,3 +1181,44 @@ async def get_pipeline_stats(admin: AdminAuth):
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch pipeline stats: {str(e)}")
+
+
+# =============================================================================
+# Admin Sync Trigger (for testing)
+# =============================================================================
+
+@router.post("/trigger-sync/{user_id}/{provider}")
+async def admin_trigger_sync(
+    user_id: str,
+    provider: str,
+    x_service_key: Optional[str] = Header(None),
+) -> dict:
+    """
+    Admin endpoint to trigger platform sync for a specific user+provider.
+    Protected by service key header. Runs synchronously and returns results.
+    """
+    from workers.platform_worker import _sync_platform_impl
+
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    if not x_service_key or x_service_key != supabase_key:
+        raise HTTPException(status_code=403, detail="Invalid service key")
+
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=500, detail="Missing Supabase credentials")
+
+    try:
+        result = await _sync_platform_impl(
+            user_id=user_id,
+            provider=provider,
+            selected_sources=None,  # Will be fetched from landscape
+            supabase_url=supabase_url,
+            supabase_key=supabase_key,
+        )
+        return {
+            "user_id": user_id,
+            "provider": provider,
+            "result": result,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
