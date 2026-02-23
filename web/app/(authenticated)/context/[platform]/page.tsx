@@ -243,12 +243,14 @@ function SyncStatusBanner({
   nextSync,
   selectedCount,
   syncedCount,
+  lastSyncedAt,
 }: {
   tier: string;
   syncFrequency: string;
   nextSync?: string | null;
   selectedCount: number;
   syncedCount: number;
+  lastSyncedAt?: string | null;
 }) {
   const frequencyInfo = SYNC_FREQUENCY_LABELS[syncFrequency] || SYNC_FREQUENCY_LABELS['2x_daily'];
 
@@ -303,7 +305,7 @@ function SyncStatusBanner({
         <div className="flex items-start gap-3">
           <Clock className="w-5 h-5 text-muted-foreground mt-0.5" />
           <div>
-            <p className="text-sm font-medium">{selectedCount} source{selectedCount !== 1 ? 's' : ''} selected — pending first sync</p>
+            <p className="text-sm font-medium">{selectedCount} selected — awaiting first sync</p>
             <p className="text-sm text-muted-foreground mt-1">
               Your {tier} plan syncs {frequencyInfo.label.toLowerCase()}.
               {nextSyncFormatted && ` Next sync ${nextSyncFormatted}.`}
@@ -323,10 +325,12 @@ function SyncStatusBanner({
           </div>
           <div>
             <p className="text-sm font-medium text-green-800 dark:text-green-200">
-              {selectedCount} source{selectedCount !== 1 ? 's' : ''} syncing
+              Syncing {selectedCount} source{selectedCount !== 1 ? 's' : ''} · {frequencyInfo.label}
             </p>
             <p className="text-sm text-green-700 dark:text-green-300 mt-1">
-              {frequencyInfo.description}
+              {lastSyncedAt
+                ? `Last synced ${formatDistanceToNow(new Date(lastSyncedAt), { addSuffix: true })}`
+                : frequencyInfo.description}
             </p>
           </div>
         </div>
@@ -874,6 +878,10 @@ export default function PlatformDetailPage() {
             nextSync={tierLimits.next_sync}
             selectedCount={selectedIds.size}
             syncedCount={resources.filter(r => r.items_extracted > 0).length}
+            lastSyncedAt={resources.reduce((latest, r) => {
+              if (!r.last_extracted_at) return latest;
+              return !latest || r.last_extracted_at > latest ? r.last_extracted_at : latest;
+            }, null as string | null)}
           />
         )}
 
@@ -891,7 +899,10 @@ export default function PlatformDetailPage() {
               </div>
               <p className="text-sm text-muted-foreground">
                 Select which {config.resourceLabel.toLowerCase()} to include as context sources.
-                {' '}{selectedIds.size} of {limit} selected ({tierLimits?.tier || 'free'} tier)
+                {' '}{selectedIds.size > limit
+                  ? `${selectedIds.size} selected · ${limit} included on ${tierLimits?.tier || 'free'} plan`
+                  : `${selectedIds.size} of ${limit} selected`
+                }
               </p>
             </div>
             {hasChanges && (
@@ -1250,7 +1261,7 @@ function ResourceRow({
 
         {/* Right side: Coverage badge + expand button */}
         <div className="flex items-center gap-2 shrink-0">
-          {!isCalendar && <CoverageBadge state={resource.coverage_state} itemsExtracted={resource.items_extracted} />}
+          {!isCalendar && <CoverageBadge state={resource.coverage_state} itemsExtracted={resource.items_extracted} lastExtractedAt={resource.last_extracted_at} />}
           {/* ADR-055: Expand button - only show if has synced content */}
           {hasSyncedContent && !isCalendar && (
             <button
@@ -1340,7 +1351,11 @@ function ResourceRow({
   );
 }
 
-function CoverageBadge({ state, itemsExtracted }: { state: string; itemsExtracted?: number }) {
+function CoverageBadge({ state, itemsExtracted, lastExtractedAt }: {
+  state: string;
+  itemsExtracted?: number;
+  lastExtractedAt?: string | null;
+}) {
   const stateConfig: Record<string, { color: string; bg: string; label: string }> = {
     covered: { color: 'text-green-700 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', label: 'Synced' },
     partial: { color: 'text-yellow-700 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', label: 'Partial' },
@@ -1353,9 +1368,14 @@ function CoverageBadge({ state, itemsExtracted }: { state: string; itemsExtracte
   const effectiveState = (state === 'uncovered' && itemsExtracted && itemsExtracted > 0) ? 'covered' : state;
   const { color, bg, label } = stateConfig[effectiveState] || stateConfig.uncovered;
 
+  // Show relative time for synced states
+  const timeLabel = lastExtractedAt && effectiveState !== 'uncovered'
+    ? `${label} ${formatDistanceToNow(new Date(lastExtractedAt), { addSuffix: true })}`
+    : label;
+
   return (
     <span className={cn('px-2 py-0.5 rounded text-xs font-medium', color, bg)}>
-      {label}
+      {timeLabel}
     </span>
   );
 }
