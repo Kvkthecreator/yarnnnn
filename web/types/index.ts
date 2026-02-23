@@ -1072,8 +1072,8 @@ export interface TierLimits {
     notion_pages: number;
     calendars: number;
     total_platforms: number;
-    sync_frequency: '2x_daily' | '4x_daily' | 'hourly';
-    tp_conversations_per_month: number;
+    sync_frequency: '1x_daily' | '2x_daily' | '4x_daily' | 'hourly';
+    daily_token_budget: number; // -1 for unlimited
     active_deliverables: number;
   };
   usage: {
@@ -1082,7 +1082,7 @@ export interface TierLimits {
     notion_pages: number;
     calendars: number;
     platforms_connected: number;
-    tp_conversations_this_month: number;
+    daily_tokens_used: number;
     active_deliverables: number;
   };
   next_sync?: string | null;

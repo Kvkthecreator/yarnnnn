@@ -2886,7 +2886,7 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     Response includes:
     - tier: "free" | "starter" | "pro"
     - limits: slack_channels, gmail_labels, notion_pages, calendars,
-              total_platforms, sync_frequency, tp_conversations_per_month,
+              total_platforms, sync_frequency, daily_token_budget,
               active_deliverables
     - usage: Current usage counts for each resource
     - next_sync: ISO timestamp of next scheduled platform sync

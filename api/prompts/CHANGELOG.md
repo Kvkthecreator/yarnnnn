@@ -6,6 +6,36 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.5] - Tier model hardening: token budget, signal gating, sync frequency
+
+### Changed
+- `api/services/platform_limits.py`: Complete tier model overhaul (ADR-053):
+  - Replaced `tp_conversations_per_month` with `daily_token_budget` (50k/250k/1M)
+  - Updated source limits: free=2, starter=5, pro=unlimited (-1)
+  - Added `1x_daily` sync frequency for free tier
+  - Calendar sources set to -1 (no source selection)
+  - All platforms open (total_platforms=4 for all tiers)
+  - Removed dead `check_platform_limit()`, `check_tp_conversation_limit()`, `get_tp_conversation_count()`
+  - Added `check_daily_token_budget()` and `get_daily_token_usage()` via SQL RPC
+- `api/routes/chat.py`: Token budget enforcement replaces conversation count limit. Token usage persisted to `session_messages.metadata` (`input_tokens`, `output_tokens`).
+- `api/routes/signal_processing.py`: Free-tier users blocked from manual signal processing trigger (403).
+- `api/jobs/unified_scheduler.py`: Signal processing phase skips free-tier users.
+- `api/services/signal_processing.py`: `execute_signal_actions()` checks deliverable limit before creating signal-emergent deliverables.
+- `supabase/migrations/079_daily_token_usage.sql`: SQL function `get_daily_token_usage()` for efficient daily token aggregation.
+
+### Frontend
+- All sync frequency labels updated for `1x_daily` (SyncStatusBanner, ConnectionDetailsModal, system page, ResourceList)
+- Context pages (slack, gmail, notion, calendar) handle `?status=connected` OAuth redirect param
+- TypeScript types updated: `daily_token_budget`/`daily_tokens_used` replaces conversation fields
+- `useChatGate` → `useTokenBudgetGate`, limits.ts updated for new tier model
+
+### Behavior
+- Free tier: 50k tokens/day, 2 sources/platform, 1x/day sync, 2 deliverables, no signal processing
+- Starter: 250k tokens/day, 5 sources, 4x/day sync, 5 deliverables, signal processing on
+- Pro: unlimited tokens, unlimited sources, hourly sync, unlimited deliverables
+
+---
+
 ## [2026.02.23.4] - Fix signal processing crash + scheduler health query
 
 ### Changed

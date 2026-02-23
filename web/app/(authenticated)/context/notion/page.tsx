@@ -8,8 +8,8 @@
  * Notion-specific: parent_type metadata, database badges.
  */
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { FileCode, FileText, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { LandscapeResource } from '@/types';
@@ -57,7 +57,15 @@ function renderNotionMetadata(resource: LandscapeResource) {
 
 export default function NotionContextPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showConnectionModal, setShowConnectionModal] = useState(false);
+
+  // Handle OAuth redirect: clean ?status=connected from URL
+  useEffect(() => {
+    if (searchParams.get('status') === 'connected') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [searchParams]);
 
   const data = usePlatformData('notion');
   const sourceSelection = useSourceSelection({

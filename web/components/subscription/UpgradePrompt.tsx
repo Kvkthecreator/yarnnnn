@@ -62,9 +62,9 @@ export function UpgradePrompt({
 
   const copy = FEATURE_COPY[feature];
   const limit = SUBSCRIPTION_LIMITS.free[
-    feature === "sessions" ? "chatSessionsPerMonth" :
+    feature === "sessions" ? "dailyTokenBudget" :
     feature === "memories" ? "memoriesPerProject" :
-    feature === "agents" ? "scheduledAgents" :
+    feature === "agents" ? "activeDeliverables" :
     feature
   ];
 

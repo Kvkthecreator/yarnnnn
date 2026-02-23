@@ -104,6 +104,7 @@ export function ConnectionDetailsModal({
   };
 
   const syncFrequencyLabels: Record<string, string> = {
+    '1x_daily': 'Daily (8am)',
     '2x_daily': '2x daily (8am, 6pm)',
     '4x_daily': '4x daily (every 6 hours)',
     'hourly': 'Hourly',

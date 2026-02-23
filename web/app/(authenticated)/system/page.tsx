@@ -108,6 +108,7 @@ const PLATFORM_CONFIG: Record<string, {
 };
 
 const SYNC_FREQUENCY_LABELS: Record<string, string> = {
+  '1x_daily': 'Daily',
   '2x_daily': '2x daily',
   '4x_daily': '4x daily',
   'hourly': 'Hourly',

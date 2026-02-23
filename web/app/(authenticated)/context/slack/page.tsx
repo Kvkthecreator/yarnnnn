@@ -7,8 +7,8 @@
  * Shows: Connection status, channel selection, sync status, deliverables.
  */
 
-import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Hash, Loader2, Slack } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import type { LandscapeResource } from '@/types';
@@ -50,7 +50,15 @@ function renderSlackMetadata(resource: LandscapeResource) {
 
 export default function SlackContextPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [showConnectionModal, setShowConnectionModal] = useState(false);
+
+  // Handle OAuth redirect: clean ?status=connected from URL
+  useEffect(() => {
+    if (searchParams.get('status') === 'connected') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [searchParams]);
 
   const data = usePlatformData('slack');
   const sourceSelection = useSourceSelection({

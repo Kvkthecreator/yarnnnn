@@ -81,24 +81,24 @@ export function useMemoryGate(memoryCount: number) {
 }
 
 /**
- * Hook for checking chat session limits.
+ * Hook for checking daily token budget (ADR-053).
  */
-export function useChatGate(sessionsThisMonth: number) {
+export function useTokenBudgetGate(dailyTokensUsed: number) {
   const { tier, isPro, checkFeatureLimit } = useSubscriptionGate();
 
-  const sessionsLimit = useMemo(
-    () => checkFeatureLimit("chatSessionsPerMonth", sessionsThisMonth),
-    [checkFeatureLimit, sessionsThisMonth]
+  const tokenLimit = useMemo(
+    () => checkFeatureLimit("dailyTokenBudget", dailyTokensUsed),
+    [checkFeatureLimit, dailyTokensUsed]
   );
 
   return {
     tier,
     isPro,
-    limit: sessionsLimit,
-    canStartSession: !sessionsLimit.isAtLimit,
-    isNearLimit: sessionsLimit.isNearLimit,
-    sessionsRemaining: sessionsLimit.limit === -1
+    limit: tokenLimit,
+    canChat: !tokenLimit.isAtLimit,
+    isNearLimit: tokenLimit.isNearLimit,
+    tokensRemaining: tokenLimit.limit === -1
       ? Infinity
-      : Math.max(0, sessionsLimit.limit - sessionsThisMonth),
+      : Math.max(0, tokenLimit.limit - dailyTokensUsed),
   };
 }

@@ -1052,8 +1052,23 @@ async def run_unified_scheduler():
 
             logger.info(f"[SIGNAL] Signal check: {len(active_user_ids)} users with active platforms")
 
+            # ADR-053: Filter out free-tier users (signal processing requires Starter+)
+            from services.platform_limits import get_user_tier
+            paid_user_ids = []
+            for uid in active_user_ids:
+                tier = get_user_tier(supabase, uid)
+                if tier != "free":
+                    paid_user_ids.append(uid)
+                else:
+                    logger.debug(f"[SIGNAL] Skipping free-tier user {uid}")
+
+            if len(paid_user_ids) < len(active_user_ids):
+                logger.info(
+                    f"[SIGNAL] Tier gate: {len(paid_user_ids)}/{len(active_user_ids)} users eligible (Starter+)"
+                )
+
             # Run both signal phases per user (calendar + non_calendar)
-            for user_id in active_user_ids:
+            for user_id in paid_user_ids:
                 for signals_filter, label in [("calendar_only", "calendar"), ("non_calendar", "daily")]:
                     try:
                         signal_summary = await extract_signal_summary(

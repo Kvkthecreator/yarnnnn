@@ -1,12 +1,11 @@
 /**
  * Subscription tier limits and feature flags
  *
- * NOTE (ADR-053): Platform resource limits (Slack channels, Gmail labels, etc.)
- * are defined in api/services/platform_limits.py and fetched via API.
- * This file contains legacy app-level limits that should be consolidated.
+ * ADR-053: Primary monetization gates are daily token budget + active deliverables.
+ * Platform resource limits (Slack channels, Gmail labels, etc.) are defined in
+ * api/services/platform_limits.py and fetched via API.
  *
  * For platform sync monetization, see:
- * - docs/monetization/LIMITS.md
  * - docs/adr/ADR-053-platform-sync-monetization.md
  */
 
@@ -14,22 +13,22 @@ export const SUBSCRIPTION_LIMITS = {
   free: {
     projects: 1,
     memoriesPerProject: 50,
-    chatSessionsPerMonth: 20, // ADR-053: Aligned with tp_conversations_per_month
-    scheduledAgents: 0,
+    dailyTokenBudget: 50_000,    // ADR-053: Daily token budget
+    activeDeliverables: 2,       // ADR-053: Active deliverable limit
     documents: 10,
   },
   starter: {
     projects: 3,
     memoriesPerProject: 200,
-    chatSessionsPerMonth: 100, // ADR-053: Aligned with tp_conversations_per_month
-    scheduledAgents: 10, // ADR-053: Aligned with active_deliverables
+    dailyTokenBudget: 250_000,
+    activeDeliverables: 5,
     documents: 50,
   },
   pro: {
     projects: Infinity,
     memoriesPerProject: Infinity,
-    chatSessionsPerMonth: Infinity,
-    scheduledAgents: Infinity,
+    dailyTokenBudget: Infinity,  // Unlimited
+    activeDeliverables: Infinity,
     documents: Infinity,
   },
 } as const;
@@ -40,7 +39,7 @@ export interface UsageData {
   projectCount: number;
   memoryCount: number; // for current project
   totalMemories: number;
-  chatSessionsThisMonth: number;
+  dailyTokensUsed: number;
   documentCount: number;
 }
 
@@ -76,11 +75,17 @@ export function formatLimit(limit: number): string {
   return limit === -1 || limit === Infinity ? "Unlimited" : limit.toString();
 }
 
+export function formatTokens(tokens: number): string {
+  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
+  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(0)}k`;
+  return tokens.toString();
+}
+
 // Feature flags for Pro-only features
 export const PRO_FEATURES = {
-  scheduledAgents: true,
-  bulkImport: false, // available on free
-  documentUpload: false, // available on free with limits
+  signalProcessing: true,        // ADR-053: Signal processing requires Starter+
+  bulkImport: false,             // available on free
+  documentUpload: false,         // available on free with limits
   advancedAnalytics: true,
   prioritySupport: true,
   apiAccess: true,

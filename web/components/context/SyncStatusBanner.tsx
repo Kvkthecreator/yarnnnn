@@ -4,6 +4,11 @@ import { Check, Clock, RefreshCw, Sparkles, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 const SYNC_FREQUENCY_LABELS: Record<string, { label: string; description: string; icon: React.ReactNode }> = {
+  '1x_daily': {
+    label: 'Daily',
+    description: 'Syncs once per day at 8am in your timezone',
+    icon: <Clock className="w-4 h-4" />,
+  },
   '2x_daily': {
     label: '2x daily',
     description: 'Syncs at 8am and 6pm in your timezone',

@@ -3,12 +3,17 @@ Platform Limits Service
 
 ADR-053: Platform sync as monetization base layer.
 
-Tier Structure:
-- Free: 1 source per platform, 2 platforms, 2x/day sync, 20 TP convos, 3 deliverables
-- Starter ($9/mo): 5 sources, 4 platforms, 4x/day sync, 100 TP convos, 10 deliverables
-- Pro ($19/mo): 15-25 sources, 4 platforms, hourly sync, unlimited
+Tier Structure (updated 2026-02-23):
+- Free: 2 sources/platform, all 4 platforms, 1x/day sync, 50k tokens/day, 2 deliverables, no signal processing
+- Starter ($9/mo): 5 sources, all platforms, 4x/day sync, 250k tokens/day, 5 deliverables, signal processing on
+- Pro ($19/mo): unlimited sources, all platforms, hourly sync, 1M tokens/day, unlimited deliverables
 
-Key insight: Sync is cheap (~$0.003/user/day), monetization lever is source count + frequency.
+Key gates (by cost impact):
+1. Active deliverables — each is a recurring Sonnet call
+2. Daily token budget — direct proxy for Anthropic API spend
+3. Signal processing — Haiku + potential Sonnet for emergent deliverables
+4. Source count — controls platform_content volume
+5. Sync frequency — controls API call frequency (lowest cost impact)
 """
 
 from typing import Optional, Literal
@@ -17,53 +22,53 @@ from datetime import datetime, timedelta
 import pytz
 
 
-SyncFrequency = Literal["2x_daily", "4x_daily", "hourly"]
+SyncFrequency = Literal["1x_daily", "2x_daily", "4x_daily", "hourly"]
 
 
 @dataclass
 class PlatformLimits:
     """Resource limits for a user tier (ADR-053)."""
-    slack_channels: int
-    gmail_labels: int
-    notion_pages: int
-    calendars: int
+    slack_channels: int       # -1 for unlimited
+    gmail_labels: int         # -1 for unlimited
+    notion_pages: int         # -1 for unlimited
+    calendars: int            # -1 for unlimited (no source selection for calendar)
     total_platforms: int
     sync_frequency: SyncFrequency
-    tp_conversations_per_month: int  # -1 for unlimited
+    daily_token_budget: int   # -1 for unlimited
     active_deliverables: int  # -1 for unlimited
 
 
-# Tier definitions (ADR-053)
+# Tier definitions (ADR-053, updated 2026-02-23)
 TIER_LIMITS = {
     "free": PlatformLimits(
-        slack_channels=1,
-        gmail_labels=1,
-        notion_pages=1,
-        calendars=1,
-        total_platforms=2,
-        sync_frequency="2x_daily",
-        tp_conversations_per_month=20,
-        active_deliverables=3,
+        slack_channels=2,
+        gmail_labels=2,
+        notion_pages=2,
+        calendars=-1,            # No source selection for calendar
+        total_platforms=4,       # All platforms open
+        sync_frequency="1x_daily",
+        daily_token_budget=50_000,
+        active_deliverables=2,
     ),
     "starter": PlatformLimits(
         slack_channels=5,
         gmail_labels=5,
         notion_pages=5,
-        calendars=3,
+        calendars=-1,
         total_platforms=4,
         sync_frequency="4x_daily",
-        tp_conversations_per_month=100,
-        active_deliverables=10,
+        daily_token_budget=250_000,
+        active_deliverables=5,
     ),
     "pro": PlatformLimits(
-        slack_channels=20,
-        gmail_labels=15,
-        notion_pages=25,
-        calendars=10,
+        slack_channels=-1,       # Unlimited
+        gmail_labels=-1,
+        notion_pages=-1,
+        calendars=-1,
         total_platforms=4,
         sync_frequency="hourly",
-        tp_conversations_per_month=-1,  # unlimited
-        active_deliverables=-1,  # unlimited
+        daily_token_budget=-1,   # Unlimited
+        active_deliverables=-1,
     ),
 }
 
@@ -78,9 +83,10 @@ PROVIDER_LIMIT_MAP = {
 
 # Sync frequency schedules (times in user's timezone)
 SYNC_SCHEDULES = {
-    "2x_daily": ["08:00", "18:00"],  # Morning + evening
-    "4x_daily": ["00:00", "06:00", "12:00", "18:00"],  # Every 6 hours
-    "hourly": None,  # Every hour on the hour
+    "1x_daily": ["08:00"],                              # Morning only
+    "2x_daily": ["08:00", "18:00"],                     # Morning + evening
+    "4x_daily": ["00:00", "06:00", "12:00", "18:00"],   # Every 6 hours
+    "hourly": None,                                      # Every hour on the hour
 }
 
 
@@ -100,7 +106,6 @@ def get_user_tier(client, user_id: str) -> str:
 
         if result.data:
             status = result.data.get("subscription_status", "free")
-            # Normalize status to valid tier
             if status in ("free", "starter", "pro"):
                 return status
             return "free"
@@ -172,12 +177,6 @@ def check_source_limit(
     """
     Check if user can add more sources for a provider.
 
-    Args:
-        client: Supabase client
-        user_id: User UUID
-        provider: Platform provider (slack, gmail, notion)
-        additional_count: Number of sources to add
-
     Returns:
         Tuple of (allowed: bool, message: str)
     """
@@ -188,6 +187,11 @@ def check_source_limit(
         return True, "Unknown provider, no limits applied"
 
     max_sources = getattr(limits, limit_field)
+
+    # -1 means unlimited
+    if max_sources == -1:
+        return True, "Unlimited sources for this provider"
+
     current_count = get_source_count(client, user_id, provider)
     new_total = current_count + additional_count
 
@@ -195,22 +199,6 @@ def check_source_limit(
         return False, f"Source limit exceeded: {current_count}/{max_sources} {provider} sources. Upgrade for more."
 
     return True, f"OK: {new_total}/{max_sources} sources after adding"
-
-
-def check_platform_limit(client, user_id: str) -> tuple[bool, str]:
-    """
-    Check if user can connect another platform.
-
-    Returns:
-        Tuple of (allowed: bool, message: str)
-    """
-    limits = get_limits_for_user(client, user_id)
-    current_count = get_platform_count(client, user_id)
-
-    if current_count >= limits.total_platforms:
-        return False, f"Platform limit reached: {current_count}/{limits.total_platforms}. Upgrade for more."
-
-    return True, f"OK: {current_count + 1}/{limits.total_platforms} platforms after connecting"
 
 
 def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
@@ -222,6 +210,17 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
     tier = get_user_tier(client, user_id)
     limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
 
+    # Get daily token usage via RPC (returns 0 if function not yet deployed)
+    daily_tokens = 0
+    try:
+        result = client.rpc(
+            "get_daily_token_usage",
+            {"p_user_id": user_id}
+        ).execute()
+        daily_tokens = result.data if isinstance(result.data, int) else 0
+    except Exception:
+        pass
+
     return {
         "tier": tier,
         "limits": {
@@ -231,7 +230,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "calendars": limits.calendars,
             "total_platforms": limits.total_platforms,
             "sync_frequency": limits.sync_frequency,
-            "tp_conversations_per_month": limits.tp_conversations_per_month,
+            "daily_token_budget": limits.daily_token_budget,
             "active_deliverables": limits.active_deliverables,
         },
         "usage": {
@@ -240,7 +239,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "notion_pages": get_source_count(client, user_id, "notion"),
             "calendars": get_source_count(client, user_id, "calendar"),
             "platforms_connected": get_platform_count(client, user_id),
-            "tp_conversations_this_month": get_tp_conversation_count(client, user_id),
+            "daily_tokens_used": daily_tokens,
             "active_deliverables": get_active_deliverable_count(client, user_id),
         },
         "next_sync": get_next_sync_time(limits.sync_frequency, user_timezone),
@@ -257,15 +256,6 @@ def validate_sources_update(
     Validate a sources update request.
 
     If new sources exceed limit, returns allowed sources (up to limit).
-
-    Args:
-        client: Supabase client
-        user_id: User UUID
-        provider: Platform provider
-        new_source_ids: Requested source IDs
-
-    Returns:
-        Tuple of (valid: bool, message: str, allowed_ids: list)
     """
     limits = get_limits_for_user(client, user_id)
     limit_field = PROVIDER_LIMIT_MAP.get(provider)
@@ -274,6 +264,11 @@ def validate_sources_update(
         return True, "OK", new_source_ids
 
     max_sources = getattr(limits, limit_field)
+
+    # -1 means unlimited
+    if max_sources == -1:
+        return True, "OK", new_source_ids
+
     requested_count = len(new_source_ids)
 
     if requested_count <= max_sources:
@@ -289,33 +284,8 @@ def validate_sources_update(
 
 
 # =============================================================================
-# TP Conversation & Deliverable Limits (ADR-053)
+# Deliverable Limits (ADR-053)
 # =============================================================================
-
-
-def get_tp_conversation_count(client, user_id: str) -> int:
-    """
-    Count TP conversations for the current month.
-
-    Conversations are stored in the chat_sessions table.
-    """
-    try:
-        # Get start of current month
-        now = datetime.utcnow()
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-
-        result = (
-            client.table("chat_sessions")
-            .select("id", count="exact")
-            .eq("user_id", user_id)
-            .gte("created_at", month_start.isoformat())
-            .execute()
-        )
-
-        return result.count if result.count else 0
-
-    except Exception:
-        return 0
 
 
 def get_active_deliverable_count(client, user_id: str) -> int:
@@ -337,27 +307,6 @@ def get_active_deliverable_count(client, user_id: str) -> int:
 
     except Exception:
         return 0
-
-
-def check_tp_conversation_limit(client, user_id: str) -> tuple[bool, str]:
-    """
-    Check if user can start another TP conversation this month.
-
-    Returns:
-        Tuple of (allowed: bool, message: str)
-    """
-    limits = get_limits_for_user(client, user_id)
-
-    # -1 means unlimited
-    if limits.tp_conversations_per_month == -1:
-        return True, "Unlimited TP conversations"
-
-    current_count = get_tp_conversation_count(client, user_id)
-
-    if current_count >= limits.tp_conversations_per_month:
-        return False, f"Monthly conversation limit reached: {current_count}/{limits.tp_conversations_per_month}. Upgrade for more."
-
-    return True, f"OK: {current_count + 1}/{limits.tp_conversations_per_month} conversations this month"
 
 
 def check_deliverable_limit(client, user_id: str) -> tuple[bool, str]:
@@ -382,6 +331,49 @@ def check_deliverable_limit(client, user_id: str) -> tuple[bool, str]:
 
 
 # =============================================================================
+# Daily Token Budget (ADR-053, replaces conversation count)
+# =============================================================================
+
+
+def get_daily_token_usage(client, user_id: str) -> int:
+    """
+    Get total tokens consumed today via SQL function.
+
+    Calls get_daily_token_usage() RPC which sums input_tokens + output_tokens
+    from session_messages.metadata for today's assistant messages.
+    """
+    try:
+        result = client.rpc(
+            "get_daily_token_usage",
+            {"p_user_id": user_id}
+        ).execute()
+        return result.data if isinstance(result.data, int) else 0
+    except Exception:
+        return 0
+
+
+def check_daily_token_budget(client, user_id: str) -> tuple[bool, int, int]:
+    """
+    Check if user is within daily token budget.
+
+    Returns:
+        Tuple of (allowed: bool, tokens_used: int, token_limit: int)
+    """
+    limits = get_limits_for_user(client, user_id)
+
+    # -1 means unlimited
+    if limits.daily_token_budget == -1:
+        return True, 0, -1
+
+    tokens_used = get_daily_token_usage(client, user_id)
+
+    if tokens_used >= limits.daily_token_budget:
+        return False, tokens_used, limits.daily_token_budget
+
+    return True, tokens_used, limits.daily_token_budget
+
+
+# =============================================================================
 # Sync Frequency Helpers (ADR-053)
 # =============================================================================
 
@@ -389,13 +381,6 @@ def check_deliverable_limit(client, user_id: str) -> tuple[bool, str]:
 def get_next_sync_time(sync_frequency: SyncFrequency, user_timezone: str = "UTC") -> str:
     """
     Calculate the next scheduled sync time for a user.
-
-    Args:
-        sync_frequency: The tier's sync frequency
-        user_timezone: User's timezone (e.g., "America/New_York")
-
-    Returns:
-        ISO timestamp of next sync time
     """
     try:
         tz = pytz.timezone(user_timezone)
@@ -405,10 +390,9 @@ def get_next_sync_time(sync_frequency: SyncFrequency, user_timezone: str = "UTC"
     now = datetime.now(tz)
 
     if sync_frequency == "hourly":
-        # Next hour on the hour
         next_sync = now.replace(minute=0, second=0, microsecond=0) + timedelta(hours=1)
     else:
-        schedule = SYNC_SCHEDULES.get(sync_frequency, ["08:00", "18:00"])
+        schedule = SYNC_SCHEDULES.get(sync_frequency, ["08:00"])
         next_sync = _find_next_scheduled_time(now, schedule, tz)
 
     return next_sync.isoformat()
@@ -445,13 +429,6 @@ def should_sync_now(sync_frequency: SyncFrequency, user_timezone: str = "UTC") -
     Check if a sync should run now based on frequency schedule.
 
     Called by the scheduler to determine which users to sync.
-
-    Args:
-        sync_frequency: The tier's sync frequency
-        user_timezone: User's timezone
-
-    Returns:
-        True if sync should run now
     """
     try:
         tz = pytz.timezone(user_timezone)
@@ -461,12 +438,10 @@ def should_sync_now(sync_frequency: SyncFrequency, user_timezone: str = "UTC") -
     now = datetime.now(tz)
 
     if sync_frequency == "hourly":
-        # Hourly syncs run on the hour (within 5 min window)
         return now.minute < 5
 
     schedule = SYNC_SCHEDULES.get(sync_frequency, [])
 
-    # Check if current time is within 5 min of any scheduled time
     for time_str in schedule:
         hour, minute = map(int, time_str.split(":"))
         if now.hour == hour and now.minute < 5:

@@ -193,6 +193,15 @@ async def execute_signal_actions(
         action_types.append(action.action_type)
 
         if action.action_type == "create_signal_emergent":
+            # ADR-053: Check deliverable limit before creating signal-emergent deliverable
+            from services.platform_limits import check_deliverable_limit
+            allowed, limit_msg = check_deliverable_limit(client, user_id)
+            if not allowed:
+                logger.info(
+                    f"[SIGNAL_PROCESSING] Skipping signal-emergent creation for {user_id}: {limit_msg}"
+                )
+                continue
+
             # Artifact creation: Create new deliverable row with origin=signal_emergent
             deliverable_id = await _create_signal_emergent_deliverable(
                 client, user_id, action

@@ -11,6 +11,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'next/navigation';
 import {
   Calendar,
   Check,
@@ -47,6 +48,7 @@ const BENEFITS = [
 ];
 
 export default function CalendarContextPage() {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [integration, setIntegration] = useState<IntegrationData | null>(null);
   const [calendars, setCalendars] = useState<CalendarOption[]>([]);
@@ -59,6 +61,13 @@ export default function CalendarContextPage() {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'details'>('calendar');
   const [activeCalendarId, setActiveCalendarId] = useState<string>('primary');
+
+  // Handle OAuth redirect: clean ?status=connected from URL
+  useEffect(() => {
+    if (searchParams.get('status') === 'connected') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     loadData();

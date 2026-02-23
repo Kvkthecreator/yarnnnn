@@ -698,9 +698,9 @@ async def global_chat(
     Uses user memories only. Session is reused daily.
     Supports tool use with streaming (ADR-007).
 
-    ADR-053: Enforces TP conversation limits based on user tier.
+    ADR-053: Enforces daily token budget based on user tier.
     """
-    from services.platform_limits import check_tp_conversation_limit
+    from services.platform_limits import check_daily_token_budget
 
     # Get or create session (daily scope for global chat)
     session = await get_or_create_session(
@@ -709,21 +709,20 @@ async def global_chat(
         scope="daily"
     )
     session_id = session["id"]
-    is_new_session = session.get("is_new", False)
 
-    # ADR-053: Check TP conversation limit for new sessions only
-    # Continuing an existing session doesn't count against the limit
-    if is_new_session:
-        allowed, message = check_tp_conversation_limit(auth.client, auth.user_id)
-        if not allowed:
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error": "conversation_limit_reached",
-                    "message": message,
-                    "upgrade_url": "/settings/subscription",
-                }
-            )
+    # ADR-053: Check daily token budget before every message
+    allowed, tokens_used, token_limit = check_daily_token_budget(auth.client, auth.user_id)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "error": "daily_token_budget_exceeded",
+                "message": f"Daily token budget reached ({tokens_used:,}/{token_limit:,}). Resets at midnight UTC.",
+                "tokens_used": tokens_used,
+                "token_limit": token_limit,
+                "upgrade_url": "/settings/subscription",
+            }
+        )
 
     # Load existing messages and session-level compaction summary
     # ADR-067: In-session compaction at 80% threshold; compaction block prepended if present
@@ -796,6 +795,8 @@ async def global_chat(
         # This allows Claude to maintain coherence across turns
         tool_call_history = []  # List of {"tool_use": {...}, "tool_result": {...}}
         current_tool_use = None
+        # ADR-053: Capture cumulative token usage for persistence
+        last_token_usage = {"input_tokens": 0, "output_tokens": 0}
 
         try:
             # Append user message to session
@@ -875,7 +876,8 @@ async def global_chat(
                         current_tool_use = None
                     yield f"data: {json.dumps({'tool_result': event.content})}\n\n"
                 elif event.type == "usage":
-                    # Stream token usage to frontend
+                    # ADR-053: Capture cumulative usage for persistence
+                    last_token_usage = event.content
                     yield f"data: {json.dumps({'usage': event.content})}\n\n"
                 elif event.type == "done":
                     msg = f"[TP-STREAM] Stream done, tools_used={tools_used}"
@@ -906,7 +908,7 @@ async def global_chat(
                     "content": full_response
                 })
 
-            # Append assistant response to session with tool history in metadata
+            # Append assistant response to session with tool history and token usage in metadata
             await append_message(
                 auth.client,
                 session_id,
@@ -915,7 +917,9 @@ async def global_chat(
                 {
                     "model": agent.model,
                     "tools_used": tools_used,
-                    "tool_history": assistant_content_for_history
+                    "tool_history": assistant_content_for_history,
+                    "input_tokens": last_token_usage.get("input_tokens", 0),
+                    "output_tokens": last_token_usage.get("output_tokens", 0),
                 }
             )
 

@@ -153,6 +153,7 @@ export function ResourceList({
                     <li>• <strong>Skip</strong>: Wait for next scheduled sync ({
                       tierLimits?.limits.sync_frequency === 'hourly' ? 'within 1 hour' :
                       tierLimits?.limits.sync_frequency === '4x_daily' ? 'within 6 hours' :
+                      tierLimits?.limits.sync_frequency === '1x_daily' ? 'at 8am' :
                       'at 8am or 6pm'
                     })</li>
                   </ul>

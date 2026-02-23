@@ -74,6 +74,21 @@ async def trigger_signal_processing(
     now = datetime.now(timezone.utc)
 
     # =============================================================================
+    # ADR-053: Tier Gate — Signal processing requires Starter or Pro
+    # =============================================================================
+    from services.platform_limits import get_user_tier
+    tier = get_user_tier(supabase, user_id)
+    if tier == "free":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "tier_restricted",
+                "message": "Signal processing requires a Starter or Pro plan.",
+                "upgrade_url": "/settings/subscription",
+            }
+        )
+
+    # =============================================================================
     # Rate Limiting Check (5 minute cooldown)
     # =============================================================================
     try:
