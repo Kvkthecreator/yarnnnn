@@ -3063,7 +3063,7 @@ async def trigger_platform_sync(
         "platform_sync",
         user_id=user_id,
         provider=provider,
-        source_ids=[s["id"] for s in selected],
+        selected_sources=[s["id"] for s in selected],
     )
 
     logger.info(f"[INTEGRATIONS] User {user_id} triggered {provider} sync, job={job_id}")
