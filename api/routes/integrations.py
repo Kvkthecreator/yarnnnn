@@ -3006,10 +3006,22 @@ async def get_selected_sources(
     landscape = integration_data.get("landscape", {}) or {}
     selected = landscape.get("selected_sources", [])
 
+    # ADR-043: Tier limits for source count
+    from services.platform_limits import get_usage_summary
+    summary = get_usage_summary(auth.client, user_id)
+    limit_field = {
+        "slack": "slack_channels",
+        "gmail": "gmail_labels",
+        "notion": "notion_pages",
+        "google": "gmail_labels",
+        "calendar": "calendars",
+    }.get(provider, "slack_channels")
+    limit = summary["limits"].get(limit_field, 1)
+
     return {
-        "provider": provider,
-        "selected_sources": selected,
-        "count": len(selected),
+        "sources": selected,
+        "limit": limit,
+        "can_add_more": len(selected) < limit,
     }
 
 
