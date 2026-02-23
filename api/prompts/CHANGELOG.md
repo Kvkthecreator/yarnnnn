@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.9] - Add signal.process Execute action for TP orchestration
+
+### Changed
+- `api/services/primitives/execute.py`: Added `signal.process` action to Execute primitive. TP can now trigger signal extraction + LLM triage + action execution via `Execute(action="signal.process", target="system:signals")`. Same pipeline as manual trigger endpoint and scheduler.
+- `api/services/primitives/refs.py`: Added `system` entity type for system-level targets (e.g., `system:signals`).
+
+### Behavior
+- TP can now proactively process signals when asked ("check for updates", "process my signals", etc.)
+- Respects tier gate (Starter+ only) and returns structured results with reasoning
+- Execute tool description updated with new action and example
+
+---
+
 ## [2026.02.23.8] - Fix Gmail content extraction (full body, title, author)
 
 ### Changed

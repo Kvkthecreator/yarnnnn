@@ -21,6 +21,7 @@ Entity types:
   - document: Uploaded documents (filesystem_documents)
   - work: Work execution records
   - action: Executable actions (for discovery)
+  - system: System-level targets (signals, scheduler, etc.)
 
 NOTE: Per ADR-059, 'memory' maps to user_context (replaces knowledge_entries).
       Platform content (Slack/Gmail/Notion imports) lives in platform_content (ADR-072).
@@ -79,6 +80,7 @@ ENTITY_TYPES = {
     "document",
     "work",
     "action",  # For action discovery
+    "system",  # System-level targets (for Execute actions)
 }
 
 # Special identifiers
@@ -193,6 +195,10 @@ async def resolve_ref(
     # Handle action type specially (no table)
     if ref.entity_type == "action":
         return await _resolve_action_ref(ref)
+
+    # Handle system type specially (no table — represents system-level targets)
+    if ref.entity_type == "system":
+        return {"type": "system", "scope": ref.identifier}
 
     table = TABLE_MAP.get(ref.entity_type)
     if not table:

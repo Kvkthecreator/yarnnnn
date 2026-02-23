@@ -27,6 +27,7 @@ Actions:
 - deliverable.approve: Approve pending version
 - memory.extract: Extract from conversation
 - work.run: Execute work immediately
+- signal.process: Run signal extraction and triage on synced platform content
 
 NOTE: For direct platform operations (send messages, search pages, etc.),
 use MCP tools directly: mcp__slack__*, mcp__notion__*, etc. (ADR-048)
@@ -35,7 +36,8 @@ Examples:
 - Execute(action="platform.sync", target="platform:slack")
 - Execute(action="deliverable.generate", target="deliverable:uuid-123")
 - Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
-- Execute(action="deliverable.approve", target="deliverable:uuid")""",
+- Execute(action="deliverable.approve", target="deliverable:uuid")
+- Execute(action="signal.process", target="system:signals")""",
     "input_schema": {
         "type": "object",
         "properties": {
@@ -92,6 +94,10 @@ ACTION_CATALOG = {
     "work.run": {
         "description": "Execute work immediately",
         "target_types": ["work"],
+    },
+    "signal.process": {
+        "description": "Run signal processing — extract signals from platform content and take actions",
+        "target_types": ["system"],
     },
 }
 
@@ -227,6 +233,7 @@ def _get_action_handler(action: str):
         "deliverable.generate": _handle_deliverable_generate,
         "deliverable.approve": _handle_deliverable_approve,
         "work.run": _handle_work_run,
+        "signal.process": _handle_signal_process,
     }
     return handlers.get(action)
 
@@ -371,4 +378,93 @@ async def _handle_work_run(auth, entity, ref, via, params):
         "work_id": work_id,
         "job_id": job_id,
         "message": "Work execution started",
+    }
+
+
+async def _handle_signal_process(auth, entity, ref, via, params):
+    """Run signal processing for the current user.
+
+    Same pipeline as the manual trigger endpoint and scheduler:
+    extract_signal_summary → process_signal → execute_signal_actions.
+    """
+    from services.platform_limits import get_user_tier
+
+    tier = get_user_tier(auth.client, auth.user_id)
+    if tier == "free":
+        raise ValueError("Signal processing requires Starter or Pro plan")
+
+    from services.signal_extraction import extract_signal_summary
+    from services.signal_processing import process_signal, execute_signal_actions
+    from services.activity_log import get_recent_activity
+
+    signal_summary = await extract_signal_summary(auth.client, auth.user_id)
+    if not signal_summary.has_signals:
+        return {
+            "status": "completed",
+            "signals_detected": 0,
+            "actions_taken": 0,
+            "deliverables_created": 0,
+            "message": "No signals detected from connected platforms",
+        }
+
+    # Fetch context for LLM reasoning (same as signal_processing route)
+    user_context = (
+        auth.client.table("user_context")
+        .select("key, value")
+        .eq("user_id", auth.user_id)
+        .limit(20)
+        .execute()
+    ).data or []
+
+    recent_activity = await get_recent_activity(
+        client=auth.client, user_id=auth.user_id, limit=10, days=7
+    )
+
+    existing_deliverables_raw = (
+        auth.client.table("deliverables")
+        .select("""
+            id, title, deliverable_type, next_run_at, status,
+            deliverable_versions!inner(final_content, draft_content, created_at, status)
+        """)
+        .eq("user_id", auth.user_id)
+        .in_("status", ["active", "paused"])
+        .execute()
+    )
+
+    existing_deliverables = []
+    for d in (existing_deliverables_raw.data or []):
+        versions = sorted(
+            d.get("deliverable_versions", []),
+            key=lambda v: v.get("created_at", ""),
+            reverse=True,
+        )
+        rv = versions[0] if versions else None
+        existing_deliverables.append({
+            "id": d["id"],
+            "title": d["title"],
+            "deliverable_type": d["deliverable_type"],
+            "status": d["status"],
+            "next_run_at": d.get("next_run_at"),
+            "recent_content": (
+                rv.get("final_content") or rv.get("draft_content")
+            ) if rv else None,
+        })
+
+    result = await process_signal(
+        auth.client, auth.user_id, signal_summary,
+        user_context, recent_activity, existing_deliverables,
+    )
+
+    created = 0
+    if result.actions:
+        created = await execute_signal_actions(auth.client, auth.user_id, result)
+
+    return {
+        "status": "completed",
+        "signals_detected": signal_summary.total_items,
+        "actions_taken": len(result.actions),
+        "deliverables_created": created,
+        "reasoning": getattr(result, "reasoning_summary", None),
+        "message": f"Processed {signal_summary.total_items} signals, "
+                   f"{len(result.actions)} actions, {created} deliverables created",
     }
