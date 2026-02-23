@@ -142,32 +142,37 @@ async def _sync_platform_async(
                 "error": f"Unknown provider: {provider}",
             }
 
-        # Update last_synced_at
-        client.table("platform_connections").update({
-            "last_synced_at": datetime.now(timezone.utc).isoformat(),
-        }).eq("id", integration["id"]).execute()
+        # Check if sync actually succeeded (provider functions return error key on failure)
+        has_error = "error" in sync_result and sync_result.get("items_synced", 0) == 0
+        sync_success = not has_error
 
-        # ADR-059: Profile inference removed — TP learns profile conversationally via user_context
+        # Only update last_synced_at if sync actually produced data
+        if sync_success:
+            client.table("platform_connections").update({
+                "last_synced_at": datetime.now(timezone.utc).isoformat(),
+            }).eq("id", integration["id"]).execute()
 
         # Activity log: record this sync batch (ADR-063)
         try:
             from services.activity_log import write_activity
             items_synced = sync_result.get("items_synced", 0)
+            status_label = "error" if has_error else "success"
             await write_activity(
                 client=client,
                 user_id=user_id,
                 event_type="platform_synced",
-                summary=f"Synced {provider}: {items_synced} items",
+                summary=f"Synced {provider}: {items_synced} items ({status_label})",
                 metadata={
                     "platform": provider,
-                    **{k: v for k, v in sync_result.items() if k != "error"},
+                    "items_synced": items_synced,
+                    **({} if not has_error else {"error": sync_result.get("error")}),
                 },
             )
         except Exception:
             pass  # Non-fatal — never block sync
 
         return {
-            "success": True,
+            "success": sync_success,
             "provider": provider,
             **sync_result,
         }

@@ -1200,34 +1200,42 @@ async def run_unified_scheduler():
 
         heartbeat_summary = f"Scheduler cycle: {total_triggered}/{total_checked} items processed"
 
-        # Get distinct user IDs for per-user heartbeat
-        # For simplicity, write a single system-level heartbeat (no user_id scoping)
-        # This uses a sentinel user_id that the system_state service can query
-        SYSTEM_USER_ID = "00000000-0000-0000-0000-000000000000"
+        # Write per-user heartbeat for all users with active connections
+        # so the system page can show scheduler status per user
+        heartbeat_metadata = {
+            "deliverables_checked": len(deliverables),
+            "deliverables_triggered": deliverable_success,
+            "deliverables_skipped": deliverable_skipped,
+            "work_checked": len(work_items),
+            "work_triggered": work_success,
+            "digests_checked": digest_count,
+            "digests_triggered": digest_success,
+            "imports_checked": import_count,
+            "imports_triggered": import_success,
+            "signals_created": signal_created + signal_daily_created,
+            "memory_extracted": memory_extracted,
+            "analysis_suggestions": analysis_suggestions,
+            "errors": errors_encountered if errors_encountered else None,
+            "cycle_started_at": now.isoformat(),
+            "cycle_completed_at": datetime.now(timezone.utc).isoformat(),
+        }
 
-        await write_activity(
-            client=supabase,
-            user_id=SYSTEM_USER_ID,
-            event_type="scheduler_heartbeat",
-            summary=heartbeat_summary,
-            metadata={
-                "deliverables_checked": len(deliverables),
-                "deliverables_triggered": deliverable_success,
-                "deliverables_skipped": deliverable_skipped,
-                "work_checked": len(work_items),
-                "work_triggered": work_success,
-                "digests_checked": digest_count,
-                "digests_triggered": digest_success,
-                "imports_checked": import_count,
-                "imports_triggered": import_success,
-                "signals_created": signal_created + signal_daily_created,
-                "memory_extracted": memory_extracted,
-                "analysis_suggestions": analysis_suggestions,
-                "errors": errors_encountered if errors_encountered else None,
-                "cycle_started_at": now.isoformat(),
-                "cycle_completed_at": datetime.now(timezone.utc).isoformat(),
-            },
-        )
+        # Get all users with active platform connections
+        active_users = supabase.table("platform_connections").select(
+            "user_id"
+        ).eq("status", "active").execute()
+        heartbeat_user_ids = list(set(
+            row["user_id"] for row in (active_users.data or [])
+        ))
+
+        for hb_user_id in heartbeat_user_ids:
+            await write_activity(
+                client=supabase,
+                user_id=hb_user_id,
+                event_type="scheduler_heartbeat",
+                summary=heartbeat_summary,
+                metadata=heartbeat_metadata,
+            )
     except Exception as e:
         logger.warning(f"[SCHEDULER] Failed to write heartbeat event: {e}")
 
