@@ -2,7 +2,7 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-11
-> **Updated**: 2026-02-19
+> **Updated**: 2026-02-23 (table name fixes: platform_content → platform_content)
 > **Location**: `api/agents/thinking_partner.py`
 > **Primitives**: 9 (ADR-038 + ADR-045 + list_integrations)
 > **Platform Tools**: Slack, Notion, Gmail, Calendar (ADR-046, ADR-050)
@@ -32,7 +32,7 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 | **Confirm before creating** | Ask user, then create on confirmation |
 | **9 primitives** | Read, Write, Edit, List, Search, Execute, WebSearch, list_integrations, Clarify (no Respond, no Todo) |
 | **Live tools first** | For platform content queries, call live platform tools before searching the cache (ADR-065) |
-| **Disclose cache use** | When `filesystem_items` fallback is used, tell the user the data age (ADR-065) |
+| **Disclose cache use** | When `platform_content` fallback is used, tell the user the data age (ADR-065) |
 | **Sync hand-off** | After triggering sync, inform user and stop — sync is async, no in-conversation polling tool available (ADR-065) |
 
 ### Platform Content Access (ADR-065)
@@ -46,7 +46,7 @@ This is the most significant v6 change. Prior to v6, TP used `Search(scope="plat
    → Direct API call. Always current. Use this first.
 
 2. CACHE FALLBACK — Search(scope="platform_content")
-   → Queries filesystem_items (ILIKE). May be hours old.
+   → Queries platform_content (ILIKE). May be hours old.
    → Use only when live tools can't serve the query (cross-platform aggregation, tool unavailable).
    → MUST disclose cache age: "Based on content synced 3 hours ago..."
 
@@ -212,12 +212,12 @@ User: "What platforms are connected?"
 ### v6 (2026-02-19)
 
 **Changes:**
-- Reframed platform content access as live-first: live platform tools are primary, `filesystem_items` is fallback
+- Reframed platform content access as live-first: live platform tools are primary, `platform_content` is fallback
 - Added explicit fallback disclosure requirement: TP must tell the user when a response uses cached content, including cache age
 - Added sync hand-off pattern: after `Execute(action="platform.sync")`, TP informs the user and stops — sync is async, no in-conversation polling tool; user re-engages after sync completes
 - Removed `scope="memory"` from valid Search scopes: Memory is injected at session start, not searched mid-conversation
 
-**Rationale:** ADR-065. TP had live platform tools available but was hitting the `filesystem_items` cache first. Cache empty → trigger sync → immediate re-query → still empty (async race). With live tools as primary, this failure mode is eliminated. Fallback cache is valid for aggregation queries but must be disclosed to the user.
+**Rationale:** ADR-065. TP had live platform tools available but was hitting the `platform_content` cache first. Cache empty → trigger sync → immediate re-query → still empty (async race). With live tools as primary, this failure mode is eliminated. Fallback cache is valid for aggregation queries but must be disclosed to the user.
 
 **Files changed:**
 - `api/agents/tp_prompts/behaviors.py` — Added "Platform Content Access" section

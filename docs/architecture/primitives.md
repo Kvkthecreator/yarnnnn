@@ -2,8 +2,8 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-10
-> **Updated**: 2026-02-19 (list_integrations wired; WebSearch shipped)
-> **Related ADRs**: ADR-058 (Knowledge Base), ADR-036 (Two-Layer), ADR-037 (Chat-First), ADR-038 (Filesystem-as-Context), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-050 (MCP Gateway)
+> **Updated**: 2026-02-23 (schema references updated for ADR-059/072)
+> **Related ADRs**: ADR-059 (Simplified Context), ADR-072 (Unified Content Layer), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-050 (MCP Gateway), ADR-064 (Unified Memory)
 > **Implementation**: `api/services/primitives/`
 
 ---
@@ -19,24 +19,26 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 3. **Composable** — Primitives combine for complex operations
 4. **Self-Describing** — Results include context for further action
 
-### Context Architecture (ADR-058)
+### Context Architecture (ADR-059, ADR-072)
 
-YARNNN uses a two-layer context model:
+YARNNN uses a four-layer model (ADR-063):
 
-| Layer | Tables | Purpose |
-|-------|--------|---------|
-| **Filesystem** | `filesystem_items`, `filesystem_documents`, `filesystem_chunks` | Raw synced data (source of truth) |
-| **Knowledge** | `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries` | Inferred narrative about user |
+| Layer | Table | Purpose |
+|-------|-------|---------|
+| **Memory** | `user_context` | User facts, preferences, patterns |
+| **Activity** | `activity_log` | System provenance (what YARNNN has done) |
+| **Context** | `platform_content` | Synced platform data with retention-based accumulation |
+| **Work** | `deliverable_versions` | Generated content outputs |
 
 **Context Sources** (all first-class):
 
 | Source | Storage | Entry Point | Searchable |
 |--------|---------|-------------|------------|
-| **Platforms** | `filesystem_items` | OAuth → Sync | `scope="platform_content"` |
+| **Platforms** | `platform_content` | OAuth → Sync Worker | `scope="platform_content"` |
 | **Documents** | `filesystem_documents` + `filesystem_chunks` | File upload | `scope="document"` |
-| **Knowledge** | `knowledge_entries` | Inference + Chat | `scope="knowledge"` |
+| **Memory** | `user_context` | Nightly extraction + user edits | `scope="memory"` |
 
-Users without platform connections can still provide rich context via documents and direct statements. Knowledge is inferred from filesystem content, not manually curated.
+Users without platform connections can still provide rich context via documents and direct statements. Memory is extracted implicitly from conversations (ADR-064).
 
 ---
 
@@ -88,7 +90,7 @@ YARNNN uses a tiered entity model. **TP-facing** entities are directly addressab
 | Type | Table | Description |
 |------|-------|-------------|
 | `deliverable` | `deliverables` | Recurring content outputs |
-| `platform` | `user_integrations` | Connected platforms (by provider name) |
+| `platform` | `platform_connections` | Connected platforms (by provider name) |
 | `document` | `documents` | Uploaded documents |
 | `work` | `work_tickets` | Work execution records |
 | `session` | `chat_sessions` | Chat sessions |
@@ -98,11 +100,10 @@ YARNNN uses a tiered entity model. **TP-facing** entities are directly addressab
 
 | Type | Table | Description | Notes |
 |------|-------|-------------|-------|
-| `memory` | `memories` | User-stated facts | Background cache, auto-injected into context |
-| `platform_content` | `ephemeral_context` | Imported platform data | Auto-gathered during generation |
-| `domain` | `context_domains` | Emergent context domains | Deferred per ADR-042 |
+| `memory` | `user_context` | User facts, preferences, patterns | Auto-injected into context via working memory |
+| `platform_content` | `platform_content` | Synced platform data | Retention-based accumulation (ADR-072) |
 
-> **ADR-038 Note**: `memory` is reserved for user-stated facts (`source_type` IN 'chat', 'user_stated', 'conversation', 'preference'). Platform imports (Slack/Gmail/Notion) are stored in `ephemeral_context`.
+> **ADR-064 Note**: Memory is implicit — TP has no explicit memory tools. Extraction happens nightly from conversations. Users can edit memories via the Context page.
 >
 > **ADR-042 Note**: TP operates on 6 first-class entities. Memory and platform_content are background infrastructure—automatically injected into context, not directly queried by TP during normal operation.
 
@@ -141,25 +142,26 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 
 **Display Priority:** `resource_name` > `platform` > `content` (truncated)
 
-#### memory (User-Stated Facts)
+#### memory (User Context — ADR-059)
 
 | Field | Type | Description | Display |
 |-------|------|-------------|---------|
 | `id` | UUID | Primary key | — |
+| `key` | string | Unique identifier within category | ✓ Primary |
 | `content` | string | The memory content | ✓ Primary |
-| `tags` | string[] | Categorization tags | ✓ Chips |
+| `category` | string | Classification (preference, business_fact, work_pattern, etc.) | ✓ Badge |
 | `importance` | float | 0.0–1.0 retrieval weight | — |
-| `source_type` | enum | `user_stated`, `chat`, `conversation`, `preference`, `manual` | — |
-| `entities` | JSONB | Extracted entities | — |
+| `source_type` | string | `extracted`, `explicit` | — |
+| `confidence` | float | 0.0–1.0 extraction confidence | — |
 
-**Display Priority:** `content` (truncated) > `tags`
+**Display Priority:** `content` (truncated) > `category`
 
-**How to create:**
-- TP uses `Write(ref="memory:new", content={content: "User prefers bullets"})` when user states a fact
-- User uploads document → memories extracted automatically
-- Manual entry via `create_memory_manual()` function
+**How memories are created** (ADR-064 — implicit memory):
+- Nightly extraction from TP conversations (automatic)
+- Activity pattern detection from `activity_log` (automatic)
+- User edits via Context page (manual)
 
-> **ADR-038 Note**: Memory is restricted to user-stated facts only. Platform imports do NOT write here.
+> **ADR-064 Note**: TP has no explicit memory creation tools. All memory extraction is implicit.
 
 #### document (Uploaded Files)
 
@@ -320,17 +322,14 @@ Create a new entity.
 | Type | Required |
 |------|----------|
 | `deliverable` | `title`, `deliverable_type` |
-| `memory` | `content` |
 | `work` | `task`, `agent_type` |
 | `document` | `name` |
-| `domain` | `name` |
 
 **Defaults Applied**:
 
 | Type | Defaults |
 |------|----------|
-| `deliverable` | `status: active`, `frequency: weekly`, `governance: manual` |
-| `memory` | `tags: []`, `source_type: conversation`, `is_active: true`, `importance: 0.5` |
+| `deliverable` | `status: active`, `frequency: weekly` |
 | `work` | `frequency: once`, `status: pending` |
 
 ---
@@ -599,6 +598,12 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 ---
 
 ## Changelog
+
+### 2026-02-23 — Schema references updated for ADR-059/072
+- Context Architecture section updated: four-layer model, `platform_content` replaces `filesystem_items`, `user_context` replaces knowledge tables
+- Entity type tables updated: `platform_connections` (was `user_integrations`), `user_context` (was `memories`), `platform_content` (was `ephemeral_context`), removed `domain`/`context_domains`
+- Memory entity schema rewritten for ADR-064 implicit memory model
+- Removed `memory` and `domain` from Write required fields (TP no longer has explicit memory tools)
 
 ### 2026-02-19 — list_integrations wired; WebSearch promoted from deferred
 - `list_integrations` added to PRIMITIVES in `registry.py` with handler wired from `project_tools.py`

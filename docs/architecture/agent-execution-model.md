@@ -1,7 +1,7 @@
 # Architecture: Agent Execution Model
 
 **Status:** Canonical
-**Date:** 2026-02-19
+**Date:** 2026-02-23 (updated for ADR-072 TP headless mode)
 **Supersedes:** ADR-016 (Layered Agent Architecture) — work agent delegation model
 **Codifies:** ADR-061 (Two-Path Architecture Consolidation)
 **Related:**
@@ -68,9 +68,9 @@ Trigger → Orchestrator → Output → Notification
 | Character | Scheduled, type-driven, non-conversational |
 | Latency | Latency-tolerant (seconds to minutes) |
 | Scope | User-scoped, not session-scoped |
-| Tools | Execution strategies (platform fetch, web research) |
+| Tools | Execution strategies reading from `platform_content` (ADR-073) |
 | Entry point | `unified_scheduler.py` (cron `*/5 * * * *`) or `/api/deliverables/{id}/run` |
-| Agent | `DeliverableAgent` (`api/agents/deliverable.py`) |
+| Engine | `deliverable_execution.py` — single LLM call with type-specific prompt |
 
 **Orchestrator's responsibilities:**
 - **Signal Processing phase** (ADR-068): Extract behavioral signal from connected platform data, reason over what the user's world warrants, create signal-emergent deliverables
@@ -88,7 +88,7 @@ Trigger → Orchestrator → Output → Notification
 
 ```python
 # Path A: TP creates the deliverable configuration
-# api/agents/tp_prompts/behaviors.py
+# api/agents/thinking_partner.py
 
 User: "Set up a weekly digest of #engineering"
 → TP calls Write(ref="deliverable:new", content={title: ..., schedule: ..., sources: ...})
@@ -100,12 +100,13 @@ User: "Set up a weekly digest of #engineering"
 unified_scheduler.py (cron)
   → execute_deliverable_generation(client, user_id, deliverable)
       → get_execution_strategy(deliverable)     # based on type_classification.binding
-      → strategy.gather_context(...)            # fetch from platforms
-      → generate_draft_inline(...)              # single LLM call → DeliverableAgent
-      → deliver_version(...)                    # email / Slack / Notion
+      → strategy.gather_context(...)            # read from platform_content (ADR-073)
+      → generate_draft_inline(...)              # single LLM call (Sonnet)
+      → mark_content_retained(...)              # mark consumed content (ADR-072)
+      → deliver_version(...)                    # email / Slack / Notion (ADR-066)
 ```
 
-The `ThinkingPartnerAgent` is never invoked in the orchestrator path. The `DeliverableAgent` is never invoked in the chat path.
+The `ThinkingPartnerAgent` is never invoked in the orchestrator path. Deliverable generation is a single LLM call with gathered context — not a conversational agent.
 
 ---
 
@@ -113,14 +114,16 @@ The `ThinkingPartnerAgent` is never invoked in the orchestrator path. The `Deliv
 
 Complexity in Path B lives in the *strategy*, not in agent proliferation.
 
-| Binding | Strategy | Description |
+| Binding | Strategy | Data Source |
 |---|---|---|
-| `platform_bound` | `PlatformBoundStrategy` | Single platform fetch (Slack, Gmail, Calendar) |
-| `cross_platform` | `CrossPlatformStrategy` | Parallel fetch across multiple platforms |
+| `platform_bound` | `PlatformBoundStrategy` | `platform_content` from single platform |
+| `cross_platform` | `CrossPlatformStrategy` | `platform_content` from all platforms |
 | `research` | `ResearchStrategy` | Web research via Anthropic native tool |
-| `hybrid` | `HybridStrategy` | Web research + platform fetch in parallel |
+| `hybrid` | `HybridStrategy` | Web research + platform content in parallel |
 
-Strategy is selected at execution time from `deliverable.type_classification.binding`. The same `DeliverableAgent` handles all cases — strategy determines what context it receives.
+Strategy is selected at execution time from `deliverable.type_classification.binding`. All strategies read from stored `platform_content` (ADR-073: unified fetch architecture) — no live API calls during generation. The same single-call LLM pattern handles all cases; strategy determines what context is gathered.
+
+See [backend-orchestration.md](backend-orchestration.md) for the full end-to-end pipeline.
 
 ---
 

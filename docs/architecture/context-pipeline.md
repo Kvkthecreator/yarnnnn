@@ -237,7 +237,7 @@ At the start of every TP session, the working memory block is assembled from **M
 TP accesses platform content during a session in two ways, with a defined priority order (ADR-065):
 
 1. **Primary: Live platform tools** — `platform_gmail_search`, `platform_slack_list_channels`, `platform_notion_search`, etc. Direct API calls. Always current. Used first.
-2. **Fallback: `Search(scope="platform_content")`** — hits `filesystem_items` cache (ILIKE text search). Used when live tools can't serve the query (cross-platform aggregation, live tool unavailable). When used, TP **must disclose the cache age** to the user.
+2. **Fallback: `Search(scope="platform_content")`** — hits `platform_content` table (ILIKE text search). Used when live tools can't serve the query (cross-platform aggregation, live tool unavailable). When used, TP **must disclose the cache age** to the user.
 
 **If the cache is needed but empty**: TP triggers `Execute(action="platform.sync")`, informs the user ("takes ~30–60 seconds, ask again once done"), then stops. There is no in-conversation polling tool available — sync is async. The user re-engages after the job completes; the cache will be populated by then.
 
@@ -258,8 +258,8 @@ Three different connection mechanisms exist — understanding the distinction pr
 | Mechanism | Location | Used for |
 |---|---|---|
 | **MCP Gateway** | `mcp-gateway/` (Node.js) + `api/services/mcp_gateway.py` | TP live Slack tool calls during chat |
-| **MCPClientManager** | `api/integrations/core/client.py` | Background Slack + Notion sync (platform_worker) |
-| **Direct API clients** | `api/integrations/core/notion_client.py`, `google_client.py` | Notion discovery, Gmail/Calendar sync and TP tools |
+| **MCPClientManager** | `api/integrations/core/client.py` | Background Slack sync (platform_worker) |
+| **Direct API clients** | `api/integrations/core/notion_client.py`, `google_client.py` | Notion sync + discovery, Gmail/Calendar sync and TP tools |
 
 ---
 
