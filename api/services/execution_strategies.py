@@ -1,23 +1,22 @@
 """
-Execution Strategies - ADR-045 Type-Aware Orchestration
+Execution Strategies - ADR-045 Type-Aware Orchestration + ADR-073 Unified Fetch
 
 Determines HOW a deliverable is executed based on its type_classification.binding.
 
 Strategies:
-- platform_bound: Single platform gatherer → DeliverableAgent
-- cross_platform: Parallel platform gatherers → DeliverableAgent
+- platform_bound: Single platform reader → DeliverableAgent
+- cross_platform: Multi-platform reader → DeliverableAgent
 - research: Web researcher (Anthropic native) → DeliverableAgent
 - hybrid: Research + Platform in parallel → DeliverableAgent
 
-Phase 1 ✅: Strategy selection and parallel fetching
-Phase 2 ✅: Web research via Anthropic's native web_search tool
+ADR-073: All platform reads come from platform_content (no live API calls).
+Platform sync is the only subsystem that calls external APIs.
 """
 
 import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -31,6 +30,7 @@ class GatheredContext:
     sources_used: list[str] = field(default_factory=list)
     items_fetched: int = 0
     errors: list[str] = field(default_factory=list)
+    platform_content_ids: list[str] = field(default_factory=list)  # ADR-073: for retention
 
 
 class ExecutionStrategy(ABC):
@@ -72,12 +72,11 @@ class PlatformBoundStrategy(ExecutionStrategy):
         user_id: str,
         deliverable: dict,
     ) -> GatheredContext:
-        from services.deliverable_pipeline import fetch_integration_source_data
+        from services.platform_content import get_content_summary_for_generation
 
         classification = deliverable.get("type_classification", {})
         primary_platform = classification.get("primary_platform")
         sources = deliverable.get("sources", [])
-        last_run_at = _parse_last_run_at(deliverable.get("last_run_at"))
         deliverable_id = deliverable.get("id")
 
         context_parts = []
@@ -91,31 +90,28 @@ class PlatformBoundStrategy(ExecutionStrategy):
         ]
 
         if not platform_sources and sources:
-            # Fallback: use all integration sources
             platform_sources = [
                 s for s in sources if s.get("type") == "integration_import"
             ]
             logger.info(f"[PLATFORM_BOUND] No {primary_platform} sources, using all {len(platform_sources)} integration sources")
 
-        # Fetch from platform sources
-        for idx, source in enumerate(platform_sources):
+        # ADR-073: Read from platform_content instead of live API calls
+        if platform_sources:
             try:
-                fetch_result = await fetch_integration_source_data(
-                    client=client,
+                content_text, content_ids = await get_content_summary_for_generation(
+                    db_client=client,
                     user_id=user_id,
-                    source=source,
-                    last_run_at=last_run_at,
-                    deliverable_id=deliverable_id,
-                    source_index=idx,
+                    deliverable_sources=platform_sources,
                 )
-                if fetch_result.content:
-                    provider = source.get("provider", "unknown")
-                    context_parts.append(f"[{provider.upper()} DATA]\n{fetch_result.content}")
-                    result.sources_used.append(f"platform:{provider}")
-                    result.items_fetched += fetch_result.items_fetched
+                if content_text:
+                    context_parts.append(content_text)
+                    result.platform_content_ids = content_ids
+                    result.items_fetched = len(content_ids)
+                    providers = {s.get("provider", "unknown") for s in platform_sources}
+                    result.sources_used = [f"platform:{p}" for p in providers]
             except Exception as e:
-                result.errors.append(f"Failed to fetch {source.get('provider')}: {e}")
-                logger.warning(f"[PLATFORM_BOUND] Source fetch error: {e}")
+                result.errors.append(f"Failed to read platform_content: {e}")
+                logger.warning(f"[PLATFORM_BOUND] platform_content read error: {e}")
 
         # Add user memories
         memories = await _get_user_memories(client, user_id)
@@ -158,80 +154,40 @@ class CrossPlatformStrategy(ExecutionStrategy):
         user_id: str,
         deliverable: dict,
     ) -> GatheredContext:
-        from services.deliverable_pipeline import fetch_integration_source_data
+        from services.platform_content import get_content_summary_for_generation
 
         sources = deliverable.get("sources", [])
-        last_run_at = _parse_last_run_at(deliverable.get("last_run_at"))
         deliverable_id = deliverable.get("id")
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
 
-        # Group sources by provider for parallel fetching
         integration_sources = [s for s in sources if s.get("type") == "integration_import"]
         other_sources = [s for s in sources if s.get("type") != "integration_import"]
 
-        # Group integration sources by provider
-        sources_by_provider: dict[str, list] = {}
-        for source in integration_sources:
-            provider = source.get("provider", "unknown")
-            if provider not in sources_by_provider:
-                sources_by_provider[provider] = []
-            sources_by_provider[provider].append(source)
+        providers = list({s.get("provider", "unknown") for s in integration_sources})
 
         logger.info(
-            f"[CROSS_PLATFORM] Fetching from {len(sources_by_provider)} providers in parallel: "
-            f"{list(sources_by_provider.keys())}"
+            f"[CROSS_PLATFORM] Reading platform_content for {len(providers)} providers: {providers}"
         )
 
-        # Create async tasks for each provider
-        async def fetch_provider_sources(provider: str, provider_sources: list) -> tuple[str, list[str], int, list[str]]:
-            """Fetch all sources for a provider, return (content, sources_used, items, errors)."""
-            parts = []
-            sources_used = []
-            items = 0
-            errors = []
-
-            for idx, source in enumerate(provider_sources):
-                try:
-                    fetch_result = await fetch_integration_source_data(
-                        client=client,
-                        user_id=user_id,
-                        source=source,
-                        last_run_at=last_run_at,
-                        deliverable_id=deliverable_id,
-                        source_index=idx,
-                    )
-                    if fetch_result.content:
-                        parts.append(fetch_result.content)
-                        sources_used.append(f"platform:{provider}")
-                        items += fetch_result.items_fetched
-                except Exception as e:
-                    errors.append(f"{provider}: {e}")
-
-            content = f"[{provider.upper()} DATA]\n" + "\n\n".join(parts) if parts else ""
-            return content, sources_used, items, errors
-
-        # Execute all providers in parallel
-        tasks = [
-            fetch_provider_sources(provider, provider_sources)
-            for provider, provider_sources in sources_by_provider.items()
-        ]
-
         context_parts = []
-        if tasks:
-            results = await asyncio.gather(*tasks, return_exceptions=True)
 
-            for res in results:
-                if isinstance(res, Exception):
-                    result.errors.append(str(res))
-                    continue
-
-                content, sources_used, items, errors = res
-                if content:
-                    context_parts.append(content)
-                result.sources_used.extend(sources_used)
-                result.items_fetched += items
-                result.errors.extend(errors)
+        # ADR-073: Single read from platform_content (no live API calls)
+        if integration_sources:
+            try:
+                content_text, content_ids = await get_content_summary_for_generation(
+                    db_client=client,
+                    user_id=user_id,
+                    deliverable_sources=integration_sources,
+                )
+                if content_text:
+                    context_parts.append(content_text)
+                    result.platform_content_ids = content_ids
+                    result.items_fetched = len(content_ids)
+                    result.sources_used = [f"platform:{p}" for p in providers]
+            except Exception as e:
+                result.errors.append(f"Failed to read platform_content: {e}")
+                logger.warning(f"[CROSS_PLATFORM] platform_content read error: {e}")
 
         # Handle non-integration sources (documents, descriptions)
         for source in other_sources:
@@ -253,10 +209,10 @@ class CrossPlatformStrategy(ExecutionStrategy):
         result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No context available)"
         result.summary["sources_used"] = result.sources_used
         result.summary["items_fetched"] = result.items_fetched
-        result.summary["providers_fetched"] = list(sources_by_provider.keys())
+        result.summary["providers_fetched"] = providers
 
         logger.info(
-            f"[CROSS_PLATFORM] Gathered: providers={list(sources_by_provider.keys())}, "
+            f"[CROSS_PLATFORM] Gathered: providers={providers}, "
             f"sources={len(result.sources_used)}, items={result.items_fetched}"
         )
 
@@ -336,6 +292,7 @@ class ResearchStrategy(ExecutionStrategy):
                 context_parts.append(f"[PLATFORM GROUNDING]\n{platform_result.content}")
                 result.sources_used.extend(platform_result.sources_used)
                 result.items_fetched += platform_result.items_fetched
+                result.platform_content_ids.extend(platform_result.platform_content_ids)
 
         # 3. Add user memories
         memories = await _get_user_memories(client, user_id)
@@ -434,6 +391,7 @@ class HybridStrategy(ExecutionStrategy):
                 context_parts.append(f"[PLATFORM DATA]\n{platform_result.content}")
                 result.sources_used.extend(platform_result.sources_used)
                 result.items_fetched += platform_result.items_fetched
+                result.platform_content_ids.extend(platform_result.platform_content_ids)
                 result.summary["platform_providers"] = platform_result.summary.get("providers_fetched", [])
         elif isinstance(platform_result, Exception):
             result.errors.append(f"Platform fetch exception: {platform_result}")
@@ -496,19 +454,6 @@ def get_execution_strategy(deliverable: dict) -> ExecutionStrategy:
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
-def _parse_last_run_at(last_run_at) -> Optional[datetime]:
-    """Parse last_run_at string to datetime."""
-    if not last_run_at or not isinstance(last_run_at, str):
-        return None
-
-    try:
-        if last_run_at.endswith("Z"):
-            last_run_at = last_run_at[:-1] + "+00:00"
-        return datetime.fromisoformat(last_run_at)
-    except (ValueError, TypeError):
-        return None
-
 
 async def _get_user_memories(client, user_id: str) -> str:
     """Get user context entries for prompt injection."""

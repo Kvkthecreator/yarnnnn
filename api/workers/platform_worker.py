@@ -234,7 +234,7 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
 
             logger.debug(f"[PLATFORM_WORKER] Syncing Slack channel: #{channel_name} ({channel_id})")
 
-            messages = await manager.get_slack_messages(
+            messages = await manager.get_slack_channel_history(
                 user_id=user_id,
                 channel_id=channel_id,
                 bot_token=bot_token,

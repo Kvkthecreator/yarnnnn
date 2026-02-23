@@ -6,9 +6,9 @@ Single Execute call for deliverable generation with immediate delivery (no appro
 Flow:
   Execute(action="deliverable.generate", target="deliverable:uuid")
     → check_deliverable_freshness() (ADR-049)
-    → sync_stale_sources() if needed (ADR-049)
-    → gather_context_inline()
+    → strategy.gather_context() (ADR-045 + ADR-073)
     → generate_draft_inline()
+    → mark_content_retained() (ADR-073)
     → record_source_snapshots() (ADR-049)
     → deliver immediately (ADR-066)
     → single work_ticket, single version row
@@ -30,10 +30,9 @@ This module replaces:
 - execute_stage_step() - validation/staging step
 
 Preserves from deliverable_pipeline.py:
-- Source fetching utilities (fetch_integration_source_data)
 - Type-specific prompts (TYPE_PROMPTS, build_type_prompt)
 - Output validation (validate_output)
-- Haiku extraction (extract_with_haiku)
+- Past versions context (get_past_versions_context)
 """
 
 import logging
@@ -216,143 +215,6 @@ async def log_execution_inputs(
         }).execute()
     except Exception as e:
         logger.warning(f"[EXEC] Failed to log inputs: {e}")
-
-
-async def gather_context_inline(
-    client,
-    user_id: str,
-    deliverable: dict,
-) -> tuple[str, dict]:
-    """
-    Gather context from all sources inline.
-
-    ADR-042: Replaces execute_gather_step(). No separate work_ticket.
-
-    Returns:
-        Tuple of (gathered_context_string, context_summary_dict)
-    """
-    from services.deliverable_pipeline import (
-        fetch_integration_source_data,
-        extract_with_haiku,
-    )
-
-    sources = deliverable.get("sources", [])
-    last_run_at = deliverable.get("last_run_at")
-    deliverable_id = deliverable.get("id")
-
-    context_parts = []
-    context_summary = {
-        "sources_used": [],
-        "total_items_fetched": 0,
-    }
-
-    # Parse last_run_at for delta extraction
-    if last_run_at and isinstance(last_run_at, str):
-        try:
-            if last_run_at.endswith("Z"):
-                last_run_at = last_run_at[:-1] + "+00:00"
-            last_run_at = datetime.fromisoformat(last_run_at)
-        except (ValueError, TypeError):
-            last_run_at = None
-
-    # Process each source
-    for idx, source in enumerate(sources):
-        source_type = source.get("type")
-
-        if source_type == "integration_import":
-            # Fetch from platform integration
-            result = await fetch_integration_source_data(
-                client=client,
-                user_id=user_id,
-                source=source,
-                last_run_at=last_run_at,
-                deliverable_id=deliverable_id,
-                source_index=idx,
-            )
-            if result.content:
-                provider = source.get("provider", "unknown")
-                context_parts.append(f"[{provider.upper()} DATA]\n{result.content}")
-                context_summary["sources_used"].append(f"platform:{provider}")
-                context_summary["total_items_fetched"] += result.items_fetched
-
-        elif source_type == "url":
-            # URL-based source (existing logic)
-            url = source.get("value", "")
-            if url:
-                context_parts.append(f"[URL SOURCE: {url}]\n(URL fetching not implemented in simplified flow)")
-                context_summary["sources_used"].append(f"url:{url[:50]}")
-
-        elif source_type == "document":
-            # Document reference
-            doc_id = source.get("document_id")
-            if doc_id:
-                try:
-                    doc_result = (
-                        client.table("filesystem_documents")
-                        .select("filename, extracted_text")
-                        .eq("id", doc_id)
-                        .single()
-                        .execute()
-                    )
-                    if doc_result.data:
-                        doc = doc_result.data
-                        text = doc.get("extracted_text", "")[:5000]
-                        context_parts.append(f"[DOCUMENT: {doc.get('filename')}]\n{text}")
-                        context_summary["sources_used"].append(f"document:{doc.get('filename')}")
-                except Exception as e:
-                    logger.warning(f"[GATHER] Failed to fetch document {doc_id}: {e}")
-
-        elif source_type == "description":
-            # Manual description
-            desc = source.get("value", "")
-            if desc:
-                context_parts.append(f"[SOURCE DESCRIPTION]\n{desc}")
-                context_summary["sources_used"].append("description")
-
-    # Get user memories
-    memories = await _get_relevant_memories(client, user_id, deliverable)
-    if memories:
-        context_parts.append(f"[USER CONTEXT]\n{memories}")
-        context_summary["memories_count"] = memories.count("\n") + 1
-
-    # Get past version feedback
-    from services.deliverable_pipeline import get_past_versions_context
-    past_context = await get_past_versions_context(client, deliverable_id)
-    if past_context:
-        context_parts.append(past_context)
-
-    gathered_context = "\n\n---\n\n".join(context_parts) if context_parts else "(No context available)"
-
-    return gathered_context, context_summary
-
-
-async def _get_relevant_memories(client, user_id: str, deliverable: dict) -> str:
-    """Get user context entries for deliverable generation."""
-    try:
-        # ADR-059: Read from user_context
-        result = (
-            client.table("user_context")
-            .select("key, value")
-            .eq("user_id", user_id)
-            .limit(20)
-            .execute()
-        )
-
-        if not result.data:
-            return ""
-
-        memory_lines = []
-        for row in result.data:
-            key = row.get("key", "")
-            value = row.get("value", "")
-            if key.startswith(("fact:", "instruction:", "preference:")):
-                memory_lines.append(f"- {value}")
-
-        return "\n".join(memory_lines)
-
-    except Exception as e:
-        logger.warning(f"[GATHER] Failed to fetch memories: {e}")
-        return ""
 
 
 async def generate_draft_inline(
@@ -615,15 +477,31 @@ async def execute_deliverable_generation(
         # 7. ADR-066: Prepare version for delivery (no staged status)
         await update_version_for_delivery(client, version_id, draft)
 
+        # ADR-073: Mark consumed platform content as retained
+        if gathered_result.platform_content_ids:
+            try:
+                from services.platform_content import mark_content_retained
+                await mark_content_retained(
+                    client,
+                    gathered_result.platform_content_ids,
+                    reason="deliverable_execution",
+                    ref=version_id,
+                )
+            except Exception as e:
+                logger.warning(f"[EXEC] Failed to mark content retained: {e}")
+
         # ADR-049: Record source snapshots for audit trail
+        # sources_used is a list of strings like "platform:slack", "other:document"
+        # Build snapshot from the deliverable's source configs
         sources_for_snapshot = []
-        for source in gathered_result.sources_used:
-            sources_for_snapshot.append({
-                "platform": source.get("provider") or source.get("platform"),
-                "resource_id": source.get("resource_id"),
-                "resource_name": source.get("resource_name"),
-                "user_id": user_id,
-            })
+        for source in deliverable.get("sources", []):
+            if source.get("type") == "integration_import":
+                sources_for_snapshot.append({
+                    "platform": source.get("provider"),
+                    "resource_id": source.get("resource_id"),
+                    "resource_name": source.get("resource_name"),
+                    "user_id": user_id,
+                })
         await record_source_snapshots(client, version_id, sources_for_snapshot)
 
         # 8. Complete work ticket

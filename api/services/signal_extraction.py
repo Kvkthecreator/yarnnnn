@@ -1,19 +1,17 @@
 """
 Signal Extraction Service
 
-ADR-068: Signal-emergent deliverables
-Architectural correction (2026-02-20): Signal processing reads LIVE platform content
-via the same credential infrastructure as deliverable execution, not cached content.
+ADR-073: Reads from platform_content (no live API calls).
+Platform sync is the only subsystem that calls external APIs.
 
-This module fetches fresh content from connected platforms and determines what's
-significant enough to warrant creating or triggering deliverables.
+This module reads stored platform content and builds a SignalSummary
+for signal processing to reason over.
 
 Key principles:
-- Uses live platform API reads (same pattern as fetch_integration_source_data)
-- Reasons about content significance, not absence/thresholds
-- Aligns with strategic deliverable types (daily_strategy_reflection,
-  intelligence_brief, deep_research)
-- Handles cold-start gracefully (insufficient content → no_action)
+- Reads from platform_content table (populated by platform_sync)
+- No live API calls — all content comes from the unified fetch layer
+- Respects selected_sources from landscape configuration
+- Same output shape (SignalSummary) for compatibility with signal_processing.py
 """
 
 import logging
@@ -26,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class PlatformContent:
-    """Live content fetched from a platform for signal processing."""
+    """Content read from platform_content table for signal processing."""
 
     platform: str  # "gmail", "calendar", "slack", "notion"
     items_count: int
@@ -69,11 +67,10 @@ async def extract_signal_summary(
     signals_filter: str = "all",
 ) -> SignalSummary:
     """
-    Fetch live platform content for signal processing.
+    Read platform content for signal processing.
 
-    This is the entry point for signal processing. It queries active platform
-    connections and fetches recent content using live APIs (same infrastructure
-    as deliverable execution).
+    ADR-073: Reads from platform_content table instead of live APIs.
+    Content is populated by platform_sync_scheduler → platform_worker.
 
     Args:
         client: Supabase client
@@ -81,21 +78,17 @@ async def extract_signal_summary(
         signals_filter: "all", "calendar_only", "non_calendar" (for cron scheduling)
 
     Returns:
-        SignalSummary with live content from connected platforms
+        SignalSummary with content from platform_content table
     """
-    from integrations.core.client import MCPClientManager
-    from integrations.core.google_client import get_google_client
-    from integrations.core.tokens import get_token_manager
-
     now = datetime.now(timezone.utc)
     summary = SignalSummary()
 
     # Query active platform connections
     platforms_result = (
         client.table("platform_connections")
-        .select("platform, status")
+        .select("platform, status, landscape")
         .eq("user_id", user_id)
-        .eq("status", "active")
+        .in_("status", ["active", "connected"])
         .execute()
     )
 
@@ -104,12 +97,24 @@ async def extract_signal_summary(
         return summary
 
     active_platforms = {p["platform"] for p in platforms_result.data}
+    # Build a map of platform → selected_sources for filtering
+    platform_sources = {}
+    for conn in platforms_result.data:
+        platform = conn["platform"]
+        landscape = conn.get("landscape", {}) or {}
+        selected = landscape.get("selected_sources", [])
+        source_ids = [
+            s.get("id") if isinstance(s, dict) else s
+            for s in selected
+        ]
+        platform_sources[platform] = [sid for sid in source_ids if sid]
+
     logger.info(f"[SIGNAL] User {user_id} has {len(active_platforms)} active platforms: {active_platforms}")
 
-    # Fetch content from each platform based on filter mode
+    # Read content from platform_content for each platform based on filter mode
     if signals_filter in ("all", "calendar_only") and "google" in active_platforms:
-        summary.calendar_content = await _fetch_calendar_content(
-            client, user_id, now, get_google_client(), get_token_manager()
+        summary.calendar_content = await _read_calendar_content(
+            client, user_id, now, platform_sources.get("google", [])
         )
         if summary.calendar_content:
             summary.total_items += summary.calendar_content.items_count
@@ -117,24 +122,24 @@ async def extract_signal_summary(
 
     if signals_filter in ("all", "non_calendar"):
         if "google" in active_platforms:
-            summary.gmail_content = await _fetch_gmail_content(
-                client, user_id, now, get_google_client(), get_token_manager()
+            summary.gmail_content = await _read_gmail_content(
+                client, user_id, now, platform_sources.get("google", [])
             )
             if summary.gmail_content:
                 summary.total_items += summary.gmail_content.items_count
                 summary.platforms_queried.append("gmail")
 
         if "slack" in active_platforms:
-            summary.slack_content = await _fetch_slack_content(
-                client, user_id, now, MCPClientManager(), get_token_manager()
+            summary.slack_content = await _read_slack_content(
+                client, user_id, now, platform_sources.get("slack", [])
             )
             if summary.slack_content:
                 summary.total_items += summary.slack_content.items_count
                 summary.platforms_queried.append("slack")
 
         if "notion" in active_platforms:
-            summary.notion_content = await _fetch_notion_content(
-                client, user_id, now, MCPClientManager(), get_token_manager()
+            summary.notion_content = await _read_notion_content(
+                client, user_id, now, platform_sources.get("notion", [])
             )
             if summary.notion_content:
                 summary.total_items += summary.notion_content.items_count
@@ -148,382 +153,250 @@ async def extract_signal_summary(
     return summary
 
 
-async def _fetch_calendar_content(
+async def _read_calendar_content(
     client,
     user_id: str,
     now: datetime,
-    google_client,
-    token_manager,
+    selected_sources: list[str],
 ) -> Optional[PlatformContent]:
-    """
-    Fetch upcoming calendar events (next 7 days) from live Google Calendar API.
-
-    Mirrors the pattern in fetch_integration_source_data() - uses platform_connections
-    credentials and live API reads.
-    """
-    import os
-
-    # Get Google connection
-    conn_result = (
-        client.table("platform_connections")
-        .select("credentials_encrypted, refresh_token_encrypted")
-        .eq("user_id", user_id)
-        .eq("platform", "google")
-        .eq("status", "active")
-        .maybe_single()
-        .execute()
-    )
-
-    if not conn_result.data:
-        return None
-
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        logger.error("[SIGNAL] Google OAuth credentials not configured")
-        return None
-
+    """Read calendar events from platform_content."""
     try:
-        refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
-    except Exception as e:
-        logger.error(f"[SIGNAL] Failed to decrypt Google refresh token for user {user_id}: {e}")
-        return None
-
-    try:
-        # Fetch next 7 days of calendar events
-        time_min = now.isoformat() + "Z"
-        time_max = (now + timedelta(days=7)).isoformat() + "Z"
-
-        events = await google_client.list_calendar_events(
-            client_id=client_id,
-            client_secret=client_secret,
-            refresh_token=refresh_token,
-            time_min=time_min,
-            time_max=time_max,
-            max_results=50,
+        query = (
+            client.table("platform_content")
+            .select("content, metadata, source_timestamp, resource_name")
+            .eq("user_id", user_id)
+            .eq("platform", "calendar")
+            .eq("content_type", "event")
+            .or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}")
+            .order("source_timestamp", desc=False)
+            .limit(50)
         )
 
-        if not events:
+        if selected_sources:
+            query = query.in_("resource_id", selected_sources)
+
+        result = query.execute()
+        items = result.data or []
+
+        if not items:
             return PlatformContent(
                 platform="calendar",
                 items_count=0,
-                content_summary="No upcoming calendar events in next 7 days",
+                content_summary="No upcoming calendar events in platform_content",
                 raw_items=[],
                 fetch_timestamp=now,
-                time_range_start=now,
-                time_range_end=now + timedelta(days=7),
             )
 
         # Build content summary for LLM reasoning
         summary_lines = []
-        for event in events[:10]:  # Top 10 for summary
-            summary = event.get("summary", "Untitled")
-            start = event.get("start", {}).get("dateTime", event.get("start", {}).get("date", ""))
-            attendees = len(event.get("attendees", []))
-            summary_lines.append(f"- {summary} ({start}) - {attendees} attendees")
+        for item in items[:10]:
+            content = item.get("content", "")
+            meta = item.get("metadata", {}) or {}
+            start = meta.get("start", "")
+            attendees = len(meta.get("attendees", []))
+            summary_lines.append(f"- {content[:100]} ({start}) - {attendees} attendees")
 
         content_summary = "\n".join(summary_lines)
-        if len(events) > 10:
-            content_summary += f"\n... and {len(events) - 10} more events"
+        if len(items) > 10:
+            content_summary += f"\n... and {len(items) - 10} more events"
 
         return PlatformContent(
             platform="calendar",
-            items_count=len(events),
+            items_count=len(items),
             content_summary=content_summary,
-            raw_items=events,
+            raw_items=items,
             fetch_timestamp=now,
             time_range_start=now,
             time_range_end=now + timedelta(days=7),
         )
 
     except Exception as e:
-        logger.warning(f"[SIGNAL] Calendar content fetch failed: {e}")
+        logger.warning(f"[SIGNAL] Calendar content read failed: {e}")
         return None
 
 
-async def _fetch_gmail_content(
+async def _read_gmail_content(
     client,
     user_id: str,
     now: datetime,
-    google_client,
-    token_manager,
+    selected_sources: list[str],
 ) -> Optional[PlatformContent]:
-    """
-    Fetch recent Gmail messages (last 3 days) from live Gmail API.
-
-    Focus: Recent email activity that might contain significant developments,
-    decisions, or topics worth synthesizing.
-    """
-    import os
-
-    # Get Google connection
-    conn_result = (
-        client.table("platform_connections")
-        .select("credentials_encrypted, refresh_token_encrypted")
-        .eq("user_id", user_id)
-        .eq("platform", "google")
-        .eq("status", "active")
-        .maybe_single()
-        .execute()
-    )
-
-    if not conn_result.data:
-        return None
-
-    client_id = os.getenv("GOOGLE_CLIENT_ID")
-    client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
-
-    if not client_id or not client_secret:
-        logger.error("[SIGNAL] Google OAuth credentials not configured")
-        return None
-
+    """Read Gmail messages from platform_content."""
     try:
-        refresh_token = token_manager.decrypt(conn_result.data["refresh_token_encrypted"])
-    except Exception as e:
-        logger.error(f"[SIGNAL] Failed to decrypt Google refresh token for user {user_id}: {e}")
-        return None
+        # Filter to recent content (last 7 days — matches sync window)
+        cutoff = (now - timedelta(days=7)).isoformat()
 
-    try:
-        # Fetch last 3 days of inbox messages
-        after_date = (now - timedelta(days=3)).strftime("%Y/%m/%d")
-        query = f"in:inbox after:{after_date}"
-
-        messages = await google_client.list_gmail_messages(
-            client_id=client_id,
-            client_secret=client_secret,
-            refresh_token=refresh_token,
-            query=query,
-            max_results=30,
+        query = (
+            client.table("platform_content")
+            .select("content, metadata, source_timestamp, resource_name, title, author")
+            .eq("user_id", user_id)
+            .eq("platform", "gmail")
+            .eq("content_type", "email")
+            .gt("fetched_at", cutoff)
+            .or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}")
+            .order("source_timestamp", desc=True)
+            .limit(30)
         )
 
-        if not messages:
+        # Gmail selected_sources use "label:LABEL_ID" format
+        label_sources = [s for s in selected_sources if s.startswith("label:")]
+        if label_sources:
+            query = query.in_("resource_id", label_sources)
+
+        result = query.execute()
+        items = result.data or []
+
+        if not items:
             return PlatformContent(
                 platform="gmail",
                 items_count=0,
-                content_summary="No recent inbox messages in last 3 days",
+                content_summary="No recent Gmail messages in platform_content",
                 raw_items=[],
                 fetch_timestamp=now,
-                time_range_start=now - timedelta(days=3),
-                time_range_end=now,
             )
 
         # Build content summary
         summary_lines = []
-        for msg in messages[:10]:
-            subject = next((h["value"] for h in msg.get("payload", {}).get("headers", []) if h["name"] == "Subject"), "No subject")
-            from_email = next((h["value"] for h in msg.get("payload", {}).get("headers", []) if h["name"] == "From"), "Unknown")
-            summary_lines.append(f"- {subject} (from: {from_email})")
+        for item in items[:10]:
+            title = item.get("title", "No subject")
+            author = item.get("author", "Unknown")
+            summary_lines.append(f"- {title} (from: {author})")
 
         content_summary = "\n".join(summary_lines)
-        if len(messages) > 10:
-            content_summary += f"\n... and {len(messages) - 10} more messages"
+        if len(items) > 10:
+            content_summary += f"\n... and {len(items) - 10} more messages"
 
         return PlatformContent(
             platform="gmail",
-            items_count=len(messages),
+            items_count=len(items),
             content_summary=content_summary,
-            raw_items=messages,
+            raw_items=items,
             fetch_timestamp=now,
-            time_range_start=now - timedelta(days=3),
+            time_range_start=now - timedelta(days=7),
             time_range_end=now,
         )
 
     except Exception as e:
-        logger.warning(f"[SIGNAL] Gmail content fetch failed: {e}")
+        logger.warning(f"[SIGNAL] Gmail content read failed: {e}")
         return None
 
 
-async def _fetch_slack_content(
+async def _read_slack_content(
     client,
     user_id: str,
     now: datetime,
-    mcp_manager,
-    token_manager,
+    selected_sources: list[str],
 ) -> Optional[PlatformContent]:
-    """
-    Fetch recent Slack activity (last 2 days) via MCP Slack server.
-
-    Focus: Channel discussions, mentions, threads that might indicate
-    strategic developments or decisions.
-    """
-    import json
-
-    # Get Slack connection - ADR-056: sources in landscape.selected_sources
-    conn_result = (
-        client.table("platform_connections")
-        .select("credentials_encrypted, landscape")
-        .eq("user_id", user_id)
-        .eq("platform", "slack")
-        .eq("status", "active")
-        .maybe_single()
-        .execute()
-    )
-
-    if not conn_result.data:
-        return None
-
-    # Decrypt credentials (JSON with bot_token, team_id)
+    """Read Slack messages from platform_content."""
     try:
-        credentials_str = token_manager.decrypt(conn_result.data["credentials_encrypted"])
-    except Exception as e:
-        logger.error(f"[SIGNAL] Failed to decrypt Slack credentials for user {user_id}: {e}")
-        return None
-    try:
-        credentials = json.loads(credentials_str) if isinstance(credentials_str, str) else credentials_str
-    except json.JSONDecodeError:
-        logger.error("[SIGNAL] Failed to parse Slack credentials")
-        return None
+        # Filter to recent content (last 2 days)
+        cutoff = (now - timedelta(days=2)).isoformat()
 
-    bot_token = credentials.get("bot_token") or credentials.get("access_token")
-    team_id = credentials.get("team_id") or credentials.get("team", {}).get("id")
-
-    if not bot_token or not team_id:
-        logger.error("[SIGNAL] Missing Slack bot_token or team_id")
-        return None
-
-    # ADR-056: Extract channel IDs from landscape.selected_sources
-    landscape = conn_result.data.get("landscape", {})
-    selected_sources = landscape.get("selected_sources", [])
-    # selected_sources can be list of objects {id: "C123", name: "general"} or strings
-    selected_channels = [
-        s.get("id") if isinstance(s, dict) else s
-        for s in selected_sources
-    ]
-
-    if not selected_channels:
-        logger.info(f"[SIGNAL] No Slack channels selected for user {user_id}")
-        return PlatformContent(
-            platform="slack",
-            items_count=0,
-            content_summary="No Slack channels selected for monitoring",
-            raw_items=[],
-            fetch_timestamp=now,
+        query = (
+            client.table("platform_content")
+            .select("content, metadata, source_timestamp, resource_name, author")
+            .eq("user_id", user_id)
+            .eq("platform", "slack")
+            .gt("fetched_at", cutoff)
+            .or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}")
+            .order("source_timestamp", desc=True)
+            .limit(100)
         )
 
-    try:
-        # Fetch recent messages from selected channels using MCPClientManager
-        all_messages = []
+        if selected_sources:
+            query = query.in_("resource_id", selected_sources)
 
-        for channel_id in selected_channels[:5]:  # Cap at 5 channels for performance
-            try:
-                messages = await mcp_manager.get_slack_channel_history(
-                    user_id=user_id,
-                    channel_id=channel_id,
-                    bot_token=bot_token,
-                    team_id=team_id,
-                    limit=20,
-                    auto_join=True,
-                )
-                # Filter to last 2 days
-                oldest_ts = (now - timedelta(days=2)).timestamp()
-                recent_messages = [
-                    m for m in messages
-                    if float(m.get("ts", 0)) >= oldest_ts
-                ]
-                all_messages.extend(recent_messages)
-            except Exception as e:
-                logger.warning(f"[SIGNAL] Failed to read Slack channel {channel_id}: {e}")
-                continue
+        result = query.execute()
+        items = result.data or []
 
-        if not all_messages:
+        if not items:
             return PlatformContent(
                 platform="slack",
                 items_count=0,
-                content_summary=f"No recent activity in {len(selected_channels)} monitored channels",
+                content_summary="No recent Slack activity in platform_content",
                 raw_items=[],
                 fetch_timestamp=now,
-                time_range_start=now - timedelta(days=2),
-                time_range_end=now,
             )
 
         # Build content summary
         summary_lines = []
-        for msg in all_messages[:10]:
-            text = msg.get("text", "")[:100]
-            user = msg.get("user", "Unknown")
-            summary_lines.append(f"- {user}: {text}")
+        for item in items[:10]:
+            text = (item.get("content") or "")[:100]
+            author = item.get("author", "Unknown")
+            summary_lines.append(f"- {author}: {text}")
 
         content_summary = "\n".join(summary_lines)
-        if len(all_messages) > 10:
-            content_summary += f"\n... and {len(all_messages) - 10} more messages"
+        if len(items) > 10:
+            content_summary += f"\n... and {len(items) - 10} more messages"
 
         return PlatformContent(
             platform="slack",
-            items_count=len(all_messages),
+            items_count=len(items),
             content_summary=content_summary,
-            raw_items=all_messages,
+            raw_items=items,
             fetch_timestamp=now,
             time_range_start=now - timedelta(days=2),
             time_range_end=now,
         )
 
     except Exception as e:
-        logger.warning(f"[SIGNAL] Slack content fetch failed: {e}")
+        logger.warning(f"[SIGNAL] Slack content read failed: {e}")
         return None
 
 
-async def _fetch_notion_content(
+async def _read_notion_content(
     client,
     user_id: str,
     now: datetime,
-    mcp_manager,
-    token_manager,
+    selected_sources: list[str],
 ) -> Optional[PlatformContent]:
-    """
-    Fetch recent Notion activity (last 7 days) via direct Notion API.
-
-    Focus: Page edits, new pages, task updates that might indicate
-    strategic shifts or emerging topics.
-    """
-    # Get Notion connection - ADR-056: sources in landscape.selected_sources
-    conn_result = (
-        client.table("platform_connections")
-        .select("credentials_encrypted, landscape")
-        .eq("user_id", user_id)
-        .eq("platform", "notion")
-        .eq("status", "active")
-        .maybe_single()
-        .execute()
-    )
-
-    if not conn_result.data:
-        return None
-
+    """Read Notion pages from platform_content."""
     try:
-        credentials = token_manager.decrypt(conn_result.data["credentials_encrypted"])
-    except Exception as e:
-        logger.error(f"[SIGNAL] Failed to decrypt Notion credentials for user {user_id}: {e}")
-        return None
-    # ADR-056: Extract page IDs from landscape.selected_sources
-    landscape = conn_result.data.get("landscape", {})
-    selected_sources = landscape.get("selected_sources", [])
-    selected_pages = [
-        s.get("id") if isinstance(s, dict) else s
-        for s in selected_sources
-    ]
-
-    if not selected_pages:
-        return PlatformContent(
-            platform="notion",
-            items_count=0,
-            content_summary="No Notion pages selected for monitoring",
-            raw_items=[],
-            fetch_timestamp=now,
+        query = (
+            client.table("platform_content")
+            .select("content, metadata, source_timestamp, resource_name, title")
+            .eq("user_id", user_id)
+            .eq("platform", "notion")
+            .eq("content_type", "page")
+            .or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}")
+            .order("fetched_at", desc=True)
+            .limit(20)
         )
 
-    try:
-        # Note: Notion API implementation would go here
-        # For now, return placeholder
-        logger.info("[SIGNAL] Notion content fetch not yet implemented")
+        if selected_sources:
+            query = query.in_("resource_id", selected_sources)
+
+        result = query.execute()
+        items = result.data or []
+
+        if not items:
+            return PlatformContent(
+                platform="notion",
+                items_count=0,
+                content_summary="No Notion pages in platform_content",
+                raw_items=[],
+                fetch_timestamp=now,
+            )
+
+        # Build content summary
+        summary_lines = []
+        for item in items[:10]:
+            title = item.get("title") or item.get("resource_name") or "Untitled"
+            content = (item.get("content") or "")[:100]
+            summary_lines.append(f"- {title}: {content}")
+
+        content_summary = "\n".join(summary_lines)
+        if len(items) > 10:
+            content_summary += f"\n... and {len(items) - 10} more pages"
+
         return PlatformContent(
             platform="notion",
-            items_count=0,
-            content_summary="Notion content fetch pending implementation",
-            raw_items=[],
+            items_count=len(items),
+            content_summary=content_summary,
+            raw_items=items,
             fetch_timestamp=now,
         )
 
     except Exception as e:
-        logger.warning(f"[SIGNAL] Notion content fetch failed: {e}")
+        logger.warning(f"[SIGNAL] Notion content read failed: {e}")
         return None

@@ -6,6 +6,30 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.2] - ADR-073: Implement unified fetch architecture in code
+
+### Changed
+- `api/services/execution_strategies.py`: Migrated PlatformBound + CrossPlatform strategies from live API calls (`fetch_integration_source_data`) to `platform_content` reads via `get_content_summary_for_generation()`. Added `platform_content_ids` field to `GatheredContext` for retention tracking. Research and Hybrid strategies propagate content IDs from delegated CrossPlatform calls.
+- `api/services/signal_extraction.py`: Complete rewrite — replaced `_fetch_calendar_content`, `_fetch_gmail_content`, `_fetch_slack_content`, `_fetch_notion_content` (live API calls) with `_read_*` variants that query `platform_content` table. Same output shape (`SignalSummary`) so `signal_processing.py` unchanged.
+- `api/services/deliverable_execution.py`: Wired `mark_content_retained()` after draft generation to mark consumed content as retained. Fixed source snapshot logic (sources_used became strings after migration). Deleted legacy `gather_context_inline()` and `_get_relevant_memories()`.
+- `api/services/deliverable_pipeline.py`: Deleted ~1440 lines — `fetch_integration_source_data`, all `_fetch_*_data` helpers, `execute_deliverable_pipeline`, pipeline step functions, cache infrastructure. Retained: `TYPE_PROMPTS`, validation functions, `build_type_prompt`, `get_past_versions_context`.
+- `api/workers/platform_worker.py`: Fixed Slack method name bug — `get_slack_messages()` → `get_slack_channel_history()` (actual MCP client method).
+- `api/services/platform_content.py`: Deleted deprecated backward-compat stubs (`FilesystemItem`, `store_filesystem_item`, `get_filesystem_items`, etc.).
+
+### Removed
+- `fetch_integration_source_data()` and all per-platform live fetch helpers from `deliverable_pipeline.py`
+- `gather_context_inline()` from `deliverable_execution.py` (superseded by `execution_strategies.py`)
+- All live API calls from `signal_extraction.py` (now reads from `platform_content`)
+- Deprecated `FilesystemItem` alias and stub functions from `platform_content.py`
+
+### Behavior
+- **Single fetch path enforced**: Only `platform_sync_scheduler` → `platform_worker` calls external APIs. All consumers (execution strategies, signal extraction, deliverables) read from `platform_content` table.
+- **Content retention wired**: Platform content consumed during deliverable generation is marked retained (excluded from TTL cleanup).
+- **Slack sync fixed**: Method name mismatch that would have caused runtime errors corrected.
+- **No behavioral change to signal_processing.py**: LLM triage still runs; transformation to scheduling heuristics is deferred per ADR-073 migration path.
+
+---
+
 ## [2026.02.23.1] - ADR-073: Unified Fetch Architecture + Platform Integrations rewrite
 
 ### Added

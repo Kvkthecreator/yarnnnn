@@ -20,7 +20,6 @@ def test_imports():
         get_next_version_number,
         create_version_record,
         create_work_ticket,
-        gather_context_inline,
         generate_draft_inline,
         update_version_staged,
         complete_work_ticket,
