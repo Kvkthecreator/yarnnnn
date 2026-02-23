@@ -1151,6 +1151,19 @@ async def run_unified_scheduler():
                                     f"[SIGNAL] Created {created} {label} signal deliverable(s) "
                                     f"for {user_id}"
                                 )
+                        else:
+                            # Write signal_processed even when 0 actions so system page shows last run
+                            try:
+                                from services.activity_log import write_activity as _sw
+                                await _sw(
+                                    client=supabase,
+                                    user_id=user_id,
+                                    event_type="signal_processed",
+                                    summary=f"Signal processing ({label}): {signal_summary.total_items} item(s), 0 actions",
+                                    metadata={"signals_evaluated": signal_summary.total_items, "actions_taken": [], "items_processed": 0},
+                                )
+                            except Exception:
+                                pass
 
                     except Exception as e:
                         logger.warning(f"[SIGNAL] Error processing {label} signals for {user_id}: {e}")

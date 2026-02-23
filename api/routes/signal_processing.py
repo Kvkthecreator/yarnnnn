@@ -293,6 +293,27 @@ async def trigger_signal_processing(
                         advanced_to=updated_deliverable.data.get("next_run_at") if updated_deliverable.data else None,
                     ))
 
+        # Write signal_processed event — covers the case where signals exist
+        # but 0 actions were taken (execute_signal_actions writes its own event
+        # only when called, which requires non-empty actions)
+        if not processing_result.actions:
+            try:
+                from services.activity_log import write_activity as _write
+                from services.supabase import get_service_client
+                await _write(
+                    client=get_service_client(),
+                    user_id=user_id,
+                    event_type="signal_processed",
+                    summary=f"Signal processing: {signal_summary.total_items} item(s) evaluated, 0 actions",
+                    metadata={
+                        "signals_evaluated": signal_summary.total_items,
+                        "actions_taken": [],
+                        "items_processed": 0,
+                    },
+                )
+            except Exception:
+                pass
+
         # Update last manual trigger timestamp
         try:
             supabase.table("user_notification_preferences").upsert({
