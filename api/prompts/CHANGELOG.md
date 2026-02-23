@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.3] - Sync pipeline reliability + status surfacing fixes
+
+### Changed
+- `api/workers/platform_worker.py`: Worker now checks for `error` key + 0 items before reporting success. Only updates `last_synced_at` on actual success. Activity log includes `(error)` or `(success)` label.
+- `api/routes/signal_processing.py`: Signal trigger writes `signal_processed` to `activity_log` even on early return (no signals found), so system page shows last run time instead of "Never Run".
+- `api/routes/system.py`: Platform Sync status aggregates all `platform_synced` events in 30-min window instead of `limit(1)`.
+- `api/jobs/unified_scheduler.py`: Heartbeat writes per real `user_id` from `platform_connections` instead of dummy UUID (FK violation fix).
+
+### Behavior
+- No prompt/tool changes — these are backend reliability fixes
+- Worker no longer reports false success when OAuth token decryption fails
+- System page shows consistent, accurate status across all processing phases
+
+---
+
 ## [2026.02.23.2] - ADR-073: Implement unified fetch architecture in code
 
 ### Changed

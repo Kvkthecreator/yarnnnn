@@ -59,13 +59,34 @@ Before completing work:
 - **Column name mismatches**: Ensure code uses current schema (e.g., `platform` not `provider`)
 - **Import paths**: Verify all imports resolve correctly
 
-### 5. Git Workflow
+### 5. Render Service Parity
+
+YARNNN runs on **4 Render services** that share code and env vars. When changing environment variables, secrets, or architectural patterns, check ALL services:
+
+| Service | Type | Render ID |
+|---------|------|-----------|
+| yarnnn-api | Web Service | `srv-d5sqotcr85hc73dpkqdg` |
+| yarnnn-worker | Background Worker | `srv-d4sebn6mcj7s73bu8en0` |
+| yarnnn-unified-scheduler | Cron Job | `crn-d604uqili9vc73ankvag` |
+| yarnnn-mcp-gateway | Web Service | `srv-d66jir15pdvs73aqsmk0` |
+
+**Critical shared env vars** (must be on API + Worker + Scheduler):
+- `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Worker/Scheduler **cannot sync** without it.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — needed by Worker for token refresh
+- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Worker for Notion API
+- `MCP_GATEWAY_URL` — needed by Worker for Slack sync via MCP
+
+**Common mistake**: Adding an env var to the API service but forgetting Worker/Scheduler. The API handles OAuth and stores tokens; the Worker decrypts and uses them. Both need the encryption key and OAuth client credentials.
+
+Use Render MCP tools (`update_environment_variables`) to check/set env vars across services.
+
+### 6. Git Workflow
 
 - **Commit when appropriate**: Can commit and push when changes are complete and tested
 - **Meaningful commits**: Use conventional commit style with ADR references where applicable
 - **No force pushes** to main unless explicitly requested
 
-### 6. Progress Tracking
+### 7. Progress Tracking
 
 - **Use TodoWrite tool** for multi-step tasks to track progress
 - **Share progress** to keep context visible across conversation turns
@@ -162,6 +183,8 @@ You MUST:
 2. **Tool loop exhaustion**: TP hits `max_tool_rounds=5` without text response if tools return empty
 3. **PGRST205 errors**: PostgREST schema cache needs refresh after table changes
 4. **OAuth provider vs platform**: Google OAuth provides both `gmail` and `calendar` capabilities
+5. **Render env var drift**: Worker/Scheduler missing env vars that API has — Worker silently fails to decrypt tokens, reports `success=True` with 0 items. Always check all services.
+6. **Backend/frontend field name mismatch**: Backend returns one shape (e.g., `selected_sources`), frontend expects another (e.g., `sources`). Verify API response matches frontend consumer.
 
 ---
 

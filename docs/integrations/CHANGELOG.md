@@ -4,6 +4,31 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 
 ---
 
+## 2026-02-23
+
+### All Platforms — Sync Pipeline Fixes
+
+**Fixes**:
+- **Worker env var parity**: `INTEGRATION_ENCRYPTION_KEY`, Google/Notion OAuth creds, and `MCP_GATEWAY_URL` were missing from Worker and Scheduler Render services. Worker silently reported `success=True` while syncing 0 items because it couldn't decrypt OAuth tokens.
+- **Worker failure reporting**: Worker now checks for error key + 0 items before reporting success. Only updates `last_synced_at` on actual success.
+- **Scheduler heartbeat FK**: Was writing to `activity_log` with dummy UUID `00000000-...` → FK violation. Now writes per-user heartbeats for users with active `platform_connections`.
+- **getSources field name mismatch**: Backend returned `{ selected_sources, provider, count }` but frontend expected `{ sources, limit, can_add_more }`. Context page showed "0 of 1 selected" despite 2 sources being synced.
+
+### Context Page UX
+
+**Changes**:
+- `CoverageBadge`: Shows "Synced 2h ago" with relative time instead of static "Synced"/"Not synced"
+- `SyncStatusBanner`: Shows last sync time in green state ("Syncing N sources · 2x daily · Last synced X ago")
+- Count text: "2 selected · 1 included on free plan" for over-limit instead of confusing "2 of 1 selected"
+
+### System Page
+
+**Changes**:
+- Signal Processing now writes `activity_log` even on early return (no signals found) so system page shows "last run" instead of "Never Run"
+- Platform Sync aggregates all `platform_synced` events in 30-min window instead of showing only the last platform
+
+---
+
 ## 2026-02-12
 
 ### All Platforms - ADR-048: Direct MCP Access

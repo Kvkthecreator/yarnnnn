@@ -125,7 +125,15 @@ REDIS_URL
 SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 ANTHROPIC_API_KEY
+INTEGRATION_ENCRYPTION_KEY          # Required — decrypts OAuth tokens
+GOOGLE_CLIENT_ID                    # Required — refreshes Google access tokens
+GOOGLE_CLIENT_SECRET
+NOTION_CLIENT_ID                    # Required — Notion API auth
+NOTION_CLIENT_SECRET
+MCP_GATEWAY_URL                     # Required — Slack sync via MCP Gateway
 ```
+
+> **Lesson learned (2026-02-23):** Worker was silently reporting `success=True` while syncing 0 items because `INTEGRATION_ENCRYPTION_KEY` was missing. The worker couldn't decrypt OAuth tokens but didn't raise — it just fetched nothing. Always ensure Worker has the same integration-related env vars as the API.
 
 ---
 
@@ -146,6 +154,7 @@ ANTHROPIC_API_KEY
 | Weekly Digests | Hour boundary | Send weekly activity digests to users |
 | Import Jobs | Every run | Process pending platform import jobs |
 | Cleanup | Hour boundary | Expire old ephemeral context records |
+| Platform Sync | Every run | Check for users due for sync, enqueue to Worker |
 
 **Logic flow:**
 1. Initialize Supabase client with service role
@@ -154,7 +163,9 @@ ANTHROPIC_API_KEY
 4. If minute < 5: run digest processing
 5. Run import job processing
 6. If minute < 5: run cleanup tasks
-7. Log summary stats
+7. Run platform sync checks → enqueue to Worker
+8. Write per-user heartbeat to activity_log
+9. Log summary stats
 
 **Environment variables:**
 ```
@@ -162,6 +173,12 @@ SUPABASE_URL
 SUPABASE_SERVICE_ROLE_KEY
 REDIS_URL
 RESEND_API_KEY
+INTEGRATION_ENCRYPTION_KEY          # Same as Worker — needed for token checks
+GOOGLE_CLIENT_ID
+GOOGLE_CLIENT_SECRET
+NOTION_CLIENT_ID
+NOTION_CLIENT_SECRET
+MCP_GATEWAY_URL
 ```
 
 ---
@@ -209,6 +226,26 @@ GOOGLE_CLIENT_SECRET
 - No caching or session storage currently
 
 **Connection:** Via `REDIS_URL` environment variable
+
+## Environment Variable Parity
+
+**Critical**: API, Worker, and Scheduler must share integration-related env vars. The API handles OAuth and stores encrypted tokens; the Worker decrypts and uses them for sync.
+
+| Env Var | API | Worker | Scheduler | MCP Gateway |
+|---------|-----|--------|-----------|-------------|
+| `SUPABASE_URL` | Yes | Yes | Yes | No |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Yes | Yes | No |
+| `ANTHROPIC_API_KEY` | Yes | Yes | No | No |
+| `INTEGRATION_ENCRYPTION_KEY` | Yes | Yes | Yes | No |
+| `GOOGLE_CLIENT_ID/SECRET` | Yes | Yes | Yes | No |
+| `NOTION_CLIENT_ID/SECRET` | Yes | Yes | Yes | No |
+| `MCP_GATEWAY_URL` | Yes | Yes | Yes | No |
+| `REDIS_URL` | Yes | Yes | Yes | No |
+| `RESEND_API_KEY` | Yes | No | Yes | No |
+
+Use Render MCP tools to audit env vars across services when debugging sync failures.
+
+---
 
 ## Deployment
 

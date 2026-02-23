@@ -2,14 +2,15 @@
 
 **The source of truth for YARNNN development.**
 
-## Current Architecture (as of 2026-02-13)
+## Current Architecture (as of 2026-02-23)
 
 > **Active ADRs:**
-> - [ADR-058: Knowledge Base Architecture](adr/ADR-058-knowledge-base-architecture.md) — Two-layer context model (Filesystem + Knowledge)
-> - [ADR-036: Two-Layer Architecture](adr/ADR-036-two-layer-architecture.md) — Foundational framework (Interaction + Infrastructure)
-> - [ADR-037: Chat-First Surface Architecture](adr/ADR-037-chat-first-surface-architecture.md) — Frontend manifestation (Chat = Home)
+> - [ADR-072: Unified Content Layer](adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — `platform_content` with retention-based accumulation
+> - [ADR-073: Unified Fetch Architecture](adr/ADR-073-unified-fetch-architecture.md) — Single fetch path, all consumers read from `platform_content`
+> - [ADR-063: Four-Layer Model](adr/ADR-063-activity-log-four-layer-model.md) — Memory / Activity / Context / Work
+> - [ADR-064: Unified Memory Service](adr/ADR-064-unified-memory-service.md) — Implicit memory, nightly extraction
 >
-> The system follows a **Two-Layer Architecture**: Chat-first interaction layer backed by structured infrastructure. Context is organized as **Filesystem** (raw synced data) + **Knowledge** (inferred narrative), with Working Memory injected into TP's prompt.
+> The system follows a **Four-Layer Model**: Memory (`user_context`), Activity (`activity_log`), Context (`platform_content`), and Work (`deliverable_versions`). Platform content flows through a single fetch path (sync worker only) and accumulates based on significance.
 
 ## Quick Links
 
@@ -17,12 +18,12 @@
 |----------|---------|
 | [ESSENCE.md](ESSENCE.md) | Core product spec - domain model, agents, data flow |
 | [architecture/primitives.md](architecture/primitives.md) | **Canonical** — Universal TP primitives specification |
-| [ADR-058](adr/ADR-058-knowledge-base-architecture.md) | **Current** — Knowledge Base Architecture (Filesystem + Knowledge) |
-| [ADR-036](adr/ADR-036-two-layer-architecture.md) | **Current** — Two-Layer Architecture framework |
-| [ADR-037](adr/ADR-037-chat-first-surface-architecture.md) | **Current** — Chat-First Surface Architecture |
+| [ADR-072](adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) | **Current** — Unified Content Layer (`platform_content`) |
+| [ADR-073](adr/ADR-073-unified-fetch-architecture.md) | **Current** — Unified Fetch Architecture |
+| [ADR-063](adr/ADR-063-activity-log-four-layer-model.md) | **Current** — Four-Layer Model |
+| [integrations/RENDER-SERVICES.md](integrations/RENDER-SERVICES.md) | Render service infrastructure + env var parity |
+| [integrations/PLATFORM-INTEGRATIONS.md](integrations/PLATFORM-INTEGRATIONS.md) | Platform sync pipeline + per-platform specs |
 | [database/ACCESS.md](database/ACCESS.md) | Database connection strings and credentials |
-| [development/SETUP.md](development/SETUP.md) | Local development setup |
-| [testing/TESTING-ENVIRONMENT.md](testing/TESTING-ENVIRONMENT.md) | Testing patterns and environment |
 | [adr/](adr/) | Architecture Decision Records |
 
 ## Folder Structure
@@ -89,11 +90,11 @@ See [adr/README.md](adr/README.md) for template.
 | Component | Status | Doc |
 |-----------|--------|-----|
 | Domain Model | Defined | [ESSENCE.md](ESSENCE.md) |
-| Database Schema | ADR-058 schema (Filesystem + Knowledge tables) | [database/](database/) |
-| Context System | Filesystem + Knowledge + Working Memory | [ADR-058](adr/ADR-058-knowledge-base-architecture.md) |
-| API Routes | Complete (integrations, context, deliverables, chat) | - |
-| Agents | ThinkingPartner, Synthesizer, Deliverable, Report | - |
-| Frontend | Chat-first with surfaces, Context page | - |
+| Context System | `platform_content` with retention (ADR-072) | [features/context.md](features/context.md) |
+| Sync Pipeline | Single fetch path, Worker + Scheduler (ADR-073) | [integrations/PLATFORM-INTEGRATIONS.md](integrations/PLATFORM-INTEGRATIONS.md) |
+| Memory | Implicit, nightly extraction (ADR-064) | [features/memory.md](features/memory.md) |
+| Infrastructure | 4 Render services (API, Worker, Scheduler, MCP Gateway) | [integrations/RENDER-SERVICES.md](integrations/RENDER-SERVICES.md) |
+| Frontend | Chat-first, Context page, System admin page | - |
 
 ## Related Repos (Reference Only)
 
