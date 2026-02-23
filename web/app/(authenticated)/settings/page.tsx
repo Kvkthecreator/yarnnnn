@@ -138,15 +138,6 @@ export default function SettingsPage() {
   // Import modal state (ADR-027, ADR-029, ADR-046)
   const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | "google" | "calendar" | null>(null);
 
-  // Signal processing state (ADR-068)
-  const [isTriggeringSignals, setIsTriggeringSignals] = useState(false);
-  const [signalTriggerResult, setSignalTriggerResult] = useState<{
-    status: string;
-    message?: string;
-    deliverables_created?: number;
-    existing_triggered?: number;
-  } | null>(null);
-
   // Usage metrics state
   const [usageMetrics, setUsageMetrics] = useState<{
     deliverables: number;
@@ -292,34 +283,6 @@ export default function SettingsPage() {
       console.error(`Failed to disconnect ${provider}:`, err);
     } finally {
       setDisconnectingProvider(null);
-    }
-  };
-
-  const handleTriggerSignalProcessing = async () => {
-    setIsTriggeringSignals(true);
-    setSignalTriggerResult(null);
-
-    try {
-      const result = await api.signalProcessing.trigger("all");
-      setSignalTriggerResult({
-        status: result.status,
-        message: result.message,
-        deliverables_created: result.deliverables_created,
-        existing_triggered: result.existing_triggered,
-      });
-
-      // Auto-dismiss success message after 5 seconds
-      if (result.status === "completed") {
-        setTimeout(() => setSignalTriggerResult(null), 5000);
-      }
-    } catch (err) {
-      console.error("Failed to trigger signal processing:", err);
-      setSignalTriggerResult({
-        status: "error",
-        message: err instanceof Error ? err.message : "Failed to scan for signals",
-      });
-    } finally {
-      setIsTriggeringSignals(false);
     }
   };
 
@@ -1130,67 +1093,6 @@ export default function SettingsPage() {
                   </div>
                 );
               })()}
-
-              {/* Signal Processing Trigger (ADR-068) - For all connected integrations */}
-              {integrations.length > 0 && (
-                <div className="p-4 border border-border rounded-lg bg-gradient-to-br from-primary/5 to-primary/10">
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-primary/10 rounded-lg flex items-center justify-center shrink-0">
-                      <Sparkles className="w-5 h-5 text-primary" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-4 mb-2">
-                        <span className="font-medium">Proactive Signal Detection</span>
-                        <button
-                          onClick={handleTriggerSignalProcessing}
-                          disabled={isTriggeringSignals}
-                          className="px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 whitespace-nowrap shrink-0"
-                        >
-                          {isTriggeringSignals ? (
-                            <>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                              Scanning...
-                            </>
-                          ) : (
-                            <>
-                              <Sparkles className="w-4 h-4" />
-                              Scan Now
-                            </>
-                          )}
-                        </button>
-                      </div>
-                      <p className="text-sm text-muted-foreground">
-                        Scan your connected platforms for behavioral signals: upcoming meetings (Calendar), silent threads (Gmail), quiet channels (Slack), and stale pages (Notion). Creates deliverables automatically.
-                      </p>
-
-                      {/* Result notification */}
-                      {signalTriggerResult && (
-                        <div className={`mt-3 p-3 rounded-md text-sm ${
-                          signalTriggerResult.status === "completed"
-                            ? "bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-800"
-                            : signalTriggerResult.status === "rate_limited"
-                            ? "bg-yellow-50 dark:bg-yellow-900/20 text-yellow-800 dark:text-yellow-200 border border-yellow-200 dark:border-yellow-800"
-                            : signalTriggerResult.status === "no_platforms"
-                            ? "bg-blue-50 dark:bg-blue-900/20 text-blue-800 dark:text-blue-200 border border-blue-200 dark:border-blue-800"
-                            : "bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-200 border border-red-200 dark:border-red-800"
-                        }`}>
-                          <div className="flex items-center justify-between">
-                            <span>{signalTriggerResult.message}</span>
-                            {signalTriggerResult.status !== "rate_limited" && (
-                              <button
-                                onClick={() => setSignalTriggerResult(null)}
-                                className="ml-2 p-1 hover:opacity-70"
-                              >
-                                <X className="w-4 h-4" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* Info note */}
               <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">

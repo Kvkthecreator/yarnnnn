@@ -32,6 +32,7 @@ import {
   Database,
   Repeat,
   Gauge,
+  Play,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -199,6 +200,18 @@ export default function SystemPage() {
   const [syncFrequency, setSyncFrequency] = useState('2x_daily');
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
 
+  // Pipeline action state
+  const [pipelineRunning, setPipelineRunning] = useState(false);
+  const [pipelineStep, setPipelineStep] = useState<'idle' | 'syncing' | 'processing' | 'complete'>('idle');
+  const [pipelineResult, setPipelineResult] = useState<{
+    synced_platforms: string[];
+    signals_detected: number;
+    deliverables_created: number;
+    existing_triggered: number;
+    message: string;
+  } | null>(null);
+  const [pipelineError, setPipelineError] = useState<string | null>(null);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -251,6 +264,115 @@ export default function SystemPage() {
       }
     } catch {
       return null;
+    }
+  };
+
+  const hasConnectedPlatforms = platformSync.some((p) => p.connected);
+
+  const handleRunPipeline = async () => {
+    setPipelineRunning(true);
+    setPipelineStep('syncing');
+    setPipelineResult(null);
+    setPipelineError(null);
+
+    try {
+      // Step 1: Sync all connected platforms
+      const syncProviders = Array.from(new Set(
+        platformSync
+          .filter((p) => p.connected)
+          .map((p) => (p.platform === 'gmail' || p.platform === 'calendar') ? 'google' : p.platform)
+      ));
+
+      const syncResults = await Promise.allSettled(
+        syncProviders.map((provider) => api.integrations.syncPlatform(provider))
+      );
+
+      const syncedPlatforms = syncProviders.filter(
+        (_, i) => syncResults[i].status === 'fulfilled'
+      );
+
+      // Step 2: Process signals
+      setPipelineStep('processing');
+      const signalResult = await api.signalProcessing.trigger('all');
+
+      setPipelineStep('complete');
+      setPipelineResult({
+        synced_platforms: syncedPlatforms,
+        signals_detected: signalResult.signals_detected,
+        deliverables_created: signalResult.deliverables_created,
+        existing_triggered: signalResult.existing_triggered,
+        message: signalResult.message || 'Pipeline complete',
+      });
+
+      // Auto-refresh system status to reflect new data
+      await loadData();
+    } catch (err) {
+      setPipelineError(err instanceof Error ? err.message : 'Pipeline failed');
+      setPipelineStep('idle');
+    } finally {
+      setPipelineRunning(false);
+    }
+  };
+
+  const handleSyncOnly = async () => {
+    setPipelineRunning(true);
+    setPipelineStep('syncing');
+    setPipelineResult(null);
+    setPipelineError(null);
+
+    try {
+      const syncProviders = Array.from(new Set(
+        platformSync
+          .filter((p) => p.connected)
+          .map((p) => (p.platform === 'gmail' || p.platform === 'calendar') ? 'google' : p.platform)
+      ));
+
+      await Promise.allSettled(
+        syncProviders.map((provider) => api.integrations.syncPlatform(provider))
+      );
+
+      setPipelineStep('complete');
+      setPipelineResult({
+        synced_platforms: syncProviders,
+        signals_detected: 0,
+        deliverables_created: 0,
+        existing_triggered: 0,
+        message: `Synced ${syncProviders.length} platform(s)`,
+      });
+
+      await loadData();
+    } catch (err) {
+      setPipelineError(err instanceof Error ? err.message : 'Sync failed');
+      setPipelineStep('idle');
+    } finally {
+      setPipelineRunning(false);
+    }
+  };
+
+  const handleSignalsOnly = async () => {
+    setPipelineRunning(true);
+    setPipelineStep('processing');
+    setPipelineResult(null);
+    setPipelineError(null);
+
+    try {
+      const signalResult = await api.signalProcessing.trigger('all');
+
+      setPipelineStep('complete');
+      setPipelineResult({
+        synced_platforms: [],
+        signals_detected: signalResult.signals_detected,
+        deliverables_created: signalResult.deliverables_created,
+        existing_triggered: signalResult.existing_triggered,
+        message: signalResult.message || 'Signal processing complete',
+      });
+
+      await loadData();
+    } catch (err) {
+      setPipelineError(err instanceof Error ? err.message : 'Signal processing failed');
+      setPipelineStep('idle');
+    } finally {
+      setPipelineRunning(false);
     }
   };
 
@@ -410,6 +532,117 @@ export default function SystemPage() {
                 })}
               </div>
             </section>
+
+            {/* Pipeline Actions */}
+            {hasConnectedPlatforms && (
+              <section>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold">Pipeline Actions</h2>
+                </div>
+
+                <div className="border border-border rounded-lg p-4 space-y-4">
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={handleRunPipeline}
+                      disabled={pipelineRunning}
+                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {pipelineRunning ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Play className="w-4 h-4" />
+                      )}
+                      Run Pipeline
+                    </button>
+                    <button
+                      onClick={handleSyncOnly}
+                      disabled={pipelineRunning}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Sync Only
+                    </button>
+                    <button
+                      onClick={handleSignalsOnly}
+                      disabled={pipelineRunning}
+                      className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      Signals Only
+                    </button>
+                  </div>
+
+                  {/* Step indicator */}
+                  {pipelineRunning && (
+                    <div className="flex items-center gap-2 text-sm">
+                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                      <span className="text-muted-foreground">
+                        {pipelineStep === 'syncing' && 'Syncing platforms...'}
+                        {pipelineStep === 'processing' && 'Processing signals...'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Result */}
+                  {pipelineResult && !pipelineRunning && (
+                    <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 text-sm">
+                      <div className="flex items-start justify-between">
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5 text-green-800 dark:text-green-200 font-medium">
+                            <CheckCircle2 className="w-4 h-4" />
+                            Pipeline Complete
+                          </div>
+                          <p className="text-green-700 dark:text-green-300">{pipelineResult.message}</p>
+                          <div className="flex gap-4 text-xs text-green-600 dark:text-green-400">
+                            {pipelineResult.synced_platforms.length > 0 && (
+                              <span>{pipelineResult.synced_platforms.length} platform(s) synced</span>
+                            )}
+                            {pipelineResult.signals_detected > 0 && (
+                              <span>{pipelineResult.signals_detected} signals scanned</span>
+                            )}
+                            {pipelineResult.deliverables_created > 0 && (
+                              <span>{pipelineResult.deliverables_created} deliverable(s) created</span>
+                            )}
+                            {pipelineResult.existing_triggered > 0 && (
+                              <span>{pipelineResult.existing_triggered} existing triggered</span>
+                            )}
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setPipelineResult(null)}
+                          className="p-1 hover:opacity-70 text-green-600 dark:text-green-400"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Error */}
+                  {pipelineError && !pipelineRunning && (
+                    <div className="rounded-md bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 p-3 text-sm">
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center gap-1.5 text-red-800 dark:text-red-200">
+                          <XCircle className="w-4 h-4" />
+                          <span>{pipelineError}</span>
+                        </div>
+                        <button
+                          onClick={() => setPipelineError(null)}
+                          className="p-1 hover:opacity-70 text-red-600 dark:text-red-400"
+                        >
+                          <XCircle className="w-4 h-4" />
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  <p className="text-xs text-muted-foreground">
+                    Run Pipeline syncs all connected platforms then processes signals. Signal processing has a 5-minute cooldown.
+                  </p>
+                </div>
+              </section>
+            )}
 
             {/* Background Jobs */}
             <section>
