@@ -1555,7 +1555,7 @@ async def update_deliverable(
         raise HTTPException(status_code=404, detail="Deliverable not found")
 
     # Build update data
-    update_data = {"updated_at": datetime.utcnow().isoformat()}
+    update_data = {"updated_at": datetime.now(timezone.utc).isoformat()}
 
     if request.title is not None:
         update_data["title"] = request.title
@@ -1644,7 +1644,7 @@ async def archive_deliverable(
     """
     result = (
         auth.client.table("deliverables")
-        .update({"status": "archived", "updated_at": datetime.utcnow().isoformat()})
+        .update({"status": "archived", "updated_at": datetime.now(timezone.utc).isoformat()})
         .eq("id", str(deliverable_id))
         .eq("user_id", auth.user_id)
         .execute()
@@ -1995,7 +1995,7 @@ async def update_version(
     if request.status is not None:
         update_data["status"] = request.status
         if request.status == "approved":
-            update_data["approved_at"] = datetime.utcnow().isoformat()
+            update_data["approved_at"] = datetime.now(timezone.utc).isoformat()
 
     if request.final_content is not None:
         update_data["final_content"] = request.final_content
@@ -2441,7 +2441,7 @@ def calculate_next_run(schedule: ScheduleConfig) -> str:
     from datetime import timedelta
     import pytz
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     tz = pytz.timezone(schedule.timezone) if schedule.timezone else pytz.UTC
 
     # Simple frequency-based calculation

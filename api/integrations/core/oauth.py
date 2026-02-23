@@ -369,7 +369,7 @@ async def exchange_code_for_token(
 
             # Calculate token expiry
             expires_in = data.get("expires_in", 3600)
-            expires_at = datetime.utcnow() + timedelta(seconds=expires_in)
+            expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
 
             # ADR-046: Determine capabilities from granted scopes
             granted_scope = data.get("scope", "")
