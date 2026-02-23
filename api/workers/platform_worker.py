@@ -268,23 +268,26 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                 if msg_ts and (not latest_ts or msg_ts > latest_ts):
                     latest_ts = msg_ts
 
-                await _store_platform_content(
-                    client=client,
-                    user_id=user_id,
-                    source_type="slack",
-                    resource_id=channel_id,
-                    resource_name=f"#{channel_name}",
-                    item_id=msg_ts,
-                    content=msg.get("text", ""),
-                    content_type="message",
-                    metadata={
-                        "user": msg.get("user"),
-                        "ts": msg_ts,
-                        "reactions": msg.get("reactions", []),
-                    },
-                    source_timestamp=msg_ts,
-                )
-                items_synced += 1
+                try:
+                    await _store_platform_content(
+                        client=client,
+                        user_id=user_id,
+                        source_type="slack",
+                        resource_id=channel_id,
+                        resource_name=f"#{channel_name}",
+                        item_id=msg_ts,
+                        content=msg.get("text", ""),
+                        content_type="message",
+                        metadata={
+                            "user": msg.get("user"),
+                            "ts": msg_ts,
+                            "reactions": msg.get("reactions", []),
+                        },
+                        source_timestamp=msg_ts,
+                    )
+                    items_synced += 1
+                except Exception:
+                    pass  # Already logged in _store_platform_content
 
             # ADR-073: Update sync cursor with latest message ts
             await update_sync_registry(
@@ -422,7 +425,7 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                         label_items += 1
 
                     except Exception as e:
-                        logger.warning(f"[PLATFORM_WORKER] Failed to fetch Gmail message {msg_id}: {e}")
+                        logger.warning(f"[PLATFORM_WORKER] Failed to fetch/store Gmail message {msg_id}: {e}")
 
                 # ADR-073: Update sync cursor with today's date
                 now = datetime.now(timezone.utc)
@@ -767,6 +770,19 @@ async def _store_platform_content(
     expires_at = now + timedelta(hours=ttl_hours)
     content_hash = hashlib.sha256(content.encode('utf-8')).hexdigest()
 
+    # Convert Unix epoch timestamps (e.g. Slack ts "1771827176.313839") to ISO 8601
+    iso_timestamp = None
+    if source_timestamp:
+        try:
+            # Check if it looks like a Unix epoch (all digits and dots)
+            float_val = float(source_timestamp)
+            if float_val > 1_000_000_000:  # Clearly a Unix epoch
+                iso_timestamp = datetime.fromtimestamp(float_val, tz=timezone.utc).isoformat()
+            else:
+                iso_timestamp = source_timestamp
+        except (ValueError, TypeError, OSError):
+            iso_timestamp = source_timestamp  # Pass through as-is (RFC dates, ISO dates)
+
     try:
         client.table("platform_content").upsert({
             "user_id": user_id,
@@ -778,7 +794,7 @@ async def _store_platform_content(
             "content_type": content_type,
             "content_hash": content_hash,
             "metadata": metadata,
-            "source_timestamp": source_timestamp,
+            "source_timestamp": iso_timestamp,
             "fetched_at": now.isoformat(),
             "retained": False,
             "expires_at": expires_at.isoformat(),
@@ -786,6 +802,7 @@ async def _store_platform_content(
 
     except Exception as e:
         logger.warning(f"[PLATFORM_WORKER] Failed to store content: {e}")
+        raise  # Re-raise so callers can track failures
 
 
 # For direct execution (development/testing)

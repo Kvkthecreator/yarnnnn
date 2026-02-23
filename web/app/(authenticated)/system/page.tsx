@@ -304,8 +304,8 @@ export default function SystemPage() {
         message: signalResult.message || 'Pipeline complete',
       });
 
-      // Auto-refresh system status to reflect new data
-      await loadData();
+      // Refresh after worker has time to complete (sync is async via RQ)
+      await delayedRefresh();
     } catch (err) {
       setPipelineError(err instanceof Error ? err.message : 'Pipeline failed');
       setPipelineStep('idle');
@@ -340,7 +340,7 @@ export default function SystemPage() {
         message: `Synced ${syncProviders.length} platform(s)`,
       });
 
-      await loadData();
+      await delayedRefresh();
     } catch (err) {
       setPipelineError(err instanceof Error ? err.message : 'Sync failed');
       setPipelineStep('idle');
@@ -367,13 +367,22 @@ export default function SystemPage() {
         message: signalResult.message || 'Signal processing complete',
       });
 
+      // Signal processing is synchronous — refresh immediately then again after delay
       await loadData();
+      setTimeout(() => loadData(), 5000);
     } catch (err) {
       setPipelineError(err instanceof Error ? err.message : 'Signal processing failed');
       setPipelineStep('idle');
     } finally {
       setPipelineRunning(false);
     }
+  };
+
+  // Sync triggers are async (RQ worker) — wait before refreshing, then poll once more
+  const delayedRefresh = async () => {
+    await new Promise((r) => setTimeout(r, 5000));
+    await loadData();
+    setTimeout(() => loadData(), 10000);
   };
 
   return (
