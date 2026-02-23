@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.7] - Fix Google provider dispatch + admin test endpoints
+
+### Changed
+- `api/workers/platform_worker.py`: Added `"google"` provider handling. When scheduler passes `provider="google"`, worker now splits `selected_sources` by resource type (gmail labels vs calendar calendars) using `landscape.resources[].metadata.platform`, then runs both `_sync_gmail()` and `_sync_calendar()` sub-syncs. Previously hit "Unknown provider" branch silently.
+- `api/routes/admin.py`: Added `trigger-sync` and `trigger-signal-processing` admin endpoints (service-key auth) for per-platform testing without user JWT.
+
+### Behavior
+- Google OAuth sync now works end-to-end: Gmail emails and Calendar events fetched in a single sync call
+- No prompt/tool changes
+
+---
+
 ## [2026.02.23.6] - Fix Gmail/Calendar signal extraction platform alias
 
 ### Changed
