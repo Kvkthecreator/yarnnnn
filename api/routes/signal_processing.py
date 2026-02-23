@@ -145,10 +145,12 @@ async def trigger_signal_processing(
 
         if not signal_summary.has_signals:
             # Log even when no signals found so system page shows last run
+            # Use service client — activity_log RLS blocks user-scoped inserts
             try:
                 from services.activity_log import write_activity as _write
+                from services.supabase import get_service_client
                 await _write(
-                    client=supabase,
+                    client=get_service_client(),
                     user_id=user_id,
                     event_type="signal_processed",
                     summary=f"Signal processing: scanned {len(connections_result.data)} platform(s), 0 items in window",

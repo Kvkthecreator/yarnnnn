@@ -256,9 +256,11 @@ async def _write_signal_processed_event(
     else:
         summary = "Signal processing: no actions taken"
 
+    # Use service client — activity_log RLS blocks user-scoped inserts
     try:
+        from services.supabase import get_service_client
         await write_activity(
-            client=client,
+            client=get_service_client(),
             user_id=user_id,
             event_type="signal_processed",
             summary=summary,
