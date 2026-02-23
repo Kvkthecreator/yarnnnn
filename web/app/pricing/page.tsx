@@ -8,7 +8,7 @@ import { Check, X } from "lucide-react";
 
 export const metadata: Metadata = {
   title: "Pricing",
-  description: "Simple pricing for yarnnn. Free to start. Pro when you need more. All the features that matter, no hidden costs.",
+  description: "Simple pricing for yarnnn. Free to start, autonomous from day one. Pro when you need more deliverables.",
 };
 
 interface PricingFeature {
@@ -18,13 +18,13 @@ interface PricingFeature {
 }
 
 const features: PricingFeature[] = [
-  { name: "Deliverables", free: "1", pro: "Unlimited" },
-  { name: "Tool connections", free: "Unlimited", pro: "Unlimited" },
+  { name: "Autonomous deliverables", free: "1", pro: "Unlimited" },
+  { name: "Platform connections", free: "Unlimited", pro: "Unlimited" },
   { name: "Versions per deliverable", free: "Unlimited", pro: "Unlimited" },
-  { name: "Scheduled drafts", free: true, pro: true },
-  { name: "Fresh context each time", free: true, pro: true },
+  { name: "Scheduled autonomous output", free: true, pro: true },
+  { name: "Context accumulation", free: true, pro: true },
   { name: "Learning from your edits", free: true, pro: true },
-  { name: "Refinement chat", free: "10/month", pro: "Unlimited" },
+  { name: "TP conversation", free: "10/month", pro: "Unlimited" },
   { name: "Priority support", free: false, pro: true },
 ];
 
@@ -56,7 +56,7 @@ export default function PricingPage() {
                 Simple pricing
               </h1>
               <p className="text-white/50 text-lg max-w-md mx-auto">
-                Start free. Upgrade when you need more deliverables.
+                Autonomous from day one. Upgrade when you need more.
                 No surprises.
               </p>
             </div>
@@ -68,7 +68,7 @@ export default function PricingPage() {
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Free</h2>
                   <p className="text-white/50 text-sm mb-6">
-                    Everything you need to try it out
+                    Full autonomy, one deliverable
                   </p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$0</span>
@@ -79,19 +79,19 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>1 deliverable</span>
+                    <span>1 autonomous deliverable</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Connect all your tools</span>
+                    <span>Connect all your platforms</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited versions</span>
+                    <span>Context accumulates from day one</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Scheduled drafts</span>
+                    <span>Scheduled autonomous output</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -122,7 +122,7 @@ export default function PricingPage() {
                 <div className="mb-8">
                   <h2 className="text-2xl font-medium mb-2">Pro</h2>
                   <p className="text-white/50 text-sm mb-6">
-                    For people with multiple recurring things to send
+                    Full autonomous AI across all your recurring work
                   </p>
                   <div className="flex items-baseline gap-1">
                     <span className="text-4xl font-medium">$19</span>
@@ -133,11 +133,11 @@ export default function PricingPage() {
                 <ul className="space-y-3 flex-1 mb-8">
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited deliverables</span>
+                    <span>Unlimited autonomous deliverables</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Connect all your tools</span>
+                    <span>Connect all your platforms</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -145,7 +145,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Scheduled drafts</span>
+                    <span>Scheduled autonomous output</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -153,7 +153,7 @@ export default function PricingPage() {
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>Unlimited refinement chat</span>
+                    <span>Unlimited TP conversation</span>
                   </li>
                   <li className="flex items-center gap-3 text-sm">
                     <Check className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -221,21 +221,21 @@ export default function PricingPage() {
             {/* Value Prop */}
             <div className="text-center mt-16 mb-8">
               <p className="text-white/70 text-lg mb-2">
-                Less time writing updates. More time on the work that matters.
+                AI that works for you—not just with you.
               </p>
               <p className="text-white/40 text-sm">
-                Same price as ChatGPT Plus—but yarnnn actually learns what you like
-                and writes your recurring stuff for you.
+                Same price as ChatGPT Plus—but yarnnn actually accumulates your context,
+                works autonomously, and gets smarter the longer you use it.
               </p>
             </div>
 
-            {/* Why Unlimited Tools */}
+            {/* Why Unlimited Platforms */}
             <div className="border border-white/10 rounded-xl p-6 text-center mb-8">
-              <h4 className="text-white/70 font-medium mb-2">Why are tool connections free for everyone?</h4>
+              <h4 className="text-white/70 font-medium mb-2">Why are platform connections free for everyone?</h4>
               <p className="text-white/40 text-sm max-w-lg mx-auto">
-                The more tools you connect, the better yarnnn works. We don&apos;t want
-                pricing to get in the way of that. Connect Slack, Gmail, Notion—whatever
-                you use. It&apos;s all included.
+                The more platforms you connect, the deeper yarnnn&apos;s context becomes.
+                More context means better autonomy. We don&apos;t want pricing to get in the way of that.
+                Connect everything. It&apos;s all included.
               </p>
             </div>
 
