@@ -23,6 +23,7 @@ ADR-073: Sync Tokens (Incremental Sync)
 """
 
 import asyncio
+import base64
 import logging
 import os
 from datetime import datetime, timezone
@@ -347,6 +348,44 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
         await manager.close_all()
 
 
+def _extract_gmail_body(payload: dict) -> str:
+    """Extract plain text body from Gmail message payload.
+
+    Gmail messages can be:
+    - Simple: body.data directly on payload
+    - Multipart: parts[] with different mimeTypes
+    - Nested multipart: parts containing parts (multipart/alternative inside multipart/mixed)
+    """
+    def _decode_body(data: str) -> str:
+        try:
+            return base64.urlsafe_b64decode(data).decode("utf-8", errors="replace")
+        except Exception:
+            return ""
+
+    def _find_text_parts(part: dict) -> list[str]:
+        mime = part.get("mimeType", "")
+        body_data = part.get("body", {}).get("data")
+        parts = part.get("parts", [])
+
+        if mime == "text/plain" and body_data:
+            return [_decode_body(body_data)]
+        if mime == "text/html" and body_data and not parts:
+            # HTML fallback — strip tags for plain text
+            import re
+            html = _decode_body(body_data)
+            text = re.sub(r"<[^>]+>", " ", html)
+            text = re.sub(r"\s+", " ", text).strip()
+            return [text]
+        # Recurse into sub-parts
+        results = []
+        for sub in parts:
+            results.extend(_find_text_parts(sub))
+        return results
+
+    texts = _find_text_parts(payload)
+    return "\n".join(texts)[:10000] if texts else ""
+
+
 async def _sync_gmail(client, user_id: str, integration: dict, selected_sources: list[str]) -> dict:
     """
     Sync Gmail messages.
@@ -439,6 +478,11 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                         sender = headers.get("from", "")
                         date_str = headers.get("date", "")
 
+                        # Extract body text from payload
+                        body_text = _extract_gmail_body(full_msg.get("payload", {}))
+                        # Fall back to snippet if body extraction fails
+                        content = body_text or full_msg.get("snippet", "")
+
                         await _store_platform_content(
                             client=client,
                             user_id=user_id,
@@ -446,13 +490,17 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                             resource_id=resource_id,  # ADR-055: Use label: prefix
                             resource_name=subject,
                             item_id=msg_id,
-                            content=full_msg.get("snippet", ""),
+                            content=content,
+                            title=subject,
+                            author=sender,
                             content_type="email",
                             metadata={
                                 "message_id": msg_id,
+                                "subject": subject,
                                 "from": sender,
                                 "label_id": label_id,
                                 "labels": full_msg.get("labelIds", []),
+                                "thread_id": full_msg.get("threadId"),
                             },
                             source_timestamp=date_str,
                         )
@@ -778,6 +826,8 @@ async def _store_platform_content(
     content_type: str,
     metadata: dict,
     source_timestamp: Optional[str] = None,
+    title: Optional[str] = None,
+    author: Optional[str] = None,
 ) -> None:
     """Store item in platform_content table with TTL (ADR-072).
 
@@ -818,22 +868,30 @@ async def _store_platform_content(
         except (ValueError, TypeError, OSError):
             iso_timestamp = source_timestamp  # Pass through as-is (RFC dates, ISO dates)
 
+    row = {
+        "user_id": user_id,
+        "platform": source_type,
+        "resource_id": resource_id,
+        "resource_name": resource_name,
+        "item_id": item_id,
+        "content": content[:10000],
+        "content_type": content_type,
+        "content_hash": content_hash,
+        "metadata": metadata,
+        "source_timestamp": iso_timestamp,
+        "fetched_at": now.isoformat(),
+        "retained": False,
+        "expires_at": expires_at.isoformat(),
+    }
+    if title:
+        row["title"] = title
+    if author:
+        row["author"] = author
+
     try:
-        client.table("platform_content").upsert({
-            "user_id": user_id,
-            "platform": source_type,
-            "resource_id": resource_id,
-            "resource_name": resource_name,
-            "item_id": item_id,
-            "content": content[:10000],
-            "content_type": content_type,
-            "content_hash": content_hash,
-            "metadata": metadata,
-            "source_timestamp": iso_timestamp,
-            "fetched_at": now.isoformat(),
-            "retained": False,
-            "expires_at": expires_at.isoformat(),
-        }, on_conflict="user_id,platform,resource_id,item_id,content_hash").execute()
+        client.table("platform_content").upsert(
+            row, on_conflict="user_id,platform,resource_id,item_id,content_hash"
+        ).execute()
 
     except Exception as e:
         logger.warning(f"[PLATFORM_WORKER] Failed to store content: {e}")

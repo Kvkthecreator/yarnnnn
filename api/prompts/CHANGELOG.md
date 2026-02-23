@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.8] - Fix Gmail content extraction (full body, title, author)
+
+### Changed
+- `api/workers/platform_worker.py`: Added `_extract_gmail_body()` that decodes base64 Gmail payloads (simple, multipart, nested multipart) to extract full plain text. Falls back to HTML→text stripping, then to snippet. Previously only stored `snippet` (~200 chars). Also populates `title` (subject), `author` (sender), and adds `subject`/`thread_id` to metadata.
+- `api/workers/platform_worker.py`: `_store_platform_content()` now accepts and writes `title` and `author` params to `platform_content` table.
+
+### Behavior
+- Gmail emails now store full body text (up to 10k chars) instead of 200-char snippets
+- Signal processing gets richer email content for triage
+- No prompt/tool changes
+
+---
+
 ## [2026.02.23.7] - Fix Google provider dispatch + admin test endpoints
 
 ### Changed
