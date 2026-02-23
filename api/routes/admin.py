@@ -1242,14 +1242,14 @@ async def admin_trigger_signal_processing(
         raise HTTPException(status_code=500, detail="Missing Supabase credentials")
 
     from supabase import create_client
-    from services.signal_extraction import extract_signals
-    from services.signal_processing import process_signals
+    from services.signal_extraction import extract_signal_summary
+    from services.signal_processing import process_signal
 
     client = create_client(supabase_url, supabase_key)
 
     try:
         # Extract signals from platform_content
-        summary = await extract_signals(client, user_id)
+        summary = await extract_signal_summary(client, user_id)
         extraction_result = {
             "platforms_queried": summary.platforms_queried,
             "total_items": summary.total_items,
@@ -1268,7 +1268,7 @@ async def admin_trigger_signal_processing(
             }
 
         # Process signals (LLM triage)
-        processing_result = await process_signals(client, user_id, summary)
+        processing_result = await process_signal(client, user_id, summary)
 
         return {
             "user_id": user_id,
