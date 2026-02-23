@@ -1,26 +1,51 @@
-# YARNNN Essence v5.1
+# YARNNN Essence v6.0
 
 **Purpose**: Foundation document for fresh implementation
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-02-02 (added supervision model)
+**Updated**: 2026-02-23 (repositioned: context-powered autonomous AI)
 
 ---
 
 ## Core Thesis
 
-YARNNN is a **recurring deliverables platform**. AI produces scheduled work artifacts (reports, updates, briefs) that improve over time through user feedback.
+YARNNN is an **autonomous AI system that works on your behalf** — powered by accumulated context from your real work platforms.
+
+It connects to your tools (Slack, Gmail, Notion, Calendar), accumulates understanding of your work world over time, and uses that context to act autonomously: producing deliverables, surfacing signals, and operating as a thinking partner that already knows your world.
 
 **The value proposition in one sentence:**
-> Your recurring deliverables, produced and improving every cycle. Set up once, refine over time, never start from scratch again.
+> AI that works autonomously on your behalf — and gets smarter the longer you use it, because it accumulates context from your actual work.
 
-**What makes this different from ChatGPT/Claude directly:**
-- Recurring scheduled outputs (not one-off conversations)
-- Accumulated context that makes the 10th delivery better than the 1st
-- Feedback loop: user edits train the system
-- Quality metrics: measurable improvement over time
+**What makes this different from every other AI tool:**
+- **Autonomous output**: Produces work (reports, digests, briefs) on schedule without prompting
+- **Persistent context**: Syncs continuously with your platforms — Slack, Gmail, Notion, Calendar
+- **Accumulated intelligence**: Every sync cycle, every edit, every interaction deepens the system's understanding
+- **Compounding moat**: 90 days of accumulated context is irreplaceable — the system becomes more valuable with tenure
+
+**The insight**: Most AI tools are stateless — they forget everything between sessions. The few that persist data don't act on it autonomously. YARNNN does both: it accumulates context AND uses it to work independently. The accumulated context is what makes the autonomy meaningful rather than generic.
+
+**The ClawdBot connection**: The demand signal that validated this thesis was ClawdBot/OpenClaw — millions of users demonstrated appetite for AI that persists and knows them. YARNNN is the professional evolution: persistence → understanding → autonomous work.
 
 ---
+
+## The Three Pillars of Autonomy
+
+YARNNN's autonomous capability rests on three pillars, each architecturally distinct:
+
+### 1. Thinking Partner (TP) — The Intelligent Interface
+An AI agent with real-time access to your synced platform context. Not a chatbot — a Claude Code-like agent with primitive-based tool use (Search, FetchPlatformContent, CrossPlatformQuery), sub-agent delegation, and web search. The TP already knows your work world before you say a word.
+
+### 2. Deliverables — Autonomous Output
+Scheduled, recurring work artifacts (reports, digests, briefs) produced without user prompting. Deliverables can be user-configured, analyst-suggested, or signal-emergent (triggered automatically when patterns are detected). Each version improves through a feedback loop where user edits become training data.
+
+### 3. Context Accumulation — The Moat
+Continuous platform sync (Slack, Gmail, Notion, Calendar) feeds a unified content layer (`platform_content`) with retention-based accumulation. Content that proves significant is retained indefinitely. Memory extraction distills patterns from conversations, feedback, and activity. The four-layer model (Memory → Activity → Context → Work) creates a compounding intelligence loop.
+
+**The relationship between these pillars:**
+- Context accumulation ENABLES meaningful autonomy (without context, autonomous output is generic)
+- Deliverables are the primary expression of autonomy (push-based, scheduled, improving)
+- TP is how the user supervises and steers the autonomous system
+- Each pillar reinforces the others: more deliverable runs → more learning → better context → smarter TP → better deliverables
 
 ## The Supervision Model
 
@@ -29,17 +54,10 @@ YARNNN embodies a fundamental shift in how users relate to AI-assisted work:
 **From**: User as operator (does the work, AI assists)
 **To**: User as supervisor (AI does the work, user oversees)
 
-This has specific architectural implications:
-
 | Dimension | First-Class Entity | User Relationship |
 |-----------|-------------------|-------------------|
 | **Data/Workflow** | Deliverables | Objects to supervise |
 | **UI/Interaction** | TP (Thinking Partner) | Method of supervision |
-
-- **Deliverables** = what the user supervises (versions, quality, feedback)
-- **TP** = how the user supervises (refinement, delegation, conversation)
-
-Both are first-class in their respective dimensions. Neither is subordinate to the other.
 
 See [Design Principle: Supervision Model](design/DESIGN-PRINCIPLE-supervision-model.md) for full framework.
 
@@ -493,26 +511,26 @@ No screen should require navigation to access TP interaction.
 
 ### MVP is complete when:
 
-1. ✅ User can create recurring deliverable (via wizard or TP)
-2. ✅ System produces deliverable versions on schedule
-3. ✅ User can review staged versions
-4. ✅ User can refine via TP (inline or conversational)
-5. ✅ User edits are captured as feedback
-6. ✅ User can approve/reject versions
-7. ✅ Quality improves over time (edit distance decreases)
-8. ✅ User can export approved deliverables
+1. ✅ User connects at least one platform (Slack, Gmail, Notion, Calendar)
+2. ✅ Platform sync accumulates context continuously
+3. ✅ TP agent has real-time access to synced context via primitives
+4. ✅ User can create recurring deliverables (via wizard or TP)
+5. ✅ System produces deliverable versions on schedule, autonomously
+6. ✅ User can review, refine (via TP), and approve/reject versions
+7. ✅ User edits are captured as feedback → memory extraction
+8. ✅ Quality improves over time (edit distance decreases)
+9. ✅ Context accumulation is visible to user (retention badges, quality trends)
 
-### Core Quality Metric:
-- Edit distance between AI draft and user-approved final
-- Should decrease over successive versions
-- Target: <10% edits by version 4
+### Core Quality Metrics:
+- **Edit distance**: Between AI draft and user-approved final — should decrease over successive versions. Target: <10% edits by version 4.
+- **Context depth**: Volume of retained platform_content records — should grow monotonically with tenure.
+- **Autonomy ratio**: Proportion of deliverables approved without edits — should increase over time.
 
 ### Not MVP:
 - ❌ Automated delivery (email/Slack send)
 - ❌ Team collaboration
 - ❌ Multiple workspaces
 - ❌ Billing/subscriptions
-- ❌ External integrations
 
 ---
 
