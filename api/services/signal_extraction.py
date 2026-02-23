@@ -109,21 +109,26 @@ async def extract_signal_summary(
         ]
         platform_sources[platform] = [sid for sid in source_ids if sid]
 
+    # Google OAuth stores as "google" in platform_connections, but worker writes
+    # platform_content with platform="gmail" and platform="calendar". Check both.
+    has_google = "google" in active_platforms or "gmail" in active_platforms or "calendar" in active_platforms
+    google_sources = platform_sources.get("google", []) or platform_sources.get("gmail", []) or platform_sources.get("calendar", [])
+
     logger.info(f"[SIGNAL] User {user_id} has {len(active_platforms)} active platforms: {active_platforms}")
 
     # Read content from platform_content for each platform based on filter mode
-    if signals_filter in ("all", "calendar_only") and "google" in active_platforms:
+    if signals_filter in ("all", "calendar_only") and has_google:
         summary.calendar_content = await _read_calendar_content(
-            client, user_id, now, platform_sources.get("google", [])
+            client, user_id, now, google_sources
         )
         if summary.calendar_content:
             summary.total_items += summary.calendar_content.items_count
             summary.platforms_queried.append("calendar")
 
     if signals_filter in ("all", "non_calendar"):
-        if "google" in active_platforms:
+        if has_google:
             summary.gmail_content = await _read_gmail_content(
-                client, user_id, now, platform_sources.get("google", [])
+                client, user_id, now, google_sources
             )
             if summary.gmail_content:
                 summary.total_items += summary.gmail_content.items_count

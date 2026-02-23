@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.6] - Fix Gmail/Calendar signal extraction platform alias
+
+### Changed
+- `api/services/signal_extraction.py`: Google OAuth stores `"google"` in `platform_connections.platform`, but worker writes `platform_content` with `platform="gmail"` and `platform="calendar"`. Signal extraction dispatch now checks for any of `"google"`, `"gmail"`, `"calendar"` in `active_platforms` to handle both naming conventions.
+
+### Behavior
+- Gmail and Calendar content now included in signal extraction regardless of whether the platform connection is stored as `"google"`, `"gmail"`, or `"calendar"`
+- No prompt/tool changes
+
+---
+
 ## [2026.02.23.5] - Tier model hardening: token budget, signal gating, sync frequency
 
 ### Changed

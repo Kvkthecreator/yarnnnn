@@ -14,6 +14,34 @@ YARNNN integrates with four external platforms. All platform data flows through 
 | Calendar | google | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
 | Notion | notion | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
 
+## Tier Limits (ADR-053)
+
+| Gate | Free | Starter | Pro |
+|------|------|---------|-----|
+| Platform connections | All 4 | All 4 | All 4 |
+| Sources per platform | 2 | 5 | Unlimited |
+| Sync frequency | 1x/day (8am) | 4x/day | Hourly |
+| Active deliverables | 2 | 5 | Unlimited |
+| Signal processing | Off | On | On |
+| TP daily token budget | 50k | 250k | Unlimited |
+| Calendar source selection | N/A (all calendars) | N/A | N/A |
+
+**Primary cost gates** (ordered by cost impact):
+1. **Signal processing** — Haiku + potential Sonnet spend per user per cycle; off for free tier
+2. **Daily token budget** — TP conversations consume tokens; direct mapping to Anthropic API spend
+3. **Active deliverables** — Each deliverable run consumes Sonnet tokens
+4. **Sources per platform** — More sources = more API calls and storage
+5. **Sync frequency** — More frequent syncs = more API calls
+
+**Enforcement locations**:
+- Source limits: `platform_limits.py` → `check_source_limit()`, `validate_sources_update()`
+- Token budget: `chat.py` → `check_daily_token_budget()` via SQL RPC `get_daily_token_usage()`
+- Signal processing: `unified_scheduler.py` (skip free), `signal_processing.py` route (403)
+- Deliverable limits: `signal_processing.py` service → `check_deliverable_limit()`
+- Sync frequency: `platform_limits.py` → `SYNC_SCHEDULES`, checked in scheduler
+
+---
+
 ## Data Flow Architecture (ADR-073)
 
 ```
@@ -29,7 +57,7 @@ YARNNN integrates with four external platforms. All platform data flows through 
 │                                                                     │
 │ Writes ALL content to platform_content table.                       │
 │ Content starts ephemeral (retained=false, TTL set).                 │
-│ Tier gates: Free=2x/day, Starter=4x/day, Pro=hourly (ADR-053).     │
+│ Tier gates: Free=1x/day, Starter=4x/day, Pro=hourly (ADR-053).     │
 └──────────────────────────┬──────────────────────────────────────────┘
                            │ writes to
                            ▼
@@ -150,7 +178,7 @@ Scopes: calendar.readonly, calendar.events.readonly, calendar.events
 | TTL | 1 day (events are time-sensitive; re-fetched each cycle) |
 | Sync token | Calendar `syncToken` — store per calendar in `sync_registry` |
 
-**Note**: Calendar's short TTL (1 day) means Pro users (hourly sync) see near-real-time event data. Free users (2x/day) may see stale event info. This is an intentional monetization lever.
+**Note**: Calendar's short TTL (1 day) means Pro users (hourly sync) see near-real-time event data. Free users (1x/day) may see stale event info. This is an intentional monetization lever. Calendar source selection is disabled (calendars=-1) — all visible calendars sync.
 
 **TP Tools**:
 - `platform_calendar_list_events` — List upcoming events with time filters
@@ -238,7 +266,7 @@ GoogleAPIClient._token_cache: dict[refresh_token → (access_token, expires_at_m
 
 | Tier | Sync Frequency | Min Interval Between Syncs |
 |------|---------------|---------------------------|
-| Free | 2x daily | 6 hours |
+| Free | 1x daily (8am) | 20 hours |
 | Starter | 4x daily | 4 hours |
 | Pro | Hourly | 45 minutes |
 
