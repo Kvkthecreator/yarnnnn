@@ -4,9 +4,14 @@
 > These are interconnected concerns — fixing one in isolation creates inconsistency elsewhere.
 > Ref: ADR-072 (Unified Content Layer), ADR-056 (Per-Source Sync), ADR-053 (Monetization)
 
-**Status**: Pending (requires Phase 1 completion + design discourse)
-**Prerequisite**: Phase 1 technical debt cleared
+**Status**: Decisions made — see ADR-073 (Unified Fetch Architecture)
+**Prerequisite**: Phase 1 technical debt cleared ✅
 **Approach**: Trace one piece of content end-to-end, then replicate pattern across platforms
+
+> **2026-02-23 Update**: ADR-073 resolves D1 (Option A — signals read from `platform_content`),
+> D2 (enforce at fetch level), D3 (signal processing cadence matches sync via scheduling heuristics,
+> not separate LLM calls), and D5 (migration sequence). D4 (platform scope) is implementation
+> scoping. Monetization enforcement deferred to ADR-074.
 
 ---
 

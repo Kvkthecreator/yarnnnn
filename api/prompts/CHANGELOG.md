@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.23.1] - ADR-073: Unified Fetch Architecture + Platform Integrations rewrite
+
+### Added
+- `docs/adr/ADR-073-unified-fetch-architecture.md`: Establishes single fetch path (platform_sync only), eliminates triple-fetch pattern (sync + signal extraction + deliverable execution all calling live APIs independently). Defines per-platform fetch specs (time windows, source filtering, sync token strategy, items per source, TTLs). Documents retention lifecycle wiring, scheduling heuristics replacing LLM signal triage, and deferred webhook strategy.
+
+### Changed
+- `docs/integrations/PLATFORM-INTEGRATIONS.md`: Full rewrite reflecting ADR-073 architecture. Documents singular fetch → platform_content → consumers data flow. Per-platform specification tables (Slack, Gmail, Calendar, Notion) with credential handling, sync token approach, content types, TTLs. Replaces prior documentation that showed three independent data paths.
+
+### Architectural decisions
+- Signal processing LLM triage (Haiku call per user per hour) to be replaced by scheduling heuristics (rules + freshness checks, no LLM). LLM reasoning happens at consumption time only (TP chat or deliverable execution).
+- Monetization enforcement scoped to ADR-074 (separate).
+- Observability scoped to separate feature documentation.
+- `mark_content_retained()` and `cleanup_expired_content()` to be wired into existing pipeline.
+
+---
+
 ## [2026.02.19.15] - Calendar full CRUD: update_event + delete_event
 
 ### Added

@@ -1,256 +1,279 @@
 # Platform Integrations Architecture
 
 > Backend infrastructure documentation for YARNNN platform integrations.
+> Updated 2026-02-23 per ADR-073 (Unified Fetch Architecture).
 
 ## Overview
 
-YARNNN integrates with four external platforms:
+YARNNN integrates with four external platforms. All platform data flows through a **single fetch path** that writes to `platform_content` (ADR-072). All downstream consumers (TP, deliverables, scheduling heuristics) read from `platform_content` — they do not call external APIs.
 
-| Platform | OAuth Provider | Transport | TP Tools | Deliverable Source | Deliverable Export |
-|----------|---------------|-----------|----------|-------------------|-------------------|
-| Slack | slack | MCP Gateway | Yes | Yes | Yes |
-| Notion | notion | Direct API | Yes | Yes | Yes |
-| Gmail | google | Direct API | Yes | Yes | Yes |
-| Calendar | google | Direct API | Yes | Yes | Yes |
+| Platform | OAuth Provider | Transport | Fetch → `platform_content` | TP Tools (Real-Time) | Deliverable Source | Deliverable Export |
+|----------|---------------|-----------|---------------------------|---------------------|-------------------|-------------------|
+| Slack | slack | MCP Gateway | Yes | Yes | Yes (reads `platform_content`) | Yes |
+| Gmail | google | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
+| Calendar | google | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
+| Notion | notion | Direct API | Yes | Yes | Yes (reads `platform_content`) | Yes |
 
-## Architecture
+## Data Flow Architecture (ADR-073)
 
 ```
-                          ┌─────────────────────────────────────┐
-                          │           yarnnn-api                 │
-                          │            (Python)                  │
-                          │                                      │
-                          │  ┌────────────────────────────────┐  │
-                          │  │     Platform Router            │  │
-                          │  │                                │  │
-                          │  │  Routes by provider:           │  │
-                          │  │  ├─ slack    → MCP Gateway     │  │
-                          │  │  ├─ notion   → Direct API      │  │
-                          │  │  ├─ gmail    → Direct API      │  │
-                          │  │  └─ calendar → Direct API      │  │
-                          │  └────────────────────────────────┘  │
-                          │              │                       │
-                          │              │ Slack, Notion         │
-                          │              ▼                       │
-                          │  ┌────────────────────────────────┐  │
-                          │  │    mcp_gateway.py              │  │
-                          │  │    (HTTP client)               │  │
-                          │  └────────────┬───────────────────┘  │
-                          │               │                      │
-                          └───────────────┼──────────────────────┘
-                                          │
-                                          ▼
-┌─────────────────────────────────────────────────────────────────┐
-│                    yarnnn-mcp-gateway                           │
-│                      (Node.js/Express)                          │
-│                                                                 │
-│  ┌─────────────────────────┐                                    │
-│  │ @modelcontextprotocol/  │  (Notion removed: uses Direct API) │
-│  │   server-slack          │                                    │
-│  └─────────────────────────┘                                    │
-└─────────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│ FETCH LAYER (singular — only subsystem calling external APIs)       │
+│                                                                     │
+│ platform_sync_scheduler.py (cron */5, tier-gated)                   │
+│   └─ platform_worker.py                                             │
+│        ├─ _sync_slack()     → MCP Gateway → Slack API               │
+│        ├─ _sync_gmail()     → GoogleAPIClient → Gmail API v1        │
+│        ├─ _sync_calendar()  → GoogleAPIClient → Calendar API v3     │
+│        └─ _sync_notion()    → NotionAPIClient → Notion API          │
+│                                                                     │
+│ Writes ALL content to platform_content table.                       │
+│ Content starts ephemeral (retained=false, TTL set).                 │
+│ Tier gates: Free=2x/day, Starter=4x/day, Pro=hourly (ADR-053).     │
+└──────────────────────────┬──────────────────────────────────────────┘
+                           │ writes to
+                           ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│ CONTENT LAYER (platform_content — single source of truth)           │
+│                                                                     │
+│ Storage:   store_platform_content(), batch writers                   │
+│ Readers:   get_platform_content(), get_content_for_deliverable(),   │
+│            get_content_summary_for_generation(),                     │
+│            search_platform_content() (pgvector semantic search)      │
+│ Retention: mark_content_retained() when content is consumed         │
+│ Cleanup:   cleanup_expired_content() removes TTL-expired rows       │
+│ Freshness: has_fresh_content_since() for scheduling decisions       │
+└──────────┬──────────────────┬────────────────────┬──────────────────┘
+           │                  │                    │
+           ▼                  ▼                    ▼
+   TP Chat (Sonnet)    Deliverable Exec     Scheduling Heuristics
+   (real-time,         (Sonnet synthesis,    (rules + freshness,
+    user-initiated)     system-triggered)     no LLM — decides
+                                              WHEN to trigger)
 ```
 
-## Provider Details
+### TP Real-Time Tools (Separate Path)
 
-### Slack (MCP Gateway)
+TP tools (Slack send message, Gmail send/draft, Calendar create/update/delete) are **write operations** that go directly to platform APIs. These are not part of the fetch pipeline — they are user-initiated actions through TP, not data retrieval.
 
-**OAuth Config**: [oauth.py](../../api/integrations/core/oauth.py)
-```python
-scopes = [
-    "chat:write",        # Post messages
-    "channels:read",     # List public channels
-    "channels:history",  # Read public messages
-    "channels:join",     # Auto-join for import
-    "groups:read",       # List private channels
-    "groups:history",    # Read private messages
-    "users:read",        # Get user info
-    "im:write",          # DM channels
-]
+Read-oriented TP tools (search, list) should migrate to reading from `platform_content` where feasible. Some real-time reads (e.g., checking current calendar availability for scheduling) may continue to use live APIs where freshness is critical.
+
 ```
-
-**TP Tools** (defined in [platform_tools.py](../../api/services/platform_tools.py)):
-- `platform_slack_send_message` - Send DM to user
-- `platform_slack_list_channels` - List available channels
-
-**Data Flow**:
-```
-TP calls tool → platform_tools.py → mcp_gateway.py (HTTP) → yarnnn-mcp-gateway → Slack API
+TP Write Tools: platform_tools.py → direct platform APIs (Slack, Gmail, Calendar, Notion)
+TP Read Context: working_memory.py → platform_content table
 ```
 
 ---
 
-### Notion (Direct API)
+## Per-Platform Specifications
 
-**OAuth Config**: Uses Notion's built-in OAuth (no scopes needed)
+### Slack (MCP Gateway)
 
-**TP Tools**:
-- `platform_notion_search` - Search pages/databases
-- `platform_notion_create_comment` - Add comments
-
-**Why Direct API (not MCP)**:
-- `@notionhq/notion-mcp-server` requires internal `ntn_...` integration tokens, not OAuth tokens
-- Notion's hosted MCP (`mcp.notion.com`) manages its own OAuth sessions — no way to inject ours
-- Direct calls to `api.notion.com` work correctly with YARNNN's OAuth tokens
-- `NotionAPIClient` (`api/integrations/core/notion_client.py`) handles all Notion REST operations
-
-**Data Flow**:
+**OAuth Config**: [oauth.py](../../api/integrations/core/oauth.py)
 ```
-TP tool call → platform_tools.py → NotionAPIClient → api.notion.com
-                              ↓
-Platform sync → platform_worker._sync_notion() → NotionAPIClient → api.notion.com
-                              ↓
-Deliverable pipeline → _fetch_notion_data() → NotionAPIClient → api.notion.com
+Scopes: chat:write, channels:read, channels:history, channels:join,
+        groups:read, groups:history, users:read, im:write
 ```
+
+**Credential Storage**: `credentials_encrypted` → JSON `{bot_token, team_id}`
+**Decryption**: `TokenManager.decrypt()` → `json.loads()`
+**Token Expiry**: Slack bot tokens do not expire.
+
+**Fetch Spec (platform_worker)**:
+
+| Aspect | Value |
+|--------|-------|
+| Source filter | `landscape.selected_sources` (channel IDs) |
+| Time window | All recent messages (no time filter currently — sync token will add `oldest` param) |
+| Items per source | 50 messages per channel |
+| Content stored | Full message text, user, ts, reactions, thread metadata |
+| Content type | `message`, `thread_parent`, `thread_reply` |
+| TTL | 7 days |
+| Sync token | Slack `oldest` param — store last fetched `ts` per channel in `sync_registry` |
+
+**TP Tools** (defined in [platform_tools.py](../../api/services/platform_tools.py)):
+- `platform_slack_send_message` — Send DM to user
+- `platform_slack_list_channels` — List available channels
 
 ---
 
 ### Gmail (Direct API)
 
 **OAuth Config**: Part of unified Google OAuth
-```python
-scopes = [
-    "https://www.googleapis.com/auth/gmail.readonly",   # Read emails for context
-    "https://www.googleapis.com/auth/gmail.send",       # Send deliverables
-    "https://www.googleapis.com/auth/gmail.compose",    # Create drafts
-    "https://www.googleapis.com/auth/gmail.modify",     # Labels, archive
-]
+```
+Scopes: gmail.readonly, gmail.send, gmail.compose, gmail.modify
 ```
 
-**TP Tools** (defined in [platform_tools.py](../../api/services/platform_tools.py)):
-- `platform_gmail_search` - Search messages with Gmail query syntax
-- `platform_gmail_get_thread` - Get full email thread
-- `platform_gmail_send` - Send email
-- `platform_gmail_create_draft` - Create draft for user review
+**Credential Storage**: `refresh_token_encrypted`
+**Decryption**: `TokenManager.decrypt()` → refresh token → `GoogleAPIClient._get_access_token()` (1-hour cache)
+**Token Expiry**: Access tokens expire in 1 hour. Refresh handled automatically with caching.
 
-**Used For**:
-- **TP Tools**: Direct email search, reading threads, sending/drafting
-- **Deliverable Sources**: Fetch emails for inbox_summary, thread_summary
-- **Deliverable Export**: Send/draft emails via GmailExporter
+**Fetch Spec (platform_worker)**:
 
-**Data Flow**:
-```
-TP tool call → platform_tools.py → Direct Google Gmail API v1
-                              ↓
-Deliverable pipeline → _fetch_gmail_data() → Google Gmail API v1
-```
+| Aspect | Value |
+|--------|-------|
+| Source filter | `landscape.selected_sources` (label IDs, format `label:LABEL_ID`) |
+| Time window | Last 7 days (recency filter) |
+| Items per source | 50 messages per label (full message fetch via `get_message`) |
+| Content stored | Subject + body snippet (up to 10,000 chars), headers, thread_id |
+| Content type | `email` |
+| TTL | 14 days |
+| Sync token | Gmail `historyId` — store per label in `sync_registry`, use `history.list` for delta |
 
-**Why Direct API (not MCP)**:
-- No official Google MCP server
-- Token refresh handling already in Python
-- Full control over API calls and error handling
+**TP Tools**:
+- `platform_gmail_search` — Search messages with Gmail query syntax
+- `platform_gmail_get_thread` — Get full email thread
+- `platform_gmail_send` — Send email
+- `platform_gmail_create_draft` — Create draft for user review
 
 ---
 
 ### Calendar (Direct API)
 
 **OAuth Config**: Shares Google OAuth with Gmail
-```python
-scopes = [
-    "https://www.googleapis.com/auth/calendar.readonly",         # List calendars
-    "https://www.googleapis.com/auth/calendar.events.readonly",  # Read events
-    "https://www.googleapis.com/auth/calendar.events",           # Create/edit events
-]
+```
+Scopes: calendar.readonly, calendar.events.readonly, calendar.events
 ```
 
-**TP Tools** (defined in [platform_tools.py](../../api/services/platform_tools.py)):
-- `platform_calendar_list_events` - List upcoming events with time filters
-- `platform_calendar_get_event` - Get event details with attendees
-- `platform_calendar_create_event` - Create new calendar events
+**Credential Storage**: Same as Gmail (`refresh_token_encrypted` on `google` platform connection)
+**Token Expiry**: Same as Gmail.
 
-**Used For**:
-- **TP Tools**: Query calendar, create events
-- **Deliverable Sources**: Fetch events for meeting_prep, weekly_calendar_preview
-- **Cross-Platform Context**: Connect meeting attendees to Slack/Gmail history
+**Fetch Spec (platform_worker)**:
 
-**Data Flow**:
-```
-TP tool call → platform_tools.py → Direct Google Calendar API v3
-                              ↓
-Deliverable pipeline → _fetch_calendar_data() → Google Calendar API v3
-```
+| Aspect | Value |
+|--------|-------|
+| Source filter | `landscape.selected_sources` (calendar IDs) |
+| Time window | Next 7 days |
+| Items per source | 50 events per calendar |
+| Content stored | Title, description, location, start/end, attendees, htmlLink |
+| Content type | `event` |
+| TTL | 1 day (events are time-sensitive; re-fetched each cycle) |
+| Sync token | Calendar `syncToken` — store per calendar in `sync_registry` |
 
-**Key Implementation** ([deliverable_pipeline.py:635-760](../../api/services/deliverable_pipeline.py)):
-```python
-async def _fetch_calendar_data(...):
-    # Get fresh access token (with refresh if needed)
-    access_token = await get_valid_google_token(integration)
+**Note**: Calendar's short TTL (1 day) means Pro users (hourly sync) see near-real-time event data. Free users (2x/day) may see stale event info. This is an intentional monetization lever.
 
-    # Fetch events
-    response = await client.get(
-        f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
-        headers={"Authorization": f"Bearer {access_token}"},
-        params={
-            "timeMin": time_min,
-            "timeMax": time_max,
-            "singleEvents": True,  # Expand recurring
-            "orderBy": "startTime",
-        }
-    )
-```
+**TP Tools**:
+- `platform_calendar_list_events` — List upcoming events with time filters
+- `platform_calendar_get_event` — Get event details with attendees
+- `platform_calendar_create_event` — Create new calendar events
+- `platform_calendar_update_event` — Modify existing events
+- `platform_calendar_delete_event` — Delete events (with confirmation)
+
+---
+
+### Notion (Direct API)
+
+**OAuth Config**: Notion's built-in OAuth (no scopes needed)
+
+**Credential Storage**: `credentials_encrypted` → access token
+**Decryption**: `TokenManager.decrypt()`
+**Token Expiry**: Notion OAuth tokens do not expire.
+
+**Why Direct API (not MCP)**:
+- `@notionhq/notion-mcp-server` requires internal `ntn_...` integration tokens, not OAuth tokens
+- Notion's hosted MCP manages its own OAuth sessions — no way to inject ours
+- `NotionAPIClient` handles all Notion REST operations with our OAuth tokens
+
+**Fetch Spec (platform_worker)**:
+
+| Aspect | Value |
+|--------|-------|
+| Source filter | `landscape.selected_sources` (page IDs) |
+| Time window | Full page content (no time window — pages are documents, not streams) |
+| Items per source | 1 page = 1 item (page metadata + all content blocks) |
+| Content stored | Full plain text extraction from all block types |
+| Content type | `page` |
+| TTL | 30 days |
+| Sync token | `last_edited_time` comparison — skip re-fetch if page hasn't changed |
+
+**TP Tools**:
+- `platform_notion_search` — Search pages/databases
+- `platform_notion_create_comment` — Add comments
 
 ---
 
 ## OAuth Provider Mapping
 
-The backend stores integrations by their OAuth provider name:
+| Frontend Display | Backend `platform` Column | OAuth Flow | Notes |
+|-----------------|--------------------------|------------|-------|
+| Slack | `slack` | Slack OAuth | Separate OAuth provider |
+| Gmail | `google` | Google OAuth | Single Google OAuth grants Gmail + Calendar |
+| Calendar | `google` | Google OAuth | Same connection as Gmail, no separate OAuth |
+| Notion | `notion` | Notion OAuth | Separate OAuth provider |
 
-| Frontend Display | Backend Provider | OAuth Flow |
-|-----------------|------------------|------------|
-| Slack | `slack` | Slack OAuth |
-| Gmail | `gmail` or `google` | Google OAuth |
-| Notion | `notion` | Notion OAuth |
-| Calendar | `google` or `gmail`* | Google OAuth (same as Gmail) |
-
-*Calendar uses the Google integration - no separate OAuth flow
-
-**Legacy Note**: Older users have `gmail` provider, newer users get `google`. Backend handles both.
+**Legacy Note**: Older records may have `gmail` as the platform value. Backend handles both `google` and `gmail` for Google-sourced integrations.
 
 ---
 
 ## Token Management
 
-### Slack & Notion
-- Tokens don't expire
-- No refresh needed
+### Token Types
 
-### Google (Gmail + Calendar)
-- Access tokens expire in 1 hour
-- Refresh tokens stored encrypted
-- Auto-refresh in `get_valid_google_token()`
+| Platform | Storage Column | Token Type | Expiry |
+|----------|---------------|------------|--------|
+| Slack | `credentials_encrypted` | Bot token (JSON) | Never |
+| Gmail | `refresh_token_encrypted` | OAuth refresh token | Never (access token: 1 hour) |
+| Calendar | `refresh_token_encrypted` | Same as Gmail | Same as Gmail |
+| Notion | `credentials_encrypted` | OAuth access token | Never |
 
-```python
-# In deliverable_pipeline.py
-async def get_valid_google_token(integration: dict) -> str:
-    """Get a valid Google access token, refreshing if needed."""
-    metadata = integration.get("metadata", {})
-    expires_at = metadata.get("expires_at")
+### Google Token Caching (Phase 1 Hardening)
 
-    if expires_at and datetime.fromisoformat(expires_at) < datetime.utcnow():
-        # Token expired, refresh it
-        refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
-        new_token = await refresh_google_token(refresh_token)
-        # Update database with new token
-        ...
-
-    return token_manager.decrypt(integration["access_token_encrypted"])
+Google access tokens are cached in-memory per refresh token:
 ```
+GoogleAPIClient._token_cache: dict[refresh_token → (access_token, expires_at_monotonic)]
+```
+
+- Cache TTL: refresh 60 seconds before expiry
+- Cache scope: per-process (acceptable for single-instance Render deployment)
+- All API calls use `_request_with_retry` with `httpx.Timeout(30.0, connect=10.0)`
+- Retry: exponential backoff (1s, 2s, 4s) on 429/5xx, 3 max attempts
 
 ---
 
-## Adding New Platforms
+## Sync Pipeline
 
-### MCP Gateway Route (Slack pattern)
-1. Add OAuth config to [oauth.py](../../api/integrations/core/oauth.py)
-2. Add to [platform_registry.py](../../api/integrations/platform_registry.py)
-3. Add MCP server to `yarnnn-mcp-gateway/src/mcp/client-manager.ts`
-4. Define TP tools in [platform_tools.py](../../api/services/platform_tools.py)
+### Trigger
 
-### Direct API Route (Gmail/Calendar/Notion pattern)
-1. Add OAuth config to oauth.py
-2. Define TP tools in [platform_tools.py](../../api/services/platform_tools.py) with handler functions
-3. Implement fetch function in [deliverable_pipeline.py](../../api/services/deliverable_pipeline.py)
-4. Add exporter if write operations needed
+`platform_sync_scheduler.py` runs every 5 minutes (Render cron). Checks which users are due for sync based on tier:
+
+| Tier | Sync Frequency | Min Interval Between Syncs |
+|------|---------------|---------------------------|
+| Free | 2x daily | 6 hours |
+| Starter | 4x daily | 4 hours |
+| Pro | Hourly | 45 minutes |
+
+### Execution Flow
+
+```
+platform_sync_scheduler.py
+  → get_users_due_for_sync(): query platform_connections, check tier, check last_synced_at
+  → process_user_sync(): for each due user
+      → _get_selected_sources(): read landscape.selected_sources per provider
+      → sync_platform(): call platform_worker per provider
+          → _sync_{slack,gmail,notion,calendar}(): fetch from API
+              → _store_platform_content(): upsert to platform_content table
+          → update last_synced_at on platform_connections
+          → write activity_log event (platform_synced)
+```
+
+### Deduplication Strategy
+
+1. **Fetch-level (sync tokens)**: Only request changes since last sync cursor. Reduces API call volume.
+2. **Store-level (content_hash)**: Upsert on `(user_id, platform, resource_id, item_id, content_hash)`. Same content = no new row. Changed content = new row (previous version remains until TTL).
+
+### Content Lifecycle (ADR-072)
+
+```
+Fetched → Stored (ephemeral, TTL set)
+              ↓
+         Consumed by deliverable/TP → mark_content_retained()
+              ↓
+         Retained (no TTL, persists)
+
+         OR
+
+         Not consumed → TTL expires → cleanup_expired_content() deletes
+```
 
 ---
 
@@ -271,14 +294,50 @@ GOOGLE_CLIENT_SECRET=
 
 # MCP Gateway
 MCP_GATEWAY_URL=https://yarnnn-mcp-gateway.onrender.com
+
+# Encryption
+INTEGRATION_ENCRYPTION_KEY=  # Required — missing raises ValueError at startup
 ```
+
+---
+
+## Key Files
+
+| Concern | File |
+|---------|------|
+| Sync scheduler | `api/jobs/platform_sync_scheduler.py` |
+| Sync worker | `api/workers/platform_worker.py` |
+| Content storage (ADR-072) | `api/services/platform_content.py` |
+| Google API client | `api/integrations/core/google_client.py` |
+| Notion API client | `api/integrations/core/notion_client.py` |
+| MCP client (Slack) | `api/integrations/core/client.py` |
+| Token management | `api/integrations/core/tokens.py` |
+| OAuth flows | `api/integrations/core/oauth.py` |
+| TP platform tools | `api/services/platform_tools.py` |
+| Tier limits | `api/services/platform_limits.py` |
+| Freshness tracking | `api/services/freshness.py` |
+
+---
+
+## Adding New Platforms
+
+With ADR-073, new platforms follow a single pattern:
+
+1. **OAuth**: Add provider config to `oauth.py`
+2. **API Client**: Create `integrations/core/{platform}_client.py`
+3. **Sync Worker**: Add `_sync_{platform}()` to `platform_worker.py`
+4. **Content Storage**: Define content_type, TTL, and sync token strategy
+5. **TP Tools** (optional): Add to `platform_tools.py` for real-time user actions
+6. **Delivery** (optional): Add exporter for write-back operations
+
+All read operations by TP and deliverables automatically work via `platform_content` — no per-platform integration needed for reads.
 
 ---
 
 ## Related Documentation
 
-- [ADR-026: Integration Architecture](../adr/ADR-026-integration-architecture.md)
-- [ADR-029: Email Integration Platform](../adr/ADR-029-email-integration-platform.md)
-- [ADR-046: Google Calendar Integration](../adr/ADR-046-google-calendar-integration.md)
-- [ADR-050: MCP Gateway Architecture](../adr/ADR-050-mcp-gateway-architecture.md)
-- [Render Services](./RENDER-SERVICES.md)
+- [ADR-073: Unified Fetch Architecture](../adr/ADR-073-unified-fetch-architecture.md) — current architecture
+- [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — `platform_content` schema
+- [ADR-056: Per-Source Sync](../adr/ADR-056-per-source-sync-implementation.md) — selected_sources model
+- [ADR-053: Platform Sync as Monetization](../adr/ADR-053-platform-sync-monetization.md) — tier-based sync frequency
+- [Phase 1 Technical Debt](../development/PHASE-1-TECHNICAL-DEBT.md) — credential/resilience hardening
