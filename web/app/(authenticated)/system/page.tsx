@@ -585,39 +585,52 @@ export default function SystemPage() {
                   )}
 
                   {/* Result */}
-                  {pipelineResult && !pipelineRunning && (
-                    <div className="rounded-md bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 p-3 text-sm">
-                      <div className="flex items-start justify-between">
-                        <div className="space-y-1">
-                          <div className="flex items-center gap-1.5 text-green-800 dark:text-green-200 font-medium">
-                            <CheckCircle2 className="w-4 h-4" />
-                            Pipeline Complete
+                  {pipelineResult && !pipelineRunning && (() => {
+                    const hasActions = pipelineResult.deliverables_created > 0 || pipelineResult.existing_triggered > 0;
+                    const hasSignals = pipelineResult.signals_detected > 0;
+                    // Green: actions taken. Yellow: ran but no signals. Blue: synced only.
+                    const variant = hasActions ? 'green' : hasSignals ? 'green' : 'yellow';
+                    const colors = {
+                      green: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800', title: 'text-green-800 dark:text-green-200', body: 'text-green-700 dark:text-green-300', meta: 'text-green-600 dark:text-green-400', dismiss: 'text-green-600 dark:text-green-400' },
+                      yellow: { bg: 'bg-yellow-50 dark:bg-yellow-900/20', border: 'border-yellow-200 dark:border-yellow-800', title: 'text-yellow-800 dark:text-yellow-200', body: 'text-yellow-700 dark:text-yellow-300', meta: 'text-yellow-600 dark:text-yellow-400', dismiss: 'text-yellow-600 dark:text-yellow-400' },
+                    }[variant];
+                    const label = hasActions ? 'Pipeline Complete — Actions Taken' : hasSignals ? 'Pipeline Complete' : 'Pipeline Ran — No Signals Found';
+                    const Icon = hasActions ? CheckCircle2 : AlertTriangle;
+
+                    return (
+                      <div className={`rounded-md ${colors.bg} border ${colors.border} p-3 text-sm`}>
+                        <div className="flex items-start justify-between">
+                          <div className="space-y-1">
+                            <div className={`flex items-center gap-1.5 ${colors.title} font-medium`}>
+                              <Icon className="w-4 h-4" />
+                              {label}
+                            </div>
+                            <p className={colors.body}>{pipelineResult.message}</p>
+                            <div className={`flex gap-4 text-xs ${colors.meta}`}>
+                              {pipelineResult.synced_platforms.length > 0 && (
+                                <span>{pipelineResult.synced_platforms.length} platform(s) synced</span>
+                              )}
+                              {pipelineResult.signals_detected > 0 && (
+                                <span>{pipelineResult.signals_detected} signal(s) scanned</span>
+                              )}
+                              {pipelineResult.deliverables_created > 0 && (
+                                <span>{pipelineResult.deliverables_created} deliverable(s) created</span>
+                              )}
+                              {pipelineResult.existing_triggered > 0 && (
+                                <span>{pipelineResult.existing_triggered} existing triggered</span>
+                              )}
+                            </div>
                           </div>
-                          <p className="text-green-700 dark:text-green-300">{pipelineResult.message}</p>
-                          <div className="flex gap-4 text-xs text-green-600 dark:text-green-400">
-                            {pipelineResult.synced_platforms.length > 0 && (
-                              <span>{pipelineResult.synced_platforms.length} platform(s) synced</span>
-                            )}
-                            {pipelineResult.signals_detected > 0 && (
-                              <span>{pipelineResult.signals_detected} signals scanned</span>
-                            )}
-                            {pipelineResult.deliverables_created > 0 && (
-                              <span>{pipelineResult.deliverables_created} deliverable(s) created</span>
-                            )}
-                            {pipelineResult.existing_triggered > 0 && (
-                              <span>{pipelineResult.existing_triggered} existing triggered</span>
-                            )}
-                          </div>
+                          <button
+                            onClick={() => setPipelineResult(null)}
+                            className={`p-1 hover:opacity-70 ${colors.dismiss}`}
+                          >
+                            <XCircle className="w-4 h-4" />
+                          </button>
                         </div>
-                        <button
-                          onClick={() => setPipelineResult(null)}
-                          className="p-1 hover:opacity-70 text-green-600 dark:text-green-400"
-                        >
-                          <XCircle className="w-4 h-4" />
-                        </button>
                       </div>
-                    </div>
-                  )}
+                    );
+                  })()}
 
                   {/* Error */}
                   {pipelineError && !pipelineRunning && (
