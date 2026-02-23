@@ -340,14 +340,12 @@ async def sync_stale_sources(
         resource_name = source.get("resource_name", "")
 
         try:
-            # Enqueue targeted sync job
+            # Enqueue targeted sync job for single stale source
             job_id = await enqueue_job(
                 "platform_sync",
                 user_id=user_id,
                 provider=platform,
-                resource_id=resource_id,
-                resource_name=resource_name,
-                targeted=True,  # Flag for targeted sync
+                selected_sources=[resource_id] if resource_id else None,
             )
 
             synced.append({

@@ -362,7 +362,7 @@ async def _handle_work_run(auth, entity, ref, via, params):
 
     job_id = await enqueue_job(
         "work_execute",
-        work_id=work_id,
+        ticket_id=work_id,
         user_id=auth.user_id,
     )
 
