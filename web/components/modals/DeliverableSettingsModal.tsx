@@ -49,7 +49,6 @@ import type {
   RecipientContext,
   ScheduleFrequency,
   Destination,
-  GovernanceLevel,
   IntegrationSourceScope,
   ScopeMode,
 } from '@/types';
@@ -111,9 +110,6 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
   weekly_calendar_preview: 'Week Preview',
 };
 
-// ADR-032: Governance simplified - default to draft mode (manual)
-// Full governance options hidden in Phase 2
-
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   slack: <Slack className="w-4 h-4" />,
   notion: <FileCode className="w-4 h-4" />,
@@ -160,9 +156,6 @@ export function DeliverableSettingsModal({
   const [destination, setDestination] = useState<Destination | undefined>(
     deliverable.destination
   );
-  // ADR-032: Governance defaults to manual (draft mode) - simplified
-  const [governance] = useState<GovernanceLevel>('manual');
-
   // New source input - ADR-029 Phase 2: Extended for integration_import
   const [newSourceType, setNewSourceType] = useState<DataSourceType>('url');
   const [newSourceValue, setNewSourceValue] = useState('');
@@ -248,7 +241,6 @@ export function DeliverableSettingsModal({
         sources,
         recipient_context: recipient,
         destination: finalDestination,
-        governance,
       };
 
       await api.deliverables.update(deliverable.id, update);

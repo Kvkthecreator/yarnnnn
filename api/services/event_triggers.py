@@ -106,7 +106,6 @@ class TriggerMatch:
     deliverable_id: str
     deliverable_title: str
     user_id: str
-    governance: str
     should_skip: bool = False
     skip_reason: Optional[str] = None
 
@@ -202,66 +201,6 @@ async def record_trigger_db(
         logger.warning(f"[COOLDOWN] Failed to log trigger: {e}")
 
 
-# Legacy in-memory functions for backward compatibility
-# These are deprecated - use check_cooldown_db and record_trigger_db
-_cooldown_cache: dict[str, datetime] = {}
-
-
-def check_cooldown(
-    deliverable_id: str,
-    cooldown: CooldownConfig,
-    event: PlatformEvent,
-) -> tuple[bool, Optional[str]]:
-    """
-    DEPRECATED: Use check_cooldown_db() for database-backed cooldown.
-
-    Legacy in-memory cooldown check for backward compatibility.
-    """
-    key = _get_cooldown_key(deliverable_id, cooldown.type, event)
-    now = datetime.now(timezone.utc)
-
-    last_trigger = _cooldown_cache.get(key)
-    if last_trigger:
-        elapsed = now - last_trigger
-        cooldown_duration = timedelta(minutes=cooldown.duration_minutes)
-
-        if elapsed < cooldown_duration:
-            remaining = cooldown_duration - elapsed
-            return True, f"Cooldown: {int(remaining.total_seconds() / 60)}m remaining"
-
-    return False, None
-
-
-def record_trigger(
-    deliverable_id: str,
-    cooldown: CooldownConfig,
-    event: PlatformEvent,
-) -> None:
-    """DEPRECATED: Use record_trigger_db() for database-backed cooldown."""
-    key = _get_cooldown_key(deliverable_id, cooldown.type, event)
-    _cooldown_cache[key] = datetime.now(timezone.utc)
-
-
-def cleanup_expired_cooldowns() -> int:
-    """
-    DEPRECATED: Cleanup is now handled by database function.
-
-    Legacy in-memory cleanup for backward compatibility.
-    """
-    now = datetime.now(timezone.utc)
-    max_duration = timedelta(hours=1)
-
-    expired = [
-        key for key, ts in _cooldown_cache.items()
-        if now - ts > max_duration
-    ]
-
-    for key in expired:
-        del _cooldown_cache[key]
-
-    return len(expired)
-
-
 # =============================================================================
 # Event Matching
 # =============================================================================
@@ -283,7 +222,7 @@ async def get_deliverables_for_event(
     # Query deliverables with event triggers for this user
     result = (
         db_client.table("deliverables")
-        .select("id, user_id, title, trigger_type, trigger_config, governance, status")
+        .select("id, user_id, title, trigger_type, trigger_config, status")
         .eq("user_id", event.user_id)
         .eq("status", "active")
         .eq("trigger_type", "event")
@@ -341,7 +280,6 @@ async def get_deliverables_for_event(
             deliverable_id=row["id"],
             deliverable_title=row["title"],
             user_id=row["user_id"],
-            governance=row.get("governance", "manual"),
             should_skip=should_skip,
             skip_reason=skip_reason,
         ))

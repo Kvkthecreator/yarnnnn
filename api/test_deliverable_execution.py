@@ -212,27 +212,6 @@ def test_input_logging():
     print("✅ input_logging: PASSED")
 
 
-def test_full_auto_governance():
-    """Verify full_auto governance still works."""
-    print("\nTesting full_auto governance...")
-
-    from services.deliverable_execution import execute_deliverable_generation
-    import inspect
-
-    source = inspect.getsource(execute_deliverable_generation)
-
-    # Should handle full_auto governance
-    assert 'governance == "full_auto"' in source or "governance == 'full_auto'" in source, \
-        "Should check for full_auto governance"
-
-    assert "auto-approving" in source.lower() or "auto_approve" in source.lower() or "status" in source, \
-        "Should handle auto-approval"
-
-    print("  ✓ Checks for full_auto governance")
-    print("  ✓ Handles auto-approval flow")
-    print("✅ full_auto_governance: PASSED")
-
-
 if __name__ == "__main__":
     print("\n🧪 Running ADR-042 Deliverable Execution Tests...\n")
     print("=" * 60)
@@ -244,7 +223,6 @@ if __name__ == "__main__":
     test_scheduler_uses_simplified_flow()
     test_single_ticket_per_generation()
     test_input_logging()
-    test_full_auto_governance()
 
     print("\n" + "=" * 60)
     print("✅ All ADR-042 tests passed!")

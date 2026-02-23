@@ -672,7 +672,6 @@ export type QualityTrend = "improving" | "stable" | "declining";
 // ADR-029: Gmail as full integration platform
 // ADR-046: Added google and calendar providers
 export type DestinationPlatform = "slack" | "notion" | "gmail" | "google" | "calendar" | "email" | "download";
-export type GovernanceLevel = "manual" | "semi_auto" | "full_auto";
 export type DeliveryStatus = "pending" | "delivering" | "delivered" | "failed";
 
 // Gmail-specific format: send, draft, reply
@@ -718,9 +717,6 @@ export interface Deliverable {
   latest_version_status?: VersionStatus;
   // ADR-028: Destination-first deliverables
   destination?: Destination;
-  governance: GovernanceLevel;
-  // ADR-031: System-enforced governance ceiling
-  governance_ceiling?: GovernanceLevel;  // Max governance based on destination
   // ADR-068: Deliverable origin
   origin?: 'user_configured' | 'analyst_suggested' | 'signal_emergent';
   // Quality metrics (ADR-018: feedback loop)
@@ -746,7 +742,6 @@ export interface DeliverableCreate {
   sources?: DataSource[];
   // ADR-028: Destination-first deliverables
   destination?: Destination;
-  governance?: GovernanceLevel;
   // Legacy fields
   description?: string;
   template_structure?: TemplateStructure;
@@ -764,7 +759,6 @@ export interface DeliverableUpdate {
   status?: DeliverableStatus;
   // ADR-028: Destination-first deliverables
   destination?: Destination;
-  governance?: GovernanceLevel;
   // Legacy fields
   description?: string;
   template_structure?: TemplateStructure;

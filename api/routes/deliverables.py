@@ -1187,9 +1187,6 @@ async def create_deliverable(
     # Validate type_config against the type
     validated_config = validate_type_config(request.deliverable_type, type_config)
 
-    # ADR-031: Compute governance ceiling from destination
-    governance_ceiling = compute_governance_ceiling(request.destination)
-
     # ADR-044/045: Use provided type_classification or compute from deliverable_type
     type_classification = request.type_classification or get_type_classification(request.deliverable_type)
 
@@ -1213,9 +1210,6 @@ async def create_deliverable(
         "next_run_at": next_run_at,
         # ADR-028: Destination-first deliverables
         "destination": request.destination,
-        "governance": request.governance or "manual",
-        # ADR-031: Governance ceiling
-        "governance_ceiling": governance_ceiling,
     }
 
     result = (
@@ -1249,9 +1243,6 @@ async def create_deliverable(
         next_run_at=deliverable.get("next_run_at"),
         # ADR-028: Destination-first deliverables
         destination=deliverable.get("destination"),
-        governance=deliverable.get("governance", "manual"),
-        # ADR-031: Governance ceiling
-        governance_ceiling=deliverable.get("governance_ceiling"),
         # ADR-068: Deliverable origin
         origin=deliverable.get("origin", "user_configured"),
         # Legacy fields
@@ -1369,9 +1360,6 @@ async def list_deliverables(
             latest_version_status=latest_version["status"] if latest_version else None,
             # ADR-028: Destination-first deliverables
             destination=d.get("destination"),
-            governance=d.get("governance", "manual"),
-            # ADR-031: Governance ceiling
-            governance_ceiling=d.get("governance_ceiling"),
             quality_score=quality_score,
             quality_trend=quality_trend,
             avg_edit_distance=avg_edit_distance,
@@ -1497,9 +1485,6 @@ async def get_deliverable(
             version_count=len(versions),
             # ADR-028: Destination-first deliverables
             destination=deliverable.get("destination"),
-            governance=deliverable.get("governance", "manual"),
-            # ADR-031: Governance ceiling
-            governance_ceiling=deliverable.get("governance_ceiling"),
             # ADR-068: Deliverable origin
             origin=deliverable.get("origin", "user_configured"),
             # Legacy
@@ -1583,10 +1568,6 @@ async def update_deliverable(
     # ADR-028: Destination-first deliverables
     if request.destination is not None:
         update_data["destination"] = request.destination
-        # ADR-031: Recalculate governance ceiling when destination changes
-        update_data["governance_ceiling"] = compute_governance_ceiling(request.destination)
-    if request.governance is not None:
-        update_data["governance"] = request.governance
     # Legacy fields
     if request.description is not None:
         update_data["description"] = request.description
@@ -1623,9 +1604,6 @@ async def update_deliverable(
         next_run_at=d.get("next_run_at"),
         # ADR-028: Destination-first deliverables
         destination=d.get("destination"),
-        governance=d.get("governance", "manual"),
-        # ADR-031: Governance ceiling
-        governance_ceiling=d.get("governance_ceiling"),
         # ADR-068: Deliverable origin
         origin=d.get("origin", "user_configured"),
         # Legacy
@@ -1954,17 +1932,13 @@ async def update_version(
     Update a version (approve, reject, or save edits).
 
     When final_content differs from draft_content, computes edit diff and score.
-
-    ADR-028: If governance=semi_auto and status changes to approved,
-    automatically triggers delivery to the configured destination.
     """
     from services.feedback_engine import compute_edit_metrics
-    from services.delivery import get_delivery_service
 
-    # Verify ownership through deliverable and get destination/governance
+    # Verify ownership through deliverable
     check = (
         auth.client.table("deliverables")
-        .select("id, title, destination, governance")
+        .select("id, title, destination")
         .eq("id", str(deliverable_id))
         .eq("user_id", auth.user_id)
         .single()
@@ -2081,24 +2055,6 @@ async def update_version(
             ))
         except Exception:
             pass  # Non-fatal
-
-    # ADR-028: Auto-deliver if governance=semi_auto and status=approved
-    delivery_result = None
-    if request.status == "approved" and check.data.get("governance") == "semi_auto":
-        if check.data.get("destination"):
-            try:
-                delivery_service = get_delivery_service(auth.client)
-                delivery_result = await delivery_service.deliver_version(
-                    version_id=str(version_id),
-                    user_id=auth.user_id
-                )
-                logger.info(
-                    f"[DELIVERABLE] Auto-delivery triggered for {version_id}: "
-                    f"{delivery_result.status.value}"
-                )
-            except Exception as e:
-                # Log but don't fail the approval
-                logger.error(f"[DELIVERABLE] Auto-delivery failed for {version_id}: {e}")
 
     return VersionResponse(
         id=v["id"],
@@ -2334,8 +2290,6 @@ async def promote_to_recurring(
         created_at=d["created_at"],
         updated_at=d["updated_at"],
         next_run_at=d.get("next_run_at"),
-        governance=d.get("governance", "manual"),
-        governance_ceiling=d.get("governance_ceiling"),
         destination=d.get("destination"),
         destinations=d.get("destinations") or [],
         origin=d.get("origin", "user_configured"),
@@ -2346,39 +2300,6 @@ async def promote_to_recurring(
 # =============================================================================
 # Helper Functions
 # =============================================================================
-
-def compute_governance_ceiling(destination: Optional[dict]) -> Optional[str]:
-    """
-    ADR-031: Compute governance ceiling based on destination.
-
-    | Destination | Ceiling |
-    |-------------|---------|
-    | Internal Slack | full_auto |
-    | External Slack | semi_auto |
-    | Email to external | manual |
-    | Notion (internal) | full_auto |
-    | Download | full_auto |
-    """
-    if not destination:
-        return None
-
-    platform = destination.get("platform")
-    target = destination.get("target", "")
-
-    if platform == "slack":
-        # TODO: Detect shared channels (external) vs internal
-        # For now, assume all Slack is internal
-        return "full_auto"
-    elif platform == "notion":
-        return "full_auto"
-    elif platform in ("email", "gmail"):
-        # Email to external always requires manual review
-        return "manual"
-    elif platform == "download":
-        return "full_auto"
-    else:
-        return "manual"
-
 
 def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dict:
     """

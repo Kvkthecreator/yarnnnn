@@ -163,7 +163,7 @@ async def _read_calendar_content(
     try:
         query = (
             client.table("platform_content")
-            .select("content, metadata, source_timestamp, resource_name")
+            .select("content, metadata, source_timestamp, resource_name, title, author")
             .eq("user_id", user_id)
             .eq("platform", "calendar")
             .eq("content_type", "event")
@@ -294,7 +294,7 @@ async def _read_slack_content(
 
         query = (
             client.table("platform_content")
-            .select("content, metadata, source_timestamp, resource_name, author")
+            .select("content, metadata, source_timestamp, resource_name, title, author")
             .eq("user_id", user_id)
             .eq("platform", "slack")
             .gt("fetched_at", cutoff)
@@ -354,7 +354,7 @@ async def _read_notion_content(
     try:
         query = (
             client.table("platform_content")
-            .select("content, metadata, source_timestamp, resource_name, title")
+            .select("content, metadata, source_timestamp, resource_name, title, author")
             .eq("user_id", user_id)
             .eq("platform", "notion")
             .eq("content_type", "page")

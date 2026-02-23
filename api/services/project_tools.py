@@ -610,11 +610,6 @@ Returns the created deliverable. Always follow with respond() to:
                 "type": "string",
                 "enum": ["message", "thread", "page", "send", "draft"],
                 "description": "ADR-029: Format for delivery. Slack: 'message' or 'thread'. Notion: 'page'. Gmail: 'send' (immediate) or 'draft' (for review). Defaults based on platform."
-            },
-            "governance": {
-                "type": "string",
-                "enum": ["manual", "semi_auto", "full_auto"],
-                "description": "ADR-028: Delivery automation level. 'semi_auto' recommended for routine updates (auto-delivers after approval). Default: 'manual'"
             }
         },
         "required": ["title", "deliverable_type"]
@@ -2076,7 +2071,6 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     destination_platform = input.get("destination_platform")
     destination_target = input.get("destination_target")
     destination_format = input.get("destination_format")
-    governance = input.get("governance", "manual")
 
     destination = None
     if destination_platform:
@@ -2111,8 +2105,6 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
         "type_config": type_config,
         "type_classification": type_classification,  # ADR-044/045
         "next_run_at": next_run.isoformat() if hasattr(next_run, 'isoformat') else str(next_run),
-        # ADR-028: Destination-first
-        "governance": governance,
     }
 
     if destination:
@@ -2175,15 +2167,9 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
         elif platform == "download":
             destination_desc = "Download"
 
-    governance_desc = {
-        "manual": "Manual export after approval",
-        "semi_auto": "Auto-delivers after you approve",
-        "full_auto": "Auto-delivers immediately"
-    }.get(governance, "Manual")
-
     message_parts = [f"Created '{title}' - {schedule_desc}."]
     if destination_desc:
-        message_parts.append(f"Delivers to {destination_desc} ({governance_desc.lower()}).")
+        message_parts.append(f"Delivers to {destination_desc}.")
     message_parts.append("First draft will be ready for review at your next scheduled time.")
 
     return {
@@ -2197,7 +2183,6 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
             "recipient": recipient_name,
             # ADR-028: Destination info
             "destination": destination_desc,
-            "governance": governance,
         },
         "message": " ".join(message_parts),
         "ui_action": {
@@ -2207,7 +2192,6 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
                 "title": title,
                 "schedule": schedule_desc,
                 "destination": destination_desc,
-                "governance": governance_desc,
                 "context": {
                     "user_memory_count": user_memory_count,
                     "deliverable_memory_count": deliverable_memory_count,

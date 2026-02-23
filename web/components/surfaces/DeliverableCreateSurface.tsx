@@ -446,7 +446,6 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
         destination: finalDestination,
         sources,
         schedule,
-        governance: 'manual',
         type_classification: selectedType.classification,
       };
 
