@@ -136,6 +136,41 @@ async def _sync_platform_async(
             sync_result = await _sync_notion(client, user_id, integration, selected_sources)
         elif provider == "calendar":
             sync_result = await _sync_calendar(client, user_id, integration, selected_sources)
+        elif provider == "google":
+            # Google OAuth provides both Gmail and Calendar from a single connection.
+            # Split selected_sources by type using landscape resource metadata.
+            landscape = integration.get("landscape", {}) or {}
+            resources = landscape.get("resources", [])
+            gmail_ids = {r["id"] for r in resources if isinstance(r, dict) and r.get("metadata", {}).get("platform") == "gmail"}
+            calendar_ids = {r["id"] for r in resources if isinstance(r, dict) and r.get("metadata", {}).get("platform") == "calendar"}
+
+            gmail_sources = [s for s in selected_sources if s in gmail_ids]
+            calendar_sources = [s for s in selected_sources if s in calendar_ids]
+
+            total_items = 0
+            errors = []
+
+            if gmail_sources:
+                gmail_result = await _sync_gmail(client, user_id, integration, gmail_sources)
+                total_items += gmail_result.get("items_synced", 0)
+                if "error" in gmail_result:
+                    errors.append(f"gmail: {gmail_result['error']}")
+
+            if calendar_sources:
+                cal_result = await _sync_calendar(client, user_id, integration, calendar_sources)
+                total_items += cal_result.get("items_synced", 0)
+                if "error" in cal_result:
+                    errors.append(f"calendar: {cal_result['error']}")
+
+            sync_result = {
+                "items_synced": total_items,
+                "gmail_sources": len(gmail_sources),
+                "calendar_sources": len(calendar_sources),
+            }
+            if errors:
+                sync_result["error"] = "; ".join(errors)
+
+            logger.info(f"[PLATFORM_WORKER] Google split sync: gmail={len(gmail_sources)} sources, calendar={len(calendar_sources)} sources, items={total_items}")
         else:
             return {
                 "success": False,
