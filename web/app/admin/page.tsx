@@ -8,6 +8,8 @@ import type {
   AdminDocumentStats,
   AdminChatStats,
   AdminUserRow,
+  AdminSyncHealth,
+  AdminPipelineStats,
 } from "@/types/admin";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { StatCard } from "@/components/admin/StatCard";
@@ -21,6 +23,13 @@ import {
   Loader2,
   AlertCircle,
   Download,
+  RefreshCw,
+  Database,
+  Zap,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  MinusCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
@@ -35,6 +44,8 @@ export default function AdminDashboardPage() {
   const [documentStats, setDocumentStats] = useState<AdminDocumentStats | null>(null);
   const [chatStats, setChatStats] = useState<AdminChatStats | null>(null);
   const [users, setUsers] = useState<AdminUserRow[]>([]);
+  const [syncHealth, setSyncHealth] = useState<AdminSyncHealth | null>(null);
+  const [pipelineStats, setPipelineStats] = useState<AdminPipelineStats | null>(null);
 
   const handleExportUsers = async () => {
     try {
@@ -64,12 +75,14 @@ export default function AdminDashboardPage() {
         setLoading(true);
         setError(null);
 
-        const [overview, memory, document, chat, userList] = await Promise.all([
+        const [overview, memory, document, chat, userList, sync, pipeline] = await Promise.all([
           api.admin.stats(),
           api.admin.memoryStats(),
           api.admin.documentStats(),
           api.admin.chatStats(),
           api.admin.users(),
+          api.admin.syncHealth().catch(() => null),
+          api.admin.pipelineStats().catch(() => null),
         ]);
 
         setOverviewStats(overview);
@@ -77,6 +90,8 @@ export default function AdminDashboardPage() {
         setDocumentStats(document);
         setChatStats(chat);
         setUsers(userList);
+        setSyncHealth(sync);
+        setPipelineStats(pipeline);
       } catch (err) {
         console.error("Failed to fetch admin stats:", err);
         setError(err instanceof Error ? err.message : "Failed to fetch stats");
@@ -184,6 +199,200 @@ export default function AdminDashboardPage() {
             value={chatStats?.active_sessions ?? 0}
             icon={Activity}
           />
+        </div>
+      )}
+
+      {/* Sync Health */}
+      {syncHealth && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base flex items-center gap-2">
+              <RefreshCw className="w-4 h-4" />
+              Sync Health
+              <span className="text-xs font-normal text-muted-foreground ml-auto">
+                {syncHealth.users_with_sync} users with sync
+              </span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-4 text-sm">
+              <div>
+                <p className="text-muted-foreground">Total Sources</p>
+                <p className="text-xl font-semibold">{syncHealth.total_sources}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-green-600" /> Fresh
+                </p>
+                <p className="text-xl font-semibold text-green-600">{syncHealth.sources_fresh}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground flex items-center gap-1">
+                  <XCircle className="w-3 h-3 text-red-600" /> Stale
+                </p>
+                <p className="text-xl font-semibold text-red-600">{syncHealth.sources_stale}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground flex items-center gap-1">
+                  <MinusCircle className="w-3 h-3 text-yellow-600" /> Never Synced
+                </p>
+                <p className="text-xl font-semibold text-yellow-600">{syncHealth.sources_never_synced}</p>
+              </div>
+              <div>
+                <p className="text-muted-foreground">With Cursor</p>
+                <p className="text-xl font-semibold">{syncHealth.sources_with_cursor}</p>
+              </div>
+            </div>
+
+            {/* Per-platform breakdown */}
+            {Object.keys(syncHealth.by_platform).length > 0 && (
+              <div>
+                <p className="text-xs text-muted-foreground mb-2">By Platform</p>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {Object.entries(syncHealth.by_platform).map(([platform, stats]) => (
+                    <div key={platform} className="border rounded-md p-2 text-sm">
+                      <p className="font-medium capitalize">{platform}</p>
+                      <div className="flex gap-3 mt-1 text-xs text-muted-foreground">
+                        <span>{stats.total} total</span>
+                        <span className="text-green-600">{stats.fresh} fresh</span>
+                        <span className="text-red-600">{stats.stale} stale</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {syncHealth.last_sync_event_at && (
+              <p className="text-xs text-muted-foreground">
+                Last sync event: {formatDate(syncHealth.last_sync_event_at)}
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Pipeline Health */}
+      {pipelineStats && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Content Layer */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Database className="w-4 h-4" />
+                Content Layer
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Total</p>
+                  <p className="text-xl font-semibold">{pipelineStats.content_total}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Retained</p>
+                  <p className="text-xl font-semibold text-green-600">{pipelineStats.content_retained}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Ephemeral</p>
+                  <p className="text-xl font-semibold text-yellow-600">{pipelineStats.content_ephemeral}</p>
+                </div>
+              </div>
+
+              {/* By platform */}
+              {Object.keys(pipelineStats.content_by_platform).length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">By Platform</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(pipelineStats.content_by_platform).map(([platform, count]) => (
+                      <span key={platform} className="text-xs border rounded px-2 py-1">
+                        <span className="capitalize">{platform}</span>: <span className="font-medium">{count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* By retention reason */}
+              {Object.keys(pipelineStats.content_retained_by_reason).length > 0 && (
+                <div>
+                  <p className="text-xs text-muted-foreground mb-1">Retained By Reason</p>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(pipelineStats.content_retained_by_reason).map(([reason, count]) => (
+                      <span key={reason} className="text-xs border rounded px-2 py-1">
+                        {reason}: <span className="font-medium">{count}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Scheduler & Signals */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base flex items-center gap-2">
+                <Zap className="w-4 h-4" />
+                Scheduler & Signals
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-3 h-3" /> Last Heartbeat
+                  </p>
+                  <p className="font-medium">
+                    {pipelineStats.last_heartbeat_at
+                      ? formatDate(pipelineStats.last_heartbeat_at)
+                      : "Never"}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Heartbeats (24h)</p>
+                  <p className="text-xl font-semibold">{pipelineStats.heartbeats_24h}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Deliverables Scheduled (24h)</p>
+                  <p className="text-xl font-semibold">{pipelineStats.deliverables_scheduled_24h}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Deliverables Executed (24h)</p>
+                  <p className="text-xl font-semibold">{pipelineStats.deliverables_executed_24h}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Signals (24h)</p>
+                  <p className="text-xl font-semibold">{pipelineStats.signals_processed_24h}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Signals (7d)</p>
+                  <p className="text-xl font-semibold">{pipelineStats.signals_processed_7d}</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-4 text-sm">
+                <div>
+                  <p className="text-muted-foreground">Triggers Executed</p>
+                  <p className="text-xl font-semibold text-green-600">{pipelineStats.triggers_executed_24h}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Triggers Skipped</p>
+                  <p className="text-xl font-semibold text-yellow-600">{pipelineStats.triggers_skipped_24h}</p>
+                </div>
+                <div>
+                  <p className="text-muted-foreground">Triggers Failed</p>
+                  <p className="text-xl font-semibold text-red-600">{pipelineStats.triggers_failed_24h}</p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         </div>
       )}
 

@@ -64,3 +64,33 @@ export interface AdminUserRow {
   session_count: number;
   last_activity: string | null;
 }
+
+// ADR-073: Sync Health (cross-user)
+export interface AdminSyncHealth {
+  total_sources: number;
+  sources_fresh: number;
+  sources_stale: number;
+  sources_never_synced: number;
+  sources_with_cursor: number;
+  by_platform: Record<string, { total: number; fresh: number; stale: number }>;
+  users_with_sync: number;
+  last_sync_event_at: string | null;
+}
+
+// ADR-073: Pipeline Stats
+export interface AdminPipelineStats {
+  content_total: number;
+  content_retained: number;
+  content_ephemeral: number;
+  content_by_platform: Record<string, number>;
+  content_retained_by_reason: Record<string, number>;
+  last_heartbeat_at: string | null;
+  heartbeats_24h: number;
+  deliverables_scheduled_24h: number;
+  deliverables_executed_24h: number;
+  signals_processed_24h: number;
+  signals_processed_7d: number;
+  triggers_executed_24h: number;
+  triggers_skipped_24h: number;
+  triggers_failed_24h: number;
+}

@@ -1,9 +1,10 @@
 """
-System routes - Operations status
+System routes - Operations status (ADR-073)
 
 Provides operational visibility into background orchestration:
-- Platform sync status (per-platform last/next sync)
-- Background job status (signal processing, memory extraction, conversation analyst)
+- Platform sync status with per-resource detail from sync_registry
+- Content accumulation from platform_content
+- Background job status from activity_log
 
 Mounted at /api/system
 """
@@ -22,6 +23,24 @@ router = APIRouter()
 # Response Models
 # =============================================================================
 
+class ResourceSyncStatus(BaseModel):
+    """Per-resource sync detail from sync_registry."""
+    resource_id: str
+    resource_name: Optional[str] = None
+    last_synced_at: Optional[str] = None
+    item_count: int = 0
+    has_cursor: bool = False
+    status: str = "unknown"  # fresh, recent, stale, never_synced
+
+
+class PlatformContentSummary(BaseModel):
+    """Content counts for a platform from platform_content."""
+    total_items: int = 0
+    retained_items: int = 0
+    ephemeral_items: int = 0
+    freshest_at: Optional[str] = None
+
+
 class PlatformSyncStatus(BaseModel):
     """Sync status for a single platform."""
     platform: str
@@ -30,6 +49,8 @@ class PlatformSyncStatus(BaseModel):
     next_sync_at: Optional[str] = None
     source_count: int = 0
     status: str = "unknown"  # healthy, stale, pending, disconnected
+    resources: list[ResourceSyncStatus] = []
+    content: Optional[PlatformContentSummary] = None
 
 
 class BackgroundJobStatus(BaseModel):
@@ -59,21 +80,14 @@ async def get_system_status(auth: UserClient):
     Get system operations status.
 
     Returns:
-    - Platform sync status per connected platform
+    - Platform sync status per connected platform with per-resource detail
+    - Content accumulation counts
     - Background job last-run status
     """
     user_id = auth.user_id
     now = datetime.now(timezone.utc)
 
-    # ─── Platform Sync Status ─────────────────────────────────────────────────
-    platform_sync = []
-
-    # Get connected platforms
-    platforms_result = auth.client.table("platform_connections").select(
-        "platform, status, last_synced_at, landscape"
-    ).eq("user_id", user_id).execute()
-
-    # Get user tier and sync frequency
+    # ─── Tier & Frequency ──────────────────────────────────────────────────────
     from services.platform_limits import TIER_LIMITS
 
     ws_result = auth.client.table("workspaces").select(
@@ -84,7 +98,6 @@ async def get_system_status(auth: UserClient):
     limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
     sync_frequency = limits.sync_frequency
 
-    # Calculate next sync based on tier
     next_sync_hours = {
         "2x_daily": 6,
         "4x_daily": 4,
@@ -92,41 +105,159 @@ async def get_system_status(auth: UserClient):
     }
     hours_between = next_sync_hours.get(sync_frequency, 6)
 
+    # ─── Platform Connections ──────────────────────────────────────────────────
+    platforms_result = auth.client.table("platform_connections").select(
+        "platform, status, last_synced_at, landscape"
+    ).eq("user_id", user_id).execute()
+
+    # ─── Sync Registry (single query, partition by platform) ───────────────────
+    registry_result = auth.client.table("sync_registry").select(
+        "platform, resource_id, resource_name, last_synced_at, platform_cursor, item_count"
+    ).eq("user_id", user_id).execute()
+
+    # Group by platform
+    registry_by_platform: dict[str, list[dict]] = {}
+    for row in (registry_result.data or []):
+        p = row["platform"]
+        registry_by_platform.setdefault(p, []).append(row)
+
+    # ─── Platform Content Counts (per platform) ───────────────────────────────
+    # Map platform_connections.platform → platform_content.platform
+    # Note: "google" connection provides both "gmail" and "calendar" content platforms
+    content_platforms = ["slack", "gmail", "notion", "calendar"]
+    content_counts: dict[str, PlatformContentSummary] = {}
+
+    for cp in content_platforms:
+        try:
+            # Total non-expired
+            total_result = auth.client.table("platform_content").select(
+                "id", count="exact"
+            ).eq("user_id", user_id).eq("platform", cp).or_(
+                f"retained.eq.true,expires_at.gt.{now.isoformat()}"
+            ).execute()
+            total = total_result.count or 0
+
+            # Retained
+            retained_result = auth.client.table("platform_content").select(
+                "id", count="exact"
+            ).eq("user_id", user_id).eq("platform", cp).eq("retained", True).execute()
+            retained = retained_result.count or 0
+
+            # Freshest
+            freshest_result = auth.client.table("platform_content").select(
+                "fetched_at"
+            ).eq("user_id", user_id).eq("platform", cp).order(
+                "fetched_at", desc=True
+            ).limit(1).execute()
+            freshest_at = freshest_result.data[0]["fetched_at"] if freshest_result.data else None
+
+            content_counts[cp] = PlatformContentSummary(
+                total_items=total,
+                retained_items=retained,
+                ephemeral_items=total - retained,
+                freshest_at=freshest_at,
+            )
+        except Exception:
+            content_counts[cp] = PlatformContentSummary()
+
+    # ─── Build Platform Sync Status ────────────────────────────────────────────
+    platform_sync = []
     all_platforms = ["slack", "gmail", "notion", "calendar"]
     connected_platforms = {p["platform"]: p for p in (platforms_result.data or [])}
 
+    # Map connection platform → content/registry platform names
+    # "google" connection covers both gmail and calendar
+    platform_content_map = {
+        "slack": ["slack"],
+        "google": ["gmail", "calendar"],
+        "notion": ["notion"],
+    }
+
     for platform in all_platforms:
-        if platform in connected_platforms:
-            p_data = connected_platforms[platform]
-            last_synced = p_data.get("last_synced_at")
+        # Determine which connection platform owns this content platform
+        conn_platform = platform
+        if platform in ("gmail", "calendar"):
+            conn_platform = "google"
+
+        if conn_platform in connected_platforms:
+            p_data = connected_platforms[conn_platform]
             landscape = p_data.get("landscape", {}) or {}
             selected_sources = landscape.get("selected_sources", [])
 
-            # Calculate next sync
-            next_sync = None
-            status = "healthy"
-            if last_synced:
-                try:
-                    last_dt = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
-                    next_dt = last_dt + timedelta(hours=hours_between)
-                    next_sync = next_dt.isoformat()
+            # Build per-resource status from sync_registry
+            registry_rows = registry_by_platform.get(platform, [])
+            resources = []
+            latest_sync_dt = None
 
-                    # Check staleness
-                    hours_since = (now - last_dt).total_seconds() / 3600
-                    if hours_since > hours_between * 2:
-                        status = "stale"
-                except (ValueError, TypeError):
-                    status = "unknown"
+            for row in registry_rows:
+                r_last_synced = row.get("last_synced_at")
+                r_status = "never_synced"
+                if r_last_synced:
+                    try:
+                        r_dt = datetime.fromisoformat(r_last_synced.replace("Z", "+00:00"))
+                        hours_since = (now - r_dt).total_seconds() / 3600
+                        if hours_since <= hours_between:
+                            r_status = "fresh"
+                        elif hours_since <= hours_between * 2:
+                            r_status = "recent"
+                        else:
+                            r_status = "stale"
+
+                        if latest_sync_dt is None or r_dt > latest_sync_dt:
+                            latest_sync_dt = r_dt
+                    except (ValueError, TypeError):
+                        r_status = "unknown"
+
+                resources.append(ResourceSyncStatus(
+                    resource_id=row["resource_id"],
+                    resource_name=row.get("resource_name"),
+                    last_synced_at=r_last_synced,
+                    item_count=row.get("item_count", 0),
+                    has_cursor=bool(row.get("platform_cursor")),
+                    status=r_status,
+                ))
+
+            # Derive platform-level status from resources
+            if resources:
+                stale_count = sum(1 for r in resources if r.status == "stale")
+                never_count = sum(1 for r in resources if r.status == "never_synced")
+                if stale_count > 0:
+                    platform_status = "stale"
+                elif never_count == len(resources):
+                    platform_status = "pending"
+                else:
+                    platform_status = "healthy"
             else:
-                status = "pending"
+                # No sync_registry entries — fall back to platform_connections
+                platform_status = "pending"
+                fallback_synced = p_data.get("last_synced_at")
+                if fallback_synced:
+                    try:
+                        fb_dt = datetime.fromisoformat(fallback_synced.replace("Z", "+00:00"))
+                        hours_since = (now - fb_dt).total_seconds() / 3600
+                        if hours_since > hours_between * 2:
+                            platform_status = "stale"
+                        else:
+                            platform_status = "healthy"
+                        latest_sync_dt = fb_dt
+                    except (ValueError, TypeError):
+                        pass
+
+            # Compute last_synced_at and next_sync_at from registry data
+            last_synced_str = latest_sync_dt.isoformat() if latest_sync_dt else p_data.get("last_synced_at")
+            next_sync = None
+            if latest_sync_dt:
+                next_sync = (latest_sync_dt + timedelta(hours=hours_between)).isoformat()
 
             platform_sync.append(PlatformSyncStatus(
                 platform=platform,
                 connected=True,
-                last_synced_at=last_synced,
+                last_synced_at=last_synced_str,
                 next_sync_at=next_sync,
                 source_count=len(selected_sources),
-                status=status,
+                status=platform_status,
+                resources=resources,
+                content=content_counts.get(platform),
             ))
         else:
             platform_sync.append(PlatformSyncStatus(
@@ -135,18 +266,18 @@ async def get_system_status(auth: UserClient):
                 status="disconnected",
             ))
 
-    # ─── Background Jobs Status ───────────────────────────────────────────────
+    # ─── Background Jobs Status ────────────────────────────────────────────────
     background_jobs = []
 
-    # Query activity_log for recent job runs
     job_types = [
+        ("platform_synced", "Platform Sync"),
         ("signal_processed", "Signal Processing"),
         ("memory_written", "Memory Extraction"),
-        ("conversation_analyzed", "Conversation Analyst"),
+        ("deliverable_scheduled", "Deliverable Scheduler"),
+        ("scheduler_heartbeat", "Scheduler Heartbeat"),
     ]
 
     for event_type, label in job_types:
-        # Get most recent event of this type
         event_result = auth.client.table("activity_log").select(
             "id, summary, metadata, created_at"
         ).eq("user_id", user_id).eq(

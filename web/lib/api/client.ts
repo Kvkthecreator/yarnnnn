@@ -46,6 +46,8 @@ import type {
   AdminDocumentStats,
   AdminChatStats,
   AdminUserRow,
+  AdminSyncHealth,
+  AdminPipelineStats,
 } from "@/types/admin";
 
 const API_BASE_URL =
@@ -428,6 +430,9 @@ export const api = {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
     },
+    // ADR-073: Pipeline observability
+    syncHealth: () => request<AdminSyncHealth>("/api/admin/sync-health"),
+    pipelineStats: () => request<AdminPipelineStats>("/api/admin/pipeline-stats"),
   },
 
   // ADR-018: Deliverables endpoints
@@ -1225,9 +1230,9 @@ export const api = {
     },
   },
 
-  // ADR-072: System/Operations status
+  // ADR-072/073: System/Operations status
   system: {
-    // Get system operations status
+    // Get system operations status with per-resource detail
     getStatus: () =>
       request<{
         platform_sync: Array<{
@@ -1237,6 +1242,20 @@ export const api = {
           next_sync_at: string | null;
           source_count: number;
           status: "healthy" | "stale" | "pending" | "disconnected" | "unknown";
+          resources: Array<{
+            resource_id: string;
+            resource_name: string | null;
+            last_synced_at: string | null;
+            item_count: number;
+            has_cursor: boolean;
+            status: "fresh" | "recent" | "stale" | "never_synced" | "unknown";
+          }>;
+          content: {
+            total_items: number;
+            retained_items: number;
+            ephemeral_items: number;
+            freshest_at: string | null;
+          } | null;
         }>;
         background_jobs: Array<{
           job_type: string;

@@ -937,3 +937,246 @@ async def trigger_analysis_all_users(admin: AdminAuth):
             status_code=500,
             detail=f"Bulk analysis failed: {str(e)}"
         )
+
+
+# =============================================================================
+# Pipeline Observability Endpoints (ADR-073)
+# =============================================================================
+
+class AdminSyncHealth(BaseModel):
+    """Cross-user sync registry health metrics."""
+    total_sources: int = 0
+    sources_fresh: int = 0
+    sources_stale: int = 0
+    sources_never_synced: int = 0
+    sources_with_cursor: int = 0
+    by_platform: dict = {}
+    users_with_sync: int = 0
+    last_sync_event_at: Optional[str] = None
+
+
+class AdminPipelineStats(BaseModel):
+    """Pipeline health metrics from platform_content, activity_log, event_trigger_log."""
+    # Content layer
+    content_total: int = 0
+    content_retained: int = 0
+    content_ephemeral: int = 0
+    content_by_platform: dict = {}
+    content_retained_by_reason: dict = {}
+    # Scheduler
+    last_heartbeat_at: Optional[str] = None
+    heartbeats_24h: int = 0
+    deliverables_scheduled_24h: int = 0
+    deliverables_executed_24h: int = 0
+    # Signals
+    signals_processed_24h: int = 0
+    signals_processed_7d: int = 0
+    # Event triggers
+    triggers_executed_24h: int = 0
+    triggers_skipped_24h: int = 0
+    triggers_failed_24h: int = 0
+
+
+@router.get("/sync-health", response_model=AdminSyncHealth)
+async def get_sync_health(admin: AdminAuth):
+    """Get cross-user platform sync health metrics from sync_registry."""
+    try:
+        client = admin.client
+        now = datetime.now(timezone.utc)
+        freshness_threshold = now - timedelta(hours=24)
+
+        # Fetch all sync_registry rows
+        registry_result = client.table("sync_registry").select(
+            "user_id, platform, resource_id, last_synced_at, platform_cursor"
+        ).execute()
+
+        rows = registry_result.data or []
+        total = len(rows)
+        fresh = 0
+        stale = 0
+        never = 0
+        with_cursor = 0
+        user_ids = set()
+        by_platform: dict[str, dict] = {}
+
+        for row in rows:
+            platform = row.get("platform", "unknown")
+            user_ids.add(row["user_id"])
+
+            if row.get("platform_cursor"):
+                with_cursor += 1
+
+            bp = by_platform.setdefault(platform, {"total": 0, "fresh": 0, "stale": 0})
+            bp["total"] += 1
+
+            last_synced = row.get("last_synced_at")
+            if not last_synced:
+                never += 1
+            else:
+                try:
+                    dt = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
+                    if dt >= freshness_threshold:
+                        fresh += 1
+                        bp["fresh"] += 1
+                    else:
+                        stale += 1
+                        bp["stale"] += 1
+                except (ValueError, TypeError):
+                    stale += 1
+                    bp["stale"] += 1
+
+        # Most recent platform_synced event
+        sync_event = client.table("activity_log").select(
+            "created_at"
+        ).eq("event_type", "platform_synced").order(
+            "created_at", desc=True
+        ).limit(1).execute()
+        last_sync_at = sync_event.data[0]["created_at"] if sync_event.data else None
+
+        return AdminSyncHealth(
+            total_sources=total,
+            sources_fresh=fresh,
+            sources_stale=stale,
+            sources_never_synced=never,
+            sources_with_cursor=with_cursor,
+            by_platform=by_platform,
+            users_with_sync=len(user_ids),
+            last_sync_event_at=last_sync_at,
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sync health: {str(e)}")
+
+
+@router.get("/pipeline-stats", response_model=AdminPipelineStats)
+async def get_pipeline_stats(admin: AdminAuth):
+    """Get pipeline health metrics from platform_content, activity_log, event_trigger_log."""
+    try:
+        client = admin.client
+        now = datetime.now(timezone.utc)
+        cutoff_24h = (now - timedelta(hours=24)).isoformat()
+        cutoff_7d = (now - timedelta(days=7)).isoformat()
+
+        # ─── Content Layer ─────────────────────────────────────────────────────
+        # Total non-expired content
+        total_result = client.table("platform_content").select(
+            "id", count="exact"
+        ).or_(f"retained.eq.true,expires_at.gt.{now.isoformat()}").execute()
+        content_total = total_result.count or 0
+
+        # Retained content
+        retained_result = client.table("platform_content").select(
+            "id", count="exact"
+        ).eq("retained", True).execute()
+        content_retained = retained_result.count or 0
+
+        # By platform
+        content_by_platform = {}
+        for p in ["slack", "gmail", "notion", "calendar"]:
+            p_result = client.table("platform_content").select(
+                "id", count="exact"
+            ).eq("platform", p).or_(
+                f"retained.eq.true,expires_at.gt.{now.isoformat()}"
+            ).execute()
+            content_by_platform[p] = p_result.count or 0
+
+        # By retention reason
+        content_retained_by_reason = {}
+        for reason in ["deliverable_execution", "signal_processing", "tp_session"]:
+            r_result = client.table("platform_content").select(
+                "id", count="exact"
+            ).eq("retained", True).eq("retained_reason", reason).execute()
+            content_retained_by_reason[reason] = r_result.count or 0
+
+        # ─── Scheduler Health ──────────────────────────────────────────────────
+        # Latest heartbeat
+        hb_result = client.table("activity_log").select(
+            "created_at"
+        ).eq("event_type", "scheduler_heartbeat").order(
+            "created_at", desc=True
+        ).limit(1).execute()
+        last_heartbeat = hb_result.data[0]["created_at"] if hb_result.data else None
+
+        # Heartbeats in 24h
+        hb_24h = client.table("activity_log").select(
+            "id", count="exact"
+        ).eq("event_type", "scheduler_heartbeat").gte(
+            "created_at", cutoff_24h
+        ).execute()
+        heartbeats_24h = hb_24h.count or 0
+
+        # Deliverables scheduled 24h
+        ds_24h = client.table("activity_log").select(
+            "id", count="exact"
+        ).eq("event_type", "deliverable_scheduled").gte(
+            "created_at", cutoff_24h
+        ).execute()
+        deliverables_scheduled_24h = ds_24h.count or 0
+
+        # Deliverables executed 24h
+        de_24h = client.table("activity_log").select(
+            "id", count="exact"
+        ).eq("event_type", "deliverable_run").gte(
+            "created_at", cutoff_24h
+        ).execute()
+        deliverables_executed_24h = de_24h.count or 0
+
+        # ─── Signals ──────────────────────────────────────────────────────────
+        sig_24h = client.table("activity_log").select(
+            "id", count="exact"
+        ).eq("event_type", "signal_processed").gte(
+            "created_at", cutoff_24h
+        ).execute()
+        signals_24h = sig_24h.count or 0
+
+        sig_7d = client.table("activity_log").select(
+            "id", count="exact"
+        ).eq("event_type", "signal_processed").gte(
+            "created_at", cutoff_7d
+        ).execute()
+        signals_7d = sig_7d.count or 0
+
+        # ─── Event Triggers ───────────────────────────────────────────────────
+        triggers_executed = 0
+        triggers_skipped = 0
+        triggers_failed = 0
+
+        try:
+            for result_type, counter_name in [
+                ("executed", "triggers_executed"),
+                ("skipped", "triggers_skipped"),
+                ("failed", "triggers_failed"),
+            ]:
+                t_result = client.table("event_trigger_log").select(
+                    "id", count="exact"
+                ).eq("result", result_type).gte(
+                    "triggered_at", cutoff_24h
+                ).execute()
+                if counter_name == "triggers_executed":
+                    triggers_executed = t_result.count or 0
+                elif counter_name == "triggers_skipped":
+                    triggers_skipped = t_result.count or 0
+                else:
+                    triggers_failed = t_result.count or 0
+        except Exception:
+            pass  # event_trigger_log may not have data yet
+
+        return AdminPipelineStats(
+            content_total=content_total,
+            content_retained=content_retained,
+            content_ephemeral=content_total - content_retained,
+            content_by_platform=content_by_platform,
+            content_retained_by_reason=content_retained_by_reason,
+            last_heartbeat_at=last_heartbeat,
+            heartbeats_24h=heartbeats_24h,
+            deliverables_scheduled_24h=deliverables_scheduled_24h,
+            deliverables_executed_24h=deliverables_executed_24h,
+            signals_processed_24h=signals_24h,
+            signals_processed_7d=signals_7d,
+            triggers_executed_24h=triggers_executed,
+            triggers_skipped_24h=triggers_skipped,
+            triggers_failed_24h=triggers_failed,
+        )
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch pipeline stats: {str(e)}")
