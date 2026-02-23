@@ -112,8 +112,7 @@ export function ContextSidebar() {
             const config = PLATFORM_CONFIG[platformKey];
             const summary = platformStatus[platformKey];
             const isConnected = summary?.status === 'active';
-            const isActive = activePlatform === platformKey ||
-              (platformKey === 'calendar' && activePlatform === 'google');
+            const isActive = activePlatform === platformKey;
 
             return (
               <button

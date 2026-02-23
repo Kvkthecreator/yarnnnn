@@ -999,3 +999,91 @@ export interface PlatformContentResponse {
   freshest_at?: string | null;
   platform: string;
 }
+
+// =============================================================================
+// Context Pages: Shared Platform Types
+// =============================================================================
+
+export type PlatformProvider = 'slack' | 'gmail' | 'notion' | 'google' | 'calendar';
+
+export type ApiProvider = "slack" | "notion" | "gmail" | "google" | "calendar";
+
+/** Map frontend platform names to backend provider names */
+export const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
+  slack: ['slack'],
+  gmail: ['gmail', 'google'],
+  notion: ['notion'],
+  google: ['google', 'gmail'],
+  calendar: ['google', 'gmail'],
+};
+
+/** Get the provider to use for API calls */
+export const getApiProvider = (platform: PlatformProvider): ApiProvider => {
+  if (platform === 'calendar') return 'google';
+  return platform;
+};
+
+export interface IntegrationData {
+  id: string;
+  provider: string;
+  status: string;
+  workspace_name: string | null;
+  created_at: string;
+  last_used_at: string | null;
+  metadata?: {
+    email?: string;
+    [key: string]: unknown;
+  };
+}
+
+export interface LandscapeResource {
+  id: string;
+  name: string;
+  resource_type: string;
+  coverage_state: 'uncovered' | 'partial' | 'covered' | 'stale' | 'excluded';
+  last_extracted_at: string | null;
+  items_extracted: number;
+  metadata: Record<string, unknown>;
+}
+
+export interface SelectedSource {
+  id: string;
+  type: string;
+  name: string;
+  last_sync_at: string | null;
+}
+
+export interface PlatformDeliverable {
+  id: string;
+  title: string;
+  status: string;
+  next_run_at?: string | null;
+  deliverable_type: string;
+  destination?: { platform?: string };
+}
+
+export type NumericLimitField = 'slack_channels' | 'gmail_labels' | 'notion_pages' | 'calendars' | 'total_platforms';
+
+export interface TierLimits {
+  tier: 'free' | 'starter' | 'pro';
+  limits: {
+    slack_channels: number;
+    gmail_labels: number;
+    notion_pages: number;
+    calendars: number;
+    total_platforms: number;
+    sync_frequency: '2x_daily' | '4x_daily' | 'hourly';
+    tp_conversations_per_month: number;
+    active_deliverables: number;
+  };
+  usage: {
+    slack_channels: number;
+    gmail_labels: number;
+    notion_pages: number;
+    calendars: number;
+    platforms_connected: number;
+    tp_conversations_this_month: number;
+    active_deliverables: number;
+  };
+  next_sync?: string | null;
+}
