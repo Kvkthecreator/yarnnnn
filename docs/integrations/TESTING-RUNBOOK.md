@@ -114,7 +114,7 @@ ORDER BY sm.created_at DESC LIMIT 5;
 ## Known Issues / Notes
 
 1. **Calendar 0 events**: Calendar sync returns 0 items when there are no events in the next 7 days. This is correct behavior, not a bug.
-2. **Gmail content 'None'**: Signal processing noted Gmail content rendering as 'None'. Email body extraction may need review — the `title` field is populated but `content` may not be storing body text correctly.
+2. **Gmail content**: RESOLVED (commit `011fb25`). Full body extraction now works — avg 5,760 chars per email. Title (subject) and author (sender) populated on all 17 emails.
 3. **Google/Gmail alias**: `platform_connections.platform` stores `"google"` for the unified Google OAuth. The worker splits this into gmail + calendar sub-syncs. Signal extraction checks for any of `"google"`, `"gmail"`, `"calendar"` in `active_platforms`.
 4. **Token persistence**: Only applies to TP messages created after deploy `d5a17a7` (2026-02-23 ~08:02 UTC). Earlier messages have null token fields.
 
@@ -123,10 +123,11 @@ ORDER BY sm.created_at DESC LIMIT 5;
 | Test | Status | Details |
 |------|--------|---------|
 | Slack sync | PASS | 3 items from 2 channels |
-| Gmail sync (via google) | PASS | 16 emails from INBOX |
+| Gmail sync (via google) | PASS | 17 emails from INBOX, full body (avg 5,760 chars) |
 | Calendar sync (via google) | PASS | 0 events (none in next 7 days) |
 | Notion sync | PASS | 2 pages synced |
-| Signal extraction | PASS | All 4 platforms queried, 21 items |
+| Signal extraction | PASS | All 4 platforms queried, 22 items |
 | Signal processing (LLM) | PASS | Haiku triage completed, 0 actions (correct for quiet period) |
+| Gmail content quality | PASS | title, author, thread_id populated on all 17 emails |
 | Token persistence SQL | PASS | `get_daily_token_usage()` returns 0 (no post-deploy messages yet) |
 | Token budget enforcement | CODE VERIFIED | `check_daily_token_budget()` in chat.py, tested via function existence |
