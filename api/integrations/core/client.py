@@ -467,12 +467,15 @@ class MCPClientManager:
         bot_token: str,
         team_id: str,
         limit: int = 100,
+        oldest: Optional[str] = None,
         auto_join: bool = True
     ) -> list[dict[str, Any]]:
         """
         Get Slack channel message history via MCP.
 
         Args:
+            oldest: Only return messages after this timestamp (Slack ts format).
+                   Used for incremental sync via sync_registry cursor.
             auto_join: If True, attempt to join public channels automatically
                       when "not_in_channel" error is received
 
@@ -480,11 +483,14 @@ class MCPClientManager:
         """
         async def _fetch_history() -> tuple[list[dict], str | None]:
             """Fetch history, returning (messages, error_code)."""
+            arguments = {"channel_id": channel_id, "limit": limit}
+            if oldest:
+                arguments["oldest"] = oldest
             result = await self.call_tool(
                 user_id=user_id,
                 provider="slack",
                 tool_name="slack_get_channel_history",
-                arguments={"channel_id": channel_id, "limit": limit},
+                arguments=arguments,
                 env={
                     "SLACK_BOT_TOKEN": bot_token,
                     "SLACK_TEAM_ID": team_id

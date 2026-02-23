@@ -1203,7 +1203,7 @@ async def _execute_calendar_tool(
 
     try:
         if tool == "list_events":
-            events = await google_client.list_calendar_events(
+            result = await google_client.list_calendar_events(
                 client_id=client_id,
                 client_secret=client_secret,
                 refresh_token=refresh_token,
@@ -1212,6 +1212,7 @@ async def _execute_calendar_tool(
                 time_max=args.get("time_max"),
                 max_results=args.get("max_results", 25),
             )
+            events = result.get("items", [])
 
             # Format events
             formatted = []

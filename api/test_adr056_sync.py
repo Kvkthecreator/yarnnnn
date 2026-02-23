@@ -288,15 +288,19 @@ def test_sync_calendar_fetches_per_calendar():
             mock_google = AsyncMock()
             MockClient.return_value = mock_google
 
-            # Return events for each calendar
+            # Return events for each calendar (dict format with items key)
             mock_google.list_calendar_events.side_effect = [
-                [
-                    {"id": "event1", "summary": "Meeting 1", "start": {"dateTime": "2026-02-12T10:00:00Z"}},
-                    {"id": "event2", "summary": "Meeting 2", "start": {"dateTime": "2026-02-12T14:00:00Z"}},
-                ],
-                [
-                    {"id": "event3", "summary": "Work Event", "start": {"date": "2026-02-13"}},
-                ],
+                {
+                    "items": [
+                        {"id": "event1", "summary": "Meeting 1", "start": {"dateTime": "2026-02-12T10:00:00Z"}},
+                        {"id": "event2", "summary": "Meeting 2", "start": {"dateTime": "2026-02-12T14:00:00Z"}},
+                    ],
+                },
+                {
+                    "items": [
+                        {"id": "event3", "summary": "Work Event", "start": {"date": "2026-02-13"}},
+                    ],
+                },
             ]
 
             result = asyncio.run(_sync_calendar(mock_client, "user123", integration, selected_sources))

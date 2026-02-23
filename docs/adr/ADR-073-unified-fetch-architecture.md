@@ -206,13 +206,14 @@ Detailed observability design is a separate concern requiring its own feature do
 - Removing Haiku triage means scheduling rules need to be well-designed to avoid unnecessary Sonnet calls
 
 ### Migration Path
-1. Wire `mark_content_retained` and `cleanup_expired_content` into existing pipeline
-2. Add sync token support to `platform_worker.py` per-platform
-3. Modify signal processing to read `platform_content` instead of live APIs (interim step)
-4. Replace LLM signal triage with scheduling heuristics
-5. Remove `fetch_integration_source_data` from deliverable execution (read `platform_content` only)
-6. Remove `signal_extraction.py` live API calls
-7. Instrument fetch layer for observability
+
+1. ~~Wire `mark_content_retained` and `cleanup_expired_content` into existing pipeline~~ **Done** (2026-02-23, commit d300394)
+2. ~~Add sync token support to `platform_worker.py` per-platform~~ **Done** (2026-02-23) — Slack `oldest`, Gmail date cursor, Calendar `syncToken`, Notion `last_edited_time`
+3. ~~Modify signal processing to read `platform_content` instead of live APIs~~ **Done** (2026-02-23, commit d300394) — `signal_extraction.py` rewritten to read from `platform_content`
+4. Replace LLM signal triage with scheduling heuristics — **Proposed** in ADR-074
+5. ~~Remove `fetch_integration_source_data` from deliverable execution~~ **Done** (2026-02-23, commit d300394) — execution strategies read from `platform_content`
+6. ~~Remove `signal_extraction.py` live API calls~~ **Done** (2026-02-23, commit d300394)
+7. Instrument fetch layer for observability — **Deferred**
 
 ---
 

@@ -13,6 +13,13 @@ ADR-072: Unified Content Layer
 - Writes to platform_content table (replaces filesystem_items)
 - Content starts as ephemeral (retained=false, expires_at set)
 - Downstream systems mark content as retained when referenced
+
+ADR-073: Sync Tokens (Incremental Sync)
+- Reads/writes platform_cursor via sync_registry for each (user, platform, resource)
+- Slack: passes `oldest` ts to skip already-fetched messages
+- Gmail: refines `after:` date query from last sync timestamp
+- Calendar: uses Google Calendar syncToken for delta event sync
+- Notion: compares last_edited_time to skip unchanged pages
 """
 
 import asyncio
@@ -206,6 +213,8 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
         logger.info("[PLATFORM_WORKER] No Slack channels selected, skipping sync")
         return {"items_synced": 0, "channels_synced": 0, "skipped": "no_sources_selected"}
 
+    from services.freshness import get_sync_state, update_sync_registry
+
     selected_set = set(selected_sources)
     logger.info(f"[PLATFORM_WORKER] Slack sync: {len(selected_set)} channels selected")
 
@@ -234,17 +243,26 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
 
             logger.debug(f"[PLATFORM_WORKER] Syncing Slack channel: #{channel_name} ({channel_id})")
 
+            # ADR-073: Read sync cursor for incremental fetch
+            sync_state = await get_sync_state(client, user_id, "slack", channel_id)
+            oldest = sync_state.get("platform_cursor") if sync_state else None
+
             messages = await manager.get_slack_channel_history(
                 user_id=user_id,
                 channel_id=channel_id,
                 bot_token=bot_token,
                 team_id=team_id,
                 limit=50,
+                oldest=oldest,
             )
 
-            # Store in platform_content (ADR-072)
+            # Track latest message ts for cursor update
+            latest_ts = oldest
             for msg in messages:
                 msg_ts = msg.get("ts", "")
+                if msg_ts and (not latest_ts or msg_ts > latest_ts):
+                    latest_ts = msg_ts
+
                 await _store_platform_content(
                     client=client,
                     user_id=user_id,
@@ -263,6 +281,13 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                 )
                 items_synced += 1
 
+            # ADR-073: Update sync cursor with latest message ts
+            await update_sync_registry(
+                client, user_id, "slack", channel_id,
+                resource_name=f"#{channel_name}",
+                platform_cursor=latest_ts,
+                item_count=len(messages),
+            )
             channels_synced += 1
 
         logger.info(f"[PLATFORM_WORKER] Slack sync complete: {channels_synced} channels, {items_synced} messages (skipped {channels_skipped})")
@@ -312,14 +337,12 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
     if not client_id or not client_secret:
         return {"error": "Missing Google OAuth credentials", "items_synced": 0}
 
+    from services.freshness import get_sync_state, update_sync_registry
+
     items_synced = 0
     labels_synced = 0
 
     try:
-        # ADR-055: Recency filter - last 7 days
-        cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
-        date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
-
         for source in selected_sources:
             # Handle both "label:Label_123" and "Label_123" formats
             if source.startswith("label:"):
@@ -330,6 +353,16 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                 resource_id = f"label:{source}"
 
             logger.debug(f"[PLATFORM_WORKER] Syncing Gmail label: {label_id}")
+
+            # ADR-073: Use sync cursor for tighter date filter
+            sync_state = await get_sync_state(client, user_id, "gmail", resource_id)
+            if sync_state and sync_state.get("platform_cursor"):
+                # Cursor stores ISO date of last successful sync
+                date_filter = f"after:{sync_state['platform_cursor']}"
+            else:
+                # First sync: fall back to 7-day window
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
+                date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
 
             try:
                 # Fetch messages for this label
@@ -342,6 +375,7 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                     label_ids=[label_id],
                 )
 
+                label_items = 0
                 # Fetch and store full message content
                 for msg in messages[:50]:  # Cap at 50 per label
                     msg_id = msg.get("id")
@@ -380,10 +414,19 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                             source_timestamp=date_str,
                         )
                         items_synced += 1
+                        label_items += 1
 
                     except Exception as e:
                         logger.warning(f"[PLATFORM_WORKER] Failed to fetch Gmail message {msg_id}: {e}")
 
+                # ADR-073: Update sync cursor with today's date
+                now = datetime.now(timezone.utc)
+                await update_sync_registry(
+                    client, user_id, "gmail", resource_id,
+                    resource_name=label_id,
+                    platform_cursor=now.strftime('%Y/%m/%d'),
+                    item_count=label_items,
+                )
                 labels_synced += 1
 
             except Exception as e:
@@ -428,9 +471,12 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
 
     logger.info(f"[PLATFORM_WORKER] Notion sync: {len(selected_sources)} pages selected")
 
+    from services.freshness import get_sync_state, update_sync_registry
+
     notion_client = get_notion_client()
     items_synced = 0
     pages_synced = 0
+    pages_skipped = 0
     pages_failed = 0
 
     try:
@@ -454,6 +500,13 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
                 last_edited = page_meta.get("last_edited_time")
                 page_url = page_meta.get("url")
 
+                # ADR-073: Skip content fetch if page hasn't changed since last sync
+                sync_state = await get_sync_state(client, user_id, "notion", page_id)
+                if sync_state and sync_state.get("platform_cursor") == last_edited:
+                    logger.debug(f"[PLATFORM_WORKER] Notion page {page_id} unchanged, skipping content fetch")
+                    pages_skipped += 1
+                    continue
+
                 # Fetch page content blocks
                 blocks = await notion_client.get_page_content(access_token, page_id)
                 content = _extract_text_from_notion_blocks(blocks)
@@ -476,14 +529,23 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
                 items_synced += 1
                 pages_synced += 1
 
+                # ADR-073: Save last_edited_time as cursor
+                await update_sync_registry(
+                    client, user_id, "notion", page_id,
+                    resource_name=page_title,
+                    platform_cursor=last_edited,
+                    item_count=1,
+                )
+
             except Exception as e:
                 logger.warning(f"[PLATFORM_WORKER] Failed to sync Notion page {page_id}: {e}")
                 pages_failed += 1
 
-        logger.info(f"[PLATFORM_WORKER] Notion sync complete: {pages_synced} pages synced, {pages_failed} failed")
+        logger.info(f"[PLATFORM_WORKER] Notion sync complete: {pages_synced} synced, {pages_skipped} unchanged, {pages_failed} failed")
         return {
             "items_synced": items_synced,
             "pages_synced": pages_synced,
+            "pages_skipped": pages_skipped,
             "pages_failed": pages_failed,
         }
 
@@ -551,6 +613,8 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
     if not client_id or not client_secret:
         return {"error": "Missing Google OAuth credentials", "items_synced": 0}
 
+    from services.freshness import get_sync_state, update_sync_registry
+
     items_synced = 0
     calendars_synced = 0
 
@@ -559,20 +623,46 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
             try:
                 logger.debug(f"[PLATFORM_WORKER] Syncing Calendar: {calendar_id}")
 
-                # Fetch events for next 7 days
-                events = await google_client.list_calendar_events(
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    refresh_token=refresh_token,
-                    calendar_id=calendar_id,
-                    time_min="now",
-                    time_max="+7d",
-                    max_results=50,
-                )
+                # ADR-073: Try incremental sync with syncToken first
+                sync_state = await get_sync_state(client, user_id, "calendar", calendar_id)
+                stored_sync_token = sync_state.get("platform_cursor") if sync_state else None
+
+                if stored_sync_token:
+                    cal_result = await google_client.list_calendar_events(
+                        client_id=client_id,
+                        client_secret=client_secret,
+                        refresh_token=refresh_token,
+                        calendar_id=calendar_id,
+                        max_results=50,
+                        sync_token=stored_sync_token,
+                    )
+                    # If token expired (410 Gone), fall back to full sync
+                    if cal_result.get("invalid_sync_token"):
+                        logger.info(f"[PLATFORM_WORKER] Calendar syncToken expired for {calendar_id}, doing full sync")
+                        stored_sync_token = None
+
+                if not stored_sync_token:
+                    # Full sync: fetch events for next 7 days
+                    cal_result = await google_client.list_calendar_events(
+                        client_id=client_id,
+                        client_secret=client_secret,
+                        refresh_token=refresh_token,
+                        calendar_id=calendar_id,
+                        time_min="now",
+                        time_max="+7d",
+                        max_results=50,
+                    )
+
+                events = cal_result.get("items", [])
+                next_sync_token = cal_result.get("next_sync_token")
 
                 for event in events:
                     event_id = event.get("id")
                     if not event_id:
+                        continue
+
+                    # Incremental sync may return cancelled events
+                    if event.get("status") == "cancelled":
                         continue
 
                     summary = event.get("summary", "No title")
@@ -612,6 +702,12 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
                     )
                     items_synced += 1
 
+                # ADR-073: Save syncToken for next incremental sync
+                await update_sync_registry(
+                    client, user_id, "calendar", calendar_id,
+                    platform_cursor=next_sync_token,
+                    item_count=len(events),
+                )
                 calendars_synced += 1
 
             except Exception as e:

@@ -427,52 +427,74 @@ class GoogleAPIClient:
         calendar_id: str = "primary",
         time_min: Optional[str] = None,
         time_max: Optional[str] = None,
-        max_results: int = 25
-    ) -> list[dict[str, Any]]:
+        max_results: int = 25,
+        sync_token: Optional[str] = None,
+    ) -> dict[str, Any]:
         """
-        List calendar events.
+        List calendar events, with optional incremental sync.
 
         Args:
             calendar_id: Calendar ID or 'primary'
-            time_min: Start time filter (ISO format or 'now')
-            time_max: End time filter (ISO format or relative like '+7d')
+            time_min: Start time filter (ISO format or 'now'). Ignored when sync_token is set.
+            time_max: End time filter (ISO format or relative like '+7d'). Ignored when sync_token is set.
             max_results: Maximum events to return
+            sync_token: If provided, performs incremental sync returning only changes since last sync.
+                       When sync_token is invalid (410 Gone), returns {"invalid_sync_token": True}.
 
-        Returns list of event objects.
+        Returns dict with:
+            - "items": list of event objects
+            - "next_sync_token": token for next incremental sync (if present)
+            - "invalid_sync_token": True if the sync_token was rejected (caller should do full sync)
         """
         access_token = await self._get_access_token(
             client_id, client_secret, refresh_token
         )
 
-        # Parse time filters
-        if not time_min or time_min == "now":
-            time_min = datetime.now(timezone.utc).isoformat()
-        elif time_min.startswith("+"):
-            time_min = self._parse_relative_time(time_min)
+        if sync_token:
+            # Incremental sync — time filters are not allowed with syncToken
+            params: dict[str, Any] = {
+                "syncToken": sync_token,
+                "maxResults": min(max_results, 100),
+            }
+        else:
+            # Full sync with time window
+            if not time_min or time_min == "now":
+                time_min = datetime.now(timezone.utc).isoformat()
+            elif time_min.startswith("+"):
+                time_min = self._parse_relative_time(time_min)
 
-        if not time_max:
-            time_max = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
-        elif time_max.startswith("+"):
-            time_max = self._parse_relative_time(time_max)
+            if not time_max:
+                time_max = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
+            elif time_max.startswith("+"):
+                time_max = self._parse_relative_time(time_max)
 
-        response = await self._request_with_retry(
-            "get",
-            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params={
+            params = {
                 "timeMin": time_min,
                 "timeMax": time_max,
                 "maxResults": min(max_results, 100),
                 "singleEvents": "true",
                 "orderBy": "startTime",
-            },
+            }
+
+        response = await self._request_with_retry(
+            "get",
+            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
+            headers={"Authorization": f"Bearer {access_token}"},
+            params=params,
         )
         data = response.json()
 
         if "error" in data:
+            error_code = data["error"].get("code", 0)
+            # 410 Gone means sync token expired — caller should do full sync
+            if error_code == 410 and sync_token:
+                return {"items": [], "invalid_sync_token": True}
             raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
 
-        return data.get("items", [])
+        return {
+            "items": data.get("items", []),
+            "next_sync_token": data.get("nextSyncToken"),
+        }
 
     async def get_calendar_event(
         self,
