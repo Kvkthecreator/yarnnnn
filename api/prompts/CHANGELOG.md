@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.24.1] - Fix ADR-035 Wave 1 prompt template field mappings
+
+### Changed
+- `api/services/deliverable_pipeline.py`: Added `elif` blocks for `slack_channel_digest`, `slack_standup`, `gmail_inbox_brief`, and `notion_page_summary` in `build_type_prompt()`. These types had prompt templates defined in `TYPE_PROMPTS` but no field mapping in the main function, causing KeyError fallback to the generic custom template.
+
+### Behavior
+- `slack_channel_digest` now renders with proper `{focus}`, `{reply_threshold}`, `{reaction_threshold}`, `{sections_list}` fields
+- `slack_standup` renders with `{source_mode}`, `{format}`, `{sections_list}`
+- `gmail_inbox_brief` renders with `{focus}`, `{sections_list}`
+- `notion_page_summary` renders with `{summary_type}`, `{max_depth}`, `{sections_list}`
+- All Wave 1 types now produce type-specific output instead of degrading to generic custom format
+
+---
+
 ## [2026.02.23.9] - Add signal.process Execute action for TP orchestration
 
 ### Changed

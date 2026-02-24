@@ -1715,6 +1715,38 @@ def build_type_prompt(
             "max_length_words": str(config.get("max_length_words", 800)),
         })
 
+    # =========================================================================
+    # ADR-035: Platform-First Wave 1 Types
+    # =========================================================================
+
+    elif deliverable_type == "slack_channel_digest":
+        fields.update({
+            "focus": config.get("focus", "key discussions and decisions"),
+            "reply_threshold": str(config.get("reply_threshold", 3)),
+            "reaction_threshold": str(config.get("reaction_threshold", 3)),
+            "sections_list": build_sections_list(deliverable_type, config),
+        })
+
+    elif deliverable_type == "slack_standup":
+        fields.update({
+            "source_mode": config.get("source_mode", "individual"),
+            "format": config.get("format", "bullets"),
+            "sections_list": build_sections_list(deliverable_type, config),
+        })
+
+    elif deliverable_type == "gmail_inbox_brief":
+        fields.update({
+            "focus": config.get("focus", "unread and action-required emails"),
+            "sections_list": build_sections_list(deliverable_type, config),
+        })
+
+    elif deliverable_type == "notion_page_summary":
+        fields.update({
+            "summary_type": config.get("summary_type", "activity"),
+            "max_depth": str(config.get("max_depth", 2)),
+            "sections_list": build_sections_list(deliverable_type, config),
+        })
+
     else:  # custom and any unknown types
         fields.update({
             "description": config.get("description", deliverable.get("description", "")),
