@@ -367,3 +367,25 @@ async def get_system_status(auth: UserClient):
         tier=tier,
         sync_frequency=sync_frequency,
     )
+
+
+@router.get("/sync-timestamps")
+async def get_sync_timestamps(auth: UserClient):
+    """
+    Lightweight endpoint for polling sync completion.
+
+    Returns max last_synced_at per platform from sync_registry.
+    Single DB query — designed for frequent polling during manual pipeline runs.
+    """
+    result = auth.client.table("sync_registry").select(
+        "platform, last_synced_at"
+    ).eq("user_id", auth.user_id).execute()
+
+    timestamps: dict[str, str] = {}
+    for row in (result.data or []):
+        p = row["platform"]
+        ts = row.get("last_synced_at")
+        if ts and (p not in timestamps or ts > timestamps[p]):
+            timestamps[p] = ts
+
+    return {"timestamps": timestamps}

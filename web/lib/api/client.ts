@@ -1267,6 +1267,12 @@ export const api = {
         tier: string;
         sync_frequency: string;
       }>("/api/system/status"),
+
+    // Lightweight endpoint for polling sync completion during pipeline runs
+    getSyncTimestamps: () =>
+      request<{
+        timestamps: Record<string, string>;
+      }>("/api/system/sync-timestamps"),
   },
 };
 

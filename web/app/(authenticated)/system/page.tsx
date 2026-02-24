@@ -4,12 +4,13 @@
  * ADR-072/073: System Page — Operations Status
  *
  * Provides operational visibility into background orchestration:
- * - Platform sync status with per-resource detail (from sync_registry)
+ * - Data source sync status with per-resource detail (from sync_registry)
  * - Content accumulation counts (from platform_content)
- * - Background job status (from activity_log)
+ * - Manual pipeline execution with poll-based sync completion detection
+ * - Background activity summary (from activity_log)
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -30,13 +31,7 @@ import {
   ChevronRight,
   Database,
   Repeat,
-  Gauge,
-  Play,
-  FileText,
-  TrendingUp,
-  MessageCircle,
-  FileOutput,
-  Trash2,
+  Circle,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -81,6 +76,14 @@ interface BackgroundJobStatus {
   items_processed: number;
 }
 
+type PipelineStep =
+  | 'idle'
+  | 'triggering'
+  | 'waiting_for_sync'
+  | 'processing_signals'
+  | 'complete'
+  | 'complete_with_warning';
+
 // =============================================================================
 // Platform Configuration
 // =============================================================================
@@ -120,7 +123,7 @@ const SYNC_FREQUENCY_LABELS: Record<string, string> = {
 };
 
 // =============================================================================
-// Status Badge Component
+// Sub-Components
 // =============================================================================
 
 function StatusBadge({ status }: { status: string }) {
@@ -192,6 +195,51 @@ function StatusBadge({ status }: { status: string }) {
   );
 }
 
+function StepItem({ label, status }: { label: string; status: 'pending' | 'active' | 'done' | 'warning' }) {
+  return (
+    <div className="flex items-center gap-2.5 text-sm">
+      {status === 'active' && <Loader2 className="w-4 h-4 animate-spin text-primary shrink-0" />}
+      {status === 'done' && <CheckCircle2 className="w-4 h-4 text-green-500 shrink-0" />}
+      {status === 'warning' && <AlertTriangle className="w-4 h-4 text-amber-500 shrink-0" />}
+      {status === 'pending' && <Circle className="w-4 h-4 text-muted-foreground/40 shrink-0" />}
+      <span className={cn(
+        status === 'active' && 'text-foreground',
+        status === 'done' && 'text-green-700 dark:text-green-400',
+        status === 'warning' && 'text-amber-700 dark:text-amber-400',
+        status === 'pending' && 'text-muted-foreground/50',
+      )}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// Background job grouping: maps backend job_type labels to display groups
+const BACKGROUND_JOB_GROUPS = [
+  {
+    label: 'Platform Sync',
+    icon: <RefreshCw className="w-4 h-4 text-green-500" />,
+    types: ['Platform Sync'],
+  },
+  {
+    label: 'Signal Processing',
+    icon: <Zap className="w-4 h-4 text-amber-500" />,
+    types: ['Signal Processing'],
+  },
+  {
+    label: 'Memory & Analysis',
+    icon: <Brain className="w-4 h-4 text-purple-500" />,
+    types: [
+      'Memory Extraction',
+      'Session Summaries',
+      'Pattern Detection',
+      'Conversation Analysis',
+      'Deliverable Generation',
+      'Content Cleanup',
+    ],
+  },
+];
+
 // =============================================================================
 // Main Component
 // =============================================================================
@@ -204,18 +252,21 @@ export default function SystemPage() {
   const [tier, setTier] = useState('free');
   const [syncFrequency, setSyncFrequency] = useState('2x_daily');
   const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
+  const [expandedMemoryDetail, setExpandedMemoryDetail] = useState(false);
 
   // Pipeline action state
   const [pipelineRunning, setPipelineRunning] = useState(false);
-  const [pipelineStep, setPipelineStep] = useState<'idle' | 'syncing' | 'processing' | 'complete'>('idle');
+  const [pipelineStep, setPipelineStep] = useState<PipelineStep>('idle');
   const [pipelineResult, setPipelineResult] = useState<{
     synced_platforms: string[];
     signals_detected: number;
     deliverables_created: number;
     existing_triggered: number;
     message: string;
+    syncTimedOut?: boolean;
   } | null>(null);
   const [pipelineError, setPipelineError] = useState<string | null>(null);
+  const abortRef = useRef(false);
 
   const loadData = async () => {
     setLoading(true);
@@ -234,6 +285,7 @@ export default function SystemPage() {
 
   useEffect(() => {
     loadData();
+    return () => { abortRef.current = true; };
   }, []);
 
   const togglePlatform = (platform: string) => {
@@ -274,58 +326,71 @@ export default function SystemPage() {
 
   const hasConnectedPlatforms = platformSync.some((p) => p.connected);
 
-  const handleRunPipeline = async () => {
-    setPipelineRunning(true);
-    setPipelineStep('syncing');
-    setPipelineResult(null);
-    setPipelineError(null);
+  // ---------------------------------------------------------------------------
+  // Pipeline: Poll for sync completion
+  // ---------------------------------------------------------------------------
 
-    try {
-      // Step 1: Sync all connected platforms
-      const syncProviders = Array.from(new Set(
-        platformSync
+  const waitForSyncCompletion = async (
+    preSnapshot: Record<string, string | null>,
+    timeoutMs: number = 90000,
+  ): Promise<{ completed: boolean; timedOut: boolean }> => {
+    const startTime = Date.now();
+    const POLL_INTERVAL = 3000;
+
+    while (Date.now() - startTime < timeoutMs) {
+      if (abortRef.current) return { completed: false, timedOut: false };
+      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+
+      try {
+        const { timestamps } = await api.system.getSyncTimestamps();
+
+        // Check if all connected platforms have a newer timestamp
+        const connectedPlatforms = platformSync
           .filter((p) => p.connected)
-          .map((p) => (p.platform === 'gmail' || p.platform === 'calendar') ? 'google' : p.platform)
-      ));
+          .map((p) => p.platform);
 
-      const syncResults = await Promise.allSettled(
-        syncProviders.map((provider) => api.integrations.syncPlatform(provider))
-      );
+        // Map display platforms to sync_registry platforms
+        // gmail/calendar sync under "google" provider, but sync_registry writes as gmail/calendar
+        const allSynced = connectedPlatforms.every((platform) => {
+          const preTime = preSnapshot[platform];
+          const newTime = timestamps[platform];
 
-      const syncedPlatforms = syncProviders.filter(
-        (_, i) => syncResults[i].status === 'fulfilled'
-      );
+          if (!preTime && !newTime) return false; // never synced and still nothing
+          if (!preTime && newTime) return true;    // new sync appeared
+          if (!newTime || !preTime) return false;   // still no sync entry
+          return new Date(newTime) > new Date(preTime);
+        });
 
-      // Step 2: Process signals
-      setPipelineStep('processing');
-      const signalResult = await api.signalProcessing.trigger('all');
-
-      setPipelineStep('complete');
-      setPipelineResult({
-        synced_platforms: syncedPlatforms,
-        signals_detected: signalResult.signals_detected,
-        deliverables_created: signalResult.deliverables_created,
-        existing_triggered: signalResult.existing_triggered,
-        message: signalResult.message || 'Pipeline complete',
-      });
-
-      // Refresh after worker has time to complete (sync is async via RQ)
-      await delayedRefresh();
-    } catch (err) {
-      setPipelineError(err instanceof Error ? err.message : 'Pipeline failed');
-      setPipelineStep('idle');
-    } finally {
-      setPipelineRunning(false);
+        if (allSynced) {
+          return { completed: true, timedOut: false };
+        }
+      } catch {
+        // Polling failure — continue trying
+      }
     }
+
+    return { completed: false, timedOut: true };
   };
 
-  const handleSyncOnly = async () => {
+  // ---------------------------------------------------------------------------
+  // Pipeline: Refresh Data (full pipeline with proper sequencing)
+  // ---------------------------------------------------------------------------
+
+  const handleRefreshData = async () => {
     setPipelineRunning(true);
-    setPipelineStep('syncing');
+    setPipelineStep('triggering');
     setPipelineResult(null);
     setPipelineError(null);
+    abortRef.current = false;
 
     try {
+      // Snapshot current sync timestamps for comparison
+      const preSnapshot: Record<string, string | null> = {};
+      platformSync.filter((p) => p.connected).forEach((p) => {
+        preSnapshot[p.platform] = p.last_synced_at;
+      });
+
+      // Step 1: Trigger sync for all connected platforms
       const syncProviders = Array.from(new Set(
         platformSync
           .filter((p) => p.connected)
@@ -336,27 +401,60 @@ export default function SystemPage() {
         syncProviders.map((provider) => api.integrations.syncPlatform(provider))
       );
 
-      setPipelineStep('complete');
+      // Step 2: Poll for sync completion
+      setPipelineStep('waiting_for_sync');
+      const syncResult = await waitForSyncCompletion(preSnapshot);
+
+      if (abortRef.current) return;
+
+      // Step 3: Process signals
+      setPipelineStep('processing_signals');
+      let signalResult = { signals_detected: 0, deliverables_created: 0, existing_triggered: 0, message: '' as string };
+
+      try {
+        const result = await api.signalProcessing.trigger('all');
+        signalResult = { ...result, message: result.message || '' };
+      } catch (err) {
+        // Signal processing may fail (free tier, rate limit, etc.)
+        // Still show sync success
+        const errMsg = err instanceof Error ? err.message : '';
+        if (errMsg.includes('tier') || errMsg.includes('403')) {
+          signalResult.message = 'Signal processing requires Starter plan or above';
+        } else if (errMsg.includes('rate') || errMsg.includes('429')) {
+          signalResult.message = 'Signal processing is on cooldown (5 min between runs)';
+        } else {
+          signalResult.message = 'Signal processing unavailable';
+        }
+      }
+
+      const finalStep = syncResult.timedOut ? 'complete_with_warning' : 'complete';
+      setPipelineStep(finalStep);
       setPipelineResult({
         synced_platforms: syncProviders,
-        signals_detected: 0,
-        deliverables_created: 0,
-        existing_triggered: 0,
-        message: `Synced ${syncProviders.length} platform(s)`,
+        signals_detected: signalResult.signals_detected,
+        deliverables_created: signalResult.deliverables_created,
+        existing_triggered: signalResult.existing_triggered,
+        message: signalResult.message || 'Pipeline complete',
+        syncTimedOut: syncResult.timedOut,
       });
 
-      await delayedRefresh();
+      // Refresh page data
+      await loadData();
     } catch (err) {
-      setPipelineError(err instanceof Error ? err.message : 'Sync failed');
+      setPipelineError(err instanceof Error ? err.message : 'Pipeline failed');
       setPipelineStep('idle');
     } finally {
       setPipelineRunning(false);
     }
   };
 
+  // ---------------------------------------------------------------------------
+  // Pipeline: Process signals only (from existing data)
+  // ---------------------------------------------------------------------------
+
   const handleSignalsOnly = async () => {
     setPipelineRunning(true);
-    setPipelineStep('processing');
+    setPipelineStep('processing_signals');
     setPipelineResult(null);
     setPipelineError(null);
 
@@ -372,9 +470,7 @@ export default function SystemPage() {
         message: signalResult.message || 'Signal processing complete',
       });
 
-      // Signal processing is synchronous — refresh immediately then again after delay
       await loadData();
-      setTimeout(() => loadData(), 5000);
     } catch (err) {
       setPipelineError(err instanceof Error ? err.message : 'Signal processing failed');
       setPipelineStep('idle');
@@ -383,12 +479,65 @@ export default function SystemPage() {
     }
   };
 
-  // Sync triggers are async (RQ worker) — wait before refreshing, then poll once more
-  const delayedRefresh = async () => {
-    await new Promise((r) => setTimeout(r, 5000));
-    await loadData();
-    setTimeout(() => loadData(), 10000);
+  // ---------------------------------------------------------------------------
+  // Background jobs: group into display rows
+  // ---------------------------------------------------------------------------
+
+  const groupedJobs = BACKGROUND_JOB_GROUPS.map((group) => {
+    const matchingJobs = backgroundJobs.filter((j) => group.types.includes(j.job_type));
+
+    // For single-type groups, use the job directly
+    if (group.types.length === 1) {
+      const job = matchingJobs[0];
+      return {
+        ...group,
+        lastRunAt: job?.last_run_at ?? null,
+        lastRunStatus: job?.last_run_status ?? 'never_run',
+        lastRunSummary: job?.last_run_summary ?? null,
+        itemsProcessed: job?.items_processed ?? 0,
+        subJobs: [],
+      };
+    }
+
+    // For multi-type groups, aggregate: most recent run, worst status
+    const withTimestamps = matchingJobs.filter((j) => j.last_run_at);
+    const mostRecent = withTimestamps.sort(
+      (a, b) => new Date(b.last_run_at!).getTime() - new Date(a.last_run_at!).getTime()
+    )[0];
+    const hasFailed = matchingJobs.some((j) => j.last_run_status === 'failed');
+    const allNeverRun = matchingJobs.every((j) => j.last_run_status === 'never_run');
+
+    return {
+      ...group,
+      lastRunAt: mostRecent?.last_run_at ?? null,
+      lastRunStatus: allNeverRun ? 'never_run' : hasFailed ? 'failed' : 'success',
+      lastRunSummary: mostRecent?.last_run_summary ?? null,
+      itemsProcessed: matchingJobs.reduce((sum, j) => sum + j.items_processed, 0),
+      subJobs: matchingJobs,
+    };
+  });
+
+  // ---------------------------------------------------------------------------
+  // Step indicator helpers
+  // ---------------------------------------------------------------------------
+
+  const getStepStatus = (step: 'triggering' | 'waiting_for_sync' | 'processing_signals') => {
+    const order: PipelineStep[] = ['triggering', 'waiting_for_sync', 'processing_signals', 'complete', 'complete_with_warning'];
+    const currentIdx = order.indexOf(pipelineStep);
+    const stepIdx = order.indexOf(step);
+
+    if (pipelineStep === 'complete' || pipelineStep === 'complete_with_warning') {
+      if (step === 'waiting_for_sync' && pipelineStep === 'complete_with_warning') return 'warning';
+      return 'done';
+    }
+    if (currentIdx === stepIdx) return 'active';
+    if (currentIdx > stepIdx) return 'done';
+    return 'pending';
   };
+
+  // =============================================================================
+  // Render
+  // =============================================================================
 
   return (
     <div className="h-full overflow-auto">
@@ -398,7 +547,7 @@ export default function SystemPage() {
           <div>
             <h1 className="text-2xl font-bold">System</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Platform syncs and background processing
+              Data sources, sync status, and background processing
             </p>
           </div>
           <button
@@ -417,10 +566,10 @@ export default function SystemPage() {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* Platform Sync Status */}
+            {/* ── Section 1: Data Sources ──────────────────────────────────── */}
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Platform Sync</h2>
+                <h2 className="text-lg font-semibold">Data Sources</h2>
                 <span className="text-sm text-muted-foreground">
                   {SYNC_FREQUENCY_LABELS[syncFrequency] || syncFrequency} ({tier} tier)
                 </span>
@@ -466,10 +615,10 @@ export default function SystemPage() {
                               <div className="text-xs text-muted-foreground mt-0.5">
                                 {platform.source_count} source{platform.source_count !== 1 ? 's' : ''} selected
                                 {contentTotal > 0 && (
-                                  <> · {contentTotal} item{contentTotal !== 1 ? 's' : ''} stored</>
+                                  <> &middot; {contentTotal} item{contentTotal !== 1 ? 's' : ''} stored</>
                                 )}
                                 {platform.last_synced_at && (
-                                  <> · Last synced {formatDistanceToNow(new Date(platform.last_synced_at), { addSuffix: true })}</>
+                                  <> &middot; Last synced {formatDistanceToNow(new Date(platform.last_synced_at), { addSuffix: true })}</>
                                 )}
                               </div>
                             )}
@@ -547,69 +696,84 @@ export default function SystemPage() {
               </div>
             </section>
 
-            {/* Pipeline Actions */}
+            {/* ── Section 2: Actions ───────────────────────────────────────── */}
             {hasConnectedPlatforms && (
               <section>
                 <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold">Pipeline Actions</h2>
+                  <h2 className="text-lg font-semibold">Actions</h2>
                 </div>
 
                 <div className="border border-border rounded-lg p-4 space-y-4">
-                  {/* Action buttons */}
-                  <div className="flex items-center gap-3">
+                  {/* Primary action + secondary link */}
+                  <div className="flex items-center gap-4">
                     <button
-                      onClick={handleRunPipeline}
+                      onClick={handleRefreshData}
                       disabled={pipelineRunning}
                       className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {pipelineRunning ? (
                         <Loader2 className="w-4 h-4 animate-spin" />
                       ) : (
-                        <Play className="w-4 h-4" />
+                        <RefreshCw className="w-4 h-4" />
                       )}
-                      Run Pipeline
-                    </button>
-                    <button
-                      onClick={handleSyncOnly}
-                      disabled={pipelineRunning}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5" />
-                      Sync Only
+                      Refresh Data
                     </button>
                     <button
                       onClick={handleSignalsOnly}
                       disabled={pipelineRunning}
-                      className="flex items-center gap-2 px-3 py-2 text-sm text-muted-foreground border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
                     >
-                      <Zap className="w-3.5 h-3.5" />
-                      Signals Only
+                      or process signals from existing data
                     </button>
                   </div>
 
-                  {/* Step indicator */}
-                  {pipelineRunning && (
-                    <div className="flex items-center gap-2 text-sm">
-                      <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                      <span className="text-muted-foreground">
-                        {pipelineStep === 'syncing' && 'Syncing platforms...'}
-                        {pipelineStep === 'processing' && 'Processing signals...'}
-                      </span>
+                  {/* Step indicator (shown during pipeline execution) */}
+                  {pipelineRunning && pipelineStep !== 'idle' && (
+                    <div className="space-y-1.5 py-1">
+                      {pipelineStep === 'processing_signals' && !pipelineResult ? (
+                        // Signals-only mode: single step
+                        <StepItem label="Scanning for signals..." status="active" />
+                      ) : (
+                        // Full pipeline: 3 steps
+                        <>
+                          <StepItem
+                            label="Syncing platforms..."
+                            status={getStepStatus('triggering')}
+                          />
+                          <StepItem
+                            label="Waiting for sync to complete..."
+                            status={getStepStatus('waiting_for_sync')}
+                          />
+                          <StepItem
+                            label="Scanning for signals..."
+                            status={getStepStatus('processing_signals')}
+                          />
+                        </>
+                      )}
                     </div>
                   )}
 
-                  {/* Result */}
+                  {/* Result banner */}
                   {pipelineResult && !pipelineRunning && (() => {
                     const hasActions = pipelineResult.deliverables_created > 0 || pipelineResult.existing_triggered > 0;
                     const hasSignals = pipelineResult.signals_detected > 0;
-                    // Green: actions taken. Yellow: ran but no signals. Blue: synced only.
-                    const variant = hasActions ? 'green' : hasSignals ? 'green' : 'yellow';
+                    const syncTimedOut = pipelineResult.syncTimedOut;
+
+                    const variant = syncTimedOut ? 'amber' : hasActions ? 'green' : hasSignals ? 'green' : 'yellow';
                     const colors = {
                       green: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800', title: 'text-green-800 dark:text-green-200', body: 'text-green-700 dark:text-green-300', meta: 'text-green-600 dark:text-green-400', dismiss: 'text-green-600 dark:text-green-400' },
                       yellow: { bg: 'bg-yellow-50 dark:bg-yellow-900/20', border: 'border-yellow-200 dark:border-yellow-800', title: 'text-yellow-800 dark:text-yellow-200', body: 'text-yellow-700 dark:text-yellow-300', meta: 'text-yellow-600 dark:text-yellow-400', dismiss: 'text-yellow-600 dark:text-yellow-400' },
+                      amber: { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', title: 'text-amber-800 dark:text-amber-200', body: 'text-amber-700 dark:text-amber-300', meta: 'text-amber-600 dark:text-amber-400', dismiss: 'text-amber-600 dark:text-amber-400' },
                     }[variant];
-                    const label = hasActions ? 'Pipeline Complete — Actions Taken' : hasSignals ? 'Pipeline Complete' : 'Pipeline Ran — No Signals Found';
-                    const Icon = hasActions ? CheckCircle2 : AlertTriangle;
+
+                    const label = syncTimedOut
+                      ? 'Sync is still running in the background'
+                      : hasActions
+                        ? 'Pipeline Complete — Actions Taken'
+                        : hasSignals
+                          ? 'Pipeline Complete'
+                          : 'Pipeline Complete — No Signals Found';
+                    const Icon = syncTimedOut ? AlertTriangle : hasActions ? CheckCircle2 : hasSignals ? CheckCircle2 : AlertTriangle;
 
                     return (
                       <div className={`rounded-md ${colors.bg} border ${colors.border} p-3 text-sm`}>
@@ -665,68 +829,90 @@ export default function SystemPage() {
                   )}
 
                   <p className="text-xs text-muted-foreground">
-                    Run Pipeline syncs all connected platforms then processes signals. Signal processing has a 5-minute cooldown.
+                    Fetches latest data from all connected platforms, then scans for actionable signals. Signal processing has a 5-minute cooldown.
                   </p>
                 </div>
               </section>
             )}
 
-            {/* Background Jobs */}
+            {/* ── Section 3: Background Activity ──────────────────────────── */}
             <section>
               <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Background Processing</h2>
+                <h2 className="text-lg font-semibold">Background Activity</h2>
               </div>
 
               <div className="border border-border rounded-lg divide-y divide-border">
-                {backgroundJobs.map((job) => {
-                  const iconMap: Record<string, React.ReactNode> = {
-                    'Platform Sync': <RefreshCw className="w-4 h-4 text-green-500" />,
-                    'Signal Processing': <Zap className="w-4 h-4 text-amber-500" />,
-                    'Memory Extraction': <Brain className="w-4 h-4 text-purple-500" />,
-                    'Session Summaries': <FileText className="w-4 h-4 text-blue-500" />,
-                    'Pattern Detection': <TrendingUp className="w-4 h-4 text-orange-500" />,
-                    'Conversation Analysis': <MessageCircle className="w-4 h-4 text-cyan-500" />,
-                    'Deliverable Generation': <FileOutput className="w-4 h-4 text-emerald-500" />,
-                    'Content Cleanup': <Trash2 className="w-4 h-4 text-red-400" />,
-                    'Scheduler Heartbeat': <Activity className="w-4 h-4 text-gray-500" />,
-                  };
-
-                  return (
-                    <div
-                      key={job.job_type}
-                      className="px-4 py-3 flex items-center justify-between"
-                    >
+                {groupedJobs.map((group) => (
+                  <div key={group.label}>
+                    <div className="px-4 py-3 flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        {iconMap[job.job_type] || <Activity className="w-4 h-4 text-gray-500" />}
+                        {group.icon}
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-medium">{job.job_type}</span>
-                            <StatusBadge status={job.last_run_status} />
+                            <span className="font-medium">{group.label}</span>
+                            <StatusBadge status={group.lastRunStatus} />
                           </div>
-                          {job.last_run_summary && (
+                          {group.lastRunSummary && (
                             <div className="text-xs text-muted-foreground mt-0.5">
-                              {job.last_run_summary}
+                              {group.lastRunSummary}
                             </div>
                           )}
                         </div>
                       </div>
-                      <div className="text-right text-sm text-muted-foreground">
-                        {job.last_run_at ? (
-                          <>
-                            {formatDistanceToNow(new Date(job.last_run_at), { addSuffix: true })}
-                            {job.items_processed > 0 && (
-                              <span className="text-xs ml-1">
-                                ({job.items_processed} items)
-                              </span>
-                            )}
-                          </>
-                        ) : (
-                          <span className="text-xs">Never run</span>
+                      <div className="flex items-center gap-2">
+                        <div className="text-right text-sm text-muted-foreground">
+                          {group.lastRunAt ? (
+                            <>
+                              {formatDistanceToNow(new Date(group.lastRunAt), { addSuffix: true })}
+                              {group.itemsProcessed > 0 && (
+                                <span className="text-xs ml-1">
+                                  ({group.itemsProcessed} items)
+                                </span>
+                              )}
+                            </>
+                          ) : (
+                            <span className="text-xs">Never run</span>
+                          )}
+                        </div>
+                        {/* Expand toggle for Memory & Analysis */}
+                        {group.subJobs.length > 0 && (
+                          <button
+                            onClick={() => setExpandedMemoryDetail((prev) => !prev)}
+                            className="text-muted-foreground hover:text-foreground"
+                          >
+                            {expandedMemoryDetail
+                              ? <ChevronDown className="w-4 h-4" />
+                              : <ChevronRight className="w-4 h-4" />
+                            }
+                          </button>
                         )}
                       </div>
                     </div>
-                  );
-                })}
+
+                    {/* Expanded sub-jobs for Memory & Analysis */}
+                    {group.subJobs.length > 0 && expandedMemoryDetail && (
+                      <div className="border-t border-border bg-muted/30">
+                        {group.subJobs.map((job) => (
+                          <div
+                            key={job.job_type}
+                            className="px-4 py-2 pl-12 flex items-center justify-between text-sm border-b border-border/50 last:border-b-0"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="text-muted-foreground">{job.job_type}</span>
+                              <StatusBadge status={job.last_run_status} />
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              {job.last_run_at
+                                ? formatDistanceToNow(new Date(job.last_run_at), { addSuffix: true })
+                                : 'Never run'
+                              }
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ))}
               </div>
             </section>
 
