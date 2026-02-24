@@ -2514,11 +2514,13 @@ async def get_landscape(
         landscape_data = await discover_landscape(resolved_provider, user_id, integration.data[0])
 
         # Preserve existing selected_sources through refresh
+        # selected_sources can be dicts ({"id": ..., "name": ...}) or plain strings
         existing_selected = (landscape or {}).get("selected_sources", [])
         if existing_selected:
             new_resource_ids = {r["id"] for r in landscape_data.get("resources", [])}
             landscape_data["selected_sources"] = [
-                s for s in existing_selected if s in new_resource_ids
+                s for s in existing_selected
+                if (s.get("id") if isinstance(s, dict) else s) in new_resource_ids
             ]
 
         # Store landscape snapshot

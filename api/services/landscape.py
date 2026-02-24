@@ -262,8 +262,12 @@ async def refresh_landscape(
         selected_sources = fresh_landscape.get("selected_sources", [])
 
         # Filter out stale source IDs that no longer exist in the new landscape
+        # selected_sources can be dicts ({"id": ..., "name": ...}) or plain strings
         new_resource_ids = {r["id"] for r in new_landscape["resources"]}
-        valid_sources = [s for s in selected_sources if s in new_resource_ids]
+        valid_sources = [
+            s for s in selected_sources
+            if (s.get("id") if isinstance(s, dict) else s) in new_resource_ids
+        ]
 
         if len(valid_sources) < len(selected_sources):
             removed = len(selected_sources) - len(valid_sources)
