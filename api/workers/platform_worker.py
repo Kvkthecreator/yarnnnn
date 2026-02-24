@@ -188,6 +188,13 @@ async def _sync_platform_async(
                 "last_synced_at": datetime.now(timezone.utc).isoformat(),
             }).eq("id", integration["id"]).execute()
 
+        # Refresh landscape alongside content sync (keeps resource list current)
+        try:
+            from services.landscape import refresh_landscape
+            await refresh_landscape(client, user_id, provider, integration)
+        except Exception as e:
+            logger.warning(f"[PLATFORM_WORKER] Landscape refresh failed (non-fatal): {e}")
+
         # Activity log: record this sync batch (ADR-063)
         try:
             from services.activity_log import write_activity

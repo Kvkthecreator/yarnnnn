@@ -2509,8 +2509,9 @@ async def get_landscape(
     needs_discovery = refresh or is_empty_landscape
 
     if needs_discovery:
-        # Discover landscape from provider
-        landscape_data = await _discover_landscape(resolved_provider, user_id, integration.data[0])
+        # Discover landscape from provider (shared service)
+        from services.landscape import discover_landscape
+        landscape_data = await discover_landscape(resolved_provider, user_id, integration.data[0])
 
         # Note: We do NOT auto-select sources here.
         # User must explicitly select sources in the modal, gated by tier limits.
