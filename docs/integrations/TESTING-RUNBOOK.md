@@ -111,6 +111,48 @@ WHERE cs.user_id = '{USER_ID}' AND sm.role = 'assistant'
 ORDER BY sm.created_at DESC LIMIT 5;
 ```
 
+## Deliverable Delivery Test
+
+Trigger a deliverable run to test the full pipeline: content generation → Resend email delivery → notification skip.
+
+### Setup
+```bash
+# Set next_run_at to now (and optionally clear last_run_at to bypass freshness check)
+psql "$CONN_STRING" -c "
+UPDATE deliverables
+SET next_run_at = NOW(), last_run_at = NULL
+WHERE id = '{DELIVERABLE_ID}'
+RETURNING id, title, next_run_at, destination;
+"
+```
+
+### Wait for cron (up to 5 min), then verify
+```sql
+-- Check latest version
+SELECT version_number, status, delivery_status, delivery_error,
+       delivery_external_id, delivered_at
+FROM deliverable_versions
+WHERE deliverable_id = '{DELIVERABLE_ID}'
+ORDER BY version_number DESC LIMIT 1;
+```
+
+### Expected behavior
+- `delivery_status = 'delivered'`, `delivery_external_id` is a Resend message ID (UUID format)
+- Email arrives with: title header → rendered markdown content → "View in Yarn" button → "Manage notifications" link
+- **No separate notification email** (skipped for email-platform deliverables)
+- Cron log shows: `"Skipped notification — content delivered via email"`
+
+### Test results (2026-02-24)
+
+| Test | Status | Details |
+|------|--------|---------|
+| Resend delivery (v5) | PASS | Content delivered via ResendExporter, external_id=fbf38403 |
+| Email format | PASS | Title header + markdown content + "View in Yarn" footer |
+| Notification skip | PASS | No redundant "ready" email — cron log confirms skip |
+| Destination in query | PASS | `destination` column included in get_due_deliverables SELECT |
+
+---
+
 ## Known Issues / Notes
 
 1. **Calendar 0 events**: Calendar sync returns 0 items when there are no events in the next 7 days. This is correct behavior, not a bug.
