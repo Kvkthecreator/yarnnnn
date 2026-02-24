@@ -231,7 +231,7 @@ async def get_due_deliverables(supabase_client) -> list[dict]:
 
     result = (
         supabase_client.table("deliverables")
-        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, recipient_context, last_run_at")
+        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, destination, recipient_context, last_run_at")
         .eq("status", "active")
         .lte("next_run_at", now.isoformat())
         .execute()
@@ -356,7 +356,12 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
         # 4. Send email notification
         # Skip "ready" notification when content was delivered via email (Resend)
         # — the content email IS the notification. Still send failure emails.
-        dest = deliverable.get("destination", {})
+        # Re-read destination: execution may have normalized it (ADR-066 email fallback).
+        try:
+            fresh = supabase_client.table("deliverables").select("destination").eq("id", deliverable_id).single().execute()
+            dest = (fresh.data or {}).get("destination") or {}
+        except Exception:
+            dest = deliverable.get("destination") or {}
         content_delivered_via_email = (
             success and dest.get("platform") in ("email", "gmail")
         )
