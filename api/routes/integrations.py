@@ -2513,9 +2513,13 @@ async def get_landscape(
         from services.landscape import discover_landscape
         landscape_data = await discover_landscape(resolved_provider, user_id, integration.data[0])
 
-        # Note: We do NOT auto-select sources here.
-        # User must explicitly select sources in the modal, gated by tier limits.
-        # This builds trust by showing the landscape, then letting user choose what to sync.
+        # Preserve existing selected_sources through refresh
+        existing_selected = (landscape or {}).get("selected_sources", [])
+        if existing_selected:
+            new_resource_ids = {r["id"] for r in landscape_data.get("resources", [])}
+            landscape_data["selected_sources"] = [
+                s for s in existing_selected if s in new_resource_ids
+            ]
 
         # Store landscape snapshot
         auth.client.table("platform_connections").update({
@@ -2671,151 +2675,6 @@ async def get_platform_context(
         freshest_at=freshest_at,
         platform=provider,
     )
-
-
-async def _discover_landscape(provider: str, user_id: str, integration: dict) -> dict:
-    """
-    Discover resources from a provider.
-
-    Returns landscape data structure:
-    {
-        "resources": [
-            {"id": "...", "name": "...", "type": "label|channel|page", "metadata": {...}}
-        ]
-    }
-    """
-    token_manager = get_token_manager()
-    mcp_manager = get_mcp_manager()  # For Slack/Notion (MCP protocol)
-
-    if provider in ("gmail", "google"):
-        # Gmail/Calendar use GoogleAPIClient (NOT MCP)
-        from integrations.core.google_client import get_google_client
-        google_client = get_google_client()
-
-        # Get Google credentials (OAUTH_CONFIGS values are OAuthConfig objects, not dicts)
-        google_config = OAUTH_CONFIGS.get("google") or OAUTH_CONFIGS["gmail"]
-        client_id = google_config.client_id
-        client_secret = google_config.client_secret
-
-        # Refresh token is required for Google API calls (access tokens expire after 1 hour)
-        if not integration.get("refresh_token_encrypted"):
-            logger.warning(
-                f"[INTEGRATIONS] No refresh token for {provider} user {user_id}. "
-                "User may need to reconnect with offline access."
-            )
-            raise HTTPException(
-                status_code=400,
-                detail="Google refresh token missing. Please disconnect and reconnect your Google account."
-            )
-        refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
-
-        resources = []
-
-        # List Gmail labels via GoogleAPIClient
-        labels = await google_client.list_gmail_labels(
-            client_id=client_id,
-            client_secret=client_secret,
-            refresh_token=refresh_token
-        )
-
-        for label in labels:
-            resources.append({
-                "id": label.get("id"),
-                "name": label.get("name"),
-                "type": "label",
-                "metadata": {
-                    "type": label.get("type"),  # system, user
-                    "messageListVisibility": label.get("messageListVisibility"),
-                    "labelListVisibility": label.get("labelListVisibility"),
-                    "platform": "gmail",
-                }
-            })
-
-        # ADR-046: Also list calendars if google provider
-        if provider == "google":
-            try:
-                calendars = await _fetch_google_calendars(
-                    user_id=user_id,
-                    client_id=client_id,
-                    client_secret=client_secret,
-                    refresh_token=refresh_token
-                )
-                for cal in calendars:
-                    resources.append({
-                        "id": cal.get("id"),
-                        "name": cal.get("summary", "Untitled Calendar"),
-                        "type": "calendar",
-                        "metadata": {
-                            "primary": cal.get("primary", False),
-                            "accessRole": cal.get("accessRole"),
-                            "platform": "calendar",
-                        }
-                    })
-            except Exception as e:
-                logger.warning(f"[INTEGRATIONS] Failed to list calendars for {user_id}: {e}")
-                # Continue without calendars - user may not have calendar scope
-
-        return {"resources": resources}
-
-    elif provider == "slack":
-        # Get Slack credentials
-        bot_token = token_manager.decrypt(integration["credentials_encrypted"])
-        team_id = integration.get("metadata", {}).get("team_id", "")
-
-        # List channels
-        channels = await mcp_manager.list_slack_channels(
-            user_id=user_id,
-            bot_token=bot_token,
-            team_id=team_id
-        )
-
-        resources = []
-        for channel in channels:
-            resources.append({
-                "id": channel.get("id"),
-                "name": f"#{channel.get('name', '')}",
-                "type": "channel",
-                "metadata": {
-                    "is_private": channel.get("is_private", False),
-                    "num_members": channel.get("num_members", 0),
-                    "topic": channel.get("topic", {}).get("value"),
-                    "purpose": channel.get("purpose", {}).get("value")
-                }
-            })
-
-        return {"resources": resources}
-
-    elif provider == "notion":
-        # ADR-050: Notion uses Direct API (not MCP Gateway — MCP Gateway only supports Slack)
-        from integrations.core.notion_client import get_notion_client
-
-        # Get Notion credentials
-        auth_token = token_manager.decrypt(integration["credentials_encrypted"])
-
-        try:
-            notion_client = get_notion_client()
-            # Empty query returns all accessible pages and databases
-            pages = await notion_client.search(access_token=auth_token, query="", page_size=100)
-        except Exception as e:
-            logger.warning(f"[INTEGRATIONS] Notion search failed during landscape discovery: {e}")
-            return {"resources": []}
-
-        resources = []
-        for page in pages:
-            resources.append({
-                "id": page.get("id"),
-                "name": _extract_notion_title(page),
-                "type": "page" if page.get("object") == "page" else "database",
-                "metadata": {
-                    "parent_type": _extract_notion_parent_type(page),
-                    "last_edited": page.get("last_edited_time"),
-                    "url": page.get("url")
-                }
-            })
-
-        return {"resources": resources}
-
-    return {"resources": []}
 
 
 @router.patch("/integrations/{provider}/coverage/{resource_id}")

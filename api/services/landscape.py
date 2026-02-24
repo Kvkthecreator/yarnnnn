@@ -252,11 +252,24 @@ async def refresh_landscape(
             logger.info(f"[LANDSCAPE] No resources discovered for {provider} user {user_id[:8]}, skipping update")
             return False
 
-        # Preserve existing selected_sources
-        existing_landscape = integration.get("landscape", {}) or {}
-        selected_sources = existing_landscape.get("selected_sources", [])
+        # Re-read selected_sources from DB (not the stale integration dict)
+        # to avoid overwriting user changes made during sync
+        fresh = client.table("platform_connections").select(
+            "landscape"
+        ).eq("id", integration["id"]).limit(1).execute()
 
-        new_landscape["selected_sources"] = selected_sources
+        fresh_landscape = (fresh.data[0].get("landscape") or {}) if fresh.data else {}
+        selected_sources = fresh_landscape.get("selected_sources", [])
+
+        # Filter out stale source IDs that no longer exist in the new landscape
+        new_resource_ids = {r["id"] for r in new_landscape["resources"]}
+        valid_sources = [s for s in selected_sources if s in new_resource_ids]
+
+        if len(valid_sources) < len(selected_sources):
+            removed = len(selected_sources) - len(valid_sources)
+            logger.info(f"[LANDSCAPE] Pruned {removed} stale source(s) for {provider} user {user_id[:8]}")
+
+        new_landscape["selected_sources"] = valid_sources
 
         client.table("platform_connections").update({
             "landscape": new_landscape,
@@ -266,7 +279,7 @@ async def refresh_landscape(
         logger.info(
             f"[LANDSCAPE] Refreshed {provider} for user {user_id[:8]}: "
             f"{len(new_landscape['resources'])} resources, "
-            f"{len(selected_sources)} selected"
+            f"{len(valid_sources)} selected"
         )
         return True
 
