@@ -379,6 +379,12 @@ async def exchange_code_for_token(
             if "calendar" in granted_scope:
                 capabilities.append("calendar")
 
+            if not data.get("refresh_token"):
+                logger.warning(
+                    f"[OAUTH] Google did not return refresh token for user {user_id}. "
+                    "Landscape discovery and content sync will fail once access token expires."
+                )
+
             return {
                 "user_id": user_id,
                 "platform": provider,

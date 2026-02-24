@@ -2695,6 +2695,17 @@ async def _discover_landscape(provider: str, user_id: str, integration: dict) ->
         google_config = OAUTH_CONFIGS.get("google") or OAUTH_CONFIGS["gmail"]
         client_id = google_config.client_id
         client_secret = google_config.client_secret
+
+        # Refresh token is required for Google API calls (access tokens expire after 1 hour)
+        if not integration.get("refresh_token_encrypted"):
+            logger.warning(
+                f"[INTEGRATIONS] No refresh token for {provider} user {user_id}. "
+                "User may need to reconnect with offline access."
+            )
+            raise HTTPException(
+                status_code=400,
+                detail="Google refresh token missing. Please disconnect and reconnect your Google account."
+            )
         refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
 
         resources = []
