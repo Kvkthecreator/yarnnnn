@@ -6,6 +6,17 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.24.2] - Fix email delivery: Gmail/Google platform connection lookup
+
+### Changed
+- `api/services/delivery.py`: `_get_exporter_context()` now falls back from `gmail` to `google` when looking up platform connections. Google OAuth stores both Gmail and Calendar under the `google` platform name, but the email exporter looked for `gmail` only, causing "No email integration connected" errors.
+
+### Behavior
+- Email delivery (`platform: "email"`) now works for users with Google OAuth connections stored as `platform = "google"`
+- Fixes deliverable delivery failures where content was generated successfully but couldn't be emailed
+
+---
+
 ## [2026.02.24.1] - Fix ADR-035 Wave 1 prompt template field mappings
 
 ### Changed

@@ -92,7 +92,8 @@ def calculate_next_run_from_schedule(schedule: dict, from_time: Optional[datetim
 
     elif frequency == "weekly":
         days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        target_day = days.index(day.lower()) if day.lower() in days else 0
+        day_str = (day or "monday").lower()
+        target_day = days.index(day_str) if day_str in days else 0
         current_day = local_now.weekday()
         days_ahead = target_day - current_day
         if days_ahead < 0:
@@ -104,7 +105,8 @@ def calculate_next_run_from_schedule(schedule: dict, from_time: Optional[datetim
 
     elif frequency == "biweekly":
         days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        target_day = days.index(day.lower()) if day.lower() in days else 0
+        day_str = (day or "monday").lower()
+        target_day = days.index(day_str) if day_str in days else 0
         current_day = local_now.weekday()
         days_ahead = target_day - current_day
         if days_ahead < 0:
@@ -123,7 +125,8 @@ def calculate_next_run_from_schedule(schedule: dict, from_time: Optional[datetim
             next_run = next_run.replace(month=next_run.month + 1)
         # Find the first target_day
         days = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
-        target_day = days.index(day.lower()) if day.lower() in days else 0
+        day_str = (day or "monday").lower()
+        target_day = days.index(day_str) if day_str in days else 0
         while next_run.weekday() != target_day:
             next_run += timedelta(days=1)
 

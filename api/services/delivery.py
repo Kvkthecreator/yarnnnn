@@ -265,20 +265,32 @@ class DeliveryService:
 
         # Map platform aliases to actual connection names
         # "email" uses "gmail" credentials (Google OAuth)
+        # Google OAuth stores both gmail + calendar under "google" platform
         lookup_platform = platform
         if platform == "email":
             lookup_platform = "gmail"
 
+        # Platforms to check in order — "gmail" falls back to "google"
+        # because Google OAuth stores the connection as "google"
+        lookup_candidates = [lookup_platform]
+        if lookup_platform == "gmail":
+            lookup_candidates.append("google")
+
         try:
-            # Get user's integration
-            integration = self.client.table("platform_connections").select(
-                "credentials_encrypted, refresh_token_encrypted, metadata, status"
-            ).eq("user_id", user_id).eq("platform", lookup_platform).single().execute()
+            # Get user's integration — try each candidate
+            integration = None
+            for candidate in lookup_candidates:
+                try:
+                    result = self.client.table("platform_connections").select(
+                        "credentials_encrypted, refresh_token_encrypted, metadata, status"
+                    ).eq("user_id", user_id).eq("platform", candidate).single().execute()
+                    if result.data and result.data["status"] == "active":
+                        integration = result
+                        break
+                except Exception:
+                    continue
 
-            if not integration.data:
-                return None
-
-            if integration.data["status"] != "active":
+            if not integration or not integration.data:
                 return None
 
             # Decrypt token

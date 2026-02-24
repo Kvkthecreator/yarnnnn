@@ -2610,6 +2610,9 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
         "intelligence_brief": validate_intelligence_brief,
     }
 
+    if not content:
+        return {"valid": False, "issues": ["No content generated"], "score": 0.0}
+
     validator = validators.get(deliverable_type, validate_custom)
     return validator(content, config)
 
