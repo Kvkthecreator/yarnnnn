@@ -45,6 +45,7 @@ docs/working_docs/*.ppt
 docs/working_docs/*.docx
 docs/working_docs/*.doc
 docs/working_docs/*.xlsx
+docs/working_docs/.~lock.*
 docs/working_docs/*.xls
 docs/working_docs/*.key
 docs/working_docs/*.numbers
