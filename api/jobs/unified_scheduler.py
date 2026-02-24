@@ -354,28 +354,38 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
         }).eq("id", deliverable_id).execute()
 
         # 4. Send email notification
-        if await should_send_email(supabase_client, user_id, "deliverable_ready"):
-            user_email = await get_user_email(supabase_client, user_id)
-            if user_email:
-                if success:
-                    await send_deliverable_ready_email(
-                        to=user_email,
-                        deliverable_title=title,
-                        deliverable_id=deliverable_id,
-                        deliverable_type=deliverable_type,
-                        schedule_description=format_schedule_description(schedule),
-                        next_run_at=next_run.isoformat(),
-                    )
-                    logger.info(f"[DELIVERABLE] ✓ Sent ready email to {user_email}")
-                else:
-                    error_msg = result.get("error", "Unknown error during generation")
-                    await send_deliverable_failed_email(
-                        to=user_email,
-                        deliverable_title=title,
-                        deliverable_id=deliverable_id,
-                        error_message=error_msg,
-                    )
-                    logger.info(f"[DELIVERABLE] ✓ Sent failure email to {user_email}")
+        # Skip "ready" notification when content was delivered via email (Resend)
+        # — the content email IS the notification. Still send failure emails.
+        dest = deliverable.get("destination", {})
+        content_delivered_via_email = (
+            success and dest.get("platform") in ("email", "gmail")
+        )
+
+        if not content_delivered_via_email:
+            if await should_send_email(supabase_client, user_id, "deliverable_ready" if success else "deliverable_failed"):
+                user_email = await get_user_email(supabase_client, user_id)
+                if user_email:
+                    if success:
+                        await send_deliverable_ready_email(
+                            to=user_email,
+                            deliverable_title=title,
+                            deliverable_id=deliverable_id,
+                            deliverable_type=deliverable_type,
+                            schedule_description=format_schedule_description(schedule),
+                            next_run_at=next_run.isoformat(),
+                        )
+                        logger.info(f"[DELIVERABLE] ✓ Sent ready email to {user_email}")
+                    else:
+                        error_msg = result.get("error", "Unknown error during generation")
+                        await send_deliverable_failed_email(
+                            to=user_email,
+                            deliverable_title=title,
+                            deliverable_id=deliverable_id,
+                            error_message=error_msg,
+                        )
+                        logger.info(f"[DELIVERABLE] ✓ Sent failure email to {user_email}")
+        elif success:
+            logger.info(f"[DELIVERABLE] Skipped notification — content delivered via email")
 
         if success:
             logger.info(f"[DELIVERABLE] ✓ Complete: {title}")

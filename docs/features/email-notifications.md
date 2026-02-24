@@ -277,6 +277,43 @@ services:
 
 ---
 
+## Future Consideration: In-App Delivery Channel
+
+**Date:** 2026-02-24
+**Status:** Documented for future planning — no implementation needed now
+
+### Context
+
+Currently all deliverable delivery routes through email (Gmail API for content delivery, Resend for notifications). This is correct for MVP — email is the universal inbox and requires zero onboarding friction.
+
+However, as YARNNN matures, a dedicated **in-app delivery surface** would provide:
+- **Richer presentation**: Interactive content, source attribution links, execution metadata
+- **No OAuth dependency**: In-app delivery doesn't require Gmail OAuth tokens
+- **Version history browsing**: Side-by-side version comparison without leaving the app
+- **Execution transparency**: Show strategy used, sources consulted, token counts — metadata that doesn't belong in email
+
+### Architecture Support
+
+The current delivery architecture already supports this via the **exporter registry pattern** ([api/integrations/exporters/registry.py](../../api/integrations/exporters/registry.py)):
+
+```
+delivery.py → ExporterRegistry.get_exporter(platform) → GmailExporter / SlackExporter / ...
+```
+
+Adding an in-app channel would require:
+1. An `AppExporter` that writes to a `deliverable_inbox` or similar table
+2. Registration in the exporter registry (`"app"` platform)
+3. Frontend reads from that table on `/deliverables/[id]` page
+4. Destination config: `{"platform": "app", "format": "markdown"}`
+
+The `destinations` array (ADR-031 Phase 6) already supports multi-destination, so a deliverable could deliver to **both** email and in-app simultaneously.
+
+### Current Decision
+
+Email-first delivery is the right default. The in-app channel is a Phase 3+ enhancement that builds on, rather than replaces, email delivery. No schema or code changes needed now — this note ensures the architectural path is documented.
+
+---
+
 ## Testing
 
 ### Manual Testing Checklist

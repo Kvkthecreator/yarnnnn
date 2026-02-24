@@ -255,25 +255,19 @@ class DeliveryService:
         platform: str
     ) -> Optional[ExporterContext]:
         """Get auth context for an exporter."""
-        # Download doesn't need auth
-        if platform == "download":
+        # Platforms that don't need user OAuth
+        if platform in ("download", "email"):
             return ExporterContext(
                 user_id=user_id,
                 access_token="",
                 metadata={}
             )
 
-        # Map platform aliases to actual connection names
-        # "email" uses "gmail" credentials (Google OAuth)
-        # Google OAuth stores both gmail + calendar under "google" platform
-        lookup_platform = platform
-        if platform == "email":
-            lookup_platform = "gmail"
-
-        # Platforms to check in order — "gmail" falls back to "google"
-        # because Google OAuth stores the connection as "google"
-        lookup_candidates = [lookup_platform]
-        if lookup_platform == "gmail":
+        # Map platform names to connection lookup candidates
+        # Google OAuth stores connections under "google" platform,
+        # so "gmail" falls back to "google"
+        lookup_candidates = [platform]
+        if platform == "gmail":
             lookup_candidates.append("google")
 
         try:

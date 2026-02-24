@@ -127,17 +127,12 @@ def _initialize_default_exporters(registry: ExporterRegistry) -> None:
     from .notion import NotionExporter
     from .download import DownloadExporter
     from .gmail import GmailExporter  # ADR-029
+    from .resend import ResendExporter  # ADR-066: Default email delivery
 
     registry.register(SlackExporter())
     registry.register(NotionExporter())
     registry.register(DownloadExporter())
-    registry.register(GmailExporter())  # ADR-029
-
-    # Alias "email" to "gmail" for email-first delivery
-    # Frontend uses "email" platform, backend has "gmail" exporter
-    gmail_exporter = registry.get("gmail")
-    if gmail_exporter:
-        registry._exporters["email"] = gmail_exporter
-        logger.debug("[EXPORTERS] Added 'email' alias for 'gmail' exporter")
+    registry.register(GmailExporter())  # ADR-029: Gmail drafts/sends via OAuth
+    registry.register(ResendExporter())  # ADR-066: Default "email" delivery via Resend (no OAuth)
 
     logger.info(f"[EXPORTERS] Initialized registry with: {registry.list_platforms()}")

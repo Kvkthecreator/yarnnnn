@@ -6,6 +6,38 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.24.5] - Deliverable detail page rewrite (content-first layout)
+
+### Changed
+- `web/app/(authenticated)/deliverables/[id]/page.tsx`: Full rewrite — content-first layout with rendered markdown (ReactMarkdown), version selection via delivery history rows, clean status model (delivered/failed/generating only), execution details bar with source snapshot pills.
+- Added `react-markdown` and `@tailwindcss/typography` dependencies for markdown rendering.
+
+### Behavior
+- Deliverable content is now the hero element, rendered as formatted markdown instead of hidden behind a collapsible `<details>` element
+- Delivery history rows switch the content area on click (replaces accordion pattern)
+- Source snapshots, word count, and delivery timestamps shown inline
+- Failed versions show error banner with delivery_error message and Retry button
+- Legacy status mappings (staged, reviewing, approved, rejected) removed
+
+---
+
+## [2026.02.24.4] - ResendExporter: default email delivery without OAuth
+
+### Changed
+- `api/integrations/exporters/resend.py`: New `ResendExporter` — delivers content via Resend API (server-side, no user OAuth). Registered as `platform="email"` handler.
+- `api/integrations/exporters/registry.py`: Register `ResendExporter` as default "email" handler. `GmailExporter` remains for explicit Gmail drafts/sends via OAuth.
+- `api/services/delivery.py`: Added "email" to no-auth platforms in `_get_exporter_context()`.
+- `api/jobs/unified_scheduler.py`: Skip notification email when content was delivered via email (content email IS the notification). Failure emails still send.
+- `api/routes/deliverables.py`: Added `delivery_error` to `VersionResponse` model; populated `source_snapshots`, `analyst_metadata`, `source_fetch_summary`, `delivery_error` in detail endpoint.
+
+### Behavior
+- All users receive deliverables via email regardless of Google OAuth status (Resend = server-side API key)
+- `GmailExporter` (`platform="gmail"`) remains for creating Gmail drafts or sending as user's own address
+- No duplicate notification email when content already lands in user's inbox
+- `/deliverables/{id}` API now returns full version metadata (delivery_error, source_snapshots, etc.)
+
+---
+
 ## [2026.02.24.3] - Fix signal processing: deliverable ID missing from prompt
 
 ### Changed

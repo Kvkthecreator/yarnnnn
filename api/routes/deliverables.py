@@ -1078,6 +1078,7 @@ class VersionResponse(BaseModel):
     delivery_external_id: Optional[str] = None
     delivery_external_url: Optional[str] = None
     delivered_at: Optional[str] = None
+    delivery_error: Optional[str] = None
     # ADR-030: Source fetch summary
     source_fetch_summary: Optional[SourceFetchSummary] = None
     # ADR-049: Source snapshots for freshness tracking
@@ -1510,6 +1511,13 @@ async def get_deliverable(
                 delivery_external_id=v.get("delivery_external_id"),
                 delivery_external_url=v.get("delivery_external_url"),
                 delivered_at=v.get("delivered_at"),
+                delivery_error=v.get("delivery_error"),
+                # ADR-030: Source fetch summary
+                source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
+                # ADR-049: Source snapshots
+                source_snapshots=v.get("source_snapshots"),
+                # ADR-060: Analyst metadata
+                analyst_metadata=v.get("analyst_metadata"),
             )
             for v in versions
         ],

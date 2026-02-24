@@ -468,6 +468,104 @@ Phase 4 delivered:
 
 ---
 
+## Execution Metadata & Audit Trail
+
+Every deliverable execution captures metadata across multiple storage layers, enabling both debugging and future UI surfacing:
+
+### What's Captured
+
+| Data | Storage Location | Populated? |
+|------|-----------------|------------|
+| Generated content | `deliverable_versions.draft_content` / `final_content` | Yes |
+| Strategy used | `activity_log.metadata.strategy` | Yes |
+| Source snapshots (immutable) | `deliverable_versions.source_snapshots` | Yes |
+| Execution stages (started/completed/failed) | `work_execution_log` | Yes |
+| Content length, sources list | `work_execution_log.metadata` | Yes |
+| Delivery status/error | `deliverable_versions.delivery_status` / `delivery_error` | Yes |
+| Delivery timestamp | `deliverable_versions.delivered_at` | Yes |
+| Analyst confidence (suggested only) | `deliverable_versions.analyst_metadata` | Yes (ADR-060) |
+| Platform content IDs retained | `platform_content.retained_reason` / `retained_ref` | Yes |
+| `source_fetch_summary` | `deliverable_versions` column | **Not populated** (schema exists) |
+| `context_snapshot_id` | `deliverable_versions` column | **Not implemented** |
+| `pipeline_run_id` | `deliverable_versions` column | **Not used** (ADR-042) |
+
+### Querying Execution History
+
+```sql
+-- Execution log for a specific version's work ticket
+SELECT stage, message, metadata, timestamp
+FROM work_execution_log
+WHERE ticket_id = (SELECT pipeline_run_id FROM deliverable_versions WHERE id = '<version_id>')
+ORDER BY timestamp;
+
+-- Activity log with strategy info
+SELECT metadata->>'strategy', metadata->>'final_status', created_at
+FROM activity_log
+WHERE event_type = 'deliverable_run'
+  AND metadata->>'deliverable_id' = '<deliverable_id>'
+ORDER BY created_at DESC;
+
+-- Source snapshots for audit trail
+SELECT source_snapshots FROM deliverable_versions WHERE id = '<version_id>';
+```
+
+### Frontend Surfacing (ADR-066)
+
+The `/deliverables/[id]` detail page now surfaces per-version execution metadata:
+- **Content**: Rendered markdown (ReactMarkdown + Tailwind typography) as the hero element
+- **Per-version**: Delivery status badge, timestamp, version number, word count, source snapshot pills
+- **Delivery history**: Click version rows to switch the content area (replaces accordion)
+- **Failed versions**: Error banner with `delivery_error` message and Retry button
+
+**Not yet surfaced** (data exists in DB):
+- Strategy used (`work_execution_log` / `activity_log`)
+- Quality trend across versions
+- Execution trace (expandable `work_execution_log` stages)
+
+See [docs/features/email-notifications.md](../features/email-notifications.md) for the related in-app delivery channel consideration.
+
+---
+
+## Delivery Routing
+
+### Current State (2026-02-24): Resend-First Email Delivery
+
+Deliverable content is delivered via **Resend API** (server-side, no user OAuth required). This is the default `"email"` platform handler.
+
+| Component | Service | Purpose |
+|-----------|---------|---------|
+| **Content delivery** | Resend API (`ResendExporter`) | Full deliverable content, HTML-formatted. Works for all users. |
+| **Gmail drafts/sends** | Gmail API (`GmailExporter`) | Premium: create drafts or send as user's own address (requires Google OAuth). |
+| **Status notifications** | Resend API (`send_email`) | Skipped when content was already delivered via email (same inbox). |
+
+**Why Resend over Gmail API for default delivery:**
+- Works for **all users** regardless of platform connections (no OAuth required)
+- Server-side API key (no token refresh issues, no `invalid_grant` errors)
+- Consistent sender: `noreply@yarnnn.com`
+- Pricing: Free tier 3,000 emails/month; Pro $20/mo for 50k
+
+**Notification email consolidation:** When the deliverable's destination is `platform: "email"` or `platform: "gmail"`, the content email IS the notification — the separate "Your deliverable is ready" notification email is skipped. Failure notifications still send regardless.
+
+### Exporter Registry Pattern
+
+Delivery is abstracted via the exporter registry (`api/integrations/exporters/registry.py`):
+
+```
+deliver_version() → ExporterRegistry.get_exporter(platform) → ResendExporter (platform="email", default)
+                                                              → GmailExporter (platform="gmail", OAuth)
+                                                              → SlackExporter
+                                                              → NotionExporter
+                                                              → (future: AppExporter)
+```
+
+The `ResendExporter` uses `generate_gmail_html()` for HTML formatting (same variant-aware templates as GmailExporter), then delivers via `send_email()` from `jobs/email.py`.
+
+### Future: In-App Delivery Channel
+
+See [docs/features/email-notifications.md — Future Consideration](../features/email-notifications.md) for documented architectural path to in-app delivery. The `destinations` array (ADR-031) supports multi-destination delivery, enabling email + in-app simultaneously.
+
+---
+
 ## Open Questions & Future Work
 
 1. **Event triggers** (ADR-031 Phase 4) — Platform webhook integration for real-time deliverable triggering (Slack mention, Gmail arrival, etc.)
@@ -475,6 +573,8 @@ Phase 4 delivered:
 3. **Multi-destination UI** — Frontend for configuring `destinations` array (currently only backend-supported)
 4. **Quality-based feedback loop** — Automatic source adjustment when `quality_trend = "declining"` for N consecutive versions
 5. **Signal promotion UI** — Frontend for "Promote to Recurring" button on signal-emergent deliverables
+6. **In-app delivery channel** — `AppExporter` for richer content presentation + execution metadata surfacing (see Delivery Routing above)
+7. **Populate `source_fetch_summary`** — Schema exists but execution code doesn't fill it; useful for debugging and UI
 
 ---
 
