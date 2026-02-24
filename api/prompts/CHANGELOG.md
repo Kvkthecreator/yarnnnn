@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.24.6] - Consolidate notification architecture (single path)
+
+### Changed
+- `api/jobs/unified_scheduler.py`: Removed all deliverable notification email logic. Scheduler no longer sends `send_deliverable_ready_email()` or `send_deliverable_failed_email()`. Exception handler now calls `notify_deliverable_failed()` from notifications.py instead.
+- `api/jobs/email.py`: Deleted `send_deliverable_ready_email()` and `send_deliverable_failed_email()` — legacy functions only used by the scheduler.
+- `api/services/delivery.py`: Always calls `_notify_delivered()` (removed email-platform skip). Passes `delivery_platform` to notification service for skip decision.
+- `api/services/notifications.py`: `notify_deliverable_delivered()` now accepts `delivery_platform` param. When platform is "email"/"gmail", logs as in_app notification instead of sending a separate email (content email IS the notification). Removed unused `notify_deliverable_ready()`.
+
+### Behavior
+- **Single notification path**: All deliverable notifications flow through `delivery.py` → `notifications.py`. The scheduler only handles generation + scheduling.
+- **Email-platform skip logic** lives in one place (`notifications.py`) instead of three (was in scheduler, delivery.py, and notifications.py).
+- No change to user-facing behavior — email deliveries still produce exactly 1 email (the content), non-email deliveries still get a notification email.
+
+---
+
 ## [2026.02.24.5] - Deliverable detail page rewrite (content-first layout)
 
 ### Changed

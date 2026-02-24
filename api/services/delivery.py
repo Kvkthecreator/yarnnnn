@@ -212,17 +212,16 @@ class DeliveryService:
                     destination=destination,
                     result=result
                 )
-                # ADR-040: Send notification on successful delivery
-                # Skip when content was delivered via email — the content email IS the notification
-                if platform not in ("email", "gmail"):
-                    await self._notify_delivered(
-                        user_id=user_id,
-                        deliverable_id=deliverable.data["id"],
-                        title=title,
-                        platform=platform,
-                        target=destination.get("target"),
-                        external_url=result.external_url,
-                    )
+                # ADR-040: Notify on delivery — notification service handles
+                # email-platform skip internally (content email IS the notification)
+                await self._notify_delivered(
+                    user_id=user_id,
+                    deliverable_id=deliverable.data["id"],
+                    title=title,
+                    platform=platform,
+                    target=destination.get("target"),
+                    external_url=result.external_url,
+                )
             else:
                 self._update_delivery_status(
                     version_id,
@@ -387,6 +386,7 @@ class DeliveryService:
                 deliverable_title=title,
                 destination=destination_str,
                 external_url=external_url,
+                delivery_platform=platform,
             )
         except Exception as e:
             logger.warning(f"[DELIVERY] Failed to send delivery notification: {e}")

@@ -323,25 +323,6 @@ async def get_user_notifications(
 # Convenience functions for common notification scenarios
 # =============================================================================
 
-async def notify_deliverable_ready(
-    db_client,
-    user_id: str,
-    deliverable_id: str,
-    deliverable_title: str,
-) -> NotificationResult:
-    """Send notification when a deliverable is ready for review."""
-    return await send_notification(
-        db_client=db_client,
-        user_id=user_id,
-        message=f'"{deliverable_title}" is ready for review.',
-        channel="email",
-        urgency="normal",
-        context={"deliverable_id": deliverable_id},
-        source_type="deliverable",
-        source_id=deliverable_id,
-    )
-
-
 async def notify_deliverable_delivered(
     db_client,
     user_id: str,
@@ -349,8 +330,36 @@ async def notify_deliverable_delivered(
     deliverable_title: str,
     destination: str,
     external_url: Optional[str] = None,
+    delivery_platform: Optional[str] = None,
 ) -> NotificationResult:
-    """Send notification when a deliverable has been delivered."""
+    """
+    Send notification when a deliverable has been delivered.
+
+    When delivery_platform is "email" or "gmail", the content email already
+    landed in the user's inbox — skip the separate notification email to
+    avoid duplicates. Still log to notifications table for audit.
+    """
+    # Skip email notification when content was delivered via email —
+    # the content email IS the notification (ADR-040 / ADR-066).
+    if delivery_platform in ("email", "gmail"):
+        logger.info(
+            f"[NOTIFICATION] Skipped delivery notification — content delivered via {delivery_platform}"
+        )
+        # Still record for audit, but as in_app (no email sent)
+        context = {"deliverable_id": deliverable_id, "destination": destination, "skipped_reason": "content_is_notification"}
+        if external_url:
+            context["url"] = external_url
+        return await send_notification(
+            db_client=db_client,
+            user_id=user_id,
+            message=f'"{deliverable_title}" was delivered to {destination}.',
+            channel="in_app",
+            urgency="low",
+            context=context,
+            source_type="deliverable",
+            source_id=deliverable_id,
+        )
+
     context = {"deliverable_id": deliverable_id, "destination": destination}
     if external_url:
         context["url"] = external_url

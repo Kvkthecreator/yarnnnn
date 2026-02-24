@@ -26,8 +26,6 @@ from croniter import croniter
 from .email import (
     send_email,
     send_work_complete_email,
-    send_deliverable_ready_email,
-    send_deliverable_failed_email,
 )
 from .digest import generate_digest_content
 from .import_jobs import get_pending_import_jobs, process_import_job, recover_stale_processing_jobs
@@ -353,44 +351,8 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
             "next_run_at": next_run.isoformat(),
         }).eq("id", deliverable_id).execute()
 
-        # 4. Send email notification
-        # Skip "ready" notification when content was delivered via email (Resend)
-        # — the content email IS the notification. Still send failure emails.
-        # Re-read destination: execution may have normalized it (ADR-066 email fallback).
-        try:
-            fresh = supabase_client.table("deliverables").select("destination").eq("id", deliverable_id).single().execute()
-            dest = (fresh.data or {}).get("destination") or {}
-        except Exception:
-            dest = deliverable.get("destination") or {}
-        content_delivered_via_email = (
-            success and dest.get("platform") in ("email", "gmail")
-        )
-
-        if not content_delivered_via_email:
-            if await should_send_email(supabase_client, user_id, "deliverable_ready" if success else "deliverable_failed"):
-                user_email = await get_user_email(supabase_client, user_id)
-                if user_email:
-                    if success:
-                        await send_deliverable_ready_email(
-                            to=user_email,
-                            deliverable_title=title,
-                            deliverable_id=deliverable_id,
-                            deliverable_type=deliverable_type,
-                            schedule_description=format_schedule_description(schedule),
-                            next_run_at=next_run.isoformat(),
-                        )
-                        logger.info(f"[DELIVERABLE] ✓ Sent ready email to {user_email}")
-                    else:
-                        error_msg = result.get("error", "Unknown error during generation")
-                        await send_deliverable_failed_email(
-                            to=user_email,
-                            deliverable_title=title,
-                            deliverable_id=deliverable_id,
-                            error_message=error_msg,
-                        )
-                        logger.info(f"[DELIVERABLE] ✓ Sent failure email to {user_email}")
-        elif success:
-            logger.info(f"[DELIVERABLE] Skipped notification — content delivered via email")
+        # Notifications handled by delivery service (delivery.py → notifications.py)
+        # No scheduler-level email — single notification path via ADR-040.
 
         if success:
             logger.info(f"[DELIVERABLE] ✓ Complete: {title}")
@@ -425,17 +387,17 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
         except Exception:
             pass
 
-        # Send failure email
+        # Notify failure via delivery service's single notification path
         try:
-            if await should_send_email(supabase_client, user_id, "deliverable_failed"):
-                user_email = await get_user_email(supabase_client, user_id)
-                if user_email:
-                    await send_deliverable_failed_email(
-                        to=user_email,
-                        deliverable_title=title,
-                        deliverable_id=deliverable_id,
-                        error_message=str(e),
-                    )
+            from services.notifications import notify_deliverable_failed
+            from services.supabase import get_service_client
+            await notify_deliverable_failed(
+                db_client=get_service_client(),
+                user_id=user_id,
+                deliverable_id=deliverable_id,
+                deliverable_title=title,
+                error=str(e),
+            )
         except Exception:
             pass
 
