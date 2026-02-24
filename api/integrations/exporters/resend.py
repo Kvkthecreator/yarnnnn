@@ -87,6 +87,7 @@ class ResendExporter(DestinationExporter):
 
         # Generate HTML from markdown content
         platform_variant = metadata.get("platform_variant")
+        deliverable_id = metadata.get("deliverable_id", "")
         try:
             html_body = generate_gmail_html(
                 content=content,
@@ -94,6 +95,7 @@ class ResendExporter(DestinationExporter):
                 metadata={
                     "title": subject,
                     "recipient": target,
+                    "deliverable_id": deliverable_id,
                     "date": options.get("date", ""),
                     "email_count": options.get("email_count", ""),
                     "is_draft": False,

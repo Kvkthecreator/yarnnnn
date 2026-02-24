@@ -396,12 +396,37 @@ def generate_gmail_html(
         return _generate_default_email_html(content, metadata)
 
 
-def _generate_default_email_html(content: str, metadata: dict) -> str:
-    """Generate standard email HTML with clean styling."""
-    body_html = _markdown_to_email_html(content)
+def _email_footer_html(metadata: dict) -> str:
+    """Shared footer for deliverable emails: View in Yarn button + settings link."""
+    import os
+    app_url = os.environ.get("APP_URL", "https://yarnnn.com")
+    deliverable_id = metadata.get("deliverable_id", "")
+    view_url = f"{app_url}/deliverables/{deliverable_id}" if deliverable_id else app_url
+    settings_url = f"{app_url}/settings"
 
-    # ADR-032: Content is clean - no attribution that users might forget to remove.
-    # The user is the author; YARNNN helps them write.
+    return f"""
+    <div style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #eee; text-align: center;">
+        <a href="{view_url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 24px; text-decoration: none; border-radius: 9999px; font-weight: 500; font-size: 14px;">View in Yarn</a>
+        <p style="color: #999; font-size: 11px; margin-top: 16px;">
+            Delivered by <a href="{app_url}" style="color: #999;">Yarn</a> &middot;
+            <a href="{settings_url}" style="color: #999;">Manage notifications</a>
+        </p>
+    </div>"""
+
+
+def _generate_default_email_html(content: str, metadata: dict) -> str:
+    """Generate standard email HTML with header context + content + footer."""
+    body_html = _markdown_to_email_html(content)
+    title = metadata.get("title", "")
+    footer = _email_footer_html(metadata)
+
+    # Brief header: deliverable title so the user knows what this is
+    header_html = ""
+    if title:
+        header_html = f"""
+    <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #eee;">
+        <h1 style="margin: 0; font-size: 22px; color: #1a1a1a;">{title}</h1>
+    </div>"""
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -448,7 +473,9 @@ def _generate_default_email_html(content: str, metadata: dict) -> str:
     </style>
 </head>
 <body>
+    {header_html}
     {body_html}
+    {footer}
 </body>
 </html>"""
     return html
@@ -469,8 +496,7 @@ def _generate_digest_html(content: str, metadata: dict) -> str:
     """Generate HTML for weekly digest with section styling."""
     title = metadata.get("title", "Weekly Email Digest")
     body_html = _markdown_to_email_html(content)
-
-    # ADR-032: Content is clean - no attribution that users might forget to remove.
+    footer = _email_footer_html(metadata)
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -530,14 +556,6 @@ def _generate_digest_html(content: str, metadata: dict) -> str:
         }}
         .email-item .sender {{ font-weight: 600; color: #1a1a1a; }}
         .email-item .subject {{ color: #666; }}
-        .footer {{
-            text-align: center;
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            font-size: 12px;
-            color: #888;
-        }}
     </style>
 </head>
 <body>
@@ -547,6 +565,7 @@ def _generate_digest_html(content: str, metadata: dict) -> str:
             <div class="date">{metadata.get('date', '')}</div>
         </div>
         {body_html}
+        {footer}
     </div>
 </body>
 </html>"""
@@ -564,6 +583,8 @@ def _generate_triage_html(content: str, metadata: dict) -> str:
     body_html = body_html.replace("🟢", '<span style="color: #28a745;">🟢</span>')
     body_html = body_html.replace("📁", '<span style="color: #6c757d;">📁</span>')
     body_html = body_html.replace("🗑️", '<span style="color: #adb5bd;">🗑️</span>')
+
+    footer = _email_footer_html(metadata)
 
     html = f"""<!DOCTYPE html>
 <html>
@@ -592,6 +613,7 @@ def _generate_triage_html(content: str, metadata: dict) -> str:
     <h1>{title}</h1>
     <p style="color: #666; margin-bottom: 20px;">{metadata.get('email_count', '')} emails triaged</p>
     {body_html}
+    {footer}
 </body>
 </html>"""
     return html

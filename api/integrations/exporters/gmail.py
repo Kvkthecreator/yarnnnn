@@ -140,6 +140,7 @@ class GmailExporter(DestinationExporter):
                     metadata={
                         "title": subject,
                         "recipient": target,
+                        "deliverable_id": metadata.get("deliverable_id", ""),
                         "date": options.get("date", ""),
                         "email_count": options.get("email_count", ""),
                         "is_draft": is_draft_mode,
