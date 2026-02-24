@@ -1,20 +1,20 @@
 'use client';
 
 /**
- * ADR-063: Activity Page — Four-Layer Model
+ * ADR-063: Activity Page — Unified Activity Log
  *
- * Audit trail page showing what YARNNN has done.
+ * Audit trail showing what YARNNN has done.
  * Reads from activity_log table (unified activity layer).
  *
- * Event types:
- *   - deliverable_run: Automated content generation
- *   - deliverable_approved: User approved a version
- *   - deliverable_rejected: User rejected a version
- *   - memory_written: TP learned something about user
- *   - platform_synced: Platform data synced
- *   - integration_connected: User connected a platform
- *   - integration_disconnected: User disconnected a platform
- *   - chat_session: TP conversation ended
+ * Groups event types into user-meaningful categories:
+ *   - Deliverables: deliverable_run, deliverable_approved, deliverable_rejected,
+ *                   deliverable_generated, deliverable_scheduled
+ *   - Memory: memory_written, session_summary_written, pattern_detected,
+ *             conversation_analyzed
+ *   - Sync: platform_synced, content_cleanup
+ *   - Signals: signal_processed
+ *   - Connections: integration_connected, integration_disconnected
+ *   - Chat: chat_session
  */
 
 import { useState, useEffect } from 'react';
@@ -38,97 +38,188 @@ import {
   Unlink,
   ThumbsUp,
   ThumbsDown,
+  Zap,
+  TrendingUp,
+  Trash2,
+  FileOutput,
+  CalendarClock,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-// Activity event types stored in database (ADR-063)
-// All valid event types that can be filtered via API
-type ApiEventType =
-  | 'deliverable_run'
-  | 'deliverable_approved'
-  | 'deliverable_rejected'
-  | 'memory_written'
-  | 'platform_synced'
-  | 'integration_connected'
-  | 'integration_disconnected'
-  | 'chat_session';
-
-// Alias for consistency
-type EventType = ApiEventType;
+// =============================================================================
+// Types
+// =============================================================================
 
 interface ActivityItem {
   id: string;
-  event_type: EventType;
+  event_type: string;
   event_ref: string | null;
   summary: string;
   metadata: Record<string, unknown> | null;
   created_at: string;
 }
 
-const EVENT_CONFIG: Record<EventType, {
+// =============================================================================
+// Event Configuration — covers ALL backend event types
+// =============================================================================
+
+const EVENT_CONFIG: Record<string, {
   label: string;
   icon: React.ReactNode;
   color: string;
+  category: string;
 }> = {
+  // Deliverables
   deliverable_run: {
     label: 'Deliverable',
     icon: <Play className="w-4 h-4" />,
     color: 'text-blue-500',
+    category: 'deliverables',
   },
   deliverable_approved: {
     label: 'Approved',
     icon: <ThumbsUp className="w-4 h-4" />,
     color: 'text-green-500',
+    category: 'deliverables',
   },
   deliverable_rejected: {
     label: 'Rejected',
     icon: <ThumbsDown className="w-4 h-4" />,
     color: 'text-red-500',
+    category: 'deliverables',
   },
+  deliverable_generated: {
+    label: 'Generated',
+    icon: <FileOutput className="w-4 h-4" />,
+    color: 'text-emerald-500',
+    category: 'deliverables',
+  },
+  deliverable_scheduled: {
+    label: 'Scheduled',
+    icon: <CalendarClock className="w-4 h-4" />,
+    color: 'text-blue-400',
+    category: 'deliverables',
+  },
+  // Memory & Analysis
   memory_written: {
     label: 'Learned',
     icon: <Brain className="w-4 h-4" />,
     color: 'text-purple-500',
+    category: 'memory',
   },
+  session_summary_written: {
+    label: 'Summary',
+    icon: <FileText className="w-4 h-4" />,
+    color: 'text-blue-500',
+    category: 'memory',
+  },
+  pattern_detected: {
+    label: 'Pattern',
+    icon: <TrendingUp className="w-4 h-4" />,
+    color: 'text-orange-500',
+    category: 'memory',
+  },
+  conversation_analyzed: {
+    label: 'Analysis',
+    icon: <MessageSquare className="w-4 h-4" />,
+    color: 'text-cyan-500',
+    category: 'memory',
+  },
+  // Sync & Signals
   platform_synced: {
     label: 'Synced',
     icon: <RefreshCw className="w-4 h-4" />,
     color: 'text-green-500',
+    category: 'sync',
   },
+  signal_processed: {
+    label: 'Signal',
+    icon: <Zap className="w-4 h-4" />,
+    color: 'text-amber-500',
+    category: 'signals',
+  },
+  content_cleanup: {
+    label: 'Cleanup',
+    icon: <Trash2 className="w-4 h-4" />,
+    color: 'text-muted-foreground',
+    category: 'sync',
+  },
+  // Connections
   integration_connected: {
     label: 'Connected',
     icon: <Link className="w-4 h-4" />,
     color: 'text-green-500',
+    category: 'connections',
   },
   integration_disconnected: {
     label: 'Disconnected',
     icon: <Unlink className="w-4 h-4" />,
     color: 'text-muted-foreground',
+    category: 'connections',
   },
+  // Chat
   chat_session: {
     label: 'Chat',
     icon: <MessageSquare className="w-4 h-4" />,
     color: 'text-amber-500',
+    category: 'chat',
+  },
+  // System (hidden from filters but renders gracefully)
+  scheduler_heartbeat: {
+    label: 'System',
+    icon: <Activity className="w-4 h-4" />,
+    color: 'text-muted-foreground',
+    category: 'system',
   },
 };
 
-// Event types shown as filter chips — ADR-063 unified event types
-const FILTER_TYPES: ApiEventType[] = [
-  'deliverable_run',
-  'memory_written',
-  'platform_synced',
-  'chat_session',
-  'integration_connected',
-];
+const DEFAULT_EVENT_CONFIG = {
+  label: 'Event',
+  icon: <Activity className="w-4 h-4" />,
+  color: 'text-muted-foreground',
+  category: 'other',
+};
+
+// Filter categories shown as chips — user-meaningful groupings
+const FILTER_CATEGORIES = [
+  { key: 'deliverables', label: 'Deliverables' },
+  { key: 'memory', label: 'Memory' },
+  { key: 'sync', label: 'Sync' },
+  { key: 'signals', label: 'Signals' },
+  { key: 'chat', label: 'Chat' },
+] as const;
+
+type FilterKey = 'all' | (typeof FILTER_CATEGORIES)[number]['key'];
+
+// Map category filters to the event_type values they include
+const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
+  deliverables: ['deliverable_run', 'deliverable_approved', 'deliverable_rejected', 'deliverable_generated', 'deliverable_scheduled'],
+  memory: ['memory_written', 'session_summary_written', 'pattern_detected', 'conversation_analyzed'],
+  sync: ['platform_synced', 'content_cleanup'],
+  signals: ['signal_processed'],
+  chat: ['chat_session'],
+};
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function getConfig(eventType: string) {
+  return EVENT_CONFIG[eventType] || DEFAULT_EVENT_CONFIG;
+}
+
+// =============================================================================
+// Main Component
+// =============================================================================
 
 export default function ActivityPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [total, setTotal] = useState(0);
-  const [filter, setFilter] = useState<ApiEventType | 'all'>('all');
+  const [filter, setFilter] = useState<FilterKey>('all');
 
   useEffect(() => {
     loadActivity();
@@ -137,10 +228,11 @@ export default function ActivityPage() {
   const loadActivity = async () => {
     setLoading(true);
     try {
+      // The backend supports single event_type filter — for category filters,
+      // we fetch all and filter client-side (backend doesn't support IN queries on event_type)
       const result = await api.activity.list({
-        limit: 50,
+        limit: 100,
         days: 30,
-        eventType: filter === 'all' ? undefined : filter,
       });
       setActivities(result.activities);
       setTotal(result.total);
@@ -150,6 +242,18 @@ export default function ActivityPage() {
       setLoading(false);
     }
   };
+
+  // Client-side category filter
+  const filteredActivities = filter === 'all'
+    ? activities.filter((a) => {
+        // Hide scheduler_heartbeat and system events from "All" view
+        const cfg = getConfig(a.event_type);
+        return cfg.category !== 'system';
+      })
+    : activities.filter((a) => {
+        const eventTypes = CATEGORY_EVENT_TYPES[filter];
+        return eventTypes?.includes(a.event_type);
+      });
 
   const getStatusIcon = (item: ActivityItem) => {
     const metadata = item.metadata || {};
@@ -161,8 +265,7 @@ export default function ActivityPage() {
       return <CheckCircle2 className="w-4 h-4 text-green-500" />;
     }
 
-    // Default: use event type icon
-    const config = EVENT_CONFIG[item.event_type];
+    const config = getConfig(item.event_type);
     return <span className={config.color}>{config.icon}</span>;
   };
 
@@ -185,24 +288,34 @@ export default function ActivityPage() {
   const handleActivityClick = (item: ActivityItem) => {
     const metadata = item.metadata || {};
 
-    // Navigate based on event type
     switch (item.event_type) {
       case 'deliverable_run':
       case 'deliverable_approved':
       case 'deliverable_rejected':
+      case 'deliverable_generated':
+      case 'deliverable_scheduled':
         if (metadata.deliverable_id) {
           router.push(`/deliverables/${metadata.deliverable_id}`);
         }
         break;
       case 'memory_written':
-        // Navigate to context entries
+      case 'session_summary_written':
+      case 'pattern_detected':
+      case 'conversation_analyzed':
         router.push('/context?section=entries');
         break;
       case 'platform_synced':
-        if (metadata.provider) {
-          const provider = metadata.provider === 'google' ? 'calendar' : metadata.provider;
-          router.push(`/context/${provider}`);
+      case 'content_cleanup':
+        if (metadata.provider || metadata.platform) {
+          const p = (metadata.provider || metadata.platform) as string;
+          const display = p === 'google' ? 'calendar' : p;
+          router.push(`/context/${display}`);
+        } else {
+          router.push('/system');
         }
+        break;
+      case 'signal_processed':
+        router.push('/system');
         break;
       case 'integration_connected':
       case 'integration_disconnected':
@@ -211,7 +324,6 @@ export default function ActivityPage() {
         }
         break;
       case 'chat_session':
-        // Navigate to dashboard (chat)
         router.push('/dashboard');
         break;
     }
@@ -225,7 +337,7 @@ export default function ActivityPage() {
           <div>
             <h1 className="text-2xl font-bold">Activity</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Deliverables, approvals, integrations, syncs, and learnings
+              What YARNNN has been doing in the background
             </p>
           </div>
           <button
@@ -238,7 +350,7 @@ export default function ActivityPage() {
           </button>
         </div>
 
-        {/* Filter */}
+        {/* Filter chips */}
         <div className="flex items-center gap-2 mb-6 flex-wrap">
           <Filter className="w-4 h-4 text-muted-foreground" />
           <button
@@ -252,18 +364,18 @@ export default function ActivityPage() {
           >
             All
           </button>
-          {FILTER_TYPES.map((type) => (
+          {FILTER_CATEGORIES.map((cat) => (
             <button
-              key={type}
-              onClick={() => setFilter(type)}
+              key={cat.key}
+              onClick={() => setFilter(cat.key)}
               className={cn(
-                "px-3 py-1.5 text-sm rounded-full transition-colors flex items-center gap-1.5",
-                filter === type
+                "px-3 py-1.5 text-sm rounded-full transition-colors",
+                filter === cat.key
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground hover:text-foreground"
               )}
             >
-              {EVENT_CONFIG[type].label}
+              {cat.label}
             </button>
           ))}
         </div>
@@ -273,7 +385,7 @@ export default function ActivityPage() {
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
           </div>
-        ) : activities.length === 0 ? (
+        ) : filteredActivities.length === 0 ? (
           <div className="text-center py-12">
             <Activity className="w-12 h-12 mx-auto mb-4 text-muted-foreground" />
             <p className="text-muted-foreground">No activity yet</p>
@@ -284,18 +396,18 @@ export default function ActivityPage() {
         ) : (
           <>
             <p className="text-sm text-muted-foreground mb-4">
-              Showing {activities.length} of {total} events
+              Showing {filteredActivities.length} of {total} events (last 30 days)
             </p>
             <div className="space-y-1">
-              {activities.map((item) => {
-                const config = EVENT_CONFIG[item.event_type];
+              {filteredActivities.map((item) => {
+                const config = getConfig(item.event_type);
                 const metadata = item.metadata || {};
-                const provider = metadata.provider as string | undefined;
+                const provider = (metadata.provider || metadata.platform) as string | undefined;
                 const source = metadata.source as string | undefined;
                 const deliverableTitle = metadata.deliverable_title as string | undefined;
                 const versionNumber = metadata.version_number as number | undefined;
                 const origin = metadata.origin as string | undefined;
-                const itemCount = metadata.item_count as number | undefined;
+                const itemCount = (metadata.item_count ?? metadata.items_synced) as number | undefined;
 
                 return (
                   <button
@@ -313,8 +425,8 @@ export default function ActivityPage() {
                               {getPlatformIcon(provider)}
                             </span>
                           )}
-                          {/* Source badge for memory_written */}
-                          {item.event_type === 'memory_written' && source && (
+                          {/* Source badge for memory events */}
+                          {config.category === 'memory' && source && (
                             <span className={cn(
                               "text-xs px-1.5 py-0.5 rounded",
                               source === 'conversation' && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
@@ -325,7 +437,7 @@ export default function ActivityPage() {
                             </span>
                           )}
                           {/* Origin badge for signal-emergent deliverables */}
-                          {(item.event_type === 'deliverable_run' || item.event_type === 'deliverable_approved') && origin === 'signal_emergent' && (
+                          {config.category === 'deliverables' && origin === 'signal_emergent' && (
                             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                               signal
                             </span>
@@ -336,18 +448,25 @@ export default function ActivityPage() {
                           {/* Version number for deliverable events */}
                           {versionNumber && (
                             <>
-                              <span>·</span>
+                              <span>&middot;</span>
                               <span>v{versionNumber}</span>
                             </>
                           )}
-                          {/* Item count for platform syncs */}
-                          {item.event_type === 'platform_synced' && itemCount !== undefined && (
+                          {/* Item count for sync/signal events */}
+                          {(item.event_type === 'platform_synced' || item.event_type === 'signal_processed') && itemCount !== undefined && (
                             <>
-                              <span>·</span>
+                              <span>&middot;</span>
                               <span>{itemCount} items</span>
                             </>
                           )}
-                          <span>·</span>
+                          {/* Deliverable title for generated events */}
+                          {deliverableTitle && item.event_type === 'deliverable_generated' && (
+                            <>
+                              <span>&middot;</span>
+                              <span className="truncate max-w-[200px]">{deliverableTitle}</span>
+                            </>
+                          )}
+                          <span>&middot;</span>
                           <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
                         </div>
                       </div>
