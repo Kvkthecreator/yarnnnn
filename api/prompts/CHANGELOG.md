@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.24.3] - Fix signal processing: deliverable ID missing from prompt
+
+### Changed
+- `api/services/signal_processing.py`: Include deliverable UUID in brackets in EXISTING DELIVERABLES list (`[uuid] Title (type, next run: ...)`). Previously only showed title, causing LLM to return title as `trigger_deliverable_id` instead of UUID — which crashed with "invalid input syntax for type uuid".
+- Added UUID validation guard in `_parse_reasoning_response()` to reject non-UUID `trigger_deliverable_id` values gracefully instead of crashing.
+
+### Behavior
+- `trigger_existing` actions now work correctly — LLM can see and return the actual UUID
+- Invalid IDs logged as warnings instead of crashing the entire signal processing run
+
+---
+
 ## [2026.02.24.2] - Fix email delivery: Gmail/Google platform connection lookup
 
 ### Changed

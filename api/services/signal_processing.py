@@ -521,8 +521,9 @@ def _build_reasoning_prompt(
 
                 content_preview = f"\n    Last output ({date_str}): {preview}"
 
+            did = d.get("id", "")
             lines.append(
-                f"- {title} ({dtype}, next run: {next_run}){content_preview}"
+                f"- [{did}] {title} ({dtype}, next run: {next_run}){content_preview}"
             )
         deliverables_text = "EXISTING DELIVERABLES:\n" + "\n".join(lines)
     else:
@@ -604,7 +605,7 @@ For triggering existing deliverable:
     {
       "action_type": "trigger_existing",
       "deliverable_type": "<type from EXISTING DELIVERABLES list>",
-      "trigger_deliverable_id": "<id from EXISTING DELIVERABLES list>",
+      "trigger_deliverable_id": "<UUID from brackets in EXISTING DELIVERABLES list>",
       "confidence": 0.85,
       "reasoning": "Existing deliverable handles this content, advancing schedule"
     }
@@ -651,6 +652,14 @@ def _parse_reasoning_response(raw_response: str, signal_summary: SignalSummary) 
             if action_type not in ("create_signal_emergent", "trigger_existing", "no_action"):
                 continue
 
+            # Validate trigger_deliverable_id is a UUID (LLM sometimes returns title instead)
+            trigger_id = item.get("trigger_deliverable_id")
+            if trigger_id and action_type == "trigger_existing":
+                import re
+                if not re.match(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', trigger_id, re.I):
+                    logger.warning(f"[SIGNAL_PROCESSING] Invalid trigger_deliverable_id (not UUID): {trigger_id[:60]}")
+                    trigger_id = None
+
             actions.append(SignalAction(
                 action_type=action_type,
                 deliverable_type=item.get("deliverable_type", "custom"),
@@ -658,7 +667,7 @@ def _parse_reasoning_response(raw_response: str, signal_summary: SignalSummary) 
                 description=item.get("description", ""),
                 confidence=float(item.get("confidence", 0.0)),
                 sources=item.get("sources", []),
-                trigger_deliverable_id=item.get("trigger_deliverable_id"),
+                trigger_deliverable_id=trigger_id,
                 signal_context=item.get("signal_context", {}),
             ))
 
