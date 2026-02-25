@@ -423,6 +423,10 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
 
             except Exception as e:
                 logger.warning(f"[PLATFORM_WORKER] Slack channel {channel_id} sync error: {e}")
+                await update_sync_registry(
+                    client, user_id, "slack", channel_id,
+                    last_error=str(e),
+                )
 
         logger.info(f"[PLATFORM_WORKER] Slack sync complete: {channels_synced} channels, {items_synced} items")
         return {
@@ -631,6 +635,11 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
 
             except Exception as e:
                 logger.warning(f"[PLATFORM_WORKER] Failed to sync Gmail label {label_id}: {e}")
+                await update_sync_registry(
+                    client, user_id, "gmail", resource_id,
+                    resource_name=label_id,
+                    last_error=str(e),
+                )
 
         logger.info(f"[PLATFORM_WORKER] Gmail sync complete: {labels_synced} labels, {items_synced} emails")
         return {
@@ -747,6 +756,10 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
         except Exception as e:
             logger.warning(f"[PLATFORM_WORKER] Failed to sync Notion page {page_id}: {e}")
             pages_failed += 1
+            await update_sync_registry(
+                client, user_id, "notion", page_id,
+                last_error=str(e),
+            )
             return False
 
     try:
@@ -772,6 +785,10 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
                 except Exception as e:
                     logger.warning(f"[PLATFORM_WORKER] Failed to query Notion database {source_id}: {e}")
                     pages_failed += 1
+                    await update_sync_registry(
+                        client, user_id, "notion", source_id,
+                        last_error=str(e),
+                    )
             else:
                 # Regular page sync
                 await asyncio.sleep(0.35)  # Rate limit
@@ -998,6 +1015,10 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
 
             except Exception as e:
                 logger.warning(f"[PLATFORM_WORKER] Failed to sync calendar {calendar_id}: {e}", exc_info=True)
+                await update_sync_registry(
+                    client, user_id, "calendar", calendar_id,
+                    last_error=str(e),
+                )
 
         logger.info(f"[PLATFORM_WORKER] Calendar sync complete: {calendars_synced} calendars, {items_synced} events")
         return {

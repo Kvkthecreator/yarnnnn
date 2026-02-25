@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  AlertTriangle,
   Check,
   ChevronDown,
   ChevronRight,
@@ -19,10 +20,12 @@ export function CoverageBadge({
   state,
   itemsExtracted,
   lastExtractedAt,
+  hasError,
 }: {
   state: string;
   itemsExtracted?: number;
   lastExtractedAt?: string | null;
+  hasError?: boolean;
 }) {
   const stateConfig: Record<string, { color: string; bg: string; label: string }> = {
     covered: { color: 'text-green-700 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', label: 'Synced' },
@@ -30,17 +33,21 @@ export function CoverageBadge({
     stale: { color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30', label: 'Stale' },
     uncovered: { color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-800', label: 'Not synced' },
     excluded: { color: 'text-gray-500 dark:text-gray-500', bg: 'bg-gray-50 dark:bg-gray-900', label: 'Excluded' },
+    error: { color: 'text-red-700 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', label: 'Sync error' },
   };
 
-  const effectiveState = (state === 'uncovered' && itemsExtracted && itemsExtracted > 0) ? 'covered' : state;
+  const effectiveState = hasError
+    ? 'error'
+    : (state === 'uncovered' && itemsExtracted && itemsExtracted > 0) ? 'covered' : state;
   const { color, bg, label } = stateConfig[effectiveState] || stateConfig.uncovered;
 
-  const timeLabel = lastExtractedAt && effectiveState !== 'uncovered'
+  const timeLabel = lastExtractedAt && effectiveState !== 'uncovered' && effectiveState !== 'error'
     ? `${label} ${formatDistanceToNow(new Date(lastExtractedAt), { addSuffix: true })}`
     : label;
 
   return (
     <span className={cn('px-2 py-0.5 rounded text-xs font-medium', color, bg)}>
+      {hasError && <AlertTriangle className="w-3 h-3 inline mr-1 -mt-0.5" />}
       {timeLabel}
     </span>
   );
@@ -89,6 +96,7 @@ export function ResourceRow({
   const isPrimary = resource.metadata?.primary as boolean | undefined;
   const isDatabase = resource.resource_type === 'database';
   const hasSyncedContent = resource.coverage_state === 'covered' || resource.coverage_state === 'partial' || resource.items_extracted > 0;
+  const hasError = !!resource.last_error;
 
   return (
     <div className={cn(isSelected ? 'bg-primary/5' : '')}>
@@ -146,6 +154,16 @@ export function ResourceRow({
                 </div>
               )
             )}
+            {hasError && (
+              <div className="text-xs text-red-600 dark:text-red-400 truncate" title={resource.last_error || ''}>
+                {resource.last_error}
+                {resource.last_error_at && (
+                  <span className="text-red-500/70 ml-1">
+                    ({formatDistanceToNow(new Date(resource.last_error_at), { addSuffix: true })})
+                  </span>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -156,6 +174,7 @@ export function ResourceRow({
               state={resource.coverage_state}
               itemsExtracted={resource.items_extracted}
               lastExtractedAt={resource.last_extracted_at}
+              hasError={hasError}
             />
           )}
           {showCoverage && hasSyncedContent && (

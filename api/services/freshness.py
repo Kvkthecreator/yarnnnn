@@ -176,32 +176,51 @@ async def update_sync_registry(
     platform_cursor: Optional[str] = None,
     item_count: int = 0,
     source_latest_at: Optional[datetime] = None,
+    last_error: Optional[str] = None,
 ) -> Optional[str]:
     """
     Update sync_registry after a sync operation.
 
     Uses upsert to create or update the registry entry.
+    On success (last_error=None), clears any previous error.
+    On error, sets last_error and last_error_at without updating last_synced_at.
 
     Returns:
         UUID of the registry entry, or None on failure
     """
     try:
         now = datetime.now(timezone.utc)
-        data = {
-            "user_id": user_id,
-            "platform": platform,
-            "resource_id": resource_id,
-            "last_synced_at": now.isoformat(),
-            "item_count": item_count,
-            "updated_at": now.isoformat(),
-        }
 
-        if resource_name:
-            data["resource_name"] = resource_name
-        if platform_cursor:
-            data["platform_cursor"] = platform_cursor
-        if source_latest_at:
-            data["source_latest_at"] = source_latest_at.isoformat()
+        if last_error:
+            # Error path: record the error without updating last_synced_at
+            data = {
+                "user_id": user_id,
+                "platform": platform,
+                "resource_id": resource_id,
+                "last_error": last_error[:500],  # Truncate to avoid bloat
+                "last_error_at": now.isoformat(),
+                "updated_at": now.isoformat(),
+            }
+            if resource_name:
+                data["resource_name"] = resource_name
+        else:
+            # Success path: update sync state and clear any previous error
+            data = {
+                "user_id": user_id,
+                "platform": platform,
+                "resource_id": resource_id,
+                "last_synced_at": now.isoformat(),
+                "item_count": item_count,
+                "updated_at": now.isoformat(),
+                "last_error": None,
+                "last_error_at": None,
+            }
+            if resource_name:
+                data["resource_name"] = resource_name
+            if platform_cursor:
+                data["platform_cursor"] = platform_cursor
+            if source_latest_at:
+                data["source_latest_at"] = source_latest_at.isoformat()
 
         result = client.table("sync_registry").upsert(
             data,

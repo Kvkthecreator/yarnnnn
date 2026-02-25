@@ -2421,6 +2421,8 @@ class LandscapeResourceResponse(BaseModel):
     last_extracted_at: Optional[datetime] = None
     items_extracted: int = 0
     metadata: dict[str, Any] = {}
+    last_error: Optional[str] = None
+    last_error_at: Optional[datetime] = None
 
 
 class LandscapeResponse(BaseModel):
@@ -2531,7 +2533,7 @@ async def get_landscape(
 
     # Get sync records for this provider (ADR-058)
     sync_result = auth.client.table("sync_registry").select(
-        "resource_id, resource_name, last_synced_at, item_count"
+        "resource_id, resource_name, last_synced_at, item_count, last_error, last_error_at"
     ).eq("user_id", user_id).eq("platform", resolved_provider).execute()
 
     sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
@@ -2552,7 +2554,9 @@ async def get_landscape(
             coverage_state=coverage_state,
             last_extracted_at=sync_data.get("last_synced_at"),
             items_extracted=sync_data.get("item_count", 0),
-            metadata=resource.get("metadata", {})
+            metadata=resource.get("metadata", {}),
+            last_error=sync_data.get("last_error"),
+            last_error_at=sync_data.get("last_error_at"),
         ))
 
     # Get coverage summary

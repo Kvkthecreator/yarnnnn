@@ -1040,6 +1040,8 @@ export interface LandscapeResource {
   last_extracted_at: string | null;
   items_extracted: number;
   metadata: Record<string, unknown>;
+  last_error: string | null;
+  last_error_at: string | null;
 }
 
 export interface SelectedSource {

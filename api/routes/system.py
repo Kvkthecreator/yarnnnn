@@ -31,6 +31,8 @@ class ResourceSyncStatus(BaseModel):
     item_count: int = 0
     has_cursor: bool = False
     status: str = "unknown"  # fresh, recent, stale, never_synced
+    last_error: Optional[str] = None
+    last_error_at: Optional[str] = None
 
 
 class PlatformContentSummary(BaseModel):
@@ -112,7 +114,7 @@ async def get_system_status(auth: UserClient):
 
     # ─── Sync Registry (single query, partition by platform) ───────────────────
     registry_result = auth.client.table("sync_registry").select(
-        "platform, resource_id, resource_name, last_synced_at, platform_cursor, item_count"
+        "platform, resource_id, resource_name, last_synced_at, platform_cursor, item_count, last_error, last_error_at"
     ).eq("user_id", user_id).execute()
 
     # Group by platform
@@ -215,6 +217,8 @@ async def get_system_status(auth: UserClient):
                     item_count=row.get("item_count", 0),
                     has_cursor=bool(row.get("platform_cursor")),
                     status=r_status,
+                    last_error=row.get("last_error"),
+                    last_error_at=row.get("last_error_at"),
                 ))
 
             # Derive platform-level status from resources

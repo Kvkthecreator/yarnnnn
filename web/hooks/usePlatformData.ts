@@ -100,6 +100,8 @@ export function usePlatformData(
             last_extracted_at: null,
             items_extracted: 0,
             metadata: { primary: cal.primary },
+            last_error: null,
+            last_error_at: null,
           })
         );
         setResources(calendarResources);
