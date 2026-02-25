@@ -36,6 +36,10 @@ YARNNN's AI gets better with more context. Connecting multiple platforms means:
 - Deliverables can pull from multiple sources (Slack + Notion → status report)
 - The AI assistant gives more complete, grounded answers
 
+## Use YARNNN from Claude or ChatGPT
+
+Already use Claude or ChatGPT? You don't have to switch to yarnnn.com to access your work context. The [MCP connector](mcp-connector.md) lets you search your synced content, trigger deliverables, and more — directly from your AI tool of choice.
+
 ## Security and privacy
 
 - **Read-only access** — YARNNN never modifies your data

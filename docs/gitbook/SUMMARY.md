@@ -22,6 +22,7 @@
 * [Gmail](integrations/gmail.md)
 * [Notion](integrations/notion.md)
 * [Google Calendar](integrations/google-calendar.md)
+* [MCP Connector — Claude & ChatGPT](integrations/mcp-connector.md)
 
 ## Plans & Billing
 
