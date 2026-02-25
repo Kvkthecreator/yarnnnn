@@ -37,7 +37,7 @@ activity_log ←── ALL subsystems ─────┘
 ### Flow
 
 1. Look up `platform_connections` for user/provider
-2. Read `landscape.selected_sources` for per-source sync (ADR-056)
+2. Read `landscape.selected_sources` for per-source sync (ADR-056). Sources auto-selected on first connect via platform-specific heuristics (ADR-078).
 3. Dispatch to provider handler (ADR-077: all fully paginated with platform-specific hardening):
    - **Slack**: `SlackAPIClient` → paginated history (1000 initial/500 incremental), thread expansion, user resolution, system message filtering
    - **Gmail**: `GoogleAPIClient` → paginated messages (200/label), concurrent fetch, 30-day initial window

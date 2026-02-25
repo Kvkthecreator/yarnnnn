@@ -111,7 +111,7 @@ Scopes: chat:write, channels:read, channels:history, channels:join,
 
 | Aspect | Value |
 |--------|-------|
-| Source filter | `landscape.selected_sources` (channel IDs) |
+| Source filter | `landscape.selected_sources` — auto-populated by member count desc (ADR-078) |
 | Time window | All recent messages (no time filter currently — sync token will add `oldest` param) |
 | Items per source | 50 messages per channel |
 | Content stored | Full message text, user, ts, reactions, thread metadata |
@@ -140,7 +140,7 @@ Scopes: gmail.readonly, gmail.send, gmail.compose, gmail.modify
 
 | Aspect | Value |
 |--------|-------|
-| Source filter | `landscape.selected_sources` (label IDs, format `label:LABEL_ID`) |
+| Source filter | `landscape.selected_sources` — auto-populated with INBOX, SENT, STARRED, IMPORTANT, then user labels (ADR-078) |
 | Time window | Last 7 days (recency filter) |
 | Items per source | 50 messages per label (full message fetch via `get_message`) |
 | Content stored | Subject + body snippet (up to 10,000 chars), headers, thread_id |
@@ -170,7 +170,7 @@ Scopes: calendar.readonly, calendar.events.readonly, calendar.events
 
 | Aspect | Value |
 |--------|-------|
-| Source filter | `landscape.selected_sources` (calendar IDs) |
+| Source filter | `landscape.selected_sources` — ALL calendars auto-selected, unlimited in all tiers (ADR-078) |
 | Time window | Next 7 days |
 | Items per source | 50 events per calendar |
 | Content stored | Title, description, location, start/end, attendees, htmlLink |
@@ -206,7 +206,7 @@ Scopes: calendar.readonly, calendar.events.readonly, calendar.events
 
 | Aspect | Value |
 |--------|-------|
-| Source filter | `landscape.selected_sources` (page IDs) |
+| Source filter | `landscape.selected_sources` — auto-populated by last_edited desc, deprioritizing Untitled (ADR-078) |
 | Time window | Full page content (no time window — pages are documents, not streams) |
 | Items per source | 1 page = 1 item (page metadata + all content blocks) |
 | Content stored | Full plain text extraction from all block types |
