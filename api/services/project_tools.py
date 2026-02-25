@@ -2397,7 +2397,6 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
     Returns:
         Dict with resources list
     """
-    from integrations.core.client import get_mcp_manager
     from integrations.core.tokens import get_token_manager
     import os
 
@@ -2429,24 +2428,20 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
         }
 
     token_manager = get_token_manager()
-    mcp_manager = get_mcp_manager()  # For Slack/Notion (MCP protocol)
     metadata = integration.data.get("metadata") or {}
 
     try:
         if platform == "slack":
-            # Decrypt token
+            from integrations.core.slack_client import get_slack_client
+
             access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
             team_id = metadata.get("team_id")
 
             if not team_id:
                 return {"success": False, "error": "Slack integration missing team_id"}
 
-            # List channels via MCP
-            channels = await mcp_manager.list_slack_channels(
-                user_id=auth.user_id,
-                bot_token=access_token,
-                team_id=team_id
-            )
+            slack_client = get_slack_client()
+            channels = await slack_client.list_channels(bot_token=access_token)
 
             return {
                 "success": True,
@@ -2499,13 +2494,15 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
             }
 
         elif platform == "notion":
+            from integrations.core.notion_client import get_notion_client
+
             access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
+            notion_client = get_notion_client()
 
             # Search for pages (empty query lists recent)
-            pages = await mcp_manager.search_notion_pages(
-                user_id=auth.user_id,
-                auth_token=access_token,
-                query=None
+            pages = await notion_client.search(
+                access_token=access_token,
+                query="",
             )
 
             return {

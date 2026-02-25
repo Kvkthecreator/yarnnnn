@@ -1,10 +1,12 @@
 # ADR-050: MCP Gateway Architecture
 
-> **Status**: Implemented
+> **Status**: Superseded by [ADR-076](ADR-076-eliminate-mcp-gateway.md)
 > **Created**: 2026-02-12
-> **Updated**: 2026-02-19
+> **Updated**: 2026-02-25
 > **Deciders**: Kevin (solo founder)
 > **Related**: ADR-048 (Direct MCP Access), ADR-041 (MCP Server Exposure), ADR-046 (Google Calendar Integration)
+
+**⚠️ SUPERSEDED**: This ADR is historical. The MCP Gateway has been eliminated (ADR-076). All platforms — including Slack — now use Direct API clients from `api/integrations/core/`. The gateway service (`yarnnn-mcp-gateway`) and `MCPClientManager` have been deleted. The "Learnings for Future Integrations" section below remains valuable as context.
 
 ---
 

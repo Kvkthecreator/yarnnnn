@@ -210,7 +210,7 @@ async def _test_read(auth: Any, provider: str, config: dict) -> CapabilityStatus
 
 async def _test_slack_read(auth: Any, result: CapabilityStatus) -> CapabilityStatus:
     """Test Slack read capabilities."""
-    from integrations.core.client import get_mcp_manager
+    from integrations.core.slack_client import get_slack_client
     from integrations.core.tokens import get_token_manager
 
     # Get credentials
@@ -233,12 +233,8 @@ async def _test_slack_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
         return result
 
     # Try listing channels
-    mcp = get_mcp_manager()
-    channels = await mcp.list_slack_channels(
-        user_id=auth.user_id,
-        bot_token=access_token,
-        team_id=team_id,
-    )
+    slack_client = get_slack_client()
+    channels = await slack_client.list_channels(bot_token=access_token)
 
     result.status = "ok"
     result.details = {
@@ -252,12 +248,12 @@ async def _test_slack_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
 async def _test_gmail_read(auth: Any, result: CapabilityStatus) -> CapabilityStatus:
     """Test Gmail read capabilities."""
     import os
-    from integrations.core.client import get_mcp_manager
+    from integrations.core.google_client import get_google_client
     from integrations.core.tokens import get_token_manager
 
     # Get credentials
     integration = auth.client.table("platform_connections").select(
-        "credentials_encrypted, metadata"
+        "credentials_encrypted, refresh_token_encrypted, metadata"
     ).eq("user_id", auth.user_id).eq("platform", "gmail").single().execute()
 
     if not integration.data:
@@ -265,13 +261,15 @@ async def _test_gmail_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
         result.error = "No Gmail integration"
         return result
 
-    metadata = integration.data.get("metadata", {}) or {}
-    refresh_token = metadata.get("refresh_token")
+    token_manager = get_token_manager()
+    refresh_token_encrypted = integration.data.get("refresh_token_encrypted")
 
-    if not refresh_token:
+    if not refresh_token_encrypted:
         result.status = "failed"
-        result.error = "Missing refresh_token in metadata"
+        result.error = "Missing refresh token. Please reconnect Gmail."
         return result
+
+    refresh_token = token_manager.decrypt(refresh_token_encrypted)
 
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
@@ -282,9 +280,8 @@ async def _test_gmail_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
         return result
 
     # Try listing messages
-    mcp = get_mcp_manager()
-    messages = await mcp.list_gmail_messages(
-        user_id=auth.user_id,
+    google_client = get_google_client()
+    messages = await google_client.list_gmail_messages(
         client_id=client_id,
         client_secret=client_secret,
         refresh_token=refresh_token,
@@ -302,7 +299,7 @@ async def _test_gmail_read(auth: Any, result: CapabilityStatus) -> CapabilitySta
 
 async def _test_notion_read(auth: Any, result: CapabilityStatus) -> CapabilityStatus:
     """Test Notion read capabilities."""
-    from integrations.core.client import get_mcp_manager
+    from integrations.core.notion_client import get_notion_client
     from integrations.core.tokens import get_token_manager
 
     # Get credentials
@@ -318,28 +315,12 @@ async def _test_notion_read(auth: Any, result: CapabilityStatus) -> CapabilitySt
     token_manager = get_token_manager()
     access_token = token_manager.decrypt(integration.data["credentials_encrypted"])
 
-    # ADR-050: Search pages via MCP Gateway (Node.js), not Python MCP client
-    from services.mcp_gateway import call_platform_tool, is_gateway_available
-
-    if not is_gateway_available():
-        result.status = "failed"
-        result.error = "MCP Gateway not available"
-        return result
-
-    gateway_result = await call_platform_tool(
-        provider="notion",
-        tool="notion-search",
-        args={"query": ""},
-        token=access_token,
-        metadata=integration.data.get("metadata"),
+    notion_client = get_notion_client()
+    pages = await notion_client.search(
+        access_token=access_token,
+        query="",
     )
 
-    if not gateway_result.get("success"):
-        result.status = "failed"
-        result.error = gateway_result.get("error", "Notion search failed")
-        return result
-
-    pages = gateway_result.get("result", {}).get("results", [])
     if not isinstance(pages, list):
         pages = []
 

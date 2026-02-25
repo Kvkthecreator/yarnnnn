@@ -320,9 +320,6 @@ NOTION_CLIENT_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
-# MCP Gateway
-MCP_GATEWAY_URL=https://yarnnn-mcp-gateway.onrender.com
-
 # Encryption
 INTEGRATION_ENCRYPTION_KEY=  # Required — missing raises ValueError at startup
 ```

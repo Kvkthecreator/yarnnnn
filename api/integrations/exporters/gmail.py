@@ -1,12 +1,7 @@
 """
-Gmail Exporter - ADR-029, ADR-031, ADR-050
+Gmail Exporter - ADR-029, ADR-031, ADR-076
 
 Delivers content to Gmail via Direct API (GoogleAPIClient).
-
-ADR-050: Uses GoogleAPIClient (direct REST calls to Gmail API) instead of MCPClientManager.
-The old code called get_mcp_manager() but then called methods (create_gmail_draft,
-send_gmail_message, list_gmail_messages) that only exist on GoogleAPIClient — not on
-MCPClientManager. This was silently broken.
 
 ADR-031 adds support for platform variants with HTML formatting:
 - email_summary: Inbox digest with sections
@@ -42,8 +37,7 @@ class GmailExporter(DestinationExporter):
     """
     Exports content to Gmail via Direct API.
 
-    ADR-050: Uses GoogleAPIClient instead of MCPClientManager.
-    Gmail/Calendar use direct Google REST APIs — no MCP or Node.js required.
+    ADR-076: Uses GoogleAPIClient (Direct API) like all other platforms.
 
     Auth: Uses refresh_token from ExporterContext.refresh_token (decrypted by
     delivery.py from platform_connections.refresh_token_encrypted).

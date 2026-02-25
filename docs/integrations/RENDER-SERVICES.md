@@ -94,7 +94,6 @@ SUPABASE_SERVICE_ROLE_KEY
 ANTHROPIC_API_KEY
 RESEND_API_KEY
 REDIS_URL (optional - graceful fallback if unavailable)
-MCP_GATEWAY_URL
 ```
 
 **Health check:** `GET /health`
@@ -130,7 +129,6 @@ GOOGLE_CLIENT_ID                    # Required — refreshes Google access token
 GOOGLE_CLIENT_SECRET
 NOTION_CLIENT_ID                    # Required — Notion API auth
 NOTION_CLIENT_SECRET
-MCP_GATEWAY_URL                     # Required — Slack sync via MCP Gateway
 ```
 
 > **Lesson learned (2026-02-23):** Worker was silently reporting `success=True` while syncing 0 items because `INTEGRATION_ENCRYPTION_KEY` was missing. The worker couldn't decrypt OAuth tokens but didn't raise — it just fetched nothing. Always ensure Worker has the same integration-related env vars as the API.
@@ -178,37 +176,6 @@ GOOGLE_CLIENT_ID
 GOOGLE_CLIENT_SECRET
 NOTION_CLIENT_ID
 NOTION_CLIENT_SECRET
-MCP_GATEWAY_URL
-```
-
----
-
-### yarnnn-mcp-gateway
-
-**Purpose:** Model Context Protocol (MCP) adapter for external platform APIs.
-
-**Entry point:** `mcp-gateway/index.js`
-
-**Runtime:** Node.js + Express
-
-**Why separate service:**
-- MCP SDK is Node.js-based
-- Isolates platform API failures from core API
-- Can scale independently for heavy import workloads
-
-**Supported platforms:**
-- Slack (channels, messages, users)
-- Notion (pages, databases)
-- Gmail (threads, messages)
-- Google Calendar (events)
-
-**Environment variables:**
-```
-PORT
-SLACK_BOT_TOKEN
-NOTION_TOKEN
-GOOGLE_CLIENT_ID
-GOOGLE_CLIENT_SECRET
 ```
 
 ---
@@ -231,17 +198,16 @@ GOOGLE_CLIENT_SECRET
 
 **Critical**: API, Worker, and Scheduler must share integration-related env vars. The API handles OAuth and stores encrypted tokens; the Worker decrypts and uses them for sync.
 
-| Env Var | API | Worker | Scheduler | MCP Gateway |
-|---------|-----|--------|-----------|-------------|
-| `SUPABASE_URL` | Yes | Yes | Yes | No |
-| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Yes | Yes | No |
-| `ANTHROPIC_API_KEY` | Yes | Yes | No | No |
-| `INTEGRATION_ENCRYPTION_KEY` | Yes | Yes | Yes | No |
-| `GOOGLE_CLIENT_ID/SECRET` | Yes | Yes | Yes | No |
-| `NOTION_CLIENT_ID/SECRET` | Yes | Yes | Yes | No |
-| `MCP_GATEWAY_URL` | Yes | Yes | Yes | No |
-| `REDIS_URL` | Yes | Yes | Yes | No |
-| `RESEND_API_KEY` | Yes | No | Yes | No |
+| Env Var | API | Worker | Scheduler |
+|---------|-----|--------|-----------|
+| `SUPABASE_URL` | Yes | Yes | Yes |
+| `SUPABASE_SERVICE_ROLE_KEY` | Yes | Yes | Yes |
+| `ANTHROPIC_API_KEY` | Yes | Yes | No |
+| `INTEGRATION_ENCRYPTION_KEY` | Yes | Yes | Yes |
+| `GOOGLE_CLIENT_ID/SECRET` | Yes | Yes | Yes |
+| `NOTION_CLIENT_ID/SECRET` | Yes | Yes | Yes |
+| `REDIS_URL` | Yes | Yes | Yes |
+| `RESEND_API_KEY` | Yes | No | Yes |
 
 Use Render MCP tools to audit env vars across services when debugging sync failures.
 

@@ -234,7 +234,7 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
 
     ADR-056: Only syncs channels in selected_sources list.
     """
-    from integrations.core.client import MCPClientManager
+    from integrations.core.slack_client import get_slack_client
     from integrations.core.tokens import get_token_manager
 
     settings = integration.get("settings", {}) or {}
@@ -266,18 +266,14 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
     selected_set = set(selected_sources)
     logger.info(f"[PLATFORM_WORKER] Slack sync: {len(selected_set)} channels selected")
 
-    manager = MCPClientManager()
+    slack_client = get_slack_client()
     items_synced = 0
     channels_synced = 0
     channels_skipped = 0
 
     try:
         # Get list of channels
-        channels = await manager.list_slack_channels(
-            user_id=user_id,
-            bot_token=bot_token,
-            team_id=team_id,
-        )
+        channels = await slack_client.list_channels(bot_token=bot_token)
 
         # ADR-056: Filter to only selected channels
         for channel in channels:
@@ -295,14 +291,20 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
             sync_state = await get_sync_state(client, user_id, "slack", channel_id)
             oldest = sync_state.get("platform_cursor") if sync_state else None
 
-            messages = await manager.get_slack_channel_history(
-                user_id=user_id,
-                channel_id=channel_id,
+            messages, error = await slack_client.get_channel_history_with_error(
                 bot_token=bot_token,
-                team_id=team_id,
+                channel_id=channel_id,
                 limit=50,
                 oldest=oldest,
             )
+
+            # Handle not_in_channel with auto-join
+            if error == "not_in_channel":
+                joined = await slack_client.join_channel(bot_token=bot_token, channel_id=channel_id)
+                if joined:
+                    messages, error = await slack_client.get_channel_history_with_error(
+                        bot_token=bot_token, channel_id=channel_id, limit=50, oldest=oldest,
+                    )
 
             # Track latest message ts for cursor update
             latest_ts = oldest
@@ -351,8 +353,6 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
     except Exception as e:
         logger.warning(f"[PLATFORM_WORKER] Slack sync error: {e}")
         return {"error": str(e), "items_synced": items_synced}
-    finally:
-        await manager.close_all()
 
 
 def _extract_gmail_body(payload: dict) -> str:

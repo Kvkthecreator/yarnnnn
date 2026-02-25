@@ -1,9 +1,9 @@
 """
 Platform Tools for Thinking Partner
 
-ADR-050: Tool definitions and handlers for platform operations.
+ADR-076: Tool definitions and handlers for platform operations.
 These tools are dynamically added to TP based on user's connected integrations.
-Tool calls are routed to MCP Gateway (Slack) or Direct API (Notion, Gmail, Calendar).
+All platforms use Direct API: SlackAPIClient, NotionAPIClient, GoogleAPIClient.
 """
 
 import logging
@@ -548,11 +548,11 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
     """
     Handle a platform tool call by routing to appropriate backend.
 
-    ADR-050 Routing:
-    - Slack: MCP Gateway (local stdio transport)
-    - Notion: Direct API (MCP incompatible with OAuth tokens)
-    - Gmail: Direct API
-    - Calendar: Direct API
+    ADR-076 Routing (all Direct API):
+    - Slack: Direct API (SlackAPIClient)
+    - Notion: Direct API (NotionAPIClient)
+    - Gmail: Direct API (GoogleAPIClient)
+    - Calendar: Direct API (GoogleAPIClient)
 
     Args:
         auth: Auth context
@@ -573,11 +573,9 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
     provider = parts[1]
     tool = "_".join(parts[2:])  # Handle multi-part tool names
 
-    # ADR-050: Route by provider
-    # - Slack: MCP Gateway (only platform that works with MCP + OAuth)
-    # - Everything else: Direct API
+    # ADR-076: All platforms use Direct API
     if provider == "slack":
-        return await _handle_mcp_tool(auth, provider, tool, tool_input)
+        return await _handle_slack_tool(auth, tool, tool_input)
     elif provider == "notion":
         return await _handle_notion_tool(auth, tool, tool_input)
     elif provider in ("gmail", "calendar"):
@@ -586,163 +584,93 @@ async def handle_platform_tool(auth: Any, tool_name: str, tool_input: dict) -> d
         return {"success": False, "error": f"Unknown provider: {provider}"}
 
 
-async def _handle_mcp_tool(auth: Any, provider: str, tool: str, tool_input: dict) -> dict:
-    """Handle MCP Gateway-routed tools (Slack only)."""
-    from services.mcp_gateway import call_platform_tool, is_gateway_available
-
-    # Check if gateway is available
-    if not is_gateway_available():
-        return {
-            "success": False,
-            "error": "MCP Gateway not configured. Set MCP_GATEWAY_URL environment variable.",
-            "hint": "Platform tools require the MCP Gateway service to be running.",
-        }
+async def _handle_slack_tool(auth: Any, tool: str, tool_input: dict) -> dict:
+    """Handle Slack tools via Direct API (ADR-076, replaces MCP Gateway)."""
+    from integrations.core.slack_client import get_slack_client
 
     # Get user's integration credentials
     try:
         integration = auth.client.table("platform_connections").select(
             "credentials_encrypted, metadata"
-        ).eq("user_id", auth.user_id).eq("platform", provider).eq("status", "active").single().execute()
+        ).eq("user_id", auth.user_id).eq("platform", "slack").eq("status", "active").single().execute()
 
         if not integration.data:
             return {
                 "success": False,
-                "error": f"No active {provider} integration. Connect it in Settings.",
+                "error": "No active Slack integration. Connect it in Settings.",
             }
 
-        # Decrypt token
         token_manager = get_token_manager()
-        token = token_manager.decrypt(integration.data["credentials_encrypted"])
-        metadata = integration.data.get("metadata") or {}
+        bot_token = token_manager.decrypt(integration.data["credentials_encrypted"])
 
     except Exception as e:
-        logger.error(f"[PLATFORM-TOOLS] Failed to get credentials: {e}")
+        logger.error(f"[PLATFORM-TOOLS] Failed to get Slack credentials: {e}")
         return {
             "success": False,
-            "error": f"Failed to get {provider} credentials",
+            "error": "Failed to get Slack credentials",
         }
 
-    # Map tool input to MCP tool format
-    mcp_tool, mcp_args = map_to_mcp_format(provider, tool, tool_input)
+    slack_client = get_slack_client()
 
-    # Call gateway
-    result = await call_platform_tool(
-        provider=provider,
-        tool=mcp_tool,
-        args=mcp_args,
-        token=token,
-        metadata=metadata,
-    )
-
-    # Normalize MCP results before TP sees them (strip raw API noise)
-    if result.get("success"):
-        if tool == "list_channels":
-            result = _normalize_list_channels_result(result)
-        elif tool == "get_channel_history":
-            result = _normalize_get_channel_history_result(result)
-
-    return result
-
-
-def _normalize_list_channels_result(result: dict) -> dict:
-    """
-    Normalize list_channels result to only the fields TP needs.
-
-    The Slack MCP server returns the raw conversations.list response — 20+ fields
-    per channel including internal Slack metadata. This noise causes the model to
-    misread the data (e.g. treating valid channel names as "redacted").
-
-    Strip down to: id, name, is_private, is_archived.
-    If names are missing (scope issue), add a warning signal.
-    """
-    raw = result.get("result")
-    channels = None
-
-    if isinstance(raw, list):
-        channels = raw
-    elif isinstance(raw, dict):
-        channels = raw.get("channels")
-
-    if not channels or not isinstance(channels, list):
-        return result
-
-    # Normalize: keep only the fields TP needs
-    normalized = [
-        {
-            "id": ch.get("id"),
-            "name": ch.get("name") or ch.get("name_normalized"),
-            "is_private": ch.get("is_private", False),
-            "is_archived": ch.get("is_archived", False),
-        }
-        for ch in channels
-        if isinstance(ch, dict) and ch.get("id")
-    ]
-
-    result = dict(result)
-    result["result"] = {"channels": normalized, "count": len(normalized)}
-
-    # Detect missing names (token scope issue) — add warning signal
-    names_missing = all(not ch["name"] for ch in normalized)
-    if names_missing and len(normalized) > 0:
-        result["warning"] = "channel_names_unavailable"
-        result["hint"] = (
-            "Channel names unavailable — Slack token may lack channels:read or groups:read scope. "
-            "Ask the user for the channel link (right-click → Copy link in Slack)."
+    if tool == "send_message":
+        result = await slack_client.post_message(
+            bot_token=bot_token,
+            channel_id=tool_input["channel_id"],
+            text=tool_input["text"],
         )
-        logger.warning("[PLATFORM-TOOLS] list_channels: channel names unavailable (scope issue)")
-    else:
-        logger.info(f"[PLATFORM-TOOLS] list_channels: normalized {len(normalized)} channels")
+        if result.get("ok"):
+            return {
+                "success": True,
+                "result": {"ts": result.get("ts"), "channel": result.get("channel")},
+            }
+        return {"success": False, "error": result.get("error", "Slack API error")}
 
-    return result
-
-
-def _normalize_get_channel_history_result(result: dict) -> dict:
-    """
-    Normalize get_channel_history result to only the fields TP needs.
-
-    The Slack MCP server returns the raw conversations.history response including
-    ok, has_more, pin_count, response_metadata, and 15+ fields per message.
-    Strip down to: text, user, ts, reactions (count only).
-    """
-    raw = result.get("result")
-    messages = None
-
-    if isinstance(raw, list):
-        messages = raw
-    elif isinstance(raw, dict):
-        messages = raw.get("messages") or raw.get("history")
-
-    if not messages or not isinstance(messages, list):
-        return result
-
-    normalized = []
-    for msg in messages:
-        if not isinstance(msg, dict):
-            continue
-        text = msg.get("text", "")
-        # Skip empty/bot messages with no text
-        if not text:
-            continue
-        entry: dict = {
-            "user": msg.get("user") or msg.get("username"),
-            "text": text,
-            "ts": msg.get("ts"),
+    elif tool == "list_channels":
+        channels = await slack_client.list_channels(bot_token=bot_token)
+        result_dict: dict = {
+            "success": True,
+            "result": {"channels": channels, "count": len(channels)},
         }
-        # Include reactions as simple name counts if present
-        reactions = msg.get("reactions")
-        if reactions:
-            entry["reactions"] = [
-                {"name": r.get("name"), "count": r.get("count", 0)}
-                for r in reactions
-                if isinstance(r, dict)
-            ]
-        normalized.append(entry)
+        # Detect missing names (token scope issue)
+        if channels and all(not ch.get("name") for ch in channels):
+            result_dict["warning"] = "channel_names_unavailable"
+            result_dict["hint"] = (
+                "Channel names unavailable — Slack token may lack channels:read scope. "
+                "Ask the user for the channel link."
+            )
+        return result_dict
 
-    result = dict(result)
-    result["result"] = {"messages": normalized, "count": len(normalized)}
-    logger.info(f"[PLATFORM-TOOLS] get_channel_history: normalized {len(normalized)} messages")
+    elif tool == "get_channel_history":
+        messages = await slack_client.get_channel_history(
+            bot_token=bot_token,
+            channel_id=tool_input["channel_id"],
+            limit=tool_input.get("limit", 50),
+            oldest=tool_input.get("oldest"),
+        )
+        # Normalize for TP readability
+        normalized = []
+        for msg in messages:
+            text = msg.get("text", "")
+            if not text:
+                continue
+            entry: dict = {
+                "user": msg.get("user") or msg.get("username"),
+                "text": text,
+                "ts": msg.get("ts"),
+            }
+            reactions = msg.get("reactions")
+            if reactions:
+                entry["reactions"] = [
+                    {"name": r.get("name"), "count": r.get("count", 0)}
+                    for r in reactions
+                    if isinstance(r, dict)
+                ]
+            normalized.append(entry)
+        return {"success": True, "result": {"messages": normalized, "count": len(normalized)}}
 
-    return result
+    return {"success": False, "error": f"Unknown Slack tool: {tool}"}
+
+
 
 
 def _extract_rich_text(rich_text_arr: list) -> str:
@@ -1335,38 +1263,6 @@ async def _execute_calendar_tool(
         return {"success": False, "error": str(e)}
 
 
-def map_to_mcp_format(provider: str, tool: str, args: dict) -> tuple[str, dict]:
-    """
-    Map our tool names/args to MCP server expected format.
-
-    Only used for Slack (the only MCP-routed platform).
-    Notion uses Direct API now (ADR-050).
-
-    Slack MCP server tool names (@modelcontextprotocol/server-slack):
-      slack_post_message, slack_list_channels, slack_get_channel_history,
-      slack_get_users, slack_get_user_profile
-
-    Returns:
-        (mcp_tool_name, mcp_args)
-    """
-    if provider == "slack":
-        if tool == "send_message":
-            return "slack_post_message", {
-                "channel_id": args.get("channel_id"),
-                "text": args.get("text"),
-            }
-        elif tool == "list_channels":
-            return "slack_list_channels", {}
-        elif tool == "get_channel_history":
-            mcp_args: dict = {"channel_id": args.get("channel_id")}
-            if args.get("limit"):
-                mcp_args["limit"] = args["limit"]
-            if args.get("oldest"):
-                mcp_args["oldest"] = args["oldest"]
-            return "slack_get_channel_history", mcp_args
-
-    # Default: pass through
-    return tool, args
 
 
 def is_platform_tool(tool_name: str) -> bool:

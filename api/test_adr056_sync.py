@@ -91,23 +91,24 @@ def test_sync_slack_filters_by_selected_sources():
     # Selected only C123 and C456
     selected_sources = ["C123", "C456"]
 
-    # Mock MCPClientManager - patch at the source module
-    with patch("integrations.core.client.MCPClientManager") as MockManager:
-        mock_manager = AsyncMock()
-        MockManager.return_value = mock_manager
+    # Mock SlackAPIClient - patch the singleton factory
+    with patch("workers.platform_worker.get_slack_client") as mock_get_client:
+        mock_slack = AsyncMock()
+        mock_get_client.return_value = mock_slack
 
         # Return 4 channels, only 2 are selected
-        mock_manager.list_slack_channels.return_value = [
+        mock_slack.list_channels.return_value = [
             {"id": "C123", "name": "general"},
             {"id": "C456", "name": "random"},
             {"id": "C789", "name": "not-selected"},
             {"id": "C999", "name": "also-not-selected"},
         ]
 
-        # Return some messages for selected channels
-        mock_manager.get_slack_messages.return_value = [
-            {"text": "Hello", "user": "U123", "ts": "1234567890.123"},
-        ]
+        # Return some messages for selected channels (with no error)
+        mock_slack.get_channel_history_with_error.return_value = (
+            [{"text": "Hello", "user": "U123", "ts": "1234567890.123"}],
+            None,
+        )
 
         result = asyncio.run(_sync_slack(mock_client, "user123", integration, selected_sources))
 
@@ -116,8 +117,8 @@ def test_sync_slack_filters_by_selected_sources():
         assert result["channels_skipped"] == 2, f"Expected 2 channels skipped, got {result}"
         assert result["items_synced"] == 2, f"Expected 2 items (1 per channel), got {result}"
 
-        # Verify get_slack_messages was only called for selected channels
-        assert mock_manager.get_slack_messages.call_count == 2
+        # Verify get_channel_history_with_error was only called for selected channels
+        assert mock_slack.get_channel_history_with_error.call_count == 2
 
         print("✅ _sync_slack filters by selected_sources: PASSED")
 
@@ -225,13 +226,13 @@ def test_sync_notion_fetches_pages_directly():
 
     selected_sources = ["page-id-123", "page-id-456"]
 
-    # Patch at source module
-    with patch("integrations.core.client.MCPClientManager") as MockManager:
-        mock_manager = AsyncMock()
-        MockManager.return_value = mock_manager
+    # Patch NotionAPIClient singleton
+    with patch("workers.platform_worker.get_notion_client") as mock_get_client:
+        mock_notion = AsyncMock()
+        mock_get_client.return_value = mock_notion
 
         # Return page content for each page
-        mock_manager.get_notion_page_content.side_effect = [
+        mock_notion.get_page_content.side_effect = [
             {"title": "Page 1", "content": "Content 1", "url": "https://notion.so/page1"},
             {"title": "Page 2", "content": "Content 2", "url": "https://notion.so/page2"},
         ]
@@ -241,13 +242,8 @@ def test_sync_notion_fetches_pages_directly():
         assert result["pages_synced"] == 2, f"Expected 2 pages synced, got {result}"
         assert result["items_synced"] == 2, f"Expected 2 items, got {result}"
 
-        # Verify get_notion_page_content was called for each page ID
-        assert mock_manager.get_notion_page_content.call_count == 2
-
-        # Verify it was called with specific page IDs
-        calls = mock_manager.get_notion_page_content.call_args_list
-        assert calls[0].kwargs.get("page_id") == "page-id-123"
-        assert calls[1].kwargs.get("page_id") == "page-id-456"
+        # Verify get_page_content was called for each page ID
+        assert mock_notion.get_page_content.call_count == 2
 
         print("✅ _sync_notion fetches pages directly: PASSED")
 

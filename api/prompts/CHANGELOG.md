@@ -6,6 +6,22 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.25.1] - Eliminate MCP Gateway, all platforms use Direct API (ADR-076)
+
+### Changed
+- `api/services/platform_tools.py`: Replaced `_handle_mcp_tool()` with `_handle_slack_tool()` using `SlackAPIClient`. Deleted `map_to_mcp_format()`, normalization helpers. All platform routing now uses Direct API.
+- `api/integrations/exporters/slack.py`: Replaced `call_platform_tool()` gateway calls with `slack_client.post_message()` / `get_channel_info()`.
+- `api/workers/platform_worker.py`: Replaced `MCPClientManager` subprocess manager with `get_slack_client()` direct API calls.
+- `api/jobs/import_jobs.py`: Replaced `get_mcp_manager()` with platform-specific clients (`get_slack_client()`, `get_notion_client()`).
+- `api/integrations/validation.py`: Fixed broken Gmail validation test (was calling nonexistent method). All 3 platform tests now use Direct API clients.
+
+### Behavior
+- **No user-facing behavior change** — all Slack operations (list channels, get history, post messages, join channels) work identically via Direct API.
+- **Removed**: `mcp-gateway/` Node.js service, `MCPClientManager`, `mcp_gateway.py` HTTP client.
+- **Performance**: Eliminates network hop (Python → Node.js → Slack becomes Python → Slack).
+
+---
+
 ## [2026.02.24.6] - Consolidate notification architecture (single path)
 
 ### Changed

@@ -250,7 +250,7 @@ async def process_slack_import(
     supabase_client,
     job: dict,
     integration: dict,
-    mcp_manager,
+    slack_client,
     agent,
     token_manager,
 ) -> dict:
@@ -294,11 +294,9 @@ async def process_slack_import(
 
     # 1. Fetch messages via MCP
     logger.info(f"[IMPORT] Fetching Slack channel: {resource_name} (max: {max_items})")
-    messages = await mcp_manager.get_slack_channel_history(
-        user_id=user_id,
-        channel_id=resource_id,
+    messages = await slack_client.get_channel_history(
         bot_token=access_token,
-        team_id=team_id,
+        channel_id=resource_id,
         limit=max_items,
     )
 
@@ -417,7 +415,7 @@ async def process_notion_import(
     supabase_client,
     job: dict,
     integration: dict,
-    mcp_manager,
+    notion_client,
     agent,
     token_manager,
 ) -> dict:
@@ -452,13 +450,28 @@ async def process_notion_import(
         current_resource=resource_id,
     )
 
-    # 1. Fetch page via MCP
+    # 1. Fetch page via Direct API
     logger.info(f"[IMPORT] Fetching Notion page: {resource_id}")
-    page_content = await mcp_manager.get_notion_page_content(
-        user_id=user_id,
+    page_meta = await notion_client.get_page(
+        access_token=access_token,
         page_id=resource_id,
-        auth_token=access_token,
     )
+    blocks = await notion_client.get_page_content(
+        access_token=access_token,
+        page_id=resource_id,
+    )
+    # Build page_content dict matching previous format
+    page_title = "Untitled"
+    props = page_meta.get("properties", {})
+    title_prop = props.get("title") or props.get("Name") or {}
+    title_arr = title_prop.get("title", [])
+    if title_arr and isinstance(title_arr, list) and len(title_arr) > 0:
+        page_title = title_arr[0].get("plain_text", "Untitled")
+    page_content = {
+        "title": page_title,
+        "url": page_meta.get("url"),
+        "blocks": blocks,
+    }
 
     if not page_content:
         return {
@@ -810,10 +823,11 @@ async def process_import_job(supabase_client, job: dict) -> bool:
     """
     Process a single import job.
 
-    Fetches data via MCP, runs agent, stores memories.
+    Fetches data via Direct API, runs agent, stores memories.
     Returns True if successful.
     """
-    from integrations.core.client import get_mcp_manager
+    from integrations.core.slack_client import get_slack_client
+    from integrations.core.notion_client import get_notion_client
     from integrations.core.google_client import get_google_client
     from integrations.core.tokens import get_token_manager
     from agents.integration.context_import import ContextImportAgent
@@ -837,23 +851,24 @@ async def process_import_job(supabase_client, job: dict) -> bool:
         if integration.get("status") != "active":
             raise ValueError(f"{provider} integration is {integration.get('status')}, not active")
 
-        # Initialize managers
-        mcp_manager = get_mcp_manager()  # For Slack/Notion (MCP protocol)
-        google_client = get_google_client()  # For Gmail/Calendar (Direct API)
+        # Initialize clients — ADR-076: All platforms use Direct API
         token_manager = get_token_manager()
         agent = ContextImportAgent()
 
         # Process based on platform
         if provider == "slack":
+            slack_client = get_slack_client()
             result = await process_slack_import(
-                supabase_client, job, integration, mcp_manager, agent, token_manager
+                supabase_client, job, integration, slack_client, agent, token_manager
             )
         elif provider == "notion":
+            notion_client = get_notion_client()
             result = await process_notion_import(
-                supabase_client, job, integration, mcp_manager, agent, token_manager
+                supabase_client, job, integration, notion_client, agent, token_manager
             )
         elif provider == "gmail":
-            # ADR-029: Gmail import support (uses Direct API, not MCP)
+            # ADR-029: Gmail import support (Direct API)
+            google_client = get_google_client()
             result = await process_gmail_import(
                 supabase_client, job, integration, google_client, agent, token_manager
             )

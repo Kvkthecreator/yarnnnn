@@ -1,11 +1,9 @@
 """
-Slack Exporter - ADR-028, ADR-031, ADR-032, ADR-050
+Slack Exporter - ADR-028, ADR-031, ADR-032, ADR-076
 
-Delivers content to Slack channels via MCP Gateway.
+Delivers content to Slack channels via Direct API (SlackAPIClient).
 
-ADR-050: Routes through MCP Gateway (mcp-gateway/ Node.js service) instead of spawning
-npx subprocesses directly — required on Render where Python API has no Node.js runtime.
-
+ADR-076: Uses SlackAPIClient directly (replaces MCP Gateway).
 ADR-031 adds support for Block Kit output when platform_variant is set.
 ADR-032 adds support for DM drafts (platform-centric draft delivery).
 
@@ -28,18 +26,17 @@ from typing import Any, Optional
 
 from integrations.core.types import ExportResult, ExportStatus
 from integrations.core.tokens import get_token_manager
+from integrations.core.slack_client import get_slack_client
 from .base import DestinationExporter, ExporterContext
-from services.mcp_gateway import call_platform_tool, is_gateway_available
 
 logger = logging.getLogger(__name__)
 
 
 class SlackExporter(DestinationExporter):
     """
-    Exports content to Slack via MCP Gateway.
+    Exports content to Slack via Direct API (SlackAPIClient).
 
-    ADR-050: Routes through the Node.js MCP Gateway service instead of spawning
-    npx subprocesses directly from Python (not possible on Render).
+    ADR-076: Uses Slack Web API directly via SlackAPIClient.
 
     Supports:
     - Posting to channels (public and private)
@@ -86,13 +83,7 @@ class SlackExporter(DestinationExporter):
         metadata: dict[str, Any],
         context: ExporterContext
     ) -> ExportResult:
-        """Deliver content to Slack via MCP Gateway."""
-        if not is_gateway_available():
-            return ExportResult(
-                status=ExportStatus.FAILED,
-                error_message="MCP Gateway not configured. Set MCP_GATEWAY_URL."
-            )
-
+        """Deliver content to Slack via Direct API."""
         target = destination.get("target")
         fmt = destination.get("format", "message")
         options = destination.get("options", {})
@@ -103,7 +94,7 @@ class SlackExporter(DestinationExporter):
                 error_message="No target channel specified"
             )
 
-        # Get team_id from context metadata (required for Slack MCP server)
+        # Get team_id from context metadata
         team_id = context.metadata.get("team_id")
         if not team_id:
             return ExportResult(
@@ -128,9 +119,8 @@ class SlackExporter(DestinationExporter):
             use_blocks = fmt == "blocks" or platform_variant in ("slack_digest", "slack_update")
 
             # Build message arguments
-            arguments: dict[str, Any] = {
-                "channel_id": target,
-            }
+            text = content
+            blocks_str = None
 
             if use_blocks:
                 from services.platform_output import generate_slack_blocks
@@ -140,36 +130,33 @@ class SlackExporter(DestinationExporter):
                     variant=platform_variant or "default",
                     metadata={"title": title, "channel_name": target}
                 )
-                arguments["blocks"] = json.dumps(blocks)
-                arguments["text"] = f"{title} - View in Slack for full formatting"
+                blocks_str = json.dumps(blocks)
+                text = f"{title} - View in Slack for full formatting"
                 logger.info(f"[SLACK_EXPORT] Using Block Kit ({len(blocks)} blocks) for variant={platform_variant}")
-            else:
-                arguments["text"] = content
 
-            # Add thread_ts for threaded replies
+            thread_ts = None
             if fmt == "thread" and options.get("thread_ts"):
-                arguments["thread_ts"] = options["thread_ts"]
+                thread_ts = options["thread_ts"]
 
-            result = await call_platform_tool(
-                provider="slack",
-                tool="slack_post_message",
-                args=arguments,
-                token=context.access_token,
-                metadata={"team_id": team_id},
+            slack_client = get_slack_client()
+            result = await slack_client.post_message(
+                bot_token=context.access_token,
+                channel_id=target,
+                text=text,
+                blocks=blocks_str,
+                thread_ts=thread_ts,
             )
 
-            if not result.get("success"):
-                error = result.get("error", "Gateway error")
-                logger.error(f"[SLACK_EXPORT] Gateway error: {error}")
+            if not result.get("ok"):
+                error = result.get("error", "Slack API error")
+                logger.error(f"[SLACK_EXPORT] API error: {error}")
                 return ExportResult(
                     status=ExportStatus.FAILED,
                     error_message=error
                 )
 
-            # Extract message ts and permalink from gateway result
-            raw = result.get("result") or {}
-            message_ts = raw.get("ts") if isinstance(raw, dict) else None
-            permalink = raw.get("permalink") if isinstance(raw, dict) else None
+            message_ts = result.get("ts")
+            permalink = result.get("permalink")
 
             logger.info(
                 f"[SLACK_EXPORT] Delivered to {target} for user {context.user_id}, "
@@ -357,10 +344,7 @@ class SlackExporter(DestinationExporter):
         destination: dict[str, Any],
         context: ExporterContext
     ) -> tuple[bool, Optional[str]]:
-        """Verify bot has access to the channel via MCP Gateway."""
-        if not is_gateway_available():
-            return (False, "MCP Gateway not configured")
-
+        """Verify bot has access to the channel via Direct API."""
         target = destination.get("target")
         team_id = context.metadata.get("team_id")
 
@@ -368,21 +352,19 @@ class SlackExporter(DestinationExporter):
             return (False, "Missing target or team_id")
 
         try:
-            result = await call_platform_tool(
-                provider="slack",
-                tool="slack_get_channel_info",
-                args={"channel": target},
-                token=context.access_token,
-                metadata={"team_id": team_id},
+            slack_client = get_slack_client()
+            result = await slack_client.get_channel_info(
+                bot_token=context.access_token,
+                channel_id=target,
             )
 
-            if result.get("success"):
+            if result.get("ok"):
                 return (True, None)
 
             error_msg = result.get("error", "")
-            if "channel_not_found" in error_msg.lower():
+            if "channel_not_found" in error_msg:
                 return (False, f"Channel '{target}' not found or bot not added")
-            if "not_in_channel" in error_msg.lower():
+            if "not_in_channel" in error_msg:
                 return (False, f"Bot is not a member of '{target}'")
             return (False, f"Cannot access channel: {error_msg}")
 

@@ -166,17 +166,12 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
         return {"resources": resources}
 
     elif provider == "slack":
-        from integrations.core.client import get_mcp_manager
+        from integrations.core.slack_client import get_slack_client
 
         bot_token = token_manager.decrypt(integration["credentials_encrypted"])
-        team_id = integration.get("metadata", {}).get("team_id", "")
-        mcp_manager = get_mcp_manager()
+        slack_client = get_slack_client()
 
-        channels = await mcp_manager.list_slack_channels(
-            user_id=user_id,
-            bot_token=bot_token,
-            team_id=team_id
-        )
+        channels = await slack_client.list_channels(bot_token=bot_token)
 
         resources = []
         for channel in channels:

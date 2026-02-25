@@ -23,7 +23,7 @@ from pydantic import BaseModel
 
 from services.supabase import UserClient, get_service_client
 from integrations.core.tokens import get_token_manager
-from integrations.core.client import get_mcp_manager, MCP_AVAILABLE
+from integrations.core.slack_client import get_slack_client
 from integrations.core.oauth import (
     get_authorization_url,
     exchange_code_for_token,
@@ -1010,12 +1010,6 @@ async def export_to_provider(
         integration_id = None
 
         if exporter.requires_auth:
-            if not MCP_AVAILABLE:
-                raise HTTPException(
-                    status_code=503,
-                    detail="Integration service unavailable (MCP not installed)"
-                )
-
             integration = auth.client.table("platform_connections").select(
                 "id, credentials_encrypted, refresh_token_encrypted, metadata, status"
             ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
@@ -1199,13 +1193,9 @@ async def list_slack_channels(
         token_manager = get_token_manager()
         access_token = token_manager.decrypt(integration.data[0]["credentials_encrypted"])
 
-        # Fetch channels via MCP
-        mcp = get_mcp_manager()
-        raw_channels = await mcp.list_slack_channels(
-            user_id=user_id,
-            bot_token=access_token,
-            team_id=team_id
-        )
+        # Fetch channels via Direct API
+        slack_client = get_slack_client()
+        raw_channels = await slack_client.list_channels(bot_token=access_token)
 
         # Transform to response format
         channels = [
@@ -1271,31 +1261,14 @@ async def list_notion_pages(
         token_manager = get_token_manager()
         access_token = token_manager.decrypt(integration.data[0]["credentials_encrypted"])
 
-        # ADR-050: Fetch pages via MCP Gateway (Node.js), not Python MCP client
-        from services.mcp_gateway import call_platform_tool, is_gateway_available
+        # ADR-076: Fetch pages via Direct API
+        from integrations.core.notion_client import get_notion_client
 
-        if not is_gateway_available():
-            raise HTTPException(
-                status_code=503,
-                detail="MCP Gateway not available. Please try again later."
-            )
-
-        result = await call_platform_tool(
-            provider="notion",
-            tool="notion-search",
-            args={"query": query or ""},
-            token=access_token,
-            metadata=integration.data[0].get("metadata"),
+        notion_client = get_notion_client()
+        raw_pages = await notion_client.search(
+            access_token=access_token,
+            query=query or "",
         )
-
-        if not result.get("success"):
-            raise HTTPException(
-                status_code=500,
-                detail=f"Notion search failed: {result.get('error', 'Unknown error')}"
-            )
-
-        # Transform to response format - Gateway returns results in 'result' field
-        raw_pages = result.get("result", {}).get("results", [])
         if not isinstance(raw_pages, list):
             raw_pages = []
 
@@ -1311,7 +1284,7 @@ async def list_notion_pages(
             if page.get("object") == "page"  # Filter to pages only
         ]
 
-        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(pages)} Notion pages via MCP Gateway")
+        logger.info(f"[INTEGRATIONS] User {user_id} listed {len(pages)} Notion pages")
 
         return NotionPagesListResponse(pages=pages)
 
@@ -2380,16 +2353,6 @@ async def oauth_callback(
             ).eq("platform", provider).execute()
 
             # ADR-059: user_context has no inferred/platform-sourced entries; nothing to delete.
-
-            # Invalidate MCP session so it gets recreated with new credentials
-            # This is critical when switching workspaces (e.g., different Slack team)
-            try:
-                mcp_manager = get_mcp_manager()
-                import asyncio
-                asyncio.create_task(mcp_manager.close_session(user_id, provider))
-                logger.info(f"[INTEGRATIONS] Invalidated MCP session for {user_id}:{provider}")
-            except Exception as e:
-                logger.warning(f"[INTEGRATIONS] Could not invalidate MCP session: {e}")
 
             logger.info(f"[INTEGRATIONS] Updated {provider} for user {user_id}, purged old workspace data")
         else:

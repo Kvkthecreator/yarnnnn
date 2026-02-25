@@ -1,15 +1,20 @@
 """
 YARNNN Integration System
 
-MCP-based integration layer for exporting deliverables to third-party services.
-See ADR-026 for architectural decisions.
+Platform integration layer for syncing context and delivering content.
+See ADR-076 for architectural decisions.
+
+All platforms use Direct API clients:
+- Slack: integrations/core/slack_client.py (SlackAPIClient)
+- Notion: integrations/core/notion_client.py (NotionAPIClient)
+- Gmail/Calendar: integrations/core/google_client.py (GoogleAPIClient)
 
 Modules:
-- core/: MCP client management, token encryption, types
-- providers/: Provider-specific implementations (Slack, Notion, etc.)
+- core/: API clients, token encryption, types
+- exporters/: Destination-specific delivery (Slack, Notion, Gmail, Email)
+- providers/: Provider-specific implementations
 """
 
-from .core.client import MCPClientManager
 from .core.tokens import TokenManager
 from .core.types import (
     IntegrationProvider,
@@ -19,7 +24,6 @@ from .core.types import (
 )
 
 __all__ = [
-    "MCPClientManager",
     "TokenManager",
     "IntegrationProvider",
     "IntegrationStatus",
