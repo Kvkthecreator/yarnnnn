@@ -32,8 +32,7 @@ async def lifespan(server: FastMCP):
 
 mcp = FastMCP(
     "yarnnn",
-    version="0.1.0",
-    description=(
+    instructions=(
         "Access YARNNN context, deliverables, and accumulated platform knowledge. "
         "YARNNN syncs your Slack, Gmail, Notion, and Calendar — this server "
         "lets you query that accumulated context and trigger deliverables."
