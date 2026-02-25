@@ -410,12 +410,29 @@ async def _get_scheduler_health(client: Any, user_id: str) -> Optional[Scheduler
 
 
 async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
-    """Count deliverable versions awaiting review (status=draft or status=suggested)."""
+    """Count deliverable versions awaiting review (status=draft or status=suggested).
+
+    deliverable_versions has no user_id — must find user's deliverable IDs first,
+    then count versions in review states for those deliverables.
+    """
     try:
+        # Get user's deliverable IDs
+        del_result = (
+            client.table("deliverables")
+            .select("id")
+            .eq("user_id", user_id)
+            .eq("status", "active")
+            .execute()
+        )
+        del_ids = [d["id"] for d in (del_result.data or [])]
+        if not del_ids:
+            return 0
+
+        # Count versions in review states for those deliverables
         result = (
             client.table("deliverable_versions")
             .select("id", count="exact")
-            .eq("deliverables.user_id", user_id)
+            .in_("deliverable_id", del_ids)
             .in_("status", ["draft", "suggested"])
             .execute()
         )
@@ -428,17 +445,21 @@ async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
 
 
 async def _get_failed_jobs(client: Any, user_id: str) -> list[FailedJob]:
-    """Fetch failed import jobs from last 24 hours."""
+    """Fetch failed import jobs from last 24 hours.
+
+    integration_import_jobs has created_at and completed_at, not updated_at.
+    Use created_at for the recency filter.
+    """
     try:
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
         result = (
             client.table("integration_import_jobs")
-            .select("id, provider, resource_name, error_message, updated_at")
+            .select("id, provider, resource_name, error_message, created_at")
             .eq("user_id", user_id)
             .eq("status", "failed")
-            .gte("updated_at", cutoff)
-            .order("updated_at", desc=True)
+            .gte("created_at", cutoff)
+            .order("created_at", desc=True)
             .limit(10)
             .execute()
         )
@@ -450,7 +471,7 @@ async def _get_failed_jobs(client: Any, user_id: str) -> list[FailedJob]:
                 platform=row.get("provider", "unknown"),
                 resource_name=row.get("resource_name", "unknown"),
                 error_message=row.get("error_message", "No error message"),
-                failed_at=row.get("updated_at", ""),
+                failed_at=row.get("created_at", ""),
             ))
 
         return jobs
