@@ -14,6 +14,7 @@ from contextlib import asynccontextmanager
 from typing import Optional
 
 from mcp.server.fastmcp import FastMCP, Context
+from mcp.server.transport_security import TransportSecuritySettings
 
 from mcp_server.auth import get_authenticated_client
 
@@ -38,6 +39,11 @@ mcp = FastMCP(
         "lets you query that accumulated context and trigger deliverables."
     ),
     lifespan=lifespan,
+    # Disable DNS rebinding protection — Render/Cloudflare reverse proxy
+    # changes the Host header. Security handled by Render's edge + YARNNN_TOKEN auth.
+    transport_security=TransportSecuritySettings(
+        enable_dns_rebinding_protection=False,
+    ),
 )
 
 
