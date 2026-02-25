@@ -3,9 +3,10 @@ YARNNN MCP Server entry point — ADR-075
 
 Run from the api/ directory (same pattern as unified_scheduler):
     cd api && python -m mcp_server          # stdio (Claude Desktop/Code)
-    cd api && python -m mcp_server http     # Streamable HTTP (ChatGPT) — Phase 2
+    cd api && python -m mcp_server http     # Streamable HTTP (ChatGPT, remote)
 """
 
+import os
 import sys
 import logging
 from dotenv import load_dotenv
@@ -24,6 +25,7 @@ if __name__ == "__main__":
     transport = sys.argv[1] if len(sys.argv) > 1 else "stdio"
 
     if transport == "http":
-        mcp.run(transport="streamable-http", host="0.0.0.0", port=8000)
+        port = int(os.environ.get("PORT", "8000"))
+        mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
     else:
         mcp.run(transport="stdio")
