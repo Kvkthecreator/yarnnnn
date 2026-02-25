@@ -26,11 +26,9 @@ if __name__ == "__main__":
 
     if transport == "http":
         import uvicorn
-        from mcp_server.middleware import BearerAuthMiddleware
 
         port = int(os.environ.get("PORT", "8000"))
         app = mcp.streamable_http_app()
-        app.add_middleware(BearerAuthMiddleware)
         uvicorn.run(app, host="0.0.0.0", port=port)
     else:
         mcp.run(transport="stdio")
