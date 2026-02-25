@@ -1,7 +1,7 @@
 # MCP Connectors: Conceptual Framework
 
 **Last Updated:** 2026-02-25
-**Status:** Phase 0 live — `get_status` tool with OAuth 2.1 auth. Product questions still open.
+**Status:** Phase 1 live — 6 tools with OAuth 2.1 auth. Product questions still open.
 **Technical Implementation:** [ADR-075](../adr/ADR-075-mcp-connector-architecture.md)
 
 ---
@@ -242,7 +242,7 @@ MCP tool calls that trigger `run_deliverable` consume token budget (same as any 
 1. ~~**Validate technical wiring** — Phase 0 in ADR-075: `get_status` tool via Streamable HTTP~~ **Done** — OAuth 2.1 live, Claude.ai connector confirmed working
 2. **Resolve Open Question #4** (ad-hoc synthesis) — Affects tool surface design
 3. **Resolve Open Question #3** (activation sequencing) — Affects onboarding flow
-4. **Build MVP tool surface** — Phase 1 in ADR-075: 6 tools
+4. ~~**Build MVP tool surface** — Phase 1 in ADR-075: 6 tools~~ **Done** — `get_status`, `list_deliverables`, `run_deliverable`, `get_deliverable_output`, `get_context`, `search_content`
 5. **User testing** — Real user triggers deliverable from Claude.ai/ChatGPT, evaluates experience
 6. **Iterate on tool descriptions** — How host LLMs actually use the tools may differ from expectations
 7. **ChatGPT integration test** — OAuth flow should work, needs verification

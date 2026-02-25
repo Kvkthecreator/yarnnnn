@@ -1,7 +1,7 @@
 # ADR-075: MCP Connector — Technical Architecture
 
 **Date**: 2026-02-25
-**Status**: Implemented (Phase 0 + OAuth 2.1 live)
+**Status**: Implemented (Phase 1 — full tool surface + OAuth 2.1)
 **Supersedes**: ADR-041 (MCP Server Exposure — deferred, scope replaced)
 **Extends**: ADR-050 (MCP Gateway Architecture — now superseded by ADR-076)
 **Related**: ADR-072 (Unified Content Layer), ADR-066 (Delivery-First Model)
@@ -73,8 +73,7 @@ api/mcp_server/
 ├── __main__.py          # Entry point: transport selection, env loading
 ├── server.py            # FastMCP instance + tool registration + AuthSettings
 ├── auth.py              # Service key + MCP_USER_ID → AuthenticatedClient (data auth)
-├── oauth_provider.py    # OAuthAuthorizationServerProvider (transport auth for 3rd-party clients)
-└── middleware.py         # Legacy — static bearer token middleware (superseded by OAuth provider)
+└── oauth_provider.py    # OAuthAuthorizationServerProvider (transport auth for 3rd-party clients)
 ```
 
 **Why `mcp_server/` not `mcp/`:** The pip package is named `mcp`. A directory named `api/mcp/` would shadow it when Python resolves imports from the `api/` working directory. Underscore avoids the collision.
@@ -137,8 +136,7 @@ The `mcp` SDK's built-in auth layer handles all transport auth when `auth_server
 - Same pattern as `platform_worker.py` and `unified_scheduler.py`
 - Currently single-user (lifespan auth). Multi-user would resolve per-request from OAuth token.
 
-**Legacy: `middleware.py`**:
-The `BearerAuthMiddleware` was the original Layer 1 implementation (static token only). It has been superseded by the OAuth provider's `load_access_token()` method which handles both static and OAuth tokens. The file remains on disk but is not wired into the ASGI app.
+**Legacy note**: The original `BearerAuthMiddleware` (static token only) was superseded by the OAuth provider's `load_access_token()` method and has been deleted.
 
 ### Render Deployment
 
@@ -175,9 +173,8 @@ Single read-only tool that exercises the full auth chain (OAuth/bearer token →
 | `api/mcp_server/__init__.py` | Module docstring |
 | `api/mcp_server/auth.py` | Data auth: service key + MCP_USER_ID → AuthenticatedClient |
 | `api/mcp_server/oauth_provider.py` | OAuth 2.1 provider: client registration, token issuance, validation |
-| `api/mcp_server/server.py` | FastMCP instance + AuthSettings + `get_status` tool |
+| `api/mcp_server/server.py` | FastMCP instance + AuthSettings + 6 tool handlers |
 | `api/mcp_server/__main__.py` | Entry point with transport selection |
-| `api/mcp_server/middleware.py` | Legacy static bearer token middleware (not wired) |
 | `supabase/migrations/082_mcp_oauth_tables.sql` | OAuth token storage: clients, codes, access/refresh tokens |
 
 ### Verification Status
@@ -251,18 +248,18 @@ ChatGPT supports remote MCP servers over Streamable HTTP with OAuth 2.1. The sam
 
 ---
 
-## Implementation: Phase 1 — Full Tool Surface
+## Implementation: Phase 1 — Full Tool Surface (Implemented)
 
-After Phase 0 validates the wiring, add 5 more tools in `server.py`:
+All 6 tools live in `server.py`. Tool handlers call service functions directly — same layer REST routes use.
 
-| MCP Tool | Service Function | File |
-|----------|-----------------|------|
+| MCP Tool | Service Function / Pattern | File |
+|----------|---------------------------|------|
 | `get_status` | `handle_get_system_state()` | `services/primitives/system_state.py` |
-| `list_deliverables` | Supabase query on `deliverables` | `routes/deliverables.py` (reuse query logic) |
+| `list_deliverables` | Direct query on `deliverables` table | Direct (same as REST route) |
 | `run_deliverable` | `execute_deliverable_generation()` | `services/deliverable_execution.py` |
-| `get_deliverable_output` | Supabase query on `deliverable_versions` | `routes/deliverables.py` (reuse query logic) |
-| `get_context` | Supabase query on `user_context` | `services/working_memory.py` (reuse fetch logic) |
-| `search_content` | Supabase query on `platform_content` | `services/platform_content.py` |
+| `get_deliverable_output` | Direct query on `deliverable_versions` | Direct (same as REST route) |
+| `get_context` | `build_working_memory()` | `services/working_memory.py` |
+| `search_content` | `search_platform_content()` | `services/platform_content.py` |
 
 ---
 
