@@ -1,7 +1,7 @@
 # ADR-075: MCP Connector — Technical Architecture
 
 **Date**: 2026-02-25
-**Status**: Draft (Phase 0 implemented)
+**Status**: Implemented (Phase 0 + HTTP transport live)
 **Supersedes**: ADR-041 (MCP Server Exposure — deferred, scope replaced)
 **Extends**: ADR-050 (MCP Gateway Architecture — now superseded by ADR-076)
 **Related**: ADR-072 (Unified Content Layer), ADR-066 (Delivery-First Model)
@@ -51,8 +51,8 @@ Build a Python MCP server using the `mcp` SDK (`FastMCP`) that exposes YARNNN ba
 │  services/          routes/          jobs/         mcp_server/   │
 │  ├─ supabase.py     ├─ chat.py      ├─ unified_   ├─ server.py  │
 │  ├─ primitives/     ├─ deliver...   │  scheduler   ├─ auth.py   │
-│  │  └─ system_      │               │              └─ __main__  │
-│  │     state.py     │               │                            │
+│  │  └─ system_      │               │              ├─ middleware │
+│  │     state.py     │               │              └─ __main__  │
 │  └─ ...             └─ ...          └─ ...                       │
 │                                                                  │
 ├──────────────────────────────────────────────────────────────────┤
@@ -61,7 +61,7 @@ Build a Python MCP server using the `mcp` SDK (`FastMCP`) that exposes YARNNN ba
 │  yarnnn-api          uvicorn main:app                            │
 │  yarnnn-worker       python -m jobs.worker                       │
 │  yarnnn-scheduler    cd api && python -m jobs.unified_scheduler  │
-│  yarnnn-mcp-server   cd api && python -m mcp_server  ◄── NEW    │
+│  yarnnn-mcp-server   cd api && python -m mcp_server http         │
 └──────────────────────────────────────────────────────────────────┘
 ```
 
@@ -72,7 +72,8 @@ api/mcp_server/
 ├── __init__.py          # Module docstring
 ├── __main__.py          # Entry point: transport selection, env loading
 ├── server.py            # FastMCP instance + tool registration
-└── auth.py              # YARNNN_TOKEN → user-scoped Supabase client
+├── auth.py              # Service key + MCP_USER_ID → AuthenticatedClient
+└── middleware.py         # Bearer token transport auth (HTTP only)
 ```
 
 **Why `mcp_server/` not `mcp/`:** The pip package is named `mcp`. A directory named `api/mcp/` would shadow it when Python resolves imports from the `api/` working directory. Underscore avoids the collision.
@@ -88,33 +89,68 @@ api/mcp_server/
 
 Both transports share the same `FastMCP` server instance and tool handlers.
 
-### Authentication Bridge
+### Two-Layer Authentication Model
 
-The auth bridge (`mcp_server/auth.py`) reads `YARNNN_TOKEN` from environment and creates a user-scoped Supabase client using the same pattern as `services/supabase.get_user_client()`:
+Authentication is split into two independent layers:
 
-1. `decode_jwt_payload(token)` → extract `sub` (user_id) and `email`
-2. `create_client(SUPABASE_URL, SUPABASE_ANON_KEY)` → create Supabase client
-3. `client.postgrest.auth(token)` → scope client to user (RLS enforced)
-4. Return `AuthenticatedClient(client, user_id, email)`
+```
+Request
+  │
+  ▼
+Layer 1: Transport Auth (middleware.py)
+  "Is this request allowed to reach the server?"
+  • HTTP: Bearer token from Authorization header vs MCP_BEARER_TOKEN env var
+  • stdio: N/A (process-level access control)
+  │
+  ▼
+Layer 2: Data Auth (auth.py)
+  "Which user's data does this request access?"
+  • Service key (SUPABASE_SERVICE_KEY) bypasses RLS
+  • MCP_USER_ID scopes all queries via explicit .eq("user_id", user_id)
+  • Matches worker/scheduler pattern — no token expiration
+  │
+  ▼
+Tool Handler
+  Uses AuthenticatedClient from lifespan context
+```
 
-**RLS preserved:** All tool handlers operate through the user-scoped client. No service-role bypass.
+**Layer 1 — Transport Auth** (`middleware.py`):
+- HTTP requests must include `Authorization: Bearer <token>` matching `MCP_BEARER_TOKEN`
+- Returns 401 if missing/invalid, 503 if env var not configured (fail closed)
+- `/health` path bypasses auth (Render health checks)
+- Uses `hmac.compare_digest()` for constant-time token comparison
+- stdio transport has no middleware — access is process-level
 
-**For stdio transport:** One process = one user. Auth runs once at lifespan startup.
+**Layer 2 — Data Auth** (`auth.py`):
+- Uses `SUPABASE_SERVICE_KEY` via `get_service_client()` (bypasses RLS)
+- `MCP_USER_ID` env var identifies the user — all queries filter by explicit `.eq("user_id", user_id)`
+- Returns `AuthenticatedClient(client, user_id, email=None)` at lifespan startup
+- Same pattern as `platform_worker.py` and `unified_scheduler.py`
 
-**For HTTP transport (Phase 2):** Auth will need to move to per-request (token in Authorization header).
+**Future: 3rd-party OAuth (Layer 1 extension)**:
+- ChatGPT developer mode sends `Authorization: Bearer <oauth-token>` per MCP spec
+- Layer 1 will validate JWT signature + audience for 3rd-party tokens
+- Layer 2 will resolve user from OAuth token instead of env var
+- This is additive — internal bearer token continues to work alongside
 
-### Render Deployment (Phase 2)
+### Render Deployment
 
-New Render service: `yarnnn-mcp-server` (Python, Starter plan)
+| Detail | Value |
+|--------|-------|
+| Service | `yarnnn-mcp-server` |
+| Service ID | `srv-d6f4vg1drdic739nli4g` |
+| URL | `https://yarnnn-mcp-server.onrender.com/mcp` |
+| Plan | Starter ($7/mo) |
+| Region | Singapore |
+| Runtime | Python 3.11 |
 
-**Note:** The MCP Gateway has been eliminated (ADR-076). This is now the only MCP-related Render service.
-
-**Env var parity** (see CLAUDE.md § Render Service Parity):
-- `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_KEY`
-- `ANTHROPIC_API_KEY` (for deliverable generation in Phase 1)
-- `INTEGRATION_ENCRYPTION_KEY` (for token decryption during delivery)
-
-**Python version requirement:** `mcp` package requires Python >= 3.10. Render default Python runtime satisfies this. Local dev requires Python 3.10+.
+**Env vars:**
+- `PYTHON_VERSION` — `3.11.11`
+- `SUPABASE_URL` — Supabase project URL
+- `SUPABASE_ANON_KEY` — Supabase anon key (unused by service key auth, but available)
+- `SUPABASE_SERVICE_KEY` — Service key for RLS bypass
+- `MCP_USER_ID` — User UUID for data scoping
+- `MCP_BEARER_TOKEN` — Static bearer token for transport auth
 
 ---
 
@@ -122,24 +158,27 @@ New Render service: `yarnnn-mcp-server` (Python, Starter plan)
 
 ### The Validation Tool: `get_status`
 
-Single read-only tool that exercises the full auth chain (token → user_id → Supabase query → structured response). No side effects. Wraps existing `handle_get_system_state()` from `services/primitives/system_state.py`.
+Single read-only tool that exercises the full auth chain (bearer token → service key → user_id → Supabase query → structured response). No side effects. Wraps existing `handle_get_system_state()` from `services/primitives/system_state.py`.
 
-### Files Created
+### Files
 
-| File | Purpose | Lines |
-|------|---------|-------|
-| `api/mcp_server/__init__.py` | Module docstring | 7 |
-| `api/mcp_server/auth.py` | Auth bridge: YARNNN_TOKEN → AuthenticatedClient | 60 |
-| `api/mcp_server/server.py` | FastMCP instance + `get_status` tool | 68 |
-| `api/mcp_server/__main__.py` | Entry point with transport selection | 25 |
+| File | Purpose |
+|------|---------|
+| `api/mcp_server/__init__.py` | Module docstring |
+| `api/mcp_server/auth.py` | Data auth: service key + MCP_USER_ID → AuthenticatedClient |
+| `api/mcp_server/middleware.py` | Transport auth: bearer token validation |
+| `api/mcp_server/server.py` | FastMCP instance + `get_status` tool |
+| `api/mcp_server/__main__.py` | Entry point with transport selection + middleware wiring |
 
 ### Verification Status
 
 - [x] All files parse as valid Python
-- [x] `mcp_server.auth` imports resolve (`services.supabase` dependencies OK)
-- [x] `services.primitives.system_state` imports resolve
-- [ ] Runtime test requires Python >= 3.10 + `mcp` pip package installed
-- [ ] Claude Desktop integration test pending
+- [x] Render deployment live (srv-d6f4vg1drdic739nli4g)
+- [x] Service key auth working (queries return real data)
+- [x] Bearer token middleware active (401 without token)
+- [x] `get_status` tool call returns full system state snapshot
+- [ ] Claude Desktop integration test
+- [ ] ChatGPT developer mode integration test
 
 ### Claude Desktop Configuration
 
@@ -147,13 +186,10 @@ Single read-only tool that exercises the full auth chain (token → user_id → 
 {
   "mcpServers": {
     "yarnnn": {
-      "command": "python3",
-      "args": ["-m", "mcp_server"],
-      "cwd": "/path/to/yarnnn/api",
-      "env": {
-        "YARNNN_TOKEN": "<supabase-jwt>",
-        "SUPABASE_URL": "<url>",
-        "SUPABASE_ANON_KEY": "<key>"
+      "type": "streamable-http",
+      "url": "https://yarnnn-mcp-server.onrender.com/mcp",
+      "headers": {
+        "Authorization": "Bearer <MCP_BEARER_TOKEN>"
       }
     }
   }
@@ -163,9 +199,34 @@ Single read-only tool that exercises the full auth chain (token → user_id → 
 ### Claude Code Configuration
 
 ```bash
-claude mcp add --transport stdio yarnnn -- \
-  bash -c "cd /path/to/yarnnn/api && python3 -m mcp_server"
+claude mcp add yarnnn \
+  --transport http \
+  --url https://yarnnn-mcp-server.onrender.com/mcp \
+  --header "Authorization: Bearer <MCP_BEARER_TOKEN>"
 ```
+
+### Local stdio Configuration (no bearer token needed)
+
+```json
+{
+  "mcpServers": {
+    "yarnnn": {
+      "command": "python3",
+      "args": ["-m", "mcp_server"],
+      "cwd": "/path/to/yarnnn/api",
+      "env": {
+        "SUPABASE_URL": "<url>",
+        "SUPABASE_SERVICE_KEY": "<key>",
+        "MCP_USER_ID": "<user-uuid>"
+      }
+    }
+  }
+}
+```
+
+### ChatGPT Developer Mode (Future)
+
+ChatGPT developer mode supports remote MCP servers over Streamable HTTP with OAuth 2.1. When OAuth is implemented (Layer 1 extension), ChatGPT will authenticate per the MCP spec and send bearer tokens with each request.
 
 ---
 
@@ -184,21 +245,20 @@ After Phase 0 validates the wiring, add 5 more tools in `server.py`:
 
 ---
 
-## Implementation: Phase 2 — Streamable HTTP + ChatGPT
+## Implementation: Phase 2 — 3rd-Party OAuth
 
-1. Deploy `yarnnn-mcp-server` on Render with start command: `cd api && python -m mcp_server http`
-2. Add health check endpoint
-3. Move auth to per-request (Authorization header) for multi-user support
-4. Document ChatGPT Developer Mode configuration
-5. Test with ChatGPT
+1. Implement OAuth 2.1 token validation in Layer 1 middleware (alongside static bearer token)
+2. Resolve user identity from OAuth token (replace MCP_USER_ID for 3rd-party requests)
+3. Register as ChatGPT developer mode connector
+4. Multi-tenant support: per-request user resolution instead of per-process
 
 ---
 
 ## Consequences
 
 ### What Changes
-- New `api/mcp_server/` directory (~160 lines for Phase 0)
-- New Render service for HTTP transport (Phase 2)
+- New `api/mcp_server/` directory (~200 lines for Phase 0)
+- New Render service (`yarnnn-mcp-server`, Starter plan)
 - `mcp` pip package already in `requirements.txt` (needs Python >= 3.10 runtime)
 
 ### What Does NOT Change
@@ -215,6 +275,6 @@ After Phase 0 validates the wiring, add 5 more tools in `server.py`:
 
 - [MCP Connectors Conceptual Framework](../integrations/MCP-CONNECTORS.md) — Product rationale, user flows, tool mapping decisions
 - [ADR-041: MCP Server Exposure](./ADR-041-mcp-server-exposure.md) — Superseded by this ADR
-- [ADR-050: MCP Gateway Architecture](./ADR-050-mcp-gateway-architecture.md) — Existing outbound MCP infrastructure
+- [ADR-050: MCP Gateway Architecture](./ADR-050-mcp-gateway-architecture.md) — Superseded by ADR-076
 - [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) — `FastMCP` server implementation
 - [MCP Specification: Transports](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
