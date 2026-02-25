@@ -25,7 +25,10 @@ if __name__ == "__main__":
     transport = sys.argv[1] if len(sys.argv) > 1 else "stdio"
 
     if transport == "http":
+        import uvicorn
+
         port = int(os.environ.get("PORT", "8000"))
-        mcp.run(transport="streamable-http", host="0.0.0.0", port=port)
+        app = mcp.streamable_http_app()
+        uvicorn.run(app, host="0.0.0.0", port=port)
     else:
         mcp.run(transport="stdio")
