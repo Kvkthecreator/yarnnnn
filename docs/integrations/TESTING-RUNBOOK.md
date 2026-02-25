@@ -1,6 +1,6 @@
 # Platform Integration Testing Runbook
 
-> Verified 2026-02-23. All 4 platforms + signal processing confirmed working.
+> Verified 2026-02-23. Updated 2026-02-25 for ADR-077 sync overhaul expectations.
 
 ## Prerequisites
 
@@ -30,7 +30,8 @@ curl -s -X POST "https://yarnnn-api.onrender.com/api/admin/trigger-sync/{USER_ID
 ```
 
 **Expected**: `{"success": true, "items_synced": N, "channels_synced": N}`
-**Writes to**: `platform_content` with `platform="slack"`, `content_type="message"`
+**ADR-077 changes**: Paginated history (1000 initial, 500 incremental), thread expansion (reply_count >= 2), system message filtering, user ID resolution to display names.
+**Writes to**: `platform_content` with `platform="slack"`, `content_type="message"` or `"thread_reply"`
 **Sync registry**: Entries per channel with `platform_cursor` (Slack `ts`)
 
 ### 2. Gmail + Calendar (Google)
@@ -42,9 +43,10 @@ curl -s -X POST "https://yarnnn-api.onrender.com/api/admin/trigger-sync/{USER_ID
 
 **Expected**: `{"success": true, "items_synced": N, "gmail_sources": N, "calendar_sources": N}`
 **Note**: The `google` provider auto-splits into Gmail and Calendar sub-syncs based on `landscape.resources[].metadata.platform`.
+**ADR-077 changes**: Gmail paginated (200/label), concurrent fetch, 30-day initial window. Calendar wider window (-7d to +14d), paginated (200 events).
 **Writes to**:
 - `platform_content` with `platform="gmail"`, `content_type="email"`
-- `platform_content` with `platform="calendar"`, `content_type="event"` (if events exist in next 7 days)
+- `platform_content` with `platform="calendar"`, `content_type="event"` (events from past 7 days + next 14 days)
 
 ### 3. Notion
 
@@ -53,7 +55,8 @@ curl -s -X POST "https://yarnnn-api.onrender.com/api/admin/trigger-sync/{USER_ID
   -H "X-Service-Key: {SERVICE_KEY}" | python3 -m json.tool
 ```
 
-**Expected**: `{"success": true, "items_synced": N, "pages_synced": N}`
+**Expected**: `{"success": true, "items_synced": N, "pages_synced": N, "pages_skipped": N, "pages_failed": N}`
+**ADR-077 changes**: Recursive block fetch (depth=3, 500 blocks), database row querying, rate limiting (350ms between API calls).
 **Writes to**: `platform_content` with `platform="notion"`, `content_type="page"`
 **Sync registry**: Entries per page with `platform_cursor` (Notion `last_edited_time`)
 
@@ -155,7 +158,7 @@ ORDER BY version_number DESC LIMIT 1;
 
 ## Known Issues / Notes
 
-1. **Calendar 0 events**: Calendar sync returns 0 items when there are no events in the next 7 days. This is correct behavior, not a bug.
+1. **Calendar 0 events**: ADR-077 widened the window to -7d → +14d. If still 0, check the debug logs for `[PLATFORM_WORKER] Calendar {id}: API returned N events`.
 2. **Gmail content**: RESOLVED (commit `011fb25`). Full body extraction now works — avg 5,760 chars per email. Title (subject) and author (sender) populated on all 17 emails.
 3. **Google/Gmail alias**: `platform_connections.platform` stores `"google"` for the unified Google OAuth. The worker splits this into gmail + calendar sub-syncs. Signal extraction checks for any of `"google"`, `"gmail"`, `"calendar"` in `active_platforms`.
 4. **Token persistence**: Only applies to TP messages created after deploy `d5a17a7` (2026-02-23 ~08:02 UTC). Earlier messages have null token fields.

@@ -61,7 +61,7 @@ get_due_deliverables()
 
 **Live reads**: Execution fetches platform data directly at generation time via:
 - Gmail/Calendar: `GoogleAPIClient` direct REST
-- Slack: MCP gateway
+- Slack: `SlackAPIClient` direct REST (ADR-076)
 - Notion: `NotionAPIClient` direct REST
 
 Content is accessed via the unified `platform_content` table (ADR-072).

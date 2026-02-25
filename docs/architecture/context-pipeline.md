@@ -2,7 +2,7 @@
 
 How platform data flows from OAuth connection through to the TP system prompt and deliverable execution.
 
-> **Last updated**: 2026-02-20 (ADR-072 — unified content layer and TP execution pipeline)
+> **Last updated**: 2026-02-25 (ADR-077 — platform sync overhaul, ADR-076 — direct API clients)
 
 ---
 
@@ -156,29 +156,40 @@ A single flat key-value store for everything TP knows *about the user*. Replaces
 
 | Tier | Frequency | Min interval |
 |---|---|---|
-| Free | 2x/day | 6 hours |
+| Free | 1x/day | 24 hours |
 | Starter | 4x/day | 4 hours |
 | Pro | Hourly | 45 minutes |
 
-Triggered by `unified_scheduler.py` → `platform_worker.py` every 5 minutes.
+Triggered by `platform_sync_scheduler.py` → `platform_worker.py` every 5 minutes.
 
-### What each platform extracts
+### What each platform extracts (ADR-077)
+
+All platforms use Direct API clients from `api/integrations/core/` — no MCP, no gateway (ADR-076).
 
 | Platform | Method | What is stored |
 |---|---|---|
-| Slack | MCPClientManager → `@modelcontextprotocol/server-slack` | Last 50 messages per selected channel |
-| Notion | `NotionAPIClient` direct REST | Full page content per selected page |
-| Gmail | `GoogleAPIClient` direct REST | Last 50 emails per selected label, 7-day window |
-| Calendar | `GoogleAPIClient` direct REST | Next 7 days of events |
+| Slack | `SlackAPIClient` direct REST | Paginated history (1000 initial/500 incremental), thread replies, user-resolved authors. System messages filtered. |
+| Gmail | `GoogleAPIClient` direct REST | Paginated messages (200/label), concurrent fetch, 30-day initial window |
+| Notion | `NotionAPIClient` direct REST | Recursive block content (depth=3, 500 blocks), database row querying |
+| Calendar | `GoogleAPIClient` direct REST | Events -7d to +14d, paginated (200 max) |
 
-### TTL by platform (for unreferenced content)
+### Source limits (ADR-077)
+
+| Platform | Free | Starter | Pro |
+|---|---|---|---|
+| Slack channels | 5 | 15 | ∞ |
+| Gmail labels | 5 | 10 | ∞ |
+| Notion pages | 10 | 25 | ∞ |
+| Calendars | ∞ | ∞ | ∞ |
+
+### TTL by platform (for unreferenced content, ADR-077)
 
 | Platform | Expiry |
 |---|---|
-| Slack | 7 days |
-| Gmail | 14 days |
-| Notion | 30 days |
-| Calendar | 1 day |
+| Slack | 14 days |
+| Gmail | 30 days |
+| Notion | 90 days |
+| Calendar | 2 days |
 
 ---
 
@@ -217,8 +228,8 @@ TP has platform tools for direct, action-oriented platform operations during con
 
 | Tool | Platform | Method |
 |---|---|---|
-| `platform_slack_send_message` | Slack | MCP Gateway → Slack API |
-| `platform_slack_list_channels` | Slack | MCP Gateway → Slack API |
+| `platform_slack_send_message` | Slack | SlackAPIClient direct REST |
+| `platform_slack_list_channels` | Slack | SlackAPIClient direct REST |
 | `platform_notion_search` | Notion | Direct NotionAPIClient |
 | `platform_notion_create_comment` | Notion | Direct NotionAPIClient |
 | `platform_gmail_search` | Gmail | GoogleAPIClient |
@@ -251,15 +262,15 @@ Uploaded documents are processed into `filesystem_chunks` (chunked, embedded, in
 
 ---
 
-## Connection Mechanisms
+## Connection Mechanisms (ADR-076)
 
-Three different connection mechanisms exist — understanding the distinction prevents confusion:
+All platforms use Direct API clients — no MCP gateway, no subprocess management:
 
-| Mechanism | Location | Used for |
+| Client | Location | Used for |
 |---|---|---|
-| **MCP Gateway** | `mcp-gateway/` (Node.js) + `api/services/mcp_gateway.py` | TP live Slack tool calls during chat |
-| **MCPClientManager** | `api/integrations/core/client.py` | Background Slack sync (platform_worker) |
-| **Direct API clients** | `api/integrations/core/notion_client.py`, `google_client.py` | Notion sync + discovery, Gmail/Calendar sync and TP tools |
+| **SlackAPIClient** | `api/integrations/core/slack_client.py` | Slack sync, landscape discovery, TP live tools |
+| **NotionAPIClient** | `api/integrations/core/notion_client.py` | Notion sync, landscape discovery, TP live tools |
+| **GoogleAPIClient** | `api/integrations/core/google_client.py` | Gmail/Calendar sync, landscape discovery, TP live tools |
 
 ---
 

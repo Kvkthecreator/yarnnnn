@@ -1,7 +1,7 @@
 # Context
 
 > Layer 3 of 4 in the YARNNN four-layer model (ADR-063)
-> **Updated**: 2026-02-20 — ADR-072 unified content layer
+> **Updated**: 2026-02-25 — ADR-077 sync overhaul, ADR-076 direct API clients
 
 ---
 
@@ -83,14 +83,14 @@ When content is consumed by a downstream system, it's marked retained:
 
 **Unique constraint**: `(user_id, platform, resource_id, item_id, content_hash)`
 
-### TTL by platform (for unreferenced content)
+### TTL by platform (for unreferenced content, ADR-077)
 
 | Platform | Expiry |
 |---|---|
-| Slack | 7 days |
-| Gmail | 14 days |
-| Notion | 30 days |
-| Calendar | 1 day |
+| Slack | 14 days |
+| Gmail | 30 days |
+| Notion | 90 days |
+| Calendar | 2 days |
 
 ### `platform_connections` — OAuth credentials and settings
 
@@ -119,14 +119,16 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by
 
 ---
 
-## What each platform syncs
+## What each platform syncs (ADR-077)
+
+All platforms use Direct API clients — no MCP, no gateway (ADR-076).
 
 | Platform | Sync method | What is stored |
 |---|---|---|
-| Slack | MCPClientManager → `@modelcontextprotocol/server-slack` | Last 50 messages per selected channel |
-| Gmail | `GoogleAPIClient` direct REST | Last 50 emails per selected label, 7-day window |
-| Notion | `NotionAPIClient` direct REST | Full page content per selected page |
-| Calendar | `GoogleAPIClient` direct REST | Next 7 days of events |
+| Slack | `SlackAPIClient` direct REST | Paginated history (1000 initial/500 incremental), thread replies, filtered system messages |
+| Gmail | `GoogleAPIClient` direct REST | Paginated messages (200/label), concurrent fetch, 30-day initial window |
+| Notion | `NotionAPIClient` direct REST | Recursive block content (depth=3), database rows |
+| Calendar | `GoogleAPIClient` direct REST | Events -7d to +14d, paginated (200 max) |
 
 ---
 

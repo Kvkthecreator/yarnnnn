@@ -2,7 +2,7 @@
 
 **Canonical reference for YARNNN's backend processing pipeline.**
 
-Last updated: 2026-02-23 (ADR-072, ADR-073, ADR-068 Phase 3+4)
+Last updated: 2026-02-25 (ADR-077 sync overhaul, ADR-076 direct API clients)
 
 ## Overview
 
@@ -13,7 +13,7 @@ YARNNN's backend runs as four Render services that share a single codebase:
 | `yarnnn-api` | Web Service | Always-on | API endpoints, manual triggers |
 | `yarnnn-worker` | Background Worker | Always-on | RQ job processing (platform sync) |
 | `yarnnn-unified-scheduler` | Cron Job | `*/5 * * * *` | All scheduled processing |
-| `yarnnn-mcp-gateway` | Web Service | Always-on | Slack MCP bridge for TP |
+| `yarnnn-mcp-server` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
 
 The pipeline flows: **Sync → Signal → Deliverable → Memory**, with `activity_log` as the central nervous system connecting all subsystems.
 
@@ -38,14 +38,14 @@ activity_log ←── ALL subsystems ─────┘
 
 1. Look up `platform_connections` for user/provider
 2. Read `landscape.selected_sources` for per-source sync (ADR-056)
-3. Dispatch to provider handler:
-   - **Slack**: `MCPClientManager` → channel history, incremental via `sync_registry` cursor
-   - **Gmail**: `GoogleAPIClient` → messages per label, cursor-based date filter
-   - **Notion**: `NotionAPIClient` → page content blocks, skip unchanged via `last_edited_time`
-   - **Calendar**: `GoogleAPIClient` → events, `syncToken` for incremental sync (ADR-073)
+3. Dispatch to provider handler (ADR-077: all fully paginated with platform-specific hardening):
+   - **Slack**: `SlackAPIClient` → paginated history (1000 initial/500 incremental), thread expansion, user resolution, system message filtering
+   - **Gmail**: `GoogleAPIClient` → paginated messages (200/label), concurrent fetch, 30-day initial window
+   - **Notion**: `NotionAPIClient` → recursive block fetch (depth=3), database query support, rate limiting
+   - **Calendar**: `GoogleAPIClient` → events -7d to +14d, pagination, `syncToken` for incremental sync
 4. Each item stored via `_store_platform_content()` with:
    - `retained=False` (ephemeral by default)
-   - TTL-based `expires_at`: Slack 7d, Gmail 14d, Notion 30d, Calendar 1d
+   - TTL-based `expires_at`: Slack 14d, Gmail 30d, Notion 90d, Calendar 2d (ADR-077)
    - Content-hash dedup (upsert on `content_hash`)
    - Unix epoch → ISO 8601 timestamp conversion (Slack `ts` format)
 5. Update `sync_registry` cursors for incremental sync
