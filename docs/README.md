@@ -1,4 +1,4 @@
-# YARNNN Documentation
+# YARNNN v5 Documentation
 
 **The source of truth for YARNNN development.**
 
@@ -16,10 +16,8 @@
 
 | Document | Purpose |
 |----------|---------|
-| [architecture/platform-architecture.md](architecture/platform-architecture.md) | **Canonical** — Data platform + surfaces architecture |
-| [ESSENCE.md](ESSENCE.md) | Foundation document — product thesis, domain model |
+| [ESSENCE.md](ESSENCE.md) | Core product spec - domain model, agents, data flow |
 | [architecture/primitives.md](architecture/primitives.md) | **Canonical** — Universal TP primitives specification |
-| [integrations/MCP-CONNECTORS.md](integrations/MCP-CONNECTORS.md) | MCP connector product framework (Claude.ai, ChatGPT) |
 | [ADR-072](adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) | **Current** — Unified Content Layer (`platform_content`) |
 | [ADR-073](adr/ADR-073-unified-fetch-architecture.md) | **Current** — Unified Fetch Architecture |
 | [ADR-063](adr/ADR-063-activity-log-four-layer-model.md) | **Current** — Four-Layer Model |
@@ -41,12 +39,8 @@ docs/
 │   └── ...
 │
 ├── architecture/        # Canonical architecture specifications
-│   ├── platform-architecture.md  # Data platform + surfaces (canonical framing)
-│   ├── four-layer-model.md       # Memory / Activity / Context / Work
-│   ├── agent-execution-model.md  # TP vs Orchestrator execution paths
-│   ├── backend-orchestration.md  # Pipeline: Sync → Signal → Deliverable → Memory
-│   ├── primitives.md             # TP primitives (Read, Write, Edit, etc.)
-│   └── ...
+│   ├── primitives.md    # TP primitives (Read, Write, Edit, etc.)
+│   └── mcp-integration-system.md
 │
 ├── analysis/            # Research and comparative analysis
 │   └── *.md             # Cross-repo learnings, technical research
@@ -96,17 +90,15 @@ See [adr/README.md](adr/README.md) for template.
 | Component | Status | Doc |
 |-----------|--------|-----|
 | Domain Model | Defined | [ESSENCE.md](ESSENCE.md) |
-| Platform Architecture | Data platform + 4 surfaces | [architecture/platform-architecture.md](architecture/platform-architecture.md) |
 | Context System | `platform_content` with retention (ADR-072) | [features/context.md](features/context.md) |
 | Sync Pipeline | Single fetch path, Worker + Scheduler (ADR-073) | [integrations/PLATFORM-INTEGRATIONS.md](integrations/PLATFORM-INTEGRATIONS.md) |
 | Memory | Implicit, nightly extraction (ADR-064) | [features/memory.md](features/memory.md) |
-| MCP Server | 6 tools, OAuth 2.1, Claude.ai + ChatGPT (ADR-075) | [ADR-075](adr/ADR-075-mcp-connector-architecture.md) |
-| Infrastructure | 5 Render services (API, Worker, Scheduler, MCP Server, Redis) | [integrations/RENDER-SERVICES.md](integrations/RENDER-SERVICES.md) |
+| Infrastructure | 4 Render services (API, Worker, Scheduler, MCP Gateway) | [integrations/RENDER-SERVICES.md](integrations/RENDER-SERVICES.md) |
 | Frontend | Chat-first, Context page, System admin page | - |
 
 ## Related Repos (Reference Only)
 
-These repos contain patterns we learned from but are not part of the current codebase:
+These repos contain patterns we learned from but are not part of v5:
 
 - `yarnnn-app-fullstack` - Block state machine, governance layer (over-engineered)
 - `chat_companion` - Memory extraction, pgvector embeddings, temporal expiry

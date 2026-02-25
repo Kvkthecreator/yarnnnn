@@ -1,8 +1,8 @@
 # YARNNN
 
-**A context accumulation platform for AI — syncs your work tools, accumulates intelligence over time, and serves it to any AI surface.**
+**Autonomous AI that works on your behalf — powered by accumulated context from your real work platforms.**
 
-YARNNN connects to your work platforms (Slack, Gmail, Notion, Calendar) and accumulates context over time. This accumulated intelligence powers multiple surfaces: a built-in Thinking Partner agent, autonomous deliverable generation, and MCP connectors that let Claude.ai, ChatGPT, and other LLMs access your accumulated context directly. The platform is the product — surfaces are interchangeable.
+Yarn connects to the tools you already use (Slack, Gmail, Notion, Calendar), accumulates understanding of your work world over time, and works autonomously: producing deliverables, surfacing signals, and operating as a thinking partner that already knows your context.
 
 ## Quick Start
 
@@ -19,12 +19,10 @@ cd web && npm install && npm run dev
 ```
 yarnnn/
 ├── api/                 # FastAPI backend
-│   ├── services/        # Core platform logic (44 modules)
-│   ├── routes/          # API endpoints (REST surface)
-│   ├── agents/          # Thinking Partner agent (Claude AgentSDK)
-│   ├── mcp_server/      # MCP server (A2A surface for external LLMs)
-│   ├── jobs/            # Scheduler (autonomous surface)
-│   └── main.py          # API entry point
+│   ├── routes/          # API endpoints
+│   ├── agents/          # Agent implementations (TP, Deliverables)
+│   ├── services/        # Business logic (memory, signals, primitives)
+│   └── main.py          # Entry point
 ├── web/                 # Next.js frontend
 │   ├── app/             # App router pages
 │   ├── components/      # React components
@@ -32,31 +30,18 @@ yarnnn/
 ├── supabase/            # Database
 │   └── migrations/      # SQL migrations
 └── docs/                # Documentation
-    ├── architecture/    # Architecture specs (platform, execution, data model)
-    ├── adr/             # Architecture Decision Records
-    └── ESSENCE.md       # Foundation document
+    ├── ESSENCE.md       # Core thesis & architecture
+    ├── GTM_POSITIONING.md  # Go-to-market messaging
+    └── adr/             # Architecture Decision Records
 ```
 
-## Architecture
+## Core Concepts
 
-YARNNN is a **data platform with interchangeable consumption surfaces**. The platform syncs, accumulates, and processes context from work tools. Surfaces consume the platform's services.
-
-### Platform
-- **Platform Sync**: Continuous synchronization with Slack, Gmail, Notion, Calendar
-- **Content Accumulation**: Retention-based accumulation — content that proves significant is retained indefinitely ([four-layer model](docs/architecture/four-layer-model.md))
-- **Deliverable Execution**: Autonomous report/digest/brief generation with type-specific strategies
-- **Memory & Signals**: Implicit memory extraction, behavioral signal processing, compounding learning loops
-
-### Surfaces
-- **Thinking Partner (TP)**: Built-in conversational agent (Claude AgentSDK) with primitive-based tools and working memory injection
-- **MCP Server**: Agent-to-Agent protocol — Claude.ai, ChatGPT, and other LLMs access YARNNN data via 6 MCP tools ([ADR-075](docs/adr/ADR-075-mcp-connector-architecture.md))
-- **Unified Scheduler**: Cron-driven autonomous orchestration — signal processing, deliverable execution, memory extraction
-- **REST API**: Thin endpoint layer consumed by the Next.js frontend
+- **Thinking Partner (TP)**: Context-aware AI agent with primitive-based tools, sub-agent delegation, and web search — it knows your work world before you say a word
+- **Deliverables**: Autonomous, scheduled work outputs (reports, digests, briefs) that improve over time through feedback loops
+- **Platform Sync**: Continuous synchronization with Slack, Gmail, Notion, Calendar — the raw material for context accumulation
+- **Memory & Context**: Four-layer model (Memory → Activity → Context → Work) with bidirectional learning — generation flows down, learning flows up
 
 ## Documentation
 
-- [Platform Architecture](docs/architecture/platform-architecture.md) — Why the data platform is the moat, and how surfaces consume it
-- [Four-Layer Model](docs/architecture/four-layer-model.md) — Memory, Activity, Context, Work data model
-- [Backend Orchestration](docs/architecture/backend-orchestration.md) — Pipeline: Sync → Signal → Deliverable → Memory
-- [ESSENCE.md](docs/ESSENCE.md) — Foundation document
-- [Architecture Decision Records](docs/adr/) — All architectural decisions
+See [docs/ESSENCE.md](docs/ESSENCE.md) for the core thesis and architecture.
