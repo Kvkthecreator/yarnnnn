@@ -1,24 +1,20 @@
 """
 MCP Server Authentication Bridge — ADR-075
 
-Resolves YARNNN_TOKEN env var into a user-scoped Supabase client.
-Reuses the same JWT decoding and client creation pattern as the FastAPI
-auth layer (services/supabase.py), but reads the token from environment
-instead of an HTTP Authorization header.
+Uses service key + MCP_USER_ID for durable, non-expiring authentication.
+Matches the pattern used by platform_worker and unified_scheduler:
+service key bypasses RLS, all queries use explicit .eq("user_id", user_id).
 
 For stdio transport: one process = one user. Auth runs once at startup.
-For HTTP transport (Phase 2): auth will move to per-request.
+For HTTP transport: auth runs once at startup (single-user server).
 """
 
 import os
 import logging
 
-from supabase import create_client
-
 from services.supabase import (
     AuthenticatedClient,
-    decode_jwt_payload,
-    get_supabase_url,
+    get_service_client,
 )
 
 logger = logging.getLogger(__name__)
@@ -26,42 +22,27 @@ logger = logging.getLogger(__name__)
 
 def get_authenticated_client() -> AuthenticatedClient:
     """
-    Create a user-scoped Supabase client from YARNNN_TOKEN env var.
+    Create a service-key Supabase client scoped to MCP_USER_ID.
 
-    The token is a Supabase JWT (same format as web session tokens).
-    JWT is decoded (not verified — Supabase RLS handles verification)
-    to extract user_id and email, then used to create an RLS-scoped client.
+    Uses SUPABASE_SERVICE_KEY (bypasses RLS) with explicit user_id
+    filtering — the same pattern as platform_worker and unified_scheduler.
+    No token expiration; works indefinitely.
 
     Returns:
         AuthenticatedClient with .client, .user_id, .email
 
     Raises:
-        ValueError: If YARNNN_TOKEN is missing or invalid
+        ValueError: If MCP_USER_ID is missing
     """
-    token = os.environ.get("YARNNN_TOKEN")
-    if not token:
+    user_id = os.environ.get("MCP_USER_ID")
+    if not user_id:
         raise ValueError(
-            "YARNNN_TOKEN environment variable required. "
-            "Generate a token from yarnnn.com Settings page."
+            "MCP_USER_ID environment variable required. "
+            "Set to the Supabase user UUID from the users table."
         )
 
-    # Decode JWT to extract user identity (same as supabase.get_user_client)
-    payload = decode_jwt_payload(token)
-    user_id = payload.get("sub")
-    email = payload.get("email")
+    client = get_service_client()
 
-    if not user_id:
-        raise ValueError("Invalid YARNNN_TOKEN: no user ID in token payload")
+    logger.info(f"[MCP Auth] Service-key auth for user {user_id}")
 
-    # Create user-scoped Supabase client with RLS enforcement
-    url = get_supabase_url()
-    anon_key = os.environ.get("SUPABASE_ANON_KEY")
-    if not anon_key:
-        raise ValueError("SUPABASE_ANON_KEY must be set")
-
-    client = create_client(url, anon_key)
-    client.postgrest.auth(token)
-
-    logger.info(f"[MCP Auth] Authenticated as user {user_id} ({email})")
-
-    return AuthenticatedClient(client=client, user_id=user_id, email=email)
+    return AuthenticatedClient(client=client, user_id=user_id, email=None)
