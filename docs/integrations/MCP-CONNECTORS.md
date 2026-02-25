@@ -1,14 +1,14 @@
 # MCP Connectors: Conceptual Framework
 
 **Last Updated:** 2026-02-25
-**Status:** Draft — active discourse, decisions pending
+**Status:** Phase 0 live — `get_status` tool with OAuth 2.1 auth. Product questions still open.
 **Technical Implementation:** [ADR-075](../adr/ADR-075-mcp-connector-architecture.md)
 
 ---
 
 ## What This Document Is
 
-This document captures the product rationale, user flow thinking, and open questions around exposing YARNNN as an MCP server for Claude AI (Desktop + Code) and ChatGPT. It is deliberately separate from the technical ADR because:
+This document captures the product rationale, user flow thinking, and open questions around exposing YARNNN as an MCP server for Claude AI (Desktop, Code, and claude.ai) and ChatGPT. It is deliberately separate from the technical ADR because:
 
 1. The technical wiring (how to build an MCP server, transport selection, auth) is a solved problem — ADR-075 covers it
 2. The product questions (what tools to expose, what user flows to support, how this reshapes activation) are **not solved** and need ongoing discourse
@@ -95,8 +95,9 @@ MCP connectors do not eliminate the web UI. They eliminate the need to **stay** 
 | Sign up | yarnnn.com | Account creation |
 | Connect platforms (OAuth) | yarnnn.com | OAuth redirects require web browser |
 | Configure deliverables | yarnnn.com | Type selection, source mapping, schedule, destination — too complex for MCP tool parameters |
-| Generate API token | yarnnn.com Settings | Auth for MCP connection |
 | Select sources per platform | yarnnn.com Context pages | Tier-gated source limits |
+
+**Note**: Claude.ai and ChatGPT authenticate via OAuth 2.1 automatically — no API token generation step. Claude Desktop/Code use a static bearer token (set via env var).
 
 | Action | Where | Why |
 |--------|-------|-----|
@@ -216,7 +217,7 @@ MCP tool calls that trigger `run_deliverable` consume token budget (same as any 
 | Conversational context | Working memory injected (profile, preferences, recent activity, system state) | None — host LLM provides its own context |
 | Skill detection | Hybrid pattern + semantic (ADR-025/040) | None — host LLM reasons about tool selection |
 | Multi-turn state | Session-based, compacted (ADR-067) | Stateless per tool call |
-| Platform tools | Full set (Slack, Gmail, Notion, Calendar via MCP Gateway + Direct APIs) | Not exposed — use native platform MCPs |
+| Platform tools | Full set (Slack, Gmail, Notion, Calendar via Direct API clients — ADR-076) | Not exposed — use native platform MCPs |
 | Memory writing | Implicit extraction at session end (ADR-064) | Not available (deferred) |
 | Deliverable creation | Full UI with type selection, source mapping, schedule | Not available (deferred) |
 
@@ -238,19 +239,20 @@ MCP tool calls that trigger `run_deliverable` consume token budget (same as any 
 
 ## Next Steps
 
-1. **Validate technical wiring** — Phase 0 in ADR-075: `get_status` tool via stdio → Claude Desktop
+1. ~~**Validate technical wiring** — Phase 0 in ADR-075: `get_status` tool via Streamable HTTP~~ **Done** — OAuth 2.1 live, Claude.ai connector confirmed working
 2. **Resolve Open Question #4** (ad-hoc synthesis) — Affects tool surface design
 3. **Resolve Open Question #3** (activation sequencing) — Affects onboarding flow
 4. **Build MVP tool surface** — Phase 1 in ADR-075: 6 tools
-5. **User testing** — Real user triggers deliverable from Claude Desktop, evaluates experience
+5. **User testing** — Real user triggers deliverable from Claude.ai/ChatGPT, evaluates experience
 6. **Iterate on tool descriptions** — How host LLMs actually use the tools may differ from expectations
+7. **ChatGPT integration test** — OAuth flow should work, needs verification
 
 ---
 
 ## References
 
 - [ADR-075: MCP Connector Technical Architecture](../adr/ADR-075-mcp-connector-architecture.md) — Implementation spec
-- [ADR-050: MCP Gateway Architecture](../adr/ADR-050-mcp-gateway-architecture.md) — Existing outbound MCP
+- [ADR-050: MCP Gateway Architecture](../adr/ADR-050-mcp-gateway-architecture.md) — Superseded by ADR-076 (Direct API clients)
 - [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Backend that MCP surfaces
 - [ADR-064: Unified Memory Service](../adr/ADR-064-unified-memory-service.md) — Why memory writing is implicit
 - [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md) — Backend-only, not exposed via MCP

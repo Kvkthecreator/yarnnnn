@@ -1,7 +1,7 @@
 # ADR-075: MCP Connector — Technical Architecture
 
 **Date**: 2026-02-25
-**Status**: Implemented (Phase 0 + HTTP transport live)
+**Status**: Implemented (Phase 0 + OAuth 2.1 live)
 **Supersedes**: ADR-041 (MCP Server Exposure — deferred, scope replaced)
 **Extends**: ADR-050 (MCP Gateway Architecture — now superseded by ADR-076)
 **Related**: ADR-072 (Unified Content Layer), ADR-066 (Delivery-First Model)
@@ -71,9 +71,10 @@ Build a Python MCP server using the `mcp` SDK (`FastMCP`) that exposes YARNNN ba
 api/mcp_server/
 ├── __init__.py          # Module docstring
 ├── __main__.py          # Entry point: transport selection, env loading
-├── server.py            # FastMCP instance + tool registration
-├── auth.py              # Service key + MCP_USER_ID → AuthenticatedClient
-└── middleware.py         # Bearer token transport auth (HTTP only)
+├── server.py            # FastMCP instance + tool registration + AuthSettings
+├── auth.py              # Service key + MCP_USER_ID → AuthenticatedClient (data auth)
+├── oauth_provider.py    # OAuthAuthorizationServerProvider (transport auth for 3rd-party clients)
+└── middleware.py         # Legacy — static bearer token middleware (superseded by OAuth provider)
 ```
 
 **Why `mcp_server/` not `mcp/`:** The pip package is named `mcp`. A directory named `api/mcp/` would shadow it when Python resolves imports from the `api/` working directory. Underscore avoids the collision.
@@ -97,9 +98,10 @@ Authentication is split into two independent layers:
 Request
   │
   ▼
-Layer 1: Transport Auth (middleware.py)
+Layer 1: Transport Auth (oauth_provider.py — load_access_token)
   "Is this request allowed to reach the server?"
-  • HTTP: Bearer token from Authorization header vs MCP_BEARER_TOKEN env var
+  • OAuth 2.1 access token — validated against mcp_oauth_access_tokens table
+  • Static bearer token fallback — MCP_BEARER_TOKEN env var (Claude Desktop/Code)
   • stdio: N/A (process-level access control)
   │
   ▼
@@ -114,24 +116,29 @@ Tool Handler
   Uses AuthenticatedClient from lifespan context
 ```
 
-**Layer 1 — Transport Auth** (`middleware.py`):
-- HTTP requests must include `Authorization: Bearer <token>` matching `MCP_BEARER_TOKEN`
-- Returns 401 if missing/invalid, 503 if env var not configured (fail closed)
-- `/health` path bypasses auth (Render health checks)
-- Uses `hmac.compare_digest()` for constant-time token comparison
-- stdio transport has no middleware — access is process-level
+**Layer 1 — Transport Auth** (`oauth_provider.py`):
+
+The `mcp` SDK's built-in auth layer handles all transport auth when `auth_server_provider` is set on `FastMCP`. The SDK:
+- Returns 401 on unauthenticated `/mcp` requests
+- Serves `/.well-known/oauth-authorization-server` metadata (discovery)
+- Handles `/register` (dynamic client registration, RFC 7591)
+- Handles `/authorize` (authorization code grant with PKCE)
+- Handles `/token` (code exchange + refresh)
+- Calls `load_access_token()` on every authenticated request
+
+`YarnnnOAuthProvider.load_access_token()` validates tokens in two ways:
+1. **Static bearer token**: If token matches `MCP_BEARER_TOKEN` env var, returns an `AccessToken` scoped to `MCP_USER_ID`. Used by Claude Desktop and Claude Code.
+2. **OAuth access token**: Looks up token in `mcp_oauth_access_tokens` table. Validates expiry. Returns `AccessToken` with the `user_id` stored at token issuance. Used by Claude.ai connectors and ChatGPT.
 
 **Layer 2 — Data Auth** (`auth.py`):
 - Uses `SUPABASE_SERVICE_KEY` via `get_service_client()` (bypasses RLS)
 - `MCP_USER_ID` env var identifies the user — all queries filter by explicit `.eq("user_id", user_id)`
 - Returns `AuthenticatedClient(client, user_id, email=None)` at lifespan startup
 - Same pattern as `platform_worker.py` and `unified_scheduler.py`
+- Currently single-user (lifespan auth). Multi-user would resolve per-request from OAuth token.
 
-**Future: 3rd-party OAuth (Layer 1 extension)**:
-- ChatGPT developer mode sends `Authorization: Bearer <oauth-token>` per MCP spec
-- Layer 1 will validate JWT signature + audience for 3rd-party tokens
-- Layer 2 will resolve user from OAuth token instead of env var
-- This is additive — internal bearer token continues to work alongside
+**Legacy: `middleware.py`**:
+The `BearerAuthMiddleware` was the original Layer 1 implementation (static token only). It has been superseded by the OAuth provider's `load_access_token()` method which handles both static and OAuth tokens. The file remains on disk but is not wired into the ASGI app.
 
 ### Render Deployment
 
@@ -149,8 +156,9 @@ Tool Handler
 - `SUPABASE_URL` — Supabase project URL
 - `SUPABASE_ANON_KEY` — Supabase anon key (unused by service key auth, but available)
 - `SUPABASE_SERVICE_KEY` — Service key for RLS bypass
-- `MCP_USER_ID` — User UUID for data scoping
-- `MCP_BEARER_TOKEN` — Static bearer token for transport auth
+- `MCP_USER_ID` — User UUID for data scoping (auto-approve OAuth + static bearer fallback)
+- `MCP_BEARER_TOKEN` — Static bearer token for Claude Desktop/Code (backward compat)
+- `MCP_SERVER_URL` — OAuth issuer URL (defaults to `https://yarnnn-mcp-server.onrender.com`)
 
 ---
 
@@ -158,7 +166,7 @@ Tool Handler
 
 ### The Validation Tool: `get_status`
 
-Single read-only tool that exercises the full auth chain (bearer token → service key → user_id → Supabase query → structured response). No side effects. Wraps existing `handle_get_system_state()` from `services/primitives/system_state.py`.
+Single read-only tool that exercises the full auth chain (OAuth/bearer token → service key → user_id → Supabase query → structured response). No side effects. Wraps existing `handle_get_system_state()` from `services/primitives/system_state.py`.
 
 ### Files
 
@@ -166,18 +174,21 @@ Single read-only tool that exercises the full auth chain (bearer token → servi
 |------|---------|
 | `api/mcp_server/__init__.py` | Module docstring |
 | `api/mcp_server/auth.py` | Data auth: service key + MCP_USER_ID → AuthenticatedClient |
-| `api/mcp_server/middleware.py` | Transport auth: bearer token validation |
-| `api/mcp_server/server.py` | FastMCP instance + `get_status` tool |
-| `api/mcp_server/__main__.py` | Entry point with transport selection + middleware wiring |
+| `api/mcp_server/oauth_provider.py` | OAuth 2.1 provider: client registration, token issuance, validation |
+| `api/mcp_server/server.py` | FastMCP instance + AuthSettings + `get_status` tool |
+| `api/mcp_server/__main__.py` | Entry point with transport selection |
+| `api/mcp_server/middleware.py` | Legacy static bearer token middleware (not wired) |
+| `supabase/migrations/082_mcp_oauth_tables.sql` | OAuth token storage: clients, codes, access/refresh tokens |
 
 ### Verification Status
 
 - [x] All files parse as valid Python
 - [x] Render deployment live (srv-d6f4vg1drdic739nli4g)
 - [x] Service key auth working (queries return real data)
-- [x] Bearer token middleware active (401 without token)
+- [x] OAuth 2.1 flow: discovery → registration → authorize → token exchange
+- [x] Static bearer token backward compatible (via `load_access_token` fallback)
 - [x] `get_status` tool call returns full system state snapshot
-- [ ] Claude Desktop integration test
+- [x] Claude.ai connector integration (OAuth flow, tool discovery confirmed)
 - [ ] ChatGPT developer mode integration test
 
 ### Claude Desktop Configuration
@@ -224,9 +235,19 @@ claude mcp add yarnnn \
 }
 ```
 
-### ChatGPT Developer Mode (Future)
+### Claude.ai Connector
 
-ChatGPT developer mode supports remote MCP servers over Streamable HTTP with OAuth 2.1. When OAuth is implemented (Layer 1 extension), ChatGPT will authenticate per the MCP spec and send bearer tokens with each request.
+Claude.ai connectors use OAuth 2.1 (the MCP spec's standard auth). Add via Claude.ai Settings → Connectors → Add → enter URL:
+
+```
+https://yarnnn-mcp-server.onrender.com/mcp
+```
+
+Claude.ai handles the full OAuth flow automatically: discovery → client registration → authorize → token exchange. No manual token configuration needed.
+
+### ChatGPT Developer Mode
+
+ChatGPT supports remote MCP servers over Streamable HTTP with OAuth 2.1. The same OAuth flow used by Claude.ai should work — not yet integration-tested.
 
 ---
 
@@ -245,26 +266,84 @@ After Phase 0 validates the wiring, add 5 more tools in `server.py`:
 
 ---
 
-## Implementation: Phase 2 — 3rd-Party OAuth
+## Implementation: OAuth 2.1 (Implemented)
 
-1. Implement OAuth 2.1 token validation in Layer 1 middleware (alongside static bearer token)
-2. Resolve user identity from OAuth token (replace MCP_USER_ID for 3rd-party requests)
-3. Register as ChatGPT developer mode connector
-4. Multi-tenant support: per-request user resolution instead of per-process
+OAuth 2.1 is live, enabling Claude.ai connectors and ChatGPT developer mode.
+
+### OAuth Flow
+
+```
+Claude.ai / ChatGPT
+    │
+    │ 1. POST /mcp → 401 Unauthorized
+    │ 2. GET /.well-known/oauth-authorization-server → metadata
+    │ 3. POST /register → client_id (dynamic registration, RFC 7591)
+    │ 4. GET /authorize → auto-approve → redirect with auth code
+    │ 5. POST /token → access_token + refresh_token (PKCE validated)
+    │ 6. POST /mcp (Authorization: Bearer <token>) → tools work
+    │
+    ▼
+MCP Server (FastMCP + YarnnnOAuthProvider)
+    │
+    │ load_access_token() validates token → resolves user_id
+    │
+    ▼
+Supabase (service key, scoped by user_id)
+```
+
+### OAuth Provider (`oauth_provider.py`)
+
+Implements `OAuthAuthorizationServerProvider` from `mcp.server.auth.provider` with 9 methods:
+
+| Method | Purpose |
+|--------|---------|
+| `get_client` / `register_client` | Dynamic client registration (RFC 7591) |
+| `authorize` | Auto-approve: issues auth code for `MCP_USER_ID` immediately |
+| `load_authorization_code` / `exchange_authorization_code` | Auth code → access + refresh tokens |
+| `load_refresh_token` / `exchange_refresh_token` | Token rotation (new access + refresh, old refresh deleted) |
+| `load_access_token` | Validates token: static bearer fallback → OAuth table lookup |
+| `revoke_token` | Deletes access or refresh token |
+
+**Auto-approve mode**: The `authorize()` method skips login/consent and directly issues an auth code for `MCP_USER_ID`. Single-user mode — all OAuth tokens resolve to the same user. Multi-user mode would redirect to Supabase Auth login first.
+
+**Token lifetimes**: Access token = 1 hour, refresh token = 30 days, auth code = 5 minutes.
+
+**Custom token types**: `YarnnnAccessToken`, `YarnnnAuthCode`, `YarnnnRefreshToken` — each extends the SDK base with a `user_id` field for data scoping.
+
+### OAuth Storage (Migration 082)
+
+Four Supabase tables, service key access only (no RLS):
+
+| Table | Purpose |
+|-------|---------|
+| `mcp_oauth_clients` | Registered OAuth clients (client_id, redirect_uris, etc.) |
+| `mcp_oauth_codes` | Authorization codes (expires after 5 min, single-use) |
+| `mcp_oauth_access_tokens` | Access tokens (expires after 1 hour) |
+| `mcp_oauth_refresh_tokens` | Refresh tokens (30-day lifetime, rotated on use) |
+
+### Future: Multi-User OAuth
+
+Currently all OAuth tokens resolve to `MCP_USER_ID` (auto-approve). To support multiple users:
+
+1. `authorize()` redirects to Supabase Auth login instead of auto-approving
+2. Callback endpoint receives Supabase session, generates auth code with real `user_id`
+3. Tool handlers resolve per-request `AuthenticatedClient` from OAuth token's `user_id`
+4. Remove lifespan auth dependency — each request is independently scoped
 
 ---
 
 ## Consequences
 
 ### What Changes
-- New `api/mcp_server/` directory (~200 lines for Phase 0)
+- New `api/mcp_server/` directory (~500 lines: server, auth, OAuth provider)
 - New Render service (`yarnnn-mcp-server`, Starter plan)
 - `mcp` pip package already in `requirements.txt` (needs Python >= 3.10 runtime)
+- 4 new Supabase tables for OAuth token storage (migration 082)
 
 ### What Does NOT Change
 - All existing service code — untouched
 - `execute_deliverable_generation()` — same pipeline, new `trigger_context` type (Phase 1)
-- All existing tables — no schema changes
+- Existing tables — no schema changes to any existing table
 - Scheduler, signal processing, platform sync — untouched
 - TP agent — untouched
 - Platform API clients (Slack, Notion, Gmail, Calendar) — untouched
@@ -278,3 +357,5 @@ After Phase 0 validates the wiring, add 5 more tools in `server.py`:
 - [ADR-050: MCP Gateway Architecture](./ADR-050-mcp-gateway-architecture.md) — Superseded by ADR-076
 - [MCP Python SDK](https://github.com/modelcontextprotocol/python-sdk) — `FastMCP` server implementation
 - [MCP Specification: Transports](https://modelcontextprotocol.io/specification/2025-03-26/basic/transports)
+- [MCP Specification: Authorization](https://modelcontextprotocol.io/specification/2025-03-26/basic/authorization) — OAuth 2.1 with PKCE
+- [RFC 7591: OAuth Dynamic Client Registration](https://tools.ietf.org/html/rfc7591)

@@ -77,8 +77,11 @@ YARNNN runs on **4 Render services** that share code and env vars. When changing
 
 **MCP Server env vars** (separate from above — MCP server uses service key, not user JWTs):
 - `SUPABASE_SERVICE_KEY` — Service key for RLS bypass (same as Worker/Scheduler)
-- `MCP_USER_ID` — User UUID for data scoping
-- `MCP_BEARER_TOKEN` — Static bearer token for transport auth (ADR-075)
+- `MCP_USER_ID` — User UUID for data scoping (auto-approve OAuth + static bearer fallback)
+- `MCP_BEARER_TOKEN` — Static bearer token for Claude Desktop/Code
+- `MCP_SERVER_URL` — OAuth issuer URL (defaults to `https://yarnnn-mcp-server.onrender.com`)
+
+**MCP Auth model** (ADR-075): OAuth 2.1 for Claude.ai/ChatGPT (auto-approve, tokens stored in `mcp_oauth_*` tables). Static bearer token fallback for Claude Desktop/Code. See `api/mcp_server/oauth_provider.py`.
 
 **Common mistake**: Adding an env var to the API service but forgetting Worker/Scheduler. The API handles OAuth and stores tokens; the Worker decrypts and uses them. Both need the encryption key and OAuth client credentials.
 
@@ -146,6 +149,7 @@ You MUST:
 - `platform_content` — unified content layer with retention (ADR-072, replaces `filesystem_items`)
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_context` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
+- `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
 **Removed files** (ADR-064):
 - `api/services/extraction.py` — replaced by `memory.py`
