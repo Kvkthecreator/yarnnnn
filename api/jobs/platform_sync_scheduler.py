@@ -50,7 +50,7 @@ async def get_users_due_for_sync(supabase_client) -> list[dict]:
     # Get all users with connected platforms
     result = supabase_client.table("platform_connections").select(
         "user_id, platform, settings, last_synced_at"
-    ).eq("status", "connected").execute()
+    ).in_("status", ["connected", "active"]).execute()
 
     if not result.data:
         return []
