@@ -19,6 +19,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
   const navLinks = [
     { href: "/how-it-works", label: "How it works" },
     { href: "/pricing", label: "Pricing" },
+    { href: "/blog", label: "Blog" },
     { href: "/about", label: "About" },
   ];
 
