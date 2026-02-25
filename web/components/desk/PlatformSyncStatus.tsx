@@ -136,7 +136,6 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     setLoading(true);
     try {
       const data = await api.integrations.list();
-      // Include both 'active' and 'google' (which provides gmail + calendar)
       const activeIntegrations = data.integrations.filter(
         (i: Integration) => i.status === 'active'
       );
@@ -213,9 +212,9 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
 
   // Check if a platform is connected
   const isConnected = (provider: Provider): boolean => {
-    // Gmail and Calendar both use Google OAuth
+    // Gmail and Calendar both use Google OAuth — check for gmail row
     if (provider === 'gmail' || provider === 'calendar') {
-      return integrations.some(i => i.provider === 'gmail' || i.provider === 'google');
+      return integrations.some(i => i.provider === 'gmail');
     }
     return integrations.some(i => i.provider === provider);
   };
@@ -223,7 +222,7 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   // Get integration for a provider
   const getIntegration = (provider: Provider): Integration | undefined => {
     if (provider === 'gmail' || provider === 'calendar') {
-      return integrations.find(i => i.provider === 'gmail' || i.provider === 'google');
+      return integrations.find(i => i.provider === 'gmail');
     }
     return integrations.find(i => i.provider === provider);
   };
@@ -231,7 +230,7 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   // Get sync status for a provider
   const getSyncStatus = (provider: Provider): SyncStatus | undefined => {
     if (provider === 'gmail' || provider === 'calendar') {
-      return syncStatuses['gmail'] || syncStatuses['google'];
+      return syncStatuses['gmail'];
     }
     return syncStatuses[provider];
   };

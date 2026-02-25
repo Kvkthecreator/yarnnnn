@@ -749,7 +749,7 @@ export const api = {
 
     // Start import job
     startImport: (
-      provider: "slack" | "notion" | "gmail" | "google" | "calendar",
+      provider: "slack" | "notion" | "gmail" | "calendar",
       data: {
         resource_id: string;
         resource_name?: string;
@@ -837,8 +837,7 @@ export const api = {
 
     // ADR-030: Landscape and Coverage
     // Get platform landscape with coverage state
-    // Note: google/calendar use the same OAuth but don't have landscape discovery yet
-    getLandscape: (provider: "slack" | "notion" | "gmail" | "google" | "calendar", refresh?: boolean) =>
+    getLandscape: (provider: "slack" | "notion" | "gmail" | "calendar", refresh?: boolean) =>
       request<{
         provider: string;
         discovered_at: string | null;
@@ -900,7 +899,7 @@ export const api = {
 
     // Update coverage state (mark as excluded or reset)
     updateCoverage: (
-      provider: "slack" | "notion" | "gmail" | "google" | "calendar",
+      provider: "slack" | "notion" | "gmail" | "calendar",
       resourceId: string,
       coverageState: "excluded" | "uncovered"
     ) =>
@@ -956,7 +955,7 @@ export const api = {
       }>("/api/user/limits"),
 
     // Get selected sources for a platform
-    getSources: (provider: "slack" | "gmail" | "notion" | "google" | "calendar") =>
+    getSources: (provider: "slack" | "gmail" | "notion" | "calendar") =>
       request<{
         sources: Array<{
           id: string;
@@ -974,7 +973,7 @@ export const api = {
 
     // Update selected sources for a platform
     updateSources: (
-      provider: "slack" | "gmail" | "notion" | "google" | "calendar",
+      provider: "slack" | "gmail" | "notion" | "calendar",
       sourceIds: string[]
     ) =>
       request<{

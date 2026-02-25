@@ -76,7 +76,6 @@ TIER_LIMITS = {
 PROVIDER_LIMIT_MAP = {
     "slack": "slack_channels",
     "gmail": "gmail_labels",
-    "google": "gmail_labels",  # Google uses Gmail limits
     "notion": "notion_pages",
     "calendar": "calendars",
 }

@@ -109,8 +109,7 @@ export function SourceSelectionModal({
       setError(null);
 
       try {
-        // Get the API provider (calendar uses google)
-        const apiProvider = provider === 'calendar' ? 'google' : provider;
+        const apiProvider = provider;
 
         // Load landscape and limits in parallel
         const [landscapeResult, limitsResult, calendarsResult] = await Promise.all([
@@ -175,7 +174,7 @@ export function SourceSelectionModal({
     setError(null);
 
     try {
-      const apiProvider = provider === 'calendar' ? 'google' : provider;
+      const apiProvider = provider;
 
       // Save selected sources
       setSyncProgress('Saving selections...');
@@ -224,7 +223,7 @@ export function SourceSelectionModal({
   const handleSkip = async () => {
     // Still save any selected sources (they'll sync on schedule)
     if (selectedIds.size > 0) {
-      const apiProvider = provider === 'calendar' ? 'google' : provider;
+      const apiProvider = provider;
       await api.integrations.updateSources(apiProvider, Array.from(selectedIds)).catch(() => {});
     }
     onClose();

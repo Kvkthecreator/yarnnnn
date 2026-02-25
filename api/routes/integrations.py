@@ -39,6 +39,19 @@ from agents.integration import ContextImportAgent
 
 logger = logging.getLogger(__name__)
 
+# =============================================================================
+# Provider Alias Resolution
+# =============================================================================
+# DB stores 'gmail' for Google OAuth (covers both Gmail and Calendar).
+# This map resolves any provider name to the platform_connections.platform value(s) to search.
+PROVIDER_ALIASES: dict[str, list[str]] = {
+    "gmail": ["gmail"],
+    "calendar": ["gmail"],    # Calendar resolves to gmail DB row
+    "google": ["gmail"],      # Backward compat fallback
+    "slack": ["slack"],
+    "notion": ["notion"],
+}
+
 
 # =============================================================================
 # Background Import Processing
@@ -560,6 +573,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         platforms = []
         seen_providers: set[str] = set()
         from datetime import timedelta
+        seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
         for integration in integrations_result.data:
             provider = integration["platform"]  # ADR-058: DB column is 'platform'
@@ -572,7 +586,7 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 "slack": "channels",
                 "gmail": "labels",
                 "notion": "pages",
-                "google": "calendars"
+                "calendar": "calendars",
             }.get(provider, "resources")
 
             # Count deliverables targeting this platform
@@ -584,8 +598,6 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             deliverable_count = deliverables_result.count or 0
 
             # Count recent activity from platform_content (last 7 days)
-            # ADR-072: platform_content uses fetched_at
-            seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
             activity_result = auth.client.table("platform_content").select(
                 "id", count="exact"
             ).eq("user_id", user_id).eq(
@@ -605,28 +617,41 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
             ))
             seen_providers.add(provider)
 
-        # ADR-046/ADR-058: Provider alias — gmail row may also have calendar capability.
-        # If a 'gmail' row has 'calendar' in capabilities and no 'google' row exists yet,
-        # emit a synthetic 'google' entry so the sidebar Calendar dot shows as connected.
-        if "gmail" in seen_providers and "google" not in seen_providers:
+        # Emit a 'calendar' entry when Gmail is connected (Google OAuth covers both).
+        if "gmail" in seen_providers and "calendar" not in seen_providers:
             gmail_integration = next(
                 (i for i in integrations_result.data if i["platform"] == "gmail"), None
             )
             if gmail_integration:
                 gmail_meta = gmail_integration.get("metadata", {}) or {}
                 capabilities = gmail_meta.get("capabilities", [])
-                # Treat missing capabilities as having both (our scopes always include calendar)
                 has_calendar = "calendar" in capabilities or not capabilities
                 if has_calendar:
+                    # Count calendar-specific activity
+                    cal_activity_result = auth.client.table("platform_content").select(
+                        "id", count="exact"
+                    ).eq("user_id", user_id).eq(
+                        "platform", "calendar"
+                    ).gte("fetched_at", seven_days_ago).execute()
+                    cal_activity_7d = cal_activity_result.count or 0
+
+                    # Count calendar deliverables
+                    cal_deliverables_result = auth.client.table("deliverables").select(
+                        "id", count="exact"
+                    ).eq("user_id", user_id).contains(
+                        "destination", {"platform": "calendar"}
+                    ).execute()
+                    cal_deliverable_count = cal_deliverables_result.count or 0
+
                     platforms.append(PlatformSummary(
-                        provider="google",
+                        provider="calendar",
                         status=gmail_integration["status"],
                         workspace_name=gmail_meta.get("workspace_name"),
                         connected_at=gmail_integration["created_at"],
                         resource_count=0,
                         resource_type="calendars",
-                        deliverable_count=0,
-                        activity_7d=0,
+                        deliverable_count=cal_deliverable_count,
+                        activity_7d=cal_activity_7d,
                     ))
 
         # Total deliverables count
@@ -802,8 +827,6 @@ async def get_integration(
     """
     user_id = auth.user_id
 
-    # ADR-058: gmail may be stored as 'google' and vice versa (OAuth provider alias)
-    PROVIDER_ALIASES = {"gmail": ["gmail", "google"], "google": ["google", "gmail"]}
     providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
     try:
@@ -873,11 +896,12 @@ async def check_integration_health(
     from integrations.platform_registry import get_platform_config
 
     user_id = auth.user_id
+    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
-    # Check if integration exists
+    # Check if integration exists (resolve alias to DB platform)
     result = auth.client.table("platform_connections").select(
         "id, status, metadata, updated_at"
-    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
+    ).eq("user_id", user_id).eq("platform", resolved_platform).limit(1).execute()
 
     if not result.data:
         return IntegrationHealthResponse(
@@ -936,12 +960,13 @@ async def disconnect_integration(
     Deletes stored tokens and export preferences.
     """
     user_id = auth.user_id
+    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
     try:
         # Delete integration (cascade will handle export preferences)
         result = auth.client.table("platform_connections").delete().eq(
             "user_id", user_id
-        ).eq("platform", provider).execute()
+        ).eq("platform", resolved_platform).execute()
 
         if not result.data:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
@@ -994,6 +1019,7 @@ async def export_to_provider(
     from integrations.exporters import get_exporter_registry, ExporterContext
 
     user_id = auth.user_id
+    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
     registry = get_exporter_registry()
 
     # Get exporter for this platform
@@ -1012,7 +1038,7 @@ async def export_to_provider(
         if exporter.requires_auth:
             integration = auth.client.table("platform_connections").select(
                 "id, credentials_encrypted, refresh_token_encrypted, metadata, status"
-            ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
+            ).eq("user_id", user_id).eq("platform", resolved_platform).limit(1).execute()
 
             if not integration.data:
                 raise HTTPException(
@@ -1491,15 +1517,10 @@ async def get_google_designated_settings(auth: UserClient) -> GoogleDesignatedSe
     user_id = auth.user_id
 
     try:
-        # Try google first, then gmail for legacy
-        integration = None
-        for provider in ["google", "gmail"]:
-            result = auth.client.table("platform_connections").select(
-                "id, metadata, status"
-            ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
-            if result.data:
-                integration = result.data[0]
-                break
+        result = auth.client.table("platform_connections").select(
+            "id, metadata, status"
+        ).eq("user_id", user_id).eq("platform", "gmail").limit(1).execute()
+        integration = result.data[0] if result.data else None
 
         if not integration:
             raise HTTPException(
@@ -1538,17 +1559,10 @@ async def set_google_designated_settings(
     user_id = auth.user_id
 
     try:
-        # Try google first, then gmail for legacy
-        integration = None
-        provider_found = None
-        for provider in ["google", "gmail"]:
-            result = auth.client.table("platform_connections").select(
-                "id, metadata, status"
-            ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
-            if result.data:
-                integration = result.data[0]
-                provider_found = provider
-                break
+        result = auth.client.table("platform_connections").select(
+            "id, metadata, status"
+        ).eq("user_id", user_id).eq("platform", "gmail").limit(1).execute()
+        integration = result.data[0] if result.data else None
 
         if not integration:
             raise HTTPException(
@@ -1603,15 +1617,10 @@ async def clear_google_designated_settings(auth: UserClient) -> GoogleDesignated
     user_id = auth.user_id
 
     try:
-        # Try google first, then gmail for legacy
-        integration = None
-        for provider in ["google", "gmail"]:
-            result = auth.client.table("platform_connections").select(
-                "id, metadata"
-            ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
-            if result.data:
-                integration = result.data[0]
-                break
+        result = auth.client.table("platform_connections").select(
+            "id, metadata"
+        ).eq("user_id", user_id).eq("platform", "gmail").limit(1).execute()
+        integration = result.data[0] if result.data else None
 
         if not integration:
             raise HTTPException(
@@ -2441,13 +2450,11 @@ async def get_landscape(
 
     If landscape hasn't been discovered or refresh=True, fetches from provider.
     """
-    if provider not in ["gmail", "slack", "notion", "google"]:
+    if provider not in ["gmail", "slack", "notion", "google", "calendar"]:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     user_id = auth.user_id
 
-    # ADR-058: gmail may be stored as 'google' and vice versa
-    PROVIDER_ALIASES = {"gmail": ["gmail", "google"], "google": ["google", "gmail"]}
     providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
     # Get integration (try aliases)
@@ -2767,16 +2774,17 @@ async def update_selected_sources(
     from services.platform_limits import validate_sources_update
 
     user_id = auth.user_id
+    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
     # Validate against limits
     valid, message, allowed_ids = validate_sources_update(
         auth.client, user_id, provider, request.source_ids
     )
 
-    # Get integration
+    # Get integration (resolve alias to DB platform)
     integration = auth.client.table("platform_connections").select(
         "id, landscape"
-    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
+    ).eq("user_id", user_id).eq("platform", resolved_platform).limit(1).execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
@@ -2824,7 +2832,6 @@ async def get_selected_sources(
     """
     user_id = auth.user_id
 
-    PROVIDER_ALIASES = {"gmail": ["gmail", "google"], "google": ["google", "gmail"]}
     providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
     integration_data = None
@@ -2849,7 +2856,6 @@ async def get_selected_sources(
         "slack": "slack_channels",
         "gmail": "gmail_labels",
         "notion": "notion_pages",
-        "google": "gmail_labels",
         "calendar": "calendars",
     }.get(provider, "slack_channels")
     limit = summary["limits"].get(limit_field, 1)
@@ -2877,7 +2883,6 @@ async def trigger_platform_sync(
 
     user_id = auth.user_id
 
-    PROVIDER_ALIASES = {"gmail": ["gmail", "google"], "google": ["google", "gmail"]}
     providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
     # Verify integration exists (try aliases)
@@ -2938,11 +2943,12 @@ async def get_platform_sync_status(
     from datetime import timezone
 
     user_id = auth.user_id
+    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
 
-    # Verify integration exists
+    # Verify integration exists (resolve alias to DB platform)
     integration = auth.client.table("platform_connections").select(
         "id, status"
-    ).eq("user_id", user_id).eq("platform", provider).limit(1).execute()
+    ).eq("user_id", user_id).eq("platform", resolved_platform).limit(1).execute()
 
     if not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")

@@ -42,8 +42,7 @@ export function ContextSidebar() {
   // Build per-platform status
   const platformStatus: Record<string, PlatformSummary | undefined> = {};
   for (const p of platforms) {
-    const key = p.provider === 'google' ? 'calendar' : p.provider;
-    platformStatus[key] = p;
+    platformStatus[p.provider] = p;
   }
 
   // Derive active state from URL

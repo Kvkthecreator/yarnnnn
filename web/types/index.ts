@@ -282,8 +282,7 @@ export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "c
 export type DataSourceType = "url" | "document" | "description" | "integration_import";
 
 // Integration import source provider
-// ADR-046: Added google and calendar providers
-export type IntegrationProvider = "slack" | "notion" | "gmail" | "google" | "calendar";
+export type IntegrationProvider = "slack" | "notion" | "gmail" | "calendar";
 
 // Integration import filter configuration
 export interface IntegrationImportFilters {
@@ -670,8 +669,7 @@ export type QualityTrend = "improving" | "stable" | "declining";
 
 // ADR-028: Destination-first deliverables
 // ADR-029: Gmail as full integration platform
-// ADR-046: Added google and calendar providers
-export type DestinationPlatform = "slack" | "notion" | "gmail" | "google" | "calendar" | "email" | "download";
+export type DestinationPlatform = "slack" | "notion" | "gmail" | "calendar" | "email" | "download";
 export type DeliveryStatus = "pending" | "delivering" | "delivered" | "failed";
 
 // Gmail-specific format: send, draft, reply
@@ -1004,22 +1002,20 @@ export interface PlatformContentResponse {
 // Context Pages: Shared Platform Types
 // =============================================================================
 
-export type PlatformProvider = 'slack' | 'gmail' | 'notion' | 'google' | 'calendar';
+export type PlatformProvider = 'slack' | 'gmail' | 'notion' | 'calendar';
 
-export type ApiProvider = "slack" | "notion" | "gmail" | "google" | "calendar";
+export type ApiProvider = "slack" | "notion" | "gmail" | "calendar";
 
-/** Map frontend platform names to backend provider names */
+/** Map frontend platform names to backend provider names (identity after provider streamlining) */
 export const BACKEND_PROVIDER_MAP: Record<PlatformProvider, string[]> = {
   slack: ['slack'],
-  gmail: ['gmail', 'google'],
+  gmail: ['gmail'],
   notion: ['notion'],
-  google: ['google', 'gmail'],
-  calendar: ['google', 'gmail'],
+  calendar: ['calendar'],
 };
 
-/** Get the provider to use for API calls */
+/** Get the provider to use for API calls (identity mapping) */
 export const getApiProvider = (platform: PlatformProvider): ApiProvider => {
-  if (platform === 'calendar') return 'google';
   return platform;
 };
 

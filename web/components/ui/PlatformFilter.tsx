@@ -21,7 +21,7 @@ import { cn } from '@/lib/utils';
  * Used in Context Browser and Deliverable List surfaces.
  */
 
-export type PlatformFilterValue = 'all' | 'slack' | 'notion' | 'gmail' | 'google' | 'calendar';
+export type PlatformFilterValue = 'all' | 'slack' | 'notion' | 'gmail' | 'calendar';
 
 interface PlatformFilterProps {
   value: PlatformFilterValue;
@@ -54,11 +54,6 @@ const PLATFORM_CONFIG: Record<
     label: 'Gmail',
     color: 'text-red-500',
   },
-  google: {
-    icon: <Calendar className="w-3.5 h-3.5" />,
-    label: 'Google',
-    color: 'text-blue-500',
-  },
   calendar: {
     icon: <Calendar className="w-3.5 h-3.5" />,
     label: 'Calendar',
@@ -69,7 +64,7 @@ const PLATFORM_CONFIG: Record<
 export function PlatformFilter({
   value,
   onChange,
-  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'google'],
+  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'calendar'],
   counts,
   compact = false,
   className,
@@ -192,7 +187,7 @@ export function PlatformFilter({
 export function PlatformFilterChips({
   value,
   onChange,
-  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'google'],
+  availablePlatforms = ['all', 'slack', 'notion', 'gmail', 'calendar'],
   counts,
   className,
 }: Omit<PlatformFilterProps, 'compact'>) {

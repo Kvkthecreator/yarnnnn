@@ -16,7 +16,7 @@ import {
 import { api } from "@/lib/api/client";
 import { cn } from "@/lib/utils";
 
-type Provider = "slack" | "gmail" | "notion" | "google" | "calendar";
+type Provider = "slack" | "gmail" | "notion" | "calendar";
 
 interface Source {
   id: string;
@@ -67,13 +67,6 @@ const PROVIDER_CONFIG: Record<
     resourceLabelPlural: "Pages",
     icon: <FileText className="w-4 h-4" />,
     limitField: "notion_pages",
-  },
-  google: {
-    label: "Google",
-    resourceLabel: "Calendar",
-    resourceLabelPlural: "Calendars",
-    icon: <Calendar className="w-4 h-4" />,
-    limitField: "gmail_labels", // Google (non-calendar) uses Gmail limits
   },
   calendar: {
     label: "Calendar",

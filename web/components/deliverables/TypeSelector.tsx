@@ -85,7 +85,7 @@ interface PlatformTypeOption {
   label: string;
   description: string;
   icon: React.ReactNode;
-  platform: 'slack' | 'gmail' | 'notion' | 'google' | 'calendar';
+  platform: 'slack' | 'gmail' | 'notion' | 'calendar';
 }
 
 const PLATFORM_TYPES: PlatformTypeOption[] = [

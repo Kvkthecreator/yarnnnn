@@ -295,7 +295,6 @@ function getPermissionsForProvider(provider: string): string[] {
         'Write messages (for deliverables)',
       ];
     case 'gmail':
-    case 'google':
       return [
         'Read email labels',
         'Read email messages',

@@ -278,7 +278,6 @@ export default function ActivityPage() {
       case 'notion':
         return <FileText className="w-3 h-3" />;
       case 'calendar':
-      case 'google':
         return <Calendar className="w-3 h-3" />;
       default:
         return null;
@@ -308,8 +307,7 @@ export default function ActivityPage() {
       case 'content_cleanup':
         if (metadata.provider || metadata.platform) {
           const p = (metadata.provider || metadata.platform) as string;
-          const display = p === 'google' ? 'calendar' : p;
-          router.push(`/context/${display}`);
+          router.push(`/context/${p}`);
         } else {
           router.push('/system');
         }

@@ -108,8 +108,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
 
   const platformMap: Record<string, PlatformSummary | undefined> = {};
   for (const p of platforms) {
-    const key = p.provider === 'google' ? 'calendar' : p.provider;
-    platformMap[key] = p;
+    platformMap[p.provider] = p;
   }
 
   const connectedCount = ALL_PLATFORMS.filter((p) => platformMap[p]?.status === 'active').length;

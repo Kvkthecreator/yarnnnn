@@ -86,7 +86,7 @@ export default function CalendarContextPage() {
     setLoading(true);
     try {
       const [integrationResult, calendarsResult, designatedResult, deliverablesResult] = await Promise.all([
-        api.integrations.get('google').catch(() => null),
+        api.integrations.get('calendar').catch(() => null),
         api.integrations.listGoogleCalendars().catch(() => ({ calendars: [] })),
         api.integrations.getGoogleDesignatedSettings().catch(() => ({
           designated_calendar_id: null,
@@ -101,7 +101,7 @@ export default function CalendarContextPage() {
       setDesignatedCalendarName(designatedResult?.designated_calendar_name || null);
 
       const calendarDeliverables = ((deliverablesResult || []) as PlatformDeliverable[]).filter(
-        (d) => ['calendar', 'google'].includes(d.destination?.platform || '')
+        (d) => d.destination?.platform === 'calendar'
       );
       setDeliverables(calendarDeliverables);
     } catch (err) {

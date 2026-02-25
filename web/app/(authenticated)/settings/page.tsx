@@ -136,7 +136,7 @@ export default function SettingsPage() {
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
 
   // Import modal state (ADR-027, ADR-029, ADR-046)
-  const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | "google" | "calendar" | null>(null);
+  const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | "calendar" | null>(null);
 
   // Usage metrics state
   const [usageMetrics, setUsageMetrics] = useState<{
@@ -996,7 +996,7 @@ export default function SettingsPage() {
               {/* Google Integration (ADR-046: Unified Gmail + Calendar) */}
               {(() => {
                 // ADR-046: Single Google connection provides both Gmail and Calendar
-                const googleIntegration = integrations.find(i => i.provider === "gmail" || i.provider === "google");
+                const googleIntegration = integrations.find(i => i.provider === "gmail");
                 return (
                   <div className="p-4 border border-border rounded-lg">
                     <div className="flex items-start gap-3">

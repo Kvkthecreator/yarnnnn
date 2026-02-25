@@ -184,7 +184,7 @@ export function PlatformDetailPanel({
       // Load landscape (resources), deliverables, and limits in parallel
       const [landscapeResult, deliverablesResult, limitsResult] = await Promise.all([
         api.integrations.getLandscape(
-          platform.provider as 'slack' | 'notion' | 'gmail' | 'google' | 'calendar',
+          platform.provider as 'slack' | 'notion' | 'gmail' | 'calendar',
           refresh
         ),
         api.deliverables.list(),

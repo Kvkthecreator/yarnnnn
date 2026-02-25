@@ -416,10 +416,12 @@ def get_frontend_redirect_url(success: bool, provider: str, error: Optional[str]
 
     if success:
         # Redirect to context page for immediate source selection after connect
+        # Google OAuth serves both Gmail and Calendar — redirect to Gmail context page
+        redirect_provider = "gmail" if provider == "google" else provider
         params = {
             "status": "connected",
         }
-        return f"{base_url}/context/{provider}?{urlencode(params)}"
+        return f"{base_url}/context/{redirect_provider}?{urlencode(params)}"
     else:
         # On error, go to settings for troubleshooting
         params = {

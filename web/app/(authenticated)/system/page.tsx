@@ -349,8 +349,6 @@ export default function SystemPage() {
           .filter((p) => p.connected)
           .map((p) => p.platform);
 
-        // Map display platforms to sync_registry platforms
-        // gmail/calendar sync under "google" provider, but sync_registry writes as gmail/calendar
         const allSynced = connectedPlatforms.every((platform) => {
           const preTime = preSnapshot[platform];
           const newTime = timestamps[platform];
@@ -394,7 +392,7 @@ export default function SystemPage() {
       const syncProviders = Array.from(new Set(
         platformSync
           .filter((p) => p.connected)
-          .map((p) => (p.platform === 'gmail' || p.platform === 'calendar') ? 'google' : p.platform)
+          .map((p) => p.platform)
       ));
 
       await Promise.allSettled(

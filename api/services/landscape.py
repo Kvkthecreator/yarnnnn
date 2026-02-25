@@ -140,8 +140,8 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
         except Exception as e:
             logger.warning(f"[LANDSCAPE] Failed to list Gmail labels for {user_id}: {e}")
 
-        # Also list calendars if google provider
-        if provider == "google":
+        # Also list calendars (Google OAuth covers both Gmail and Calendar)
+        if provider in ("gmail", "google"):
             try:
                 calendars = await fetch_google_calendars(
                     user_id=user_id,
