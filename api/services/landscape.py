@@ -6,6 +6,9 @@ connected platforms. Used by:
 - GET /integrations/{provider}/landscape (on-demand from context page)
 - Platform worker (after content sync to keep landscape fresh)
 
+ADR-078: Smart auto-selection — when landscape is first discovered and no
+sources are selected, auto-selects the most valuable sources up to tier limit.
+
 No LLM calls — purely platform API reads.
 """
 
@@ -223,6 +226,107 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
     return {"resources": []}
 
 
+def compute_smart_defaults(
+    provider: str,
+    resources: list[dict],
+    max_sources: int,
+) -> list[dict]:
+    """
+    ADR-078: Auto-select the most valuable sources up to tier limit.
+
+    Called when landscape is first discovered and no sources are selected,
+    or when backfilling existing users. Returns a list of selected source
+    objects ({"id": ..., "name": ..., "type": ...}).
+
+    Selection heuristics per platform:
+    - Slack: Sort by num_members desc (busy channels = more context)
+    - Gmail: INBOX + SENT first, then user-created labels (skip system noise)
+    - Calendar: ALL calendars (unlimited, tiny data volume)
+    - Notion: Sort by last_edited desc (recently active pages = most relevant)
+    """
+    if not resources:
+        return []
+
+    selected = []
+
+    if provider in ("gmail", "google"):
+        # Split by metadata.platform
+        gmail_resources = [r for r in resources if r.get("metadata", {}).get("platform") == "gmail"]
+        calendar_resources = [r for r in resources if r.get("metadata", {}).get("platform") == "calendar"]
+
+        # Calendar: auto-select ALL (unlimited tier, tiny data)
+        for cal in calendar_resources:
+            selected.append({
+                "id": cal["id"],
+                "name": cal.get("name", ""),
+                "type": cal.get("type", "calendar"),
+            })
+
+        # Gmail: prioritize high-value labels
+        # Priority order: INBOX > SENT > STARRED > IMPORTANT > user labels > system labels
+        GMAIL_PRIORITY = ["INBOX", "SENT", "STARRED", "IMPORTANT"]
+        GMAIL_SKIP = {"SPAM", "TRASH", "DRAFT", "UNREAD", "CATEGORY_PERSONAL",
+                       "CATEGORY_SOCIAL", "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES",
+                       "CATEGORY_FORUMS"}
+
+        priority_labels = []
+        user_labels = []
+        for r in gmail_resources:
+            label_id = r.get("id", "")
+            label_type = r.get("metadata", {}).get("type", "")
+            if label_id in GMAIL_PRIORITY:
+                priority_labels.append((GMAIL_PRIORITY.index(label_id), r))
+            elif label_id in GMAIL_SKIP:
+                continue  # Never auto-select noise labels
+            elif label_type == "user" or "/" in r.get("name", ""):
+                # User-created labels or nested labels (e.g., INBOX/FYI)
+                user_labels.append(r)
+
+        # Sort priority labels by defined order
+        priority_labels.sort(key=lambda x: x[0])
+        gmail_ranked = [r for _, r in priority_labels] + user_labels
+
+        # Apply limit (max_sources applies to gmail portion only)
+        for r in gmail_ranked[:max_sources]:
+            selected.append({
+                "id": r["id"],
+                "name": r.get("name", ""),
+                "type": r.get("type", "label"),
+            })
+
+    elif provider == "slack":
+        # Sort by num_members descending — busiest channels have most context
+        ranked = sorted(
+            resources,
+            key=lambda r: r.get("metadata", {}).get("num_members", 0),
+            reverse=True,
+        )
+        for r in ranked[:max_sources]:
+            selected.append({
+                "id": r["id"],
+                "name": r.get("name", ""),
+                "type": r.get("type", "channel"),
+            })
+
+    elif provider == "notion":
+        # Sort by last_edited descending — recently active pages are most relevant
+        def notion_sort_key(r):
+            edited = r.get("metadata", {}).get("last_edited", "")
+            # Deprioritize "Untitled" pages
+            name_penalty = "0" if r.get("name", "").startswith("Untitled") else "1"
+            return (name_penalty, edited or "")
+
+        ranked = sorted(resources, key=notion_sort_key, reverse=True)
+        for r in ranked[:max_sources]:
+            selected.append({
+                "id": r["id"],
+                "name": r.get("name", ""),
+                "type": r.get("type", "page"),
+            })
+
+    return selected
+
+
 async def refresh_landscape(
     client,
     user_id: str,
@@ -272,7 +376,27 @@ async def refresh_landscape(
             removed = len(selected_sources) - len(valid_sources)
             logger.info(f"[LANDSCAPE] Pruned {removed} stale source(s) for {provider} user {user_id[:8]}")
 
-        new_landscape["selected_sources"] = valid_sources
+        # ADR-078: If no sources are selected after pruning, auto-select smart defaults
+        if valid_sources:
+            new_landscape["selected_sources"] = valid_sources
+        else:
+            from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
+            limits = get_limits_for_user(client, user_id)
+            limit_field = PROVIDER_LIMIT_MAP.get(
+                "gmail" if provider == "google" else provider,
+                "slack_channels"
+            )
+            max_sources = getattr(limits, limit_field, 5)
+            if max_sources == -1:
+                max_sources = 999
+            smart_selected = compute_smart_defaults(
+                provider, new_landscape["resources"], max_sources
+            )
+            new_landscape["selected_sources"] = smart_selected
+            logger.info(
+                f"[LANDSCAPE] Auto-selected {len(smart_selected)} sources for "
+                f"{provider} user {user_id[:8]} (no prior selection)"
+            )
 
         client.table("platform_connections").update({
             "landscape": new_landscape,
@@ -282,7 +406,7 @@ async def refresh_landscape(
         logger.info(
             f"[LANDSCAPE] Refreshed {provider} for user {user_id[:8]}: "
             f"{len(new_landscape['resources'])} resources, "
-            f"{len(valid_sources)} selected"
+            f"{len(new_landscape.get('selected_sources', []))} selected"
         )
         return True
 

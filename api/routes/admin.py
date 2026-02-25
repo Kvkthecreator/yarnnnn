@@ -1304,3 +1304,100 @@ async def admin_trigger_signal_processing(
             "error": str(e),
             "traceback": traceback.format_exc(),
         }
+
+
+@router.post("/backfill-sources/{user_id}")
+async def admin_backfill_sources(
+    user_id: str,
+    x_service_key: Optional[str] = Header(None),
+) -> dict:
+    """
+    ADR-078: Backfill selected_sources for a user using smart auto-selection.
+
+    For each connected platform, if the current selected_sources count is below
+    the tier limit, expands selection using compute_smart_defaults heuristics.
+    """
+    from supabase import create_client
+    from services.landscape import compute_smart_defaults
+    from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
+
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    if not x_service_key or x_service_key != supabase_key:
+        raise HTTPException(status_code=403, detail="Invalid service key")
+
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    client = create_client(supabase_url, supabase_key)
+
+    limits = get_limits_for_user(client, user_id)
+    results = {}
+
+    # Get all active platform connections
+    connections = client.table("platform_connections").select(
+        "id, platform, landscape, status"
+    ).eq("user_id", user_id).in_(
+        "status", ["connected", "active"]
+    ).execute()
+
+    for conn in (connections.data or []):
+        platform = conn["platform"]
+        landscape = conn.get("landscape", {}) or {}
+        resources = landscape.get("resources", [])
+        current_selected = landscape.get("selected_sources", [])
+
+        if not resources:
+            results[platform] = {"skipped": "no_landscape", "current": 0}
+            continue
+
+        # Get limit for this platform
+        limit_field = PROVIDER_LIMIT_MAP.get(
+            "gmail" if platform == "google" else platform,
+            "slack_channels"
+        )
+        max_sources = getattr(limits, limit_field, 5)
+        if max_sources == -1:
+            max_sources = 999
+
+        current_count = len(current_selected)
+        if current_count >= max_sources:
+            results[platform] = {
+                "skipped": "at_limit",
+                "current": current_count,
+                "limit": max_sources,
+            }
+            continue
+
+        # Compute smart defaults for all resources
+        smart_selected = compute_smart_defaults(platform, resources, max_sources)
+
+        # Merge: keep existing selections, add new ones up to limit
+        existing_ids = {
+            s.get("id") if isinstance(s, dict) else s
+            for s in current_selected
+        }
+        merged = list(current_selected)
+        for s in smart_selected:
+            if s["id"] not in existing_ids and len(merged) < max_sources:
+                merged.append(s)
+                existing_ids.add(s["id"])
+
+        added_count = len(merged) - current_count
+
+        if added_count > 0:
+            landscape["selected_sources"] = merged
+            client.table("platform_connections").update({
+                "landscape": landscape,
+            }).eq("id", conn["id"]).execute()
+
+        results[platform] = {
+            "previous": current_count,
+            "added": added_count,
+            "total": len(merged),
+            "limit": max_sources,
+            "new_sources": [s.get("name", s.get("id")) for s in merged[current_count:]],
+        }
+
+    return {
+        "user_id": user_id,
+        "tier": get_limits_for_user(client, user_id).__class__.__name__,
+        "results": results,
+    }

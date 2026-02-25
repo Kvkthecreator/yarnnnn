@@ -2492,6 +2492,31 @@ async def get_landscape(
                 s for s in existing_selected
                 if (s.get("id") if isinstance(s, dict) else s) in new_resource_ids
             ]
+        else:
+            # ADR-078: Smart auto-selection for first-time landscape discovery
+            from services.landscape import compute_smart_defaults
+            from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
+
+            limits = get_limits_for_user(auth.client, user_id)
+            # For google provider, use gmail limit (calendars are unlimited)
+            limit_field = PROVIDER_LIMIT_MAP.get(
+                "gmail" if resolved_provider == "google" else resolved_provider,
+                "slack_channels"
+            )
+            max_sources = getattr(limits, limit_field, 5)
+            if max_sources == -1:
+                max_sources = 999  # unlimited
+
+            smart_selected = compute_smart_defaults(
+                resolved_provider,
+                landscape_data.get("resources", []),
+                max_sources,
+            )
+            landscape_data["selected_sources"] = smart_selected
+            logger.info(
+                f"[LANDSCAPE] Auto-selected {len(smart_selected)} sources for "
+                f"{resolved_provider} user {user_id[:8]}"
+            )
 
         # Store landscape snapshot
         auth.client.table("platform_connections").update({
