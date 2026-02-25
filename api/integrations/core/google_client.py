@@ -223,6 +223,57 @@ class GoogleAPIClient:
 
         return data.get("messages", [])
 
+    async def list_gmail_messages_paginated(
+        self,
+        client_id: str,
+        client_secret: str,
+        refresh_token: str,
+        query: Optional[str] = None,
+        label_ids: Optional[list[str]] = None,
+        max_messages: int = 200,
+    ) -> list[dict[str, Any]]:
+        """
+        Paginate through Gmail messages list until exhausted or cap hit.
+
+        ADR-077: Full paginated fetch replaces single-page max_results=50.
+        Returns list of message stubs (id, threadId only — call get_gmail_message for full content).
+        """
+        access_token = await self._get_access_token(
+            client_id, client_secret, refresh_token
+        )
+
+        all_messages: list[dict[str, Any]] = []
+        page_token: Optional[str] = None
+
+        while len(all_messages) < max_messages:
+            params: dict[str, Any] = {
+                "maxResults": min(100, max_messages - len(all_messages)),
+            }
+            if query:
+                params["q"] = query
+            if label_ids:
+                params["labelIds"] = label_ids
+            if page_token:
+                params["pageToken"] = page_token
+
+            response = await self._request_with_retry(
+                "get",
+                "https://gmail.googleapis.com/gmail/v1/users/me/messages",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params=params,
+            )
+            data = response.json()
+
+            if "error" in data:
+                raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+
+            all_messages.extend(data.get("messages", []))
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
+
+        return all_messages
+
     async def get_gmail_message(
         self,
         message_id: str,
@@ -427,17 +478,19 @@ class GoogleAPIClient:
         calendar_id: str = "primary",
         time_min: Optional[str] = None,
         time_max: Optional[str] = None,
-        max_results: int = 25,
+        max_results: int = 100,
         sync_token: Optional[str] = None,
     ) -> dict[str, Any]:
         """
-        List calendar events, with optional incremental sync.
+        List calendar events with pagination, with optional incremental sync.
+
+        ADR-077: Paginates via nextPageToken to fetch beyond single-page limit.
 
         Args:
             calendar_id: Calendar ID or 'primary'
-            time_min: Start time filter (ISO format or 'now'). Ignored when sync_token is set.
-            time_max: End time filter (ISO format or relative like '+7d'). Ignored when sync_token is set.
-            max_results: Maximum events to return
+            time_min: Start time filter (ISO format, 'now', or relative like '-7d'). Ignored when sync_token is set.
+            time_max: End time filter (ISO format or relative like '+14d'). Ignored when sync_token is set.
+            max_results: Maximum events to return (paginates to reach this)
             sync_token: If provided, performs incremental sync returning only changes since last sync.
                        When sync_token is invalid (410 Gone), returns {"invalid_sync_token": True}.
 
@@ -452,48 +505,65 @@ class GoogleAPIClient:
 
         if sync_token:
             # Incremental sync — time filters are not allowed with syncToken
-            params: dict[str, Any] = {
+            base_params: dict[str, Any] = {
                 "syncToken": sync_token,
-                "maxResults": min(max_results, 100),
             }
         else:
             # Full sync with time window
             if not time_min or time_min == "now":
                 time_min = datetime.now(timezone.utc).isoformat()
-            elif time_min.startswith("+"):
+            elif time_min.startswith("+") or time_min.startswith("-"):
                 time_min = self._parse_relative_time(time_min)
 
             if not time_max:
                 time_max = (datetime.now(timezone.utc) + timedelta(days=7)).isoformat()
-            elif time_max.startswith("+"):
+            elif time_max.startswith("+") or time_max.startswith("-"):
                 time_max = self._parse_relative_time(time_max)
 
-            params = {
+            base_params = {
                 "timeMin": time_min,
                 "timeMax": time_max,
-                "maxResults": min(max_results, 100),
                 "singleEvents": "true",
                 "orderBy": "startTime",
             }
 
-        response = await self._request_with_retry(
-            "get",
-            f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
-            headers={"Authorization": f"Bearer {access_token}"},
-            params=params,
-        )
-        data = response.json()
+        # ADR-077: Paginate via nextPageToken
+        all_items: list[dict[str, Any]] = []
+        page_token: Optional[str] = None
+        next_sync_token: Optional[str] = None
 
-        if "error" in data:
-            error_code = data["error"].get("code", 0)
-            # 410 Gone means sync token expired — caller should do full sync
-            if error_code == 410 and sync_token:
-                return {"items": [], "invalid_sync_token": True}
-            raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
+        while len(all_items) < max_results:
+            params = {
+                **base_params,
+                "maxResults": min(100, max_results - len(all_items)),
+            }
+            if page_token:
+                params["pageToken"] = page_token
+
+            response = await self._request_with_retry(
+                "get",
+                f"https://www.googleapis.com/calendar/v3/calendars/{calendar_id}/events",
+                headers={"Authorization": f"Bearer {access_token}"},
+                params=params,
+            )
+            data = response.json()
+
+            if "error" in data:
+                error_code = data["error"].get("code", 0)
+                # 410 Gone means sync token expired — caller should do full sync
+                if error_code == 410 and sync_token:
+                    return {"items": [], "invalid_sync_token": True}
+                raise RuntimeError(f"Calendar API error: {data['error'].get('message', data['error'])}")
+
+            all_items.extend(data.get("items", []))
+            next_sync_token = data.get("nextSyncToken") or next_sync_token
+            page_token = data.get("nextPageToken")
+            if not page_token:
+                break
 
         return {
-            "items": data.get("items", []),
-            "next_sync_token": data.get("nextSyncToken"),
+            "items": all_items,
+            "next_sync_token": next_sync_token,
         }
 
     async def get_calendar_event(
@@ -712,15 +782,17 @@ class GoogleAPIClient:
         return data.get("items", [])
 
     def _parse_relative_time(self, val: str) -> str:
-        """Parse relative time like '+2h' or '+7d' to ISO format."""
-        val = val.lstrip("+")
+        """Parse relative time like '+2h', '+7d', or '-7d' to ISO format."""
+        # Preserve sign for negative values, strip leading +
+        sign = -1 if val.startswith("-") else 1
+        val = val.lstrip("+-")
         if val.endswith("h"):
             delta = timedelta(hours=int(val[:-1]))
         elif val.endswith("d"):
             delta = timedelta(days=int(val[:-1]))
         else:
             delta = timedelta(days=int(val))
-        return (datetime.now(timezone.utc) + delta).isoformat()
+        return (datetime.now(timezone.utc) + sign * delta).isoformat()
 
 
 # Singleton instance

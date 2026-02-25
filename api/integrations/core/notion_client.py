@@ -272,6 +272,167 @@ class NotionAPIClient:
             page_size=page_size,
         )
 
+    async def search_paginated(
+        self,
+        access_token: str,
+        query: str = "",
+        filter_type: Optional[str] = None,
+        max_results: int = 500,
+    ) -> list[dict[str, Any]]:
+        """
+        Paginated search through Notion workspace.
+
+        ADR-077: Full paginated discovery for landscape (replaces capped search).
+        """
+        all_results: list[dict[str, Any]] = []
+        start_cursor: Optional[str] = None
+
+        while len(all_results) < max_results:
+            body: dict[str, Any] = {
+                "query": query,
+                "page_size": min(100, max_results - len(all_results)),
+            }
+            if filter_type in ("page", "database"):
+                body["filter"] = {"value": filter_type, "property": "object"}
+            if start_cursor:
+                body["start_cursor"] = start_cursor
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    "https://api.notion.com/v1/search",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Notion-Version": NOTION_VERSION,
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                    timeout=30.0,
+                )
+                if response.status_code != 200:
+                    break
+                data = response.json()
+
+            all_results.extend(data.get("results", []))
+            if not data.get("has_more") or not data.get("next_cursor"):
+                break
+            start_cursor = data["next_cursor"]
+
+        return all_results
+
+    async def get_page_content_full(
+        self,
+        access_token: str,
+        page_id: str,
+        max_blocks: int = 500,
+        max_depth: int = 3,
+    ) -> list[dict[str, Any]]:
+        """
+        Recursively fetch all blocks including nested children with pagination.
+
+        ADR-077: Replaces single-page get_page_content for deeper content capture.
+        """
+        blocks: list[dict[str, Any]] = []
+        await self._fetch_blocks_recursive(
+            access_token, page_id, blocks, max_blocks, max_depth, depth=0
+        )
+        return blocks
+
+    async def _fetch_blocks_recursive(
+        self,
+        access_token: str,
+        block_id: str,
+        blocks: list[dict[str, Any]],
+        max_blocks: int,
+        max_depth: int,
+        depth: int,
+    ) -> None:
+        """Recursively fetch block children with pagination."""
+        import asyncio
+
+        if len(blocks) >= max_blocks or depth > max_depth:
+            return
+
+        start_cursor: Optional[str] = None
+        while len(blocks) < max_blocks:
+            params: dict[str, Any] = {"page_size": 100}
+            if start_cursor:
+                params["start_cursor"] = start_cursor
+
+            async with httpx.AsyncClient() as client:
+                response = await client.get(
+                    f"https://api.notion.com/v1/blocks/{block_id}/children",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Notion-Version": NOTION_VERSION,
+                    },
+                    params=params,
+                    timeout=30.0,
+                )
+                if response.status_code != 200:
+                    break
+                data = response.json()
+
+            results = data.get("results", [])
+            for block in results:
+                if len(blocks) >= max_blocks:
+                    break
+                blocks.append(block)
+                # Recurse into children (toggles, columns, synced blocks, etc.)
+                if block.get("has_children") and depth < max_depth:
+                    # ADR-077: Notion rate limit ~3 req/sec
+                    await asyncio.sleep(0.35)
+                    await self._fetch_blocks_recursive(
+                        access_token, block["id"], blocks,
+                        max_blocks, max_depth, depth + 1,
+                    )
+
+            start_cursor = data.get("next_cursor")
+            if not start_cursor or not data.get("has_more"):
+                break
+
+    async def query_database(
+        self,
+        access_token: str,
+        database_id: str,
+        page_size: int = 100,
+        max_pages: int = 3,
+    ) -> list[dict[str, Any]]:
+        """
+        Query a Notion database to get its rows (pages).
+
+        ADR-077: Database content support for richer Notion sync.
+        Returns list of page objects that are rows of the database.
+        """
+        all_results: list[dict[str, Any]] = []
+        start_cursor: Optional[str] = None
+
+        for _ in range(max_pages):
+            body: dict[str, Any] = {"page_size": min(page_size, 100)}
+            if start_cursor:
+                body["start_cursor"] = start_cursor
+
+            async with httpx.AsyncClient() as client:
+                response = await client.post(
+                    f"https://api.notion.com/v1/databases/{database_id}/query",
+                    headers={
+                        "Authorization": f"Bearer {access_token}",
+                        "Notion-Version": NOTION_VERSION,
+                        "Content-Type": "application/json",
+                    },
+                    json=body,
+                    timeout=30.0,
+                )
+                if response.status_code != 200:
+                    break
+                data = response.json()
+
+            all_results.extend(data.get("results", []))
+            start_cursor = data.get("next_cursor")
+            if not start_cursor or not data.get("has_more"):
+                break
+
+        return all_results
+
     def _text_to_rich_text(self, text: str) -> list[dict[str, Any]]:
         """
         Convert plain text to Notion rich text format.

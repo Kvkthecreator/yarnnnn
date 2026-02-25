@@ -157,6 +157,17 @@ You MUST:
 **Removed tables** (ADR-059 — do not reference in new code):
 - `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`
 
+### ADR-077: Platform Sync Overhaul
+
+**Three-phase sync model** per platform: landscape discovery → delta detection → content extraction.
+
+- **Scheduler**: `platform_sync_scheduler.py` (separate from `unified_scheduler.py`) — checks tier-based frequency, dispatches to `platform_worker.py`
+- **Worker**: `platform_worker.py` — `_sync_slack()`, `_sync_gmail()`, `_sync_notion()`, `_sync_calendar()` — all fully paginated with platform-specific hardening
+- **Clients**: Direct API via `api/integrations/core/{slack,google,notion}_client.py` — no MCP, no gateway (ADR-076)
+- **Content**: Stored in `platform_content` with TTL-based retention (Slack 14d, Gmail 30d, Notion 90d, Calendar 2d)
+- **Tier limits**: Free=5/5/10, Starter=15/10/25, Pro=unlimited (slack/gmail/notion sources)
+- **Google split**: Single `platform="google"` connection provides both Gmail and Calendar. Worker splits `selected_sources` by `metadata.platform` from landscape resources.
+
 ### ADR-057: Streamlined Onboarding
 
 - OAuth redirects to `/dashboard?provider=X&status=connected`
@@ -180,8 +191,12 @@ You MUST:
 | Working Memory | `api/services/working_memory.py` |
 | Chat/Streaming | `api/services/anthropic.py` |
 | OAuth Flow | `api/integrations/core/oauth.py` |
-| Platform Sync | `api/integrations/{slack,gmail,notion}/` |
-| Scheduler | `api/jobs/unified_scheduler.py` |
+| Platform Sync Worker | `api/workers/platform_worker.py` (ADR-077) |
+| Platform Sync Scheduler | `api/jobs/platform_sync_scheduler.py` |
+| Platform API Clients | `api/integrations/core/{slack,google,notion}_client.py` |
+| Landscape Discovery | `api/services/landscape.py` |
+| Tier Limits | `api/services/platform_limits.py` |
+| Scheduler (Deliverables) | `api/jobs/unified_scheduler.py` |
 | MCP Server | `api/mcp_server/` (ADR-075) |
 | Frontend API Client | `web/lib/api/client.ts` |
 | Onboarding UI | `web/components/onboarding/` |

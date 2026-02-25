@@ -171,7 +171,8 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
         bot_token = token_manager.decrypt(integration["credentials_encrypted"])
         slack_client = get_slack_client()
 
-        channels = await slack_client.list_channels(bot_token=bot_token)
+        # ADR-077: Use paginated channel list for full discovery
+        channels = await slack_client.list_channels_paginated(bot_token=bot_token)
 
         resources = []
         for channel in channels:
@@ -182,8 +183,8 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
                 "metadata": {
                     "is_private": channel.get("is_private", False),
                     "num_members": channel.get("num_members", 0),
-                    "topic": channel.get("topic", {}).get("value"),
-                    "purpose": channel.get("purpose", {}).get("value")
+                    "topic": channel.get("topic"),
+                    "purpose": channel.get("purpose"),
                 }
             })
 
@@ -196,7 +197,10 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
 
         try:
             notion_client = get_notion_client()
-            pages = await notion_client.search(access_token=auth_token, query="", page_size=100)
+            # ADR-077: Paginated search for full workspace discovery
+            pages = await notion_client.search_paginated(
+                access_token=auth_token, query="", max_results=500
+            )
         except Exception as e:
             logger.warning(f"[LANDSCAPE] Notion search failed: {e}")
             return {"resources": []}

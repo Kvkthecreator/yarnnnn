@@ -233,6 +233,7 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
     Sync Slack channels and messages.
 
     ADR-056: Only syncs channels in selected_sources list.
+    ADR-077: Full paginated fetch, thread expansion, system message filtering, user resolution.
     """
     from integrations.core.slack_client import get_slack_client
     from integrations.core.tokens import get_token_manager
@@ -251,8 +252,6 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
         except Exception as e:
             logger.warning(f"[PLATFORM_WORKER] Failed to decrypt Slack token: {e}")
 
-    team_id = settings.get("team_id") or metadata.get("team_id")
-
     if not bot_token:
         return {"error": "Missing Slack bot token", "items_synced": 0}
 
@@ -263,91 +262,172 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
 
     from services.freshness import get_sync_state, update_sync_registry
 
+    # ADR-077: System subtypes to filter out (noise, not conversation content)
+    SKIP_SUBTYPES = {
+        "bot_message", "channel_join", "channel_leave",
+        "channel_purpose", "channel_topic", "channel_rename",
+        "channel_archive", "channel_unarchive", "group_join",
+        "group_leave", "group_purpose", "group_topic",
+    }
+    MAX_THREAD_EXPANSIONS = 20  # Cap thread fetches per channel per sync
+
     selected_set = set(selected_sources)
     logger.info(f"[PLATFORM_WORKER] Slack sync: {len(selected_set)} channels selected")
 
     slack_client = get_slack_client()
     items_synced = 0
     channels_synced = 0
-    channels_skipped = 0
 
     try:
-        # Get list of channels
-        channels = await slack_client.list_channels(bot_token=bot_token)
+        for channel_id in selected_set:
+            try:
+                # ADR-073: Read sync cursor for incremental fetch
+                sync_state = await get_sync_state(client, user_id, "slack", channel_id)
+                oldest = sync_state.get("platform_cursor") if sync_state else None
+                is_initial = oldest is None
 
-        # ADR-056: Filter to only selected channels
-        for channel in channels:
-            channel_id = channel.get("id")
-            channel_name = channel.get("name", channel_id)
+                # ADR-077: Paginated fetch — 1000 on initial backfill, 500 on incremental
+                max_msgs = 1000 if is_initial else 500
 
-            # Skip if not in selected sources
-            if channel_id not in selected_set:
-                channels_skipped += 1
-                continue
+                messages, error = await slack_client.get_channel_history_paginated(
+                    bot_token=bot_token,
+                    channel_id=channel_id,
+                    oldest=oldest,
+                    max_messages=max_msgs,
+                )
 
-            logger.debug(f"[PLATFORM_WORKER] Syncing Slack channel: #{channel_name} ({channel_id})")
+                # Handle not_in_channel with auto-join
+                if error == "not_in_channel":
+                    joined = await slack_client.join_channel(bot_token=bot_token, channel_id=channel_id)
+                    if joined:
+                        messages, error = await slack_client.get_channel_history_paginated(
+                            bot_token=bot_token, channel_id=channel_id,
+                            oldest=oldest, max_messages=max_msgs,
+                        )
 
-            # ADR-073: Read sync cursor for incremental fetch
-            sync_state = await get_sync_state(client, user_id, "slack", channel_id)
-            oldest = sync_state.get("platform_cursor") if sync_state else None
+                if error and not messages:
+                    logger.warning(f"[PLATFORM_WORKER] Slack channel {channel_id} error: {error}")
+                    continue
 
-            messages, error = await slack_client.get_channel_history_with_error(
-                bot_token=bot_token,
-                channel_id=channel_id,
-                limit=50,
-                oldest=oldest,
-            )
+                # ADR-077: Filter system messages, collect user IDs for resolution
+                user_ids: set[str] = set()
+                filtered_messages = []
+                for msg in messages:
+                    subtype = msg.get("subtype")
+                    if subtype in SKIP_SUBTYPES:
+                        continue
+                    filtered_messages.append(msg)
+                    if msg.get("user"):
+                        user_ids.add(msg["user"])
 
-            # Handle not_in_channel with auto-join
-            if error == "not_in_channel":
-                joined = await slack_client.join_channel(bot_token=bot_token, channel_id=channel_id)
-                if joined:
-                    messages, error = await slack_client.get_channel_history_with_error(
-                        bot_token=bot_token, channel_id=channel_id, limit=50, oldest=oldest,
-                    )
+                # ADR-077: Resolve user IDs to display names (once per channel)
+                user_names: dict[str, str] = {}
+                if user_ids:
+                    try:
+                        user_names = await slack_client.resolve_users(bot_token, user_ids)
+                    except Exception as e:
+                        logger.warning(f"[PLATFORM_WORKER] User resolution failed: {e}")
 
-            # Track latest message ts for cursor update
-            latest_ts = oldest
-            for msg in messages:
-                msg_ts = msg.get("ts", "")
-                if msg_ts and (not latest_ts or msg_ts > latest_ts):
-                    latest_ts = msg_ts
+                # Get channel name from landscape or use ID
+                channel_name = channel_id
+                landscape = integration.get("landscape", {}) or {}
+                for r in landscape.get("resources", []):
+                    if isinstance(r, dict) and r.get("id") == channel_id:
+                        channel_name = r.get("name", channel_id)
+                        break
 
-                try:
-                    await _store_platform_content(
-                        client=client,
-                        user_id=user_id,
-                        source_type="slack",
-                        resource_id=channel_id,
-                        resource_name=f"#{channel_name}",
-                        item_id=msg_ts,
-                        content=msg.get("text", ""),
-                        content_type="message",
-                        metadata={
-                            "user": msg.get("user"),
-                            "ts": msg_ts,
-                            "reactions": msg.get("reactions", []),
-                        },
-                        source_timestamp=msg_ts,
-                    )
-                    items_synced += 1
-                except Exception:
-                    pass  # Already logged in _store_platform_content
+                # Track latest message ts for cursor update
+                latest_ts = oldest
+                thread_expansions = 0
 
-            # ADR-073: Update sync cursor with latest message ts
-            await update_sync_registry(
-                client, user_id, "slack", channel_id,
-                resource_name=f"#{channel_name}",
-                platform_cursor=latest_ts,
-                item_count=len(messages),
-            )
-            channels_synced += 1
+                for msg in filtered_messages:
+                    msg_ts = msg.get("ts", "")
+                    if msg_ts and (not latest_ts or msg_ts > latest_ts):
+                        latest_ts = msg_ts
 
-        logger.info(f"[PLATFORM_WORKER] Slack sync complete: {channels_synced} channels, {items_synced} messages (skipped {channels_skipped})")
+                    msg_user = msg.get("user", "")
+                    author = user_names.get(msg_user, msg_user)
+
+                    try:
+                        await _store_platform_content(
+                            client=client,
+                            user_id=user_id,
+                            source_type="slack",
+                            resource_id=channel_id,
+                            resource_name=channel_name,
+                            item_id=msg_ts,
+                            content=msg.get("text", ""),
+                            content_type="message",
+                            author=author,
+                            metadata={
+                                "user": msg_user,
+                                "ts": msg_ts,
+                                "reactions": msg.get("reactions", []),
+                                "reply_count": msg.get("reply_count", 0),
+                            },
+                            source_timestamp=msg_ts,
+                        )
+                        items_synced += 1
+                    except Exception:
+                        pass
+
+                    # ADR-077: Expand threads with 2+ replies (cap per channel)
+                    reply_count = msg.get("reply_count", 0)
+                    if reply_count >= 2 and thread_expansions < MAX_THREAD_EXPANSIONS:
+                        thread_expansions += 1
+                        try:
+                            replies = await slack_client.get_thread_replies(
+                                bot_token=bot_token,
+                                channel_id=channel_id,
+                                thread_ts=msg_ts,
+                            )
+                            for reply in replies:
+                                reply_ts = reply.get("ts", "")
+                                reply_user = reply.get("user", "")
+                                reply_author = user_names.get(reply_user, reply_user)
+
+                                await _store_platform_content(
+                                    client=client,
+                                    user_id=user_id,
+                                    source_type="slack",
+                                    resource_id=channel_id,
+                                    resource_name=channel_name,
+                                    item_id=reply_ts,
+                                    content=reply.get("text", ""),
+                                    content_type="thread_reply",
+                                    author=reply_author,
+                                    metadata={
+                                        "user": reply_user,
+                                        "ts": reply_ts,
+                                        "thread_ts": msg_ts,
+                                    },
+                                    source_timestamp=reply_ts,
+                                )
+                                items_synced += 1
+                        except Exception as e:
+                            logger.warning(f"[PLATFORM_WORKER] Thread expansion failed for {msg_ts}: {e}")
+
+                # ADR-073: Update sync cursor with latest message ts
+                await update_sync_registry(
+                    client, user_id, "slack", channel_id,
+                    resource_name=channel_name,
+                    platform_cursor=latest_ts,
+                    item_count=len(filtered_messages),
+                )
+                channels_synced += 1
+
+                logger.info(
+                    f"[PLATFORM_WORKER] Slack {channel_name}: "
+                    f"{len(filtered_messages)} messages, {thread_expansions} threads expanded"
+                )
+
+            except Exception as e:
+                logger.warning(f"[PLATFORM_WORKER] Slack channel {channel_id} sync error: {e}")
+
+        logger.info(f"[PLATFORM_WORKER] Slack sync complete: {channels_synced} channels, {items_synced} items")
         return {
             "items_synced": items_synced,
             "channels_synced": channels_synced,
-            "channels_skipped": channels_skipped,
         }
 
     except Exception as e:
@@ -398,6 +478,7 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
     Sync Gmail messages.
 
     ADR-055/ADR-056: Label-based sync - only syncs selected labels.
+    ADR-077: Paginated message list, concurrent fetch, 30-day initial window.
     selected_sources format: ["label:Label_123", "label:Label_456"] or ["Label_123", "Label_456"]
     """
     from integrations.core.google_client import GoogleAPIClient
@@ -431,6 +512,22 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
     items_synced = 0
     labels_synced = 0
 
+    # ADR-077: Concurrent message fetch helper
+    sem = asyncio.Semaphore(10)
+
+    async def _fetch_one_message(msg_id: str) -> Optional[dict]:
+        async with sem:
+            try:
+                return await google_client.get_gmail_message(
+                    message_id=msg_id,
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    refresh_token=refresh_token,
+                )
+            except Exception as e:
+                logger.warning(f"[PLATFORM_WORKER] Failed to fetch Gmail message {msg_id}: {e}")
+                return None
+
     try:
         for source in selected_sources:
             # Handle both "label:Label_123" and "Label_123" formats
@@ -446,76 +543,79 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
             # ADR-073: Use sync cursor for tighter date filter
             sync_state = await get_sync_state(client, user_id, "gmail", resource_id)
             if sync_state and sync_state.get("platform_cursor"):
-                # Cursor stores ISO date of last successful sync
                 date_filter = f"after:{sync_state['platform_cursor']}"
             else:
-                # First sync: fall back to 7-day window
-                cutoff_date = datetime.now(timezone.utc) - timedelta(days=7)
+                # ADR-077: 30-day initial window (was 7 days)
+                cutoff_date = datetime.now(timezone.utc) - timedelta(days=30)
                 date_filter = f"after:{cutoff_date.strftime('%Y/%m/%d')}"
 
             try:
-                # Fetch messages for this label
-                messages = await google_client.list_gmail_messages(
+                # ADR-077: Paginated fetch — up to 200 message stubs per label
+                messages = await google_client.list_gmail_messages_paginated(
                     client_id=client_id,
                     client_secret=client_secret,
                     refresh_token=refresh_token,
                     query=date_filter,
-                    max_results=50,
                     label_ids=[label_id],
+                    max_messages=200,
                 )
 
+                # ADR-077: Concurrent message content fetch (batches of 10)
+                msg_ids = [m.get("id") for m in messages if m.get("id")]
                 label_items = 0
-                # Fetch and store full message content
-                for msg in messages[:50]:  # Cap at 50 per label
-                    msg_id = msg.get("id")
-                    if not msg_id:
-                        continue
 
-                    try:
-                        full_msg = await google_client.get_gmail_message(
-                            message_id=msg_id,
-                            client_id=client_id,
-                            client_secret=client_secret,
-                            refresh_token=refresh_token,
-                        )
+                # Fetch in batches of 10 concurrently
+                for batch_start in range(0, len(msg_ids), 10):
+                    batch = msg_ids[batch_start:batch_start + 10]
+                    full_msgs = await asyncio.gather(
+                        *[_fetch_one_message(mid) for mid in batch]
+                    )
+
+                    for full_msg in full_msgs:
+                        if not full_msg:
+                            continue
+
+                        msg_id = full_msg.get("id", "")
 
                         # Extract headers
-                        headers = {h["name"].lower(): h["value"] for h in full_msg.get("payload", {}).get("headers", [])}
+                        headers = {
+                            h["name"].lower(): h["value"]
+                            for h in full_msg.get("payload", {}).get("headers", [])
+                        }
                         subject = headers.get("subject", "No subject")
                         sender = headers.get("from", "")
                         date_str = headers.get("date", "")
 
                         # Extract body text from payload
                         body_text = _extract_gmail_body(full_msg.get("payload", {}))
-                        # Fall back to snippet if body extraction fails
                         content = body_text or full_msg.get("snippet", "")
 
-                        await _store_platform_content(
-                            client=client,
-                            user_id=user_id,
-                            source_type="gmail",
-                            resource_id=resource_id,  # ADR-055: Use label: prefix
-                            resource_name=subject,
-                            item_id=msg_id,
-                            content=content,
-                            title=subject,
-                            author=sender,
-                            content_type="email",
-                            metadata={
-                                "message_id": msg_id,
-                                "subject": subject,
-                                "from": sender,
-                                "label_id": label_id,
-                                "labels": full_msg.get("labelIds", []),
-                                "thread_id": full_msg.get("threadId"),
-                            },
-                            source_timestamp=date_str,
-                        )
-                        items_synced += 1
-                        label_items += 1
-
-                    except Exception as e:
-                        logger.warning(f"[PLATFORM_WORKER] Failed to fetch/store Gmail message {msg_id}: {e}")
+                        try:
+                            await _store_platform_content(
+                                client=client,
+                                user_id=user_id,
+                                source_type="gmail",
+                                resource_id=resource_id,
+                                resource_name=subject,
+                                item_id=msg_id,
+                                content=content,
+                                title=subject,
+                                author=sender,
+                                content_type="email",
+                                metadata={
+                                    "message_id": msg_id,
+                                    "subject": subject,
+                                    "from": sender,
+                                    "label_id": label_id,
+                                    "labels": full_msg.get("labelIds", []),
+                                    "thread_id": full_msg.get("threadId"),
+                                },
+                                source_timestamp=date_str,
+                            )
+                            items_synced += 1
+                            label_items += 1
+                        except Exception as e:
+                            logger.warning(f"[PLATFORM_WORKER] Failed to store Gmail message {msg_id}: {e}")
 
                 # ADR-073: Update sync cursor with today's date
                 now = datetime.now(timezone.utc)
@@ -526,6 +626,8 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
                     item_count=label_items,
                 )
                 labels_synced += 1
+
+                logger.info(f"[PLATFORM_WORKER] Gmail label {label_id}: {label_items} emails from {len(msg_ids)} found")
 
             except Exception as e:
                 logger.warning(f"[PLATFORM_WORKER] Failed to sync Gmail label {label_id}: {e}")
@@ -543,11 +645,10 @@ async def _sync_gmail(client, user_id: str, integration: dict, selected_sources:
 
 async def _sync_notion(client, user_id: str, integration: dict, selected_sources: list[str]) -> dict:
     """
-    Sync Notion pages.
+    Sync Notion pages and databases.
 
-    ADR-056: Directly fetches selected pages by ID (not search-then-filter).
-    ADR-062: Uses NotionAPIClient (direct REST) instead of MCP Gateway.
-             MCP Gateway requires internal ntn_... tokens; OAuth tokens only work via direct API.
+    ADR-056: Directly fetches selected pages/databases by ID.
+    ADR-077: Recursive block fetch, database query support, rate limiting.
     """
     from integrations.core.notion_client import get_notion_client
     from integrations.core.tokens import get_token_manager
@@ -564,10 +665,10 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
 
     # ADR-056: If no sources selected, nothing to sync
     if not selected_sources:
-        logger.info("[PLATFORM_WORKER] No Notion pages selected, skipping sync")
+        logger.info("[PLATFORM_WORKER] No Notion sources selected, skipping sync")
         return {"items_synced": 0, "pages_synced": 0, "skipped": "no_sources_selected"}
 
-    logger.info(f"[PLATFORM_WORKER] Notion sync: {len(selected_sources)} pages selected")
+    logger.info(f"[PLATFORM_WORKER] Notion sync: {len(selected_sources)} sources selected")
 
     from services.freshness import get_sync_state, update_sync_registry
 
@@ -577,69 +678,109 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
     pages_skipped = 0
     pages_failed = 0
 
+    # ADR-077: Determine source types from landscape metadata
+    landscape = integration.get("landscape", {}) or {}
+    resource_types = {}
+    for r in landscape.get("resources", []):
+        if isinstance(r, dict) and r.get("id"):
+            resource_types[r["id"]] = r.get("type", "page")
+
+    async def _sync_one_page(page_id: str, parent_resource_id: Optional[str] = None) -> bool:
+        """Sync a single Notion page. Returns True if content was stored."""
+        nonlocal items_synced, pages_synced, pages_skipped, pages_failed
+
+        try:
+            page_meta = await notion_client.get_page(access_token, page_id)
+
+            # Extract title
+            page_title = "Untitled"
+            props = page_meta.get("properties", {})
+            for prop in props.values():
+                if prop.get("type") == "title":
+                    title_parts = prop.get("title", [])
+                    page_title = "".join(t.get("plain_text", "") for t in title_parts) or "Untitled"
+                    break
+
+            last_edited = page_meta.get("last_edited_time")
+            page_url = page_meta.get("url")
+            resource_id = parent_resource_id or page_id
+
+            # ADR-073: Skip if unchanged
+            sync_state = await get_sync_state(client, user_id, "notion", page_id)
+            if sync_state and sync_state.get("platform_cursor") == last_edited:
+                pages_skipped += 1
+                return False
+
+            # ADR-077: Recursive block fetch with pagination
+            blocks = await notion_client.get_page_content_full(
+                access_token, page_id, max_blocks=500, max_depth=3
+            )
+            content = _extract_text_from_notion_blocks(blocks)
+
+            await _store_platform_content(
+                client=client,
+                user_id=user_id,
+                source_type="notion",
+                resource_id=resource_id,
+                resource_name=page_title,
+                item_id=page_id,
+                content=content,
+                content_type="page",
+                metadata={
+                    "url": page_url,
+                    "last_edited": last_edited,
+                    "parent_database": parent_resource_id,
+                },
+                source_timestamp=last_edited,
+            )
+            items_synced += 1
+            pages_synced += 1
+
+            await update_sync_registry(
+                client, user_id, "notion", page_id,
+                resource_name=page_title,
+                platform_cursor=last_edited,
+                item_count=1,
+            )
+            return True
+
+        except Exception as e:
+            logger.warning(f"[PLATFORM_WORKER] Failed to sync Notion page {page_id}: {e}")
+            pages_failed += 1
+            return False
+
     try:
-        # ADR-056: Directly fetch each selected page by ID
-        for page_id in selected_sources:
-            try:
-                logger.debug(f"[PLATFORM_WORKER] Fetching Notion page: {page_id}")
+        for source_id in selected_sources:
+            source_type = resource_types.get(source_id, "page")
 
-                # Fetch page metadata (title, last_edited_time, url)
-                page_meta = await notion_client.get_page(access_token, page_id)
+            if source_type == "database":
+                # ADR-077: Query database rows (child pages) and sync each
+                try:
+                    # Rate limit
+                    await asyncio.sleep(0.35)
+                    db_pages = await notion_client.query_database(
+                        access_token, source_id, page_size=100, max_pages=3
+                    )
+                    logger.info(f"[PLATFORM_WORKER] Notion database {source_id}: {len(db_pages)} rows")
 
-                # Extract title from page properties
-                page_title = "Untitled"
-                props = page_meta.get("properties", {})
-                for prop in props.values():
-                    if prop.get("type") == "title":
-                        title_parts = prop.get("title", [])
-                        page_title = "".join(t.get("plain_text", "") for t in title_parts) or "Untitled"
-                        break
+                    for db_page in db_pages:
+                        child_page_id = db_page.get("id")
+                        if child_page_id:
+                            await asyncio.sleep(0.35)  # Rate limit
+                            await _sync_one_page(child_page_id, parent_resource_id=source_id)
 
-                last_edited = page_meta.get("last_edited_time")
-                page_url = page_meta.get("url")
+                except Exception as e:
+                    logger.warning(f"[PLATFORM_WORKER] Failed to query Notion database {source_id}: {e}")
+                    pages_failed += 1
+            else:
+                # Regular page sync
+                await asyncio.sleep(0.35)  # Rate limit
+                await _sync_one_page(source_id)
 
-                # ADR-073: Skip content fetch if page hasn't changed since last sync
-                sync_state = await get_sync_state(client, user_id, "notion", page_id)
-                if sync_state and sync_state.get("platform_cursor") == last_edited:
-                    logger.debug(f"[PLATFORM_WORKER] Notion page {page_id} unchanged, skipping content fetch")
-                    pages_skipped += 1
-                    continue
-
-                # Fetch page content blocks
-                blocks = await notion_client.get_page_content(access_token, page_id)
-                content = _extract_text_from_notion_blocks(blocks)
-
-                await _store_platform_content(
-                    client=client,
-                    user_id=user_id,
-                    source_type="notion",
-                    resource_id=page_id,
-                    resource_name=page_title,
-                    item_id=page_id,
-                    content=content,
-                    content_type="page",
-                    metadata={
-                        "url": page_url,
-                        "last_edited": last_edited,
-                    },
-                    source_timestamp=last_edited,
-                )
-                items_synced += 1
-                pages_synced += 1
-
-                # ADR-073: Save last_edited_time as cursor
-                await update_sync_registry(
-                    client, user_id, "notion", page_id,
-                    resource_name=page_title,
-                    platform_cursor=last_edited,
-                    item_count=1,
-                )
-
-            except Exception as e:
-                logger.warning(f"[PLATFORM_WORKER] Failed to sync Notion page {page_id}: {e}")
-                pages_failed += 1
-
-        logger.info(f"[PLATFORM_WORKER] Notion sync complete: {pages_synced} synced, {pages_skipped} unchanged, {pages_failed} failed")
+        logger.info(
+            f"[PLATFORM_WORKER] Notion sync complete: "
+            f"{pages_synced} synced, {pages_skipped} unchanged, {pages_failed} failed"
+        )
         return {
             "items_synced": items_synced,
             "pages_synced": pages_synced,
@@ -656,14 +797,15 @@ def _extract_text_from_notion_blocks(blocks: list[dict]) -> str:
     """
     Extract plain text from Notion block objects.
 
-    Notion API returns structured block objects, each with a `type` and
-    a matching key containing rich_text arrays.
+    ADR-077: Extended to handle additional block types including
+    tables, columns, bookmarks, embeds, and dividers.
     """
     lines = []
     text_block_types = {
         "paragraph", "heading_1", "heading_2", "heading_3",
         "bulleted_list_item", "numbered_list_item", "to_do",
         "toggle", "quote", "callout", "code",
+        "table_row",
     }
 
     for block in blocks:
@@ -672,9 +814,29 @@ def _extract_text_from_notion_blocks(blocks: list[dict]) -> str:
 
         if block_type in text_block_types:
             rich_text = block_data.get("rich_text", [])
-            text = "".join(t.get("plain_text", "") for t in rich_text)
+            # table_row uses "cells" instead of "rich_text"
+            if block_type == "table_row":
+                cells = block_data.get("cells", [])
+                cell_texts = []
+                for cell in cells:
+                    cell_texts.append("".join(t.get("plain_text", "") for t in cell))
+                text = " | ".join(cell_texts)
+            else:
+                text = "".join(t.get("plain_text", "") for t in rich_text)
             if text:
                 lines.append(text)
+        elif block_type == "bookmark":
+            url = block_data.get("url", "")
+            caption = block_data.get("caption", [])
+            caption_text = "".join(t.get("plain_text", "") for t in caption)
+            if url:
+                lines.append(f"[Bookmark: {caption_text or url}]")
+        elif block_type == "embed":
+            url = block_data.get("url", "")
+            if url:
+                lines.append(f"[Embed: {url}]")
+        elif block_type == "divider":
+            lines.append("---")
 
     return "\n".join(lines)
 
@@ -684,7 +846,7 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
     Sync Google Calendar events.
 
     ADR-056: Syncs only selected calendars (calendar IDs).
-    Fetches upcoming events for the next 7 days.
+    ADR-077: Wider time window (-7d to +14d), pagination, debug logging.
     """
     from integrations.core.google_client import GoogleAPIClient
     from integrations.core.tokens import get_token_manager
@@ -702,7 +864,7 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
         logger.info("[PLATFORM_WORKER] No calendars selected, skipping sync")
         return {"items_synced": 0, "calendars_synced": 0, "skipped": "no_sources_selected"}
 
-    logger.info(f"[PLATFORM_WORKER] Calendar sync: {len(selected_sources)} calendars selected")
+    logger.info(f"[PLATFORM_WORKER] Calendar sync: {len(selected_sources)} calendars selected: {selected_sources}")
 
     google_client = GoogleAPIClient()
     client_id = os.environ.get("GOOGLE_CLIENT_ID")
@@ -719,41 +881,51 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
     try:
         for calendar_id in selected_sources:
             try:
-                logger.debug(f"[PLATFORM_WORKER] Syncing Calendar: {calendar_id}")
+                logger.info(f"[PLATFORM_WORKER] Syncing calendar: {calendar_id}")
 
                 # ADR-073: Try incremental sync with syncToken first
                 sync_state = await get_sync_state(client, user_id, "calendar", calendar_id)
                 stored_sync_token = sync_state.get("platform_cursor") if sync_state else None
 
+                cal_result = None
                 if stored_sync_token:
+                    logger.info(f"[PLATFORM_WORKER] Calendar {calendar_id}: attempting incremental sync with stored token")
                     cal_result = await google_client.list_calendar_events(
                         client_id=client_id,
                         client_secret=client_secret,
                         refresh_token=refresh_token,
                         calendar_id=calendar_id,
-                        max_results=50,
+                        max_results=200,
                         sync_token=stored_sync_token,
                     )
                     # If token expired (410 Gone), fall back to full sync
                     if cal_result.get("invalid_sync_token"):
-                        logger.info(f"[PLATFORM_WORKER] Calendar syncToken expired for {calendar_id}, doing full sync")
-                        stored_sync_token = None
+                        logger.info(f"[PLATFORM_WORKER] Calendar syncToken expired for {calendar_id}, falling back to full sync")
+                        cal_result = None
 
-                if not stored_sync_token:
-                    # Full sync: fetch events for next 7 days
+                if cal_result is None:
+                    # ADR-077: Full sync with wider window — past 7 days + next 14 days
+                    logger.info(f"[PLATFORM_WORKER] Calendar {calendar_id}: full sync -7d to +14d")
                     cal_result = await google_client.list_calendar_events(
                         client_id=client_id,
                         client_secret=client_secret,
                         refresh_token=refresh_token,
                         calendar_id=calendar_id,
-                        time_min="now",
-                        time_max="+7d",
-                        max_results=50,
+                        time_min="-7d",
+                        time_max="+14d",
+                        max_results=200,
                     )
 
                 events = cal_result.get("items", [])
                 next_sync_token = cal_result.get("next_sync_token")
 
+                logger.info(
+                    f"[PLATFORM_WORKER] Calendar {calendar_id}: "
+                    f"API returned {len(events)} events, "
+                    f"next_sync_token={'yes' if next_sync_token else 'no'}"
+                )
+
+                stored_count = 0
                 for event in events:
                     event_id = event.get("id")
                     if not event_id:
@@ -767,49 +939,65 @@ async def _sync_calendar(client, user_id: str, integration: dict, selected_sourc
                     description = event.get("description", "")
                     location = event.get("location", "")
 
-                    # Get start time
+                    # Get start/end times
                     start = event.get("start", {})
                     start_time = start.get("dateTime") or start.get("date", "")
+                    end = event.get("end", {})
+                    end_time = end.get("dateTime") or end.get("date", "")
 
                     # Build content from event details
                     content_parts = [summary]
+                    if start_time:
+                        content_parts.append(f"When: {start_time} — {end_time}")
                     if description:
                         content_parts.append(description)
                     if location:
                         content_parts.append(f"Location: {location}")
+                    attendees = event.get("attendees", [])
+                    if attendees:
+                        names = [a.get("displayName") or a.get("email", "") for a in attendees[:10]]
+                        content_parts.append(f"Attendees: {', '.join(names)}")
                     content = "\n".join(content_parts)
 
-                    await _store_platform_content(
-                        client=client,
-                        user_id=user_id,
-                        source_type="calendar",
-                        resource_id=calendar_id,
-                        resource_name=summary,
-                        item_id=event_id,
-                        content=content,
-                        content_type="event",
-                        metadata={
-                            "event_id": event_id,
-                            "start": start_time,
-                            "end": event.get("end", {}).get("dateTime") or event.get("end", {}).get("date"),
-                            "location": location,
-                            "attendees": [a.get("email") for a in event.get("attendees", [])],
-                            "html_link": event.get("htmlLink"),
-                        },
-                        source_timestamp=start_time,
-                    )
-                    items_synced += 1
+                    try:
+                        await _store_platform_content(
+                            client=client,
+                            user_id=user_id,
+                            source_type="calendar",
+                            resource_id=calendar_id,
+                            resource_name=summary,
+                            item_id=event_id,
+                            content=content,
+                            content_type="event",
+                            metadata={
+                                "event_id": event_id,
+                                "start": start_time,
+                                "end": end_time,
+                                "location": location,
+                                "attendees": [a.get("email") for a in attendees],
+                                "organizer": event.get("organizer", {}).get("email"),
+                                "html_link": event.get("htmlLink"),
+                                "status": event.get("status"),
+                            },
+                            source_timestamp=start_time,
+                        )
+                        items_synced += 1
+                        stored_count += 1
+                    except Exception as e:
+                        logger.warning(f"[PLATFORM_WORKER] Failed to store calendar event {event_id}: {e}")
 
                 # ADR-073: Save syncToken for next incremental sync
                 await update_sync_registry(
                     client, user_id, "calendar", calendar_id,
                     platform_cursor=next_sync_token,
-                    item_count=len(events),
+                    item_count=stored_count,
                 )
                 calendars_synced += 1
 
+                logger.info(f"[PLATFORM_WORKER] Calendar {calendar_id}: {stored_count} events stored")
+
             except Exception as e:
-                logger.warning(f"[PLATFORM_WORKER] Failed to sync calendar {calendar_id}: {e}")
+                logger.warning(f"[PLATFORM_WORKER] Failed to sync calendar {calendar_id}: {e}", exc_info=True)
 
         logger.info(f"[PLATFORM_WORKER] Calendar sync complete: {calendars_synced} calendars, {items_synced} events")
         return {
@@ -850,13 +1038,13 @@ async def _store_platform_content(
     from datetime import timedelta
     import hashlib
 
-    # TTL based on source type (ADR-072)
+    # TTL based on source type (ADR-072, extended ADR-077)
     ttl_hours = {
-        "slack": 168,     # 7 days
-        "gmail": 336,     # 14 days
-        "notion": 720,    # 30 days
-        "calendar": 24,   # 1 day
-    }.get(source_type, 168)
+        "slack": 336,     # 14 days (was 7)
+        "gmail": 720,     # 30 days (was 14)
+        "notion": 2160,   # 90 days (was 30)
+        "calendar": 48,   # 2 days  (was 1)
+    }.get(source_type, 336)
 
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(hours=ttl_hours)

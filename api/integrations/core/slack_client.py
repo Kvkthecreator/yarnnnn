@@ -225,6 +225,167 @@ class SlackAPIClient:
 
         return data.get("messages", []), None
 
+    async def get_channel_history_paginated(
+        self,
+        bot_token: str,
+        channel_id: str,
+        oldest: Optional[str] = None,
+        max_messages: int = 500,
+    ) -> tuple[list[dict[str, Any]], Optional[str]]:
+        """
+        Paginate through conversations.history until exhausted or cap hit.
+
+        ADR-077: Full paginated fetch replaces single-page limit=50.
+        Returns (messages, error_code).
+        """
+        all_messages: list[dict[str, Any]] = []
+        cursor: Optional[str] = None
+
+        while len(all_messages) < max_messages:
+            params: dict[str, Any] = {
+                "channel": channel_id,
+                "limit": min(200, max_messages - len(all_messages)),
+            }
+            if oldest:
+                params["oldest"] = oldest
+            if cursor:
+                params["cursor"] = cursor
+
+            data = await self._request_with_retry(
+                "get",
+                f"{SLACK_API_BASE}/conversations.history",
+                bot_token=bot_token,
+                params=params,
+            )
+            if not data.get("ok"):
+                error = data.get("error", "unknown")
+                if not all_messages:
+                    return [], error
+                break
+
+            all_messages.extend(data.get("messages", []))
+
+            if not data.get("has_more"):
+                break
+            next_cursor = data.get("response_metadata", {}).get("next_cursor")
+            if not next_cursor:
+                break
+            cursor = next_cursor
+
+        return all_messages, None
+
+    async def get_thread_replies(
+        self,
+        bot_token: str,
+        channel_id: str,
+        thread_ts: str,
+        limit: int = 200,
+    ) -> list[dict[str, Any]]:
+        """
+        Fetch replies to a thread parent (conversations.replies).
+
+        ADR-077: Thread expansion for richer Slack content.
+        Returns replies only (skips the parent message).
+        """
+        data = await self._request_with_retry(
+            "get",
+            f"{SLACK_API_BASE}/conversations.replies",
+            bot_token=bot_token,
+            params={"channel": channel_id, "ts": thread_ts, "limit": limit},
+        )
+        if not data.get("ok"):
+            logger.warning(f"[SLACK_API] get_thread_replies error: {data.get('error')}")
+            return []
+
+        # First message in replies is the parent; skip it
+        replies = data.get("messages", [])
+        return [r for r in replies if r.get("ts") != thread_ts]
+
+    async def resolve_users(
+        self,
+        bot_token: str,
+        user_ids: set[str],
+    ) -> dict[str, str]:
+        """
+        Batch resolve Slack user IDs to display names.
+
+        ADR-077: User resolution for readable content.
+        Returns {user_id: display_name} mapping.
+        """
+        resolved: dict[str, str] = {}
+        for uid in user_ids:
+            try:
+                data = await self._request_with_retry(
+                    "get",
+                    f"{SLACK_API_BASE}/users.info",
+                    bot_token=bot_token,
+                    params={"user": uid},
+                )
+                if data.get("ok"):
+                    profile = data["user"].get("profile", {})
+                    resolved[uid] = (
+                        profile.get("display_name")
+                        or profile.get("real_name")
+                        or uid
+                    )
+                else:
+                    resolved[uid] = uid
+            except Exception:
+                resolved[uid] = uid
+        return resolved
+
+    async def list_channels_paginated(
+        self,
+        bot_token: str,
+        types: str = "public_channel,private_channel",
+        max_channels: int = 1000,
+    ) -> list[dict[str, Any]]:
+        """
+        Paginate through conversations.list for full channel discovery.
+
+        ADR-077: Replaces single-page list_channels for landscape discovery.
+        """
+        all_channels: list[dict[str, Any]] = []
+        cursor: Optional[str] = None
+
+        while len(all_channels) < max_channels:
+            params: dict[str, Any] = {
+                "limit": 200,
+                "types": types,
+                "exclude_archived": "true",
+            }
+            if cursor:
+                params["cursor"] = cursor
+
+            data = await self._request_with_retry(
+                "get",
+                f"{SLACK_API_BASE}/conversations.list",
+                bot_token=bot_token,
+                params=params,
+            )
+            if not data.get("ok"):
+                logger.error(f"[SLACK_API] list_channels_paginated error: {data.get('error')}")
+                break
+
+            for ch in data.get("channels", []):
+                if isinstance(ch, dict) and ch.get("id"):
+                    all_channels.append({
+                        "id": ch.get("id"),
+                        "name": ch.get("name") or ch.get("name_normalized"),
+                        "is_private": ch.get("is_private", False),
+                        "is_archived": ch.get("is_archived", False),
+                        "num_members": ch.get("num_members", 0),
+                        "topic": ch.get("topic", {}).get("value"),
+                        "purpose": ch.get("purpose", {}).get("value"),
+                    })
+
+            next_cursor = data.get("response_metadata", {}).get("next_cursor")
+            if not next_cursor:
+                break
+            cursor = next_cursor
+
+        return all_channels
+
     async def post_message(
         self,
         bot_token: str,

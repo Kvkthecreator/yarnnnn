@@ -2,10 +2,11 @@
 Platform Limits Service
 
 ADR-053: Platform sync as monetization base layer.
+ADR-077: Widened source limits to support richer content accumulation.
 
-Tier Structure (updated 2026-02-23):
-- Free: 2 sources/platform, all 4 platforms, 1x/day sync, 50k tokens/day, 2 deliverables, no signal processing
-- Starter ($9/mo): 5 sources, all platforms, 4x/day sync, 250k tokens/day, 5 deliverables, signal processing on
+Tier Structure (updated 2026-02-25):
+- Free: 5 slack/5 gmail/10 notion, all 4 platforms, 1x/day sync, 50k tokens/day, 2 deliverables, no signal processing
+- Starter ($9/mo): 15 slack/10 gmail/25 notion, all platforms, 4x/day sync, 250k tokens/day, 5 deliverables, signal processing on
 - Pro ($19/mo): unlimited sources, all platforms, hourly sync, 1M tokens/day, unlimited deliverables
 
 Key gates (by cost impact):
@@ -38,12 +39,12 @@ class PlatformLimits:
     active_deliverables: int  # -1 for unlimited
 
 
-# Tier definitions (ADR-053, updated 2026-02-23)
+# Tier definitions (ADR-053, widened ADR-077 2026-02-25)
 TIER_LIMITS = {
     "free": PlatformLimits(
-        slack_channels=2,
-        gmail_labels=2,
-        notion_pages=2,
+        slack_channels=5,
+        gmail_labels=5,
+        notion_pages=10,
         calendars=-1,            # No source selection for calendar
         total_platforms=4,       # All platforms open
         sync_frequency="1x_daily",
@@ -51,9 +52,9 @@ TIER_LIMITS = {
         active_deliverables=2,
     ),
     "starter": PlatformLimits(
-        slack_channels=5,
-        gmail_labels=5,
-        notion_pages=5,
+        slack_channels=15,
+        gmail_labels=10,
+        notion_pages=25,
         calendars=-1,
         total_platforms=4,
         sync_frequency="4x_daily",
