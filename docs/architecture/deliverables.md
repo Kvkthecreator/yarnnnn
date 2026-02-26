@@ -98,33 +98,27 @@ The `origin` field is **immutable provenance** — it records how the deliverabl
 
 ---
 
-## Type System (ADR-044)
+## Type System (ADR-044, consolidated by ADR-082)
 
-### Deliverable Types
+### Active Deliverable Types
 
-31 types across three tiers:
+8 active types across 4 bindings, each anchored to a distinct moment in the user's work rhythm:
 
-**Platform-Bound** — Single-platform, recurring patterns
-- `slack_channel_digest`, `slack_standup`
-- `gmail_inbox_brief`, `inbox_summary`
-- `notion_page_summary`
-- `meeting_prep`, `meeting_summary`, `weekly_calendar_preview`
+| Type | Binding | Rhythm | Purpose |
+|------|---------|--------|---------|
+| `slack_channel_digest` | platform_bound | daily | What happened in Slack while you were away |
+| `gmail_inbox_brief` | platform_bound | daily | Prioritized inbox summary |
+| `notion_page_summary` | platform_bound | daily | What changed in your docs |
+| `weekly_calendar_preview` | platform_bound | weekly | Your week ahead |
+| `meeting_prep` | platform_bound | reactive | Context brief for a specific upcoming meeting |
+| `status_report` | cross_platform | weekly | Cross-platform synthesis — what happened this week |
+| `research_brief` | research | on-demand | Web research on a topic, optionally grounded in platform data |
+| `custom` | hybrid | on-demand | User-defined format with full context access |
 
-**Cross-Platform** — Multi-platform synthesis
-- `status_report`, `stakeholder_update`, `one_on_one_prep`, `board_update`
-- `weekly_status`, `project_brief`, `cross_platform_digest`, `activity_summary`
-- `daily_strategy_reflection`, `performance_self_assessment`
-- `reply_draft`, `follow_up_tracker`, `thread_summary`
-- `newsletter`, `changelog`
+**Deprecated types** (19 types remain in DB constraint for backwards compatibility but are not selectable in the UI):
+`slack_standup`, `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary`, `meeting_summary`, `one_on_one_prep`, `stakeholder_update`, `board_update`, `weekly_status`, `project_brief`, `cross_platform_digest`, `activity_summary`, `daily_strategy_reflection`, `deep_research`, `intelligence_brief`, `client_proposal`, `performance_self_assessment`, `newsletter_section`, `changelog`
 
-**Research / Hybrid** — Web research with optional platform grounding
-- `research_brief`, `deep_research`, `competitive_analysis`
-- `intelligence_brief` (hybrid: web + platform in parallel)
-- `client_proposal` (hybrid)
-
-**Legacy / Deprecated**
-- `custom` — generic fallback
-- `digest` — deprecated in favor of `cross_platform_digest` or `slack_channel_digest`
+See [ADR-082](../adr/ADR-082-deliverable-type-consolidation.md) for the consolidation rationale and what each deprecated type was absorbed into.
 
 ### Type Classification (ADR-044)
 
@@ -132,32 +126,41 @@ Each deliverable type has a `type_classification` object that determines executi
 
 ```json
 {
-  "binding": "platform_bound" | "cross_platform" | "hybrid",
-  "primary_platform": "slack" | "gmail" | "notion" | "google" | null,
-  "temporal_pattern": "recurring" | "event_driven" | "ad_hoc",
-  "freshness_requirement_hours": 1 | 4 | 24 | 168
+  "binding": "platform_bound" | "cross_platform" | "research" | "hybrid",
+  "primary_platform": "slack" | "gmail" | "notion" | "calendar" | null,
+  "temporal_pattern": "scheduled" | "reactive" | "on_demand",
+  "freshness_requirement_hours": 1 | 4 | 24
 }
 ```
 
 **`binding`** — Determines execution strategy (see Execution Model below)
-- `platform_bound` → Single platform focus
-- `cross_platform` → Multi-platform search via `platform_content`
-- `hybrid` → Web research + platform fetch in parallel
+- `platform_bound` → Single platform's `platform_content`
+- `cross_platform` → All platforms' `platform_content`
+- `research` → Web research via headless agent WebSearch primitive (ADR-081)
+- `hybrid` → Web research + platform content
 
-> **Note (ADR-080)**: All strategies gather context from `platform_content`. The agent in headless mode can supplement with primitive calls (Search, FetchPlatformContent, CrossPlatformQuery). The strategy distinction remains for context gathering scope.
+> **Note (ADR-080/081)**: All strategies gather context from `platform_content`. The agent in headless mode can supplement with primitive calls (Search, Read, List, WebSearch, GetSystemState). Research/hybrid bindings pass a research directive to the headless agent. Strategy distinction is for context gathering scope.
 
 **`primary_platform`** — For platform-bound types, which platform to query
 
-**`temporal_pattern`** — Scheduling hint
-- `recurring`: Fixed schedule (daily, weekly)
-- `event_driven`: Triggered by platform events (Slack mention, calendar event)
-- `ad_hoc`: Manual trigger only
+**`temporal_pattern`** — When the deliverable is valuable
+- `scheduled`: Fixed cadence (daily, weekly) — most types
+- `reactive`: Triggered by upcoming event (meeting_prep)
+- `on_demand`: User-initiated (research_brief, custom)
 
 **`freshness_requirement_hours`** — How stale can source data be?
-- 1h: Real-time critical (meeting prep)
-- 4h: Same-day (inbox brief)
-- 24h: Daily digest
-- 168h: Weekly rollup
+- 1h: Real-time critical (meeting_prep, platform-bound daily types)
+- 4h: Same-day (status_report, notion_page_summary, weekly_calendar_preview)
+- 24h: On-demand (research_brief)
+
+### Canonical Terminology (ADR-082)
+
+| Term | Definition | Replaces |
+|------|-----------|----------|
+| **Binding** | How context is gathered | "Platform-Native" (ADR-031), "Platform-First" (ADR-035), "Wave" (ADR-035) |
+| **Tier** | Code maturity: `stable`, `deprecated` | "Beta", "Experimental", "Wave 1/2/3" |
+| **Rhythm** | When the deliverable is valuable: daily, weekly, reactive, on-demand | "Temporal pattern" (ADR-044) |
+| **Origin** | How the deliverable was created | Unchanged (ADR-068) |
 
 ---
 
@@ -175,14 +178,14 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 |----------|---------|---------------|
 | `PlatformBoundStrategy` | `platform_bound` | Single platform's `platform_content` |
 | `CrossPlatformStrategy` | `cross_platform` | All platforms' `platform_content` |
-| `ResearchStrategy` | `research` | Web research (Anthropic native `web_search`) |
-| `HybridStrategy` | `hybrid` | Web research + platform content in parallel (`asyncio.gather`) |
+| `ResearchStrategy` | `research` | Optional platform grounding + research directive for headless agent (ADR-081) |
+| `HybridStrategy` | `hybrid` | Platform content + research directive for headless agent (ADR-081) |
 
 4. Strategy calls `get_content_summary_for_generation()` — chronological content dump with signal markers (`[UNANSWERED]`, `[STALLED]`, `[URGENT]`, `[DECISION]`), capped at 20 items/source, 500 chars/item
 5. User memories appended from `user_context` (fact/instruction/preference keys)
 6. Past version feedback appended (if any)
 7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context
-8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — can supplement gathered context by calling `Search`, `FetchPlatformContent`, `CrossPlatformQuery` (max 3 tool rounds)
+8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware round limits (ADR-081). Research/hybrid types receive a research directive and use WebSearch for web investigation.
 9. `mark_content_retained()` on consumed `platform_content` records (ADR-072)
 10. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
 11. `activity_log` event written (non-fatal)
@@ -202,13 +205,13 @@ The content generation step uses the unified agent in headless mode — the same
 
 | Constraint | Value | Rationale |
 |---|---|---|
-| Primitives | Read-only subset (Search, FetchPlatformContent, CrossPlatformQuery) | No write operations in background jobs |
-| Max tool rounds | 3 | Bounded cost — investigation, not open-ended conversation |
+| Primitives | Read-only subset (Search, Read, List, WebSearch, GetSystemState) | No write operations in background jobs |
+| Max tool rounds | Binding-aware: platform_bound=2, cross_platform=3, research=6, hybrid=6 (ADR-081) | Research needs room for web search + follow-up |
 | Streaming | Off | No user watching |
 | Session state | None | Stateless background execution |
-| System prompt | Type-specific structured output | Not TP's conversational prompt |
+| System prompt | Type-specific structured output + optional research directive (ADR-081) | Not TP's conversational prompt |
 
-The agent receives gathered context from the strategy in its prompt. Primitives supplement — they don't replace — the strategy-based context gathering. Most deliverables will use 0-1 tool rounds; the gathered context is sufficient. Primitives enable investigation when it isn't.
+The agent receives gathered context from the strategy in its prompt. Primitives supplement — they don't replace — the strategy-based context gathering. Most platform-bound and cross-platform deliverables use 0-1 tool rounds; the gathered context is sufficient. Research/hybrid deliverables typically use 3-5 rounds for web search investigation (ADR-081).
 
 ---
 

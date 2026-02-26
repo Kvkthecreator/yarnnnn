@@ -62,9 +62,9 @@ Orchestration → Agent (mode="headless") → Text → Orchestration continues
 | Latency | Latency-tolerant (seconds to minutes) |
 | Scope | Stateless (no session) |
 | Streaming | No |
-| Primitives | Curated subset (read-only investigation) |
-| Max tool rounds | 3 |
-| System prompt | Type-specific structured output |
+| Primitives | Curated subset: Search, Read, List, WebSearch, GetSystemState |
+| Max tool rounds | Binding-aware: platform_bound=2, cross_platform=3, research=6, hybrid=6 (ADR-081) |
+| System prompt | Type-specific structured output + optional research directive (ADR-081) |
 | Entry point | `generate_draft_inline()` in deliverable pipeline |
 | LLM function | `chat_completion_with_tools()` |
 
@@ -87,19 +87,22 @@ Primitives declare which modes they are available in. One registry, one maintena
 ```python
 PRIMITIVE_MODES = {
     # Read-only investigation — both modes
-    "Search":                 ["chat", "headless"],
-    "FetchPlatformContent":   ["chat", "headless"],
-    "CrossPlatformQuery":     ["chat", "headless"],
-    "GetSystemState":         ["chat", "headless"],
+    "Search":           ["chat", "headless"],
+    "Read":             ["chat", "headless"],
+    "List":             ["chat", "headless"],
+    "GetSystemState":   ["chat", "headless"],
+    "WebSearch":        ["chat", "headless"],
 
-    # Write/action primitives — chat only
-    "CreateDeliverable":      ["chat"],
-    "ManageDeliverable":      ["chat"],
-    "UpdatePreferences":      ["chat"],
-    "SendSlackMessage":       ["chat"],
-    "CreateGmailDraft":       ["chat"],
-    "UpdateNotionPage":       ["chat"],
+    # Write/action/UI primitives — chat only
+    "Write":            ["chat"],
+    "Edit":             ["chat"],
+    "Execute":          ["chat"],
+    "Todo":             ["chat"],
+    "Respond":          ["chat"],
+    "Clarify":          ["chat"],
+    "list_integrations": ["chat"],
 }
+# Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
 ```
 
 When a primitive is updated or added, it is tagged with modes. Updates improve both modes simultaneously. No drift.
@@ -117,10 +120,10 @@ Backend Orchestration
 ├── 3. Strategy selection + context gathering (ADR-045)
 ├── 4. Version + ticket creation
 ├── 5. Agent (mode="headless")           ← agent invocation
-│   ├── Receives: gathered context + type prompt + signal reasoning
-│   ├── Can use: Search, FetchPlatformContent, CrossPlatformQuery
-│   ├── Cannot use: CreateDeliverable, UpdatePreferences, UI actions
-│   ├── Max 3 tool rounds
+│   ├── Receives: gathered context + type prompt + signal reasoning + research directive (if research/hybrid)
+│   ├── Can use: Search, Read, List, WebSearch, GetSystemState
+│   ├── Cannot use: Write, Edit, Execute, Todo, Respond, Clarify
+│   ├── Max tool rounds: binding-aware (2-6, ADR-081)
 │   └── Returns: structured content (text)
 ├── 6. Retention marking (ADR-072)
 ├── 7. Source snapshots (ADR-049)
@@ -178,10 +181,10 @@ Complexity in the orchestration pipeline lives in the *strategy*, not in agent l
 |---|---|---|
 | `platform_bound` | `PlatformBoundStrategy` | `platform_content` from single platform |
 | `cross_platform` | `CrossPlatformStrategy` | `platform_content` from all platforms |
-| `research` | `ResearchStrategy` | Web research via Anthropic native tool |
-| `hybrid` | `HybridStrategy` | Web research + platform content in parallel |
+| `research` | `ResearchStrategy` | Optional platform grounding + research directive for headless agent (ADR-081) |
+| `hybrid` | `HybridStrategy` | Platform content + research directive for headless agent (ADR-081) |
 
-Strategy is selected at execution time from `deliverable.type_classification.binding`. All strategies read from stored `platform_content` (ADR-073). The agent in headless mode receives the gathered context in its prompt and can supplement it with primitive calls.
+Strategy is selected at execution time from `deliverable.type_classification.binding`. All strategies read from stored `platform_content` (ADR-073). Research and hybrid strategies pass a `research_directive` to the headless agent, which uses the WebSearch primitive directly (ADR-081) — no separate web research call.
 
 See [backend-orchestration.md](backend-orchestration.md) for the full end-to-end pipeline.
 

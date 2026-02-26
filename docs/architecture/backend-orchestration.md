@@ -196,10 +196,10 @@ Each item → `_store_platform_content()`:
 |----------|--------------|
 | `platform_bound` | Single platform's `platform_content` |
 | `cross_platform` | All platforms |
-| `research` | Web research (Anthropic native) |
-| `hybrid` | Research + platform in parallel |
+| `research` | Optional platform grounding + research directive (ADR-081) |
+| `hybrid` | Platform content + research directive (ADR-081) |
 
-4. Agent (headless mode, ADR-080) generates via `chat_completion_with_tools()` — curated read-only primitives, max 3 tool rounds
+4. Agent (headless mode, ADR-080/081) generates via `chat_completion_with_tools()` — read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware tool rounds (2-6)
 5. `mark_content_retained()` on consumed content (ADR-072)
 6. Record `source_snapshots` (ADR-049)
 7. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
@@ -405,7 +405,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 | Model | Feature | Purpose | Cost/Call |
 |-------|---------|---------|-----------|
 | `claude-haiku-4-5-20251001` | F2 Signal Processing | Signal reasoning | ~500 tokens |
-| `claude-sonnet-4-20250514` | F3 Deliverable Execution | Agent headless mode (ADR-080) — draft generation + up to 3 tool rounds | ~2-8k tokens |
+| `claude-sonnet-4-20250514` | F3 Deliverable Execution | Agent headless mode (ADR-080/081) — draft generation + binding-aware tool rounds (2-6). Research types use WebSearch primitive (nested Sonnet call). | ~2-12k tokens |
 | `claude-sonnet-4-20250514` | F4 Memory Extraction | Fact extraction | ~1-2k tokens |
 | `claude-sonnet-4-20250514` | F4 Session Summaries | Cross-session continuity | ~1k tokens |
 | `claude-sonnet-4-20250514` | F5 Conversation Analysis | Suggested deliverables | ~1-2k tokens |
