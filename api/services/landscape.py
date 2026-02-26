@@ -15,6 +15,8 @@ No LLM calls — purely platform API reads.
 import logging
 from datetime import datetime, timezone
 
+import httpx
+
 logger = logging.getLogger(__name__)
 
 
@@ -55,8 +57,6 @@ async def fetch_google_calendars(
     Fetch list of calendars from Google Calendar API.
     Uses refresh token to get fresh access token, then lists calendars.
     """
-    import httpx
-
     async with httpx.AsyncClient() as client:
         token_response = await client.post(
             "https://oauth2.googleapis.com/token",
@@ -111,23 +111,48 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
         client_id = google_config.client_id
         client_secret = google_config.client_secret
 
-        if not integration.get("refresh_token_encrypted"):
+        # Determine access method: prefer refresh token, fall back to stored access token
+        # (access token is valid ~1 hour after OAuth, enough for initial landscape discovery)
+        access_token = None
+        refresh_token = None
+
+        if integration.get("refresh_token_encrypted"):
+            refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
+        elif integration.get("credentials_encrypted"):
+            access_token = token_manager.decrypt(integration["credentials_encrypted"])
+            logger.info(
+                f"[LANDSCAPE] No refresh token for {provider} user {user_id[:8]}, "
+                "using stored access token for landscape discovery."
+            )
+        else:
             logger.warning(
-                f"[LANDSCAPE] No refresh token for {provider} user {user_id}. "
+                f"[LANDSCAPE] No refresh token or access token for {provider} user {user_id}. "
                 "Cannot discover landscape."
             )
             return {"resources": []}
 
-        refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
         resources = []
 
         # List Gmail labels
         try:
-            labels = await google_client.list_gmail_labels(
-                client_id=client_id,
-                client_secret=client_secret,
-                refresh_token=refresh_token
-            )
+            if refresh_token:
+                labels = await google_client.list_gmail_labels(
+                    client_id=client_id,
+                    client_secret=client_secret,
+                    refresh_token=refresh_token
+                )
+            else:
+                # Direct access token call (no refresh available)
+                async with httpx.AsyncClient() as http_client:
+                    resp = await http_client.get(
+                        "https://gmail.googleapis.com/gmail/v1/users/me/labels",
+                        headers={"Authorization": f"Bearer {access_token}"},
+                    )
+                    data = resp.json()
+                    if "error" in data:
+                        raise RuntimeError(f"Gmail API error: {data['error'].get('message', data['error'])}")
+                    labels = data.get("labels", [])
+
             for label in labels:
                 resources.append({
                     "id": label.get("id"),
@@ -144,27 +169,40 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
             logger.warning(f"[LANDSCAPE] Failed to list Gmail labels for {user_id}: {e}")
 
         # Also list calendars (Google OAuth covers both Gmail and Calendar)
-        if provider in ("gmail", "google"):
-            try:
+        try:
+            if refresh_token:
                 calendars = await fetch_google_calendars(
                     user_id=user_id,
                     client_id=client_id,
                     client_secret=client_secret,
                     refresh_token=refresh_token
                 )
-                for cal in calendars:
-                    resources.append({
-                        "id": cal.get("id"),
-                        "name": cal.get("summary", "Untitled Calendar"),
-                        "type": "calendar",
-                        "metadata": {
-                            "primary": cal.get("primary", False),
-                            "accessRole": cal.get("accessRole"),
-                            "platform": "calendar",
-                        }
-                    })
-            except Exception as e:
-                logger.warning(f"[LANDSCAPE] Failed to list calendars for {user_id}: {e}")
+            else:
+                # Direct access token call (no refresh available)
+                async with httpx.AsyncClient() as http_client:
+                    resp = await http_client.get(
+                        "https://www.googleapis.com/calendar/v3/users/me/calendarList",
+                        headers={"Authorization": f"Bearer {access_token}"},
+                        params={"maxResults": 50},
+                    )
+                    data = resp.json()
+                    if "error" in data:
+                        raise RuntimeError(f"Calendar API error: {data['error']}")
+                    calendars = data.get("items", [])
+
+            for cal in calendars:
+                resources.append({
+                    "id": cal.get("id"),
+                    "name": cal.get("summary", "Untitled Calendar"),
+                    "type": "calendar",
+                    "metadata": {
+                        "primary": cal.get("primary", False),
+                        "accessRole": cal.get("accessRole"),
+                        "platform": "calendar",
+                    }
+                })
+        except Exception as e:
+            logger.warning(f"[LANDSCAPE] Failed to list calendars for {user_id}: {e}")
 
         return {"resources": resources}
 

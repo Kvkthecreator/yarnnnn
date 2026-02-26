@@ -2338,9 +2338,8 @@ async def oauth_callback(
             user_id = token_data["user_id"]
 
             # Update existing - clear landscape to force rediscovery from new workspace
-            service_client.table("platform_connections").update({
+            update_data = {
                 "credentials_encrypted": token_data["credentials_encrypted"],
-                "refresh_token_encrypted": token_data.get("refresh_token_encrypted"),
                 "metadata": token_data["metadata"],
                 "status": token_data["status"],
                 "last_error": None,
@@ -2348,7 +2347,15 @@ async def oauth_callback(
                 # Clear old landscape data so it's refetched from new workspace
                 "landscape": None,
                 "landscape_discovered_at": None,
-            }).eq("id", existing.data[0]["id"]).execute()
+            }
+            # Only overwrite refresh_token if the new OAuth response actually has one.
+            # Google only returns refresh_token on first consent; re-connects may omit it.
+            if token_data.get("refresh_token_encrypted"):
+                update_data["refresh_token_encrypted"] = token_data["refresh_token_encrypted"]
+
+            service_client.table("platform_connections").update(
+                update_data
+            ).eq("id", existing.data[0]["id"]).execute()
 
             # Purge stale data from old workspace (ADR-072 tables)
             # Delete platform_content from this platform
