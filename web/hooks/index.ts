@@ -4,4 +4,4 @@ export { useDocuments } from "./useDocuments";
 export { useOnboardingState } from "./useOnboardingState";
 export { usePlatformOnboardingState } from "./usePlatformOnboardingState";
 export { useSubscription } from "./useSubscription";
-export { useSubscriptionGate, useMemoryGate, useTokenBudgetGate } from "./useSubscriptionGate";
+export { useSubscriptionGate, useTokenBudgetGate } from "./useSubscriptionGate";

@@ -8,7 +8,7 @@ import { SUBSCRIPTION_LIMITS, formatLimit } from "@/lib/subscription/limits";
 
 interface UpgradePromptProps {
   /** What triggered the prompt */
-  feature: "projects" | "memories" | "sessions" | "agents" | "documents";
+  feature: "memories" | "sessions" | "agents" | "documents";
   /** Current usage count */
   currentUsage?: number;
   /** Whether to show as modal or inline banner */
@@ -22,11 +22,6 @@ interface UpgradePromptProps {
 }
 
 const FEATURE_COPY = {
-  projects: {
-    title: "Create more projects",
-    description: "Free accounts are limited to 1 project. Upgrade to Pro for unlimited projects.",
-    icon: "folder",
-  },
   memories: {
     title: "Store more memories",
     description: "You've reached the memory limit for this project. Upgrade to Pro for unlimited memories.",
@@ -63,8 +58,8 @@ export function UpgradePrompt({
   const copy = FEATURE_COPY[feature];
   const limit = SUBSCRIPTION_LIMITS.free[
     feature === "sessions" ? "dailyTokenBudget" :
-    feature === "memories" ? "memoriesPerProject" :
     feature === "agents" ? "activeDeliverables" :
+    feature === "memories" ? "documents" : // memories no longer have a dedicated limit
     feature
   ];
 
@@ -75,11 +70,11 @@ export function UpgradePrompt({
   };
 
   const proFeatures = [
-    "Unlimited projects",
-    "Unlimited memories",
-    "Unlimited chat sessions",
-    "Scheduled agents",
-    "Priority support",
+    "Unlimited sources",
+    "Hourly sync",
+    "Unlimited tokens",
+    "Unlimited deliverables",
+    "Signal processing",
   ];
 
   if (variant === "banner") {

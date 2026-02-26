@@ -37,6 +37,9 @@ class DangerZoneStats(BaseModel):
     deliverable_versions: int
     work_outputs: int
 
+    # Platform content (ADR-072)
+    platform_content: int
+
     # Integrations
     platform_connections: int
     integration_import_jobs: int
@@ -214,6 +217,10 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         export_logs = auth.client.table("export_log").select("id", count="exact").eq("user_id", user_id).execute()
         export_logs_count = export_logs.count or 0
 
+        # Count platform content (ADR-072)
+        platform_content = auth.client.table("platform_content").select("id", count="exact").eq("user_id", user_id).execute()
+        platform_content_count = platform_content.count or 0
+
         # Count workspaces
         workspaces = auth.client.table("workspaces").select("id", count="exact").eq("owner_id", user_id).execute()
         workspaces_count = workspaces.count or 0
@@ -226,6 +233,7 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             work_outputs=work_outputs_count,
             deliverables=deliverables_count,
             deliverable_versions=versions_count,
+            platform_content=platform_content_count,
             platform_connections=integrations_count,
             integration_import_jobs=import_jobs_count,
             export_logs=export_logs_count,
@@ -404,11 +412,15 @@ async def clear_all_context(auth: UserClient) -> OperationResult:
         result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
+        # Delete synced platform content (ADR-072)
+        result = auth.client.table("platform_content").delete().eq("user_id", user_id).execute()
+        deleted["platform_content"] = len(result.data or [])
+
         logger.info(f"[ACCOUNT] User {user_id} cleared all context: {deleted}")
 
         return OperationResult(
             success=True,
-            message=f"Cleared {deleted['memories']} memories, {deleted['documents']} documents, {deleted['chat_sessions']} chat sessions",
+            message=f"Cleared {deleted['memories']} memories, {deleted['documents']} documents, {deleted['chat_sessions']} chats, {deleted['platform_content']} synced items",
             deleted=deleted
         )
     except Exception as e:
@@ -514,6 +526,10 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
+        # 6b. Delete synced platform content (ADR-072)
+        result = auth.client.table("platform_content").delete().eq("user_id", user_id).execute()
+        deleted["platform_content"] = len(result.data or [])
+
         # 7. Delete integration data
         result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
         deleted["export_logs"] = len(result.data or [])
@@ -535,6 +551,12 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
 
         result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
         deleted["platform_connections"] = len(result.data or [])
+
+        # 7b. Delete notification preferences
+        try:
+            auth.client.table("user_notification_preferences").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass  # Table may not exist yet for this user
 
         # 8. Delete workspaces
         for wid in workspace_ids:
@@ -602,6 +624,10 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
+        # 6b. Delete synced platform content (ADR-072)
+        result = auth.client.table("platform_content").delete().eq("user_id", user_id).execute()
+        deleted["platform_content"] = len(result.data or [])
+
         # 7. Delete integration data
         result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
         deleted["export_logs"] = len(result.data or [])
@@ -623,6 +649,12 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
 
         result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
         deleted["platform_connections"] = len(result.data or [])
+
+        # 7b. Delete notification preferences
+        try:
+            auth.client.table("user_notification_preferences").delete().eq("user_id", user_id).execute()
+        except Exception:
+            pass  # Table may not exist yet for this user
 
         # 8. Delete workspaces (don't recreate)
         for wid in workspace_ids:

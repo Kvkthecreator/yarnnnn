@@ -29,11 +29,8 @@ import {
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
-import { UsageIndicator } from "@/components/subscription/UpgradePrompt";
 import { useSubscriptionGate } from "@/hooks/useSubscriptionGate";
-import { SUBSCRIPTION_LIMITS } from "@/lib/subscription/limits";
 import { createClient } from "@/lib/supabase/client";
-import { IntegrationImportModal } from "@/components/IntegrationImportModal";
 import { useTP } from "@/contexts/TPContext";
 
 // ADR-039: MemoryStats removed - stats now shown in Context page
@@ -48,6 +45,8 @@ interface DangerZoneStats {
   deliverables: number;
   deliverable_versions: number;
   work_outputs: number;
+  // Platform content (ADR-072)
+  platform_content: number;
   // Integrations
   platform_connections: number;
   integration_import_jobs: number;
@@ -134,9 +133,6 @@ export default function SettingsPage() {
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
-
-  // Import modal state (ADR-027, ADR-029, ADR-046)
-  const [importModalProvider, setImportModalProvider] = useState<"slack" | "notion" | "gmail" | "calendar" | null>(null);
 
   // Usage metrics state
   const [usageMetrics, setUsageMetrics] = useState<{
@@ -317,9 +313,6 @@ export default function SettingsPage() {
     }
   };
 
-  // Memory purge is now handled through danger zone actions
-  // The old per-project purge is removed since projects no longer exist
-
   // Danger zone action handler
   const handleDangerAction = async () => {
     if (!dangerAction) return;
@@ -428,10 +421,10 @@ export default function SettingsPage() {
           <Check className="w-5 h-5 text-green-600" />
           <div>
             <p className="font-medium text-green-800 dark:text-green-200">
-              Welcome to yarnnn Pro!
+              Subscription activated!
             </p>
             <p className="text-sm text-green-700 dark:text-green-300">
-              Your subscription is now active. Enjoy unlimited projects and scheduled agents.
+              Your subscription is now active. Enjoy expanded sources, faster syncs, and more deliverables.
             </p>
           </div>
         </div>
@@ -773,7 +766,7 @@ export default function SettingsPage() {
             Connected Integrations
           </h2>
           <p className="text-sm text-muted-foreground mb-6">
-            Connect third-party services to export your deliverables directly to Slack channels or Notion pages.
+            Connect platforms to sync context. Manage sources in each platform&apos;s context page.
           </p>
 
           {/* OAuth Callback Status - auto-dismisses after 5 seconds */}
@@ -791,7 +784,7 @@ export default function SettingsPage() {
                       {providerParam.charAt(0).toUpperCase() + providerParam.slice(1)} connected successfully!
                     </p>
                     <p className="text-sm text-green-700 dark:text-green-300">
-                      You can now export deliverables to {providerParam}.
+                      Manage sources in the context page to start syncing.
                     </p>
                   </div>
                   <button
@@ -1097,9 +1090,8 @@ export default function SettingsPage() {
               {/* Info note */}
               <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
                 <p>
-                  <strong>How it works:</strong> After connecting, you can export deliverables or import context
-                  from your connected services. Use &quot;Import Context&quot; to bring in decisions, action items,
-                  and project details from Slack channels, Notion pages, Gmail conversations, or Calendar events.
+                  <strong>How it works:</strong> After connecting, select sources on each platform&apos;s context page.
+                  Context syncs automatically based on your tier — TP uses it in conversations and deliverables.
                 </p>
               </div>
             </div>
@@ -1300,7 +1292,7 @@ export default function SettingsPage() {
                           Clear All Context
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Delete {dangerStats.memories} memories + {dangerStats.documents} docs + {dangerStats.chat_sessions} chats
+                          Delete {dangerStats.memories} memories + {dangerStats.documents} docs + {dangerStats.platform_content} synced items + {dangerStats.chat_sessions} chats
                         </div>
                       </div>
                       <button
@@ -1466,9 +1458,10 @@ export default function SettingsPage() {
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.memories} memories</li>
                     <li>{dangerStats?.documents} documents</li>
+                    <li>{dangerStats?.platform_content} synced platform items</li>
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
                   </ul>
-                  <p className="mt-2 text-sm">yarnnn will lose all knowledge about you and your projects.</p>
+                  <p className="mt-2 text-sm">yarnnn will lose all knowledge about you and need to start from scratch.</p>
                 </>
               )}
               {dangerAction === "integrations" && (
@@ -1510,7 +1503,7 @@ export default function SettingsPage() {
                   <p className="mb-2">All your data will be permanently deleted:</p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>All deliverables, memories, documents, and chat history</li>
-                    <li>All workspaces and integrations</li>
+                    <li>All platform connections and synced content</li>
                     <li>Your account will be removed from the system</li>
                   </ul>
                   <p className="mt-2 text-sm">
@@ -1550,18 +1543,6 @@ export default function SettingsPage() {
         </div>
       )}
 
-      {/* Integration Import Modal (ADR-027) */}
-      {importModalProvider && (
-        <IntegrationImportModal
-          isOpen={true}
-          onClose={() => setImportModalProvider(null)}
-          onSuccess={() => {
-            // Refresh stats to show new memories
-            setImportModalProvider(null);
-          }}
-          provider={importModalProvider}
-        />
-      )}
     </div>
   );
 }

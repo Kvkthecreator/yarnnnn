@@ -61,26 +61,6 @@ export function useSubscriptionGate(): SubscriptionGate {
 }
 
 /**
- * Hook for checking memory limits.
- */
-export function useMemoryGate(memoryCount: number) {
-  const { tier, isPro, checkFeatureLimit } = useSubscriptionGate();
-
-  const memoriesLimit = useMemo(
-    () => checkFeatureLimit("memoriesPerProject", memoryCount),
-    [checkFeatureLimit, memoryCount]
-  );
-
-  return {
-    tier,
-    isPro,
-    limit: memoriesLimit,
-    canCreateMemory: !memoriesLimit.isAtLimit,
-    isNearLimit: memoriesLimit.isNearLimit,
-  };
-}
-
-/**
  * Hook for checking daily token budget (ADR-053).
  */
 export function useTokenBudgetGate(dailyTokensUsed: number) {

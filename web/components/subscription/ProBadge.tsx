@@ -90,7 +90,7 @@ export function ProLabel({ className = "" }: ProLabelProps) {
 interface ProFeatureProps {
   children: React.ReactNode;
   /** Feature name for the upgrade prompt */
-  feature?: "projects" | "memories" | "sessions" | "agents" | "documents";
+  feature?: "memories" | "sessions" | "agents" | "documents";
   /** Show as disabled instead of hidden */
   showDisabled?: boolean;
   /** Custom message */

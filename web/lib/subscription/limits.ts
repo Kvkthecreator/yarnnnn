@@ -5,28 +5,24 @@
  * Platform resource limits (Slack channels, Gmail labels, etc.) are defined in
  * api/services/platform_limits.py and fetched via API.
  *
- * For platform sync monetization, see:
- * - docs/adr/ADR-053-platform-sync-monetization.md
+ * Tier structure (ADR-053, widened ADR-077):
+ * - Free: 5 sources/platform, 1x/day sync, 50k tokens/day, 2 deliverables
+ * - Starter ($9/mo): 15 sources, 4x/day, 250k tokens, 5 deliverables
+ * - Pro ($19/mo): unlimited everything
  */
 
 export const SUBSCRIPTION_LIMITS = {
   free: {
-    projects: 1,
-    memoriesPerProject: 50,
     dailyTokenBudget: 50_000,    // ADR-053: Daily token budget
     activeDeliverables: 2,       // ADR-053: Active deliverable limit
     documents: 10,
   },
   starter: {
-    projects: 3,
-    memoriesPerProject: 200,
     dailyTokenBudget: 250_000,
     activeDeliverables: 5,
     documents: 50,
   },
   pro: {
-    projects: Infinity,
-    memoriesPerProject: Infinity,
     dailyTokenBudget: Infinity,  // Unlimited
     activeDeliverables: Infinity,
     documents: Infinity,
@@ -36,11 +32,9 @@ export const SUBSCRIPTION_LIMITS = {
 export type SubscriptionTier = keyof typeof SUBSCRIPTION_LIMITS;
 
 export interface UsageData {
-  projectCount: number;
-  memoryCount: number; // for current project
-  totalMemories: number;
   dailyTokensUsed: number;
   documentCount: number;
+  activeDeliverables: number;
 }
 
 export interface LimitStatus {

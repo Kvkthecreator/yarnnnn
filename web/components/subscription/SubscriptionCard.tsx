@@ -132,23 +132,23 @@ export function SubscriptionCard() {
                 <ul className="text-sm text-muted-foreground space-y-2">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                    <span>2 platforms</span>
+                    <span>All 4 platforms</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                    <span>1 source per platform</span>
+                    <span>5 sources per platform</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                    <span>2x/day sync</span>
+                    <span>1x/day sync</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                    <span>20 TP conversations/mo</span>
+                    <span>50k tokens/day</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-muted-foreground mt-0.5 flex-shrink-0" />
-                    <span>3 active deliverables</span>
+                    <span>2 active deliverables</span>
                   </li>
                 </ul>
               </div>
@@ -165,11 +165,11 @@ export function SubscriptionCard() {
                 <ul className="text-sm space-y-2">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <span>4 platforms</span>
+                    <span>All 4 platforms</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <span>5 sources per platform</span>
+                    <span>15 sources per platform</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
@@ -177,11 +177,11 @@ export function SubscriptionCard() {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <span>100 TP conversations/mo</span>
+                    <span>250k tokens/day</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-blue-600 mt-0.5 flex-shrink-0" />
-                    <span>10 active deliverables</span>
+                    <span>5 active deliverables</span>
                   </li>
                 </ul>
               </div>
@@ -195,11 +195,11 @@ export function SubscriptionCard() {
                 <ul className="text-sm space-y-2">
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                    <span>4 platforms</span>
+                    <span>All 4 platforms</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                    <span>15-25 sources per platform</span>
+                    <span>Unlimited sources</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
@@ -207,7 +207,7 @@ export function SubscriptionCard() {
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />
-                    <span>Unlimited TP conversations</span>
+                    <span>Unlimited tokens</span>
                   </li>
                   <li className="flex items-start gap-2">
                     <Check className="w-4 h-4 text-green-600 mt-0.5 flex-shrink-0" />

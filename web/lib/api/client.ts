@@ -564,6 +564,8 @@ export const api = {
         deliverables: number;
         deliverable_versions: number;
         work_outputs: number;
+        // Platform content (ADR-072)
+        platform_content: number;
         // Integrations
         platform_connections: number;
         integration_import_jobs: number;
