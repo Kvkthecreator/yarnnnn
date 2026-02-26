@@ -695,11 +695,35 @@ async def get_content_for_deliverable(
         if not provider or not resource_id:
             continue
 
+        # Normalize provider → platform_content.platform
+        # The "google" connection provides both "gmail" and "calendar" content.
+        # Deliverable sources may reference provider="google" for calendar,
+        # or provider="gmail" for email — but platform_content stores
+        # platform="calendar" and platform="gmail" respectively.
+        platform = provider
+        if provider == "google":
+            # Determine if this is calendar or gmail based on resource_id
+            # Calendar resource_ids are email addresses or calendar IDs
+            # Gmail resource_ids are labels like "INBOX", "IMPORTANT"
+            gmail_labels = {"INBOX", "SENT", "IMPORTANT", "STARRED", "SPAM", "TRASH",
+                           "UNREAD", "DRAFT", "CATEGORY_PERSONAL", "CATEGORY_SOCIAL",
+                           "CATEGORY_PROMOTIONS", "CATEGORY_UPDATES", "CATEGORY_FORUMS"}
+            if resource_id.upper() in gmail_labels or resource_id.startswith("label:"):
+                platform = "gmail"
+            else:
+                platform = "calendar"
+
+        # Normalize gmail resource_id: deliverable sources may use "INBOX"
+        # but platform_content stores "label:INBOX"
+        query_resource_id = resource_id
+        if platform == "gmail" and not resource_id.startswith("label:"):
+            query_resource_id = f"label:{resource_id}"
+
         items = await get_platform_content(
             db_client=db_client,
             user_id=user_id,
-            platforms=[provider],
-            resource_ids=[resource_id],
+            platforms=[platform],
+            resource_ids=[query_resource_id],
             limit=limit_per_source,
         )
 

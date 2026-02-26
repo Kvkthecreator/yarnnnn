@@ -83,10 +83,17 @@ class PlatformBoundStrategy(ExecutionStrategy):
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
 
         # Filter sources to primary platform
+        # The "google" connection provides both "gmail" and "calendar" content,
+        # so a source with provider="google" should match primary_platform="calendar" or "gmail"
+        google_platforms = {"gmail", "calendar"}
+
         platform_sources = [
             s for s in sources
             if s.get("type") == "integration_import"
-            and s.get("provider") == primary_platform
+            and (
+                s.get("provider") == primary_platform
+                or (s.get("provider") == "google" and primary_platform in google_platforms)
+            )
         ]
 
         if not platform_sources and sources:
