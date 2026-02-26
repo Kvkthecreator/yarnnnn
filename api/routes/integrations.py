@@ -570,18 +570,70 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
         if not integrations_result.data:
             return IntegrationsSummaryResponse(platforms=[], total_deliverables=0)
 
-        platforms = []
-        seen_providers: set[str] = set()
+        platforms: list[PlatformSummary] = []
         from datetime import timedelta
         seven_days_ago = (datetime.utcnow() - timedelta(days=7)).isoformat()
 
-        for integration in integrations_result.data:
-            provider = integration["platform"]  # ADR-058: DB column is 'platform'
-            metadata = integration.get("metadata", {}) or {}
-            landscape = integration.get("landscape", {}) or {}
-            resources = landscape.get("resources", [])
+        def _logical_provider(raw_provider: str) -> str:
+            # Google OAuth connection backs both Gmail and Calendar.
+            return "gmail" if raw_provider in ("gmail", "google") else raw_provider
 
-            # Determine resource type name
+        def _is_active(row: dict[str, Any]) -> bool:
+            return row.get("status") == IntegrationStatus.ACTIVE.value
+
+        def _pick_preferred(existing: Optional[dict[str, Any]], candidate: dict[str, Any]) -> dict[str, Any]:
+            if not existing:
+                return candidate
+            if _is_active(candidate) and not _is_active(existing):
+                return candidate
+            if _is_active(candidate) == _is_active(existing):
+                # Prefer the most recently connected row if both have equal status quality.
+                if str(candidate.get("created_at") or "") >= str(existing.get("created_at") or ""):
+                    return candidate
+            return existing
+
+        canonical_integrations: dict[str, dict[str, Any]] = {}
+        for integration in integrations_result.data:
+            logical = _logical_provider(integration["platform"])
+            if logical not in {"slack", "gmail", "notion", "calendar"}:
+                continue
+            canonical_integrations[logical] = _pick_preferred(
+                canonical_integrations.get(logical),
+                integration,
+            )
+
+        def _count_deliverables(provider: str) -> int:
+            result = auth.client.table("deliverables").select(
+                "id", count="exact"
+            ).eq("user_id", user_id).contains(
+                "destination", {"platform": provider}
+            ).execute()
+            return result.count or 0
+
+        def _count_activity(provider: str) -> int:
+            result = auth.client.table("platform_content").select(
+                "id", count="exact"
+            ).eq("user_id", user_id).eq(
+                "platform", provider
+            ).gte("fetched_at", seven_days_ago).execute()
+            return result.count or 0
+
+        def _resource_count_for(provider: str, integration: dict[str, Any]) -> int:
+            landscape = integration.get("landscape", {}) or {}
+            selected_sources = landscape.get("selected_sources", []) or []
+            resources = landscape.get("resources", []) or []
+
+            if provider == "calendar":
+                calendar_sources = [
+                    s for s in selected_sources
+                    if isinstance(s, dict) and ((s.get("metadata", {}) or {}).get("platform") == "calendar")
+                ]
+                return len(calendar_sources)
+
+            return len(selected_sources) if selected_sources else len(resources)
+
+        def _to_summary(provider: str, integration: dict[str, Any]) -> PlatformSummary:
+            metadata = integration.get("metadata", {}) or {}
             resource_type = {
                 "slack": "channels",
                 "gmail": "labels",
@@ -589,70 +641,33 @@ async def get_integrations_summary(auth: UserClient) -> IntegrationsSummaryRespo
                 "calendar": "calendars",
             }.get(provider, "resources")
 
-            # Count deliverables targeting this platform
-            deliverables_result = auth.client.table("deliverables").select(
-                "id", count="exact"
-            ).eq("user_id", user_id).contains(
-                "destination", {"platform": provider}
-            ).execute()
-            deliverable_count = deliverables_result.count or 0
-
-            # Count recent activity from platform_content (last 7 days)
-            activity_result = auth.client.table("platform_content").select(
-                "id", count="exact"
-            ).eq("user_id", user_id).eq(
-                "platform", provider
-            ).gte("fetched_at", seven_days_ago).execute()
-            activity_7d = activity_result.count or 0
-
-            platforms.append(PlatformSummary(
+            return PlatformSummary(
                 provider=provider,
                 status=integration["status"],
                 workspace_name=metadata.get("workspace_name"),
                 connected_at=integration["created_at"],
-                resource_count=len(resources),
+                resource_count=_resource_count_for(provider, integration),
                 resource_type=resource_type,
-                deliverable_count=deliverable_count,
-                activity_7d=activity_7d
-            ))
-            seen_providers.add(provider)
-
-        # Emit a 'calendar' entry when Gmail is connected (Google OAuth covers both).
-        if "gmail" in seen_providers and "calendar" not in seen_providers:
-            gmail_integration = next(
-                (i for i in integrations_result.data if i["platform"] == "gmail"), None
+                deliverable_count=_count_deliverables(provider),
+                activity_7d=_count_activity(provider),
             )
-            if gmail_integration:
-                gmail_meta = gmail_integration.get("metadata", {}) or {}
-                capabilities = gmail_meta.get("capabilities", [])
-                has_calendar = "calendar" in capabilities or not capabilities
-                if has_calendar:
-                    # Count calendar-specific activity
-                    cal_activity_result = auth.client.table("platform_content").select(
-                        "id", count="exact"
-                    ).eq("user_id", user_id).eq(
-                        "platform", "calendar"
-                    ).gte("fetched_at", seven_days_ago).execute()
-                    cal_activity_7d = cal_activity_result.count or 0
 
-                    # Count calendar deliverables
-                    cal_deliverables_result = auth.client.table("deliverables").select(
-                        "id", count="exact"
-                    ).eq("user_id", user_id).contains(
-                        "destination", {"platform": "calendar"}
-                    ).execute()
-                    cal_deliverable_count = cal_deliverables_result.count or 0
+        # Emit core platform summaries in stable order.
+        for provider in ("slack", "gmail", "notion"):
+            integration = canonical_integrations.get(provider)
+            if integration:
+                platforms.append(_to_summary(provider, integration))
 
-                    platforms.append(PlatformSummary(
-                        provider="calendar",
-                        status=gmail_integration["status"],
-                        workspace_name=gmail_meta.get("workspace_name"),
-                        connected_at=gmail_integration["created_at"],
-                        resource_count=0,
-                        resource_type="calendars",
-                        deliverable_count=cal_deliverable_count,
-                        activity_7d=cal_activity_7d,
-                    ))
+        # Emit calendar summary from direct connection if present, else from Gmail/Google capability.
+        if canonical_integrations.get("calendar"):
+            platforms.append(_to_summary("calendar", canonical_integrations["calendar"]))
+        elif canonical_integrations.get("gmail"):
+            gmail_integration = canonical_integrations["gmail"]
+            gmail_meta = gmail_integration.get("metadata", {}) or {}
+            capabilities = gmail_meta.get("capabilities", [])
+            has_calendar = "calendar" in capabilities or not capabilities
+            if has_calendar:
+                platforms.append(_to_summary("calendar", gmail_integration))
 
         # Total deliverables count
         total_result = auth.client.table("deliverables").select(

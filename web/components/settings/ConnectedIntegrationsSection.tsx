@@ -21,6 +21,11 @@ interface Integration {
   created_at: string;
 }
 
+interface SummaryPlatform {
+  provider: string;
+  status: string;
+}
+
 interface ConnectedIntegrationsSectionProps {
   title?: string;
   description?: string;
@@ -28,13 +33,14 @@ interface ConnectedIntegrationsSectionProps {
 }
 
 export function ConnectedIntegrationsSection({
-  title = "Connected Integrations",
+  title = "Connected Platforms",
   description = "Connect platforms to sync context. Manage sources in each platform's context page.",
   className,
 }: ConnectedIntegrationsSectionProps) {
   const router = useRouter();
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
+  const [platformStatuses, setPlatformStatuses] = useState<Record<string, string>>({});
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
@@ -42,8 +48,27 @@ export function ConnectedIntegrationsSection({
   const loadIntegrations = async () => {
     setIsLoadingIntegrations(true);
     try {
-      const result = await api.integrations.list();
-      setIntegrations(result.integrations);
+      const [listResult, summaryResult] = await Promise.all([
+        api.integrations.list(),
+        api.integrations.getSummary(),
+      ]);
+
+      setIntegrations(listResult.integrations || []);
+
+      const statuses: Record<string, string> = {};
+      (summaryResult.platforms || []).forEach((platform: SummaryPlatform) => {
+        statuses[platform.provider] = platform.status;
+      });
+
+      // Backward-compatibility for older API payloads that may still emit "google".
+      if (!statuses.gmail && statuses.google) {
+        statuses.gmail = statuses.google;
+      }
+      if (!statuses.calendar && statuses.google) {
+        statuses.calendar = statuses.google;
+      }
+
+      setPlatformStatuses(statuses);
     } catch (err) {
       console.error("Failed to fetch integrations:", err);
     } finally {
@@ -74,13 +99,19 @@ export function ConnectedIntegrationsSection({
     setDisconnectingProvider(provider);
     try {
       await api.integrations.disconnect(provider);
-      setIntegrations((current) => current.filter((i) => i.provider !== provider));
+      await loadIntegrations();
     } catch (err) {
       console.error(`Failed to disconnect ${provider}:`, err);
     } finally {
       setDisconnectingProvider(null);
     }
   };
+
+  const slackConnected = platformStatuses.slack === "active";
+  const notionConnected = platformStatuses.notion === "active";
+  const gmailConnected = platformStatuses.gmail === "active";
+  const calendarConnected = platformStatuses.calendar === "active";
+  const googleConnected = gmailConnected || calendarConnected;
 
   return (
     <section className={className}>
@@ -112,7 +143,7 @@ export function ConnectedIntegrationsSection({
                         <div className="font-medium">Slack</div>
                         <div className="text-sm text-muted-foreground">Team collaboration and context</div>
                       </div>
-                      {slackIntegration ? (
+                      {slackConnected ? (
                         <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1 shrink-0">
                           <Check className="w-4 h-4" />
                           Connected
@@ -190,7 +221,7 @@ export function ConnectedIntegrationsSection({
                         <div className="font-medium">Notion</div>
                         <div className="text-sm text-muted-foreground">Knowledge base and context</div>
                       </div>
-                      {notionIntegration ? (
+                      {notionConnected ? (
                         <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1 shrink-0">
                           <Check className="w-4 h-4" />
                           Connected
@@ -253,7 +284,7 @@ export function ConnectedIntegrationsSection({
           })()}
 
           {(() => {
-            const googleIntegration = integrations.find((i) => i.provider === "gmail");
+            const googleIntegration = integrations.find((i) => i.provider === "google" || i.provider === "gmail");
             return (
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-start gap-3">
@@ -271,7 +302,7 @@ export function ConnectedIntegrationsSection({
                         <div className="font-medium">Google</div>
                         <div className="text-sm text-muted-foreground">Gmail and Calendar access</div>
                       </div>
-                      {googleIntegration ? (
+                      {googleConnected ? (
                         <span className="text-sm text-green-600 dark:text-green-400 flex items-center gap-1 shrink-0">
                           <Check className="w-4 h-4" />
                           Connected

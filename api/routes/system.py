@@ -111,6 +111,7 @@ async def get_system_status(auth: UserClient):
     platforms_result = auth.client.table("platform_connections").select(
         "platform, status, last_synced_at, landscape"
     ).eq("user_id", user_id).execute()
+    connection_rows = platforms_result.data or []
 
     # ─── Sync Registry (single query, partition by platform) ───────────────────
     registry_result = auth.client.table("sync_registry").select(
@@ -165,24 +166,23 @@ async def get_system_status(auth: UserClient):
     # ─── Build Platform Sync Status ────────────────────────────────────────────
     platform_sync = []
     all_platforms = ["slack", "gmail", "notion", "calendar"]
-    connected_platforms = {p["platform"]: p for p in (platforms_result.data or [])}
 
-    # Map connection platform → content/registry platform names
-    # "google" connection covers both gmail and calendar
-    platform_content_map = {
-        "slack": ["slack"],
-        "google": ["gmail", "calendar"],
-        "notion": ["notion"],
-    }
+    def _get_active_connection(logical_platform: str) -> Optional[dict]:
+        # Google OAuth rows may be stored as either "google" or legacy "gmail".
+        if logical_platform in ("gmail", "calendar"):
+            candidates = ("google", "gmail")
+        else:
+            candidates = (logical_platform,)
+
+        for candidate in candidates:
+            row = next((r for r in connection_rows if r.get("platform") == candidate), None)
+            if row and row.get("status") == "active":
+                return row
+        return None
 
     for platform in all_platforms:
-        # Determine which connection platform owns this content platform
-        conn_platform = platform
-        if platform in ("gmail", "calendar"):
-            conn_platform = "google"
-
-        if conn_platform in connected_platforms:
-            p_data = connected_platforms[conn_platform]
+        p_data = _get_active_connection(platform)
+        if p_data:
             landscape = p_data.get("landscape", {}) or {}
             selected_sources = landscape.get("selected_sources", [])
 

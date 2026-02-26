@@ -439,7 +439,7 @@ export default function SystemPage() {
           <div>
             <h1 className="text-2xl font-bold">System</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Integrations, sync status, and background processing
+              Connected platforms, sync status, and background processing
             </p>
           </div>
           <button
@@ -460,7 +460,7 @@ export default function SystemPage() {
           <div className="space-y-8">
             {/* ── Section 1: Integrations ─────────────────────────────────── */}
             <ConnectedIntegrationsSection
-              title="Integrations"
+              title="Connected Platforms"
               description="Connect platforms to sync context. Manage sources in each platform's context page."
             />
 

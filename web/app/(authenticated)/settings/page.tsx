@@ -138,22 +138,34 @@ export default function SettingsPage() {
     setIsLoadingUsage(true);
     try {
       // Fetch counts from various endpoints in parallel
-      const [deliverables, documents, integrations, facts] = await Promise.all([
+      const [deliverables, documents, summary, facts] = await Promise.all([
         api.deliverables.list().catch(() => []),
         api.documents.list().catch(() => ({ documents: [] })),
-        api.integrations.list().catch(() => ({ integrations: [] })),
+        api.integrations.getSummary().catch(() => ({ platforms: [] })),
         api.userMemories.list().catch(() => []),
       ]);
 
-      const activeIntegrations = (integrations.integrations || []).filter(
-        (i: { status: string }) => i.status === "active"
+      const activePlatforms = new Set(
+        (summary.platforms || [])
+          .filter((p: { status: string }) => p.status === "active")
+          .map((p: { provider: string }) => p.provider)
       );
+
+      // Backward-compatibility for older payloads that may still emit "google".
+      if (activePlatforms.has("google")) {
+        activePlatforms.add("gmail");
+        activePlatforms.add("calendar");
+      }
+
+      const connectedCount = ["slack", "gmail", "notion", "calendar"].filter((p) =>
+        activePlatforms.has(p)
+      ).length;
 
       setUsageMetrics({
         deliverables: Array.isArray(deliverables) ? deliverables.length : 0,
         documents: documents.documents?.length || 0,
         platforms: {
-          connected: activeIntegrations.length,
+          connected: connectedCount,
           total: 4, // Slack, Gmail, Notion, Calendar
         },
         facts: Array.isArray(facts) ? facts.length : 0,
@@ -421,7 +433,7 @@ export default function SettingsPage() {
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <Link2 className="w-4 h-4 text-primary" />
-                  <h3 className="font-medium">Platforms</h3>
+                  <h3 className="font-medium">Connected Platforms</h3>
                 </div>
                 <p className="text-2xl font-semibold">
                   {usageMetrics.platforms.connected}
