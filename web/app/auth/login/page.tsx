@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { getSafeNextPath } from "@/lib/auth/redirect";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -16,6 +17,10 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "signup">("login");
+  const nextPath = getSafeNextPath(searchParams.get("next"), "/dashboard");
+  const callbackRedirect = typeof window === "undefined"
+    ? ""
+    : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;
 
   // Show OAuth callback errors
   useEffect(() => {
@@ -40,13 +45,13 @@ function LoginForm() {
           password,
         });
         if (error) throw error;
-        window.location.href = "/dashboard";
+        window.location.href = nextPath;
       } else {
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/auth/callback`,
+            emailRedirectTo: callbackRedirect,
           },
         });
         if (error) throw error;
@@ -67,7 +72,7 @@ function LoginForm() {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
+          redirectTo: callbackRedirect,
           queryParams: {
             access_type: "offline",
             prompt: "consent",

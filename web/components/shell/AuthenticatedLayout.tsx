@@ -41,13 +41,18 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
   const supabase = createClient();
 
   useEffect(() => {
+    const loginRedirect = () => {
+      const next = `${window.location.pathname}${window.location.search}`;
+      router.replace(`/auth/login?next=${encodeURIComponent(next)}`);
+    };
+
     const checkAuth = async () => {
       const {
         data: { user },
       } = await supabase.auth.getUser();
 
       if (!user) {
-        router.replace('/auth/login');
+        loginRedirect();
         return;
       }
 
@@ -62,7 +67,7 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
       data: { subscription },
     } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT' || !session) {
-        router.replace('/auth/login');
+        loginRedirect();
       }
     });
 

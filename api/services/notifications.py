@@ -242,7 +242,7 @@ async def _send_notification_email(
     cta_text = ""
     if context:
         if context.get("deliverable_id"):
-            url = f"{app_url}/dashboard/deliverable/{context['deliverable_id']}"
+            url = f"{app_url}/deliverables/{context['deliverable_id']}"
             cta_html = f'<a href="{url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 20px; text-decoration: none; border-radius: 6px; margin-top: 16px;">View Deliverable</a>'
             cta_text = f"\nView: {url}"
         elif context.get("url"):
@@ -262,7 +262,7 @@ async def _send_notification_email(
         <p style="color: #888; font-size: 12px; margin-top: 32px;">
             — yarnnn
             <br>
-            <a href="{app_url}/dashboard/settings" style="color: #888;">Manage notifications</a>
+            <a href="{app_url}/settings" style="color: #888;">Manage notifications</a>
         </p>
     </body>
     </html>
@@ -272,7 +272,7 @@ async def _send_notification_email(
 {cta_text}
 
 — yarnnn
-Manage notifications: {app_url}/dashboard/settings
+Manage notifications: {app_url}/settings
 """
 
     # Use first line of message as subject (truncated)

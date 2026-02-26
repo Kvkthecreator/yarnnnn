@@ -1,6 +1,29 @@
 import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAdminEmail } from "@/lib/internal-access";
+import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
+
+const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/projects",
+  "/deliverables",
+  "/memory",
+  "/activity",
+  "/context",
+  "/system",
+  "/settings",
+  "/integrations",
+  "/docs",
+];
+
+function redirectToLogin(request: NextRequest) {
+  const url = request.nextUrl.clone();
+  const next = getCurrentPathWithSearch(request.nextUrl.pathname, request.nextUrl.search);
+  url.pathname = "/auth/login";
+  url.search = "";
+  url.searchParams.set("next", next);
+  return NextResponse.redirect(url);
+}
 
 export async function updateSession(request: NextRequest) {
   const response = NextResponse.next({
@@ -19,23 +42,18 @@ export async function updateSession(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // Protected routes - redirect to login if not authenticated
-  const isProtectedRoute =
-    path.startsWith("/dashboard") || path.startsWith("/projects");
+  const isProtectedRoute = PROTECTED_PREFIXES.some((prefix) => path.startsWith(prefix));
   const isAdminRoute = path.startsWith("/admin");
   const isAuthRoute = path.startsWith("/auth/login") || path.startsWith("/auth/signup");
 
   if (isProtectedRoute && !user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/auth/login";
-    return NextResponse.redirect(url);
+    return redirectToLogin(request);
   }
 
   // Admin routes - require auth + admin email
   if (isAdminRoute) {
     if (!user) {
-      const url = request.nextUrl.clone();
-      url.pathname = "/auth/login";
-      return NextResponse.redirect(url);
+      return redirectToLogin(request);
     }
     if (!isAdminEmail(user.email)) {
       // Redirect non-admins to dashboard
@@ -47,9 +65,9 @@ export async function updateSession(request: NextRequest) {
 
   // Redirect authenticated users away from auth pages
   if (isAuthRoute && user) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/dashboard";
-    return NextResponse.redirect(url);
+    const nextParam = request.nextUrl.searchParams.get("next");
+    const nextPath = getSafeNextPath(nextParam, "/dashboard");
+    return NextResponse.redirect(new URL(nextPath, request.url));
   }
 
   return response;

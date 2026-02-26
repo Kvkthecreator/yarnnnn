@@ -397,7 +397,7 @@ def generate_gmail_html(
 
 
 def _email_footer_html(metadata: dict) -> str:
-    """Shared footer for deliverable emails: View in Yarn button + settings link."""
+    """Shared footer for deliverable emails: View deliverable button + settings link."""
     import os
     app_url = os.environ.get("APP_URL", "https://yarnnn.com")
     deliverable_id = metadata.get("deliverable_id", "")
@@ -406,9 +406,9 @@ def _email_footer_html(metadata: dict) -> str:
 
     return f"""
     <div style="margin-top: 32px; padding-top: 20px; border-top: 1px solid #eee; text-align: center;">
-        <a href="{view_url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 24px; text-decoration: none; border-radius: 9999px; font-weight: 500; font-size: 14px;">View in Yarn</a>
+        <a href="{view_url}" style="display: inline-block; background: #111; color: #fff; padding: 10px 24px; text-decoration: none; border-radius: 9999px; font-weight: 500; font-size: 14px;">View deliverable in yarnnn</a>
         <p style="color: #999; font-size: 11px; margin-top: 16px;">
-            Delivered by <a href="{app_url}" style="color: #999;">Yarn</a> &middot;
+            Delivered by <a href="{app_url}" style="color: #999;">yarnnn</a> &middot;
             <a href="{settings_url}" style="color: #999;">Manage notifications</a>
         </p>
     </div>"""

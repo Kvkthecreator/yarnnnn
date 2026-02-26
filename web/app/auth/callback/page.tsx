@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
+import { getSafeNextPath } from "@/lib/auth/redirect";
 
 function CallbackHandler() {
   const router = useRouter();
@@ -15,11 +16,12 @@ function CallbackHandler() {
     const handleCallback = async () => {
       const error = searchParams.get("error");
       const errorDescription = searchParams.get("error_description");
-      const next = searchParams.get("next") ?? "/dashboard";
+      const next = getSafeNextPath(searchParams.get("next"), "/dashboard");
+      const nextParam = `&next=${encodeURIComponent(next)}`;
 
       if (error) {
         router.replace(
-          `/auth/login?error=${encodeURIComponent(error)}&message=${encodeURIComponent(errorDescription || "")}`
+          `/auth/login?error=${encodeURIComponent(error)}&message=${encodeURIComponent(errorDescription || "")}${nextParam}`
         );
         return;
       }
@@ -34,7 +36,7 @@ function CallbackHandler() {
 
       if (sessionError) {
         router.replace(
-          `/auth/login?error=session_error&message=${encodeURIComponent(sessionError.message)}`
+          `/auth/login?error=session_error&message=${encodeURIComponent(sessionError.message)}${nextParam}`
         );
         return;
       }
@@ -59,7 +61,7 @@ function CallbackHandler() {
       }
 
       // Still no session
-      router.replace("/auth/login?error=no_session&message=Could not establish session");
+      router.replace(`/auth/login?error=no_session&message=Could not establish session${nextParam}`);
     };
 
     handleCallback();
