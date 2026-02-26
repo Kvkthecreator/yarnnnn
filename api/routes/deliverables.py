@@ -73,80 +73,38 @@ DeliverableType = Literal[
     "intelligence_brief",
 ]
 
-# Type tier mapping for UI display
+# ADR-082: Type tier mapping — 8 active types, 19 deprecated
 TYPE_TIERS = {
-    "status_report": "stable",
-    "stakeholder_update": "stable",
-    "research_brief": "stable",
-    "meeting_summary": "stable",
-    "custom": "experimental",
-    "client_proposal": "beta",
-    "performance_self_assessment": "beta",
-    "newsletter_section": "beta",
-    "changelog": "beta",
-    # ADR-029 Phase 3: Email-specific
-    "inbox_summary": "beta",
-    "reply_draft": "beta",
-    "follow_up_tracker": "beta",
-    "thread_summary": "beta",
-    # ADR-031 Phase 6: Synthesizers are experimental
-    "weekly_status": "experimental",
-    "project_brief": "experimental",
-    "cross_platform_digest": "experimental",
-    "activity_summary": "experimental",
-    "one_on_one_prep": "beta",
-    "board_update": "beta",
-    # ADR-035: Platform-First Wave 1 Types
+    # Active types (ADR-082)
     "slack_channel_digest": "stable",
-    "slack_standup": "stable",
     "gmail_inbox_brief": "stable",
     "notion_page_summary": "stable",
-    # ADR-046: Calendar Types
-    "meeting_prep": "stable",
     "weekly_calendar_preview": "stable",
-    # Phase 2: Strategic Intelligence Types
-    "deep_research": "beta",
-    "daily_strategy_reflection": "beta",
-    "intelligence_brief": "beta",
-}
-
-# ADR-035: Wave classification for type taxonomy
-TYPE_WAVES = {
-    # Wave 1: Internal Single-Platform
-    "slack_channel_digest": 1,
-    "slack_standup": 1,
-    "gmail_inbox_brief": 1,
-    "notion_page_summary": 1,
-    # Wave 2: Cross-Platform Internal
-    "weekly_status": 2,
-    "cross_platform_digest": 2,
-    "activity_summary": 2,
-    # Wave 3: External-Facing
-    "stakeholder_update": 3,
-    "client_proposal": 3,
-}
-
-# ADR-035: Governance ceilings per type
-TYPE_GOVERNANCE_CEILINGS = {
-    # Wave 1: Internal single-platform can be full-auto
-    "slack_channel_digest": "full_auto",
-    "slack_standup": "full_auto",
-    "gmail_inbox_brief": "manual",  # Email requires review
-    "notion_page_summary": "full_auto",
-    # Wave 2: Cross-platform stays semi-auto
-    "weekly_status": "semi_auto",
-    "cross_platform_digest": "semi_auto",
-    # Wave 3: External requires manual approval
-    "stakeholder_update": "manual",
-    "client_proposal": "manual",
-}
-
-# ADR-035: Default extraction signals per type
-TYPE_EXTRACTION_SIGNALS = {
-    "slack_channel_digest": ["thread_depth", "reaction_count", "unanswered_questions", "decision_language"],
-    "slack_standup": ["completion_language", "progress_language", "blocker_language"],
-    "gmail_inbox_brief": ["unread_emails", "action_items", "priority_senders", "thread_stalls"],
-    "notion_page_summary": ["recent_edits", "status_changes", "completed_tasks", "unresolved_comments"],
+    "meeting_prep": "stable",
+    "status_report": "stable",
+    "research_brief": "stable",
+    "custom": "stable",
+    # Deprecated types — remain in DB for backwards compat, not selectable in UI
+    "slack_standup": "deprecated",
+    "inbox_summary": "deprecated",
+    "reply_draft": "deprecated",
+    "follow_up_tracker": "deprecated",
+    "thread_summary": "deprecated",
+    "meeting_summary": "deprecated",
+    "one_on_one_prep": "deprecated",
+    "stakeholder_update": "deprecated",
+    "board_update": "deprecated",
+    "weekly_status": "deprecated",
+    "project_brief": "deprecated",
+    "cross_platform_digest": "deprecated",
+    "activity_summary": "deprecated",
+    "daily_strategy_reflection": "deprecated",
+    "deep_research": "deprecated",
+    "intelligence_brief": "deprecated",
+    "client_proposal": "deprecated",
+    "performance_self_assessment": "deprecated",
+    "newsletter_section": "deprecated",
+    "changelog": "deprecated",
 }
 
 
@@ -156,19 +114,53 @@ TYPE_EXTRACTION_SIGNALS = {
 
 def get_type_classification(deliverable_type: str) -> dict:
     """
-    ADR-044/045: Get type_classification for a deliverable type.
+    ADR-044/045/082: Get type_classification for a deliverable type.
 
     This determines which execution strategy is used:
     - platform_bound: Single platform context (PlatformBoundStrategy)
     - cross_platform: Multi-platform synthesis (CrossPlatformStrategy)
-    - research: Web research via Anthropic tools (ResearchStrategy)
+    - research: Web research via headless agent WebSearch (ADR-081)
     - hybrid: Research + platform grounding (HybridStrategy)
+
+    ADR-082: Deprecated types alias to their parent type's classification.
 
     Returns:
         dict with binding, temporal_pattern, and optional primary_platform
     """
-    # Platform-bound: Slack
-    if deliverable_type in ("slack_channel_digest", "slack_standup"):
+    # ADR-082: Alias deprecated types to their parent
+    _TYPE_ALIASES = {
+        # slack_channel_digest absorbs:
+        "slack_standup": "slack_channel_digest",
+        # gmail_inbox_brief absorbs:
+        "inbox_summary": "gmail_inbox_brief",
+        "reply_draft": "gmail_inbox_brief",
+        "follow_up_tracker": "gmail_inbox_brief",
+        "thread_summary": "gmail_inbox_brief",
+        # meeting_prep absorbs:
+        "meeting_summary": "meeting_prep",
+        "one_on_one_prep": "meeting_prep",
+        # status_report absorbs:
+        "stakeholder_update": "status_report",
+        "board_update": "status_report",
+        "weekly_status": "status_report",
+        "project_brief": "status_report",
+        "cross_platform_digest": "status_report",
+        "activity_summary": "status_report",
+        "daily_strategy_reflection": "status_report",
+        # research_brief absorbs:
+        "deep_research": "research_brief",
+        "intelligence_brief": "research_brief",
+        # custom absorbs:
+        "client_proposal": "custom",
+        "performance_self_assessment": "custom",
+        "newsletter_section": "custom",
+        "changelog": "custom",
+    }
+
+    resolved_type = _TYPE_ALIASES.get(deliverable_type, deliverable_type)
+
+    # Active type classifications (ADR-082: 8 types)
+    if resolved_type == "slack_channel_digest":
         return {
             "binding": "platform_bound",
             "temporal_pattern": "scheduled",
@@ -176,9 +168,7 @@ def get_type_classification(deliverable_type: str) -> dict:
             "freshness_requirement_hours": 1,
         }
 
-    # Platform-bound: Gmail
-    if deliverable_type in ("gmail_inbox_brief", "inbox_summary", "reply_draft",
-                            "follow_up_tracker", "thread_summary"):
+    if resolved_type == "gmail_inbox_brief":
         return {
             "binding": "platform_bound",
             "temporal_pattern": "scheduled",
@@ -186,8 +176,7 @@ def get_type_classification(deliverable_type: str) -> dict:
             "freshness_requirement_hours": 1,
         }
 
-    # Platform-bound: Notion
-    if deliverable_type == "notion_page_summary":
+    if resolved_type == "notion_page_summary":
         return {
             "binding": "platform_bound",
             "temporal_pattern": "scheduled",
@@ -195,15 +184,15 @@ def get_type_classification(deliverable_type: str) -> dict:
             "freshness_requirement_hours": 4,
         }
 
-    # Platform-bound: Calendar (ADR-046)
-    if deliverable_type == "meeting_prep":
+    if resolved_type == "meeting_prep":
         return {
             "binding": "platform_bound",
             "temporal_pattern": "reactive",
             "primary_platform": "calendar",
             "freshness_requirement_hours": 1,
         }
-    if deliverable_type == "weekly_calendar_preview":
+
+    if resolved_type == "weekly_calendar_preview":
         return {
             "binding": "platform_bound",
             "temporal_pattern": "scheduled",
@@ -211,74 +200,24 @@ def get_type_classification(deliverable_type: str) -> dict:
             "freshness_requirement_hours": 4,
         }
 
-    # Research: Web research deliverables (ADR-045)
-    if deliverable_type == "research_brief":
+    if resolved_type == "research_brief":
         return {
             "binding": "research",
             "temporal_pattern": "on_demand",
             "freshness_requirement_hours": 24,
         }
 
-    # Phase 2: Strategic Intelligence Types
-    if deliverable_type == "deep_research":
-        return {
-            "binding": "research",  # Web research with comprehensive depth
-            "temporal_pattern": "on_demand",
-            "freshness_requirement_hours": 12,  # More current than research_brief
-        }
-
-    if deliverable_type == "daily_strategy_reflection":
-        return {
-            "binding": "cross_platform",  # Synthesize across all user activity
-            "temporal_pattern": "scheduled",  # Daily reflection
-            "freshness_requirement_hours": 4,
-        }
-
-    if deliverable_type == "intelligence_brief":
-        return {
-            "binding": "hybrid",  # Research + platform grounding for current intelligence
-            "temporal_pattern": "scheduled",
-            "freshness_requirement_hours": 2,  # High currency requirement
-        }
-
-    # Cross-platform: Multi-source synthesis
-    if deliverable_type in ("status_report", "weekly_status", "cross_platform_digest",
-                            "activity_summary", "project_brief"):
+    if resolved_type == "status_report":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "scheduled",
             "freshness_requirement_hours": 4,
         }
 
-    # Cross-platform: Meeting-related (needs calendar + other sources)
-    if deliverable_type in ("meeting_summary", "one_on_one_prep"):
-        return {
-            "binding": "cross_platform",
-            "temporal_pattern": "scheduled",
-            "freshness_requirement_hours": 1,
-        }
-
-    # Cross-platform: Stakeholder communication
-    if deliverable_type in ("stakeholder_update", "client_proposal", "board_update",
-                            "newsletter_section"):
-        return {
-            "binding": "cross_platform",
-            "temporal_pattern": "scheduled",
-            "freshness_requirement_hours": 4,
-        }
-
-    # Cross-platform: Beta/other types
-    if deliverable_type in ("changelog", "performance_self_assessment"):
-        return {
-            "binding": "cross_platform",
-            "temporal_pattern": "scheduled",
-            "freshness_requirement_hours": 24,
-        }
-
-    # Default: cross_platform for custom and unknown types
+    # Default: hybrid for custom and unknown types
     return {
-        "binding": "cross_platform",
-        "temporal_pattern": "scheduled",
+        "binding": "hybrid",
+        "temporal_pattern": "on_demand",
         "freshness_requirement_hours": 4,
     }
 

@@ -14,21 +14,13 @@
 import { useState } from 'react';
 import { cn } from '@/lib/utils';
 import {
-  FileText,
   Users,
   Search,
-  MessageSquare,
   Sparkles,
   Mail,
   BarChart3,
-  ClipboardList,
-  Newspaper,
-  GitCommit,
-  UserCheck,
-  Building2,
   Hash,
   FileCode,
-  Layers,
   ChevronLeft,
   Monitor,
   Combine,
@@ -88,6 +80,7 @@ interface PlatformTypeOption {
   platform: 'slack' | 'gmail' | 'notion' | 'calendar';
 }
 
+// ADR-082: 5 platform-bound types (consolidated from 8)
 const PLATFORM_TYPES: PlatformTypeOption[] = [
   // Slack
   {
@@ -95,13 +88,6 @@ const PLATFORM_TYPES: PlatformTypeOption[] = [
     label: 'Channel Digest',
     description: 'What happened while you were away',
     icon: <Hash className="w-5 h-5" />,
-    platform: 'slack',
-  },
-  {
-    value: 'slack_standup',
-    label: 'Standup Synthesis',
-    description: 'Aggregate team standup updates',
-    icon: <Users className="w-5 h-5" />,
     platform: 'slack',
   },
   // Gmail
@@ -112,20 +98,6 @@ const PLATFORM_TYPES: PlatformTypeOption[] = [
     icon: <Mail className="w-5 h-5" />,
     platform: 'gmail',
   },
-  {
-    value: 'inbox_summary',
-    label: 'Inbox Summary',
-    description: 'Digest of important emails',
-    icon: <Mail className="w-5 h-5" />,
-    platform: 'gmail',
-  },
-  {
-    value: 'follow_up_tracker',
-    label: 'Follow-up Tracker',
-    description: 'Emails awaiting response',
-    icon: <ClipboardList className="w-5 h-5" />,
-    platform: 'gmail',
-  },
   // Notion
   {
     value: 'notion_page_summary',
@@ -134,7 +106,7 @@ const PLATFORM_TYPES: PlatformTypeOption[] = [
     icon: <FileCode className="w-5 h-5" />,
     platform: 'notion',
   },
-  // Calendar (ADR-046)
+  // Calendar
   {
     value: 'meeting_prep',
     label: 'Meeting Prep',
@@ -162,54 +134,13 @@ interface CrossPlatformTypeOption {
   icon: React.ReactNode;
 }
 
+// ADR-082: 1 cross-platform type (consolidated from 8)
 const CROSS_PLATFORM_TYPES: CrossPlatformTypeOption[] = [
   {
     value: 'status_report',
     label: 'Status Report',
-    description: 'Weekly or daily progress updates',
+    description: 'Cross-platform synthesis of your week',
     icon: <BarChart3 className="w-5 h-5" />,
-  },
-  {
-    value: 'weekly_status',
-    label: 'Weekly Status',
-    description: 'Comprehensive weekly summary',
-    icon: <Layers className="w-5 h-5" />,
-  },
-  {
-    value: 'cross_platform_digest',
-    label: 'Cross-Platform Digest',
-    description: 'Activity across all platforms',
-    icon: <Combine className="w-5 h-5" />,
-  },
-  {
-    value: 'meeting_summary',
-    label: 'Meeting Summary',
-    description: 'Action items and decisions',
-    icon: <MessageSquare className="w-5 h-5" />,
-  },
-  {
-    value: 'one_on_one_prep',
-    label: '1:1 Prep',
-    description: 'Talking points for meetings',
-    icon: <UserCheck className="w-5 h-5" />,
-  },
-  {
-    value: 'project_brief',
-    label: 'Project Brief',
-    description: 'Current state of a project',
-    icon: <FileText className="w-5 h-5" />,
-  },
-  {
-    value: 'stakeholder_update',
-    label: 'Stakeholder Update',
-    description: 'Executive summaries',
-    icon: <Users className="w-5 h-5" />,
-  },
-  {
-    value: 'board_update',
-    label: 'Board Update',
-    description: 'Formal board meeting updates',
-    icon: <Building2 className="w-5 h-5" />,
   },
 ];
 
@@ -223,12 +154,6 @@ const RESEARCH_TYPES: CrossPlatformTypeOption[] = [
     label: 'Research Brief',
     description: 'Synthesized findings on a topic',
     icon: <Search className="w-5 h-5" />,
-  },
-  {
-    value: 'activity_summary',
-    label: 'Activity Summary',
-    description: 'Recent activity analysis',
-    icon: <BarChart3 className="w-5 h-5" />,
   },
 ];
 
@@ -439,98 +364,3 @@ export function TypeSelector({ value, onChange }: TypeSelectorProps) {
   );
 }
 
-// =============================================================================
-// LEGACY FLAT SELECTOR (for backwards compatibility)
-// =============================================================================
-
-interface TypeOption {
-  value: DeliverableType;
-  label: string;
-  description: string;
-  icon: React.ReactNode;
-}
-
-const LEGACY_TYPE_OPTIONS: TypeOption[] = [
-  {
-    value: 'status_report',
-    label: 'Status Report',
-    description: 'Weekly or daily progress updates',
-    icon: <BarChart3 className="w-5 h-5" />,
-  },
-  {
-    value: 'stakeholder_update',
-    label: 'Stakeholder Update',
-    description: 'Executive summaries for leadership',
-    icon: <Users className="w-5 h-5" />,
-  },
-  {
-    value: 'meeting_summary',
-    label: 'Meeting Summary',
-    description: 'Action items and decisions from meetings',
-    icon: <MessageSquare className="w-5 h-5" />,
-  },
-  {
-    value: 'research_brief',
-    label: 'Research Brief',
-    description: 'Synthesized findings on a topic',
-    icon: <Search className="w-5 h-5" />,
-  },
-  {
-    value: 'custom',
-    label: 'Custom',
-    description: 'Define your own format',
-    icon: <Sparkles className="w-5 h-5" />,
-  },
-];
-
-/**
- * @deprecated Use TypeSelector instead (ADR-044 binding-first flow)
- */
-export function LegacyTypeSelector({
-  value,
-  onChange,
-}: {
-  value: DeliverableType | undefined;
-  onChange: (type: DeliverableType) => void;
-}) {
-  return (
-    <div className="space-y-3">
-      <p className="text-sm text-muted-foreground">
-        What type of content should this deliverable produce?
-      </p>
-
-      <div className="grid grid-cols-2 gap-2">
-        {LEGACY_TYPE_OPTIONS.map((option) => (
-          <button
-            key={option.value}
-            type="button"
-            onClick={() => onChange(option.value)}
-            className={cn(
-              'p-3 rounded-lg border text-left transition-all',
-              value === option.value
-                ? 'border-primary bg-primary/5 ring-1 ring-primary/20'
-                : 'border-border hover:border-muted-foreground/50 hover:bg-muted/30'
-            )}
-          >
-            <div className="flex items-start gap-3">
-              <div
-                className={cn(
-                  'shrink-0 mt-0.5',
-                  value === option.value ? 'text-primary' : 'text-muted-foreground'
-                )}
-              >
-                {option.icon}
-              </div>
-              <div className="min-w-0">
-                <div className="text-sm font-medium">{option.label}</div>
-                <div className="text-xs text-muted-foreground line-clamp-2">
-                  {option.description}
-                </div>
-              </div>
-            </div>
-          </button>
-        ))}
-      </div>
-    </div>
-  );
-}

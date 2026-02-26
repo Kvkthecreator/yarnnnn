@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.27.1] - Type consolidation: 27→8 active types (ADR-082)
+
+### Changed
+- `api/services/signal_processing.py`: Updated `_REASONING_SYSTEM_PROMPT` to reference only active types (`status_report`, `research_brief`, `custom`) instead of deprecated types (`daily_strategy_reflection`, `intelligence_brief`, `deep_research`). Updated JSON examples accordingly. Removed hardcoded `MEETING_PREP_TYPE_CLASSIFICATION` — now uses `get_type_classification()` from routes.
+- `api/services/deliverable_pipeline.py`: `build_type_prompt()` now resolves deprecated types to parent type's prompt template and field mapping via `_TYPE_PROMPT_ALIASES`. e.g., `stakeholder_update` → `status_report` template.
+- `api/services/conversation_analysis.py`: Removed `weekly_status` from `SUGGESTABLE_TYPES` (deprecated, absorbed by `status_report`).
+
+### Behavior
+- Signal processing now instructs the LLM to create only active types. Deprecated types returned by LLM still work via aliasing in `get_type_classification()`.
+- Deprecated types in existing deliverables use parent type's prompt template on next execution, not their original dedicated prompt.
+- Conversation analysis no longer suggests `weekly_status` as a deliverable type.
+
+---
+
 ## [2026.02.26.4] - Execution path consolidation: absorb web research into headless mode (ADR-081)
 
 ### Changed

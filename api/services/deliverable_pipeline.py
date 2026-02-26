@@ -1471,7 +1471,32 @@ def build_type_prompt(
         if variant_prompt:
             return variant_prompt
 
-    template = TYPE_PROMPTS.get(deliverable_type, TYPE_PROMPTS["custom"])
+    # ADR-082: Resolve deprecated types to parent type's prompt
+    _TYPE_PROMPT_ALIASES = {
+        "slack_standup": "slack_channel_digest",
+        "inbox_summary": "gmail_inbox_brief",
+        "reply_draft": "gmail_inbox_brief",
+        "follow_up_tracker": "gmail_inbox_brief",
+        "thread_summary": "gmail_inbox_brief",
+        "meeting_summary": "meeting_prep",
+        "one_on_one_prep": "meeting_prep",
+        "stakeholder_update": "status_report",
+        "board_update": "status_report",
+        "weekly_status": "status_report",
+        "project_brief": "status_report",
+        "cross_platform_digest": "status_report",
+        "activity_summary": "status_report",
+        "daily_strategy_reflection": "status_report",
+        "deep_research": "research_brief",
+        "intelligence_brief": "research_brief",
+        "client_proposal": "custom",
+        "performance_self_assessment": "custom",
+        "newsletter_section": "custom",
+        "changelog": "custom",
+    }
+    resolved_type = _TYPE_PROMPT_ALIASES.get(deliverable_type, deliverable_type)
+
+    template = TYPE_PROMPTS.get(resolved_type, TYPE_PROMPTS["custom"])
 
     # Common fields
     fields = {
@@ -1481,11 +1506,11 @@ def build_type_prompt(
         "title": deliverable.get("title", "Deliverable"),
     }
 
-    if deliverable_type == "status_report":
+    if resolved_type == "status_report":
         fields.update({
             "subject": config.get("subject", deliverable.get("title", "")),
             "audience": config.get("audience", "stakeholders"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "detail_level": config.get("detail_level", "standard"),
             "tone": config.get("tone", "formal"),
             "length_guidance": LENGTH_GUIDANCE.get(
@@ -1494,48 +1519,48 @@ def build_type_prompt(
             ),
         })
 
-    elif deliverable_type == "stakeholder_update":
+    elif resolved_type == "stakeholder_update":
         fields.update({
             "audience_type": config.get("audience_type", "stakeholders"),
             "company_or_project": config.get("company_or_project", deliverable.get("title", "")),
             "relationship_context": config.get("relationship_context", "N/A"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "formality": config.get("formality", "professional"),
             "sensitivity": config.get("sensitivity", "confidential"),
         })
 
-    elif deliverable_type == "research_brief":
+    elif resolved_type == "research_brief":
         subjects = config.get("subjects", [])
         fields.update({
             "focus_area": config.get("focus_area", "market"),
             "subjects_list": "\n".join(f"- {s}" for s in subjects) if subjects else "- General research",
             "purpose": config.get("purpose", "Inform decision-making"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "depth": config.get("depth", "analysis"),
         })
 
-    elif deliverable_type == "meeting_summary":
+    elif resolved_type == "meeting_summary":
         participants = config.get("participants", [])
         fields.update({
             "meeting_name": config.get("meeting_name", deliverable.get("title", "")),
             "meeting_type": config.get("meeting_type", "team_sync"),
             "participants": ", ".join(participants) if participants else "Team members",
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "format": config.get("format", "structured"),
         })
 
     # Beta Tier
-    elif deliverable_type == "client_proposal":
+    elif resolved_type == "client_proposal":
         fields.update({
             "client_name": config.get("client_name", "the client"),
             "project_type": config.get("project_type", "new_engagement").replace("_", " "),
             "service_category": config.get("service_category", "consulting"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "tone": config.get("tone", "consultative"),
             "pricing_instruction": "Include pricing/investment section" if config.get("include_pricing", True) else "Do NOT include specific pricing",
         })
 
-    elif deliverable_type == "performance_self_assessment":
+    elif resolved_type == "performance_self_assessment":
         review_period = config.get("review_period", "quarterly")
         role_level = config.get("role_level", "ic")
         tone = config.get("tone", "balanced")
@@ -1547,45 +1572,45 @@ def build_type_prompt(
         fields.update({
             "review_period": review_period,
             "role_level": role_level.replace("_", " "),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "tone": tone,
             "tone_guidance": tone_guidance.get(tone, "balanced perspective"),
             "quantify_instruction": "- Quantify impact with specific numbers, percentages, and metrics wherever possible" if config.get("quantify_impact", True) else "",
         })
 
-    elif deliverable_type == "newsletter_section":
+    elif resolved_type == "newsletter_section":
         length = config.get("length", "medium")
         length_words = {"short": "100-200 words", "medium": "200-400 words", "long": "400-800 words"}
         fields.update({
             "newsletter_name": config.get("newsletter_name", "Newsletter"),
             "section_type": config.get("section_type", "main_story").replace("_", " "),
             "audience": config.get("audience", "customers"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "voice": config.get("voice", "brand"),
             "length": length_words.get(length, "200-400 words"),
         })
 
-    elif deliverable_type == "changelog":
+    elif resolved_type == "changelog":
         fields.update({
             "product_name": config.get("product_name", "the product"),
             "release_type": config.get("release_type", "weekly"),
             "audience": config.get("audience", "mixed"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "format": config.get("format", "user_friendly").replace("_", "-"),
             "links_instruction": "- Include links to documentation or features where available" if config.get("include_links", True) else "",
         })
 
-    elif deliverable_type == "one_on_one_prep":
+    elif resolved_type == "one_on_one_prep":
         focus_areas = config.get("focus_areas", ["performance", "growth"])
         fields.update({
             "report_name": config.get("report_name", "the team member"),
             "meeting_cadence": config.get("meeting_cadence", "weekly"),
             "relationship": config.get("relationship", "direct_report").replace("_", " "),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "focus_areas": ", ".join(focus_areas),
         })
 
-    elif deliverable_type == "board_update":
+    elif resolved_type == "board_update":
         tone = config.get("tone", "balanced")
         tone_guidance = {
             "optimistic": "emphasize progress and opportunities while being honest",
@@ -1596,7 +1621,7 @@ def build_type_prompt(
             "company_name": config.get("company_name", "the company"),
             "stage": config.get("stage", "seed").replace("_", " "),
             "update_type": config.get("update_type", "quarterly"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "tone": tone,
             "tone_guidance": tone_guidance.get(tone, "balanced perspective"),
             "comparisons_instruction": "Include comparisons vs. last period and vs. plan where data is available" if config.get("include_comparisons", True) else "",
@@ -1606,37 +1631,37 @@ def build_type_prompt(
     # ADR-029 Phase 3: Email-Specific Types
     # =========================================================================
 
-    elif deliverable_type == "inbox_summary":
+    elif resolved_type == "inbox_summary":
         fields.update({
             "summary_period": config.get("summary_period", "daily"),
             "inbox_scope": config.get("inbox_scope", "unread"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "prioritization": config.get("prioritization", "by_urgency").replace("_", " "),
         })
 
-    elif deliverable_type == "reply_draft":
+    elif resolved_type == "reply_draft":
         suggested_actions = config.get("suggested_actions", [])
         fields.update({
             "thread_id": config.get("thread_id", ""),
             "tone": config.get("tone", "professional"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "quote_instruction": "Include relevant quotes from the original message" if config.get("include_original_quotes", True) else "Do not quote the original message",
             "suggested_actions": f"USER HINTS:\n{chr(10).join('- ' + a for a in suggested_actions)}" if suggested_actions else "",
         })
 
-    elif deliverable_type == "follow_up_tracker":
+    elif resolved_type == "follow_up_tracker":
         fields.update({
             "tracking_period": config.get("tracking_period", "7d"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "prioritize_by": config.get("prioritize_by", "age").replace("_", " "),
         })
 
-    elif deliverable_type == "thread_summary":
+    elif resolved_type == "thread_summary":
         detail_level = config.get("detail_level", "brief")
         detail_guidance = "concise and scannable" if detail_level == "brief" else "thorough with context"
         fields.update({
             "thread_id": config.get("thread_id", ""),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "detail_level": detail_level,
             "detail_guidance": detail_guidance,
         })
@@ -1645,7 +1670,7 @@ def build_type_prompt(
     # ADR-046: Calendar-Triggered Types
     # =========================================================================
 
-    elif deliverable_type == "meeting_prep":
+    elif resolved_type == "meeting_prep":
         # Extract meeting info from config
         meeting_info = config.get("meeting", {})
         attendees = meeting_info.get("attendees", [])
@@ -1655,10 +1680,10 @@ def build_type_prompt(
             "meeting_time": meeting_info.get("start", config.get("meeting_time", "")),
             "attendees_list": ", ".join(attendee_names) if attendee_names else "Not specified",
             "meeting_description": f"MEETING DESCRIPTION:\n{meeting_info.get('description', '')}" if meeting_info.get("description") else "",
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
         })
 
-    elif deliverable_type == "weekly_calendar_preview":
+    elif resolved_type == "weekly_calendar_preview":
         # Extract calendar summary info
         calendar_summary = config.get("calendar_summary", {})
         fields.update({
@@ -1668,11 +1693,11 @@ def build_type_prompt(
             "total_hours": str(calendar_summary.get("total_hours", "N/A")),
             "busiest_day": calendar_summary.get("busiest_day", "N/A"),
             "free_blocks": calendar_summary.get("free_blocks", "See calendar for details"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
         })
 
     # Phase 2: Strategic Intelligence Types
-    elif deliverable_type == "deep_research":
+    elif resolved_type == "deep_research":
         time_horizon_map = {
             "current": "current state/near-term",
             "1_year": "1-year outlook",
@@ -1684,28 +1709,28 @@ def build_type_prompt(
             "research_type": config.get("research_type", "strategic"),
             "depth": config.get("depth", "comprehensive"),
             "time_horizon_text": time_horizon_map.get(config.get("time_horizon", "current"), "current"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "sources_required": str(config.get("sources_required", 10)),
             "include_citations": config.get("include_citations", True),
         })
 
-    elif deliverable_type == "daily_strategy_reflection":
+    elif resolved_type == "daily_strategy_reflection":
         focus_area = config.get("focus_area")
         fields.update({
             "focus_area_text": focus_area if focus_area else "general strategic development",
             "lookback_days": str(config.get("lookback_days", 1)),
             "reflection_time": config.get("reflection_time", "evening"),
             "tone": config.get("tone", "reflective"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "context_synthesis": "CONTEXT SYNTHESIS (Layer 3 user context):\n" + gathered_context if config.get("include_context_synthesis", True) else "",
         })
 
-    elif deliverable_type == "intelligence_brief":
+    elif resolved_type == "intelligence_brief":
         fields.update({
             "brief_type": config.get("brief_type", "strategic"),
             "audience": config.get("audience", "executive"),
             "time_sensitivity": config.get("time_sensitivity", "daily"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
             "include_confidence_levels": config.get("include_confidence_levels", True),
             "max_length_words": str(config.get("max_length_words", 800)),
         })
@@ -1714,32 +1739,32 @@ def build_type_prompt(
     # ADR-035: Platform-First Wave 1 Types
     # =========================================================================
 
-    elif deliverable_type == "slack_channel_digest":
+    elif resolved_type == "slack_channel_digest":
         fields.update({
             "focus": config.get("focus", "key discussions and decisions"),
             "reply_threshold": str(config.get("reply_threshold", 3)),
             "reaction_threshold": str(config.get("reaction_threshold", 3)),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
         })
 
-    elif deliverable_type == "slack_standup":
+    elif resolved_type == "slack_standup":
         fields.update({
             "source_mode": config.get("source_mode", "individual"),
             "format": config.get("format", "bullets"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
         })
 
-    elif deliverable_type == "gmail_inbox_brief":
+    elif resolved_type == "gmail_inbox_brief":
         fields.update({
             "focus": config.get("focus", "unread and action-required emails"),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
         })
 
-    elif deliverable_type == "notion_page_summary":
+    elif resolved_type == "notion_page_summary":
         fields.update({
             "summary_type": config.get("summary_type", "activity"),
             "max_depth": str(config.get("max_depth", 2)),
-            "sections_list": build_sections_list(deliverable_type, config),
+            "sections_list": build_sections_list(resolved_type, config),
         })
 
     else:  # custom and any unknown types

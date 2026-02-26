@@ -44,14 +44,6 @@ CONFIDENCE_THRESHOLD = 0.60
 # Model for the reasoning pass — routing/classification call, Haiku for cost efficiency
 SIGNAL_REASONING_MODEL = "claude-haiku-4-5-20251001"
 
-# Type config for the first signal-emergent type: meeting_prep
-MEETING_PREP_TYPE_CLASSIFICATION = {
-    "binding": "platform_bound",
-    "primary_platform": "google",
-    "temporal_pattern": "event_driven",
-    "freshness_requirement_hours": 1,
-}
-
 
 @dataclass
 class SignalAction:
@@ -318,14 +310,9 @@ async def _create_signal_emergent_deliverable(
     now = datetime.now(timezone.utc).isoformat()
     deliverable_id = str(uuid4())
 
-    # Type classification — meeting_prep is the first supported type
-    type_classification = MEETING_PREP_TYPE_CLASSIFICATION if (
-        action.deliverable_type == "meeting_prep"
-    ) else {
-        "binding": "cross_platform",
-        "temporal_pattern": "event_driven",
-        "freshness_requirement_hours": 4,
-    }
+    # ADR-082: Use canonical type classification (handles aliases too)
+    from routes.deliverables import get_type_classification
+    type_classification = get_type_classification(action.deliverable_type)
 
     try:
         client.table("deliverables").insert({
@@ -575,22 +562,23 @@ This is NOT absence/threshold detection. You reason about CONTENT SIGNIFICANCE, 
 The question is: "Given what's actually here across platforms, what patterns are emerging,
 what decisions are pending, what topic warrants synthesis?"
 
-THREE STRATEGIC DELIVERABLE TYPES DEFINE "SIGNIFICANT":
+THREE STRATEGIC DELIVERABLE TYPES DEFINE "SIGNIFICANT" (ADR-082 active types):
 
-1. **daily_strategy_reflection** — Strategic movements, decision points, pattern recognition
+1. **status_report** — Cross-platform synthesis of strategic movements, decision points, pattern recognition
    - Look for: Developments affecting strategic landscape, gap between stated priorities and actual activity
    - Example: Email thread reveals decision point on pricing, Slack shows team alignment shifting
-   - Creates: Strategic journal entry synthesizing cross-platform movements
+   - Creates: Cross-platform synthesis summarizing key developments and strategic movements
 
-2. **intelligence_brief** — Entity-specific developments (person, company, topic)
-   - Look for: What changed since last brief about this entity? New information with specific impact?
+2. **research_brief** — Entity-specific or topic-specific developments requiring investigation
+   - Look for: What changed about this entity/topic? New information with specific impact? Topics needing deeper synthesis
    - Example: Calendar shows upcoming meeting with contact X, Gmail has 3 new threads from X's company
-   - Creates: Priority-ranked intelligence digest for that entity
-
-3. **deep_research** — Emerging topic appearing across platforms with substance worth deeper synthesis
-   - Look for: Topic mentioned in multiple contexts, requires web research + platform grounding
    - Example: "AI regulation" in 3 Slack channels, 2 email threads, upcoming meeting agenda
    - Creates: Research brief combining platform context + external sources
+
+3. **custom** — Novel deliverable that doesn't fit standard types
+   - Look for: Unique cross-platform patterns that warrant a one-off synthesis
+   - Example: Unusual convergence of events requiring a tailored deliverable format
+   - Creates: Custom deliverable with user-specific description
 
 ACTION TYPES:
 
@@ -614,10 +602,10 @@ Content: Calendar has 1 upcoming meeting "Weekly Team Sync", Gmail has 2 interna
 → no_action (routine internal activity, insufficient significance)
 
 Content: Calendar shows "Client Meeting with Acme Corp CEO", Gmail has 3 threads about Acme pricing concerns, Slack #sales mentions Acme 4 times
-→ create_signal_emergent (intelligence_brief type, entity=Acme Corp, significant multi-platform pattern)
+→ create_signal_emergent (research_brief type, entity=Acme Corp, significant multi-platform pattern)
 
-Content: User has existing daily_strategy_reflection deliverable (last run: 3 days ago), Gmail shows 5 decision-point emails today, Slack shows strategy discussion
-→ trigger_existing (advance the daily_strategy_reflection to run now, fresh strategic movements detected)
+Content: User has existing status_report deliverable (last run: 3 days ago), Gmail shows 5 decision-point emails today, Slack shows strategy discussion
+→ trigger_existing (advance the status_report to run now, fresh strategic movements detected)
 
 Respond ONLY with valid JSON in this exact format:
 
@@ -640,8 +628,8 @@ For creating new deliverable:
   "actions": [
     {
       "action_type": "create_signal_emergent",
-      "deliverable_type": "intelligence_brief",
-      "title": "Intelligence Brief: Acme Corp Developments",
+      "deliverable_type": "research_brief",
+      "title": "Research Brief: Acme Corp Developments",
       "description": "Synthesis of recent Acme-related activity across platforms",
       "confidence": 0.85,
       "sources": [{"type": "integration_import", "provider": "google", "source": "calendar"}],

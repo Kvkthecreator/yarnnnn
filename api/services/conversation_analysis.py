@@ -53,10 +53,6 @@ SUGGESTABLE_TYPES = {
         "binding": "cross_platform",
         "description": "Status update across all connected platforms",
     },
-    "weekly_status": {
-        "binding": "cross_platform",
-        "description": "Weekly summary of activity across platforms",
-    },
     # Research
     "research_brief": {
         "binding": "research",
