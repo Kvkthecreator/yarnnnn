@@ -10,7 +10,7 @@ import { api } from "@/lib/api/client";
 import type { TierLimits } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CreditCard, ExternalLink, Loader2, Sparkles, Zap } from "lucide-react";
+import { CreditCard, Loader2, Sparkles, Zap } from "lucide-react";
 
 type PlanTier = "free" | "starter" | "pro";
 type BillingPeriod = "monthly" | "yearly";
@@ -194,21 +194,6 @@ export function SubscriptionCard() {
                 </span>
               </div>
             </div>
-
-            {isPaid && (
-              <Button
-                variant="outline"
-                onClick={manageSubscription}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                )}
-                Manage Billing
-              </Button>
-            )}
           </div>
 
           {status?.expires_at && (
@@ -351,8 +336,8 @@ export function SubscriptionCard() {
           <p className="text-sm text-muted-foreground">
             Payment method, invoices, and cancellation are managed in the secure customer portal.
           </p>
-          <div className="flex flex-wrap gap-2">
-            {isPaid ? (
+          {isPaid ? (
+            <div className="flex flex-wrap gap-2">
               <Button variant="outline" onClick={manageSubscription} disabled={isLoading}>
                 {isLoading ? (
                   <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -361,19 +346,12 @@ export function SubscriptionCard() {
                 )}
                 Open Billing Portal
               </Button>
-            ) : (
-              <>
-                <Button onClick={() => upgrade("starter", billingPeriod)} disabled={isLoading}>
-                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Zap className="w-4 h-4 mr-2" />}
-                  Start Starter ({PLAN_META.starter[billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]})
-                </Button>
-                <Button variant="outline" onClick={() => upgrade("pro", billingPeriod)} disabled={isLoading}>
-                  {isLoading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Sparkles className="w-4 h-4 mr-2" />}
-                  Start Pro ({PLAN_META.pro[billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]})
-                </Button>
-              </>
-            )}
-          </div>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Billing portal becomes available after starting a paid plan.
+            </p>
+          )}
           <p className="text-xs text-muted-foreground">
             Annual billing includes ~17% savings versus monthly.
           </p>
