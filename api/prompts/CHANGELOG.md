@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.26.1] - Deliverable quality: no-emoji, conciseness, calendar preview rewrite
+
+### Changed
+- `api/services/deliverable_execution.py`: System prompt now instructs no-emoji output, enforces conciseness preference, uses plain markdown headers.
+- `api/services/deliverable_pipeline.py`: Rewrote `weekly_calendar_preview` prompt to analyze raw event data instead of expecting pre-computed stats ({meeting_count}, {total_hours} etc. were never filled). Prompt now instructs LLM to compute counts from context.
+- `api/services/deliverable_pipeline.py`: Updated `gmail_inbox_brief` prompt to explicitly request plain markdown headers and no-emoji output.
+
+### Behavior
+- All deliverable types now produce plain markdown output without emoji headers
+- Calendar preview no longer shows "N/A" placeholders — derives stats from raw event data
+- Gmail inbox brief uses consistent `## Urgent`, `## Action Required` headers instead of emoji variants
+- User conciseness preferences (from working memory) are now prioritized by system prompt
+
+---
+
 ## [2026.02.25.1] - Eliminate MCP Gateway, all platforms use Direct API (ADR-076)
 
 ### Changed

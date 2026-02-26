@@ -497,11 +497,12 @@ GATHERED CONTEXT:
 
 INSTRUCTIONS:
 - Start with urgent/time-sensitive items
-- Group by category: urgent, action-required, FYI, can-archive
+- Group by category: Urgent, Action Required, FYI, Can Archive
 - For each email, include: sender, subject, and one-line summary
 - Highlight any mentioned deadlines or dates
 - Suggest which emails can be batch-responded
-- Keep the brief scannable - use bullet points
+- Keep the brief scannable — use bullet points, no emojis
+- Use plain markdown headers (## Urgent, ## Action Required, etc.)
 - Total length: 300-500 words
 
 Write the inbox brief now:""",
@@ -568,44 +569,38 @@ INSTRUCTIONS:
 
 Write the meeting prep brief now:""",
 
-    "weekly_calendar_preview": """You are creating a weekly calendar preview for the user.
+    "weekly_calendar_preview": """You are creating a weekly calendar preview from raw calendar event data.
 
-WEEK OF: {week_start}
-CALENDAR SUMMARY:
-{calendar_summary}
-
-ADDITIONAL CONTEXT:
+CALENDAR EVENTS:
 {gathered_context}
 
 {recipient_context}
 
 {past_versions}
 
-STRUCTURE:
+STRUCTURE (use these exact section headers, no emojis):
 
-## 📅 Week Overview
-{meeting_count} meetings, {total_hours} hours of scheduled time.
-Busiest day: {busiest_day}
-Free blocks: {free_blocks}
+## Week Overview
+Count the actual events from the data above. State: total meetings, total hours, busiest day, and available free blocks. Be specific with numbers.
 
-## 👥 Key People This Week
-Who you're meeting with most, and notable external meetings.
+## Key People This Week
+Who the user is meeting with — list names and meeting context. Note any external attendees.
 
-## 🔄 Recurring Meetings
-Your regular 1:1s, syncs, and standups this week.
+## Recurring Meetings
+Identify recurring patterns (weekly standups, 1:1s, team syncs) from the event titles.
 
-## ⚡ High-Priority
-Meetings that likely need prep or are particularly important.
+## High-Priority
+Flag meetings that are longer than usual, have many attendees, or appear strategic (e.g., strategy sessions, external meetings, reviews).
 
-## 💭 Suggested Prep
-Meetings that would benefit from a meeting prep deliverable.
+## Suggested Prep
+List 2-3 meetings that would benefit from advance preparation, and briefly explain why.
 
 INSTRUCTIONS:
-- Provide a high-level view of the week ahead
-- Identify patterns (heavy meeting days, back-to-back blocks)
-- Call out meetings with external attendees
-- Suggest which meetings need prep work
-- Keep it brief and scannable
+- Analyze the raw event data to compute meeting counts, durations, and patterns
+- Include specific dates and times for each event
+- Be definitive — do not hedge or say "N/A" if data is present
+- Keep it brief and scannable — bullet points preferred
+- Do not use emojis
 
 Generate the weekly calendar preview now:""",
 

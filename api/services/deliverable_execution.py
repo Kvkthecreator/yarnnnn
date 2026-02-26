@@ -269,8 +269,11 @@ async def generate_draft_inline(
     # Generate draft
     system_prompt = f"""You are generating a {deliverable_type} deliverable.
 Follow the format and instructions exactly.
-Be concise and professional.
-Do not invent information not present in the provided context."""
+Be concise and professional — keep content tight and scannable.
+Do not invent information not present in the provided context.
+Do not use emojis in headers or content unless the user's preferences explicitly request them.
+Use plain markdown headers (##, ###) and bullet points for structure.
+If the user's context mentions a preference for conciseness, prioritize brevity over completeness."""
 
     try:
         draft = await chat_completion(
