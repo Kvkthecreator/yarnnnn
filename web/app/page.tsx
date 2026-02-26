@@ -1,11 +1,40 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { IntegrationHub } from "@/components/landing/IntegrationHub";
+import { BRAND, getMarketingMetadata } from "@/lib/metadata";
+
+export const metadata: Metadata = getMarketingMetadata({
+  title: "Autonomous AI That Compounds With Your Context",
+  description:
+    "yarnnn connects to your Slack, Gmail, Notion, and Calendar to produce recurring work autonomously and improve with every cycle.",
+  path: "/",
+  keywords: [
+    "autonomous ai",
+    "context aware ai",
+    "recurring work automation",
+    "slack gmail notion ai",
+    "human in the loop ai",
+  ],
+});
 
 export default function LandingPage() {
+  const websiteSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebSite",
+    name: BRAND.name,
+    url: BRAND.url,
+    description: BRAND.description,
+    publisher: {
+      "@type": "Organization",
+      name: BRAND.name,
+      url: BRAND.url,
+    },
+  };
+
   return (
     <main className="relative min-h-screen w-full overflow-x-hidden bg-[#faf8f5] text-[#1a1a1a]">
       <GrainOverlay />
@@ -330,6 +359,11 @@ export default function LandingPage() {
 
         <LandingFooter />
       </div>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(websiteSchema) }}
+      />
     </main>
   );
 }

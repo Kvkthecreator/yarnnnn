@@ -1,5 +1,20 @@
 import { Suspense } from 'react';
+import type { Metadata } from "next";
 import AuthenticatedLayout from '@/components/shell/AuthenticatedLayout';
+
+export const metadata: Metadata = {
+  title: {
+    default: "App",
+    template: "%s | yarnnn",
+  },
+  robots: {
+    index: false,
+    follow: false,
+    noarchive: true,
+    nosnippet: true,
+    noimageindex: true,
+  },
+};
 
 /**
  * ADR-023: Supervisor Desk Architecture

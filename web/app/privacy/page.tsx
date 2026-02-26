@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getMarketingMetadata } from "@/lib/metadata";
+import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata = getMarketingMetadata({
   title: "Privacy Policy",
@@ -9,6 +9,15 @@ export const metadata = getMarketingMetadata({
 });
 
 export default function PrivacyPage() {
+  const legalSchema = {
+    "@context": "https://schema.org",
+    "@type": "WebPage",
+    name: "Privacy Policy",
+    url: `${BRAND.url}/privacy`,
+    description: metadata.description,
+    dateModified: "2026-01-28",
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="border-b border-border py-4 px-6">
@@ -117,6 +126,11 @@ export default function PrivacyPage() {
           </a>
         </p>
       </main>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(legalSchema) }}
+      />
     </div>
   );
 }
