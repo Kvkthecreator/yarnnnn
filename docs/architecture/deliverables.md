@@ -1,8 +1,7 @@
 # Architecture: Deliverables
 
 **Status:** Canonical
-**Date:** 2026-02-19
-**Supersedes:** [docs/features/deliverables.md](../features/deliverables.md)
+**Date:** 2026-02-26
 **Related:**
 - [ADR-018: Recurring Deliverables](../adr/ADR-018-recurring-deliverables.md)
 - [ADR-044: Deliverable Type Reconceptualization](../adr/ADR-044-deliverable-type-reconceptualization.md)
@@ -102,25 +101,28 @@ The `origin` field is **immutable provenance** — it records how the deliverabl
 
 ### Deliverable Types
 
-25 types across three tiers:
+31 types across three tiers:
 
-**Platform-Bound (Tier 1)** — Single-platform, recurring patterns
+**Platform-Bound** — Single-platform, recurring patterns
 - `slack_channel_digest`, `slack_standup`
-- `gmail_inbox_brief`
+- `gmail_inbox_brief`, `inbox_summary`
 - `notion_page_summary`
-- `meeting_prep`, `weekly_calendar_preview`
+- `meeting_prep`, `meeting_summary`, `weekly_calendar_preview`
 
-**User-Configured (Tier 2)** — Multi-platform, user-authored structure
+**Cross-Platform** — Multi-platform synthesis
 - `status_report`, `stakeholder_update`, `one_on_one_prep`, `board_update`
-- `research_brief`, `meeting_summary`, `client_proposal`
-- `performance_self_assessment`, `newsletter`, `changelog`
-
-**Synthesizers (Tier 3)** — Cross-platform, context-assembling
 - `weekly_status`, `project_brief`, `cross_platform_digest`, `activity_summary`
-- `inbox_summary`, `reply_draft`, `follow_up_tracker`, `thread_summary`
+- `daily_strategy_reflection`, `performance_self_assessment`
+- `reply_draft`, `follow_up_tracker`, `thread_summary`
+- `newsletter`, `changelog`
+
+**Research / Hybrid** — Web research with optional platform grounding
+- `research_brief`, `deep_research`, `competitive_analysis`
+- `intelligence_brief` (hybrid: web + platform in parallel)
+- `client_proposal` (hybrid)
 
 **Legacy / Deprecated**
-- `custom` — generic fallback, being phased out in favor of specific types
+- `custom` — generic fallback
 - `digest` — deprecated in favor of `cross_platform_digest` or `slack_channel_digest`
 
 ### Type Classification (ADR-044)
@@ -158,47 +160,46 @@ Each deliverable type has a `type_classification` object that determines executi
 
 ---
 
-## Execution Model (ADR-072)
+## Execution Model
 
-> **ADR-072 UPDATE**: Deliverable execution now uses **TP in headless mode**. The previous parallel fetch pipeline and strategy pattern are replaced by unified TP primitives.
+**Current implementation (ADR-042 + ADR-045 + ADR-073)**: Strategy-based execution with type-aware context gathering and a single LLM generation call.
 
-When a deliverable is due to run (scheduled, event-triggered, or manual), the `unified_scheduler.py` orchestrator:
+When a deliverable is due to run (scheduled, event-triggered, or manual), `execute_deliverable_generation()` in `deliverable_execution.py`:
 
-1. Fetches the deliverable row and configuration
-2. Pre-loads relevant `platform_content` records for configured sources
-3. Invokes **TP in execution mode** (headless, no streaming, no clarification)
-4. TP uses full primitives (`Search`, `FetchPlatformContent`, `CrossPlatformQuery`) to gather and reason over content
-5. TP generates output via LLM call (same agent as live sessions)
-6. A `deliverable_version` row is created with `status=delivered`
-7. `source_snapshots` records `platform_content_ids[]` — specific content records used
-8. Source `platform_content` records marked `retained=true` (accumulation)
-9. Content delivered to configured destination(s)
-10. `activity_log` event written (non-fatal)
+1. Checks source freshness — skips if no new content since `last_run_at` (ADR-049)
+2. Creates `deliverable_versions` row (status=generating) + `work_tickets` row
+3. Selects execution strategy by `type_classification.binding` (ADR-045):
 
-### TP Execution Mode vs Live Mode
+| Strategy | Binding | Content Source |
+|----------|---------|---------------|
+| `PlatformBoundStrategy` | `platform_bound` | Single platform's `platform_content` |
+| `CrossPlatformStrategy` | `cross_platform` | All platforms' `platform_content` |
+| `ResearchStrategy` | `research` | Web research (Anthropic native `web_search`) |
+| `HybridStrategy` | `hybrid` | Web research + platform content in parallel (`asyncio.gather`) |
 
-| Aspect | TP Live Mode | TP Execution Mode |
-|---|---|---|
-| **Streaming** | Streams responses to user | Collects full output, writes to version |
-| **Clarification** | Can ask user for details | Must complete with available context |
-| **Tool rounds** | `max_tool_rounds=5` | May be higher for complex deliverables |
-| **Context injection** | Working memory + user message | Deliverable config + pre-loaded `platform_content` |
-| **Output** | Displayed in chat | Written to `deliverable_version.final_content` |
-
-### Why unified execution?
-
-**Before (ADR-045)**: `DeliverableAgent` with strategy pattern — different fetch pipelines for different deliverable types. Quality gap between TP conversations and scheduled outputs.
-
-**After (ADR-072)**: TP is the single execution agent. Same primitives, same reasoning capability, same content access. Improvements to TP primitives automatically improve deliverable quality. One codebase, not two.
+4. Strategy calls `get_content_summary_for_generation()` — chronological content dump with signal markers (`[UNANSWERED]`, `[STALLED]`, `[URGENT]`, `[DECISION]`), capped at 20 items/source, 500 chars/item
+5. User memories appended from `user_context` (fact/instruction/preference keys)
+6. Past version feedback appended (if any)
+7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context
+8. Single LLM call (Claude Sonnet 4) generates the draft
+9. `mark_content_retained()` on consumed `platform_content` records (ADR-072)
+10. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
+11. `activity_log` event written (non-fatal)
 
 ### Content source
 
-All content comes from `platform_content` (the unified content layer):
+All content comes from `platform_content` (the unified content layer, ADR-073):
 - Retained content (significant, never expires) — accumulated intelligence
 - Recent ephemeral content (TTL-bounded) — fresh platform state
-- Semantic search via pgvector embeddings
+- Content is fetched chronologically, not semantically (embedding search infrastructure exists but is not wired into deliverable execution)
 
-The previous distinction between "live API reads" and "cache reads" is eliminated. `platform_content` is the single source, populated by platform sync (ephemeral) and signal processing (retained).
+`platform_content` is the single source, populated by platform sync (ephemeral) and marked retained by deliverable execution and signal processing.
+
+### Known limitation: No intermediate reasoning step
+
+The current pipeline dumps all gathered content into a single LLM call that must simultaneously determine what's important, cross-reference across platforms, apply user context, and generate formatted output. There is no pre-generation reasoning step that filters, prioritizes, or synthesizes context before the generation call. Signal processing determines *whether* to create deliverables but does not inform *what* the deliverable should emphasize. User memories are appended but not used to guide content selection upstream.
+
+This is the primary quality gap between TP conversations (where the LLM iteratively reasons over content via tool calls) and deliverable generation (single-pass context dump → output).
 
 ---
 
@@ -251,9 +252,9 @@ If enabled: behaves identically to user_configured (scheduled execution)
 ```
 PHASE 1: ORCHESTRATION (Ephemeral)
 ──────────────────────────────────
-Signal Processing phase runs (hourly for calendar, daily 7AM for silence)
+Signal Processing phase runs (hourly, Starter+ tier only)
    ↓
-Queries LIVE platform APIs (Google Calendar, Gmail) for fresh external state
+Reads platform_content for behavioral signals (ADR-073)
    ↓
 Extracts behavioral signals (upcoming events, quiet threads, activity gaps)
    ↓
@@ -382,9 +383,7 @@ Each deliverable has a `sources` array:
 ]
 ```
 
-**Source scope modes** (ADR-030):
-- `delta` — Fetch since `last_run_at` (or `fallback_days` if first run). Efficient for recurring deliverables.
-- `fixed_window` — Always fetch last N days. Predictable for weekly digests.
+**Source scope**: Content is fetched from `platform_content` filtered by `(platform, resource_id)` per source, ordered by `source_timestamp DESC`, limited per source. The `scope_config` field exists in the schema but scope modes (`delta`, `fixed_window`) are not implemented — all fetches use chronological recency.
 
 ### Destinations
 
@@ -406,17 +405,16 @@ Destination config (ADR-028):
 
 ---
 
-## Quality Metrics (ADR-018)
+## Quality Metrics (ADR-018) — NOT IMPLEMENTED
 
-Each deliverable tracks quality trend across versions:
+The schema supports quality tracking but the computation is not wired:
 
-| Metric | Calculation | Meaning |
+| Metric | Schema | Status |
 |---|---|---|
-| `quality_score` | Edit distance between `draft_content` and `final_content` (0.0–1.0) | 0.0 = no edits, 1.0 = full rewrite |
-| `quality_trend` | "improving", "stable", or "declining" | Trend over last 5 versions |
-| `avg_edit_distance` | Average quality_score over last 5 versions | Overall quality indicator |
+| `quality_score` | Edit distance between `draft_content` and `final_content` | **Not computed** |
+| `quality_trend` | Trend over last 5 versions | **Not computed** |
 
-If `quality_trend = "declining"` for 3+ consecutive versions, the system could surface a suggestion to update sources or template (deferred feature).
+Quality signal currently flows through: (1) user feedback on deliverable edits → memory extraction (ADR-064), and (2) past version context appended to generation prompts.
 
 ---
 
@@ -424,9 +422,9 @@ If `quality_trend = "declining"` for 3+ consecutive versions, the system could s
 
 | System | Relationship |
 |---|---|
-| **TP (Thinking Partner)** | TP can create `user_configured` deliverables on explicit user request. TP does NOT generate deliverable content (ADR-061 Path A/B boundary). |
-| **Backend Orchestrator** | `unified_scheduler.py` executes deliverables. Three phases: Signal Processing → Analysis → Execution. |
-| **Memory (Layer 1)** | Memory informs deliverable generation (user preferences, tone, context) but is not sourced by deliverables. |
+| **TP (Thinking Partner)** | TP can create `user_configured` deliverables on explicit user request. TP does NOT generate deliverable content — the backend strategy pipeline does (ADR-061 Path A/B boundary). |
+| **Backend Orchestrator** | `unified_scheduler.py` triggers due deliverables. `deliverable_execution.py` runs the strategy pipeline. Signal processing creates/triggers deliverables on a separate schedule. |
+| **Memory (Layer 1)** | User memories (facts, instructions, preferences) are appended to the generation context but are not currently used to filter or prioritize content upstream. |
 | **Activity (Layer 2)** | Each deliverable execution writes an `activity_log` event. Activity log is read for signal processing deduplication. |
 | **Context (Layer 3)** | Deliverables read Context via `platform_content` (unified layer, ADR-072). TP primitives provide access. |
 | **Conversation Analyst** | Creates `analyst_suggested` deliverables by mining TP sessions. Runs daily, produces suggestions. |
@@ -582,10 +580,12 @@ See [docs/features/email-notifications.md — Future Consideration](../features/
 
 Deliverables are YARNNN's output layer — structured, versioned, scheduled work products. They are:
 - **Configured** by users (or TP on explicit request) or **created** by backend systems (Conversation Analyst, Signal Processing)
-- **Executed** by the backend orchestrator (Path B, not TP)
-- **Delivered** to platform destinations (Slack, Gmail, Notion) without approval gates (ADR-066)
+- **Executed** by the backend strategy pipeline (Path B, not TP) — strategy selects context, single LLM call generates
+- **Delivered** to platform destinations (email via Resend, Slack, Notion) without approval gates (ADR-066)
 - **Versioned** immutably — each execution produces a permanent record
 - **Type-classified** (ADR-044) to determine execution strategy
 - **Origin-tagged** (ADR-068) to record provenance (user vs analyst vs signal)
 
 The deliverable model is the bridge between YARNNN's knowledge systems (Memory, Activity, Context) and the user's operational world (email inbox, Slack channels, Notion workspace). Every deliverable execution is an act of context → content → delivery.
+
+**Known gap**: The current pipeline lacks an intermediate reasoning step between context gathering and generation. See Execution Model section for details.

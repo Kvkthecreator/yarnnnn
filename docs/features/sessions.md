@@ -4,13 +4,13 @@
 
 ---
 
-## The short version (current model)
+## The short version (current model — ADR-067 implemented)
 
-- One session per UTC day. New day = new session. This is a known limitation — see [Proposed changes](#proposed-changes-adr-067).
+- Sessions use **inactivity-based boundaries** (4-hour gap = new session). The UTC midnight hard cut was removed.
 - Within a session, TP has the full conversation history (up to a 50,000 token budget).
-- Across sessions, TP only knows what's in **working memory** — profile, preferences, recent activity, active deliverables. Raw conversation history does not carry over.
-- Session summaries (`chat_sessions.summary`) exist in the schema but are not yet written — the "Recent conversations" working memory block is currently always empty.
-- There is no in-session compaction. When the token budget fills, oldest messages are silently truncated.
+- **In-session compaction** triggers at 80% of budget — a summary block is prepended rather than silently truncating oldest messages.
+- Across sessions, TP knows what's in **working memory** — profile, preferences, recent activity, active deliverables, and **recent session summaries** (last 3 within 14-day window).
+- Session summaries are written by the nightly cron to `chat_sessions.summary`.
 
 ---
 
@@ -107,23 +107,24 @@ Compaction text is stored in `chat_sessions.compaction_summary` and reused on su
 
 ---
 
-## Known gaps (current state)
+## Remaining gaps
 
 1. **No real-time extraction** — preferences from a conversation land in working memory overnight, not immediately. *(Deferred in ADR-067)*
-2. ~~**No session summaries**~~ — **Implemented (ADR-067 Phase 1)**: nightly cron writes `chat_sessions.summary`; "Recent conversations" block populates from next run.
-3. **No explicit close** — sessions accumulate as `active` indefinitely; `ended_at` is never set.
-4. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses inactivity-scope auto-create; users can't resume a specific old session from the frontend. *(Deferred in ADR-067)*
-5. ~~**No in-session compaction**~~ — **Implemented (ADR-067 Phase 3)**: `maybe_compact_history()` triggers at 80% of 50k budget; `<summary>` block prepended; result persisted to `chat_sessions.compaction_summary`.
-6. ~~**UTC midnight boundary is timezone-naive**~~ — **Implemented (ADR-067 Phase 2)**: `get_or_create_chat_session()` RPC uses `updated_at >= NOW() - 4 hours` inactivity check. Nightly cron decoupled.
+2. **No explicit close** — sessions accumulate as `active` indefinitely; `ended_at` is never set.
+3. **`session_id` parameter ignored** — `ChatRequest.session_id` exists but the backend always uses inactivity-scope auto-create; users can't resume a specific old session from the frontend. *(Deferred in ADR-067)*
+
+### Resolved (ADR-067)
+- Session summaries — nightly cron writes `chat_sessions.summary`; "Recent conversations" block populates
+- In-session compaction — `maybe_compact_history()` triggers at 80% budget; `<summary>` block prepended
+- UTC midnight boundary — replaced with 4-hour inactivity check; nightly cron decoupled
 
 ---
 
 ## Related
 
 - [Memory](./memory.md) — what persists across sessions and how it's written
-- [Backend Orchestration](./backend-orchestration.md) — nightly cron context (different domain from session management)
+- [Backend Orchestration](../architecture/backend-orchestration.md) — nightly cron context (different domain from session management)
 - [ADR-067](../adr/ADR-067-session-compaction-architecture.md) — Session compaction and continuity architecture (implemented)
-- [ADR-049](../adr/ADR-049-context-freshness-model-SUPERSEDED.md) — original session philosophy (partially superseded by ADR-067)
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — activity log in working memory
 - `api/routes/chat.py` — session creation, message append, history building
 - `supabase/migrations/008_chat_sessions.sql` — schema and RPC

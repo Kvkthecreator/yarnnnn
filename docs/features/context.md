@@ -37,17 +37,14 @@ platform_content
     └── Marked significant by deliverable execution, signal processing, or TP sessions
 ```
 
-### Two writers
+### Writer
 
 **Platform Sync** (`platform_worker.py`):
 - Runs continuously on tier-appropriate frequency
 - Writes with `retained=false`, `expires_at=NOW()+TTL`
 - Knows nothing about significance — just syncs
 
-**Signal Processing** (`signal_extraction.py`):
-- Reads live APIs for time-sensitive signals
-- Writes significant content with `retained=true`
-- Sets `retained_reason='signal_processing'`
+Content starts ephemeral. Significance is determined downstream.
 
 ### Retention marking
 
@@ -113,9 +110,9 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by
 - `FetchPlatformContent` — targeted retrieval by resource
 - `CrossPlatformQuery` — multi-platform search
 
-**Deliverable execution** (ADR-072) uses TP in headless mode — same primitives, same search capabilities.
+**Deliverable execution** uses the strategy pipeline (ADR-045) — a separate code path from TP primitives. Content is fetched chronologically via `get_content_summary_for_generation()`.
 
-**Signal processing** reads live APIs for time-sensitive signals, then marks corresponding `platform_content` records as retained.
+**Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction. Can mark content as retained and create/trigger deliverables.
 
 ---
 
@@ -151,7 +148,7 @@ This is how YARNNN builds intelligence over time. A user with 6 months of delive
 | Does TP get platform content in its system prompt? | No — Context is fetched on demand via primitives, never pre-loaded |
 | Can Context be used as Memory? | No — platform content must be promoted explicitly. Automatic promotion was removed in ADR-059 |
 | Is `platform_content` the source of truth? | No — platforms are. `platform_content` is a working cache with retention semantics |
-| Does a stale cache affect deliverables? | No — deliverables use TP primitives which query `platform_content` with retention-aware filtering |
+| Does a stale cache affect deliverables? | Deliverables skip generation if no new content since `last_run_at` (ADR-049 freshness check). If content is stale but exists, generation proceeds with what's available. |
 | Can a document upload add Memory entries? | Not automatically. "Promote document to Memory" is a deferred feature |
 | What replaces `filesystem_items`? | `platform_content` (ADR-072). The old table was dropped in migration 077. |
 

@@ -1,7 +1,7 @@
 # Four-Layer Model
 
 > ADR-063 — Architectural overview of YARNNN's data and state model
-> **Updated**: 2026-02-20 — ADR-072 unified content layer and TP execution pipeline
+> **Updated**: 2026-02-26 — Corrected execution model, TTL values, signal processing reads
 
 ---
 
@@ -158,22 +158,24 @@ Additionally, **Deliverable Execution** and **TP Sessions** mark existing record
 | Referenced by signal_processing | `true` | `NULL` | Retained indefinitely |
 | Accessed during TP session | `true` | `NULL` | Retained indefinitely |
 
-**TTL by platform** (for unreferenced content):
-- Slack: 7 days
-- Gmail: 14 days
-- Notion: 30 days
-- Calendar: 1 day
+**TTL by platform** (for unreferenced content, ADR-077):
+- Slack: 14 days
+- Gmail: 30 days
+- Notion: 90 days
+- Calendar: 2 days
 
 ### How content is accessed
 
-**TP primitives** are the single access path for all use cases:
+**Two access paths exist:**
+
+**TP sessions** use primitives for on-demand content retrieval:
 - `Search(scope="platform_content")` — semantic search via pgvector embeddings
 - `FetchPlatformContent` — targeted retrieval by resource
 - `CrossPlatformQuery` — multi-platform search
 
-**Deliverable execution** (ADR-072) now uses TP in headless mode — same primitives, same search capabilities. The previous parallel fetch pipeline (`fetch_integration_source_data()`) is deleted.
+**Deliverable execution** uses the strategy pipeline (ADR-045): `get_content_summary_for_generation()` fetches content chronologically from `platform_content`, formatted with signal markers. This is a separate code path from TP primitives — deliverables do not use TP in headless mode.
 
-**Signal processing** reads live APIs for time-sensitive signals, then marks corresponding `platform_content` records as retained.
+**Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction, then can create or trigger deliverables based on what it observes.
 
 ### The accumulation moat
 
@@ -190,28 +192,26 @@ This is the content that proved its value through downstream consumption. It com
 
 ## Layer 4 — Work
 
-> **ADR-072 UPDATE**: Deliverable execution now uses **TP in headless mode** — same agent, same primitives, unified quality.
-
 **What it is**: What YARNNN produces. Scheduled digests, meeting briefs, weekly summaries, drafted emails. Every generation run creates a versioned, immutable output record. **Layer 4 is both the output of the system and a learning signal for future work quality.**
 
 **Tables**:
 - `deliverables` — Standing configuration for a recurring output (what to read, how to format, where to send, when to run)
 - `deliverable_versions` — Immutable record of each generated output (content, source_snapshots with `platform_content_ids`, status progression)
 
-### TP as Execution Pipeline (ADR-072)
+### Strategy-Based Execution Pipeline
 
-Deliverable execution is a **headless TP session**. Same agent, same primitives, same reasoning capability — but operating without a human in the loop.
+Deliverable execution uses a **strategy pipeline** (ADR-045) — not TP primitives. The strategy selects and formats content from `platform_content`, then a single LLM call generates the output.
 
-| Aspect | TP Live Mode | TP Execution Mode |
+| Aspect | TP Live Mode | Deliverable Execution |
 |---|---|---|
-| **Streaming** | Streaming responses to user | Collect full output, write to version |
-| **Clarification** | Can ask user for details | Must complete with available context |
-| **Tool rounds** | `max_tool_rounds=5` | May be higher for complex deliverables |
-| **Context** | Working memory + user message | Deliverable config + pre-loaded `platform_content` |
+| **Content access** | On-demand via primitives (Search, Fetch) | Batch via `get_content_summary_for_generation()` |
+| **Reasoning** | Iterative tool-use loop (multi-turn) | Single LLM call (one-pass) |
+| **User context** | Full working memory in system prompt | Memories appended to generation context |
+| **Quality driver** | LLM reasons iteratively over retrieved content | LLM must reason over full context dump at once |
 
-**Why this matters**: Improvements to TP primitives automatically improve deliverable quality. One codebase, not two. No quality gap between interactive and scheduled outputs.
+**How it is produced**: Triggered by `unified_scheduler.py` → `execute_deliverable_generation()`. Strategy gathers content from `platform_content`. `build_type_prompt()` assembles type-specific prompt. Single LLM call (Claude Sonnet 4). Version created with `platform_content_ids` in source_snapshots. Source content marked `retained=true`. Delivered immediately (ADR-066). Activity event written.
 
-**How it is produced**: Headless execution triggered by `unified_scheduler.py`. TP invoked in execution mode with deliverable configuration. TP uses full primitives to gather content from `platform_content`. LLM call (Claude API). Version created with `platform_content_ids` in source_snapshots. Source content marked `retained=true`. Activity event written.
+**Known gap**: TP sessions benefit from iterative reasoning (search → read → reason → search again). Deliverable execution gets one pass. This creates a quality gap between conversational and scheduled outputs. See [deliverables.md](deliverables.md) Execution Model section.
 
 **Three origins** (ADR-068):
 - `user_configured` — Explicitly created by user in UI or via TP
@@ -264,15 +264,15 @@ The layers interact in defined ways. Data flows downward for generation; learnin
                           │
             marks accessed records retained=true
 
-                    Deliverable execution (ADR-072)
+                    Deliverable execution (ADR-045)
                           │
-              TP invoked in headless mode
+              Strategy gathers context
                           │
-         uses same primitives as live session
+         get_content_summary_for_generation()
                           │
                reads platform_content (L3)
                           │
-                    LLM synthesis
+                    Single LLM call
                           │
               creates deliverable_version ──► writes Work (L4)
                           │
@@ -284,14 +284,13 @@ The layers interact in defined ways. Data flows downward for generation; learnin
 
                     Signal processing
                           │
-              reads live platform APIs
+              reads platform_content (L3)
                           │
-         identifies significant content
-                          │
-         writes to platform_content       ──► writes Context (L3)
-         with retained=true
+         LLM reasoning (Haiku): what warrants action?
                           │
          creates/triggers deliverables    ──► writes Work (L4)
+                          │
+         marks significant content retained ──► updates Context (L3)
 ```
 
 **What never happens**:
@@ -299,10 +298,10 @@ The layers interact in defined ways. Data flows downward for generation; learnin
 - Activity is never written by user-facing clients
 - Context (platform content) is never pre-loaded into the TP system prompt
 
-**What now happens** (ADR-072):
+**What now happens** (ADR-072, ADR-073):
 - TP sessions mark accessed `platform_content` records as retained
-- Deliverable execution uses TP primitives (same agent, headless mode)
-- Signal processing writes significant content directly to `platform_content` with `retained=true`
+- Deliverable execution uses strategy pipeline (ADR-045) — separate code path from TP primitives
+- Signal processing reads `platform_content` (ADR-073), marks significant content as retained
 - `source_snapshots` includes specific `platform_content_ids` for provenance
 
 ---
@@ -378,14 +377,14 @@ The more deliverables a user runs, the more the system learns what they value. T
 | Does TP get platform content in its system prompt? | No. Context is fetched on demand via primitives, never pre-loaded. |
 | Is Memory updated during a session? | Memory is read at session start and does not update mid-session. Memory extraction happens at session end or via background jobs (ADR-064), taking effect in the *next* session's working memory. |
 | What is `source_ref` on `user_context`? | Provenance tracking (ADR-072). Every memory entry links to its origin (session_message, deliverable_version, platform_content, activity_log). |
-| How does deliverable execution work? | TP invoked in headless mode (ADR-072). Same agent, same primitives as live sessions. No streaming, no clarification, bounded tool rounds. |
+| How does deliverable execution work? | Strategy pipeline (ADR-045): strategy gathers content from `platform_content`, `build_type_prompt()` assembles prompt, single LLM call generates draft, delivered immediately (ADR-066). |
 | What happens if `write_activity()` fails? | The calling operation continues. All log writes are non-fatal by design. |
 | Can a user write to `activity_log`? | No. Service-role writes only. Users can SELECT their own rows. |
 | Is a `deliverable_version` mutable after generation? | The `final_content` field is immutable. The `status` field progresses (generating → delivered). |
 | How does Layer 4 content influence future work? | Recent deliverable version content (400-char preview) is included in signal reasoning prompts (ADR-069). This enables quality-aware orchestration decisions. |
 | What are the three memory extraction sources? | 1) Conversation (nightly batch), 2) Deliverable feedback (on approval), 3) Activity patterns (daily detection). See ADR-064. |
 | Is signal processing real-time? | No. Signals are extracted on cron schedule (hourly). Near-real-time via webhooks is future work. |
-| Does signal processing write to `platform_content`? | Yes (ADR-072). Signal processing is a dual-role: reads live APIs for time-sensitive signals, writes significant content to `platform_content` with `retained=true`. |
+| Does signal processing write to `platform_content`? | Signal processing reads from `platform_content` (ADR-073) and marks significant content as `retained=true`. It can also create or trigger deliverables based on observed patterns. |
 | Can signal-emergent deliverables become recurring? | Yes. Deliverables can be promoted from one-time (`origin=signal_emergent`, no schedule) to recurring (add schedule). Origin field preserves provenance. |
 | What is the "accumulation moat"? | Retained `platform_content` accumulates over time — the content that proved significant through downstream consumption. This is the compounding intelligence layer that makes YARNNN's outputs improve with tenure. |
 
@@ -403,7 +402,7 @@ The more deliverables a user runs, the more the system learns what they value. T
 
 **Immutability where it matters.** Work versions are immutable records. Activity rows are immutable. Retained `platform_content` records are immutable (their `retained` flag can be set to true, never back to false). Only Memory and deliverable metadata are mutable — and Memory mutability is boundary-controlled.
 
-**Unified execution.** (ADR-072) TP is the single execution agent for both live sessions and deliverable generation. Headless mode disables streaming and clarification but uses the same primitives. Improvements to TP improve deliverable quality automatically.
+**Separate execution paths.** TP sessions use primitives for iterative reasoning. Deliverable execution uses a strategy pipeline with a single LLM call. These are separate code paths — improvements to one do not automatically improve the other. Closing this gap is a known architectural opportunity.
 
 **Quality flywheel through Layer 4.** The more deliverables a user runs, the more the system learns what they value. Layer 4 content becomes training signal for future work. This creates a feedback loop: better deliverables → more usage → more learning → better deliverables.
 

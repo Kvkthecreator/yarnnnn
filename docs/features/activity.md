@@ -43,10 +43,17 @@ Append-only. Written by service role only (no user-facing INSERT).
 
 | event_type | Written by | When | summary example |
 |---|---|---|---|
-| `deliverable_run` | `deliverable_execution.py` | After a version is generated | `"Weekly Digest v3 generated (staged)"` |
-| `memory_written` | `project_tools.py` | After `create_memory` / `update_memory` | `"Noted: prefers bullet points"` |
+| `deliverable_run` | `deliverable_execution.py` | After a version is generated | `"Weekly Digest v3 delivered"` |
+| `deliverable_scheduled` | `unified_scheduler.py` | When scheduler triggers a deliverable | `"Scheduled: Weekly Digest"` |
+| `memory_written` | `memory.py` | After nightly memory extraction | `"Noted: prefers bullet points"` |
+| `session_summary_written` | `memory.py` | After session summary extraction | `"Session summary written"` |
+| `pattern_detected` | `memory.py` | After activity pattern detection | `"Pattern: prefers morning deliverables"` |
 | `platform_synced` | `platform_worker.py` | After a sync batch completes | `"Synced gmail: 12 items"` |
-| `chat_session` | `chat.py` | At end of each chat turn | `"Chat turn complete (tools: platform_gmail_search)"` |
+| `signal_processed` | `signal_processing.py` | After signal processing cycle | `"Signal: 1 deliverable created"` |
+| `content_cleanup` | `platform_content.py` | After expired content removal | `"Cleaned up 45 expired items"` |
+| `chat_session` | `chat.py` | At end of each chat turn | `"Chat turn complete"` |
+| `integration_connected` | `routes/integrations.py` | After OAuth connection | `"Connected: gmail"` |
+| `scheduler_heartbeat` | `unified_scheduler.py` | Every 5 min | Observability pulse |
 
 **RLS**: Users can SELECT their own rows. No INSERT/UPDATE/DELETE via user-facing clients — service role only.
 
@@ -58,16 +65,20 @@ Each write point is a single `write_activity()` call from `api/services/activity
 
 ```
 deliverable_execution.py
-  → version created, final_status known
-  → write_activity("deliverable_run", summary="Weekly Digest v3 generated (staged)", ...)
+  → version delivered
+  → write_activity("deliverable_run", summary="Weekly Digest v3 delivered", ...)
 
 platform_worker.py
   → sync batch returns successfully
   → write_activity("platform_synced", summary="Synced gmail: 12 items", ...)
 
-project_tools.py (create_memory / update_memory)
+memory.py (nightly extraction)
   → user_context upsert succeeds
   → write_activity("memory_written", summary="Noted: prefers bullet points", ...)
+
+signal_processing.py
+  → signal cycle complete
+  → write_activity("signal_processed", summary="Signal: 1 deliverable created", ...)
 
 chat.py
   → done: True signal after assistant response
@@ -129,7 +140,8 @@ Typical: ~20–40 rows/day per active user. No TTL — rows accumulate over time
 ## Related
 
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Activity layer design and implementation
-- [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview
+- [Four-Layer Model](../architecture/four-layer-model.md) — Architectural overview
+- [Backend Orchestration](../architecture/backend-orchestration.md) — Full event type registry (Observability section)
 - `api/services/activity_log.py` — `write_activity()`, `get_recent_activity()`
 - `api/services/working_memory.py` — `_get_recent_activity()`, prompt injection
 - `supabase/migrations/060_activity_log.sql` — Schema
