@@ -105,12 +105,12 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by
 
 ## How content is accessed
 
-**TP primitives** are the single access path:
+**Agent primitives** (available in both chat and headless modes, ADR-080):
 - `Search(scope="platform_content")` — semantic search via pgvector embeddings
 - `FetchPlatformContent` — targeted retrieval by resource
 - `CrossPlatformQuery` — multi-platform search
 
-**Deliverable execution** uses the strategy pipeline (ADR-045) — a separate code path from TP primitives. Content is fetched chronologically via `get_content_summary_for_generation()`.
+**Deliverable execution** uses the orchestration pipeline (ADR-045) for context gathering via `get_content_summary_for_generation()`. The agent in headless mode (ADR-080) can supplement with primitive calls during generation.
 
 **Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction. Can mark content as retained and create/trigger deliverables.
 

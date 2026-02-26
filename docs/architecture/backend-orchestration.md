@@ -1,7 +1,7 @@
 # Backend Orchestration Pipeline
 
-**Version**: 2.0
-**Last updated**: 2026-02-26 (complete audit + feature map)
+**Version**: 2.1
+**Last updated**: 2026-02-26 (ADR-080 unified agent modes, ADR-079 numbering fix)
 **Status**: Canonical reference — all background processing documented here
 
 ---
@@ -76,7 +76,7 @@ F9 (Embeddings) ──would write──→ platform_content.content_embedding
 
 **Files**: `api/workers/platform_worker.py`, `api/jobs/platform_sync_scheduler.py`
 **Entry points**: Platform sync cron (scheduled), `POST /integrations/{provider}/sync` (manual)
-**ADRs**: ADR-053 (tier gating), ADR-056 (per-source), ADR-073 (cursors), ADR-077 (pagination), ADR-078 (auto-selection)
+**ADRs**: ADR-053 (tier gating), ADR-056 (per-source), ADR-073 (cursors), ADR-077 (pagination), ADR-079 (auto-selection)
 
 **This is the ONLY feature that calls external platform APIs.** Everything else reads `platform_content`.
 
@@ -182,8 +182,8 @@ Each item → `_store_platform_content()`:
 
 **Files**: `api/services/deliverable_execution.py`, `api/services/deliverable_pipeline.py`
 **Entry points**: Unified scheduler (every 5 min), Signal Processing (emergent), `POST /deliverables/{id}/run`
-**ADRs**: ADR-042 (simplified), ADR-049 (freshness), ADR-066 (delivery-first), ADR-072 (retention)
-**LLM**: `claude-sonnet-4-20250514`
+**ADRs**: ADR-042 (simplified), ADR-049 (freshness), ADR-066 (delivery-first), ADR-072 (retention), ADR-080 (headless mode)
+**LLM**: `claude-sonnet-4-20250514` (agent in headless mode)
 **Tier gate**: Active deliverable count limited (Free: 2, Starter: 5, Pro: unlimited)
 
 ### Flow
@@ -199,7 +199,7 @@ Each item → `_store_platform_content()`:
 | `research` | Web research (Anthropic native) |
 | `hybrid` | Research + platform in parallel |
 
-4. Single LLM call → `deliverable_versions` (draft + final)
+4. Agent (headless mode, ADR-080) generates via `chat_completion_with_tools()` — curated read-only primitives, max 3 tool rounds
 5. `mark_content_retained()` on consumed content (ADR-072)
 6. Record `source_snapshots` (ADR-049)
 7. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
@@ -405,7 +405,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 | Model | Feature | Purpose | Cost/Call |
 |-------|---------|---------|-----------|
 | `claude-haiku-4-5-20251001` | F2 Signal Processing | Signal reasoning | ~500 tokens |
-| `claude-sonnet-4-20250514` | F3 Deliverable Execution | Draft generation | ~2-5k tokens |
+| `claude-sonnet-4-20250514` | F3 Deliverable Execution | Agent headless mode (ADR-080) — draft generation + up to 3 tool rounds | ~2-8k tokens |
 | `claude-sonnet-4-20250514` | F4 Memory Extraction | Fact extraction | ~1-2k tokens |
 | `claude-sonnet-4-20250514` | F4 Session Summaries | Cross-session continuity | ~1k tokens |
 | `claude-sonnet-4-20250514` | F5 Conversation Analysis | Suggested deliverables | ~1-2k tokens |
@@ -438,7 +438,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 | `POST /integrations/{provider}/sync` | F1 | Runs inline (not queued) |
 | `POST /signal-processing/trigger` | F2 | 5-min rate limit |
 | `POST /deliverables/{id}/run` | F3 | Direct execution |
-| `POST /admin/backfill-sources/{user_id}` | F1 (ADR-078) | Admin-only, backfill smart defaults |
+| `POST /admin/backfill-sources/{user_id}` | F1 (ADR-079) | Admin-only, backfill smart defaults |
 
 ---
 
@@ -469,6 +469,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 4. **Delivery-first** (ADR-066): No approval gate. F3 delivers immediately after generation.
 5. **activity_log as nervous system**: Every feature writes events. Multiple consumers read for different purposes.
 6. **Tier-gated LLM spend**: Token budget checked per chat message (not per background job). Deliverable count and signal processing gated by tier.
+7. **Unified agent, separate orchestration** (ADR-080): F3 invokes the agent in headless mode for content generation. Orchestration (scheduling, strategy, delivery, retention) stays in the pipeline. One agent, two modes — shared primitives, no drift.
 
 ---
 

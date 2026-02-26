@@ -1373,7 +1373,7 @@ async def admin_backfill_sources(
     x_service_key: Optional[str] = Header(None),
 ) -> dict:
     """
-    ADR-078: Backfill selected_sources for a user using smart auto-selection.
+    ADR-079: Backfill selected_sources for a user using smart auto-selection.
 
     For each connected platform, if the current selected_sources count is below
     the tier limit, expands selection using compute_smart_defaults heuristics.

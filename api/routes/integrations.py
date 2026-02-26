@@ -2518,7 +2518,7 @@ async def get_landscape(
                 if (s.get("id") if isinstance(s, dict) else s) in new_resource_ids
             ]
         else:
-            # ADR-078: Smart auto-selection for first-time landscape discovery
+            # ADR-079: Smart auto-selection for first-time landscape discovery
             from services.landscape import compute_smart_defaults
             from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
 
@@ -2582,7 +2582,7 @@ async def get_landscape(
             last_error_at=sync_data.get("last_error_at"),
         ))
 
-    # Compute recommended IDs (ADR-078 smart defaults) for UI grouping
+    # Compute recommended IDs (ADR-079 smart defaults) for UI grouping
     from services.landscape import compute_smart_defaults
     from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
 

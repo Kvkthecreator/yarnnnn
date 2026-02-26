@@ -9,6 +9,7 @@
 - [ADR-060: Background Conversation Analyst](../adr/ADR-060-background-conversation-analyst.md)
 - [ADR-066: Delivery-First Redesign](../adr/ADR-066-deliverable-detail-redesign.md)
 - [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md)
+- [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — agent operates in headless mode for generation
 - [Agent Execution Model](agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Deliverables are Layer 4 (Work)
 
@@ -24,7 +25,7 @@ A **deliverable** is a standing configuration for recurring (or one-time) AI-gen
 
 When a deliverable executes, it produces a **deliverable version** — an immutable record of the generated content, the sources used, and the delivery status.
 
-**Conceptual analogy**: A deliverable is a standing order — "every Monday at 9am, read #engineering, summarize it, and send it to my Slack DM." The deliverable row is the configuration. The backend orchestrator (Path B) is the worker that executes it. The version is the build artifact.
+**Conceptual analogy**: A deliverable is a standing order — "every Monday at 9am, read #engineering, summarize it, and send it to my Slack DM." The deliverable row is the configuration. The backend orchestration pipeline manages scheduling and delivery. The agent in headless mode (ADR-080) generates the content. The version is the build artifact.
 
 ---
 
@@ -143,7 +144,7 @@ Each deliverable type has a `type_classification` object that determines executi
 - `cross_platform` → Multi-platform search via `platform_content`
 - `hybrid` → Web research + platform fetch in parallel
 
-> **Note (ADR-072)**: All strategies now use unified `platform_content` access via TP primitives. The strategy distinction remains for prompt specialization.
+> **Note (ADR-080)**: All strategies gather context from `platform_content`. The agent in headless mode can supplement with primitive calls (Search, FetchPlatformContent, CrossPlatformQuery). The strategy distinction remains for context gathering scope.
 
 **`primary_platform`** — For platform-bound types, which platform to query
 
@@ -162,7 +163,7 @@ Each deliverable type has a `type_classification` object that determines executi
 
 ## Execution Model
 
-**Current implementation (ADR-042 + ADR-045 + ADR-073)**: Strategy-based execution with type-aware context gathering and a single LLM generation call.
+**Architecture (ADR-042 + ADR-045 + ADR-080)**: The orchestration pipeline manages lifecycle (triggers, freshness, strategy, delivery, retention). Content generation is handled by the agent in **headless mode** — the same agent that powers TP chat, running with a curated subset of read-only primitives and a structured output prompt.
 
 When a deliverable is due to run (scheduled, event-triggered, or manual), `execute_deliverable_generation()` in `deliverable_execution.py`:
 
@@ -181,7 +182,7 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 5. User memories appended from `user_context` (fact/instruction/preference keys)
 6. Past version feedback appended (if any)
 7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context
-8. Single LLM call (Claude Sonnet 4) generates the draft
+8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — can supplement gathered context by calling `Search`, `FetchPlatformContent`, `CrossPlatformQuery` (max 3 tool rounds)
 9. `mark_content_retained()` on consumed `platform_content` records (ADR-072)
 10. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
 11. `activity_log` event written (non-fatal)
@@ -191,15 +192,23 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 All content comes from `platform_content` (the unified content layer, ADR-073):
 - Retained content (significant, never expires) — accumulated intelligence
 - Recent ephemeral content (TTL-bounded) — fresh platform state
-- Content is fetched chronologically, not semantically (embedding search infrastructure exists but is not wired into deliverable execution)
+- Strategy-gathered content provides the baseline; headless mode primitives provide supplementary investigation
 
 `platform_content` is the single source, populated by platform sync (ephemeral) and marked retained by deliverable execution and signal processing.
 
-### Known limitation: No intermediate reasoning step
+### Agent in headless mode (ADR-080)
 
-The current pipeline dumps all gathered content into a single LLM call that must simultaneously determine what's important, cross-reference across platforms, apply user context, and generate formatted output. There is no pre-generation reasoning step that filters, prioritizes, or synthesizes context before the generation call. Signal processing determines *whether* to create deliverables but does not inform *what* the deliverable should emphasize. User memories are appended but not used to guide content selection upstream.
+The content generation step uses the unified agent in headless mode — the same primitives TP uses in chat mode, but constrained:
 
-This is the primary quality gap between TP conversations (where the LLM iteratively reasons over content via tool calls) and deliverable generation (single-pass context dump → output).
+| Constraint | Value | Rationale |
+|---|---|---|
+| Primitives | Read-only subset (Search, FetchPlatformContent, CrossPlatformQuery) | No write operations in background jobs |
+| Max tool rounds | 3 | Bounded cost — investigation, not open-ended conversation |
+| Streaming | Off | No user watching |
+| Session state | None | Stateless background execution |
+| System prompt | Type-specific structured output | Not TP's conversational prompt |
+
+The agent receives gathered context from the strategy in its prompt. Primitives supplement — they don't replace — the strategy-based context gathering. Most deliverables will use 0-1 tool rounds; the gathered context is sufficient. Primitives enable investigation when it isn't.
 
 ---
 
@@ -422,7 +431,7 @@ Quality signal currently flows through: (1) user feedback on deliverable edits �
 
 | System | Relationship |
 |---|---|
-| **TP (Thinking Partner)** | TP can create `user_configured` deliverables on explicit user request. TP does NOT generate deliverable content — the backend strategy pipeline does (ADR-061 Path A/B boundary). |
+| **Agent (Chat Mode / TP)** | Chat mode can create `user_configured` deliverables on explicit user request. Content generation uses the same agent in headless mode — same primitives, different constraints (ADR-080). |
 | **Backend Orchestrator** | `unified_scheduler.py` triggers due deliverables. `deliverable_execution.py` runs the strategy pipeline. Signal processing creates/triggers deliverables on a separate schedule. |
 | **Memory (Layer 1)** | User memories (facts, instructions, preferences) are appended to the generation context but are not currently used to filter or prioritize content upstream. |
 | **Activity (Layer 2)** | Each deliverable execution writes an `activity_log` event. Activity log is read for signal processing deduplication. |
@@ -580,7 +589,7 @@ See [docs/features/email-notifications.md — Future Consideration](../features/
 
 Deliverables are YARNNN's output layer — structured, versioned, scheduled work products. They are:
 - **Configured** by users (or TP on explicit request) or **created** by backend systems (Conversation Analyst, Signal Processing)
-- **Executed** by the backend strategy pipeline (Path B, not TP) — strategy selects context, single LLM call generates
+- **Executed** by the backend orchestration pipeline — strategy gathers context, agent (headless mode) generates with primitive access (ADR-080)
 - **Delivered** to platform destinations (email via Resend, Slack, Notion) without approval gates (ADR-066)
 - **Versioned** immutably — each execution produces a permanent record
 - **Type-classified** (ADR-044) to determine execution strategy
@@ -588,4 +597,4 @@ Deliverables are YARNNN's output layer — structured, versioned, scheduled work
 
 The deliverable model is the bridge between YARNNN's knowledge systems (Memory, Activity, Context) and the user's operational world (email inbox, Slack channels, Notion workspace). Every deliverable execution is an act of context → content → delivery.
 
-**Known gap**: The current pipeline lacks an intermediate reasoning step between context gathering and generation. See Execution Model section for details.
+**Architecture note**: Content generation uses the unified agent in headless mode (ADR-080) — same primitives as TP, constrained for background execution. See Execution Model section and [Agent Execution Model](agent-execution-model.md) for details.

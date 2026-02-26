@@ -4,8 +4,9 @@
 **Scope:** Covers how users interact with and supervise the system (UI/UX, product model). Does NOT cover backend execution paths — see [Agent Execution Model](agent-execution-model.md) for that.
 **Date:** 2026-02-02
 **Related:**
-- [Agent Execution Model](agent-execution-model.md) — backend path separation (Path A / Path B)
-- [ADR-061: Two-Path Architecture](../adr/ADR-061-two-path-architecture.md)
+- [Agent Execution Model](agent-execution-model.md) — unified agent (chat + headless modes), orchestration boundary
+- [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — supersedes ADR-061
+- [ADR-061: Two-Path Architecture](../adr/ADR-061-two-path-architecture.md) — historical (superseded by ADR-080)
 - [ADR-013: Conversation + Surfaces](../adr/ADR-013-conversation-plus-surfaces.md)
 - [ADR-018: Recurring Deliverables](../adr/ADR-018-recurring-deliverables.md)
 - [ADR-020: Deliverable-Centric Chat](../adr/ADR-020-deliverable-centric-chat.md)

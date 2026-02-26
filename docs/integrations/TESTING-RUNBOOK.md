@@ -6,7 +6,7 @@
 
 - Render API service deployed and live (`srv-d5sqotcr85hc73dpkqdg`)
 - `SUPABASE_SERVICE_KEY` available (used as `X-Service-Key` header)
-- Platform connections active. `selected_sources` auto-populated on first connect with smart defaults (ADR-078), customizable via source selection modal.
+- Platform connections active. `selected_sources` auto-populated on first connect with smart defaults (ADR-079), customizable via source selection modal.
 - SQL access via psql connection string (see `docs/database/ACCESS.md`)
 
 ## Admin Test Endpoints

@@ -3,7 +3,7 @@
 > **Status**: Current
 > **Date**: 2026-02-26
 > **Supersedes**: Onboarding V2 (2026-02-09)
-> **Related ADRs**: ADR-053 (Tier Model), ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-078 (Smart Source Auto-Selection)
+> **Related ADRs**: ADR-053 (Tier Model), ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-079 (Smart Source Auto-Selection)
 
 ---
 
@@ -72,7 +72,7 @@ When landing on `/context/{platform}?status=connected`:
 
 1. **Welcome banner** (green): "{Platform} Connected — Select sources to start building context"
 2. **Landscape auto-discovery**: Backend fetches available resources (channels, labels, pages, calendars)
-3. **Smart defaults** (ADR-078): `compute_smart_defaults()` pre-selects recommended sources based on activity heuristics
+3. **Smart defaults** (ADR-079): `compute_smart_defaults()` pre-selects recommended sources based on activity heuristics
 4. **Recommended grouping**: Resources split into "Recommended based on activity" (highlighted) and "All {resources}" sections
 
 ### Source Selection UI (`ResourceList`)
@@ -128,7 +128,7 @@ When at limit:
 - Upgrade CTA: Free → "Upgrade to Starter", Starter → "Upgrade to Pro"
 - Disabled checkboxes on unselected resources
 
-### Smart Default Heuristics (ADR-078)
+### Smart Default Heuristics (ADR-079)
 
 | Platform | Ranking Signal | Notes |
 |----------|---------------|-------|
@@ -262,5 +262,5 @@ These were removed as part of the singular selection UX:
 - [ADR-053: Tier Model](../adr/ADR-053-tier-gated-monetization.md)
 - [ADR-057: Streamlined Onboarding](../adr/ADR-057-streamlined-onboarding-gated-sync.md)
 - [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer.md)
-- [ADR-078: Smart Source Auto-Selection](../adr/ADR-078-smart-source-auto-selection.md)
+- [ADR-079: Smart Source Auto-Selection](../adr/ADR-079-smart-source-auto-selection.md)
 - [Backend Orchestration v2.0](../architecture/backend-orchestration.md)

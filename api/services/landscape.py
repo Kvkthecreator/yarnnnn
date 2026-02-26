@@ -6,7 +6,7 @@ connected platforms. Used by:
 - GET /integrations/{provider}/landscape (on-demand from context page)
 - Platform worker (after content sync to keep landscape fresh)
 
-ADR-078: Smart auto-selection — when landscape is first discovered and no
+ADR-079: Smart auto-selection — when landscape is first discovered and no
 sources are selected, auto-selects the most valuable sources up to tier limit.
 
 No LLM calls — purely platform API reads.
@@ -270,7 +270,7 @@ def compute_smart_defaults(
     max_sources: int,
 ) -> list[dict]:
     """
-    ADR-078: Auto-select the most valuable sources up to tier limit.
+    ADR-079: Auto-select the most valuable sources up to tier limit.
 
     Called when landscape is first discovered and no sources are selected,
     or when backfilling existing users. Returns a list of selected source
@@ -414,7 +414,7 @@ async def refresh_landscape(
             removed = len(selected_sources) - len(valid_sources)
             logger.info(f"[LANDSCAPE] Pruned {removed} stale source(s) for {provider} user {user_id[:8]}")
 
-        # ADR-078: If no sources are selected after pruning, auto-select smart defaults
+        # ADR-079: If no sources are selected after pruning, auto-select smart defaults
         if valid_sources:
             new_landscape["selected_sources"] = valid_sources
         else:

@@ -1,7 +1,7 @@
 # Four-Layer Model
 
 > ADR-063 — Architectural overview of YARNNN's data and state model
-> **Updated**: 2026-02-26 — Corrected execution model, TTL values, signal processing reads
+> **Updated**: 2026-02-26 — ADR-080 unified agent modes, corrected execution model, TTL values
 
 ---
 
@@ -173,7 +173,7 @@ Additionally, **Deliverable Execution** and **TP Sessions** mark existing record
 - `FetchPlatformContent` — targeted retrieval by resource
 - `CrossPlatformQuery` — multi-platform search
 
-**Deliverable execution** uses the strategy pipeline (ADR-045): `get_content_summary_for_generation()` fetches content chronologically from `platform_content`, formatted with signal markers. This is a separate code path from TP primitives — deliverables do not use TP in headless mode.
+**Deliverable execution** uses the orchestration pipeline (ADR-045) for context gathering: `get_content_summary_for_generation()` fetches content chronologically from `platform_content`, formatted with signal markers. The agent in headless mode (ADR-080) then generates content with access to curated read-only primitives for supplementary investigation.
 
 **Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction, then can create or trigger deliverables based on what it observes.
 
@@ -198,20 +198,18 @@ This is the content that proved its value through downstream consumption. It com
 - `deliverables` — Standing configuration for a recurring output (what to read, how to format, where to send, when to run)
 - `deliverable_versions` — Immutable record of each generated output (content, source_snapshots with `platform_content_ids`, status progression)
 
-### Strategy-Based Execution Pipeline
+### Unified Agent in Headless Mode (ADR-080)
 
-Deliverable execution uses a **strategy pipeline** (ADR-045) — not TP primitives. The strategy selects and formats content from `platform_content`, then a single LLM call generates the output.
+Deliverable execution uses the **unified agent in headless mode** — the same agent that powers TP chat, with a curated subset of read-only primitives and a structured output prompt. The orchestration pipeline (strategy selection, delivery, retention) wraps the agent invocation.
 
-| Aspect | TP Live Mode | Deliverable Execution |
+| Aspect | Chat Mode (TP) | Headless Mode (Deliverables) |
 |---|---|---|
-| **Content access** | On-demand via primitives (Search, Fetch) | Batch via `get_content_summary_for_generation()` |
-| **Reasoning** | Iterative tool-use loop (multi-turn) | Single LLM call (one-pass) |
+| **Content access** | On-demand via full primitive set | Strategy-gathered baseline + curated primitives for investigation |
+| **Reasoning** | Iterative tool-use loop (up to 15 rounds) | Bounded investigation (up to 3 rounds) |
 | **User context** | Full working memory in system prompt | Memories appended to generation context |
-| **Quality driver** | LLM reasons iteratively over retrieved content | LLM must reason over full context dump at once |
+| **Primitives** | Full set (read + write + action) | Read-only subset (Search, FetchPlatformContent, CrossPlatformQuery) |
 
-**How it is produced**: Triggered by `unified_scheduler.py` → `execute_deliverable_generation()`. Strategy gathers content from `platform_content`. `build_type_prompt()` assembles type-specific prompt. Single LLM call (Claude Sonnet 4). Version created with `platform_content_ids` in source_snapshots. Source content marked `retained=true`. Delivered immediately (ADR-066). Activity event written.
-
-**Known gap**: TP sessions benefit from iterative reasoning (search → read → reason → search again). Deliverable execution gets one pass. This creates a quality gap between conversational and scheduled outputs. See [deliverables.md](deliverables.md) Execution Model section.
+**How it is produced**: Triggered by `unified_scheduler.py` → `execute_deliverable_generation()`. Strategy gathers context from `platform_content`. `build_type_prompt()` assembles type-specific prompt. Agent (headless mode) generates via `chat_completion_with_tools()` — can supplement gathered context with primitive calls (max 3 tool rounds). Version created with `platform_content_ids` in source_snapshots. Source content marked `retained=true`. Delivered immediately (ADR-066). Activity event written.
 
 **Three origins** (ADR-068):
 - `user_configured` — Explicitly created by user in UI or via TP
@@ -264,7 +262,7 @@ The layers interact in defined ways. Data flows downward for generation; learnin
                           │
             marks accessed records retained=true
 
-                    Deliverable execution (ADR-045)
+                    Deliverable execution (ADR-045 + ADR-080)
                           │
               Strategy gathers context
                           │
@@ -272,7 +270,8 @@ The layers interact in defined ways. Data flows downward for generation; learnin
                           │
                reads platform_content (L3)
                           │
-                    Single LLM call
+              Agent (headless mode) generates
+               + can call Search, Fetch primitives
                           │
               creates deliverable_version ──► writes Work (L4)
                           │
@@ -298,10 +297,10 @@ The layers interact in defined ways. Data flows downward for generation; learnin
 - Activity is never written by user-facing clients
 - Context (platform content) is never pre-loaded into the TP system prompt
 
-**What now happens** (ADR-072, ADR-073):
-- TP sessions mark accessed `platform_content` records as retained
-- Deliverable execution uses strategy pipeline (ADR-045) — separate code path from TP primitives
-- Signal processing reads `platform_content` (ADR-073), marks significant content as retained
+**What now happens** (ADR-072, ADR-073, ADR-080):
+- TP sessions (chat mode) mark accessed `platform_content` records as retained
+- Deliverable execution uses strategy pipeline (ADR-045) for context gathering, then agent in headless mode (ADR-080) generates with curated primitives
+- Signal processing reads `platform_content` (ADR-073), marks significant content as retained; signal reasoning forwarded to headless mode (ADR-080)
 - `source_snapshots` includes specific `platform_content_ids` for provenance
 
 ---
@@ -377,7 +376,7 @@ The more deliverables a user runs, the more the system learns what they value. T
 | Does TP get platform content in its system prompt? | No. Context is fetched on demand via primitives, never pre-loaded. |
 | Is Memory updated during a session? | Memory is read at session start and does not update mid-session. Memory extraction happens at session end or via background jobs (ADR-064), taking effect in the *next* session's working memory. |
 | What is `source_ref` on `user_context`? | Provenance tracking (ADR-072). Every memory entry links to its origin (session_message, deliverable_version, platform_content, activity_log). |
-| How does deliverable execution work? | Strategy pipeline (ADR-045): strategy gathers content from `platform_content`, `build_type_prompt()` assembles prompt, single LLM call generates draft, delivered immediately (ADR-066). |
+| How does deliverable execution work? | Orchestration pipeline (ADR-045): strategy gathers content from `platform_content`, `build_type_prompt()` assembles prompt, agent (headless mode, ADR-080) generates draft with curated primitives, delivered immediately (ADR-066). |
 | What happens if `write_activity()` fails? | The calling operation continues. All log writes are non-fatal by design. |
 | Can a user write to `activity_log`? | No. Service-role writes only. Users can SELECT their own rows. |
 | Is a `deliverable_version` mutable after generation? | The `final_content` field is immutable. The `status` field progresses (generating → delivered). |
@@ -402,7 +401,7 @@ The more deliverables a user runs, the more the system learns what they value. T
 
 **Immutability where it matters.** Work versions are immutable records. Activity rows are immutable. Retained `platform_content` records are immutable (their `retained` flag can be set to true, never back to false). Only Memory and deliverable metadata are mutable — and Memory mutability is boundary-controlled.
 
-**Separate execution paths.** TP sessions use primitives for iterative reasoning. Deliverable execution uses a strategy pipeline with a single LLM call. These are separate code paths — improvements to one do not automatically improve the other. Closing this gap is a known architectural opportunity.
+**Unified agent, separate orchestration.** (ADR-080) One agent with two modes: chat (TP, streaming, full primitives) and headless (background, non-streaming, curated read-only primitives). Primitive updates improve both modes. Orchestration (scheduling, delivery, retention) remains separate from the agent.
 
 **Quality flywheel through Layer 4.** The more deliverables a user runs, the more the system learns what they value. Layer 4 content becomes training signal for future work. This creates a feedback loop: better deliverables → more usage → more learning → better deliverables.
 
@@ -415,6 +414,7 @@ The more deliverables a user runs, the more the system learns what they value. T
 **Core ADRs**:
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Activity layer and four-layer model formalisation
 - [ADR-072](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md) — Unified content layer and TP execution pipeline (current governing ADR for Layer 3 and Layer 4 execution)
+- [ADR-080](../adr/ADR-080-unified-agent-modes.md) — Unified agent with chat and headless modes
 
 **Superseded ADRs** (historical context only):
 - [ADR-049](../adr/ADR-049-context-freshness-model-SUPERSEDED.md) — Superseded by ADR-072 (retention-based accumulation replaces TTL-only)

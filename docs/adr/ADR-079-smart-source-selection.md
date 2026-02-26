@@ -1,4 +1,4 @@
-# ADR-078: Smart Source Auto-Selection
+# ADR-079: Smart Source Auto-Selection
 
 **Status**: Implemented
 **Date**: 2026-02-25
