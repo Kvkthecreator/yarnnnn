@@ -233,7 +233,7 @@ export default function ActivityPage() {
       // The backend supports single event_type filter — for category filters,
       // we fetch all and filter client-side (backend doesn't support IN queries on event_type)
       const result = await api.activity.list({
-        limit: 100,
+        limit: 500,
         days: 30,
       });
       setActivities(result.activities);

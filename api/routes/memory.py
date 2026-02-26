@@ -404,7 +404,7 @@ class ActivityListResponse(BaseModel):
 @router.get("/activity", response_model=ActivityListResponse)
 async def list_activity(
     auth: UserClient,
-    limit: int = 50,
+    limit: int = 200,
     days: int = 30,
     event_type: Optional[str] = None,
 ):
@@ -436,6 +436,10 @@ async def list_activity(
 
         if event_type:
             query = query.eq("event_type", event_type)
+        else:
+            # Hide high-frequency system noise by default so category filters
+            # (memory/sync/chat) are not starved by scheduler heartbeat rows.
+            query = query.neq("event_type", "scheduler_heartbeat")
 
         result = query.execute()
 
