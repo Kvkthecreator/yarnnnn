@@ -1,15 +1,15 @@
 'use client';
 
 /**
- * ADR-049 + ADR-057: Platform Sync Status with Inline Connections
+ * ADR-049: Platform Sync Status with Inline Connections
  *
  * Shows connected platforms and their sync freshness on the welcome screen.
- * Now includes direct OAuth connection buttons for unconnected platforms.
+ * Includes direct OAuth connection buttons for unconnected platforms.
  *
  * Key behaviors:
  * - Connected platforms: Show sync status with item counts
  * - Unconnected platforms: Show connect button that starts OAuth
- * - After OAuth: Show source selection modal
+ * - Manage sources: Navigate to /context/{platform} (singular selection UX)
  * - Document upload: Alternative entry point for users without platforms
  */
 
@@ -30,8 +30,7 @@ import {
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import { formatDistanceToNow } from 'date-fns';
-import { useSearchParams, useRouter } from 'next/navigation';
-import { SourceSelectionModal } from '@/components/onboarding/SourceSelectionModal';
+import { useRouter } from 'next/navigation';
 import { useDocuments, UploadProgress } from '@/hooks/useDocuments';
 
 type Provider = 'slack' | 'gmail' | 'notion' | 'calendar';
@@ -114,23 +113,15 @@ const ALLOWED_MIME_TYPES = [
 
 export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [syncStatuses, setSyncStatuses] = useState<Record<string, SyncStatus>>({});
   const [loading, setLoading] = useState(true);
   const [connecting, setConnecting] = useState<string | null>(null);
 
-  // Source selection modal state (ADR-057)
-  const [sourceModalProvider, setSourceModalProvider] = useState<Provider | null>(null);
-
   // Document upload state
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { documents, upload: uploadDocument, uploadProgress } = useDocuments();
-
-  // Check for OAuth callback
-  const providerParam = searchParams.get('provider');
-  const statusParam = searchParams.get('status');
 
   const loadIntegrations = useCallback(async () => {
     setLoading(true);
@@ -164,50 +155,18 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
     loadIntegrations();
   }, [loadIntegrations]);
 
-  // Handle OAuth callback - open source selection modal for explicit user selection
-  useEffect(() => {
-    if (providerParam && statusParam === 'connected') {
-      // Map 'google' provider to the appropriate platform
-      const platform = providerParam === 'google' ? 'gmail' : providerParam;
-
-      // Open source selection modal for user to explicitly choose sources
-      // This builds trust by showing the landscape, then letting user select what to sync
-      // Selection is gated by tier limits (free = 1 per platform)
-      if (ALL_PLATFORMS.includes(platform as Provider)) {
-        // Reload integrations first to reflect the new connection
-        loadIntegrations().then(() => {
-          setSourceModalProvider(platform as Provider);
-        });
-      }
-
-      // Clean up URL params
-      const newUrl = window.location.pathname;
-      router.replace(newUrl, { scroll: false });
-    }
-  }, [providerParam, statusParam, router, loadIntegrations]);
-
   const handleConnect = async (provider: Provider) => {
     setConnecting(provider);
     try {
       // Calendar uses Google OAuth
       const authProvider = provider === 'calendar' ? 'google' : provider;
       const result = await api.integrations.getAuthorizationUrl(authProvider);
-      // Redirect to OAuth
+      // Redirect to OAuth — callback redirects to /context/{platform}?status=connected
       window.location.href = result.authorization_url;
     } catch (err) {
       console.error(`Failed to initiate ${provider} OAuth:`, err);
       setConnecting(null);
     }
-  };
-
-  const handleSourceModalComplete = (selectedCount: number) => {
-    setSourceModalProvider(null);
-    // Reload integrations to show updated status
-    loadIntegrations();
-  };
-
-  const handleSourceModalClose = () => {
-    setSourceModalProvider(null);
   };
 
   // Check if a platform is connected
@@ -248,203 +207,191 @@ export function PlatformSyncStatus({ className }: PlatformSyncStatusProps) {
   const unconnectedPlatforms = ALL_PLATFORMS.filter(p => !isConnected(p));
 
   return (
-    <>
-      <div className={cn('max-w-lg mx-auto', className)}>
-        {/* Connected Platforms */}
-        {connectedPlatforms.length > 0 && (
-          <div className="mb-4">
-            <p className="text-xs text-muted-foreground mb-2 text-center">Connected platforms</p>
-            <div className="space-y-2">
-              {connectedPlatforms.map((provider) => {
-                const config = PLATFORM_CONFIG[provider];
-                const Icon = config.icon;
-                const integration = getIntegration(provider);
-                const status = getSyncStatus(provider);
-                const hasStale = status?.stale_count ? status.stale_count > 0 : false;
-                const resourceCount = status?.synced_resources?.length || 0;
+    <div className={cn('max-w-lg mx-auto', className)}>
+      {/* Connected Platforms */}
+      {connectedPlatforms.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs text-muted-foreground mb-2 text-center">Connected platforms</p>
+          <div className="space-y-2">
+            {connectedPlatforms.map((provider) => {
+              const config = PLATFORM_CONFIG[provider];
+              const Icon = config.icon;
+              const integration = getIntegration(provider);
+              const status = getSyncStatus(provider);
+              const hasStale = status?.stale_count ? status.stale_count > 0 : false;
+              const resourceCount = status?.synced_resources?.length || 0;
 
-                // Find most recent sync
-                const mostRecentSync = status?.synced_resources?.reduce((latest, r) => {
-                  if (!r.last_synced) return latest;
-                  if (!latest) return r.last_synced;
-                  return new Date(r.last_synced) > new Date(latest) ? r.last_synced : latest;
-                }, null as string | null);
+              // Find most recent sync
+              const mostRecentSync = status?.synced_resources?.reduce((latest, r) => {
+                if (!r.last_synced) return latest;
+                if (!latest) return r.last_synced;
+                return new Date(r.last_synced) > new Date(latest) ? r.last_synced : latest;
+              }, null as string | null);
 
-                return (
-                  <div
-                    key={provider}
-                    className={cn(
-                      'flex items-center gap-3 px-4 py-3 rounded-xl border',
-                      hasStale ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20' : 'border-border bg-card'
-                    )}
-                  >
-                    <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
-                      <Icon className={cn('w-5 h-5', config.color)} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium">{config.label}</span>
-                        {integration?.workspace_name && (
-                          <span className="text-xs text-muted-foreground truncate">
-                            {integration.workspace_name}
-                          </span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                        {resourceCount > 0 ? (
-                          <>
-                            {hasStale ? (
-                              <AlertCircle className="w-3 h-3 text-amber-500" />
-                            ) : (
-                              <CheckCircle2 className="w-3 h-3 text-green-500" />
-                            )}
-                            <span>
-                              {resourceCount} source{resourceCount !== 1 ? 's' : ''}
-                              {mostRecentSync && (
-                                <> synced {formatDistanceToNow(new Date(mostRecentSync), { addSuffix: true })}</>
-                              )}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-amber-600">No sources selected</span>
-                        )}
-                      </div>
-                    </div>
-                    {/* Add more sources */}
-                    <button
-                      onClick={() => setSourceModalProvider(provider)}
-                      className="p-1.5 hover:bg-muted rounded-md transition-colors"
-                      title={`Add ${config.connectLabel}`}
-                    >
-                      <Plus className="w-4 h-4 text-muted-foreground" />
-                    </button>
+              return (
+                <div
+                  key={provider}
+                  className={cn(
+                    'flex items-center gap-3 px-4 py-3 rounded-xl border',
+                    hasStale ? 'border-amber-300 bg-amber-50/50 dark:bg-amber-950/20' : 'border-border bg-card'
+                  )}
+                >
+                  <div className={cn('w-10 h-10 rounded-lg flex items-center justify-center', config.bgColor)}>
+                    <Icon className={cn('w-5 h-5', config.color)} />
                   </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Unconnected Platforms */}
-        {unconnectedPlatforms.length > 0 && (
-          <div>
-            {connectedPlatforms.length > 0 && (
-              <p className="text-xs text-muted-foreground mb-2 text-center">Connect more</p>
-            )}
-            <div className="flex flex-wrap justify-center gap-2">
-              {unconnectedPlatforms.map((provider) => {
-                const config = PLATFORM_CONFIG[provider];
-                const Icon = config.icon;
-                const isConnecting = connecting === provider;
-
-                return (
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-medium">{config.label}</span>
+                      {integration?.workspace_name && (
+                        <span className="text-xs text-muted-foreground truncate">
+                          {integration.workspace_name}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      {resourceCount > 0 ? (
+                        <>
+                          {hasStale ? (
+                            <AlertCircle className="w-3 h-3 text-amber-500" />
+                          ) : (
+                            <CheckCircle2 className="w-3 h-3 text-green-500" />
+                          )}
+                          <span>
+                            {resourceCount} source{resourceCount !== 1 ? 's' : ''}
+                            {mostRecentSync && (
+                              <> synced {formatDistanceToNow(new Date(mostRecentSync), { addSuffix: true })}</>
+                            )}
+                          </span>
+                        </>
+                      ) : (
+                        <span className="text-amber-600">No sources selected</span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Navigate to context page for source management */}
                   <button
-                    key={provider}
-                    onClick={() => handleConnect(provider)}
-                    disabled={isConnecting}
-                    className={cn(
-                      'flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-border',
-                      'hover:border-primary/50 hover:bg-primary/5 transition-colors',
-                      'disabled:opacity-50 disabled:cursor-not-allowed'
-                    )}
+                    onClick={() => router.push(`/context/${provider}`)}
+                    className="p-1.5 hover:bg-muted rounded-md transition-colors"
+                    title={`Manage ${config.connectLabel}`}
                   >
-                    {isConnecting ? (
-                      <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                    ) : (
-                      <Icon className={cn('w-4 h-4', config.color)} />
-                    )}
-                    <span className="text-sm">{config.label}</span>
-                    {!isConnecting && (
-                      <ExternalLink className="w-3 h-3 text-muted-foreground" />
-                    )}
+                    <Plus className="w-4 h-4 text-muted-foreground" />
                   </button>
-                );
-              })}
-            </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Unconnected Platforms */}
+      {unconnectedPlatforms.length > 0 && (
+        <div>
+          {connectedPlatforms.length > 0 && (
+            <p className="text-xs text-muted-foreground mb-2 text-center">Connect more</p>
+          )}
+          <div className="flex flex-wrap justify-center gap-2">
+            {unconnectedPlatforms.map((provider) => {
+              const config = PLATFORM_CONFIG[provider];
+              const Icon = config.icon;
+              const isConnecting = connecting === provider;
+
+              return (
+                <button
+                  key={provider}
+                  onClick={() => handleConnect(provider)}
+                  disabled={isConnecting}
+                  className={cn(
+                    'flex items-center gap-2 px-4 py-2.5 rounded-xl border border-dashed border-border',
+                    'hover:border-primary/50 hover:bg-primary/5 transition-colors',
+                    'disabled:opacity-50 disabled:cursor-not-allowed'
+                  )}
+                >
+                  {isConnecting ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  ) : (
+                    <Icon className={cn('w-4 h-4', config.color)} />
+                  )}
+                  <span className="text-sm">{config.label}</span>
+                  {!isConnecting && (
+                    <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Document Upload Section */}
+      <div className="mt-4 pt-4 border-t border-border/50">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept={ALLOWED_DOC_TYPES.join(',')}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) {
+              // Validate file type
+              const ext = '.' + file.name.split('.').pop()?.toLowerCase();
+              if (ALLOWED_DOC_TYPES.includes(ext) || ALLOWED_MIME_TYPES.includes(file.type)) {
+                uploadDocument(file);
+              }
+            }
+            // Reset input
+            if (fileInputRef.current) {
+              fileInputRef.current.value = '';
+            }
+          }}
+          className="hidden"
+        />
+
+        {/* Upload progress indicator */}
+        {uploadProgress && (
+          <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 text-sm">
+            {uploadProgress.status === 'uploading' || uploadProgress.status === 'processing' ? (
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            ) : uploadProgress.status === 'completed' ? (
+              <CheckCircle2 className="w-4 h-4 text-green-500" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red-500" />
+            )}
+            <span className="truncate flex-1">{uploadProgress.filename}</span>
+            <span className="text-xs text-muted-foreground capitalize">{uploadProgress.status}</span>
           </div>
         )}
 
-        {/* Document Upload Section */}
-        <div className="mt-4 pt-4 border-t border-border/50">
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept={ALLOWED_DOC_TYPES.join(',')}
-            onChange={(e) => {
-              const file = e.target.files?.[0];
-              if (file) {
-                // Validate file type
-                const ext = '.' + file.name.split('.').pop()?.toLowerCase();
-                if (ALLOWED_DOC_TYPES.includes(ext) || ALLOWED_MIME_TYPES.includes(file.type)) {
-                  uploadDocument(file);
-                }
-              }
-              // Reset input
-              if (fileInputRef.current) {
-                fileInputRef.current.value = '';
-              }
-            }}
-            className="hidden"
-          />
-
-          {/* Upload progress indicator */}
-          {uploadProgress && (
-            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/50 text-sm">
-              {uploadProgress.status === 'uploading' || uploadProgress.status === 'processing' ? (
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-              ) : uploadProgress.status === 'completed' ? (
-                <CheckCircle2 className="w-4 h-4 text-green-500" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-red-500" />
-              )}
-              <span className="truncate flex-1">{uploadProgress.filename}</span>
-              <span className="text-xs text-muted-foreground capitalize">{uploadProgress.status}</span>
-            </div>
-          )}
-
-          {/* Show uploaded documents count if any */}
-          {documents.length > 0 && (
-            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 text-sm">
-              <File className="w-4 h-4 text-muted-foreground" />
-              <span>{documents.length} document{documents.length !== 1 ? 's' : ''} uploaded</span>
-              <CheckCircle2 className="w-3 h-3 text-green-500 ml-auto" />
-            </div>
-          )}
-
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={uploadProgress?.status === 'uploading' || uploadProgress?.status === 'processing'}
-            className={cn(
-              'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl',
-              'border border-dashed border-border text-sm',
-              'hover:border-primary/50 hover:bg-primary/5 transition-colors',
-              'disabled:opacity-50 disabled:cursor-not-allowed'
-            )}
-          >
-            <Upload className="w-4 h-4 text-muted-foreground" />
-            <span>Upload documents</span>
-            <span className="text-xs text-muted-foreground">(PDF, DOCX, TXT, MD)</span>
-          </button>
-        </div>
-
-        {/* No platforms at all - full onboarding prompt */}
-        {connectedPlatforms.length === 0 && (
-          <p className="text-xs text-muted-foreground text-center mt-3">
-            Free plan: 1 source per platform, syncs 2x daily
-          </p>
+        {/* Show uploaded documents count if any */}
+        {documents.length > 0 && (
+          <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-lg bg-muted/30 text-sm">
+            <File className="w-4 h-4 text-muted-foreground" />
+            <span>{documents.length} document{documents.length !== 1 ? 's' : ''} uploaded</span>
+            <CheckCircle2 className="w-3 h-3 text-green-500 ml-auto" />
+          </div>
         )}
+
+        <button
+          onClick={() => fileInputRef.current?.click()}
+          disabled={uploadProgress?.status === 'uploading' || uploadProgress?.status === 'processing'}
+          className={cn(
+            'w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl',
+            'border border-dashed border-border text-sm',
+            'hover:border-primary/50 hover:bg-primary/5 transition-colors',
+            'disabled:opacity-50 disabled:cursor-not-allowed'
+          )}
+        >
+          <Upload className="w-4 h-4 text-muted-foreground" />
+          <span>Upload documents</span>
+          <span className="text-xs text-muted-foreground">(PDF, DOCX, TXT, MD)</span>
+        </button>
       </div>
 
-      {/* Source Selection Modal (ADR-057) */}
-      {sourceModalProvider && (
-        <SourceSelectionModal
-          provider={sourceModalProvider}
-          isOpen={true}
-          onClose={handleSourceModalClose}
-          onComplete={handleSourceModalComplete}
-        />
+      {/* No platforms at all - full onboarding prompt */}
+      {connectedPlatforms.length === 0 && (
+        <p className="text-xs text-muted-foreground text-center mt-3">
+          Free plan: 2 sources per platform, syncs 2x daily
+        </p>
       )}
-    </>
+    </div>
   );
 }
 

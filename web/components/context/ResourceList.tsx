@@ -1,9 +1,11 @@
 'use client';
 
+import { useMemo } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
   Check,
+  CheckCircle2,
   Loader2,
   Sparkles,
 } from 'lucide-react';
@@ -49,6 +51,10 @@ interface ResourceListProps {
 
   /** Per-resource metadata renderer (platform-specific) */
   renderMetadata?: (resource: LandscapeResource) => React.ReactNode;
+
+  /** Whether this is a first-connect flow (OAuth just completed) */
+  justConnected?: boolean;
+  platformLabel?: string;
 }
 
 export function ResourceList({
@@ -81,9 +87,57 @@ export function ResourceList({
   onToggleExpand,
   onLoadMore,
   renderMetadata,
+  justConnected,
+  platformLabel,
 }: ResourceListProps) {
+  // Split resources into recommended and rest
+  const { recommended, rest, hasRecommended } = useMemo(() => {
+    const rec = resources.filter(r => r.recommended);
+    const other = resources.filter(r => !r.recommended);
+    return { recommended: rec, rest: other, hasRecommended: rec.length > 0 };
+  }, [resources]);
+
+  const renderResourceRow = (resource: LandscapeResource) => (
+    <ResourceRow
+      key={resource.id}
+      resource={resource}
+      resourceIcon={resourceIcon}
+      isSelected={selectedIds.has(resource.id)}
+      onToggle={() => onToggle(resource.id)}
+      disabled={!selectedIds.has(resource.id) && atLimit}
+      isExpanded={expandedResourceIds.has(resource.id)}
+      onToggleExpand={() => onToggleExpand(resource.id)}
+      contextItems={resourceContextCache[resource.id] || []}
+      loadingContext={loadingResourceContext[resource.id] || false}
+      totalCount={resourceContextTotalCount[resource.id] || 0}
+      loadingMore={loadingMoreContext[resource.id] || false}
+      onLoadMore={() => onLoadMore(resource.id)}
+      renderMetadata={renderMetadata}
+    />
+  );
+
+  // Tier-appropriate upgrade CTA
+  const upgradeTarget = tierLimits?.tier === 'free' ? 'Starter' : tierLimits?.tier === 'starter' ? 'Pro' : null;
+
   return (
     <section>
+      {/* First-connect welcome banner */}
+      {justConnected && (
+        <div className="mb-4 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-green-800 dark:text-green-300">
+                {platformLabel || resourceLabel} Connected
+              </p>
+              <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">
+                Select sources below to start building context. Recommended sources are highlighted based on activity.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
@@ -199,10 +253,10 @@ export function ResourceList({
               </p>
               <p className="text-amber-700 dark:text-amber-400 mt-0.5">
                 Your {tierLimits?.tier || 'free'} plan allows {limit} {resourceLabel.toLowerCase()}.
-                {tierLimits?.tier === 'free' && (
+                {upgradeTarget && (
                   <button className="ml-1 underline hover:no-underline inline-flex items-center gap-1">
                     <Sparkles className="w-3 h-3" />
-                    Upgrade to Pro
+                    Upgrade to {upgradeTarget}
                   </button>
                 )}
               </p>
@@ -218,26 +272,38 @@ export function ResourceList({
             No {resourceLabel.toLowerCase()} found in this workspace.
           </p>
         </div>
+      ) : hasRecommended ? (
+        /* Grouped view: Recommended + All */
+        <div className="space-y-4">
+          {/* Recommended section */}
+          <div>
+            <div className="flex items-center gap-2 mb-2">
+              <Sparkles className="w-3.5 h-3.5 text-primary" />
+              <h3 className="text-xs font-medium text-primary uppercase tracking-wide">
+                Recommended based on activity
+              </h3>
+            </div>
+            <div className="border border-primary/20 rounded-lg divide-y divide-border">
+              {recommended.map(renderResourceRow)}
+            </div>
+          </div>
+
+          {/* All others section */}
+          {rest.length > 0 && (
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
+                All {resourceLabel.toLowerCase()}
+              </h3>
+              <div className="border border-border rounded-lg divide-y divide-border">
+                {rest.map(renderResourceRow)}
+              </div>
+            </div>
+          )}
+        </div>
       ) : (
+        /* Flat view: no recommendations available */
         <div className="border border-border rounded-lg divide-y divide-border">
-          {resources.map((resource) => (
-            <ResourceRow
-              key={resource.id}
-              resource={resource}
-              resourceIcon={resourceIcon}
-              isSelected={selectedIds.has(resource.id)}
-              onToggle={() => onToggle(resource.id)}
-              disabled={!selectedIds.has(resource.id) && atLimit}
-              isExpanded={expandedResourceIds.has(resource.id)}
-              onToggleExpand={() => onToggleExpand(resource.id)}
-              contextItems={resourceContextCache[resource.id] || []}
-              loadingContext={loadingResourceContext[resource.id] || false}
-              totalCount={resourceContextTotalCount[resource.id] || 0}
-              loadingMore={loadingMoreContext[resource.id] || false}
-              onLoadMore={() => onLoadMore(resource.id)}
-              renderMetadata={renderMetadata}
-            />
-          ))}
+          {resources.map(renderResourceRow)}
         </div>
       )}
     </section>

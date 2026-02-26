@@ -15,6 +15,7 @@ import { useSearchParams } from 'next/navigation';
 import {
   Calendar,
   Check,
+  CheckCircle2,
   ChevronDown,
   Loader2,
   CalendarDays,
@@ -61,10 +62,12 @@ export default function CalendarContextPage() {
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [viewMode, setViewMode] = useState<'calendar' | 'details'>('calendar');
   const [activeCalendarId, setActiveCalendarId] = useState<string>('primary');
+  const [justConnected, setJustConnected] = useState(false);
 
-  // Handle OAuth redirect: clean ?status=connected from URL
+  // Handle OAuth redirect: detect first-connect, then clean URL
   useEffect(() => {
     if (searchParams.get('status') === 'connected') {
+      setJustConnected(true);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [searchParams]);
@@ -199,6 +202,23 @@ export default function CalendarContextPage() {
         onConnectionDetails={() => setShowConnectionModal(true)}
         rightContent={viewToggle}
       />
+
+      {/* First-connect banner */}
+      {justConnected && (
+        <div className="mx-6 mt-6 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+          <div className="flex items-start gap-3">
+            <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-sm font-medium text-green-800 dark:text-green-300">
+                Calendar Connected
+              </p>
+              <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">
+                TP can now access your calendar. Set a default calendar below for new events.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Calendar View */}
       {viewMode === 'calendar' && (

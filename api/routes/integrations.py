@@ -2423,6 +2423,7 @@ class LandscapeResourceResponse(BaseModel):
     metadata: dict[str, Any] = {}
     last_error: Optional[str] = None
     last_error_at: Optional[datetime] = None
+    recommended: bool = False
 
 
 class LandscapeResponse(BaseModel):
@@ -2558,6 +2559,29 @@ async def get_landscape(
             last_error=sync_data.get("last_error"),
             last_error_at=sync_data.get("last_error_at"),
         ))
+
+    # Compute recommended IDs (ADR-078 smart defaults) for UI grouping
+    from services.landscape import compute_smart_defaults
+    from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
+
+    limits = get_limits_for_user(auth.client, user_id)
+    limit_field = PROVIDER_LIMIT_MAP.get(
+        "gmail" if resolved_provider == "google" else resolved_provider,
+        "slack_channels"
+    )
+    max_sources = getattr(limits, limit_field, 5)
+    if max_sources == -1:
+        max_sources = 999
+
+    recommended_sources = compute_smart_defaults(
+        resolved_provider,
+        landscape_data.get("resources", []),
+        max_sources,
+    )
+    recommended_ids = {s["id"] for s in recommended_sources}
+
+    for r in resources:
+        r.recommended = r.id in recommended_ids
 
     # Get coverage summary
     summary_result = auth.client.rpc("get_coverage_summary", {

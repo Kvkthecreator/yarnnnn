@@ -45,10 +45,12 @@ export default function GmailContextPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [showConnectionModal, setShowConnectionModal] = useState(false);
+  const [justConnected, setJustConnected] = useState(false);
 
-  // Handle OAuth redirect: clean ?status=connected from URL
+  // Handle OAuth redirect: detect first-connect, then clean URL
   useEffect(() => {
     if (searchParams.get('status') === 'connected') {
+      setJustConnected(true);
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [searchParams]);
@@ -143,6 +145,8 @@ export default function GmailContextPage() {
           onToggleExpand={expansion.handleToggleExpand}
           onLoadMore={expansion.handleLoadMore}
           renderMetadata={renderGmailMetadata}
+          justConnected={justConnected}
+          platformLabel="Gmail"
         />
 
         <PlatformDeliverablesList

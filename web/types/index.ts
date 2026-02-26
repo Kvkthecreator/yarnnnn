@@ -1042,6 +1042,7 @@ export interface LandscapeResource {
   metadata: Record<string, unknown>;
   last_error: string | null;
   last_error_at: string | null;
+  recommended: boolean;
 }
 
 export interface SelectedSource {
