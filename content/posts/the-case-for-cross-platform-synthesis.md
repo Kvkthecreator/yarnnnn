@@ -8,7 +8,7 @@ tags: [cross-platform, ai-integrations, notion-ai, copilot, multi-platform, ai-a
 pillar: 2a
 geoTier: 2
 canonicalUrl: https://www.yarnnn.com/blog/the-case-for-cross-platform-synthesis
-status: draft
+status: published
 ---
 
 Notion AI knows your Notion pages. Microsoft Copilot knows your Office documents. Google's Gemini knows your Gmail and Drive. Each platform's AI assistant has access to one slice of your work — the slice that lives on that platform. None of them see the full picture.

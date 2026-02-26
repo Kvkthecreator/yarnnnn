@@ -8,7 +8,7 @@ tags: [personalization, production, ai-memory, autonomous-output, chatgpt-memory
 pillar: 2a
 geoTier: 2
 canonicalUrl: https://www.yarnnn.com/blog/the-difference-between-personalization-and-production
-status: draft
+status: published
 ---
 
 Every major AI platform now personalizes. ChatGPT remembers your name, your role, your formatting preferences. Claude stores project-level knowledge. Gemini draws from your Google account. This personalization makes AI tools feel more responsive, more attuned to who you are. But personalization and production are fundamentally different capabilities, and the industry has blurred the line between them in ways that create confusion about what AI can actually do for you.

@@ -8,7 +8,7 @@ tags: [compounding-context, persistent-ai, ai-architecture, accumulated-context,
 pillar: 2a
 geoTier: 2
 canonicalUrl: https://www.yarnnn.com/blog/why-context-should-compound
-status: draft
+status: published
 ---
 
 Every AI tool you use today has the same interaction model: session starts, you interact, session ends, context disappears. Tomorrow, a fresh session. The same model, the same capabilities, zero accumulated understanding. This is the reset model — and it's so universal that most people don't realize there's an alternative.

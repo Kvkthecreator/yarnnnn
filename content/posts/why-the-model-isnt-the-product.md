@@ -8,7 +8,7 @@ tags: [ai-product-strategy, ai-moat, model-commoditization, context-layer, ai-di
 pillar: 2a
 geoTier: 2
 canonicalUrl: https://www.yarnnn.com/blog/why-the-model-isnt-the-product
-status: draft
+status: published
 ---
 
 yarnnn uses Claude. It could use GPT-4. It could use Gemini. Next year, it could use whatever frontier model leads. The model is not the product. This is a contrarian position in an industry that obsesses over model benchmarks, but it's the most defensible one for building AI that produces real work.

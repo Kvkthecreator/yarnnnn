@@ -8,7 +8,7 @@ tags: [temporal-context, ai-architecture, context-management, chronological-ai, 
 pillar: 2a
 geoTier: 2
 canonicalUrl: https://www.yarnnn.com/blog/temporal-context-why-when-matters
-status: draft
+status: published
 ---
 
 Most AI systems treat information as a flat collection. Documents in a vector store. Facts in a memory bank. Messages in a log. The content is indexed by relevance — what the information is about. The timing is metadata at best, ignored at worst. But in real work, *when* something happened is often as important as *what* happened. yarnnn preserves temporal context as a first-class architectural element, because the sequence and timing of events is what turns disconnected information into understanding.

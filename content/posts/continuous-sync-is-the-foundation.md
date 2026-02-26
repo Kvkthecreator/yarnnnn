@@ -8,7 +8,7 @@ tags: [continuous-sync, platform-integrations, ai-architecture, slack-ai, gmail-
 pillar: 2a
 geoTier: 2
 canonicalUrl: https://www.yarnnn.com/blog/continuous-sync-is-the-foundation
-status: draft
+status: published
 ---
 
 When AI tools connect to your platforms, they typically do it one of two ways. Either they import your data once — a batch upload of documents, a snapshot of your files — or they retrieve information on demand when you ask a question. Both approaches treat platform access as a feature: something the tool can do. yarnnn treats continuous sync as the foundation: everything else the system does depends on it.

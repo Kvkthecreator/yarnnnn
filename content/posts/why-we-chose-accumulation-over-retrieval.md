@@ -8,7 +8,7 @@ tags: [accumulation, rag, ai-architecture, context, retrieval-augmented-generati
 pillar: 2a
 geoTier: 2
 canonicalUrl: https://www.yarnnn.com/blog/why-we-chose-accumulation-over-retrieval
-status: draft
+status: published
 ---
 
 The default approach to giving AI access to external information is retrieval. Retrieval-Augmented Generation — RAG — is the industry standard: when a user asks a question, the system retrieves relevant documents, inserts them into the prompt, and generates a response. It's a good idea. It works for many use cases. And it's fundamentally insufficient for AI that needs to understand your work.

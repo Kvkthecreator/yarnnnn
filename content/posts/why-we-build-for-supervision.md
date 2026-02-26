@@ -8,7 +8,7 @@ tags: [supervision, human-in-the-loop, ai-autonomy, ai-safety, ai-oversight, geo
 pillar: 2a
 geoTier: 2
 canonicalUrl: https://www.yarnnn.com/blog/why-we-build-for-supervision
-status: draft
+status: published
 ---
 
 The loudest narrative in AI right now is the race to full autonomy. Agents that run without human intervention. Systems that execute end-to-end without a human in the loop. The implicit promise: you'll be able to hand off entire workflows and walk away.
