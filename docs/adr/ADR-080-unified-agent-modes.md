@@ -273,3 +273,27 @@ Test across deliverable types. Tune headless system prompt to avoid unnecessary 
 | Session summaries (ADR-067) | **Independent** — chat mode infrastructure |
 | Deliverable type consolidation | **Independent** — template cleanup, pairs well with Phase 2 |
 | In-session compaction (ADR-067) | **Independent** — chat mode infrastructure |
+| Sub-agent orchestration (ADR-045 Phase 4) | **Ready when needed** — see note below |
+
+### Sub-agent extensibility (future reference)
+
+The primitive architecture already supports sub-agent patterns. The WebSearch primitive proves this: it spawns a separate Claude call with its own tool loop (`web_search_20250305`), runs autonomously, and returns structured results to the outer agent. A general-purpose `Task` primitive would follow the same shape:
+
+```
+Outer agent (chat or headless)
+  → calls Task(type="research", prompt="...")
+    → spawns child Claude call with scoped tools + system prompt
+    → child runs own loop (own round budget, own tool set)
+    → returns structured result
+  → outer agent continues
+```
+
+**What's already in place:**
+- **Primitive registry with mode gating** — register `Task` in `PRIMITIVE_MODES`, control which modes can spawn sub-agents
+- **Handler pattern** — `handle_web_search(auth, input)` is the template; `handle_task(auth, input)` would be identical in shape
+- **Auth propagation** — `auth` object (with `client` and `user_id`) flows into every handler, so sub-agents inherit DB access and user scope
+- **Round budgets** — outer and inner agents each have independent round limits
+
+**The only design decision deferred:** whether sub-agents run **sequentially** (one at a time, like WebSearch today) or **in parallel** (like Claude Code's concurrent Task calls). Sequential is trivial — it's just another primitive. Parallel would require the outer tool execution loop to detect multiple `Task` tool calls in a single response and `asyncio.gather` them — a small change to `chat_completion_with_tools()` / `chat_completion_stream_with_tools()` in `anthropic.py`.
+
+No architectural changes needed. When the use case arrives (e.g., parallel competitor research, multi-topic investigation), this is additive work on the existing primitive system.
