@@ -44,6 +44,11 @@ import type { PlatformSummary } from '@/components/ui/PlatformCard';
 // =============================================================================
 
 type Section = 'platforms' | 'documents';
+const VALID_SECTIONS: readonly Section[] = ['platforms', 'documents'] as const;
+
+function normalizeSection(value: string | null): Section {
+  return VALID_SECTIONS.includes(value as Section) ? (value as Section) : 'platforms';
+}
 
 // =============================================================================
 // Platform Configuration
@@ -289,8 +294,8 @@ export default function ContextPage() {
   const searchParams = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const sectionParam = searchParams.get('section') as Section | null;
-  const [activeSection, setActiveSection] = useState<Section>(sectionParam || 'platforms');
+  const sectionParam = normalizeSection(searchParams.get('section'));
+  const [activeSection, setActiveSection] = useState<Section>(sectionParam);
 
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -319,17 +324,15 @@ export default function ContextPage() {
   }, [loadData]);
 
   useEffect(() => {
-    const s = searchParams.get('section') as Section | null;
-    if (s && s !== activeSection) {
+    const s = normalizeSection(searchParams.get('section'));
+    if (s !== activeSection) {
       setActiveSection(s);
     }
   }, [searchParams, activeSection]);
 
   const handleSectionChange = (section: Section) => {
     setActiveSection(section);
-    const url = new URL(window.location.href);
-    url.searchParams.set('section', section);
-    router.replace(url.pathname + url.search, { scroll: false });
+    router.replace(`/context?section=${section}`, { scroll: false });
   };
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -381,8 +384,8 @@ export default function ContextPage() {
           </button>
         </div>
 
-        {/* Section Navigation (filter chip style) */}
-        <div className="flex items-center gap-2 mb-6">
+        {/* Mobile section navigation (desktop uses sidebar) */}
+        <div className="md:hidden flex items-center gap-2 mb-6">
           {SECTIONS.map((section) => (
             <button
               key={section.id}

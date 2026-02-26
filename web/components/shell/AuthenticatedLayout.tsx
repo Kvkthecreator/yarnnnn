@@ -166,18 +166,18 @@ function AuthenticatedLayoutInner({
           return;
         case 'document-list':
           // ADR-039: Documents now live in unified Context page
-          router.push('/context?source=documents');
+          router.push('/context?section=documents');
           return;
         case 'document-viewer':
           router.push(`/docs/${newSurface.documentId}`);
           return;
         case 'platform-list':
           // ADR-039: Platforms now live in unified Context page
-          router.push('/context?source=platforms');
+          router.push('/context?section=platforms');
           return;
         case 'platform-detail':
-          // ADR-039: Specific platform view in Context
-          router.push(`/context?source=${newSurface.platform}`);
+          // ADR-039: Specific platform page in Context
+          router.push(`/context/${newSurface.platform}`);
           return;
         case 'context-browser':
           // ADR-039: Now redirects to unified Context page

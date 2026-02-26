@@ -304,7 +304,7 @@ export default function ActivityPage() {
       case 'session_summary_written':
       case 'pattern_detected':
       case 'conversation_analyzed':
-        router.push('/context?section=entries');
+        router.push('/memory?section=entries');
         break;
       case 'platform_synced':
       case 'content_cleanup':

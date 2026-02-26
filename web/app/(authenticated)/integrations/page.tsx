@@ -3,7 +3,7 @@
 /**
  * ADR-039: Redirect to Context page (platforms filter)
  *
- * Legacy /integrations route now redirects to /context?source=platforms
+ * Legacy /integrations route now redirects to /context?section=platforms
  */
 
 import { useEffect } from 'react';
@@ -14,7 +14,7 @@ export default function IntegrationsRedirect() {
   const router = useRouter();
 
   useEffect(() => {
-    router.replace('/context?source=platforms');
+    router.replace('/context?section=platforms');
   }, [router]);
 
   return (

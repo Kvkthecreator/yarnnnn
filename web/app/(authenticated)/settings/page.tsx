@@ -640,7 +640,7 @@ export default function SettingsPage() {
         </section>
       )}
 
-      {/* ADR-039: Memory tab removed - facts now in /context?source=facts */}
+      {/* ADR-039: Memory tab removed - user memory now in /memory */}
 
       {/* Account Tab - Data & Privacy */}
       {activeTab === "account" && (
