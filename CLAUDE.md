@@ -61,16 +61,17 @@ Before completing work:
 
 ### 5. Render Service Parity
 
-YARNNN runs on **4 Render services** that share code and env vars. When changing environment variables, secrets, or architectural patterns, check ALL services:
+YARNNN runs on **5 Render services** that share code and env vars. When changing environment variables, secrets, or architectural patterns, check ALL services:
 
 | Service | Type | Render ID |
 |---------|------|-----------|
 | yarnnn-api | Web Service | `srv-d5sqotcr85hc73dpkqdg` |
 | yarnnn-worker | Background Worker | `srv-d4sebn6mcj7s73bu8en0` |
 | yarnnn-unified-scheduler | Cron Job | `crn-d604uqili9vc73ankvag` |
+| yarnnn-platform-sync | Cron Job | _(in render.yaml / Render cron)_ |
 | yarnnn-mcp-server | Web Service | `srv-d6f4vg1drdic739nli4g` |
 
-**Critical shared env vars** (must be on API + Worker + Scheduler):
+**Critical shared env vars** (must be on API + Worker + Unified Scheduler + Platform Sync):
 - `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Worker/Scheduler **cannot sync** without it.
 - `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — needed by Worker for token refresh
 - `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Worker for Notion API

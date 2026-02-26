@@ -89,6 +89,47 @@ SYNC_SCHEDULES = {
     "hourly": None,                                      # Every hour on the hour
 }
 
+# Allow one extra 5-minute cron slot to avoid missing windows on slight scheduler drift.
+SCHEDULE_WINDOW_MINUTES = 10
+
+# Common user-facing timezone labels mapped to IANA names.
+TIMEZONE_ALIASES = {
+    "seoul": "Asia/Seoul",
+}
+
+
+def _resolve_timezone(user_timezone: Optional[str]) -> pytz.BaseTzInfo:
+    """Resolve a user timezone string to a valid pytz timezone, defaulting to UTC."""
+    tz_value = (user_timezone or "UTC").strip()
+    if not tz_value:
+        return pytz.UTC
+
+    # Direct IANA timezone (preferred).
+    try:
+        return pytz.timezone(tz_value)
+    except pytz.UnknownTimeZoneError:
+        pass
+
+    # Known alias fallback.
+    alias = TIMEZONE_ALIASES.get(tz_value.lower())
+    if alias:
+        return pytz.timezone(alias)
+
+    # City-like fallback, e.g. "Seoul" -> "Asia/Seoul" if uniquely matchable.
+    normalized = tz_value.replace(" ", "_")
+    if "/" not in normalized:
+        suffix = f"/{normalized.lower()}"
+        matches = [name for name in pytz.all_timezones if name.lower().endswith(suffix)]
+        if len(matches) == 1:
+            return pytz.timezone(matches[0])
+
+    return pytz.UTC
+
+
+def normalize_timezone_name(user_timezone: Optional[str]) -> str:
+    """Return canonical timezone name used internally."""
+    return _resolve_timezone(user_timezone).zone
+
 
 def get_user_tier(client, user_id: str) -> str:
     """
@@ -382,10 +423,7 @@ def get_next_sync_time(sync_frequency: SyncFrequency, user_timezone: str = "UTC"
     """
     Calculate the next scheduled sync time for a user.
     """
-    try:
-        tz = pytz.timezone(user_timezone)
-    except pytz.UnknownTimeZoneError:
-        tz = pytz.UTC
+    tz = _resolve_timezone(user_timezone)
 
     now = datetime.now(tz)
 
@@ -430,21 +468,18 @@ def should_sync_now(sync_frequency: SyncFrequency, user_timezone: str = "UTC") -
 
     Called by the scheduler to determine which users to sync.
     """
-    try:
-        tz = pytz.timezone(user_timezone)
-    except pytz.UnknownTimeZoneError:
-        tz = pytz.UTC
+    tz = _resolve_timezone(user_timezone)
 
     now = datetime.now(tz)
 
     if sync_frequency == "hourly":
-        return now.minute < 5
+        return now.minute < SCHEDULE_WINDOW_MINUTES
 
     schedule = SYNC_SCHEDULES.get(sync_frequency, [])
 
     for time_str in schedule:
         hour, minute = map(int, time_str.split(":"))
-        if now.hour == hour and now.minute < 5:
+        if now.hour == hour and now.minute < SCHEDULE_WINDOW_MINUTES:
             return True
 
     return False

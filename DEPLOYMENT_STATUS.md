@@ -124,13 +124,15 @@ Each type includes:
 **Render Services**:
 - `yarnnn-api` (srv-d5sqotcr85hc73dpkqdg) - **Auto-deploy enabled**
 - `yarnnn-unified-scheduler` (crn-d604uqili9vc73ankvag) - **Auto-deploy enabled**
-- `yarnnn-mcp-gateway` (srv-d66jir15pdvs73aqsmk0) - **Auto-deploy enabled**
+- `yarnnn-platform-sync` (defined in `render.yaml`) - **Auto-deploy via blueprint**
+- `yarnnn-mcp-server` (srv-d6f4vg1drdic739nli4g) - **Auto-deploy enabled**
 
 **Expected deployment time**: 5-10 minutes after push
 
 **Monitor deployment**:
 - API: https://dashboard.render.com/web/srv-d5sqotcr85hc73dpkqdg
 - Scheduler: https://dashboard.render.com/cron/crn-d604uqili9vc73ankvag
+- Platform sync: https://dashboard.render.com/ (Cron Jobs → `platform-sync`)
 
 ---
 

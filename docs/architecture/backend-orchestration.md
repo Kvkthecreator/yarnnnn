@@ -444,16 +444,16 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 
 ## Render Service Environment
 
-**Critical shared env vars** (must be on API + Sync Cron + Unified Scheduler):
+**Critical shared env vars** (must be on API + Sync Cron + Unified Scheduler + Worker):
 
 | Env Var | API | Sync Cron | Unified Sched | Worker | MCP Server |
 |---------|-----|-----------|---------------|--------|------------|
 | `SUPABASE_URL` | yes | yes | yes | yes | yes |
 | `SUPABASE_SERVICE_KEY` | yes | yes | yes | yes | yes |
-| `INTEGRATION_ENCRYPTION_KEY` | yes | yes | yes | — | — |
-| `GOOGLE_CLIENT_ID/SECRET` | yes | yes | yes | — | — |
-| `SLACK_CLIENT_ID/SECRET` | yes | yes | yes | — | — |
-| `NOTION_CLIENT_ID/SECRET` | yes | yes | yes | — | — |
+| `INTEGRATION_ENCRYPTION_KEY` | yes | yes | yes | yes | — |
+| `GOOGLE_CLIENT_ID/SECRET` | yes | yes | yes | yes | — |
+| `SLACK_CLIENT_ID/SECRET` | yes | yes | yes | yes | — |
+| `NOTION_CLIENT_ID/SECRET` | yes | yes | yes | yes | — |
 | `ANTHROPIC_API_KEY` | yes | — | yes | yes | — |
 | `OPENAI_API_KEY` | — | — | — | yes | — |
 | `RESEND_API_KEY` | yes | — | yes | — | — |

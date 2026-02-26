@@ -43,7 +43,7 @@ async def get_users_due_for_sync(supabase_client) -> list[dict]:
     """
     from services.platform_limits import (
         TIER_LIMITS,
-        SYNC_SCHEDULES,
+        normalize_timezone_name,
         should_sync_now,
     )
 
@@ -73,7 +73,7 @@ async def get_users_due_for_sync(supabase_client) -> list[dict]:
             continue
 
         tier = user_info.get("tier", "free")
-        user_tz = user_info.get("timezone", "UTC")
+        user_tz = normalize_timezone_name(user_info.get("timezone", "UTC"))
 
         limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
         sync_frequency = limits.sync_frequency

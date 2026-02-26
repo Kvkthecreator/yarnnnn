@@ -17,7 +17,11 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
       - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
         sync: false
       - key: RESEND_API_KEY
         sync: false
@@ -65,6 +69,10 @@ services:
         sync: false
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
+        sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
       - key: OPENAI_API_KEY
@@ -89,6 +97,8 @@ crons:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
@@ -121,6 +131,8 @@ crons:
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: INTEGRATION_ENCRYPTION_KEY
         sync: false
       - key: SLACK_CLIENT_ID
         sync: false
