@@ -84,7 +84,7 @@ async def trigger_signal_processing(
             detail={
                 "error": "tier_restricted",
                 "message": "Signal processing requires a Starter or Pro plan.",
-                "upgrade_url": "/settings/subscription",
+                "upgrade_url": "/settings?tab=billing",
             }
         )
 

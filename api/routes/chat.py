@@ -720,7 +720,7 @@ async def global_chat(
                 "message": f"Daily token budget reached ({tokens_used:,}/{token_limit:,}). Resets at midnight UTC.",
                 "tokens_used": tokens_used,
                 "token_limit": token_limit,
-                "upgrade_url": "/settings/subscription",
+                "upgrade_url": "/settings?tab=billing",
             }
         )
 

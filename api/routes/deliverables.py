@@ -1166,7 +1166,7 @@ async def create_deliverable(
             detail={
                 "error": "deliverable_limit_reached",
                 "message": message,
-                "upgrade_url": "/settings/subscription",
+                "upgrade_url": "/settings?tab=billing",
             }
         )
 

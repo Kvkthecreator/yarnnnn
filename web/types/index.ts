@@ -251,7 +251,7 @@ export interface DeleteResponse {
 }
 
 // Subscription (Lemon Squeezy)
-export type SubscriptionTier = "free" | "pro";
+export type SubscriptionTier = "free" | "starter" | "pro";
 
 export interface SubscriptionStatus {
   status: SubscriptionTier;
