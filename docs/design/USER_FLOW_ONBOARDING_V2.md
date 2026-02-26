@@ -1,42 +1,30 @@
-# User Flow: Platform-First Onboarding (v2)
+# User Flow: Platform-First Onboarding (v3)
 
-> **Status**: Draft
-> **Date**: 2026-02-09
-> **Related ADRs**: ADR-032 (Platform-Native Frontend), ADR-033 (Platform-Centric UI), ADR-034 (Emergent Context Domains)
+> **Status**: Current
+> **Date**: 2026-02-26
+> **Supersedes**: Onboarding V2 (2026-02-09)
+> **Related ADRs**: ADR-053 (Tier Model), ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-078 (Smart Source Auto-Selection)
 
 ---
 
 ## Overview
 
-This document defines the end-to-end user journey from first open to ongoing value. The architecture is built on three pillars:
+Users connect platforms (Slack, Gmail, Notion, Calendar) and select which sources to sync. Context accumulates over time through tier-based scheduled syncs. TP (Thinking Partner) uses this context in conversations and deliverable generation.
 
-1. **Platform-First**: Users connect their tools (Slack, Gmail, Notion) as the primary way to build context
-2. **Emergent Domains**: Context boundaries emerge from deliverable source patterns, not upfront taxonomy
-3. **Deliverable-Centric**: Deliverables are the primary value unit - recurring outputs that YARNNN produces
+**Key design principle**: Context pages (`/context/{platform}`) are the **singular** source selection experience. No modals, no wizards — one place for everything.
 
 ---
 
-## User Journey Stages
+## User Journey
 
 ```
-┌─────────────────────────────────────────────────────────────────────────────┐
-│                           USER JOURNEY MAP                                   │
-├─────────────────────────────────────────────────────────────────────────────┤
-│                                                                              │
-│  ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐    ┌─────────┐   │
-│  │  OPEN   │───>│ CONNECT │───>│ CREATE  │───>│ REFINE  │───>│ SCALE   │   │
-│  │         │    │         │    │         │    │         │    │         │   │
-│  │ First   │    │Platform │    │ First   │    │ Build   │    │ Add     │   │
-│  │ Visit   │    │ Access  │    │Deliver- │    │ Trust   │    │ More    │   │
-│  │         │    │         │    │ able    │    │         │    │         │   │
-│  └─────────┘    └─────────┘    └─────────┘    └─────────┘    └─────────┘   │
-│       │              │              │              │              │         │
-│       │              │              │              │              │         │
-│       ▼              ▼              ▼              ▼              ▼         │
-│   Onboarding    Context        Domain         Context        Multiple      │
-│   Prompt        Building       Emerges        Accumulates    Domains       │
-│                                                                              │
-└─────────────────────────────────────────────────────────────────────────────┘
+OPEN  →  CONNECT  →  SELECT SOURCES  →  CONTEXT BUILDS  →  USE TP
+ │          │              │                   │              │
+ ▼          ▼              ▼                   ▼              ▼
+Dashboard  OAuth       Context page       Scheduled       Chat +
+welcome    redirect    with recommended   tier-based      Deliverables
+screen     to context  grouping           syncs
+           page
 ```
 
 ---
@@ -44,584 +32,235 @@ This document defines the end-to-end user journey from first open to ongoing val
 ## Stage 1: First Open (Cold Start)
 
 ### User State
-- Authenticated (via OAuth)
-- No deliverables
+- Authenticated via Supabase Auth
 - No connected platforms
-- No accumulated context
+- No synced content
 
 ### Experience
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Welcome to YARNNN                                              │
-│                                                                 │
-│  Connect your tools and I'll learn your context automatically. │
-│  No manual uploads needed.                                      │
-│                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │  🔷 Slack   │  │  📧 Gmail   │  │  📝 Notion  │             │
-│  │             │  │             │  │             │             │
-│  │ Learn from  │  │ Draft emails│  │ Import from │             │
-│  │ your convos │  │ in your     │  │ your docs   │             │
-│  │ and style   │  │ voice       │  │ and KB      │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-│                                                                 │
-│           ┌──────────────────────────────────┐                 │
-│           │ ⚙️  Connect Your First Platform  →│                 │
-│           └──────────────────────────────────┘                 │
-│                                                                 │
-│               Skip for now and start chatting                   │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+Dashboard shows `PlatformSyncStatus` component in `ChatFirstDesk`:
+- 4 platform buttons (Slack, Gmail, Notion, Calendar) with connect CTAs
+- Document upload option
+- Tier info: "Free plan: 2 sources per platform, syncs 2x daily"
 
-### Actions Available
-1. **Connect Platform** → Navigate to Settings/Integrations
-2. **Skip** → Dismiss onboarding, show empty dashboard with TP
-
-### System Behavior
-- `usePlatformOnboardingState()` returns `no_platforms`
-- `IdleSurface` renders `PlatformOnboardingPrompt`
-- No context loaded (empty default domain will be created lazily)
+### Actions
+1. **Connect Platform** → starts OAuth flow → redirects to `/context/{platform}?status=connected`
+2. **Upload Document** → file picker → PDF/DOCX/TXT/MD
+3. **Skip** → start chatting with TP (limited context)
 
 ---
 
-## Stage 2: Connect Platform(s)
+## Stage 2: Connect Platform (OAuth)
 
-### User Flow
+### Flow
+1. User clicks platform connect button (dashboard or context page)
+2. OAuth redirect to provider (Slack/Google/Notion)
+3. Provider grants access
+4. Backend callback stores credentials in `platform_connections` (encrypted)
+5. Redirect to `/context/{platform}?status=connected`
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Settings > Integrations                                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  Connected Platforms                                            │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ 🔷 Slack                                        [Disconnect]││
-│  │    Workspace: Acme Corp                                     ││
-│  │    Status: ✅ Connected                                     ││
-│  │    Resources: 3 channels accessible                         ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ 📧 Gmail                                     [+ Connect]    ││
-│  │    Not connected                                            ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ 📝 Notion                                    [+ Connect]    ││
-│  │    Not connected                                            ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### OAuth Flow
-1. User clicks "Connect Slack"
-2. OAuth popup → Slack authorization
-3. Callback with access token
-4. Backend stores integration
-5. Landscape sync begins (discover accessible resources)
-6. UI shows "Syncing..." state
-
-### System Behavior
-- `user_integrations` row created with OAuth tokens
-- Landscape sync job populates `integration_landscape`
-- Import jobs begin pulling recent data (delta import)
-- Memories created with `source_type: 'import'` and `source_ref.platform`
-
-### UI State During Sync
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  🔄 Building your context...                                    │
-│     1 platform is syncing                                       │
-│                                                  [View progress] │
-└─────────────────────────────────────────────────────────────────┘
-```
+### Google OAuth Note
+Google OAuth serves both Gmail and Calendar. Backend redirects to `/context/gmail?status=connected`. Calendar becomes available automatically.
 
 ---
 
-## Stage 3: Dashboard (Platform Cards)
+## Stage 3: Source Selection (Context Page)
 
-### After Sync Complete
+### First-Connect Experience
 
-User returns to dashboard. Now they see the "forest view" of their connected platforms.
+When landing on `/context/{platform}?status=connected`:
 
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Dashboard                                                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │ 🔷 Slack        │  │ 📧 Gmail        │  │  + Add          │ │
-│  │                 │  │                 │  │  Platform       │ │
-│  │ 3 channels      │  │ 2 labels        │  │                 │ │
-│  │ 142 msgs/7d     │  │ 23 emails/7d    │  │                 │ │
-│  │                 │  │                 │  │                 │ │
-│  │ 0 deliverables  │  │ 0 deliverables  │  │                 │ │
-│  │ [View →]        │  │ [View →]        │  │                 │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
-│                                                                 │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                 │
-│  📅 Upcoming Schedule                                           │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ No scheduled deliverables yet                               ││
-│  │ Ask TP to help you set one up                               ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                 │
-│  ┌─────────────┐  ┌─────────────┐  ┌─────────────┐             │
-│  │ + New       │  │ 🧠 Context  │  │ 📄 Docs     │             │
-│  │ Deliverable │  │ 47 memories │  │ 0 uploaded  │             │
-│  └─────────────┘  └─────────────┘  └─────────────┘             │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+1. **Welcome banner** (green): "{Platform} Connected — Select sources to start building context"
+2. **Landscape auto-discovery**: Backend fetches available resources (channels, labels, pages, calendars)
+3. **Smart defaults** (ADR-078): `compute_smart_defaults()` pre-selects recommended sources based on activity heuristics
+4. **Recommended grouping**: Resources split into "Recommended based on activity" (highlighted) and "All {resources}" sections
 
-### Platform Card Click → Detail Panel
+### Source Selection UI (`ResourceList`)
 
 ```
-┌─────────────────────────────────────────┬───────────────────────┐
-│  Dashboard                              │ 🔷 Slack              │
-│                                         │                       │
-│  [Platform Cards...]                    │ Workspace: Acme Corp  │
-│                                         │ Status: ✅ Active     │
-│                                         │                       │
-│                                         │ Channels:             │
-│                                         │ • #engineering (142)  │
-│                                         │ • #product (67)       │
-│                                         │ • #random (23)        │
-│                                         │                       │
-│                                         │ Deliverables: 0       │
-│                                         │ [+ Create one]        │
-│                                         │                       │
-│                                         │ Recent Context:       │
-│                                         │ • "Decided to use..." │
-│                                         │ • "Sprint demo Thu"   │
-│                                         │                       │
-│                                         │ [Full View →]         │
-└─────────────────────────────────────────┴───────────────────────┘
+┌──────────────────────────────────────────────────────┐
+│  ✅ Gmail Connected                                   │
+│  Select sources below to start building context.      │
+│  Recommended sources are highlighted based on activity.│
+└──────────────────────────────────────────────────────┘
+
+  Channels                         in Acme Corp
+  Select which channels to include as context sources.
+  3 of 5 selected
+
+  ✦ RECOMMENDED BASED ON ACTIVITY
+  ┌────────────────────────────────────────────────────┐
+  │ ☑ #general          234 members    Synced 2h ago   │
+  │ ☑ #engineering      89 members     Synced 2h ago   │
+  │ ☑ #product          45 members     Not synced      │
+  └────────────────────────────────────────────────────┘
+
+  ALL CHANNELS
+  ┌────────────────────────────────────────────────────┐
+  │ ☐ #random           234 members                    │
+  │ ☐ #social           178 members                    │
+  │ ☐ #design           23 members                     │
+  │ ...                                                │
+  └────────────────────────────────────────────────────┘
 ```
+
+### Save + Import Flow
+
+1. User toggles sources → "Save changes" / "Discard" buttons appear
+2. Save → backend persists to `platform_connections.landscape.selected_sources`
+3. If newly-added sources have no synced content:
+   - **Import prompt**: "Import now (last 7 days)" or "Wait for next scheduled sync"
+   - Import runs foreground polling against `/integrations/{provider}/import`
+   - Progress bar shows per-source import status
+
+### Tier Limits
+
+Source selection is gated by tier:
+
+| Tier    | Slack Channels | Gmail Labels | Notion Pages | Calendars |
+|---------|---------------|-------------|-------------|-----------|
+| Free    | 5             | 5           | 10          | Unlimited |
+| Starter | 15            | 10          | 25          | Unlimited |
+| Pro     | Unlimited     | Unlimited   | Unlimited   | Unlimited |
+
+When at limit:
+- Amber warning: "{Resource} limit reached"
+- Upgrade CTA: Free → "Upgrade to Starter", Starter → "Upgrade to Pro"
+- Disabled checkboxes on unselected resources
+
+### Smart Default Heuristics (ADR-078)
+
+| Platform | Ranking Signal | Notes |
+|----------|---------------|-------|
+| Slack    | `num_members` desc | Busy channels = more context |
+| Gmail    | INBOX > SENT > STARRED > user labels | Skip system noise (SPAM, TRASH, CATEGORY_*) |
+| Notion   | `last_edited_time` desc | Recently active = most relevant |
+| Calendar | Auto-select ALL | Tiny data volume, unlimited tier |
 
 ---
 
-## Stage 4: Create First Deliverable
+## Stage 4: Context Accumulates
 
-### Entry Points
+### Scheduled Syncs
 
-1. **Click "+ New Deliverable"** from dashboard
-2. **Chat with TP**: "I need a weekly status update for my manager"
-3. **Platform panel**: "Create deliverable to #leadership-updates"
+After source selection, tier-based scheduler runs automatically:
 
-### Destination-First Flow (ADR-032)
+| Tier    | Sync Frequency |
+|---------|---------------|
+| Free    | 2x/day (8am, 6pm user timezone) |
+| Starter | 4x/day (every 6 hours) |
+| Pro     | Hourly |
 
-```
-STEP 1: Where does this go?
-──────────────────────────────────────────────────────────────────
+Syncs are handled by `platform_sync_scheduler` cron job (every 5 min, checks who's due).
 
-  "Choose a destination for your deliverable"
+### Content Storage
 
-  ┌─────────────────────────────────────────────────────────────┐
-  │ 📧 Gmail                                                    │
-  │    ○ Draft in my Drafts folder                             │
-  │    ○ Send directly                                         │
-  │    Recipient: [sarah@acme.com_____________]                │
-  └─────────────────────────────────────────────────────────────┘
+Synced content stored in `platform_content` table (ADR-072):
+- Retention-based: content has TTL (Slack 14d, Gmail 30d, Notion 90d, Calendar 2d)
+- Retained content (referenced by TP) persists beyond TTL
+- Content accumulates over time, building the "context moat"
 
-  ┌─────────────────────────────────────────────────────────────┐
-  │ 🔷 Slack                                                    │
-  │    ○ DM draft to me                                        │
-  │    ○ Post to channel                                       │
-  │    Channel: [▼ #leadership-updates]                        │
-  └─────────────────────────────────────────────────────────────┘
+### Coverage Visibility
 
-  ┌─────────────────────────────────────────────────────────────┐
-  │ 📝 Notion                                                   │
-  │    ○ Draft page in YARNNN Drafts                           │
-  │    ○ Create page directly                                  │
-  │    Target: [/Updates/Weekly_______________]                │
-  └─────────────────────────────────────────────────────────────┘
-
-                                                      [Next →]
-
-──────────────────────────────────────────────────────────────────
-
-STEP 2: What should appear there?
-──────────────────────────────────────────────────────────────────
-
-  "What type of deliverable is this?"
-
-  ○ Weekly Status Update     - Summarize progress and blockers
-  ○ Project Summary          - Overview of a project
-  ○ Meeting Notes            - Capture action items and decisions
-  ○ Research Brief           - Synthesize findings on a topic
-  ○ Custom                   - Define your own format
-
-  Title: [Weekly Status Report____________]
-
-                                            [← Back] [Next →]
-
-──────────────────────────────────────────────────────────────────
-
-STEP 3: What context should inform it?
-──────────────────────────────────────────────────────────────────
-
-  "Select sources for this deliverable"
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │ 🔷 Slack                                                    │
-  │    ☑ #engineering           (142 msgs/7d)                  │
-  │    ☑ #product               (67 msgs/7d)                   │
-  │    ☐ #random                (23 msgs/7d)                   │
-  └─────────────────────────────────────────────────────────────┘
-
-  ┌─────────────────────────────────────────────────────────────┐
-  │ 📧 Gmail                                                    │
-  │    ☑ label:work             (23 emails/7d)                 │
-  │    ☐ label:newsletters      (12 emails/7d)                 │
-  └─────────────────────────────────────────────────────────────┘
-
-  💡 Sources auto-suggested based on destination and title
-
-                                            [← Back] [Next →]
-
-──────────────────────────────────────────────────────────────────
-
-STEP 4: When should this run?
-──────────────────────────────────────────────────────────────────
-
-  Schedule:
-    Frequency: [▼ Weekly]
-    Day:       [▼ Friday]
-    Time:      [▼ 4:00 PM]
-
-  Governance:
-    ○ Draft mode (review before sending) - Recommended
-    ○ Auto-send (trust mode)
-
-                                            [← Back] [Create]
-
-──────────────────────────────────────────────────────────────────
-```
-
-### System Behavior on Create
-
-1. **Deliverable created** with sources and destination
-2. **Domain inference runs**:
-   - Analyze sources: `#engineering`, `#product`, `label:work`
-   - No existing domains with overlap → Create new domain
-   - Auto-name: "Work Updates" (or inferred from sources)
-3. **Domain links established**:
-   - `deliverable_domains` row created
-   - Future context from these sources routes to this domain
-4. **First version generated** (optional: immediate run)
+Each resource in the context page shows:
+- **Coverage badge**: Synced (green), Partial (yellow), Stale (orange), Not synced (gray), Error (red)
+- **Item count**: "42 items synced 2 hours ago"
+- **Error detail**: If sync failed, shows error message with timestamp
+- **Expand**: Click chevron to preview synced content items inline
 
 ---
 
-## Stage 5: Domain Emerges (Invisible to User)
+## Stage 5: Dashboard (Returning User)
 
-### What Happens Behind the Scenes
+### PlatformSyncStatus Component
 
-```
-USER CREATES:                           SYSTEM INFERS:
-──────────────────────────────────────────────────────────────────
+Connected platforms show:
+- Platform icon + workspace name
+- Source count + last sync time
+- Stale warning (amber) if sources are stale
+- **"+" button** → navigates to `/context/{platform}` for source management
 
-Deliverable: "Weekly Status Report"
-  Sources: #engineering, #product       ─┐
-                                         │
-                                         │    Domain: "Work Updates"
-Deliverable: "Sprint Notes"              ├───> Sources: #engineering,
-  Sources: #engineering, notion:/Sprint ─┘              #product,
-                                                        notion:/Sprint
+Unconnected platforms show:
+- Connect button → starts OAuth → lands on context page
 
-                                              Deliverables in domain:
-                                              - Weekly Status Report
-                                              - Sprint Notes
-
-                                              Context accumulated:
-                                              - Decisions from #engineering
-                                              - Priorities from #product
-                                              - Sprint details from Notion
-```
-
-### Domain Scoping in Action
+### Navigation Model
 
 ```
-User (viewing "Weekly Status Report"):
-  "What did we decide about the database?"
-
-TP searches ONLY "Work Updates" domain:
-  → "You decided to use PostgreSQL for the new service"
-
----
-
-User (no deliverable context):
-  "What did we decide about the database?"
-
-TP has multiple domains, asks:
-  → "Are you asking about Work Updates or Personal Projects?"
+Dashboard (PlatformSyncStatus)
+  ├─ [+] Slack    → /context/slack     (source selection)
+  ├─ [+] Gmail    → /context/gmail     (source selection)
+  ├─ [+] Notion   → /context/notion    (source selection)
+  └─ [+] Calendar → /context/calendar  (calendar view + settings)
 ```
 
 ---
 
-## Stage 6: Review and Trust Building
+## Stage 6: Use TP
 
-### Draft Appears in Platform (ADR-032)
+With accumulated context, TP can:
+- Reference recent Slack messages, Gmail threads, Notion pages
+- Prep for upcoming calendar meetings
+- Generate deliverables (status reports, summaries, briefs)
+- Answer questions about what happened across platforms
 
-**Gmail**: Draft in Drafts folder
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ Gmail > Drafts                                                  │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│ To: sarah@acme.com                                              │
-│ Subject: Weekly Status Update - Week of Feb 10                  │
-│                                                                 │
-│ ───────────────────────────────────────────────────────────────│
-│                                                                 │
-│ Hi Sarah,                                                       │
-│                                                                 │
-│ Here's what happened this week:                                 │
-│                                                                 │
-│ ## Completed                                                    │
-│ - Shipped the PostgreSQL migration                              │
-│ - Fixed 3 critical bugs in API layer                            │
-│                                                                 │
-│ ## In Progress                                                  │
-│ - Working on authentication revamp                              │
-│                                                                 │
-│ ## Blockers                                                     │
-│ - Waiting on design review for dashboard                        │
-│                                                                 │
-│ Let me know if you have questions.                              │
-│                                                                 │
-│ Best,                                                           │
-│ [Your name]                                                     │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
+---
 
-**Slack**: DM from YARNNN Bot
-```
-┌─────────────────────────────────────────────────────────────────┐
-│ 📝 Draft ready for #leadership-updates                          │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│ Here's what happened this week:                                 │
-│ • Shipped the PostgreSQL migration                              │
-│ • Fixed 3 critical bugs in API layer                            │
-│ • Working on auth revamp (ongoing)                              │
-│                                                                 │
-│ ───────────────────────────────────────────────────────────────│
-│ ℹ️ This is a draft. Copy and paste in #leadership-updates       │
-│                                                                 │
-│ [📋 Copy Message]  [🔗 Open Channel]                            │
-└─────────────────────────────────────────────────────────────────┘
-```
+## Technical Components
 
-### YARNNN Dashboard Shows Draft Status
+### Frontend
+
+| Component | Location | Purpose |
+|-----------|----------|---------|
+| `PlatformSyncStatus` | `components/desk/` | Dashboard platform cards + connect |
+| `ResourceList` | `components/context/` | Source selection with grouping |
+| `ResourceRow` | `components/context/` | Individual resource with coverage |
+| `SyncStatusBanner` | `components/context/` | Tier + sync frequency display |
+| `PlatformHeader` | `components/context/` | Back nav + connection details |
+| `PlatformNotConnected` | `components/context/` | OAuth CTA for unconnected |
+
+### Hooks
+
+| Hook | Purpose |
+|------|---------|
+| `usePlatformData` | Loads integration, landscape, limits, sources, deliverables |
+| `useSourceSelection` | Toggle, save, import workflow with tier enforcement |
+| `useResourceExpansion` | On-demand content preview per resource |
+
+### Backend
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /integrations/{provider}/landscape` | Discover resources + recommended flag |
+| `PUT /integrations/{provider}/sources` | Save selected sources |
+| `POST /integrations/{provider}/import` | Start foreground import job |
+| `GET /integrations/limits` | Get tier limits for current user |
+
+### Data Flow
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│  Weekly Status Report                                           │
-│  Version 1.0 • Generated Feb 9 at 4:00 PM                       │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ 📧 Draft ready in Gmail                                     ││
-│  │    To: sarah@acme.com                                       ││
-│  │    [Open in Gmail →]                                        ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  Content Preview:                                               │
-│  ───────────────────────────────────────────────────────────── │
-│  Hi Sarah,                                                      │
-│                                                                 │
-│  Here's what happened this week...                              │
-│  ───────────────────────────────────────────────────────────── │
-│                                                                 │
-│  [Regenerate]  [Edit in YARNNN]                                 │
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
+OAuth → platform_connections (credentials)
+     → landscape discovery → platform_connections.landscape
+     → compute_smart_defaults() → landscape.selected_sources
+     → platform_sync_scheduler → platform_content (accumulation)
+     → TP prompt injection (working memory)
 ```
 
 ---
 
-## Stage 7: Scale - Multiple Domains Emerge
+## Deleted Components (v3 cleanup)
 
-### User Creates More Deliverables
-
-```
-Deliverable: "Client Acme Update"
-  Sources: #client-acme, acme@gmail.com
-  Destination: alice@acme.com
-
-→ New domain emerges: "Acme Client"
-  (No overlap with "Work Updates" sources)
-```
-
-### Dashboard Evolves
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Dashboard                                                      │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  ┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐ │
-│  │ 🔷 Slack        │  │ 📧 Gmail        │  │ 📝 Notion       │ │
-│  │ 5 channels      │  │ 3 labels        │  │ 2 pages         │ │
-│  │ 234 msgs/7d     │  │ 45 emails/7d    │  │ 8 updates/7d    │ │
-│  │ 3 deliverables  │  │ 2 deliverables  │  │ 1 deliverable   │ │
-│  └─────────────────┘  └─────────────────┘  └─────────────────┘ │
-│                                                                 │
-│  📅 Upcoming Schedule                                           │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Weekly Status → sarah@acme.com           Tomorrow 4pm      ││
-│  │ Client Update → alice@acme.com           Friday 9am        ││
-│  │ Sprint Notes  → Notion /Sprint           Monday 10am       ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ⚠️ Review Staged (1)                                          │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ Weekly Status Report           2 hours ago      [Review →] ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### Context Browser by Domain
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  Context                                                        │
-├─────────────────────────────────────────────────────────────────┤
-│                                                                 │
-│  [Personal ▾]  [Work Updates]  [Acme Client]                   │
-│                       ↑                                         │
-│                   Selected                                      │
-│                                                                 │
-│  ─────────────────────────────────────────────────────────────  │
-│                                                                 │
-│  47 memories in "Work Updates"                                  │
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ "Decided to use PostgreSQL for the new service"            ││
-│  │ 🔷 #engineering • 2 days ago                                ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ "Alice is taking over the API migration"                   ││
-│  │ 🔷 #engineering • 3 days ago                                ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │ "Launch date moved to March 15"                            ││
-│  │ 📧 label:work • 4 days ago                                  ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                                                                 │
-└─────────────────────────────────────────────────────────────────┘
-```
-
----
-
-## Key State Transitions
-
-| State | User Has | Dashboard Shows | TP Context |
-|-------|----------|-----------------|------------|
-| **Cold Start** | Nothing | `PlatformOnboardingPrompt` | Empty |
-| **Connected** | 1+ platforms | Platform cards + sync banner | Platform context |
-| **Active** | 1+ deliverables | Full dashboard | Domain-scoped |
-| **Scaling** | 2+ domains | Cross-platform view | Domain selection |
-
----
-
-## Technical Implementation Notes
-
-### Onboarding State Machine
-
-```typescript
-type OnboardingState =
-  | 'no_platforms'           // No integrations connected
-  | 'platforms_syncing'      // Connected but imports running
-  | 'active';                // Ready to use
-
-// Determined by usePlatformOnboardingState()
-function getOnboardingState(): OnboardingState {
-  if (integrations.length === 0) return 'no_platforms';
-  if (integrations.some(i => i.sync_status === 'syncing')) return 'platforms_syncing';
-  return 'active';
-}
-```
-
-### Domain Inference Trigger
-
-```typescript
-// On deliverable create/update
-async function onDeliverableChange(deliverable: Deliverable) {
-  const allDeliverables = await getUserDeliverables(userId);
-  const domains = computeDomains(allDeliverables);
-  await reconcileDomains(existingDomains, domains, userId);
-  await linkDeliverableToDomain(deliverable.id, domains);
-}
-```
-
-### Context Scoping
-
-```typescript
-// In TP context assembly
-async function loadContext(surfaceContext: SurfaceContext) {
-  // 1. Always include user profile (portable)
-  const profile = await getUserProfile(userId);
-
-  // 2. Determine active domain
-  const domain = await getActiveDomain(surfaceContext);
-
-  // 3. Load domain-scoped memories
-  const memories = domain
-    ? await getMemoriesByDomain(domain.id)
-    : await getAllUserMemories(userId);
-
-  return { profile, memories, domain };
-}
-```
-
----
-
-## Success Metrics
-
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| Time to first platform connect | < 2 min | Auth start → OAuth complete |
-| Time to first deliverable | < 5 min | After platform connect |
-| Context auto-populated | > 80% | Deliverables with imported sources |
-| Domain accuracy | > 90% | User adjustments needed |
-| Draft-to-send rate | > 85% | Drafts that get sent |
-
----
-
-## Open Questions
-
-1. **Skip flow**: If user skips platform connection, what's the fallback experience?
-   - Current: Empty dashboard with "No scheduled deliverables"
-   - Option: Prompt for manual context entry
-
-2. **Multi-workspace**: User has personal Slack + work Slack. How do domains map?
-   - Current: Domains emerge from source overlap (works naturally)
-   - May need: Workspace-level grouping hint
-
-3. **First-run generation**: Should we generate a sample deliverable immediately after setup?
-   - Pro: Demonstrates value instantly
-   - Con: May produce low-quality output without user refinement
+These were removed as part of the singular selection UX:
+- `components/onboarding/SourceSelectionModal.tsx` — replaced by context pages
+- `components/platforms/SourceSelectionModal.tsx` — dead code
+- `components/ui/PlatformDetailPanel.tsx` — dead code
+- `components/platforms/SyncStatusBadge.tsx` — dead code
 
 ---
 
 ## References
 
-- [ADR-032: Platform-Native Frontend Architecture](../adr/ADR-032-platform-native-frontend-architecture.md)
-- [ADR-033: Platform-Centric UI Architecture](../adr/ADR-033-platform-centric-ui-architecture.md)
-- [ADR-034: Emergent Context Domains](../adr/ADR-034-emergent-context-domains.md)
-- [USER_FLOWS.md](./USER_FLOWS.md) - Legacy flows (ADR-023)
+- [ADR-053: Tier Model](../adr/ADR-053-tier-gated-monetization.md)
+- [ADR-057: Streamlined Onboarding](../adr/ADR-057-streamlined-onboarding-gated-sync.md)
+- [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer.md)
+- [ADR-078: Smart Source Auto-Selection](../adr/ADR-078-smart-source-auto-selection.md)
+- [Backend Orchestration v2.0](../architecture/backend-orchestration.md)

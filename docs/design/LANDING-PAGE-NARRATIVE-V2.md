@@ -329,7 +329,7 @@ yarnnn will draft from whatever you give it. Connect platforms later when you're
 
 **Header:** Stop writing updates. Start approving them.
 
-**Subhead:** Free: 1 deliverable, all platforms. Pro: Unlimited.
+**Subhead:** Free: 2 deliverables, all platforms. Pro: Unlimited.
 
 **CTA:** Start for free
 
@@ -506,15 +506,21 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 ### Tiers
 
 **Free — $0/month**
-- 1 deliverable
+- 2 deliverables
 - All platform connections (Slack, Gmail, Notion, Calendar)
-- Platform intelligence included
-- Learning from your edits
-- yarnnn suggestions
+- 2 sources/platform, syncs 2x daily
+- 50k tokens/day
 
-**Pro — $19/month**
+**Starter — $9/month**
+- 5 deliverables
+- 5+ sources/platform, syncs 4x daily
+- Signal processing (auto-deliverable suggestions)
+- 250k tokens/day
+
+**Pro — $29/month**
 - Unlimited deliverables
-- Everything in Free
+- Unlimited sources, hourly syncs
+- 1M tokens/day
 - Priority support
 
 ---
@@ -538,10 +544,10 @@ yarnnn doesn't just wait for instructions. It watches how you work.
 > You can paste in context or describe what you need—yarnnn works with whatever you give it. And we're adding more integrations (Linear, Jira, Google Docs, Microsoft Teams) soon.
 
 **What counts as a deliverable?**
-> A deliverable is a recurring thing you send: a weekly status, a monthly update, a daily digest. Each one counts as one deliverable, regardless of how often it runs.
+> A deliverable is a recurring thing yarnnn produces: a weekly status, a monthly update, a daily digest. Each one counts as one deliverable, regardless of how often it runs. Free tier includes 2, Starter 5, Pro unlimited.
 
 **Can I try Pro?**
-> Start with Free. If you set up more than one deliverable and want to keep them all running, upgrade to Pro.
+> Start with Free (2 deliverables). When you need more, upgrade to Starter or Pro.
 
 **What integrations are coming next?**
 > Linear, Jira, Google Docs, GitHub, and Microsoft Teams are on the roadmap. [Request an integration →]
