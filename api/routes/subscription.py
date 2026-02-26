@@ -43,6 +43,96 @@ LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_YEARLY_VARIANT_
 CHECKOUT_SUCCESS_URL = os.getenv("CHECKOUT_SUCCESS_URL", "https://yarnnn.com/settings?subscription=success")
 
 
+def _ls_headers(include_content_type: bool = False) -> dict[str, str]:
+    headers = {
+        "Authorization": f"Bearer {LEMONSQUEEZY_API_KEY}",
+        "Accept": "application/vnd.api+json",
+    }
+    if include_content_type:
+        headers["Content-Type"] = "application/vnd.api+json"
+    return headers
+
+
+def _extract_customer_portal_url(payload: dict) -> Optional[str]:
+    """Extract customer portal URL from Lemon Squeezy object payload."""
+    return (
+        payload.get("data", {})
+        .get("attributes", {})
+        .get("urls", {})
+        .get("customer_portal")
+    )
+
+
+def _extract_customer_id(payload: dict) -> Optional[str]:
+    """Extract customer ID from a Lemon Squeezy payload."""
+    attrs = payload.get("data", {}).get("attributes", {})
+    if attrs.get("customer_id"):
+        return str(attrs["customer_id"])
+
+    rel_customer = (
+        payload.get("data", {})
+        .get("relationships", {})
+        .get("customer", {})
+        .get("data", {})
+    )
+    if rel_customer.get("id"):
+        return str(rel_customer["id"])
+    return None
+
+
+async def _get_subscription_payload(http: httpx.AsyncClient, subscription_id: str) -> Optional[dict]:
+    response = await http.get(
+        f"https://api.lemonsqueezy.com/v1/subscriptions/{subscription_id}",
+        headers=_ls_headers(),
+        timeout=30.0,
+    )
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        log.error(f"LS subscription lookup failed: {response.status_code} - {response.text}")
+        return None
+    return response.json()
+
+
+async def _get_customer_payload(http: httpx.AsyncClient, customer_id: str) -> Optional[dict]:
+    response = await http.get(
+        f"https://api.lemonsqueezy.com/v1/customers/{customer_id}",
+        headers=_ls_headers(),
+        timeout=30.0,
+    )
+    if response.status_code == 404:
+        return None
+    if response.status_code != 200:
+        log.error(f"LS customer lookup failed: {response.status_code} - {response.text}")
+        return None
+    return response.json()
+
+
+async def _lookup_customer_by_email(http: httpx.AsyncClient, email: Optional[str]) -> Optional[str]:
+    if not email or not LEMONSQUEEZY_STORE_ID:
+        return None
+
+    response = await http.get(
+        "https://api.lemonsqueezy.com/v1/customers",
+        headers=_ls_headers(),
+        params={
+            "filter[email]": email,
+            "filter[store_id]": LEMONSQUEEZY_STORE_ID,
+            "page[size]": 1,
+        },
+        timeout=30.0,
+    )
+    if response.status_code != 200:
+        log.error(f"LS customer search failed: {response.status_code} - {response.text}")
+        return None
+
+    data = response.json().get("data") or []
+    if not data:
+        return None
+    customer_id = data[0].get("id")
+    return str(customer_id) if customer_id else None
+
+
 def get_tier_from_variant_id(variant_id: str) -> str:
     """
     ADR-053: Determine subscription tier from Lemon Squeezy variant ID.
@@ -191,11 +281,7 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
     async with httpx.AsyncClient() as http:
         response = await http.post(
             "https://api.lemonsqueezy.com/v1/checkouts",
-            headers={
-                "Authorization": f"Bearer {LEMONSQUEEZY_API_KEY}",
-                "Content-Type": "application/vnd.api+json",
-                "Accept": "application/vnd.api+json",
-            },
+            headers=_ls_headers(include_content_type=True),
             json=checkout_data,
             timeout=30.0,
         )
@@ -226,40 +312,72 @@ async def get_customer_portal(auth: UserClient):
         )
 
     result = auth.client.table("workspaces")\
-        .select("lemonsqueezy_customer_id")\
+        .select("id, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
         .eq("owner_id", auth.user_id)\
         .single()\
         .execute()
 
-    customer_id = result.data.get("lemonsqueezy_customer_id") if result.data else None
-
-    if not customer_id:
+    if not result.data:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="No subscription found. Subscribe first to manage your subscription.",
+            detail="No workspace found for this user.",
         )
+
+    workspace = result.data
+    workspace_id = workspace["id"]
+    customer_id = workspace.get("lemonsqueezy_customer_id")
+    subscription_id = workspace.get("lemonsqueezy_subscription_id")
 
     async with httpx.AsyncClient() as http:
-        response = await http.get(
-            f"https://api.lemonsqueezy.com/v1/customers/{customer_id}",
-            headers={
-                "Authorization": f"Bearer {LEMONSQUEEZY_API_KEY}",
-                "Accept": "application/vnd.api+json",
-            },
-            timeout=30.0,
-        )
+        # 1) Preferred path: direct customer lookup when we have customer_id.
+        if customer_id:
+            customer_payload = await _get_customer_payload(http, str(customer_id))
+            portal_url = _extract_customer_portal_url(customer_payload or {})
+            if portal_url:
+                return PortalResponse(portal_url=portal_url)
 
-        if response.status_code != 200:
-            log.error(f"LS portal error: {response.status_code} - {response.text}")
-            raise HTTPException(
-                status_code=status.HTTP_502_BAD_GATEWAY,
-                detail="Failed to get customer portal",
-            )
+        # 2) Fallback path: resolve via subscription_id (works when customer_id wasn't persisted).
+        if subscription_id:
+            subscription_payload = await _get_subscription_payload(http, str(subscription_id))
+            if subscription_payload:
+                portal_url = _extract_customer_portal_url(subscription_payload)
+                if portal_url:
+                    resolved_customer_id = _extract_customer_id(subscription_payload)
+                    if resolved_customer_id:
+                        auth.client.table("workspaces").update({
+                            "lemonsqueezy_customer_id": resolved_customer_id,
+                        }).eq("id", workspace_id).execute()
+                    return PortalResponse(portal_url=portal_url)
 
-        data = response.json()
-        portal_url = data["data"]["attributes"]["urls"]["customer_portal"]
+                resolved_customer_id = _extract_customer_id(subscription_payload)
+                if resolved_customer_id:
+                    auth.client.table("workspaces").update({
+                        "lemonsqueezy_customer_id": resolved_customer_id,
+                    }).eq("id", workspace_id).execute()
+                    customer_payload = await _get_customer_payload(http, resolved_customer_id)
+                    portal_url = _extract_customer_portal_url(customer_payload or {})
+                    if portal_url:
+                        return PortalResponse(portal_url=portal_url)
 
-        return PortalResponse(portal_url=portal_url)
+        # 3) Last fallback: find customer by authenticated user email in this store.
+        email_customer_id = await _lookup_customer_by_email(http, auth.email)
+        if email_customer_id:
+            auth.client.table("workspaces").update({
+                "lemonsqueezy_customer_id": email_customer_id,
+            }).eq("id", workspace_id).execute()
+            customer_payload = await _get_customer_payload(http, email_customer_id)
+            portal_url = _extract_customer_portal_url(customer_payload or {})
+            if portal_url:
+                return PortalResponse(portal_url=portal_url)
+
+    raise HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=(
+            "Billing portal is unavailable for this account right now. "
+            "If you recently subscribed, wait a minute and retry. "
+            "If it persists, contact support to re-link your Lemon Squeezy customer record."
+        ),
+    )
 
 
 # ============== Webhook Handler ==============
@@ -391,11 +509,15 @@ async def handle_lemonsqueezy_webhook(request: Request):
         else:
             sub_status = "free"
 
-        client.table("workspaces").update({
+        update_data = {
             "subscription_status": sub_status,
             "subscription_expires_at": renews_at,
             "lemonsqueezy_subscription_id": subscription_id,
-        }).eq("id", workspace_id).execute()
+        }
+        if customer_id:
+            update_data["lemonsqueezy_customer_id"] = customer_id
+
+        client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
 
         log.info(f"Updated subscription for workspace {workspace_id}: {sub_status}")
 
@@ -414,11 +536,15 @@ async def handle_lemonsqueezy_webhook(request: Request):
         # ADR-053: Determine tier from variant ID
         sub_status = get_tier_from_variant_id(variant_id)
 
-        client.table("workspaces").update({
+        update_data = {
             "subscription_status": sub_status,
             "subscription_expires_at": renews_at,
             "lemonsqueezy_subscription_id": subscription_id,
-        }).eq("id", workspace_id).execute()
+        }
+        if customer_id:
+            update_data["lemonsqueezy_customer_id"] = customer_id
+
+        client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
 
         log.info(f"Resumed {sub_status} subscription for workspace {workspace_id}")
 
@@ -427,10 +553,15 @@ async def handle_lemonsqueezy_webhook(request: Request):
 
     elif event_name == "subscription_payment_success":
         renews_at = parse_iso_date(attrs.get("renews_at"))
+        update_data = {}
         if renews_at:
-            client.table("workspaces").update({
-                "subscription_expires_at": renews_at,
-            }).eq("id", workspace_id).execute()
+            update_data["subscription_expires_at"] = renews_at
+        if customer_id:
+            update_data["lemonsqueezy_customer_id"] = customer_id
+        if subscription_id:
+            update_data["lemonsqueezy_subscription_id"] = subscription_id
+        if update_data:
+            client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
         log.info(f"Subscription renewed for workspace {workspace_id}")
 
     return {"status": "ok"}
