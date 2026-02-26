@@ -156,6 +156,75 @@ ORDER BY version_number DESC LIMIT 1;
 
 ---
 
+## Headless Mode E2E Test (ADR-080)
+
+Tests the unified agent in headless mode — `generate_draft_inline()` with read-only tools.
+
+### Quick Validation (local, no API calls)
+
+```bash
+cd api && python -c "
+from services.primitives.registry import get_tools_for_mode, create_headless_executor
+tools = get_tools_for_mode('headless')
+print('Headless tools:', [t['name'] for t in tools])
+assert len(tools) == 5, f'Expected 5 headless tools, got {len(tools)}'
+assert set(t['name'] for t in tools) == {'Read', 'Search', 'List', 'WebSearch', 'GetSystemState'}
+print('Mode gate: PASS')
+
+from services.deliverable_execution import _build_headless_system_prompt, HEADLESS_MAX_TOOL_ROUNDS
+assert HEADLESS_MAX_TOOL_ROUNDS == 3
+prompt = _build_headless_system_prompt('status_report', {'signal_reasoning': 'test', 'signal_context': {'entity': 'Q1'}})
+assert '## Tool Usage (Headless Mode)' in prompt
+assert '## Signal Context' in prompt
+assert 'Focus entity: Q1' in prompt
+print('System prompt: PASS')
+print('All local checks passed.')
+"
+```
+
+### Deliverable Generation Test (requires deploy)
+
+Trigger a deliverable run and check logs for headless mode behavior:
+
+```bash
+# 1. Trigger a deliverable run via admin or manual
+curl -s -X POST "https://yarnnn-api.onrender.com/api/deliverables/{DELIVERABLE_ID}/run" \
+  -H "Authorization: Bearer {JWT}" | python3 -m json.tool
+
+# 2. Check Render logs for headless mode indicators:
+#    - "[GENERATE] Headless agent used N tool round(s): Search, Read"  (if tools were used)
+#    - "[GENERATE] Headless tool: Search(...)"  (per-tool log)
+#    - No headless log = single-turn generation (most common, correct behavior)
+```
+
+### Expected Results
+
+| Scenario | Expected Behavior |
+|---|---|
+| Normal deliverable (sufficient context) | Single-turn generation, no tool use, same as before ADR-080 |
+| Signal-emergent deliverable | System prompt includes signal reasoning, may use Search for investigation |
+| Sparse context (few platform_content rows) | Agent may use Search/Read to supplement, 1-2 tool rounds |
+| Max tool rounds hit | Warning logged, partial text used or empty draft → version marked failed |
+
+### Cost Monitoring
+
+Target: <2x average cost per deliverable vs. pre-ADR-080 baseline.
+
+```sql
+-- Check work_execution_log for draft_length trends (proxy for cost)
+SELECT wt.created_at::date as day,
+  AVG(CAST(wel.metadata->>'draft_length' AS int)) as avg_draft_len,
+  COUNT(*) as deliverables
+FROM work_tickets wt
+JOIN work_execution_log wel ON wel.ticket_id = wt.id
+WHERE wt.task = 'deliverable.generate'
+  AND wel.stage = 'completed'
+  AND wt.created_at > NOW() - INTERVAL '7 days'
+GROUP BY day ORDER BY day;
+```
+
+---
+
 ## Known Issues / Notes
 
 1. **Calendar 0 events**: ADR-077 widened the window to -7d → +14d. If still 0, check the debug logs for `[PLATFORM_WORKER] Calendar {id}: API returned N events`.

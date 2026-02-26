@@ -1,7 +1,8 @@
 # ADR-080: Unified Agent with Chat and Headless Modes
 
-**Status:** Accepted
+**Status:** Implemented
 **Date:** 2026-02-26
+**Implemented:** 2026-02-26 (Phases 0-3 code-complete, production monitoring pending)
 **Supersedes:** ADR-061 (Two-Path Architecture) — evolves strict path separation into unified agent with modal execution
 **Amends:** ADR-072 (TP Execution Pipeline) — the "TP headless mode" aspiration is now formalized with precise boundaries
 **Related:**
