@@ -1,19 +1,19 @@
 """
-Execution Strategies - ADR-045 Type-Aware Orchestration + ADR-073 Unified Fetch
+Execution Strategies - ADR-045 Type-Aware Orchestration + ADR-073 Unified Fetch + ADR-081 Consolidation
 
 Determines HOW a deliverable is executed based on its type_classification.binding.
 
 Strategies:
-- platform_bound: Single platform reader → DeliverableAgent
-- cross_platform: Multi-platform reader → DeliverableAgent
-- research: Web researcher (Anthropic native) → DeliverableAgent
-- hybrid: Research + Platform in parallel → DeliverableAgent
+- platform_bound: Single platform reader → headless agent
+- cross_platform: Multi-platform reader → headless agent
+- research: Platform grounding + research_directive → headless agent uses WebSearch (ADR-081)
+- hybrid: Platform context + research_directive → headless agent uses WebSearch (ADR-081)
 
 ADR-073: All platform reads come from platform_content (no live API calls).
-Platform sync is the only subsystem that calls external APIs.
+ADR-081: Research/hybrid strategies no longer call web_research.py. Instead they pass
+a research_directive to the headless agent, which uses the WebSearch primitive directly.
 """
 
-import asyncio
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -230,9 +230,9 @@ class ResearchStrategy(ExecutionStrategy):
     """
     Strategy for research deliverables.
 
-    ADR-045 Phase 2: Uses Anthropic's native web_search tool via ResearcherAgent.
-    Gathers external context through web research, optionally combined with
-    platform grounding.
+    ADR-081: No longer runs web research during context gathering.
+    Gathers optional platform grounding, then passes a research_directive
+    so the headless agent uses WebSearch during generation.
     """
 
     @property
@@ -245,53 +245,17 @@ class ResearchStrategy(ExecutionStrategy):
         user_id: str,
         deliverable: dict,
     ) -> GatheredContext:
-        from services.web_research import research_topic
-
         title = deliverable.get("title", "")
         description = deliverable.get("description", "")
-        task = deliverable.get("task", deliverable.get("title", ""))
         sources = deliverable.get("sources", [])
-
-        # Build research topic from deliverable
-        research_topic_str = task or title
-        if description:
-            research_topic_str += f"\n\nContext: {description}"
-
-        logger.info(f"[RESEARCH] Starting web research: {research_topic_str[:50]}...")
 
         result = GatheredContext(content="", summary={"strategy": self.strategy_name})
         context_parts = []
 
-        # 1. Conduct web research using Anthropic's native web_search
-        try:
-            research_result = await research_topic(
-                topic=research_topic_str,
-                max_searches=5,
-            )
-
-            if research_result.success and research_result.content:
-                context_parts.append(f"[WEB RESEARCH]\n{research_result.content}")
-                result.sources_used.extend([f"web:{url}" for url in research_result.sources[:5]])
-                result.summary["search_queries"] = research_result.search_queries
-                result.summary["web_sources_count"] = len(research_result.sources)
-                logger.info(
-                    f"[RESEARCH] Web research complete: "
-                    f"queries={len(research_result.search_queries)}, "
-                    f"sources={len(research_result.sources)}"
-                )
-            elif research_result.error:
-                result.errors.append(f"Web research failed: {research_result.error}")
-                logger.warning(f"[RESEARCH] Web research error: {research_result.error}")
-
-        except Exception as e:
-            result.errors.append(f"Web research exception: {e}")
-            logger.error(f"[RESEARCH] Web research failed: {e}")
-
-        # 2. Optional: Get platform grounding from sources (if any configured)
+        # 1. Optional: Get platform grounding from sources (if any configured)
         integration_sources = [s for s in sources if s.get("type") == "integration_import"]
         if integration_sources:
             logger.info(f"[RESEARCH] Adding platform grounding from {len(integration_sources)} sources")
-            # Use cross-platform strategy for platform sources
             platform_strategy = CrossPlatformStrategy()
             platform_result = await platform_strategy.gather_context(client, user_id, deliverable)
 
@@ -301,23 +265,27 @@ class ResearchStrategy(ExecutionStrategy):
                 result.items_fetched += platform_result.items_fetched
                 result.platform_content_ids.extend(platform_result.platform_content_ids)
 
-        # 3. Add user memories
+        # 2. Add user memories
         memories = await _get_user_memories(client, user_id)
         if memories:
             context_parts.append(f"[USER CONTEXT]\n{memories}")
 
-        # 4. Add past version feedback
+        # 3. Add past version feedback
         past_context = await _get_past_versions_context(client, deliverable.get("id"))
         if past_context:
             context_parts.append(past_context)
 
-        result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No context available)"
+        result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No platform context available — use WebSearch for research.)"
+
+        # ADR-081: Build research directive for headless agent
+        result.summary["research_directive"] = _build_research_directive(title, description)
         result.summary["sources_used"] = result.sources_used
         result.summary["items_fetched"] = result.items_fetched
 
         logger.info(
-            f"[RESEARCH] Context gathered: web_sources={result.summary.get('web_sources_count', 0)}, "
-            f"platform_sources={len([s for s in result.sources_used if s.startswith('platform:')])}"
+            f"[RESEARCH] Context gathered (ADR-081): "
+            f"platform_sources={len(result.sources_used)}, "
+            f"research_directive=yes"
         )
 
         return result
@@ -327,8 +295,9 @@ class HybridStrategy(ExecutionStrategy):
     """
     Strategy for hybrid deliverables.
 
-    ADR-045 Phase 2: Combines web research with platform grounding in parallel.
-    Web research and platform fetching run concurrently for efficiency.
+    ADR-081: Gathers platform context, then passes a research_directive
+    so the headless agent combines web research with platform grounding.
+    No separate web research call — the agent handles both.
     """
 
     @property
@@ -341,89 +310,49 @@ class HybridStrategy(ExecutionStrategy):
         user_id: str,
         deliverable: dict,
     ) -> GatheredContext:
-        from services.web_research import research_topic
-
         title = deliverable.get("title", "")
         description = deliverable.get("description", "")
-        task = deliverable.get("task", deliverable.get("title", ""))
 
-        # Build research topic
-        research_topic_str = task or title
-        if description:
-            research_topic_str += f"\n\nContext: {description}"
+        logger.info(f"[HYBRID] Gathering platform context: {title[:50]}...")
 
-        logger.info(f"[HYBRID] Starting parallel web research + platform fetch: {research_topic_str[:50]}...")
+        # Delegate platform context gathering to CrossPlatformStrategy
+        platform_strategy = CrossPlatformStrategy()
+        result = await platform_strategy.gather_context(client, user_id, deliverable)
 
-        result = GatheredContext(content="", summary={"strategy": self.strategy_name})
-        context_parts = []
+        # Override strategy name
+        result.summary["strategy"] = self.strategy_name
 
-        # Run web research and platform fetching in parallel
-        async def do_web_research():
-            try:
-                return await research_topic(topic=research_topic_str, max_searches=3)
-            except Exception as e:
-                logger.error(f"[HYBRID] Web research failed: {e}")
-                return None
-
-        async def do_platform_fetch():
-            try:
-                platform_strategy = CrossPlatformStrategy()
-                return await platform_strategy.gather_context(client, user_id, deliverable)
-            except Exception as e:
-                logger.error(f"[HYBRID] Platform fetch failed: {e}")
-                return None
-
-        # Execute in parallel
-        web_result, platform_result = await asyncio.gather(
-            do_web_research(),
-            do_platform_fetch(),
-            return_exceptions=True,
-        )
-
-        # Process web research results
-        if web_result and not isinstance(web_result, Exception):
-            if web_result.success and web_result.content:
-                context_parts.append(f"[WEB RESEARCH]\n{web_result.content}")
-                result.sources_used.extend([f"web:{url}" for url in web_result.sources[:5]])
-                result.summary["search_queries"] = web_result.search_queries
-                result.summary["web_sources_count"] = len(web_result.sources)
-            elif web_result.error:
-                result.errors.append(f"Web research failed: {web_result.error}")
-        elif isinstance(web_result, Exception):
-            result.errors.append(f"Web research exception: {web_result}")
-
-        # Process platform results
-        if platform_result and not isinstance(platform_result, Exception):
-            if platform_result.content and platform_result.content != "(No context available)":
-                context_parts.append(f"[PLATFORM DATA]\n{platform_result.content}")
-                result.sources_used.extend(platform_result.sources_used)
-                result.items_fetched += platform_result.items_fetched
-                result.platform_content_ids.extend(platform_result.platform_content_ids)
-                result.summary["platform_providers"] = platform_result.summary.get("providers_fetched", [])
-        elif isinstance(platform_result, Exception):
-            result.errors.append(f"Platform fetch exception: {platform_result}")
-
-        # Add user memories (already included in platform_result, but add if no platform sources)
-        if not platform_result or isinstance(platform_result, Exception):
-            memories = await _get_user_memories(client, user_id)
-            if memories:
-                context_parts.append(f"[USER CONTEXT]\n{memories}")
-
-        # Add past version feedback
-        past_context = await _get_past_versions_context(client, deliverable.get("id"))
-        if past_context:
-            context_parts.append(past_context)
-
-        result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No context available)"
-        result.summary["sources_used"] = result.sources_used
-        result.summary["items_fetched"] = result.items_fetched
+        # ADR-081: Build research directive for headless agent
+        result.summary["research_directive"] = _build_research_directive(title, description)
 
         logger.info(
-            f"[HYBRID] Context gathered: web_sources={result.summary.get('web_sources_count', 0)}, "
-            f"platform_sources={len([s for s in result.sources_used if s.startswith('platform:')])}"
+            f"[HYBRID] Context gathered (ADR-081): "
+            f"platform_sources={len(result.sources_used)}, "
+            f"items={result.items_fetched}, research_directive=yes"
         )
 
         return result
+
+
+def _build_research_directive(title: str, description: str) -> str:
+    """
+    Build a research directive string for the headless agent (ADR-081).
+
+    This replaces the standalone RESEARCH_SYSTEM_PROMPT from web_research.py.
+    The headless agent receives this and uses WebSearch to investigate.
+    """
+    directive = f"This deliverable requires web research. Use WebSearch to investigate.\n\nResearch objective: {title}"
+    if description:
+        directive += f"\n{description}"
+    directive += """
+
+Research approach:
+- Formulate 2-4 focused search queries based on the objective
+- Search for current, authoritative sources
+- Cross-reference important claims across multiple sources
+- If platform context is provided, incorporate relevant internal data
+- Acknowledge gaps in available information"""
+    return directive
 
 
 # =============================================================================

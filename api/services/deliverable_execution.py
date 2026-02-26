@@ -220,18 +220,23 @@ async def log_execution_inputs(
 def _build_headless_system_prompt(
     deliverable_type: str,
     trigger_context: Optional[dict] = None,
+    research_directive: Optional[str] = None,
 ) -> str:
     """
-    Build system prompt for headless mode generation (ADR-080).
+    Build system prompt for headless mode generation (ADR-080/081).
 
     The headless agent has read-only tools (Search, Read, List, WebSearch,
     GetSystemState) available for investigating when gathered context is
     insufficient. The system prompt instructs the agent on when and how
     to use them.
 
+    ADR-081: For research/hybrid bindings, a research_directive is injected
+    that instructs the agent to actively use WebSearch for web research.
+
     Args:
         deliverable_type: The deliverable type (status_report, etc.)
         trigger_context: Optional trigger info with signal reasoning
+        research_directive: Optional research instruction for research/hybrid types
 
     Returns:
         Complete system prompt string
@@ -241,17 +246,32 @@ def _build_headless_system_prompt(
 ## Output Rules
 - Follow the format and instructions in the user message exactly.
 - Be concise and professional — keep content tight and scannable.
-- Do not invent information not present in the provided context.
+- Do not invent information not present in the provided context or your research findings.
 - Do not use emojis in headers or content unless the user's preferences explicitly request them.
 - Use plain markdown headers (##, ###) and bullet points for structure.
-- If the user's context mentions a preference for conciseness, prioritize brevity over completeness.
+- If the user's context mentions a preference for conciseness, prioritize brevity over completeness."""
+
+    # ADR-081: Research directive overrides default tool guidance
+    if research_directive:
+        prompt += f"""
+
+## Research Directive
+{research_directive}
+
+## Tool Usage
+You have investigation tools available: Search, Read, List, WebSearch, GetSystemState.
+- Use **WebSearch** to conduct web research as described above.
+- Use **Search** or **Read** to cross-reference with the user's platform data if provided.
+- Conduct 2-4 targeted searches, then synthesize findings into the deliverable format.
+- After researching, generate the deliverable in a single pass — do not search further."""
+    else:
+        prompt += """
 
 ## Tool Usage (Headless Mode)
 You have read-only investigation tools available: Search, Read, List, WebSearch, GetSystemState.
 - Use tools ONLY if the gathered context in the user message is clearly insufficient to produce the deliverable.
 - Prefer generating from the provided context — most deliverables have enough.
 - If you do use a tool, do so in the first turn, then generate in the next.
-- Maximum 3 tool rounds. After that, generate with whatever context you have.
 - NEVER use tools to stall — if context is adequate, generate immediately."""
 
     # Inject signal reasoning when available
@@ -271,8 +291,13 @@ You have read-only investigation tools available: Search, Read, List, WebSearch,
     return prompt
 
 
-# ADR-080: Maximum tool rounds in headless mode
-HEADLESS_MAX_TOOL_ROUNDS = 3
+# ADR-080 + ADR-081: Binding-aware tool round limits
+HEADLESS_TOOL_ROUNDS = {
+    "platform_bound":  2,   # Rarely needs tools — context is pre-gathered
+    "cross_platform":  3,   # Occasionally useful for cross-referencing
+    "research":        6,   # Needs room for web search + follow-up
+    "hybrid":          6,   # Web research + platform investigation
+}
 
 
 async def generate_draft_inline(
@@ -281,9 +306,10 @@ async def generate_draft_inline(
     deliverable: dict,
     gathered_context: str,
     trigger_context: Optional[dict] = None,
+    research_directive: Optional[str] = None,
 ) -> str:
     """
-    Generate draft content via agent in headless mode (ADR-080).
+    Generate draft content via agent in headless mode (ADR-080/081).
 
     The agent has read-only tools (Search, Read, List, WebSearch,
     GetSystemState) available for investigation when gathered context
@@ -292,7 +318,9 @@ async def generate_draft_inline(
 
     ADR-042: Replaces execute_synthesize_step(). No separate work_ticket.
     ADR-080: Unified agent in headless mode — chat_completion_with_tools
-    with mode-gated primitives and max 3 tool rounds.
+    with mode-gated primitives.
+    ADR-081: Binding-aware tool rounds. Research/hybrid types get higher
+    limits and a research_directive so the agent does its own web research.
     """
     from services.anthropic import chat_completion_with_tools
     from services.primitives.registry import (
@@ -336,8 +364,15 @@ async def generate_draft_inline(
         past_versions=past_versions,
     )
 
-    # ADR-080: Headless system prompt with tool usage instructions
-    system_prompt = _build_headless_system_prompt(deliverable_type, trigger_context)
+    # ADR-080/081: Headless system prompt with tool usage + research directive
+    system_prompt = _build_headless_system_prompt(
+        deliverable_type, trigger_context, research_directive
+    )
+
+    # ADR-081: Binding-aware tool round limit
+    classification = deliverable.get("type_classification", {})
+    binding = classification.get("binding", "cross_platform")
+    max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(binding, 3)
 
     # ADR-080: Mode-gated tools and executor
     headless_tools = get_tools_for_mode("headless")
@@ -350,7 +385,7 @@ async def generate_draft_inline(
         messages = [{"role": "user", "content": prompt}]
         tools_used = []  # Track tool names for observability
 
-        for round_num in range(HEADLESS_MAX_TOOL_ROUNDS + 1):
+        for round_num in range(max_tool_rounds + 1):
             response = await chat_completion_with_tools(
                 messages=messages,
                 system=system_prompt,
@@ -372,9 +407,9 @@ async def generate_draft_inline(
                 break
 
             # Agent wants to use tools — check round limit
-            if round_num >= HEADLESS_MAX_TOOL_ROUNDS:
+            if round_num >= max_tool_rounds:
                 logger.warning(
-                    f"[GENERATE] Headless agent hit max tool rounds ({HEADLESS_MAX_TOOL_ROUNDS}), "
+                    f"[GENERATE] Headless agent hit max tool rounds ({max_tool_rounds}), "
                     f"tools used: {', '.join(tools_used)}"
                 )
                 draft = response.text.strip() if response.text else ""
@@ -604,8 +639,12 @@ async def execute_deliverable_generation(
         # 5. Log inputs for debugging
         await log_execution_inputs(ticket_id, deliverable, context_summary)
 
-        # 6. Generate draft inline (ADR-080: pass trigger_context for signal reasoning)
-        draft = await generate_draft_inline(client, user_id, deliverable, gathered_context, trigger_context)
+        # 6. Generate draft inline (ADR-080/081: pass trigger_context + research_directive)
+        research_directive = context_summary.get("research_directive")
+        draft = await generate_draft_inline(
+            client, user_id, deliverable, gathered_context,
+            trigger_context, research_directive,
+        )
 
         # 7. ADR-066: Prepare version for delivery (no staged status)
         await update_version_for_delivery(client, version_id, draft)

@@ -1,12 +1,17 @@
 """
-Web Research Service - ADR-061 Two-Path Architecture
+Web Research Service - DEPRECATED (ADR-081)
 
-Provides web research capabilities using Anthropic's native web_search tool.
-Used by execution strategies (ResearchStrategy, HybridStrategy) for
-research-type deliverables.
+Previously used by ResearchStrategy and HybridStrategy for standalone
+web research during context gathering. ADR-081 consolidated this into
+the headless agent's WebSearch primitive — the headless agent now does
+its own web research during generation instead of receiving pre-baked
+research text.
 
-This was extracted from agents/researcher.py as part of ADR-061 cleanup.
-The ResearcherAgent class pattern wasn't being used - only this function.
+The WebSearch primitive (primitives/web_search.py) provides equivalent
+capability using the same Anthropic web_search_20250305 server tool.
+
+This file is retained for reference but is no longer called by the
+deliverable pipeline.
 """
 
 import logging

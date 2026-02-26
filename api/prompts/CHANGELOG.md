@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.26.4] - Execution path consolidation: absorb web research into headless mode (ADR-081)
+
+### Changed
+- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` now accepts `research_directive` parameter. When provided (research/hybrid bindings), the system prompt includes a `## Research Directive` section instructing the agent to actively use WebSearch, replacing the default conservative "use tools only if needed" guidance. `generate_draft_inline()` accepts `research_directive` and uses binding-aware tool round limits (`HEADLESS_TOOL_ROUNDS` dict) instead of flat `HEADLESS_MAX_TOOL_ROUNDS=3`.
+- `api/services/execution_strategies.py`: `ResearchStrategy` and `HybridStrategy` no longer call `web_research.research_topic()`. Instead they gather platform context only and pass a `research_directive` string via `GatheredContext.summary`. New `_build_research_directive()` helper builds the directive from deliverable title/description.
+- `api/services/web_research.py`: Marked as DEPRECATED. No longer imported by any pipeline code.
+
+### Behavior
+- Research-type deliverables (`research_brief`, `deep_research`) now use the headless agent's WebSearch primitive for web research during generation, instead of a separate pre-generation web research loop. The agent can do targeted research informed by the deliverable template.
+- Binding-aware tool rounds: platform_bound=2, cross_platform=3, research=6, hybrid=6 (was flat 3 for all).
+- Eliminates one of three independent agentic loops in the deliverable pipeline, achieving true "one agent, two modes" as ADR-080 intended.
+- Cost profile: research types may use more tool rounds (up to 6) but eliminate a separate Sonnet call from `web_research.py`. Net cost should be comparable.
+
+---
+
 ## [2026.02.26.3] - Headless mode: agentic generation with read-only tools (ADR-080 Phase 1+2)
 
 ### Changed
