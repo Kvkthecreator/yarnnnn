@@ -1306,6 +1306,67 @@ async def admin_trigger_signal_processing(
         }
 
 
+# =============================================================================
+# Admin Deliverable Run Trigger (for testing)
+# =============================================================================
+
+@router.post("/trigger-deliverable/{deliverable_id}")
+async def admin_trigger_deliverable(
+    deliverable_id: str,
+    x_service_key: Optional[str] = Header(None),
+) -> dict:
+    """
+    Admin endpoint to trigger a deliverable run.
+    Protected by service key header. Runs full pipeline and returns results.
+    """
+    from services.deliverable_execution import execute_deliverable_generation
+
+    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+    if not x_service_key or x_service_key != supabase_key:
+        raise HTTPException(status_code=403, detail="Invalid service key")
+
+    supabase_url = os.environ.get("SUPABASE_URL", "")
+    if not supabase_url or not supabase_key:
+        raise HTTPException(status_code=500, detail="Missing Supabase credentials")
+
+    from supabase import create_client
+    client = create_client(supabase_url, supabase_key)
+
+    # Fetch deliverable
+    result = client.table("deliverables").select("*").eq("id", deliverable_id).single().execute()
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Deliverable not found")
+
+    deliverable = result.data
+    user_id = deliverable["user_id"]
+
+    try:
+        exec_result = await execute_deliverable_generation(
+            client=client,
+            user_id=user_id,
+            deliverable=deliverable,
+            trigger_context={"type": "admin_test"},
+        )
+        return {
+            "deliverable_id": deliverable_id,
+            "deliverable_type": deliverable.get("deliverable_type"),
+            "title": deliverable.get("title"),
+            "success": exec_result.get("success", False),
+            "version_id": exec_result.get("version_id"),
+            "version_number": exec_result.get("version_number"),
+            "status": exec_result.get("status"),
+            "message": exec_result.get("message"),
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "deliverable_id": deliverable_id,
+            "status": "error",
+            "error": str(e),
+            "traceback": traceback.format_exc(),
+        }
+
+
 @router.post("/backfill-sources/{user_id}")
 async def admin_backfill_sources(
     user_id: str,
