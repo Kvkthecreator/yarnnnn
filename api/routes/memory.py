@@ -419,11 +419,15 @@ async def list_activity(
         event_type: Filter by type (deliverable_run, memory_written, platform_synced, chat_session)
     """
     from datetime import timedelta
+    from services.supabase import get_service_client
 
     try:
         since = (datetime.utcnow() - timedelta(days=days)).isoformat()
 
-        query = auth.client.table("activity_log")\
+        # Use service client — activity_log is written by service role,
+        # and we filter by user_id explicitly (same pattern as system.py)
+        client = get_service_client()
+        query = client.table("activity_log")\
             .select("*", count="exact")\
             .eq("user_id", auth.user_id)\
             .gte("created_at", since)\

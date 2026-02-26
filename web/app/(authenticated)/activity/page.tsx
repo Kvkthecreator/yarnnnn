@@ -220,6 +220,7 @@ export default function ActivityPage() {
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState<FilterKey>('all');
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     loadActivity();
@@ -227,6 +228,7 @@ export default function ActivityPage() {
 
   const loadActivity = async () => {
     setLoading(true);
+    setError(null);
     try {
       // The backend supports single event_type filter — for category filters,
       // we fetch all and filter client-side (backend doesn't support IN queries on event_type)
@@ -238,6 +240,7 @@ export default function ActivityPage() {
       setTotal(result.total);
     } catch (err) {
       console.error('Failed to load activity:', err);
+      setError(err instanceof Error ? err.message : 'Failed to load activity');
     } finally {
       setLoading(false);
     }
@@ -382,6 +385,18 @@ export default function ActivityPage() {
         {loading ? (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+          </div>
+        ) : error ? (
+          <div className="text-center py-12">
+            <Activity className="w-12 h-12 mx-auto mb-4 text-red-400" />
+            <p className="text-red-500 font-medium">Failed to load activity</p>
+            <p className="text-sm text-muted-foreground mt-1">{error}</p>
+            <button
+              onClick={() => loadActivity()}
+              className="mt-4 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
+            >
+              Retry
+            </button>
           </div>
         ) : filteredActivities.length === 0 ? (
           <div className="text-center py-12">
