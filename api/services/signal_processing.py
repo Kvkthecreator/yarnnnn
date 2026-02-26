@@ -208,7 +208,12 @@ async def execute_signal_actions(
             )
             if deliverable_id:
                 # Immediate execution (doesn't wait for next cron cycle)
-                await _queue_signal_emergent_execution(client, user_id, deliverable_id)
+                # ADR-080: Forward signal reasoning to headless mode
+                await _queue_signal_emergent_execution(
+                    client, user_id, deliverable_id,
+                    signal_reasoning=result.reasoning_summary,
+                    signal_context=action.signal_context,
+                )
                 created += 1
                 triggered_ids.append(deliverable_id)
 
@@ -360,12 +365,22 @@ async def _create_signal_emergent_deliverable(
         return None
 
 
-async def _queue_signal_emergent_execution(client, user_id: str, deliverable_id: str) -> None:
+async def _queue_signal_emergent_execution(
+    client,
+    user_id: str,
+    deliverable_id: str,
+    signal_reasoning: str = "",
+    signal_context: Optional[dict] = None,
+) -> None:
     """
     Fetch the created deliverable and immediately execute it.
 
     Signal-emergent deliverables are created and executed in the same scheduler
     cycle — they don't wait for the next cron run.
+
+    ADR-080: Signal reasoning and context are forwarded to the generation step
+    via trigger_context, so the agent in headless mode knows WHY this
+    deliverable was created and can use that to guide investigation.
     """
     try:
         result = (
@@ -379,12 +394,19 @@ async def _queue_signal_emergent_execution(client, user_id: str, deliverable_id:
             logger.warning(f"[SIGNAL_PROCESSING] Deliverable {deliverable_id} not found after creation")
             return
 
+        # ADR-080: Forward signal intelligence to generation step
+        trigger = {
+            "type": "signal_emergent",
+            "signal_reasoning": signal_reasoning[:1000] if signal_reasoning else "",
+            "signal_context": signal_context or {},
+        }
+
         from services.deliverable_execution import execute_deliverable_generation
         await execute_deliverable_generation(
             client=client,
             user_id=user_id,
             deliverable=result.data,
-            trigger_context={"type": "signal_emergent"},
+            trigger_context=trigger,
         )
 
     except Exception as e:

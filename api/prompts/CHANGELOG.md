@@ -6,6 +6,33 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.26.3] - Headless mode: agentic generation with read-only tools (ADR-080 Phase 1+2)
+
+### Changed
+- `api/services/deliverable_execution.py`: `generate_draft_inline()` now uses `chat_completion_with_tools()` instead of `chat_completion()`. Agent runs in headless mode with read-only tools (Search, Read, List, WebSearch, GetSystemState) and max 3 tool rounds. New `_build_headless_system_prompt()` extracts and enhances the system prompt with tool usage instructions.
+- `api/services/primitives/registry.py`: Added `PRIMITIVE_MODES` dict, `get_tools_for_mode()`, and `create_headless_executor()` for mode-gated primitive access.
+
+### Behavior
+- Deliverable generation is now agentic — the agent CAN use read-only tools to investigate when gathered context is insufficient, but is instructed to prefer generating from provided context directly.
+- Most deliverables will generate in a single turn (no tool use), same as before. The tools are a safety net for when context gathering misses something.
+- System prompt restructured into sections (Output Rules, Tool Usage) for clearer instruction following.
+- Cost impact: ~0-3 additional API calls per generation in the rare case tools are used. Typical case unchanged (single call).
+
+---
+
+## [2026.02.26.2] - Signal context forwarding to deliverable generation (ADR-080 Phase 0)
+
+### Changed
+- `api/services/deliverable_execution.py`: System prompt now includes signal reasoning and signal context (entity, platforms) when a deliverable is triggered by signal processing. Added `trigger_context` parameter to `generate_draft_inline()`.
+- `api/services/signal_processing.py`: `_queue_signal_emergent_execution()` now forwards `reasoning_summary` and per-action `signal_context` from the SignalAction into `trigger_context`.
+
+### Behavior
+- Signal-emergent deliverables now receive the LLM reasoning that caused their creation, enabling the generation step to understand WHY the deliverable exists and focus on the relevant entity/pattern.
+- Previously, `trigger_context={"type": "signal_emergent"}` passed zero intelligence. Now includes `signal_reasoning` (up to 1000 chars) and `signal_context` (entity, platforms).
+- Non-signal-triggered deliverables are unaffected (trigger_context is None or lacks signal fields).
+
+---
+
 ## [2026.02.26.1] - Deliverable quality: no-emoji, conciseness, calendar preview rewrite
 
 ### Changed

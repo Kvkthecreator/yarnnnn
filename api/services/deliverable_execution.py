@@ -217,18 +217,88 @@ async def log_execution_inputs(
         logger.warning(f"[EXEC] Failed to log inputs: {e}")
 
 
+def _build_headless_system_prompt(
+    deliverable_type: str,
+    trigger_context: Optional[dict] = None,
+) -> str:
+    """
+    Build system prompt for headless mode generation (ADR-080).
+
+    The headless agent has read-only tools (Search, Read, List, WebSearch,
+    GetSystemState) available for investigating when gathered context is
+    insufficient. The system prompt instructs the agent on when and how
+    to use them.
+
+    Args:
+        deliverable_type: The deliverable type (status_report, etc.)
+        trigger_context: Optional trigger info with signal reasoning
+
+    Returns:
+        Complete system prompt string
+    """
+    prompt = f"""You are generating a {deliverable_type} deliverable.
+
+## Output Rules
+- Follow the format and instructions in the user message exactly.
+- Be concise and professional — keep content tight and scannable.
+- Do not invent information not present in the provided context.
+- Do not use emojis in headers or content unless the user's preferences explicitly request them.
+- Use plain markdown headers (##, ###) and bullet points for structure.
+- If the user's context mentions a preference for conciseness, prioritize brevity over completeness.
+
+## Tool Usage (Headless Mode)
+You have read-only investigation tools available: Search, Read, List, WebSearch, GetSystemState.
+- Use tools ONLY if the gathered context in the user message is clearly insufficient to produce the deliverable.
+- Prefer generating from the provided context — most deliverables have enough.
+- If you do use a tool, do so in the first turn, then generate in the next.
+- Maximum 3 tool rounds. After that, generate with whatever context you have.
+- NEVER use tools to stall — if context is adequate, generate immediately."""
+
+    # Inject signal reasoning when available
+    if trigger_context:
+        signal_reasoning = trigger_context.get("signal_reasoning", "")
+        signal_ctx = trigger_context.get("signal_context", {})
+        if signal_reasoning:
+            prompt += f"\n\n## Signal Context\nThis deliverable was triggered by signal processing because:\n{signal_reasoning}"
+        if signal_ctx:
+            entity = signal_ctx.get("entity", "")
+            platforms = signal_ctx.get("platforms", [])
+            if entity:
+                prompt += f"\nFocus entity: {entity}"
+            if platforms:
+                prompt += f"\nRelevant platforms: {', '.join(platforms)}"
+
+    return prompt
+
+
+# ADR-080: Maximum tool rounds in headless mode
+HEADLESS_MAX_TOOL_ROUNDS = 3
+
+
 async def generate_draft_inline(
     client,
     user_id: str,
     deliverable: dict,
     gathered_context: str,
+    trigger_context: Optional[dict] = None,
 ) -> str:
     """
-    Generate draft content with single LLM call.
+    Generate draft content via agent in headless mode (ADR-080).
+
+    The agent has read-only tools (Search, Read, List, WebSearch,
+    GetSystemState) available for investigation when gathered context
+    is insufficient. Most deliverables generate in a single turn
+    without tool use.
 
     ADR-042: Replaces execute_synthesize_step(). No separate work_ticket.
+    ADR-080: Unified agent in headless mode — chat_completion_with_tools
+    with mode-gated primitives and max 3 tool rounds.
     """
-    from services.anthropic import chat_completion
+    from services.anthropic import chat_completion_with_tools
+    from services.primitives.registry import (
+        get_tools_for_mode,
+        create_headless_executor,
+    )
     from services.deliverable_pipeline import (
         build_type_prompt,
         validate_output,
@@ -256,7 +326,7 @@ async def generate_draft_inline(
     # Get past versions context for feedback patterns
     past_versions = await get_past_versions_context(client, deliverable_id) if deliverable_id else ""
 
-    # Build type-specific prompt
+    # Build type-specific prompt (user message)
     prompt = build_type_prompt(
         deliverable_type=deliverable_type,
         config=type_config,
@@ -266,23 +336,72 @@ async def generate_draft_inline(
         past_versions=past_versions,
     )
 
-    # Generate draft
-    system_prompt = f"""You are generating a {deliverable_type} deliverable.
-Follow the format and instructions exactly.
-Be concise and professional — keep content tight and scannable.
-Do not invent information not present in the provided context.
-Do not use emojis in headers or content unless the user's preferences explicitly request them.
-Use plain markdown headers (##, ###) and bullet points for structure.
-If the user's context mentions a preference for conciseness, prioritize brevity over completeness."""
+    # ADR-080: Headless system prompt with tool usage instructions
+    system_prompt = _build_headless_system_prompt(deliverable_type, trigger_context)
+
+    # ADR-080: Mode-gated tools and executor
+    headless_tools = get_tools_for_mode("headless")
+    executor = create_headless_executor(client, user_id)
 
     try:
-        draft = await chat_completion(
-            messages=[{"role": "user", "content": prompt}],
-            system=system_prompt,
-            model=SONNET_MODEL,
-            max_tokens=4000,
-        )
-        draft = draft.strip()
+        # ADR-080: Agentic loop — agent can use read-only tools if needed
+        messages = [{"role": "user", "content": prompt}]
+
+        for round_num in range(HEADLESS_MAX_TOOL_ROUNDS + 1):
+            response = await chat_completion_with_tools(
+                messages=messages,
+                system=system_prompt,
+                tools=headless_tools,
+                model=SONNET_MODEL,
+                max_tokens=4000,
+            )
+
+            if response.stop_reason == "end_turn" or not response.tool_uses:
+                # Agent is done — extract text
+                draft = response.text.strip()
+                if round_num > 0:
+                    logger.info(f"[GENERATE] Headless agent used {round_num} tool round(s)")
+                break
+
+            # Agent wants to use tools — execute them
+            if round_num >= HEADLESS_MAX_TOOL_ROUNDS:
+                # Hit limit — use whatever text the agent produced
+                logger.warning(f"[GENERATE] Headless agent hit max tool rounds ({HEADLESS_MAX_TOOL_ROUNDS})")
+                draft = response.text.strip() if response.text else ""
+                break
+
+            # Build assistant message with tool use blocks
+            import json
+            assistant_content = []
+            if response.text:
+                assistant_content.append({"type": "text", "text": response.text})
+            for tu in response.tool_uses:
+                assistant_content.append({
+                    "type": "tool_use",
+                    "id": tu.id,
+                    "name": tu.name,
+                    "input": tu.input,
+                })
+            messages.append({"role": "assistant", "content": assistant_content})
+
+            # Execute tools and collect results
+            tool_results = []
+            for tu in response.tool_uses:
+                logger.info(f"[GENERATE] Headless tool: {tu.name}({str(tu.input)[:100]})")
+                result = await executor(tu.name, tu.input)
+                tool_results.append({
+                    "type": "tool_result",
+                    "tool_use_id": tu.id,
+                    "content": json.dumps(result) if isinstance(result, dict) else str(result),
+                })
+
+            messages.append({"role": "user", "content": tool_results})
+        else:
+            # for/else: loop completed without break — shouldn't happen but be safe
+            draft = ""
+
+        if not draft:
+            raise ValueError("Agent produced empty draft")
 
         # Validate output (non-blocking - just log warnings)
         validation = validate_output(deliverable_type, draft, type_config)
@@ -475,8 +594,8 @@ async def execute_deliverable_generation(
         # 5. Log inputs for debugging
         await log_execution_inputs(ticket_id, deliverable, context_summary)
 
-        # 6. Generate draft inline
-        draft = await generate_draft_inline(client, user_id, deliverable, gathered_context)
+        # 6. Generate draft inline (ADR-080: pass trigger_context for signal reasoning)
+        draft = await generate_draft_inline(client, user_id, deliverable, gathered_context, trigger_context)
 
         # 7. ADR-066: Prepare version for delivery (no staged status)
         await update_version_for_delivery(client, version_id, draft)

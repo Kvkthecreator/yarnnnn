@@ -2,10 +2,16 @@
 Primitive Registry
 
 Central registry for all primitives and their handlers.
-ADR-050: Platform tools are routed to MCP Gateway.
+ADR-050: Platform tools are routed via handle_platform_tool.
+ADR-080: Mode-gated primitives — each primitive declares which modes
+it supports (chat, headless). get_tools_for_mode() and
+create_headless_executor() provide the headless mode interface.
 """
 
-from typing import Any, Callable
+import logging
+from typing import Any, Callable, Optional
+
+logger = logging.getLogger(__name__)
 
 from .read import READ_TOOL, handle_read
 from .write import WRITE_TOOL, handle_write
@@ -199,3 +205,105 @@ async def execute_primitive(auth: Any, name: str, input: dict) -> dict:
             "message": str(e),
             "primitive": name,
         }
+
+
+# =============================================================================
+# ADR-080: Mode-Gated Primitives
+# =============================================================================
+
+# Which primitives are available in each mode.
+# "chat" = full TP session (streaming, user present)
+# "headless" = background generation (non-streaming, no user)
+PRIMITIVE_MODES: dict[str, list[str]] = {
+    # Read-only investigation — both modes
+    "Search":           ["chat", "headless"],
+    "Read":             ["chat", "headless"],
+    "List":             ["chat", "headless"],
+    "GetSystemState":   ["chat", "headless"],
+    "WebSearch":        ["chat", "headless"],
+
+    # Write/action/UI primitives — chat only
+    "Write":            ["chat"],
+    "Edit":             ["chat"],
+    "Execute":          ["chat"],
+    "Todo":             ["chat"],
+    "Respond":          ["chat"],
+    "Clarify":          ["chat"],
+    "list_integrations": ["chat"],
+}
+
+# Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
+
+
+def get_tools_for_mode(mode: str) -> list[dict]:
+    """
+    Get tool definitions filtered by mode.
+
+    Args:
+        mode: "chat" or "headless"
+
+    Returns:
+        List of tool definition dicts for the Anthropic API
+    """
+    tools = []
+    for tool_def in PRIMITIVES:
+        name = tool_def.get("name", "")
+        modes = PRIMITIVE_MODES.get(name, ["chat"])
+        if mode in modes:
+            tools.append(tool_def)
+    return tools
+
+
+def create_headless_executor(client: Any, user_id: str):
+    """
+    Create a tool executor function for headless mode.
+
+    Returns an async callable (tool_name, tool_input) -> result_dict
+    that dispatches to primitive handlers with headless-appropriate
+    error handling (log + return error dict, never raise).
+
+    Args:
+        client: Supabase client (service role)
+        user_id: User UUID for data scoping
+    """
+    class HeadlessAuth:
+        """Minimal auth context for headless execution."""
+        def __init__(self, client, user_id):
+            self.client = client
+            self.user_id = user_id
+
+    auth = HeadlessAuth(client, user_id)
+
+    async def executor(tool_name: str, tool_input: dict) -> dict:
+        # Verify tool is allowed in headless mode
+        modes = PRIMITIVE_MODES.get(tool_name, [])
+        if "headless" not in modes:
+            logger.warning(
+                f"[HEADLESS] Tool {tool_name} not available in headless mode, skipping"
+            )
+            return {
+                "success": False,
+                "error": "not_available",
+                "message": f"Tool {tool_name} is not available in headless mode",
+            }
+
+        handler = HANDLERS.get(tool_name)
+        if not handler:
+            return {
+                "success": False,
+                "error": "unknown_primitive",
+                "message": f"Unknown primitive: {tool_name}",
+            }
+
+        try:
+            result = await handler(auth, tool_input)
+            return result
+        except Exception as e:
+            logger.error(f"[HEADLESS] Tool {tool_name} failed: {e}")
+            return {
+                "success": False,
+                "error": "execution_error",
+                "message": f"Tool execution failed: {e}",
+            }
+
+    return executor
