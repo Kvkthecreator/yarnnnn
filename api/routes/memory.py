@@ -16,6 +16,7 @@ Endpoints:
   GET  /activity             - List recent activity from activity_log (ADR-063)
 """
 
+import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import Optional
@@ -23,6 +24,8 @@ from uuid import UUID
 from datetime import datetime
 
 from services.supabase import UserClient
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -432,10 +435,16 @@ async def list_activity(
 
         result = query.execute()
 
+        logger.info(
+            f"[ACTIVITY] user={auth.user_id[:8]} data_len={len(result.data or [])} "
+            f"count={result.count} filter={event_type}"
+        )
+
         return ActivityListResponse(
             activities=result.data or [],
             total=result.count or 0,
         )
 
     except Exception as e:
+        logger.error(f"[ACTIVITY] Error for user={auth.user_id[:8]}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
