@@ -1,6 +1,6 @@
 # ADR-081: Execution Path Consolidation
 
-**Status:** Proposed
+**Status:** Implemented
 **Date:** 2026-02-26
 **Amends:** ADR-080 (Unified Agent Modes) — extends headless mode scope to cover research execution
 **Supersedes:** ADR-045 Phases 2-4 (ResearcherAgent, subagent orchestration) — absorbed into unified agent
@@ -241,9 +241,9 @@ Add research directive section to `_build_headless_system_prompt()`. Pass `resea
 
 Remove `web_research.research_topic()` calls from both strategies. Add `research_directive` to `GatheredContext`. Platform context gathering stays.
 
-### Phase 5 — Deprecate web_research.py agentic loop
+### Phase 5 — Delete web_research.py ✅ (2026-02-27)
 
-Mark `research_topic()` as deprecated. Remove import from `execution_strategies.py`. File remains for reference but is no longer in the critical path.
+File deleted. No runtime imports remained after Phase 4. Production validated via Phase 6 before deletion.
 
 ### Phase 6 — Production validation
 
