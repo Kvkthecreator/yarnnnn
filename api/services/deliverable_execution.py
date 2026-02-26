@@ -416,6 +416,7 @@ async def execute_deliverable_generation(
     )
 
     deliverable_id = deliverable.get("id")
+    deliverable_type = deliverable.get("deliverable_type", "custom")
     title = deliverable.get("title", "Untitled")
     trigger_type = trigger_context.get("type", "manual") if trigger_context else "manual"
     classification = deliverable.get("type_classification", {})
