@@ -10,6 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/api/", "/auth/callback"],
       },
     ],
+    host: BRAND.url,
     sitemap: `${BRAND.url}/sitemap.xml`,
   };
 }

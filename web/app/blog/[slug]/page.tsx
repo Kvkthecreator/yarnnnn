@@ -24,22 +24,33 @@ export function generateMetadata({ params }: BlogPostPageProps): Metadata {
 
   return {
     title: post.title,
-    description: post.description,
+    description: post.metaDescription,
+    keywords: post.tags,
     alternates: {
       canonical: post.canonicalUrl,
     },
     openGraph: {
       title: `${post.title} | ${BRAND.name}`,
-      description: post.description,
+      description: post.metaDescription,
       type: "article",
       publishedTime: post.date,
+      modifiedTime: post.lastModified,
       authors: [post.author],
       url: post.canonicalUrl,
+      images: [
+        {
+          url: post.imageUrl,
+          width: 1200,
+          height: 630,
+          alt: post.title,
+        },
+      ],
     },
     twitter: {
       card: "summary_large_image",
       title: post.title,
-      description: post.description,
+      description: post.metaDescription,
+      images: [post.imageUrl],
     },
   };
 }
@@ -50,10 +61,14 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
 
   const jsonLd = {
     "@context": "https://schema.org",
-    "@type": "Article",
+    "@type": "BlogPosting",
     headline: post.title,
     description: post.description,
     datePublished: post.date,
+    dateModified: post.lastModified,
+    image: [post.imageUrl],
+    keywords: post.tags.join(", "),
+    wordCount: post.wordCount,
     author: {
       "@type": "Organization",
       name: BRAND.name,
@@ -63,8 +78,16 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
       "@type": "Organization",
       name: BRAND.name,
       url: BRAND.url,
+      logo: {
+        "@type": "ImageObject",
+        url: new URL(BRAND.ogImage, BRAND.url).toString(),
+      },
     },
-    mainEntityOfPage: post.canonicalUrl,
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      "@id": post.canonicalUrl,
+    },
+    isAccessibleForFree: true,
   };
 
   return (

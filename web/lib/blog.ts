@@ -2,6 +2,7 @@ import fs from "fs";
 import path from "path";
 import matter from "gray-matter";
 import readingTime from "reading-time";
+import { BRAND } from "@/lib/metadata";
 
 const postsDirectory = path.join(process.cwd(), "..", "content", "posts");
 
@@ -14,6 +15,10 @@ export interface BlogPost {
   tags: string[];
   geoTier: number;
   canonicalUrl: string;
+  metaDescription: string;
+  imageUrl: string;
+  lastModified: string;
+  wordCount: number;
   status: "draft" | "published";
   readingTime: string;
   content: string;
@@ -21,6 +26,23 @@ export interface BlogPost {
 
 export interface BlogPostMeta
   extends Omit<BlogPost, "content"> {}
+
+function toAbsoluteUrl(value: string): string {
+  return new URL(value, BRAND.url).toString();
+}
+
+function toMetaDescription(description: string, maxLength = 160): string {
+  const normalized = description.replace(/\s+/g, " ").trim();
+  if (normalized.length <= maxLength) return normalized;
+
+  const clipped = normalized.slice(0, maxLength + 1);
+  const safe = clipped.slice(0, clipped.lastIndexOf(" "));
+  return `${safe || normalized.slice(0, maxLength)}...`;
+}
+
+function toWordCount(content: string): number {
+  return content.trim().split(/\s+/).filter(Boolean).length;
+}
 
 function getPostFiles(): string[] {
   if (!fs.existsSync(postsDirectory)) return [];
@@ -30,7 +52,7 @@ function getPostFiles(): string[] {
 }
 
 export function getPostSlugs(): string[] {
-  return getPostFiles().map((file) => file.replace(/\.md$/, ""));
+  return getAllPosts().map((post) => post.slug);
 }
 
 export function getPostBySlug(slug: string): BlogPost | null {
@@ -52,8 +74,13 @@ export function getPostBySlug(slug: string): BlogPost | null {
     author: data.author || "yarnnn",
     tags: data.tags || [],
     geoTier: data.geoTier || 1,
-    canonicalUrl:
-      data.canonicalUrl || `https://www.yarnnn.com/blog/${data.slug || slug}`,
+    canonicalUrl: toAbsoluteUrl(
+      data.canonicalUrl || `/blog/${data.slug || slug}`
+    ),
+    metaDescription: toMetaDescription(data.description || ""),
+    imageUrl: toAbsoluteUrl(data.image || BRAND.ogImage),
+    lastModified: data.lastModified || data.updatedAt || data.date,
+    wordCount: toWordCount(content),
     status: data.status,
     readingTime: stats.text,
     content,
@@ -82,9 +109,13 @@ export function getAllPosts(): BlogPostMeta[] {
         author: data.author || "yarnnn",
         tags: data.tags || [],
         geoTier: data.geoTier || 1,
-        canonicalUrl:
-          data.canonicalUrl ||
-          `https://www.yarnnn.com/blog/${data.slug || slug}`,
+        canonicalUrl: toAbsoluteUrl(
+          data.canonicalUrl || `/blog/${data.slug || slug}`
+        ),
+        metaDescription: toMetaDescription(data.description || ""),
+        imageUrl: toAbsoluteUrl(data.image || BRAND.ogImage),
+        lastModified: data.lastModified || data.updatedAt || data.date,
+        wordCount: toWordCount(content),
         status: data.status as "published",
         readingTime: stats.text,
       };
