@@ -4,8 +4,7 @@
  * ADR-072/073: System Page — Operations Status
  *
  * Provides operational visibility into background orchestration:
- * - Data source sync status with per-resource detail (from sync_registry)
- * - Content accumulation counts (from platform_content)
+ * - Integration connectivity state
  * - Manual pipeline execution with poll-based sync completion detection
  * - Background activity summary (from activity_log)
  */
@@ -20,52 +19,26 @@ import {
   CheckCircle2,
   XCircle,
   AlertTriangle,
-  Slack,
-  Mail,
-  FileCode,
-  Calendar,
   ArrowRight,
   Activity,
   Brain,
   ChevronDown,
   ChevronRight,
-  Database,
-  Repeat,
   Circle,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { formatDistanceToNow, format } from 'date-fns';
+import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { ConnectedIntegrationsSection } from '@/components/settings/ConnectedIntegrationsSection';
 
 // =============================================================================
 // Types
 // =============================================================================
 
-interface ResourceSyncStatus {
-  resource_id: string;
-  resource_name: string | null;
-  last_synced_at: string | null;
-  item_count: number;
-  has_cursor: boolean;
-  status: 'fresh' | 'recent' | 'stale' | 'never_synced' | 'unknown';
-}
-
-interface PlatformContentSummary {
-  total_items: number;
-  retained_items: number;
-  ephemeral_items: number;
-  freshest_at: string | null;
-}
-
 interface PlatformSyncStatus {
   platform: string;
   connected: boolean;
   last_synced_at: string | null;
-  next_sync_at: string | null;
-  source_count: number;
-  status: 'healthy' | 'stale' | 'pending' | 'disconnected' | 'unknown';
-  resources: ResourceSyncStatus[];
-  content: PlatformContentSummary | null;
 }
 
 interface BackgroundJobStatus {
@@ -83,44 +56,6 @@ type PipelineStep =
   | 'processing_signals'
   | 'complete'
   | 'complete_with_warning';
-
-// =============================================================================
-// Platform Configuration
-// =============================================================================
-
-const PLATFORM_CONFIG: Record<string, {
-  icon: React.ReactNode;
-  label: string;
-  color: string;
-}> = {
-  slack: {
-    icon: <Slack className="w-4 h-4" />,
-    label: 'Slack',
-    color: 'text-purple-500',
-  },
-  gmail: {
-    icon: <Mail className="w-4 h-4" />,
-    label: 'Gmail',
-    color: 'text-red-500',
-  },
-  notion: {
-    icon: <FileCode className="w-4 h-4" />,
-    label: 'Notion',
-    color: 'text-gray-700 dark:text-gray-300',
-  },
-  calendar: {
-    icon: <Calendar className="w-4 h-4" />,
-    label: 'Calendar',
-    color: 'text-blue-500',
-  },
-};
-
-const SYNC_FREQUENCY_LABELS: Record<string, string> = {
-  '1x_daily': 'Daily',
-  '2x_daily': '2x daily',
-  '4x_daily': '4x daily',
-  'hourly': 'Hourly',
-};
 
 // =============================================================================
 // Sub-Components
@@ -249,9 +184,6 @@ export default function SystemPage() {
   const [loading, setLoading] = useState(true);
   const [platformSync, setPlatformSync] = useState<PlatformSyncStatus[]>([]);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobStatus[]>([]);
-  const [tier, setTier] = useState('free');
-  const [syncFrequency, setSyncFrequency] = useState('2x_daily');
-  const [expandedPlatforms, setExpandedPlatforms] = useState<Set<string>>(new Set());
   const [expandedMemoryDetail, setExpandedMemoryDetail] = useState(false);
 
   // Pipeline action state
@@ -274,8 +206,6 @@ export default function SystemPage() {
       const result = await api.system.getStatus();
       setPlatformSync(result.platform_sync);
       setBackgroundJobs(result.background_jobs);
-      setTier(result.tier);
-      setSyncFrequency(result.sync_frequency);
     } catch (err) {
       console.error('Failed to load system status:', err);
     } finally {
@@ -287,42 +217,6 @@ export default function SystemPage() {
     loadData();
     return () => { abortRef.current = true; };
   }, []);
-
-  const togglePlatform = (platform: string) => {
-    setExpandedPlatforms((prev) => {
-      const next = new Set(prev);
-      if (next.has(platform)) {
-        next.delete(platform);
-      } else {
-        next.add(platform);
-      }
-      return next;
-    });
-  };
-
-  const formatNextSync = (isoString: string | null) => {
-    if (!isoString) return null;
-    try {
-      const date = new Date(isoString);
-      const now = new Date();
-      const diffMs = date.getTime() - now.getTime();
-
-      if (diffMs < 0) return 'Soon';
-
-      const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
-      const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-
-      if (diffHours === 0) {
-        return `in ${diffMins}m`;
-      } else if (diffHours < 24) {
-        return `in ${diffHours}h ${diffMins}m`;
-      } else {
-        return format(date, 'EEE h:mm a');
-      }
-    } catch {
-      return null;
-    }
-  };
 
   const hasConnectedPlatforms = platformSync.some((p) => p.connected);
 
@@ -545,7 +439,7 @@ export default function SystemPage() {
           <div>
             <h1 className="text-2xl font-bold">System</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Data sources, sync status, and background processing
+              Integrations, sync status, and background processing
             </p>
           </div>
           <button
@@ -564,135 +458,11 @@ export default function SystemPage() {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* ── Section 1: Data Sources ──────────────────────────────────── */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold">Data Sources</h2>
-                <span className="text-sm text-muted-foreground">
-                  {SYNC_FREQUENCY_LABELS[syncFrequency] || syncFrequency} ({tier} tier)
-                </span>
-              </div>
-
-              <div className="border border-border rounded-lg divide-y divide-border">
-                {platformSync.map((platform) => {
-                  const config = PLATFORM_CONFIG[platform.platform] || {
-                    icon: <RefreshCw className="w-4 h-4" />,
-                    label: platform.platform,
-                    color: 'text-gray-500',
-                  };
-
-                  const isExpanded = expandedPlatforms.has(platform.platform);
-                  const hasResources = platform.connected && platform.resources.length > 0;
-                  const contentTotal = platform.content?.total_items ?? 0;
-
-                  return (
-                    <div key={platform.platform}>
-                      {/* Platform Header Row */}
-                      <div
-                        className={cn(
-                          "px-4 py-3 flex items-center justify-between",
-                          hasResources && "cursor-pointer hover:bg-muted/50"
-                        )}
-                        onClick={() => hasResources && togglePlatform(platform.platform)}
-                      >
-                        <div className="flex items-center gap-3">
-                          {hasResources ? (
-                            isExpanded
-                              ? <ChevronDown className="w-4 h-4 text-muted-foreground" />
-                              : <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                          ) : (
-                            <span className={config.color}>{config.icon}</span>
-                          )}
-                          <div>
-                            <div className="flex items-center gap-2">
-                              {hasResources && <span className={config.color}>{config.icon}</span>}
-                              <span className="font-medium">{config.label}</span>
-                              <StatusBadge status={platform.status} />
-                            </div>
-                            {platform.connected && (
-                              <div className="text-xs text-muted-foreground mt-0.5">
-                                {platform.source_count} source{platform.source_count !== 1 ? 's' : ''} selected
-                                {contentTotal > 0 && (
-                                  <> &middot; {contentTotal} item{contentTotal !== 1 ? 's' : ''} stored</>
-                                )}
-                                {platform.last_synced_at && (
-                                  <> &middot; Last synced {formatDistanceToNow(new Date(platform.last_synced_at), { addSuffix: true })}</>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          {platform.connected && platform.next_sync_at && (
-                            <span className="text-sm text-muted-foreground">
-                              Next {formatNextSync(platform.next_sync_at)}
-                            </span>
-                          )}
-                          {!platform.connected && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                router.push(`/context/${platform.platform}`);
-                              }}
-                              className="text-sm text-primary hover:underline"
-                            >
-                              Connect
-                            </button>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Expandable Resource Detail */}
-                      {isExpanded && hasResources && (
-                        <div className="border-t border-border bg-muted/30">
-                          {platform.resources.map((resource) => (
-                            <div
-                              key={resource.resource_id}
-                              className="px-4 py-2 pl-12 flex items-center justify-between text-sm border-b border-border/50 last:border-b-0"
-                            >
-                              <div className="flex items-center gap-2 min-w-0">
-                                <span className="truncate text-muted-foreground">
-                                  {resource.resource_name || resource.resource_id}
-                                </span>
-                                <StatusBadge status={resource.status} />
-                                {resource.has_cursor && (
-                                  <span
-                                    className="inline-flex items-center gap-0.5 text-xs text-muted-foreground"
-                                    title="Incremental sync active"
-                                  >
-                                    <Repeat className="w-3 h-3" />
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-3 text-xs text-muted-foreground shrink-0">
-                                {resource.item_count > 0 && (
-                                  <span>{resource.item_count} items</span>
-                                )}
-                                {resource.last_synced_at && (
-                                  <span>
-                                    {formatDistanceToNow(new Date(resource.last_synced_at), { addSuffix: true })}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          ))}
-                          {/* Content summary */}
-                          {platform.content && platform.content.total_items > 0 && (
-                            <div className="px-4 py-2 pl-12 text-xs text-muted-foreground flex items-center gap-1.5">
-                              <Database className="w-3 h-3" />
-                              {platform.content.total_items} items stored
-                              {platform.content.retained_items > 0 && (
-                                <> ({platform.content.retained_items} retained, {platform.content.ephemeral_items} ephemeral)</>
-                              )}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            </section>
+            {/* ── Section 1: Integrations ─────────────────────────────────── */}
+            <ConnectedIntegrationsSection
+              title="Integrations"
+              description="Connect platforms to sync context. Manage sources in each platform's context page."
+            />
 
             {/* ── Section 2: Actions ───────────────────────────────────────── */}
             {hasConnectedPlatforms && (
