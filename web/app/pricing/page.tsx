@@ -1,15 +1,18 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { Check, X } from "lucide-react";
+import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata = getMarketingMetadata({
   title: "Pricing",
-  description: "Simple pricing for yarnnn. Free to start, autonomous from day one. Pro when you need more deliverables.",
-};
+  description:
+    "Free to start with 1 autonomous deliverable and unlimited platform connections. Pro at $19/month for unlimited deliverables and conversations. No surprises.",
+  path: "/pricing",
+  keywords: ["yarnnn pricing", "autonomous AI pricing", "AI work assistant plans", "recurring deliverables pricing"],
+});
 
 interface PricingFeature {
   name: string;
@@ -40,6 +43,31 @@ function FeatureValue({ value }: { value: string | boolean }) {
 }
 
 export default function PricingPage() {
+  const pricingSchema = {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    name: BRAND.name,
+    url: `${BRAND.url}/pricing`,
+    applicationCategory: "BusinessApplication",
+    offers: [
+      {
+        "@type": "Offer",
+        name: "Free",
+        price: "0",
+        priceCurrency: "USD",
+        url: `${BRAND.url}/pricing`,
+      },
+      {
+        "@type": "Offer",
+        name: "Pro",
+        price: "19",
+        priceCurrency: "USD",
+        billingDuration: "P1M",
+        url: `${BRAND.url}/pricing`,
+      },
+    ],
+  };
+
   return (
     <div className="relative min-h-screen flex flex-col bg-[#0f1419] text-white overflow-x-hidden">
       <GrainOverlay variant="dark" />
@@ -256,6 +284,11 @@ export default function PricingPage() {
 
         <LandingFooter inverted />
       </div>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(pricingSchema) }}
+      />
     </div>
   );
 }

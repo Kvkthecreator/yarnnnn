@@ -1,9 +1,12 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { getMarketingMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata = getMarketingMetadata({
   title: "Privacy Policy",
-};
+  description:
+    "How yarnnn collects, uses, and protects your data. Learn about platform permissions, encryption, data retention, and your rights.",
+  path: "/privacy",
+});
 
 export default function PrivacyPage() {
   return (

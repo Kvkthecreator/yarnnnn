@@ -4,13 +4,48 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = getMarketingMetadata({
   title: "Meet TP",
-  description: "Meet your Thinking Partner. TP is the intelligent interface to an autonomous AI that connects to your platforms, accumulates context, and works on your behalf.",
-};
+  description:
+    "See how TP turns plain-language intent into autonomous recurring deliverables powered by continuously synced context.",
+  path: "/how-it-works",
+  keywords: [
+    "thinking partner",
+    "autonomous deliverables",
+    "how yarnnn works",
+    "context powered ai",
+  ],
+});
 
 export default function HowItWorksPage() {
+  const howToSchema = {
+    "@context": "https://schema.org",
+    "@type": "HowTo",
+    name: "How yarnnn works",
+    description: metadata.description,
+    url: `${BRAND.url}/how-it-works`,
+    step: [
+      {
+        "@type": "HowToStep",
+        name: "Tell TP what recurring work you need",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Connect your work platforms",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Review and approve autonomous drafts",
+      },
+      {
+        "@type": "HowToStep",
+        name: "Improve quality as context compounds",
+      },
+    ],
+  };
+
   return (
     <div className="relative min-h-screen flex flex-col bg-[#0f1419] text-white overflow-x-hidden">
       <GrainOverlay variant="dark" />
@@ -319,6 +354,11 @@ export default function HowItWorksPage() {
 
         <LandingFooter inverted />
       </div>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(howToSchema) }}
+      />
     </div>
   );
 }

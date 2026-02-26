@@ -4,13 +4,35 @@ import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata: Metadata = getMarketingMetadata({
   title: "About",
-  description: "yarnnn is autonomous AI that connects to your work platforms, accumulates context, and works on your behalf. It gets smarter the longer you use it.",
-};
+  description:
+    "Learn why yarnnn was built: autonomous AI powered by accumulated work context, designed for supervision over manual operation.",
+  path: "/about",
+  keywords: [
+    "about yarnnn",
+    "autonomous ai platform",
+    "context accumulation",
+    "supervision model",
+  ],
+});
 
 export default function AboutPage() {
+  const aboutSchema = {
+    "@context": "https://schema.org",
+    "@type": "AboutPage",
+    name: "About yarnnn",
+    description: metadata.description,
+    url: `${BRAND.url}/about`,
+    isPartOf: {
+      "@type": "WebSite",
+      name: BRAND.name,
+      url: BRAND.url,
+    },
+  };
+
   return (
     <div className="relative min-h-screen flex flex-col bg-[#0f1419] text-white overflow-x-hidden">
       <GrainOverlay variant="dark" />
@@ -214,6 +236,11 @@ export default function AboutPage() {
 
         <LandingFooter inverted />
       </div>
+
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(aboutSchema) }}
+      />
     </div>
   );
 }

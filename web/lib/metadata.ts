@@ -19,6 +19,19 @@ export const BRAND = {
   ogImage: "/assets/logos/yarn-logo-light.png",
 };
 
+interface MarketingMetadataOptions {
+  title: string;
+  description: string;
+  path: string;
+  keywords?: string[];
+  type?: "website" | "article";
+}
+
+function absoluteUrl(path: string): string {
+  const normalized = path.startsWith("/") ? path : `/${path}`;
+  return new URL(normalized, BRAND.url).toString();
+}
+
 // =============================================================================
 // METADATA HELPERS
 // =============================================================================
@@ -79,6 +92,46 @@ export function getPageMetadata(title: string, description?: string): Metadata {
     openGraph: {
       title: `${title} | ${BRAND.name}`,
       description: description || BRAND.description,
+    },
+  };
+}
+
+export function getMarketingMetadata({
+  title,
+  description,
+  path,
+  keywords,
+  type = "website",
+}: MarketingMetadataOptions): Metadata {
+  const canonical = absoluteUrl(path);
+  const image = absoluteUrl(BRAND.ogImage);
+
+  return {
+    title,
+    description,
+    ...(keywords && keywords.length > 0 ? { keywords } : {}),
+    alternates: {
+      canonical,
+    },
+    openGraph: {
+      title: `${title} | ${BRAND.name}`,
+      description,
+      url: canonical,
+      type,
+      images: [
+        {
+          url: image,
+          width: 1200,
+          height: 630,
+          alt: `${BRAND.name} - ${title}`,
+        },
+      ],
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: `${title} | ${BRAND.name}`,
+      description,
+      images: [image],
     },
   };
 }

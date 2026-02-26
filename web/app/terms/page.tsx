@@ -1,9 +1,12 @@
-import type { Metadata } from "next";
 import Link from "next/link";
+import { getMarketingMetadata } from "@/lib/metadata";
 
-export const metadata: Metadata = {
+export const metadata = getMarketingMetadata({
   title: "Terms of Service",
-};
+  description:
+    "Terms of service for yarnnn. Covers usage, user data, AI-generated content, restrictions, and termination policies.",
+  path: "/terms",
+});
 
 export default function TermsPage() {
   return (

@@ -1,10 +1,9 @@
-import type { Metadata } from "next";
 import Link from "next/link";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
-import { BRAND } from "@/lib/metadata";
+import { getMarketingMetadata } from "@/lib/metadata";
 
 interface FaqItem {
   question: string;
@@ -136,35 +135,19 @@ const faqSections: FaqSection[] = [
 
 const allFaqItems = faqSections.flatMap((s) => s.items);
 
-export const metadata: Metadata = {
+export const metadata = getMarketingMetadata({
   title: "FAQ",
   description:
-    "Frequently asked questions about yarnnn—autonomous AI that connects to your work platforms, accumulates context, and produces recurring deliverables on your behalf.",
-  alternates: {
-    canonical: `${BRAND.url}/faq`,
-  },
-  openGraph: {
-    title: "FAQ | yarnnn",
-    description:
-      "Frequently asked questions about yarnnn—autonomous AI that connects to your work platforms, accumulates context, and produces recurring deliverables on your behalf.",
-    url: `${BRAND.url}/faq`,
-    images: [
-      {
-        url: new URL(BRAND.ogImage, BRAND.url).toString(),
-        width: 1200,
-        height: 630,
-        alt: "yarnnn FAQ",
-      },
-    ],
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "FAQ | yarnnn",
-    description:
-      "Frequently asked questions about yarnnn—autonomous AI that connects to your work platforms, accumulates context, and produces recurring deliverables on your behalf.",
-    images: [new URL(BRAND.ogImage, BRAND.url).toString()],
-  },
-};
+    "Frequently asked questions about yarnnn — what it is, how it works, which platforms it connects to, pricing, data safety, and how to get started with autonomous deliverables.",
+  path: "/faq",
+  keywords: [
+    "yarnnn faq",
+    "autonomous ai questions",
+    "yarnnn pricing faq",
+    "thinking partner faq",
+    "context powered ai",
+  ],
+});
 
 export default function FaqPage() {
   const faqSchema = {
