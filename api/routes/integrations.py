@@ -908,7 +908,7 @@ async def check_integration_health(
             provider=provider,
             status="unhealthy",
             errors=[f"No {provider} integration found. Connect it first."],
-            recommendations=[f"Go to Settings → Integrations → Connect {provider}"]
+            recommendations=[f"Go to System → Integrations → Connect {provider}"]
         )
 
     integration = result.data[0]

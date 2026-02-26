@@ -28,7 +28,6 @@ import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
-import { ConnectedIntegrationsSection } from "@/components/settings/ConnectedIntegrationsSection";
 
 // ADR-039: MemoryStats removed - stats now shown in Context page
 
@@ -61,7 +60,7 @@ interface NotificationPreferences {
 }
 
 // ADR-039: Removed "memory" tab - facts now live in unified Context page
-type SettingsTab = "billing" | "usage" | "notifications" | "integrations" | "account";
+type SettingsTab = "billing" | "usage" | "notifications" | "account";
 type DangerAction =
   // Tier 1: Selective purge
   | "chat"
@@ -86,7 +85,6 @@ export default function SettingsPage() {
   const initialTab: SettingsTab =
     tabParam === "usage" ? "usage" :
     tabParam === "notifications" ? "notifications" :
-    tabParam === "integrations" ? "integrations" :
     tabParam === "account" ? "account" :
     "billing";
   const subscriptionSuccess = searchParams.get("subscription") === "success";
@@ -115,11 +113,6 @@ export default function SettingsPage() {
   } | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
-  // Check for OAuth callback status
-  const providerParam = searchParams.get("provider");
-  const statusParam = searchParams.get("status");
-  // ADR-039: Memory stats fetch removed - now in Context page
-
   // Fetch usage metrics when usage tab is active
   useEffect(() => {
     if (activeTab === "usage" && !usageMetrics) {
@@ -140,14 +133,6 @@ export default function SettingsPage() {
       loadNotificationPreferences();
     }
   }, [activeTab, notificationPrefs]);
-
-  // Handle OAuth callback redirect
-  useEffect(() => {
-    if (providerParam && statusParam) {
-      // Auto-switch to integrations tab on OAuth callback
-      setActiveTab("integrations");
-    }
-  }, [providerParam, statusParam]);
 
   const loadUsageMetrics = async () => {
     setIsLoadingUsage(true);
@@ -379,19 +364,6 @@ export default function SettingsPage() {
           <span className="flex items-center gap-2">
             <Bell className="w-4 h-4" />
             Notifications
-          </span>
-        </button>
-        <button
-          onClick={() => setActiveTab("integrations")}
-          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors whitespace-nowrap ${
-            activeTab === "integrations"
-              ? "border-primary text-foreground"
-              : "border-transparent text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <span className="flex items-center gap-2">
-            <Link2 className="w-4 h-4" />
-            Integrations
           </span>
         </button>
         <button
@@ -666,15 +638,6 @@ export default function SettingsPage() {
             <div className="text-muted-foreground">Failed to load notification preferences</div>
           )}
         </section>
-      )}
-
-      {/* Integrations Tab */}
-      {activeTab === "integrations" && (
-        <ConnectedIntegrationsSection
-          className="mb-8"
-          showOAuthStatus
-          oauthCleanupPath="/settings?tab=integrations"
-        />
       )}
 
       {/* ADR-039: Memory tab removed - facts now in /context?source=facts */}

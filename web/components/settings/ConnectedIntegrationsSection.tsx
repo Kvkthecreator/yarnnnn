@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
 import {
   Calendar,
   Check,
@@ -9,7 +9,6 @@ import {
   Link2,
   Loader2,
   Mail,
-  X,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 
@@ -25,30 +24,20 @@ interface Integration {
 interface ConnectedIntegrationsSectionProps {
   title?: string;
   description?: string;
-  showOAuthStatus?: boolean;
-  oauthCleanupPath?: string;
   className?: string;
 }
 
 export function ConnectedIntegrationsSection({
   title = "Connected Integrations",
   description = "Connect platforms to sync context. Manage sources in each platform's context page.",
-  showOAuthStatus = false,
-  oauthCleanupPath,
   className,
 }: ConnectedIntegrationsSectionProps) {
   const router = useRouter();
-  const searchParams = useSearchParams();
-
-  const providerParam = searchParams.get("provider");
-  const statusParam = searchParams.get("status");
-  const errorParam = searchParams.get("error");
 
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [isLoadingIntegrations, setIsLoadingIntegrations] = useState(false);
   const [connectingProvider, setConnectingProvider] = useState<string | null>(null);
   const [disconnectingProvider, setDisconnectingProvider] = useState<string | null>(null);
-  const [showOAuthNotification, setShowOAuthNotification] = useState(true);
 
   const loadIntegrations = async () => {
     setIsLoadingIntegrations(true);
@@ -65,24 +54,6 @@ export function ConnectedIntegrationsSection({
   useEffect(() => {
     loadIntegrations();
   }, []);
-
-  useEffect(() => {
-    if (!showOAuthStatus || !providerParam || !statusParam) {
-      return;
-    }
-
-    loadIntegrations();
-    setShowOAuthNotification(true);
-
-    const timer = setTimeout(() => {
-      setShowOAuthNotification(false);
-      if (oauthCleanupPath) {
-        router.replace(oauthCleanupPath, { scroll: false });
-      }
-    }, 5000);
-
-    return () => clearTimeout(timer);
-  }, [showOAuthStatus, providerParam, statusParam, oauthCleanupPath, router]);
 
   const handleConnectIntegration = async (provider: string) => {
     setConnectingProvider(provider);
@@ -118,56 +89,6 @@ export function ConnectedIntegrationsSection({
         {title}
       </h2>
       <p className="text-sm text-muted-foreground mb-6">{description}</p>
-
-      {showOAuthStatus && providerParam && statusParam && showOAuthNotification && (
-        <div
-          className={`mb-6 p-4 rounded-lg flex items-center gap-3 ${
-            statusParam === "success"
-              ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
-              : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
-          }`}
-        >
-          {statusParam === "success" ? (
-            <>
-              <Check className="w-5 h-5 text-green-600" />
-              <div className="flex-1">
-                <p className="font-medium text-green-800 dark:text-green-200">
-                  {providerParam.charAt(0).toUpperCase() + providerParam.slice(1)} connected successfully!
-                </p>
-                <p className="text-sm text-green-700 dark:text-green-300">
-                  Manage sources in the context page to start syncing.
-                </p>
-              </div>
-              <button
-                onClick={() => setShowOAuthNotification(false)}
-                className="p-1 hover:bg-green-200 dark:hover:bg-green-800 rounded"
-                aria-label="Dismiss"
-              >
-                <X className="w-4 h-4 text-green-600" />
-              </button>
-            </>
-          ) : (
-            <>
-              <X className="w-5 h-5 text-red-600" />
-              <div className="flex-1">
-                <p className="font-medium text-red-800 dark:text-red-200">
-                  Failed to connect {providerParam}
-                </p>
-                <p className="text-sm text-red-700 dark:text-red-300">
-                  {errorParam || "Please try again."}
-                </p>
-              </div>
-              <button
-                onClick={() => setShowOAuthNotification(false)}
-                className="p-1 hover:bg-red-200 dark:hover:bg-red-800 rounded"
-                aria-label="Dismiss"
-              >
-                <X className="w-4 h-4 text-red-600" />
-              </button>
-            </>
-          )}
-        </div>
-      )}
 
       {isLoadingIntegrations ? (
         <div className="flex items-center justify-center py-8">

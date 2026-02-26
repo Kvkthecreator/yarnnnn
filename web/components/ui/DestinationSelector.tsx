@@ -251,7 +251,7 @@ export function DestinationSelector({
                   Connect Gmail, Slack, or Notion to enable platform delivery.
                 </p>
                 <Link
-                  href="/settings?tab=integrations"
+                  href="/system"
                   className="text-xs text-amber-700 hover:underline inline-flex items-center gap-1 mt-2"
                   onClick={onClose}
                 >

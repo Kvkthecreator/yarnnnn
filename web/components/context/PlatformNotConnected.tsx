@@ -67,7 +67,7 @@ export function PlatformNotConnected({
               const { authorization_url } = await api.integrations.getAuthorizationUrl(provider);
               window.location.href = authorization_url;
             } catch {
-              router.push('/settings?tab=integrations');
+              router.push('/system');
             }
           }}
           className="px-5 py-2.5 bg-primary text-primary-foreground rounded-lg text-sm font-medium hover:bg-primary/90 transition-colors"

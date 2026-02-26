@@ -2414,7 +2414,7 @@ async def handle_list_platform_resources(auth, input: dict) -> dict:
     if not integration.data:
         return {
             "success": False,
-            "error": f"{platform.title()} is not connected. Connect it in Settings → Integrations.",
+            "error": f"{platform.title()} is not connected. Connect it in System → Integrations.",
             "action_needed": "connect_integration",
             "platform": platform
         }
