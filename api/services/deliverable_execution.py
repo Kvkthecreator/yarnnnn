@@ -343,9 +343,12 @@ async def generate_draft_inline(
     headless_tools = get_tools_for_mode("headless")
     executor = create_headless_executor(client, user_id)
 
+    import json
+
     try:
         # ADR-080: Agentic loop — agent can use read-only tools if needed
         messages = [{"role": "user", "content": prompt}]
+        tools_used = []  # Track tool names for observability
 
         for round_num in range(HEADLESS_MAX_TOOL_ROUNDS + 1):
             response = await chat_completion_with_tools(
@@ -356,22 +359,28 @@ async def generate_draft_inline(
                 max_tokens=4000,
             )
 
-            if response.stop_reason == "end_turn" or not response.tool_uses:
-                # Agent is done — extract text
+            # Agent finished or hit token limit — take whatever text exists
+            if response.stop_reason in ("end_turn", "max_tokens") or not response.tool_uses:
                 draft = response.text.strip()
+                if response.stop_reason == "max_tokens":
+                    logger.warning("[GENERATE] Headless agent hit max_tokens — draft may be truncated")
                 if round_num > 0:
-                    logger.info(f"[GENERATE] Headless agent used {round_num} tool round(s)")
+                    logger.info(
+                        f"[GENERATE] Headless agent used {round_num} tool round(s): "
+                        f"{', '.join(tools_used)}"
+                    )
                 break
 
-            # Agent wants to use tools — execute them
+            # Agent wants to use tools — check round limit
             if round_num >= HEADLESS_MAX_TOOL_ROUNDS:
-                # Hit limit — use whatever text the agent produced
-                logger.warning(f"[GENERATE] Headless agent hit max tool rounds ({HEADLESS_MAX_TOOL_ROUNDS})")
+                logger.warning(
+                    f"[GENERATE] Headless agent hit max tool rounds ({HEADLESS_MAX_TOOL_ROUNDS}), "
+                    f"tools used: {', '.join(tools_used)}"
+                )
                 draft = response.text.strip() if response.text else ""
                 break
 
             # Build assistant message with tool use blocks
-            import json
             assistant_content = []
             if response.text:
                 assistant_content.append({"type": "text", "text": response.text})
@@ -387,6 +396,7 @@ async def generate_draft_inline(
             # Execute tools and collect results
             tool_results = []
             for tu in response.tool_uses:
+                tools_used.append(tu.name)
                 logger.info(f"[GENERATE] Headless tool: {tu.name}({str(tu.input)[:100]})")
                 result = await executor(tu.name, tu.input)
                 tool_results.append({
@@ -397,7 +407,7 @@ async def generate_draft_inline(
 
             messages.append({"role": "user", "content": tool_results})
         else:
-            # for/else: loop completed without break — shouldn't happen but be safe
+            # for/else: loop completed without break — safety net
             draft = ""
 
         if not draft:
