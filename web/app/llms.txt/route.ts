@@ -13,6 +13,7 @@ export async function GET() {
     "",
     "## Canonical sources",
     `${BRAND.url}/blog`,
+    `${BRAND.url}/faq`,
     `${BRAND.url}/blog/rss.xml`,
     `${BRAND.url}/sitemap.xml`,
     "",
