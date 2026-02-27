@@ -562,7 +562,7 @@ This is NOT absence/threshold detection. You reason about CONTENT SIGNIFICANCE, 
 The question is: "Given what's actually here across platforms, what patterns are emerging,
 what decisions are pending, what topic warrants synthesis?"
 
-THREE STRATEGIC DELIVERABLE TYPES DEFINE "SIGNIFICANT" (ADR-082 active types):
+THREE DELIVERABLE TYPES RELEVANT TO SIGNAL CREATION (subset of 8 active types per ADR-082):
 
 1. **status_report** — Cross-platform synthesis of strategic movements, decision points, pattern recognition
    - Look for: Developments affecting strategic landscape, gap between stated priorities and actual activity

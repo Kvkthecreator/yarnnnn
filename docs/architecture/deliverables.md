@@ -10,6 +10,7 @@
 - [ADR-066: Delivery-First Redesign](../adr/ADR-066-deliverable-detail-redesign.md)
 - [ADR-068: Signal-Emergent Deliverables](../adr/ADR-068-signal-emergent-deliverables.md)
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — agent operates in headless mode for generation
+- [ADR-082: Deliverable Type Consolidation](../adr/ADR-082-deliverable-type-consolidation.md) — 27→8 active types
 - [Agent Execution Model](agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Deliverables are Layer 4 (Work)
 

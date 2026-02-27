@@ -331,7 +331,19 @@ export type DeliverableType =
   | "meeting_prep"
   | "weekly_calendar_preview";
 
-export type DeliverableTier = "stable" | "beta" | "experimental";
+// ADR-082: 8 active types for UI selection (full union retained for backwards compat)
+export type ActiveDeliverableType =
+  | "slack_channel_digest"
+  | "gmail_inbox_brief"
+  | "notion_page_summary"
+  | "weekly_calendar_preview"
+  | "meeting_prep"
+  | "status_report"
+  | "research_brief"
+  | "custom";
+
+// ADR-082: stable (active) or deprecated (backwards compat only)
+export type DeliverableTier = "stable" | "deprecated";
 
 // ADR-044: Type Classification (two-dimensional)
 export type ContextBinding = "platform_bound" | "cross_platform" | "research" | "hybrid";

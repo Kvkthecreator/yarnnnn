@@ -15,7 +15,7 @@ YARNNN's backend runs 5 Render services sharing a single codebase:
 | 1 | `yarnnn-api` | `srv-d5sqotcr85hc73dpkqdg` | Web Service | Always-on | API endpoints, OAuth, manual triggers |
 | 2 | `yarnnn-worker` | `srv-d4sebn6mcj7s73bu8en0` | Background Worker | Always-on | RQ job queue (work tickets) |
 | 3 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Deliverables, signals, memory, cleanup |
-| 4 | `yarnnn-platform-sync` | _(in render.yaml)_ | Cron Job | `*/5 * * * *` | Platform sync scheduling |
+| 4 | `yarnnn-platform-sync` | `crn-d6gdvi94tr6s73b6btm0` | Cron Job | `*/5 * * * *` | Platform sync scheduling |
 | 5 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
 
 ### Pipeline Flow

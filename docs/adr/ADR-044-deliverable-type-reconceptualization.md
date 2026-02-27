@@ -1,9 +1,9 @@
 # ADR-044: Deliverable Type Reconceptualization
 
 **Date**: 2026-02-11
-**Status**: Proposed
+**Status**: Amended by ADR-082 (Deliverable Type Consolidation — type surface reduced to 8 active types)
 **Supersedes**: ADR-019 (Deliverable Types System) - conceptual direction
-**Relates to**: ADR-031 (Platform-Native), ADR-034 (Emergent Domains), DECISION-001 (Platform Sync)
+**Relates to**: ADR-031 (Platform-Native), ADR-034 (Emergent Domains), DECISION-001 (Platform Sync), ADR-082 (Type Consolidation)
 
 ---
 
