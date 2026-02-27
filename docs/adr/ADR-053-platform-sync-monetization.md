@@ -228,7 +228,7 @@ These are covered by conversation/deliverable limits per tier, not sync limits.
 
 1. ✅ Implement tier-based sync frequency (`api/jobs/platform_sync_scheduler.py`)
 2. ✅ Add "next sync" indicator to UI (`SyncStatusBanner` component)
-3. ✅ Background scheduler respects tier limits (Render cron in `render.yaml`)
+3. ✅ Background scheduler respects tier limits (Render cron `crn-d6gdvi94tr6s73b6btm0`, provisioned 2026-02-27)
 4. ✅ Sync time calculations respect user timezone
 
 ### Phase 4: Limit Enforcement ✅ Complete

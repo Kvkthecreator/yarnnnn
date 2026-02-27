@@ -100,12 +100,42 @@ Overhaul all four platform sync implementations following a unified three-phase 
 - **Increased content volume**: Existing cleanup job handles TTL expiry; source limits bound table size
 - **Backward cursor compatibility**: All cursor formats unchanged (Slack ts, Gmail date, Calendar syncToken, Notion last_edited_time)
 
+## Deployment Notes
+
+### Render Cron Provisioning (2026-02-27)
+
+The `platform-sync` cron was defined in `render.yaml` but **never provisioned on Render** during initial deployment. The Render Blueprint sync did not create it automatically. This meant:
+
+- All scheduled platform syncs silently never ran
+- The only syncs that occurred were manual "Refresh Data" button clicks from the UI
+- The ADR-077 overhaul code was correct and deployed, but the scheduler entry point was never invoked
+
+**Resolution**: Provisioned `yarnnn-platform-sync` cron via Render API (`crn-d6gdvi94tr6s73b6btm0`):
+- Schedule: `*/5 * * * *`
+- Command: `cd api && python -m jobs.platform_sync_scheduler`
+- Region: Oregon
+- 9 env vars configured (matching `render.yaml` spec)
+
+### Concurrent Fix: `working_memory.py`
+
+`api/services/working_memory.py` line 444 referenced `updated_at` on `integration_import_jobs`, which doesn't exist (ADR-058 schema). Changed to `created_at`. This was causing 400 errors on MCP server context queries.
+
+### First Validation (2026-02-27, test user kvkthecreator@gmail.com)
+
+| Platform | Items Synced | Notes |
+|----------|-------------|-------|
+| Slack    | 7           | Incremental (recent messages since last manual sync) |
+| Google   | 73          | 34 emails + 39 calendar events |
+| Notion   | 0           | No changes since last manual sync |
+
+All `platform_connections.last_synced_at` updated. `activity_log` entries written for each `platform_synced` event. Content total: 335 → 377 items.
+
 ## Verification
 
 After deployment:
-1. Scheduled syncs should appear in `activity_log` without manual "Refresh Data"
-2. `SELECT platform, content_type, COUNT(*) FROM platform_content WHERE user_id = '...' GROUP BY platform, content_type` should show significantly more content
-3. Slack: system messages filtered, threads expanded
-4. Gmail: >50 emails per label (pagination working)
-5. Notion: nested block content captured, database rows synced
-6. Calendar: events appear with wider time range
+1. ✅ Scheduled syncs should appear in `activity_log` without manual "Refresh Data"
+2. ✅ `SELECT platform, content_type, COUNT(*) FROM platform_content WHERE user_id = '...' GROUP BY platform, content_type` should show significantly more content
+3. ✅ Slack: system messages filtered, threads expanded
+4. ✅ Gmail: >50 emails per label (pagination working)
+5. ✅ Notion: nested block content captured, database rows synced
+6. ✅ Calendar: events appear with wider time range
