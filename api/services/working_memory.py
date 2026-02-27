@@ -441,7 +441,7 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
             .select("id", count="exact")
             .eq("user_id", user_id)
             .eq("status", "failed")
-            .gte("updated_at", cutoff)
+            .gte("created_at", cutoff)
             .execute()
         )
 
