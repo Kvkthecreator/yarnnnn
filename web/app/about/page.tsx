@@ -7,15 +7,16 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "About",
+  title: "About — Why We Built an AI Agent That Learns",
   description:
-    "Learn why yarnnn was built: autonomous AI powered by accumulated work context, designed for supervision over manual operation.",
+    "We built TP because every AI agent starts from zero. TP is an autonomous agent powered by accumulated work context — it gets smarter the longer you use it.",
   path: "/about",
   keywords: [
     "about yarnnn",
-    "autonomous ai platform",
+    "ai agent",
+    "autonomous ai agent",
     "context accumulation",
-    "supervision model",
+    "ai that learns",
   ],
 });
 
@@ -46,21 +47,21 @@ export default function AboutPage() {
           {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              We built yarnnn because
+              We built TP because
               <br />
-              <span className="text-white/50">AI should work for you, not just with you.</span>
+              <span className="text-white/50">every AI agent starts from zero.</span>
             </h1>
             <div className="max-w-2xl space-y-6 text-white/50">
               <p>
-                You use AI every day. And every day, it forgets everything. Your preferences,
-                your context, your last conversation. You start from scratch, re-explain your
-                world, and do all the assembly yourself.
+                You&apos;ve tried the AI agents. They&apos;re powerful but context-free.
+                They don&apos;t know your clients, your projects, your writing style,
+                or what happened in last week&apos;s standup. Every session, you start over.
               </p>
               <p>
-                AI is powerful. But stateless, one-shot AI can&apos;t actually work on your behalf.
+                An agent without context is just automation with better marketing.
               </p>
               <p className="text-white font-medium">
-                So we built yarnnn—autonomous AI that accumulates your context and gets smarter the longer you use it.
+                So we built TP — an autonomous AI agent that accumulates your context and gets smarter the longer you use it.
               </p>
             </div>
           </section>
@@ -73,16 +74,16 @@ export default function AboutPage() {
               <div className="space-y-16">
                 <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">Context is what makes AI useful</h3>
+                    <h3 className="text-lg font-medium text-white">Context is what makes an agent useful</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
                       Raw intelligence without context is just a fancy autocomplete.
-                      The difference between generic AI and useful AI is whether it
+                      The difference between a generic agent and a useful agent is whether it
                       understands your world.
                     </p>
                     <p className="text-white/30 text-sm">
-                      yarnnn connects to your platforms and accumulates context continuously.
+                      TP connects to your platforms and accumulates context continuously.
                       The longer you use it, the deeper it understands.
                     </p>
                   </div>
@@ -107,11 +108,11 @@ export default function AboutPage() {
 
                 <div className="grid grid-cols-1 md:grid-cols-[200px_1fr] gap-6">
                   <div>
-                    <h3 className="text-lg font-medium text-white">AI should compound</h3>
+                    <h3 className="text-lg font-medium text-white">Your agent should compound</h3>
                   </div>
                   <div className="text-white/50">
                     <p className="mb-4">
-                      Every sync cycle, every edit, every approval deepens yarnnn&apos;s
+                      Every sync cycle, every edit, every approval deepens TP&apos;s
                       understanding. After 90 days, the accumulated context is irreplaceable.
                     </p>
                     <p className="text-white/30 text-sm">
@@ -171,10 +172,10 @@ export default function AboutPage() {
                   </p>
                 </div>
                 <div>
-                  <h3 className="text-lg font-medium mb-2">Not another agent startup</h3>
+                  <h3 className="text-lg font-medium mb-2">Not a context-free agent</h3>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Agent platforms are powerful but context-free. yarnnn&apos;s autonomy
-                    is meaningful because it&apos;s powered by your actual work context.
+                    Other agents execute blindly. TP works from accumulated understanding —
+                    your conversations, decisions, patterns, and relationships.
                   </p>
                 </div>
               </div>
@@ -218,17 +219,17 @@ export default function AboutPage() {
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Ready to supervise instead of operate?
+                Your agent is ready.
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
                 Connect your platforms. Talk to TP.
-                Watch your AI get smarter every day.
+                Watch your agent get smarter every cycle.
               </p>
               <Link
                 href="/auth/login"
                 className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
               >
-                Start for free
+                Start talking to TP
               </Link>
             </div>
           </section>
