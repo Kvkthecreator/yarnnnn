@@ -1,7 +1,7 @@
 # ADR-039: Background Work Agents — Validation
 
 > **ADR**: [ADR-039](../adr/ADR-039-background-work-agents.md)
-> **Status**: Implemented 2026-02-10
+> **Status**: Superseded by ADR-083 (2026-02-27) — RQ/Redis removed, all execution inline
 > **Last Validated**: 2026-02-10 (automated unit tests passed)
 
 ---

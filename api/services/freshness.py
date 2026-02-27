@@ -348,7 +348,7 @@ async def sync_stale_sources(
             "failed": [{platform, resource_id, error}]
         }
     """
-    from services.job_queue import enqueue_job
+    from workers.platform_worker import sync_platform
 
     synced = []
     failed = []
@@ -359,9 +359,8 @@ async def sync_stale_sources(
         resource_name = source.get("resource_name", "")
 
         try:
-            # Enqueue targeted sync job for single stale source
-            job_id = await enqueue_job(
-                "platform_sync",
+            # Direct sync for single stale source (ADR-083: no RQ)
+            result = sync_platform(
                 user_id=user_id,
                 provider=platform,
                 selected_sources=[resource_id] if resource_id else None,
@@ -370,17 +369,16 @@ async def sync_stale_sources(
             synced.append({
                 "platform": platform,
                 "resource_id": resource_id,
-                "job_id": job_id,
-                "success": True,
+                "success": result.get("success", False),
             })
-            logger.info(f"[FRESHNESS] Enqueued sync for {platform}:{resource_id}")
+            logger.info(f"[FRESHNESS] Synced {platform}:{resource_id}")
         except Exception as e:
             failed.append({
                 "platform": platform,
                 "resource_id": resource_id,
                 "error": str(e),
             })
-            logger.error(f"[FRESHNESS] Failed to enqueue sync for {platform}:{resource_id}: {e}")
+            logger.error(f"[FRESHNESS] Failed to sync {platform}:{resource_id}: {e}")
 
     return {
         "synced": synced,

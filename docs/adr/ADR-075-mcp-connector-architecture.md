@@ -59,8 +59,8 @@ Build a Python MCP server using the `mcp` SDK (`FastMCP`) that exposes YARNNN ba
 │  Render Services (separate processes, same codebase):            │
 │                                                                  │
 │  yarnnn-api          uvicorn main:app                            │
-│  yarnnn-worker       python -m jobs.worker                       │
 │  yarnnn-scheduler    cd api && python -m jobs.unified_scheduler  │
+│  yarnnn-sync         cd api && python -m jobs.platform_sync_scheduler │
 │  yarnnn-mcp-server   cd api && python -m mcp_server http         │
 └──────────────────────────────────────────────────────────────────┘
 ```

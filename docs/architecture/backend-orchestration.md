@@ -1,22 +1,23 @@
 # Backend Orchestration Pipeline
 
-**Version**: 3.0
-**Last updated**: 2026-02-27 (hardened — consistency sweep, ADR-082 type consolidation)
-**Status**: Hardened — canonical reference for all background processing. Cross-validated against code (zero TODOs/FIXMEs in orchestration layer).
+**Version**: 3.1
+**Last updated**: 2026-02-27 (ADR-083: removed worker + Redis, all execution inline)
+**Status**: Hardened — canonical reference for all background processing. Cross-validated against code.
 
 ---
 
 ## Overview
 
-YARNNN's backend runs 5 Render services sharing a single codebase:
+YARNNN's backend runs 4 Render services sharing a single codebase (ADR-083: worker + Redis removed):
 
 | # | Service | Render ID | Type | Schedule | Role |
 |---|---------|-----------|------|----------|------|
 | 1 | `yarnnn-api` | `srv-d5sqotcr85hc73dpkqdg` | Web Service | Always-on | API endpoints, OAuth, manual triggers |
-| 2 | `yarnnn-worker` | `srv-d4sebn6mcj7s73bu8en0` | Background Worker | Always-on | RQ job queue (work tickets) |
-| 3 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Deliverables, signals, memory, cleanup |
-| 4 | `yarnnn-platform-sync` | `crn-d6gdvi94tr6s73b6btm0` | Cron Job | `*/5 * * * *` | Platform sync scheduling |
-| 5 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
+| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Deliverables, signals, memory, cleanup |
+| 3 | `yarnnn-platform-sync` | `crn-d6gdvi94tr6s73b6btm0` | Cron Job | `*/5 * * * *` | Platform sync scheduling |
+| 4 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
+
+All execution is inline — no background worker, no Redis. On-demand operations use FastAPI BackgroundTasks or direct calls.
 
 ### Pipeline Flow
 
@@ -55,7 +56,7 @@ activity_log ◄── ALL features ──────────┘
 | F7 | Weekly Digest | Weekly per user | No | Email send | unified-scheduler |
 | F8 | Import Jobs | Every 5 min | No | Platform API reads | unified-scheduler |
 | F9 | Embedding Generation | **NOT IMPLEMENTED** | No | OpenAI API (~$0.02/M tokens) | — |
-| F10 | Work Ticket Processing | Every 5 min | Sonnet | ~2-5k tokens/ticket | unified-scheduler + worker |
+| F10 | Work Ticket Processing | Every 5 min | Sonnet | ~2-5k tokens/ticket | unified-scheduler |
 
 ### Feature Dependencies
 
@@ -87,7 +88,7 @@ The `platform_sync_scheduler.py` cron runs every 5 minutes and checks:
 2. Whether the user's tier-based schedule says "sync now" (`should_sync_now()`)
 3. Whether enough time has passed since last sync (`_needs_sync()` with min intervals)
 
-Sync is invoked **inline** (not queued to RQ) — `sync_platform()` runs synchronously within the cron process.
+Sync is invoked **inline** — `sync_platform()` runs synchronously within the cron process. On-demand user sync uses FastAPI BackgroundTasks (ADR-083).
 
 | Tier | Frequency | Min Interval | Schedule |
 |------|-----------|-------------|----------|
@@ -333,13 +334,13 @@ Writes `content_cleanup` events to `activity_log` per user.
 
 ## F10: Work Ticket Processing
 
-**Files**: `api/jobs/unified_scheduler.py` (scheduled), `api/workers/platform_worker.py` (background via RQ)
-**Entry points**: Unified scheduler (every 5 min), RQ worker (always-on)
+**Files**: `api/jobs/unified_scheduler.py` (scheduled), `api/services/work_execution.py` (inline execution)
+**Entry points**: Unified scheduler (every 5 min), API route (on-demand)
 **LLM**: `claude-sonnet-4-20250514`
 
-Two execution paths:
-1. **Scheduled**: `get_due_work()` → `execute_work_ticket()` (inline in scheduler)
-2. **Background**: `execute_work_background()` via RQ queue (worker service)
+Single execution path (ADR-083: RQ worker removed):
+- **Scheduled**: `get_due_work()` → `execute_work_ticket()` (inline in scheduler)
+- **On-demand**: API routes call `create_and_execute_work()` → `execute_work_ticket()` inline
 
 ---
 
@@ -435,7 +436,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 
 | Endpoint | Feature | Notes |
 |----------|---------|-------|
-| `POST /integrations/{provider}/sync` | F1 | Runs inline (not queued) |
+| `POST /integrations/{provider}/sync` | F1 | Runs via FastAPI BackgroundTasks |
 | `POST /signal-processing/trigger` | F2 | 5-min rate limit |
 | `POST /deliverables/{id}/run` | F3 | Direct execution |
 | `POST /admin/backfill-sources/{user_id}` | F1 (ADR-079) | Admin-only, backfill smart defaults |
@@ -444,20 +445,19 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 
 ## Render Service Environment
 
-**Critical shared env vars** (must be on API + Sync Cron + Unified Scheduler + Worker):
+**Critical shared env vars** (must be on API + Sync Cron + Unified Scheduler):
 
-| Env Var | API | Sync Cron | Unified Sched | Worker | MCP Server |
-|---------|-----|-----------|---------------|--------|------------|
-| `SUPABASE_URL` | yes | yes | yes | yes | yes |
-| `SUPABASE_SERVICE_KEY` | yes | yes | yes | yes | yes |
-| `INTEGRATION_ENCRYPTION_KEY` | yes | yes | yes | yes | — |
-| `GOOGLE_CLIENT_ID/SECRET` | yes | yes | yes | yes | — |
-| `SLACK_CLIENT_ID/SECRET` | yes | yes | yes | yes | — |
-| `NOTION_CLIENT_ID/SECRET` | yes | yes | yes | yes | — |
-| `ANTHROPIC_API_KEY` | yes | — | yes | yes | — |
-| `OPENAI_API_KEY` | — | — | — | yes | — |
-| `RESEND_API_KEY` | yes | — | yes | — | — |
-| `MCP_BEARER_TOKEN` | — | — | — | — | yes |
+| Env Var | API | Sync Cron | Unified Sched | MCP Server |
+|---------|-----|-----------|---------------|------------|
+| `SUPABASE_URL` | yes | yes | yes | yes |
+| `SUPABASE_SERVICE_KEY` | yes | yes | yes | yes |
+| `INTEGRATION_ENCRYPTION_KEY` | yes | yes | yes | — |
+| `GOOGLE_CLIENT_ID/SECRET` | yes | yes | yes | — |
+| `SLACK_CLIENT_ID/SECRET` | yes | yes | yes | — |
+| `NOTION_CLIENT_ID/SECRET` | yes | yes | yes | — |
+| `ANTHROPIC_API_KEY` | yes | — | yes | — |
+| `RESEND_API_KEY` | yes | — | yes | — |
+| `MCP_BEARER_TOKEN` | — | — | — | yes |
 
 ---
 
@@ -494,6 +494,6 @@ Platforms sync sequentially within a user. Running Slack + Gmail + Notion + Cale
 
 F5 (Conversation Analysis) and F2 (Signal Processing) both create deliverables from pattern detection. F5 runs daily from chat patterns; F2 runs hourly from platform content. They share `signal_history` for dedup but have independent detection logic. Consider whether F5 should be merged into F2 as a "conversation signals" pass.
 
-### GAP-5: Work Ticket Dual Path
+### ~~GAP-5: Work Ticket Dual Path~~ — **Resolved** (ADR-083)
 
-F10 has two execution paths (scheduled inline vs RQ background) which adds complexity. The RQ worker service is always-on but only used for background work tickets, not platform sync. Consider whether the worker service is still needed or if everything can run in the scheduler.
+Removed RQ worker and Redis. All work tickets now execute inline (single path).

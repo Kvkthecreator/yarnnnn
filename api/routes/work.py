@@ -46,7 +46,7 @@ class WorkCreate(BaseModel):
     task: str
     agent_type: str  # synthesizer, deliverable, report
     parameters: Optional[dict] = None
-    run_in_background: bool = False  # ADR-039: Background execution
+    run_in_background: bool = False  # Ignored (ADR-083: all execution is inline)
 
 
 class WorkResponse(BaseModel):
@@ -98,10 +98,9 @@ class WorkStatusResponse(BaseModel):
 
 
 class BackgroundWorkResponse(BaseModel):
-    """Background work creation response (ADR-039)."""
+    """Work creation response."""
     success: bool
     ticket_id: str
-    job_id: Optional[str] = None
     status: str
     execution_mode: str
     message: str
@@ -222,21 +221,17 @@ async def create_background_work(
     auth: UserClient,
 ) -> BackgroundWorkResponse:
     """
-    ADR-039: Create work for background execution.
-
-    This creates a work ticket and queues it for background processing.
-    Returns immediately with ticket_id and job_id for tracking.
-    Poll GET /work/{id}/status for progress updates.
+    Create and execute work (ADR-083: runs inline, kept for API compatibility).
 
     Args:
         request: Work request with task, agent_type, parameters
         auth: Authenticated user
 
     Returns:
-        Background work response with queue info
+        Work execution response
     """
     logger.info(
-        f"[WORK] Creating background work: user={auth.user_id}, "
+        f"[WORK] Creating work: user={auth.user_id}, "
         f"agent={request.agent_type}, task='{request.task[:50]}...'"
     )
 
@@ -246,7 +241,6 @@ async def create_background_work(
         task=request.task,
         agent_type=request.agent_type,
         parameters=request.parameters,
-        run_in_background=True,
     )
 
     if not result.get("success"):
@@ -254,18 +248,17 @@ async def create_background_work(
             success=False,
             ticket_id=result.get("ticket_id", ""),
             status="failed",
-            execution_mode="background",
-            message=result.get("error", "Failed to queue work"),
+            execution_mode="foreground",
+            message=result.get("error", "Work execution failed"),
             error=result.get("error"),
         )
 
     return BackgroundWorkResponse(
         success=True,
         ticket_id=result["ticket_id"],
-        job_id=result.get("job_id"),
-        status=result.get("status", "queued"),
-        execution_mode=result.get("execution_mode", "background"),
-        message=result.get("message", "Work queued for background execution"),
+        status=result.get("status", "completed"),
+        execution_mode="foreground",
+        message="Work executed successfully",
     )
 
 

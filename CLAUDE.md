@@ -62,30 +62,31 @@ Before completing work:
 
 ### 5. Render Service Parity
 
-YARNNN runs on **5 Render services** that share code and env vars. When changing environment variables, secrets, or architectural patterns, check ALL services:
+YARNNN runs on **4 Render services** that share code and env vars (ADR-083: worker + Redis removed). When changing environment variables, secrets, or architectural patterns, check ALL services:
 
 | Service | Type | Render ID |
 |---------|------|-----------|
 | yarnnn-api | Web Service | `srv-d5sqotcr85hc73dpkqdg` |
-| yarnnn-worker | Background Worker | `srv-d4sebn6mcj7s73bu8en0` |
 | yarnnn-unified-scheduler | Cron Job | `crn-d604uqili9vc73ankvag` |
 | yarnnn-platform-sync | Cron Job | `crn-d6gdvi94tr6s73b6btm0` |
 | yarnnn-mcp-server | Web Service | `srv-d6f4vg1drdic739nli4g` |
 
-**Critical shared env vars** (must be on API + Worker + Unified Scheduler + Platform Sync):
-- `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Worker/Scheduler **cannot sync** without it.
-- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — needed by Worker for token refresh
-- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Worker for Notion API
+All execution is inline — no background worker, no Redis. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks.
+
+**Critical shared env vars** (must be on API + Unified Scheduler + Platform Sync):
+- `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption. Schedulers **cannot sync** without it.
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` — needed by Schedulers for token refresh
+- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET` — needed by Schedulers for Notion API
 
 **MCP Server env vars** (separate from above — MCP server uses service key, not user JWTs):
-- `SUPABASE_SERVICE_KEY` — Service key for RLS bypass (same as Worker/Scheduler)
+- `SUPABASE_SERVICE_KEY` — Service key for RLS bypass (same as Schedulers)
 - `MCP_USER_ID` — User UUID for data scoping (auto-approve OAuth + static bearer fallback)
 - `MCP_BEARER_TOKEN` — Static bearer token for Claude Desktop/Code
 - `MCP_SERVER_URL` — OAuth issuer URL (defaults to `https://yarnnn-mcp-server.onrender.com`)
 
 **MCP Auth model** (ADR-075): OAuth 2.1 for Claude.ai/ChatGPT (auto-approve, tokens stored in `mcp_oauth_*` tables). Static bearer token fallback for Claude Desktop/Code. See `api/mcp_server/oauth_provider.py`.
 
-**Common mistake**: Adding an env var to the API service but forgetting Worker/Scheduler. The API handles OAuth and stores tokens; the Worker decrypts and uses them. Both need the encryption key and OAuth client credentials.
+**Common mistake**: Adding an env var to the API service but forgetting Schedulers. The API handles OAuth and stores tokens; Schedulers decrypt and use them for sync.
 
 Use Render MCP tools (`update_environment_variables`) to check/set env vars across services.
 

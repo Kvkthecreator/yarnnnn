@@ -3,16 +3,12 @@ Work Execution Service
 
 ADR-009: Work and Agent Orchestration
 ADR-016: Layered Agent Architecture (single output per work)
-ADR-039: Background Work Agents (run_in_background option)
 
 Handles the full work ticket lifecycle:
 1. Create ticket → 2. Load context → 3. Execute agent → 4. Save output → 5. Update status
 
-For background execution (ADR-039):
-- Set run_in_background=True when creating work
-- Ticket is queued for async worker processing
-- Returns immediately with ticket_id and job_id
-- Poll /work/{id}/status for progress
+All execution is foreground (inline). ADR-083 removed the RQ/Redis background
+worker path — all work runs in the calling process.
 """
 
 import asyncio
@@ -291,12 +287,9 @@ async def create_and_execute_work(
     task: str,
     agent_type: str,
     parameters: Optional[dict] = None,
-    run_in_background: bool = False,
 ) -> dict:
     """
-    Create a work ticket and execute it.
-
-    ADR-039: Supports both synchronous and background execution.
+    Create a work ticket and execute it inline.
 
     Args:
         client: Supabase client
@@ -304,12 +297,9 @@ async def create_and_execute_work(
         task: Task description
         agent_type: Agent type (synthesizer, deliverable, report)
         parameters: Optional agent parameters
-        run_in_background: If True, queue for background execution (ADR-039)
 
     Returns:
-        Dict with ticket and execution result.
-        For background: returns immediately with ticket_id and job_id
-        For foreground: blocks until completion
+        Dict with ticket and execution result
     """
     # Validate agent type (support both new and legacy names for backwards compatibility)
     from agents.factory import LEGACY_TYPE_MAP, get_valid_agent_types
@@ -327,7 +317,7 @@ async def create_and_execute_work(
         "agent_type": agent_type,
         "parameters": parameters or {},
         "status": "pending",
-        "execution_mode": "background" if run_in_background else "foreground",
+        "execution_mode": "foreground",
     }
 
     ticket_result = (
@@ -345,99 +335,11 @@ async def create_and_execute_work(
     ticket = ticket_result.data[0]
     ticket_id = ticket["id"]
 
-    logger.info(f"[WORK] Created ticket {ticket_id} for {agent_type} agent (mode={ticket_data['execution_mode']})")
+    logger.info(f"[WORK] Created ticket {ticket_id} for {agent_type} agent")
 
-    # ADR-039: Background execution path
-    if run_in_background:
-        return await _enqueue_work_background(client, user_id, ticket)
-
-    # Foreground execution path (existing behavior)
     result = await execute_work_ticket(client, user_id, ticket_id)
 
     return {
         **result,
         "ticket": ticket,
-    }
-
-
-async def _enqueue_work_background(
-    client,
-    user_id: str,
-    ticket: dict,
-) -> dict:
-    """
-    Enqueue work for background execution.
-
-    ADR-039: Queue work to Redis and return immediately.
-
-    Args:
-        client: Supabase client
-        user_id: User ID
-        ticket: Created ticket dict
-
-    Returns:
-        Dict with queued status and job info
-    """
-    from services.job_queue import (
-        enqueue_work,
-        is_queue_available,
-        update_ticket_queue_status,
-        log_execution_event,
-    )
-
-    ticket_id = ticket["id"]
-
-    # Check if queue is available
-    if not is_queue_available():
-        logger.warning(f"[WORK] Queue unavailable, falling back to foreground for {ticket_id}")
-
-        # Fall back to synchronous execution
-        result = await execute_work_ticket(client, user_id, ticket_id)
-        return {
-            **result,
-            "ticket": ticket,
-            "fallback_reason": "Queue unavailable",
-        }
-
-    # Enqueue the work
-    job_id = await enqueue_work(ticket_id, user_id)
-
-    if not job_id:
-        logger.warning(f"[WORK] Failed to enqueue, falling back to foreground for {ticket_id}")
-
-        # Fall back to synchronous execution
-        result = await execute_work_ticket(client, user_id, ticket_id)
-        return {
-            **result,
-            "ticket": ticket,
-            "fallback_reason": "Enqueue failed",
-        }
-
-    # Update ticket with queue info
-    await update_ticket_queue_status(client, ticket_id, job_id)
-
-    # Log the event
-    await log_execution_event(
-        client, ticket_id, "queued",
-        f"Work queued for background execution (job: {job_id})"
-    )
-
-    logger.info(f"[WORK] Queued ticket {ticket_id} as job {job_id}")
-
-    return {
-        "success": True,
-        "ticket_id": ticket_id,
-        "job_id": job_id,
-        "status": "queued",
-        "execution_mode": "background",
-        "message": f"Work queued for background execution. Track via ticket {ticket_id}.",
-        "ticket": ticket,
-        "ui_action": {
-            "type": "SHOW_WORK_QUEUED",
-            "data": {
-                "ticket_id": ticket_id,
-                "job_id": job_id,
-                "task": ticket.get("task", "")[:100],
-            }
-        }
     }

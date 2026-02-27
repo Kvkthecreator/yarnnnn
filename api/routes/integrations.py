@@ -2952,9 +2952,9 @@ async def trigger_platform_sync(
     Trigger an on-demand sync for a platform.
 
     ADR-043 / DECISION-001: Syncs selected sources only.
-    Runs in background, returns immediately.
+    Runs via FastAPI BackgroundTasks, returns immediately.
     """
-    from services.job_queue import enqueue_job
+    from workers.platform_worker import sync_platform
 
     user_id = auth.user_id
 
@@ -2986,19 +2986,14 @@ async def trigger_platform_sync(
             "message": "No sources selected. Please select sources first.",
         }
 
-    # Enqueue sync job
-    job_id = await enqueue_job(
-        "platform_sync",
-        user_id=user_id,
-        provider=provider,
-        selected_sources=[s["id"] for s in selected],
-    )
+    # Run sync in background (ADR-083: direct execution, no RQ)
+    source_ids = [s["id"] for s in selected]
+    background_tasks.add_task(sync_platform, user_id, provider, source_ids)
 
-    logger.info(f"[INTEGRATIONS] User {user_id} triggered {provider} sync, job={job_id}")
+    logger.info(f"[INTEGRATIONS] User {user_id} triggered {provider} sync ({len(selected)} sources)")
 
     return {
         "success": True,
-        "job_id": job_id,
         "message": f"Sync started for {len(selected)} {provider} sources",
         "sources_count": len(selected),
     }

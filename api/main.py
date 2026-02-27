@@ -40,7 +40,7 @@ def _validate_environment():
             "Check your .env file or deployment config."
         )
 
-    optional = ["REDIS_URL", "GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "LEMONSQUEEZY_API_KEY"]
+    optional = ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET", "LEMONSQUEEZY_API_KEY"]
     for var in optional:
         if not os.getenv(var):
             logger.warning(f"[STARTUP] Optional env var not set: {var}")

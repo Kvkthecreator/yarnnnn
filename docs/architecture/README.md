@@ -8,7 +8,7 @@
 
 | Document | Status | Last Updated | Covers |
 |----------|--------|-------------|--------|
-| [backend-orchestration.md](backend-orchestration.md) | **Hardened** (v3.0) | 2026-02-27 | 5 Render services, 10 background features (F1–F10), scheduler phase map, env var matrix |
+| [backend-orchestration.md](backend-orchestration.md) | **Hardened** (v3.1) | 2026-02-27 | 4 Render services (ADR-083), 10 background features (F1–F10), scheduler phase map, env var matrix |
 | [agent-execution-model.md](agent-execution-model.md) | Current | 2026-02-26 | Unified agent (chat + headless modes), mode-gated primitives (ADR-080) |
 | [context-pipeline.md](context-pipeline.md) | Current | 2026-02-27 | Four-layer model, platform_content, memory, sync frequency, TP access patterns |
 | [deliverables.md](deliverables.md) | Current | 2026-02-26 | Deliverable lifecycle, 8 active types (ADR-082), execution model, delivery routing |

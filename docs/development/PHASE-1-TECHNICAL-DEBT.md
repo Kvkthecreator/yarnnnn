@@ -84,7 +84,7 @@ Silent failures that hide bugs and make debugging impossible.
   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`
   - `ANTHROPIC_API_KEY`
   - `INTEGRATION_ENCRYPTION_KEY`
-- Log warnings for optional vars (`REDIS_URL`, Lemon Squeezy keys).
+- Log warnings for optional vars (Lemon Squeezy keys).
 
 ---
 

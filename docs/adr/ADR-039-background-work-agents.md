@@ -1,6 +1,6 @@
 # ADR-039: Background Work Agents
 
-> **Status**: Implemented
+> **Status**: Superseded by ADR-083 (2026-02-27) — RQ/Redis removed, all execution inline
 > **Created**: 2026-02-10
 > **Implemented**: 2026-02-10
 > **Priority**: P2 (High value, requires infrastructure)

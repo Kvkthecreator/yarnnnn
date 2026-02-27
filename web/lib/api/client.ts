@@ -1015,7 +1015,6 @@ export const api = {
     syncPlatform: (provider: string) =>
       request<{
         success: boolean;
-        job_id?: string;
         message: string;
         sources_count?: number;
       }>(`/api/integrations/${provider}/sync`, {

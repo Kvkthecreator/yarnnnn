@@ -240,20 +240,21 @@ def _get_action_handler(action: str):
 
 async def _handle_platform_sync(auth, entity, ref, via, params):
     """Sync latest from platform into platform_content."""
+    import asyncio
+    from workers.platform_worker import sync_platform
+
     provider = entity.get("provider")
 
-    # Trigger sync job
-    from services.job_queue import enqueue_job
-
-    job_id = await enqueue_job(
-        "platform_sync",
+    # Fire-and-forget sync in thread pool (ADR-083: no RQ)
+    # sync_platform uses asyncio.run() internally, so run in thread
+    asyncio.ensure_future(asyncio.to_thread(
+        sync_platform,
         user_id=auth.user_id,
         provider=provider,
-    )
+    ))
 
     return {
         "status": "started",
-        "job_id": job_id,
         "provider": provider,
         "message": f"Started syncing {provider}",
     }
@@ -362,22 +363,21 @@ async def _handle_deliverable_approve(auth, entity, ref, via, params):
 
 
 async def _handle_work_run(auth, entity, ref, via, params):
-    """Execute work immediately."""
+    """Execute work immediately (ADR-083: inline, no RQ)."""
     work_id = entity.get("id")
 
-    from services.job_queue import enqueue_job
+    from services.work_execution import execute_work_ticket
 
-    job_id = await enqueue_job(
-        "work_execute",
-        ticket_id=work_id,
+    result = await execute_work_ticket(
+        client=auth.client,
         user_id=auth.user_id,
+        ticket_id=work_id,
     )
 
     return {
-        "status": "started",
+        "status": "completed" if result.get("success") else "failed",
         "work_id": work_id,
-        "job_id": job_id,
-        "message": "Work execution started",
+        "message": result.get("error") or "Work execution completed",
     }
 
 
