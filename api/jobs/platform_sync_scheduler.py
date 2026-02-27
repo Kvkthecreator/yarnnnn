@@ -104,24 +104,27 @@ async def _get_user_sync_info(supabase_client, user_id: str) -> Optional[dict]:
     ADR-059: timezone lives in user_context (key='timezone').
     Tier comes from workspaces.subscription_status.
     """
+    # Timezone from user_context (ADR-059)
+    timezone = "UTC"
     try:
-        # Timezone from user_context (ADR-059)
         tz_result = supabase_client.table("user_context").select(
             "value"
         ).eq("user_id", user_id).eq("key", "timezone").maybe_single().execute()
         timezone = tz_result.data.get("value", "UTC") if tz_result.data else "UTC"
+    except Exception:
+        pass  # No timezone row — default to UTC
 
-        # Tier from workspaces.subscription_status
+    # Tier from workspaces.subscription_status
+    tier = "free"
+    try:
         ws_result = supabase_client.table("workspaces").select(
             "subscription_status"
         ).eq("owner_id", user_id).maybe_single().execute()
         tier = ws_result.data.get("subscription_status", "free") if ws_result.data else "free"
+    except Exception:
+        pass  # No workspace row — default to free
 
-        return {"tier": tier, "timezone": timezone}
-
-    except Exception as e:
-        logger.warning(f"Failed to get user sync info: {e}")
-        return {"tier": "free", "timezone": "UTC"}
+    return {"tier": tier, "timezone": timezone}
 
 
 def _needs_sync(platform: dict, sync_frequency: str) -> bool:
