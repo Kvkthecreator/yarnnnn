@@ -17,6 +17,9 @@ export async function GET() {
   const items = posts
     .map((post) => {
       const pubDate = new Date(post.date).toUTCString();
+      const categories = (post.tags || [])
+        .map((tag: string) => `      <category>${xmlEscape(tag)}</category>`)
+        .join("\n");
       return `
     <item>
       <title>${xmlEscape(post.title)}</title>
@@ -24,6 +27,7 @@ export async function GET() {
       <guid isPermaLink="true">${xmlEscape(post.canonicalUrl)}</guid>
       <pubDate>${pubDate}</pubDate>
       <description>${xmlEscape(post.metaDescription)}</description>
+      <author>admin@yarnnn.com (${xmlEscape(BRAND.name)})</author>${categories ? `\n${categories}` : ""}
     </item>`;
     })
     .join("");
@@ -33,7 +37,7 @@ export async function GET() {
   <channel>
     <title>${xmlEscape(`${BRAND.name} Blog`)}</title>
     <link>${xmlEscape(`${BRAND.url}/blog`)}</link>
-    <description>${xmlEscape("Ideas on context-powered AI, autonomous work, and compounding context systems.")}</description>
+    <description>${xmlEscape("Ideas on context-powered AI agents, autonomous work, and why your agent should get smarter the longer you use it.")}</description>
     <language>en-us</language>
     <lastBuildDate>${now}</lastBuildDate>${items}
   </channel>
