@@ -7,10 +7,10 @@
 
 | Service | Type | Runtime | Region | Schedule |
 |---------|------|---------|--------|----------|
-| yarnnn-api | Web Service | Python 3 (FastAPI) | Oregon | Always on |
+| yarnnn-api | Web Service | Python 3 (FastAPI) | Singapore | Always on |
 | yarnnn-unified-scheduler | Cron Job | Python 3 | Singapore | `*/5 * * * *` |
 | yarnnn-platform-sync | Cron Job | Python 3 | Singapore | `*/5 * * * *` |
-| yarnnn-mcp-server | Web Service | Python 3 (FastAPI) | Oregon | Always on |
+| yarnnn-mcp-server | Web Service | Python 3 (FastAPI) | Singapore | Always on |
 
 **Removed services** (ADR-083, 2026-02-27):
 - `yarnnn-worker` — RQ background worker (all execution now inline)

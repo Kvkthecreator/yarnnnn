@@ -113,7 +113,7 @@ The `platform-sync` cron was defined in `render.yaml` but **never provisioned on
 **Resolution**: Provisioned `yarnnn-platform-sync` cron via Render API (`crn-d6gdvi94tr6s73b6btm0`):
 - Schedule: `*/5 * * * *`
 - Command: `cd api && python -m jobs.platform_sync_scheduler`
-- Region: Oregon
+- Region: Singapore
 - 9 env vars configured (matching `render.yaml` spec)
 
 ### Concurrent Fix: `working_memory.py`
