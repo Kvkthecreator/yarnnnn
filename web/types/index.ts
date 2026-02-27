@@ -361,7 +361,10 @@ export interface TypeClassification {
   freshness_requirement_hours?: number;
 }
 
-// Type-specific section configurations
+// =============================================================================
+// ADR-082: Active Type Configurations (8 types)
+// =============================================================================
+
 export interface StatusReportSections {
   summary: boolean;
   accomplishments: boolean;
@@ -370,30 +373,6 @@ export interface StatusReportSections {
   metrics: boolean;
 }
 
-export interface StakeholderUpdateSections {
-  executive_summary: boolean;
-  highlights: boolean;
-  challenges: boolean;
-  metrics: boolean;
-  outlook: boolean;
-}
-
-export interface ResearchBriefSections {
-  key_takeaways: boolean;
-  findings: boolean;
-  implications: boolean;
-  recommendations: boolean;
-}
-
-export interface MeetingSummarySections {
-  context: boolean;
-  discussion: boolean;
-  decisions: boolean;
-  action_items: boolean;
-  followups: boolean;
-}
-
-// Type-specific configurations
 export interface StatusReportConfig {
   subject: string;
   audience: "manager" | "stakeholders" | "team" | "executive";
@@ -402,13 +381,11 @@ export interface StatusReportConfig {
   tone: "formal" | "conversational";
 }
 
-export interface StakeholderUpdateConfig {
-  audience_type: "investor" | "board" | "client" | "executive";
-  company_or_project: string;
-  relationship_context?: string;
-  sections: StakeholderUpdateSections;
-  formality: "formal" | "professional" | "conversational";
-  sensitivity: "public" | "confidential";
+export interface ResearchBriefSections {
+  key_takeaways: boolean;
+  findings: boolean;
+  implications: boolean;
+  recommendations: boolean;
 }
 
 export interface ResearchBriefConfig {
@@ -419,214 +396,66 @@ export interface ResearchBriefConfig {
   depth: "scan" | "analysis" | "deep_dive";
 }
 
-export interface MeetingSummaryConfig {
-  meeting_name: string;
-  meeting_type: "team_sync" | "one_on_one" | "standup" | "review" | "planning";
-  participants: string[];
-  sections: MeetingSummarySections;
-  format: "narrative" | "bullet_points" | "structured";
-}
-
 export interface CustomConfig {
   description: string;
   structure_notes?: string;
   example_content?: string;
 }
 
-// =============================================================================
-// Beta Tier Type Configurations
-// =============================================================================
-
-export interface ClientProposalSections {
-  executive_summary: boolean;
-  needs_understanding: boolean;
-  approach: boolean;
-  deliverables: boolean;
-  timeline: boolean;
-  investment: boolean;
-  social_proof: boolean;
+export interface SlackChannelDigestSections {
+  hot_threads: boolean;
+  key_decisions: boolean;
+  unanswered_questions: boolean;
+  mentions: boolean;
 }
 
-export interface ClientProposalConfig {
-  client_name: string;
-  project_type: "new_engagement" | "expansion" | "renewal";
-  service_category: string;
-  sections: ClientProposalSections;
-  tone: "formal" | "consultative" | "friendly";
-  include_pricing: boolean;
+export interface SlackChannelDigestConfig {
+  focus: "highlights" | "decisions" | "questions" | "all";
+  include_threads: boolean;
+  reaction_threshold: number;
+  reply_threshold: number;
+  sections: SlackChannelDigestSections;
+  max_items: number;
 }
 
-export interface PerformanceSelfAssessmentSections {
-  summary: boolean;
-  accomplishments: boolean;
-  goals_progress: boolean;
-  challenges: boolean;
-  development: boolean;
-  next_period_goals: boolean;
-}
-
-export interface PerformanceSelfAssessmentConfig {
-  review_period: "quarterly" | "semi_annual" | "annual";
-  role_level: "ic" | "senior_ic" | "lead" | "manager" | "director";
-  sections: PerformanceSelfAssessmentSections;
-  tone: "humble" | "confident" | "balanced";
-  quantify_impact: boolean;
-}
-
-export interface NewsletterSectionSections {
-  hook: boolean;
-  main_content: boolean;
-  highlights: boolean;
-  cta: boolean;
-}
-
-export interface NewsletterSectionConfig {
-  newsletter_name: string;
-  section_type: "intro" | "main_story" | "roundup" | "outro";
-  audience: "customers" | "team" | "investors" | "community";
-  sections: NewsletterSectionSections;
-  voice: "brand" | "personal" | "editorial";
-  length: "short" | "medium" | "long";
-}
-
-export interface ChangelogSections {
-  highlights: boolean;
-  new_features: boolean;
-  improvements: boolean;
-  bug_fixes: boolean;
-  breaking_changes: boolean;
-  whats_next: boolean;
-}
-
-export interface ChangelogConfig {
-  product_name: string;
-  release_type: "major" | "minor" | "patch" | "weekly";
-  audience: "developers" | "end_users" | "mixed";
-  sections: ChangelogSections;
-  format: "technical" | "user_friendly" | "marketing";
-  include_links: boolean;
-}
-
-export interface OneOnOnePrepSections {
-  context: boolean;
-  topics: boolean;
-  recognition: boolean;
-  concerns: boolean;
-  career: boolean;
-  previous_actions: boolean;
-}
-
-export interface OneOnOnePrepConfig {
-  report_name: string;
-  meeting_cadence: "weekly" | "biweekly" | "monthly";
-  relationship: "direct_report" | "skip_level" | "mentee";
-  sections: OneOnOnePrepSections;
-  focus_areas: ("performance" | "growth" | "wellbeing" | "blockers")[];
-}
-
-export interface BoardUpdateSections {
-  executive_summary: boolean;
-  metrics: boolean;
-  strategic_progress: boolean;
-  challenges: boolean;
-  financials: boolean;
-  asks: boolean;
-  outlook: boolean;
-}
-
-export interface BoardUpdateConfig {
-  company_name: string;
-  stage: "pre_seed" | "seed" | "series_a" | "series_b_plus" | "growth";
-  update_type: "quarterly" | "monthly" | "special";
-  sections: BoardUpdateSections;
-  tone: "optimistic" | "balanced" | "candid";
-  include_comparisons: boolean;
-}
-
-// =============================================================================
-// ADR-029 Phase 3: Email-Specific Deliverable Types
-// =============================================================================
-
-export interface InboxSummarySections {
-  overview: boolean;
+export interface GmailInboxBriefSections {
   urgent: boolean;
   action_required: boolean;
-  fyi_items: boolean;
-  threads_to_close: boolean;
+  fyi: boolean;
+  follow_ups: boolean;
 }
 
-export interface InboxSummaryConfig {
-  summary_period: "daily" | "weekly";
-  inbox_scope: "all" | "unread" | "flagged";
-  sections: InboxSummarySections;
-  prioritization: "by_sender" | "by_urgency" | "chronological";
-  include_thread_context: boolean;
+export interface GmailInboxBriefConfig {
+  focus: "triage" | "summary" | "action_items";
+  priority_senders: string[];
+  sections: GmailInboxBriefSections;
+  include_sent: boolean;
+  max_items: number;
 }
 
-export interface ReplyDraftSections {
-  acknowledgment: boolean;
-  response_body: boolean;
-  next_steps: boolean;
-  closing: boolean;
+export interface NotionPageSummarySections {
+  changes: boolean;
+  new_content: boolean;
+  completed_tasks: boolean;
+  open_comments: boolean;
 }
 
-export interface ReplyDraftConfig {
-  thread_id: string;
-  tone: "formal" | "professional" | "friendly" | "brief";
-  sections: ReplyDraftSections;
-  include_original_quotes: boolean;
-  suggested_actions?: string[];  // User hints for what to include
+export interface NotionPageSummaryConfig {
+  summary_type: "changelog" | "overview" | "activity";
+  include_subpages: boolean;
+  max_depth: number;
+  sections: NotionPageSummarySections;
+  time_range_days: number;
 }
 
-export interface FollowUpTrackerSections {
-  overdue: boolean;
-  due_soon: boolean;
-  waiting_on_others: boolean;
-  commitments_made: boolean;
-}
-
-export interface FollowUpTrackerConfig {
-  tracking_period: "7d" | "14d" | "30d";
-  sections: FollowUpTrackerSections;
-  include_thread_links: boolean;
-  prioritize_by: "age" | "sender_importance" | "subject";
-}
-
-export interface ThreadSummarySections {
-  participants: boolean;
-  timeline: boolean;
-  key_points: boolean;
-  decisions: boolean;
-  open_questions: boolean;
-}
-
-export interface ThreadSummaryConfig {
-  thread_id: string;
-  sections: ThreadSummarySections;
-  detail_level: "brief" | "detailed";
-  highlight_action_items: boolean;
-}
-
-// Union type for type_config - use Record for flexibility with partial configs
+// ADR-082: Union type for type_config (active types + fallback)
 export type TypeConfig =
-  // Tier 1 - Stable
   | StatusReportConfig
-  | StakeholderUpdateConfig
   | ResearchBriefConfig
-  | MeetingSummaryConfig
   | CustomConfig
-  // Beta Tier
-  | ClientProposalConfig
-  | PerformanceSelfAssessmentConfig
-  | NewsletterSectionConfig
-  | ChangelogConfig
-  | OneOnOnePrepConfig
-  | BoardUpdateConfig
-  // ADR-029 Phase 3: Email-specific
-  | InboxSummaryConfig
-  | ReplyDraftConfig
-  | FollowUpTrackerConfig
-  | ThreadSummaryConfig
+  | SlackChannelDigestConfig
+  | GmailInboxBriefConfig
+  | NotionPageSummaryConfig
   | Record<string, unknown>;
 
 export interface RecipientContext {
@@ -881,17 +710,6 @@ export interface SkillListResponse {
   skills: Skill[];
   total: number;
 }
-
-// =============================================================================
-// ADR-031 Phase 6: Cross-Platform Synthesizers
-// =============================================================================
-
-// Synthesizer types (new deliverable archetypes)
-export type SynthesizerType =
-  | "weekly_status"
-  | "project_brief"
-  | "cross_platform_digest"
-  | "activity_summary";
 
 // Multi-destination delivery result
 export interface DestinationDeliveryResult {

@@ -1,6 +1,6 @@
 # ADR-035: Platform-First Deliverable Type System
 
-> **Status**: Proposed
+> **Status**: Superseded by [ADR-082](ADR-082-deliverable-type-consolidation.md) — type system consolidated from 27 to 8 active types
 > **Created**: 2025-02-09
 > **Related**: ADR-019 (Deliverable Types), ADR-031 (Platform-Native Deliverables), ADR-032 (Platform-Native Frontend)
 

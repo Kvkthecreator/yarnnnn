@@ -1,6 +1,6 @@
 # ADR-019: Deliverable Types System
 
-**Status:** Proposed
+**Status:** Superseded by [ADR-082](ADR-082-deliverable-type-consolidation.md) — type system consolidated from 27 to 8 active types
 **Date:** 2026-02-02
 **Extends:** ADR-018 (Recurring Deliverables Product Pivot)
 

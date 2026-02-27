@@ -57,24 +57,16 @@ function formatSchedule(schedule?: ScheduleConfig): string | null {
   return frequency;
 }
 
-// Deliverable type labels for display
+// ADR-082: 8 active type labels (deprecated types fall through to raw name)
 const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
+  slack_channel_digest: 'Channel Digest',
+  gmail_inbox_brief: 'Inbox Brief',
+  notion_page_summary: 'Page Summary',
+  meeting_prep: 'Meeting Prep',
+  weekly_calendar_preview: 'Week Preview',
   status_report: 'Status Report',
-  stakeholder_update: 'Stakeholder Update',
   research_brief: 'Research Brief',
-  meeting_summary: 'Meeting Summary',
   custom: 'Custom',
-  client_proposal: 'Client Proposal',
-  performance_self_assessment: 'Self-Assessment',
-  newsletter_section: 'Newsletter',
-  changelog: 'Changelog',
-  one_on_one_prep: '1:1 Prep',
-  board_update: 'Board Update',
-  // ADR-029 Phase 3: Email-specific types
-  inbox_summary: 'Inbox Summary',
-  reply_draft: 'Reply Draft',
-  follow_up_tracker: 'Follow-up Tracker',
-  thread_summary: 'Thread Summary',
 };
 
 interface DashboardData {

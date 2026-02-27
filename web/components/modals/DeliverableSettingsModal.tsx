@@ -78,36 +78,16 @@ const DAY_OPTIONS = [
   { value: 'sunday', label: 'Sunday' },
 ];
 
+// ADR-082: 8 active type labels (deprecated types fall through to raw name)
 const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
-  status_report: 'Status Report',
-  stakeholder_update: 'Stakeholder Update',
-  research_brief: 'Research Brief',
-  meeting_summary: 'Meeting Summary',
-  custom: 'Custom',
-  client_proposal: 'Client Proposal',
-  performance_self_assessment: 'Performance Self-Assessment',
-  newsletter_section: 'Newsletter Section',
-  changelog: 'Changelog',
-  one_on_one_prep: '1:1 Prep',
-  board_update: 'Board Update',
-  // ADR-029 Phase 3: Email-specific types
-  inbox_summary: 'Inbox Summary',
-  reply_draft: 'Reply Draft',
-  follow_up_tracker: 'Follow-up Tracker',
-  thread_summary: 'Thread Summary',
-  // ADR-031 Phase 6: Cross-Platform Synthesizers
-  weekly_status: 'Weekly Status',
-  project_brief: 'Project Brief',
-  cross_platform_digest: 'Cross-Platform Digest',
-  activity_summary: 'Activity Summary',
-  // ADR-035/044: Platform-First Types
   slack_channel_digest: 'Channel Digest',
-  slack_standup: 'Standup Synthesis',
   gmail_inbox_brief: 'Inbox Brief',
   notion_page_summary: 'Page Summary',
-  // ADR-046: Calendar-triggered types
   meeting_prep: 'Meeting Prep',
   weekly_calendar_preview: 'Week Preview',
+  status_report: 'Status Report',
+  research_brief: 'Research Brief',
+  custom: 'Custom',
 };
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {

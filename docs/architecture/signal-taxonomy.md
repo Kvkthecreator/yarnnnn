@@ -40,33 +40,31 @@ The `deliverable_type` field determines:
 - What execution strategy is used (execution_strategies.py via type_classification)
 - What fields are available in type_config
 
-**All existing types** (defined in [routes/deliverables.py](../../api/routes/deliverables.py:76-109)):
+**Active types** (ADR-082 — 8 types, defined in [routes/deliverables.py](../../api/routes/deliverables.py)):
 
 ```python
 # Platform-bound types (single platform focus)
-"slack_channel_digest", "slack_standup",           # Slack
-"gmail_inbox_brief", "inbox_summary", "reply_draft",
-"follow_up_tracker", "thread_summary",              # Gmail
-"notion_page_summary",                              # Notion
-"meeting_prep", "weekly_calendar_preview",          # Calendar
+"slack_channel_digest",        # Slack
+"gmail_inbox_brief",           # Gmail
+"notion_page_summary",         # Notion
+"meeting_prep",                # Calendar (reactive)
+"weekly_calendar_preview",     # Calendar (scheduled)
 
 # Cross-platform types (multi-source synthesis)
-"status_report", "weekly_status", "activity_summary",
-"stakeholder_update", "client_proposal", "board_update",
-"meeting_summary", "one_on_one_prep",
-"newsletter_section", "changelog", "performance_self_assessment",
+"status_report",               # Weekly cross-platform synthesis
 
 # Research types (web search)
 "research_brief",
 
-# Custom
+# Custom (hybrid)
 "custom"
 ```
 
-**New signal-emergent types** (Phase 4+):
-- `meeting_prep` — **Already exists** as a user-configurable type
-- `silence_alert` — **New type** (not yet implemented in deliverable_pipeline.py)
-- `contact_drift` — **New type** (not yet implemented)
+19 deprecated types remain in the DB constraint for backwards compatibility but are not selectable in the UI. See [ADR-082](../adr/ADR-082-deliverable-type-consolidation.md) for what each deprecated type was absorbed into.
+
+**Signal-emergent types** that signal processing creates:
+- `meeting_prep` — Active type, signal creates it for upcoming calendar events
+- `status_report`, `research_brief`, `custom` — Active types referenced by signal reasoning
 
 ---
 
@@ -97,10 +95,10 @@ The deliverables list page ([deliverables/page.tsx](../../web/app/(authenticated
 
 | UI Group | Rule | Examples | Icon |
 |---|---|---|---|
-| **SLACK** | `primary_platform=slack` OR `destination.platform=slack` | slack_channel_digest, slack_standup | 💬 |
-| **EMAIL** | `primary_platform=gmail` OR `destination.platform=email/gmail` | gmail_inbox_brief, reply_draft | 📧 |
+| **SLACK** | `primary_platform=slack` OR `destination.platform=slack` | slack_channel_digest | 💬 |
+| **EMAIL** | `primary_platform=gmail` OR `destination.platform=email/gmail` | gmail_inbox_brief | 📧 |
 | **NOTION** | `primary_platform=notion` OR `destination.platform=notion` | notion_page_summary | 📝 |
-| **SYNTHESIS** | `binding=cross_platform/hybrid/research` OR no clear platform | status_report, stakeholder_update, **meeting_prep** | 📊 |
+| **SYNTHESIS** | `binding=cross_platform/hybrid/research` OR no clear platform | status_report, research_brief, custom, **meeting_prep** | 📊 |
 
 **Key insight**: "SYNTHESIS" is the UI catch-all for **cross-platform work**. It includes:
 - Deliverables that pull from multiple platforms (status_report)

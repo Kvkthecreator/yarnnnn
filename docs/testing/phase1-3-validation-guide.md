@@ -19,11 +19,11 @@ python3 scripts/validate_phase1_integration.py
 This validates:
 - ✅ Layer 4 content integration in manual signal processing
 - ✅ Layer 4 content integration in automated cron
-- ✅ New deliverable types registered (deep_research, daily_strategy_reflection, intelligence_brief)
+- ✅ ~~New deliverable types registered (deep_research, daily_strategy_reflection, intelligence_brief)~~ — **Deprecated by ADR-082**: these types are now absorbed into research_brief and status_report
 - ✅ Memory extraction wired to approval endpoint
 - ✅ Pattern detection scheduled at midnight UTC
 - ✅ 5 pattern types implemented
-- ✅ TYPE_PROMPTS has 24 entries
+- ✅ ~~TYPE_PROMPTS has 24 entries~~ — **Updated by ADR-082**: TYPE_PROMPTS now has 8 entries (active types only)
 - ✅ Documentation complete (ADR-069, ADR-070, ADR-071)
 
 ---

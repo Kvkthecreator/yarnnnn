@@ -19,7 +19,7 @@ Endpoints:
 import logging
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, Field
-from typing import Optional, Literal, Union, Annotated
+from typing import Optional, Literal, Union
 from uuid import UUID
 from datetime import datetime, timezone
 
@@ -240,25 +240,6 @@ class StatusReportConfig(BaseModel):
     tone: Literal["formal", "conversational"] = "formal"
 
 
-class StakeholderUpdateSections(BaseModel):
-    """Sections to include in a stakeholder update."""
-    executive_summary: bool = True
-    highlights: bool = True
-    challenges: bool = True
-    metrics: bool = False
-    outlook: bool = True
-
-
-class StakeholderUpdateConfig(BaseModel):
-    """Configuration for stakeholder update type."""
-    audience_type: Literal["investor", "board", "client", "executive"]
-    company_or_project: str
-    relationship_context: Optional[str] = None  # "Series A investor", "Enterprise client"
-    sections: StakeholderUpdateSections = Field(default_factory=StakeholderUpdateSections)
-    formality: Literal["formal", "professional", "conversational"] = "professional"
-    sensitivity: Literal["public", "confidential"] = "confidential"
-
-
 class ResearchBriefSections(BaseModel):
     """Sections to include in a research brief."""
     key_takeaways: bool = True
@@ -276,24 +257,6 @@ class ResearchBriefConfig(BaseModel):
     depth: Literal["scan", "analysis", "deep_dive"] = "analysis"
 
 
-class MeetingSummarySections(BaseModel):
-    """Sections to include in a meeting summary."""
-    context: bool = True
-    discussion: bool = True
-    decisions: bool = True
-    action_items: bool = True
-    followups: bool = True
-
-
-class MeetingSummaryConfig(BaseModel):
-    """Configuration for meeting summary type."""
-    meeting_name: str  # "Engineering Weekly", "Product Sync"
-    meeting_type: Literal["team_sync", "one_on_one", "standup", "review", "planning"]
-    participants: list[str] = Field(default_factory=list)
-    sections: MeetingSummarySections = Field(default_factory=MeetingSummarySections)
-    format: Literal["narrative", "bullet_points", "structured"] = "structured"
-
-
 class CustomConfig(BaseModel):
     """Configuration for custom/freeform deliverable type."""
     description: str
@@ -302,185 +265,7 @@ class CustomConfig(BaseModel):
 
 
 # =============================================================================
-# ADR-019: Beta Tier Type Definitions
-# =============================================================================
-
-class ClientProposalSections(BaseModel):
-    """Sections to include in a client proposal."""
-    executive_summary: bool = True
-    needs_understanding: bool = True
-    approach: bool = True
-    deliverables: bool = True
-    timeline: bool = True
-    investment: bool = True
-    social_proof: bool = False
-
-
-class ClientProposalConfig(BaseModel):
-    """Configuration for client proposal type (Beta)."""
-    client_name: str
-    project_type: Literal["new_engagement", "expansion", "renewal"] = "new_engagement"
-    service_category: str  # "Brand Strategy", "Web Development"
-    sections: ClientProposalSections = Field(default_factory=ClientProposalSections)
-    tone: Literal["formal", "consultative", "friendly"] = "consultative"
-    include_pricing: bool = True
-
-
-class PerformanceSelfAssessmentSections(BaseModel):
-    """Sections to include in a self-assessment."""
-    summary: bool = True
-    accomplishments: bool = True
-    goals_progress: bool = True
-    challenges: bool = True
-    development: bool = True
-    next_period_goals: bool = True
-
-
-class PerformanceSelfAssessmentConfig(BaseModel):
-    """Configuration for performance self-assessment type (Beta)."""
-    review_period: Literal["quarterly", "semi_annual", "annual"] = "quarterly"
-    role_level: Literal["ic", "senior_ic", "lead", "manager", "director"] = "ic"
-    sections: PerformanceSelfAssessmentSections = Field(default_factory=PerformanceSelfAssessmentSections)
-    tone: Literal["humble", "confident", "balanced"] = "balanced"
-    quantify_impact: bool = True
-
-
-class NewsletterSectionSections(BaseModel):
-    """Sections to include in a newsletter section."""
-    hook: bool = True
-    main_content: bool = True
-    highlights: bool = True
-    cta: bool = True
-
-
-class NewsletterSectionConfig(BaseModel):
-    """Configuration for newsletter section type (Beta)."""
-    newsletter_name: str
-    section_type: Literal["intro", "main_story", "roundup", "outro"] = "main_story"
-    audience: Literal["customers", "team", "investors", "community"] = "customers"
-    sections: NewsletterSectionSections = Field(default_factory=NewsletterSectionSections)
-    voice: Literal["brand", "personal", "editorial"] = "brand"
-    length: Literal["short", "medium", "long"] = "medium"  # 100-200, 200-400, 400-800 words
-
-
-class ChangelogSections(BaseModel):
-    """Sections to include in a changelog."""
-    highlights: bool = True
-    new_features: bool = True
-    improvements: bool = True
-    bug_fixes: bool = True
-    breaking_changes: bool = False
-    whats_next: bool = False
-
-
-class ChangelogConfig(BaseModel):
-    """Configuration for changelog type (Beta)."""
-    product_name: str
-    release_type: Literal["major", "minor", "patch", "weekly"] = "weekly"
-    audience: Literal["developers", "end_users", "mixed"] = "mixed"
-    sections: ChangelogSections = Field(default_factory=ChangelogSections)
-    format: Literal["technical", "user_friendly", "marketing"] = "user_friendly"
-    include_links: bool = True
-
-
-class OneOnOnePrepSections(BaseModel):
-    """Sections to include in 1:1 prep."""
-    context: bool = True
-    topics: bool = True
-    recognition: bool = True
-    concerns: bool = True
-    career: bool = True
-    previous_actions: bool = True
-
-
-class OneOnOnePrepConfig(BaseModel):
-    """Configuration for 1:1 prep type (Beta)."""
-    report_name: str
-    meeting_cadence: Literal["weekly", "biweekly", "monthly"] = "weekly"
-    relationship: Literal["direct_report", "skip_level", "mentee"] = "direct_report"
-    sections: OneOnOnePrepSections = Field(default_factory=OneOnOnePrepSections)
-    focus_areas: list[Literal["performance", "growth", "wellbeing", "blockers"]] = Field(
-        default_factory=lambda: ["performance", "growth"]
-    )
-
-
-class BoardUpdateSections(BaseModel):
-    """Sections to include in a board update."""
-    executive_summary: bool = True
-    metrics: bool = True
-    strategic_progress: bool = True
-    challenges: bool = True
-    financials: bool = True
-    asks: bool = True
-    outlook: bool = True
-
-
-class BoardUpdateConfig(BaseModel):
-    """Configuration for board update type (Beta)."""
-    company_name: str
-    stage: Literal["pre_seed", "seed", "series_a", "series_b_plus", "growth"] = "seed"
-    update_type: Literal["quarterly", "monthly", "special"] = "quarterly"
-    sections: BoardUpdateSections = Field(default_factory=BoardUpdateSections)
-    tone: Literal["optimistic", "balanced", "candid"] = "balanced"
-    include_comparisons: bool = True  # vs last quarter, vs plan
-
-
-# =============================================================================
-# ADR-031 Phase 6: Cross-Platform Synthesizer Configs
-# =============================================================================
-
-class WeeklyStatusSections(BaseModel):
-    """Sections to include in weekly status."""
-    executive_summary: bool = True
-    accomplishments: bool = True
-    in_progress: bool = True
-    action_items: bool = True
-    looking_ahead: bool = True
-    key_discussions: bool = True
-
-
-class WeeklyStatusConfig(BaseModel):
-    """Configuration for weekly status synthesizer."""
-    project_name: str
-    project_id: Optional[str] = None  # Link to project for resource mapping
-    time_range_days: int = 7
-    include_platforms: list[Literal["slack", "gmail", "notion", "calendar"]] = Field(
-        default_factory=lambda: ["slack", "gmail", "notion"]
-    )
-    sections: WeeklyStatusSections = Field(default_factory=WeeklyStatusSections)
-    detail_level: Literal["brief", "standard", "detailed"] = "standard"
-
-
-class ProjectBriefConfig(BaseModel):
-    """Configuration for project brief synthesizer."""
-    project_name: str
-    project_id: Optional[str] = None
-    brief_type: Literal["overview", "status", "handoff"] = "overview"
-    include_timeline: bool = True
-    include_resources: bool = True
-
-
-class CrossPlatformDigestConfig(BaseModel):
-    """Configuration for cross-platform digest synthesizer."""
-    user_name: Optional[str] = None
-    time_range_days: int = 7
-    include_platforms: list[Literal["slack", "gmail", "notion", "calendar"]] = Field(
-        default_factory=lambda: ["slack", "gmail", "notion"]
-    )
-    priority_focus: Literal["urgent", "balanced", "comprehensive"] = "balanced"
-
-
-class ActivitySummaryConfig(BaseModel):
-    """Configuration for activity summary synthesizer."""
-    time_range_days: int = 7
-    max_items: int = 10  # Top items to surface
-    include_platforms: list[Literal["slack", "gmail", "notion", "calendar"]] = Field(
-        default_factory=lambda: ["slack", "gmail", "notion"]
-    )
-
-
-# =============================================================================
-# ADR-035: Platform-First Wave 1 Type Configs
+# ADR-082: Active Type Configs (8 types)
 # =============================================================================
 
 class SlackChannelDigestSections(BaseModel):
@@ -499,22 +284,6 @@ class SlackChannelDigestConfig(BaseModel):
     reply_threshold: int = 3  # Min replies to mark as hot thread
     sections: SlackChannelDigestSections = Field(default_factory=SlackChannelDigestSections)
     max_items: int = 15  # Max items to include in digest
-
-
-class SlackStandupSections(BaseModel):
-    """Sections to include in Slack standup."""
-    done: bool = True
-    doing: bool = True
-    blockers: bool = True
-
-
-class SlackStandupConfig(BaseModel):
-    """Configuration for Slack standup generation (Wave 1)."""
-    source_mode: Literal["personal", "team"] = "personal"
-    format: Literal["bullet", "narrative"] = "bullet"
-    sections: SlackStandupSections = Field(default_factory=SlackStandupSections)
-    time_range_days: int = 1  # Look back 1 day for standup
-    include_thread_replies: bool = True
 
 
 class GmailInboxBriefSections(BaseModel):
@@ -551,99 +320,14 @@ class NotionPageSummaryConfig(BaseModel):
     time_range_days: int = 7
 
 
-# =============================================================================
-# Phase 2: Strategic Intelligence Types
-# =============================================================================
-
-class DeepResearchSections(BaseModel):
-    """Sections to include in deep research deliverable."""
-    executive_summary: bool = True
-    background: bool = True
-    key_findings: bool = True
-    analysis: bool = True
-    recommendations: bool = True
-    sources: bool = True
-    appendix: bool = False
-
-
-class DeepResearchConfig(BaseModel):
-    """Configuration for deep research type (Phase 2)."""
-    topic: str  # Research topic or question
-    research_type: Literal["competitive", "market", "technology", "industry", "strategic"] = "strategic"
-    depth: Literal["comprehensive", "exhaustive"] = "comprehensive"
-    time_horizon: Literal["current", "1_year", "3_year", "5_year"] = "current"
-    sections: DeepResearchSections = Field(default_factory=DeepResearchSections)
-    sources_required: int = 10  # Minimum number of sources
-    include_citations: bool = True
-
-
-class DailyStrategyReflectionSections(BaseModel):
-    """Sections to include in daily strategy reflection."""
-    strategic_movements: bool = True  # Key developments in strategic landscape
-    decision_points: bool = True  # Decisions requiring strategic consideration
-    pattern_recognition: bool = True  # Emerging patterns from activity
-    action_prioritization: bool = True  # Strategic priorities for next period
-    learning_insights: bool = True  # Meta-learnings from the day
-
-
-class DailyStrategyReflectionConfig(BaseModel):
-    """Configuration for daily strategy reflection type (Phase 2)."""
-    focus_area: Optional[str] = None  # e.g., "Product strategy", "Team growth"
-    reflection_time: Literal["morning", "evening", "eod"] = "evening"
-    lookback_days: int = 1  # How many days of activity to analyze
-    sections: DailyStrategyReflectionSections = Field(default_factory=DailyStrategyReflectionSections)
-    include_context_synthesis: bool = True  # Synthesize with Layer 3 context
-    tone: Literal["analytical", "reflective", "directive"] = "reflective"
-
-
-class IntelligenceBriefSections(BaseModel):
-    """Sections to include in intelligence brief."""
-    situation_summary: bool = True  # Current state of affairs
-    key_developments: bool = True  # What changed recently
-    threat_opportunities: bool = True  # Risks and opportunities
-    recommended_actions: bool = True  # Immediate next steps
-    monitoring_indicators: bool = True  # What to watch
-
-
-class IntelligenceBriefConfig(BaseModel):
-    """Configuration for intelligence brief type (Phase 2)."""
-    brief_type: Literal["competitive", "market", "operational", "strategic"] = "strategic"
-    audience: Literal["executive", "team", "board", "stakeholders"] = "executive"
-    time_sensitivity: Literal["immediate", "daily", "weekly"] = "daily"
-    sections: IntelligenceBriefSections = Field(default_factory=IntelligenceBriefSections)
-    include_confidence_levels: bool = True  # Mark findings with confidence scores
-    max_length_words: int = 800  # Tight word count for brevity
-
-
-# Union type for type_config
+# ADR-082: Union type for type_config (8 active types)
 TypeConfig = Union[
-    # Tier 1 - Stable
     StatusReportConfig,
-    StakeholderUpdateConfig,
     ResearchBriefConfig,
-    MeetingSummaryConfig,
     CustomConfig,
-    # Beta Tier
-    ClientProposalConfig,
-    PerformanceSelfAssessmentConfig,
-    NewsletterSectionConfig,
-    ChangelogConfig,
-    OneOnOnePrepConfig,
-    BoardUpdateConfig,
-    # ADR-031 Phase 6: Cross-Platform Synthesizers
-    WeeklyStatusConfig,
-    ProjectBriefConfig,
-    CrossPlatformDigestConfig,
-    ActivitySummaryConfig,
-    # ADR-035: Platform-First Wave 1 Types
     SlackChannelDigestConfig,
-    SlackStandupConfig,
     GmailInboxBriefConfig,
     NotionPageSummaryConfig,
-    # Phase 2: Strategic Intelligence Types
-    DeepResearchConfig,
-    DailyStrategyReflectionConfig,
-    IntelligenceBriefConfig,
 ]
 
 
@@ -726,61 +410,16 @@ def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
 
 
 def get_default_config(deliverable_type: DeliverableType) -> dict:
-    """Get default configuration for a deliverable type."""
+    """Get default configuration for a deliverable type (ADR-082: 8 active types)."""
     defaults = {
-        # Tier 1 - Stable
         "status_report": StatusReportConfig(subject="", audience="stakeholders"),
-        "stakeholder_update": StakeholderUpdateConfig(
-            audience_type="client",
-            company_or_project=""
-        ),
-        "research_brief": ResearchBriefConfig(
-            focus_area="competitive",
-            subjects=[]
-        ),
-        "meeting_summary": MeetingSummaryConfig(
-            meeting_name="",
-            meeting_type="team_sync"
-        ),
+        "research_brief": ResearchBriefConfig(focus_area="competitive", subjects=[]),
         "custom": CustomConfig(description=""),
-        # Beta Tier
-        "client_proposal": ClientProposalConfig(
-            client_name="",
-            service_category=""
-        ),
-        "performance_self_assessment": PerformanceSelfAssessmentConfig(),
-        "newsletter_section": NewsletterSectionConfig(
-            newsletter_name=""
-        ),
-        "changelog": ChangelogConfig(
-            product_name=""
-        ),
-        "one_on_one_prep": OneOnOnePrepConfig(
-            report_name=""
-        ),
-        "board_update": BoardUpdateConfig(
-            company_name=""
-        ),
-        # ADR-031 Phase 6: Cross-Platform Synthesizers
-        "weekly_status": WeeklyStatusConfig(
-            project_name=""
-        ),
-        "project_brief": ProjectBriefConfig(
-            project_name=""
-        ),
-        "cross_platform_digest": CrossPlatformDigestConfig(),
-        "activity_summary": ActivitySummaryConfig(),
-        # ADR-035: Platform-First Wave 1 Types
         "slack_channel_digest": SlackChannelDigestConfig(),
-        "slack_standup": SlackStandupConfig(),
         "gmail_inbox_brief": GmailInboxBriefConfig(),
         "notion_page_summary": NotionPageSummaryConfig(),
-        # Phase 2: Strategic Intelligence Types
-        "deep_research": DeepResearchConfig(
-            topic=""
-        ),
-        "daily_strategy_reflection": DailyStrategyReflectionConfig(),
-        "intelligence_brief": IntelligenceBriefConfig(),
+        # meeting_prep and weekly_calendar_preview don't have config models —
+        # they're built from calendar event data at runtime
     }
     return defaults.get(deliverable_type, defaults["custom"]).model_dump()
 

@@ -6,6 +6,21 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.27.2] - Dead code deletion: remove all deprecated type code (ADR-082)
+
+### Deleted
+- `api/services/deliverable_pipeline.py`: Deleted 19 deprecated TYPE_PROMPTS entries, 19 SECTION_TEMPLATES entries, 16 deprecated validation functions (`validate_stakeholder_update`, `validate_meeting_summary`, `validate_client_proposal`, `validate_performance_self_assessment`, `validate_newsletter_section`, `validate_changelog`, `validate_one_on_one_prep`, `validate_board_update`, `validate_inbox_summary`, `validate_reply_draft`, `validate_follow_up_tracker`, `validate_thread_summary`, `validate_slack_standup`, `validate_deep_research`, `validate_daily_strategy_reflection`, `validate_intelligence_brief`). Deleted deprecated VARIANT_PROMPTS (email_summary, email_draft_reply, email_follow_up, email_weekly_digest, email_triage, notion_page, weekly_status, project_brief, cross_platform_digest, activity_summary) and their handler branches in `_build_variant_prompt()`. `validate_output()` reduced to 6 active validators.
+- `api/routes/deliverables.py`: Deleted 6 deprecated Pydantic config models (DeepResearch*, DailyStrategyReflection*, IntelligenceBrief*). TypeConfig union reduced to 6 active types. `get_default_config()` reduced to 6 entries. Removed unused `Annotated` import.
+- `web/types/index.ts`: Deleted 24 deprecated TypeScript interfaces (Section + Config pairs for all deprecated types). Deleted `SynthesizerType`. TypeConfig union reduced to 6 active types + `Record` fallback.
+- `web/components/modals/DeliverableSettingsModal.tsx`: DELIVERABLE_TYPE_LABELS reduced to 8 active types.
+- `web/components/surfaces/IdleSurface.tsx`: DELIVERABLE_TYPE_LABELS reduced to 8 active types.
+
+### Behavior
+- Deprecated types still work via aliasing in `get_type_classification()` and `_TYPE_PROMPT_ALIASES` in `build_type_prompt()` — they route to the parent type's prompt, strategy, and validation.
+- No backwards-compatibility shims for the deleted code per CLAUDE.md Section 2.
+
+---
+
 ## [2026.02.27.1] - Type consolidation: 27→8 active types (ADR-082)
 
 ### Changed

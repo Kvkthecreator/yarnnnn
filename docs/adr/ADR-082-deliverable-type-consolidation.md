@@ -1,6 +1,6 @@
 # ADR-082: Deliverable Type Consolidation
 
-**Status:** Proposed
+**Status:** Accepted (Implemented 2026-02-27)
 **Date:** 2026-02-27
 **Amends:** ADR-044 (Type Reconceptualization) — reduces type surface from 27 to 8
 **Supersedes:** ADR-019 (Deliverable Types System) — original type definitions
@@ -216,28 +216,43 @@ This is deferred because:
 
 ---
 
-## Implementation sequence
+## Implementation status
 
-### Phase 1 — Documentation update (this PR)
+All phases completed 2026-02-27.
 
-Update `docs/architecture/deliverables.md` type section to reflect 8 active types with correct bindings, terminology, and classification. Fix all documented inconsistencies.
+### Phase 1 — Documentation update ✅
 
-### Phase 2 — Backend type consolidation
+- `docs/architecture/deliverables.md` rewritten: 8 active types, correct bindings, canonical terminology
+- ADR-044 marked "Amended by ADR-082", ADR-019 marked "Superseded by ADR-082"
 
-1. Mark 19 types as `deprecated` in TYPE_TIERS
-2. Remove TYPE_WAVES, TYPE_GOVERNANCE_CEILINGS, TYPE_EXTRACTION_SIGNALS
-3. Update `get_type_classification()` to alias deprecated types to parent bindings
-4. Simplify prompt registry — deprecated types fall back to parent prompt
+### Phase 2 — Backend type consolidation ✅
 
-### Phase 3 — Frontend consolidation
+- TYPE_TIERS: 8 stable, 19 deprecated
+- Removed TYPE_WAVES, TYPE_GOVERNANCE_CEILINGS, TYPE_EXTRACTION_SIGNALS dicts
+- `get_type_classification()`: alias map routes deprecated types to parent bindings
+- TYPE_PROMPTS: reduced to 8 active entries (deprecated prompts deleted, not shimmed)
+- SECTION_TEMPLATES: reduced to 7 active entries (custom has no sections)
+- VARIANT_PROMPTS: removed all deprecated variants (email, cross-platform synthesizer, notion_page)
+- Validation functions: removed 16 deprecated validators, `validate_output()` routes to 6 active validators
+- Config models: removed 19 deprecated Pydantic configs, TypeConfig union reduced to 6 active types
+- `get_default_config()`: reduced to 6 active type defaults
+- `build_type_prompt()`: uses `_TYPE_PROMPT_ALIASES` to resolve deprecated types to parent prompt
 
-1. TypeSelector: 8 active types across 4 binding categories
-2. Remove LegacyTypeSelector
-3. Add `ActiveDeliverableType` union to `types/index.ts`
+### Phase 3 — Frontend consolidation ✅
 
-### Phase 4 — Signal processing alignment
+- TypeSelector: 8 types across 4 binding categories, LegacyTypeSelector removed
+- `ActiveDeliverableType` union added to `types/index.ts`
+- `DeliverableTier` changed from `"stable" | "beta" | "experimental"` to `"stable" | "deprecated"`
+- Removed 24 deprecated TypeScript interfaces (Section + Config for each deprecated type)
+- `SynthesizerType` removed
+- TypeConfig union reduced to 6 active types + `Record<string, unknown>` fallback
+- DELIVERABLE_TYPE_LABELS in DeliverableSettingsModal and IdleSurface reduced to 8 active types
 
-Verify signal processing only creates active types. Update type references if needed.
+### Phase 4 — Signal processing alignment ✅
+
+- `_REASONING_SYSTEM_PROMPT`: references only active types (status_report, research_brief, custom)
+- `SUGGESTABLE_TYPES` in conversation_analysis: removed `weekly_status`
+- `get_type_classification()` used instead of hardcoded meeting_prep classification
 
 ---
 
