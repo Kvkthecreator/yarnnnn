@@ -2,7 +2,7 @@
 
 How platform data flows from OAuth connection through to the TP system prompt and deliverable execution.
 
-> **Last updated**: 2026-02-25 (ADR-077 — platform sync overhaul, ADR-076 — direct API clients)
+> **Last updated**: 2026-02-27 (consistency sweep — sync frequency fix, stale gaps removed)
 
 ---
 
@@ -154,11 +154,11 @@ A single flat key-value store for everything TP knows *about the user*. Replaces
 
 ## Sync Frequency (ADR-053)
 
-| Tier | Frequency | Min interval |
-|---|---|---|
-| Free | 1x/day | 24 hours |
-| Starter | 4x/day | 4 hours |
-| Pro | Hourly | 45 minutes |
+| Tier | Frequency | Min interval | Schedule |
+|---|---|---|---|
+| Free | 2x/day | 6 hours | 8am + 6pm user timezone |
+| Starter | 4x/day | 4 hours | Every 6 hours |
+| Pro | Hourly | 45 minutes | Top of each hour |
 
 Triggered by `platform_sync_scheduler.py` → `platform_worker.py` every 5 minutes.
 
@@ -274,8 +274,6 @@ All platforms use Direct API clients — no MCP gateway, no subprocess managemen
 
 ---
 
-## Known Gaps (as of 2026-02-20)
+## Known Gaps
 
 1. **Document-to-Memory extraction removed** — Documents populate filesystem_chunks only. Intentional for now; "promote to Memory" is a deferred feature.
-
-2. **Unified content layer (ADR-072)** — `platform_content` is now the single content table. The previous `filesystem_items` table was dropped in migration 077. All content access goes through unified primitives.

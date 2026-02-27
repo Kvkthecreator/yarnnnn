@@ -2,11 +2,11 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-11
-> **Updated**: 2026-02-23 (table name fixes: platform_content → platform_content)
+> **Updated**: 2026-02-27 (consistency sweep — ADR-076 Direct API references)
 > **Location**: `api/agents/thinking_partner.py`
 > **Primitives**: 9 (ADR-038 + ADR-045 + list_integrations)
-> **Platform Tools**: Slack, Notion, Gmail, Calendar (ADR-046, ADR-050)
-> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-050: MCP Gateway](../adr/ADR-050-mcp-gateway-architecture.md), [ADR-065: Live-First Platform Context](../adr/ADR-065-live-first-platform-context.md)
+> **Platform Tools**: Slack, Notion, Gmail, Calendar — all Direct API (ADR-076)
+> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-076: Direct API Consolidation](../adr/ADR-076-direct-api-consolidation.md), [ADR-065: Live-First Platform Context](../adr/ADR-065-live-first-platform-context.md)
 
 ---
 
@@ -145,10 +145,10 @@ Platform tools are dynamically added based on user's connected integrations:
 
 | Provider | Tools | Backend |
 |----------|-------|---------|
-| **Slack** | `platform_slack_send_message`, `platform_slack_list_channels`, `platform_slack_get_channel_history` | MCP Gateway |
-| **Notion** | `platform_notion_search`, `platform_notion_get_page`, `platform_notion_create_comment` | Direct API |
-| **Gmail** | `platform_gmail_search`, `platform_gmail_get_thread`, `platform_gmail_send`, `platform_gmail_create_draft` | Direct API |
-| **Calendar** | `platform_calendar_list_events`, `platform_calendar_get_event`, `platform_calendar_create_event` | Direct API |
+| **Slack** | `platform_slack_send_message`, `platform_slack_list_channels`, `platform_slack_get_channel_history` | Direct API (`SlackAPIClient`) |
+| **Notion** | `platform_notion_search`, `platform_notion_get_page`, `platform_notion_create_comment` | Direct API (`NotionAPIClient`) |
+| **Gmail** | `platform_gmail_search`, `platform_gmail_get_thread`, `platform_gmail_send`, `platform_gmail_create_draft` | Direct API (`GoogleAPIClient`) |
+| **Calendar** | `platform_calendar_list_events`, `platform_calendar_get_event`, `platform_calendar_create_event` | Direct API (`GoogleAPIClient`) |
 
 **Default Landing Zones** (ADR-050):
 
@@ -234,7 +234,7 @@ User: "What platforms are connected?"
 - Gmail/Calendar via Direct API (not MCP) per ADR-046
 - `list_integrations` now exposes landing zone IDs: `authed_user_id` (Slack), `designated_page_id` (Notion), `user_email` (Gmail), `designated_calendar_id` (Calendar)
 
-**Rationale:** ADR-050 MCP Gateway enables direct platform access. ADR-046 adds Gmail/Calendar. Streamlined patterns ensure user owns their outputs (DM to self, designated page for Notion, drafts for review).
+**Rationale:** ADR-046 adds Gmail/Calendar. Streamlined patterns ensure user owns their outputs (DM to self, designated page for Notion, drafts for review). (Note: Slack originally used MCP Gateway per ADR-050; migrated to Direct API per ADR-076 on 2026-02-25.)
 
 **Prompt Versioning:**
 ```python

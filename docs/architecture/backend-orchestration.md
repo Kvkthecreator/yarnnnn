@@ -1,8 +1,8 @@
 # Backend Orchestration Pipeline
 
-**Version**: 2.1
-**Last updated**: 2026-02-26 (ADR-080 unified agent modes, ADR-079 numbering fix)
-**Status**: Canonical reference — all background processing documented here
+**Version**: 3.0
+**Last updated**: 2026-02-27 (hardened — consistency sweep, ADR-082 type consolidation)
+**Status**: Hardened — canonical reference for all background processing. Cross-validated against code (zero TODOs/FIXMEs in orchestration layer).
 
 ---
 
@@ -182,7 +182,7 @@ Each item → `_store_platform_content()`:
 
 **Files**: `api/services/deliverable_execution.py`, `api/services/deliverable_pipeline.py`
 **Entry points**: Unified scheduler (every 5 min), Signal Processing (emergent), `POST /deliverables/{id}/run`
-**ADRs**: ADR-042 (simplified), ADR-049 (freshness), ADR-066 (delivery-first), ADR-072 (retention), ADR-080 (headless mode)
+**ADRs**: ADR-042 (simplified), ADR-049 (freshness), ADR-066 (delivery-first), ADR-072 (retention), ADR-080 (headless mode), ADR-082 (8 active types)
 **LLM**: `claude-sonnet-4-20250514` (agent in headless mode)
 **Tier gate**: Active deliverable count limited (Free: 2, Starter: 5, Pro: unlimited)
 

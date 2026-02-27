@@ -36,7 +36,7 @@ Scheduler (every 5 min)
         ▼
 ┌─────────────────────────────┐
 │ Execute pipeline            │
-│ gather → synthesize → stage │
+│ gather → synthesize → deliver │
 └─────────────────────────────┘
         │
         ▼
@@ -163,7 +163,7 @@ CREATE TABLE deliverable_notification_settings (
 
 ### 1. Deliverable Ready
 
-Sent when a deliverable version is staged for review.
+Sent when a deliverable version is generated and delivered (ADR-066 delivery-first — no approval gate).
 
 ```
 Subject: Your [Title] is ready for review
@@ -335,15 +335,16 @@ curl -X POST https://api.yarnnn.com/api/test-email \
 
 ## Related Documentation
 
-- [Deliverable Workflow](../workflows/DELIVERABLE-WORKFLOW.md)
-- [TP Configuration](./tp-configuration.md)
+- [Deliverable Architecture](../architecture/deliverables.md)
+- [Backend Orchestration](../architecture/backend-orchestration.md) — F3 (Deliverable Execution), F7 (Weekly Digest)
 - ADR-018: Deliverable Scheduling
+- ADR-066: Delivery-First (no approval gate)
 
 ---
 
 ## Changelog
 
-### 2025-02-06: Documentation Created
+### 2026-02-06: Documentation Created
 
 - Documented current email infrastructure (80% complete)
 - Clarified that "Recipient" field in deliverable settings is for content personalization, not email delivery

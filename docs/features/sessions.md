@@ -18,12 +18,12 @@
 
 ### Starting a session
 
-Every chat message goes through `get_or_create_session()` in [chat.py](../../api/routes/chat.py). The default scope is `"daily"`:
+Every chat message goes through `get_or_create_session()` in [chat.py](../../api/routes/chat.py):
 
-- **If a session already exists for today** (UTC date match): reuse it
+- **If a session exists with activity within the last 4 hours**: reuse it (inactivity-based boundary, ADR-067)
 - **If not**: create a new `chat_sessions` row
 
-The daily boundary is a hard UTC midnight cutoff — `DATE(started_at) = CURRENT_DATE` in the Supabase RPC. First message after midnight creates a fresh session regardless of how recent the last one was.
+The previous UTC midnight hard cut was replaced with an inactivity-based boundary in ADR-067. A user continuing a thread from this morning stays in the same session; a user starting after a 4+ hour gap gets a new one. The nightly cron continues to run at UTC midnight regardless — backend scheduling and session management are decoupled.
 
 ### Within a session
 
@@ -66,15 +66,15 @@ There is no real-time session-end extraction. The Context page is the only way t
 
 ## Contrast with Claude Code
 
-Claude Code uses auto-compaction — context-window-pressure-driven, not time-based — and maintains cross-session continuity via CLAUDE.md and auto memory. YARNNN uses a time-based daily boundary with no compaction.
+Claude Code uses auto-compaction — context-window-pressure-driven, not time-based — and maintains cross-session continuity via CLAUDE.md and auto memory.
 
-| | Claude Code | YARNNN (current) | YARNNN (ADR-067) |
-|---|---|---|---|
-| **Session boundary** | Context-window-driven | UTC midnight (daily) | Inactivity-based (4h default) |
-| **In-session overflow** | Auto-compaction (`<summary>` block prepended) | Hard truncation (oldest dropped, silent) | Compaction at 80% of budget (Phase 3) |
-| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | `user_context` + deliverables + activity | + `chat_sessions.summary` (Phase 1) |
-| **Session summaries** | Auto-generated during compaction | Schema + reader exist; writer missing | Written by nightly cron (Phase 1) |
-| **Session resumption** | `--continue` / `--resume <id>` | Not supported (session_id ignored) | Deferred |
+| | Claude Code | YARNNN (ADR-067 implemented) |
+|---|---|---|
+| **Session boundary** | Context-window-driven | Inactivity-based (4h default) |
+| **In-session overflow** | Auto-compaction (`<summary>` block prepended) | Compaction at 80% of 50k token budget |
+| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | `user_context` + deliverables + activity + `chat_sessions.summary` |
+| **Session summaries** | Auto-generated during compaction | Written by nightly cron |
+| **Session resumption** | `--continue` / `--resume <id>` | Not supported (session_id ignored, deferred) |
 
 The practical implication today: if a user had a long conversation yesterday about their preferences, TP won't remember the conversation details today — but it will know the extracted preferences (after the nightly cron runs).
 

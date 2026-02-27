@@ -2,8 +2,8 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-10
-> **Updated**: 2026-02-23 (schema references updated for ADR-059/072)
-> **Related ADRs**: ADR-059 (Simplified Context), ADR-072 (Unified Content Layer), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-050 (MCP Gateway), ADR-064 (Unified Memory)
+> **Updated**: 2026-02-27 (consistency sweep — removed duplicate schema, ADR-076 references)
+> **Related ADRs**: ADR-059 (Simplified Context), ADR-072 (Unified Content Layer), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-076 (Direct API), ADR-064 (Unified Memory)
 > **Implementation**: `api/services/primitives/`
 
 ---
@@ -205,18 +205,6 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 | `deliverable_id` | UUID | Optional linked deliverable | — |
 
 **Display Priority:** `description` > `status`
-
-#### document
-
-| Field | Type | Description | Display |
-|-------|------|-------------|---------|
-| `id` | UUID | Primary key | — |
-| `filename` | string | Original filename | ✓ Primary |
-| `content_type` | string | MIME type | ✓ Icon |
-| `extracted_text` | string | Processed content | — |
-| `size_bytes` | int | File size | — |
-
-**Display Priority:** `filename` > `content_type`
 
 #### session
 
@@ -429,14 +417,14 @@ Find entities by content using text search.
 }
 ```
 
-**Scopes**: `platform_content`, `memory`, `document`, `deliverable`, `work`, `all`
+**Scopes**: `platform_content`, `document`, `deliverable`, `work`, `all`
 
 **Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`
 
 > **Scope clarification**:
-> - `memory` searches user-stated facts (things the user has told TP directly)
-> - `document` searches uploaded files (PDF, DOCX, TXT, MD)
 > - `platform_content` searches imported platform data (Slack/Gmail/Notion)
+> - `document` searches uploaded files (PDF, DOCX, TXT, MD)
+> - `memory` is **not a valid scope** (ADR-065) — memory is already injected into working memory at session start. Passing `scope="memory"` returns an error.
 
 ---
 
