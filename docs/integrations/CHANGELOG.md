@@ -4,6 +4,26 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 
 ---
 
+## 2026-02-28
+
+### RefreshPlatformContent Primitive (ADR-085)
+
+- Added `RefreshPlatformContent` primitive for synchronous platform sync in chat mode
+- Replaces fire-and-forget `Execute(action="platform.sync")` — TP can now answer real-time platform questions within a single chat turn
+- Uses the same `_sync_platform_async()` worker pipeline as the scheduler
+- 30-minute staleness threshold prevents redundant syncs
+- Supports all 4 platforms: slack, gmail, notion, calendar
+
+### Google/Gmail/Calendar Domain Separation
+
+- Fixed calendar sync never running from scheduler (dead code in worker)
+- Unified gmail/calendar/google into single split-sync branch in `platform_worker.py`
+- TP now sees calendar as connected, calendar tools load correctly
+- Landscape endpoint wrapped in error handling (502 on token failure, not CORS error)
+- Landscape resources filtered by requested domain (gmail vs calendar)
+
+---
+
 ## 2026-02-23
 
 ### All Platforms — Sync Pipeline Fixes

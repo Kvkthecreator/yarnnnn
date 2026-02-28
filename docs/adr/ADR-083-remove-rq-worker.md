@@ -33,7 +33,7 @@ Remove the RQ worker service, Redis database, and all RQ/Redis dependencies enti
 |-----------|--------|-------|
 | `POST /integrations/{provider}/sync` | `enqueue_job()` → None | `background_tasks.add_task(sync_platform, ...)` |
 | `freshness.sync_stale_sources()` | `enqueue_job()` → None | `sync_platform()` direct call |
-| TP `platform.sync` primitive | `enqueue_job()` → None | `asyncio.to_thread(sync_platform, ...)` fire-and-forget |
+| TP `platform.sync` primitive | `enqueue_job()` → None | `asyncio.to_thread(sync_platform, ...)` fire-and-forget → **subsequently replaced by `RefreshPlatformContent` primitive (ADR-085)** |
 | TP `work.run` primitive | `enqueue_job()` → None | `await execute_work_ticket()` inline |
 | `_enqueue_work_background()` | RQ with foreground fallback | Always foreground (fallback was already the only working path) |
 

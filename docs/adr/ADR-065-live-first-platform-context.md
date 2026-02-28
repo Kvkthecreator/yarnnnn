@@ -1,9 +1,10 @@
 # ADR-065: Live-First Platform Context Access
 
-**Status**: Accepted
+**Status**: Partially superseded by ADR-085 (RefreshPlatformContent)
 **Date**: 2026-02-19
 **Amends**: ADR-062 (Platform Context Architecture)
 **Relates to**: ADR-063 (Four-Layer Model), ADR-050 (Platform Tools), ADR-038 (Filesystem-as-Context)
+**Superseded sections**: Section 3 (sync → wait → hand off) replaced by ADR-085 synchronous RefreshPlatformContent primitive
 
 ---
 
@@ -70,28 +71,19 @@ When TP uses `filesystem_items` as the data source for a response, it **must dis
 
 This is non-negotiable. The user must know when they're seeing a cached view.
 
-### 3. If the cache is needed but empty: sync then wait
+### 3. If the cache is needed but empty: refresh synchronously (ADR-085)
 
-When `Search(scope="platform_content")` returns empty and no live tool can serve the query, the correct sequence is:
+> **Superseded**: The fire-and-forget `Execute(action="platform.sync")` pattern described originally was replaced by `RefreshPlatformContent` in ADR-085.
+
+When `Search(scope="platform_content")` returns stale or empty results:
 
 ```
-1. Execute(action="platform.sync", target="platform:slack")
-2. Inform user: "Syncing your Slack content now. This takes ~30–60 seconds."
-3. Wait in a loop — check sync status before re-querying:
-   get_sync_status(platform="slack") → poll until fresh or timeout
-4. Re-query once sync confirms completion
-5. If still empty after sync: tell user there's no matching content
+1. RefreshPlatformContent(platform="slack")  — synchronous, awaited (~10-30s)
+2. Search(scope="platform_content", platform="slack", query="...")  — fresh data available
+3. Answer the user with the fresh results
 ```
 
-This is analogous to Claude Code waiting for a deploy before testing:
-```
-→ trigger deploy
-→ wait 30s
-→ check deploy status
-→ run tests
-```
-
-**Never re-query immediately after triggering sync.** The job is asynchronous (Redis worker, 10–60s).
+`RefreshPlatformContent` runs the same worker pipeline as the scheduler (`_sync_platform_async()`), but awaited within the chat turn instead of fire-and-forget. A 30-minute staleness threshold prevents redundant syncs.
 
 ### 4. Memory (`user_context`) is not a search domain
 
@@ -139,7 +131,7 @@ Call live     Search(scope="platform_content")
 platform         │
 tool             ├─ Results found → use them, disclose cache age
     │            │
-    │            └─ Empty → sync → wait → re-query
+    │            └─ Empty → RefreshPlatformContent → re-query (ADR-085)
     │
     ▼
 Answer user with live data (no disclosure needed — it's live)
@@ -163,5 +155,6 @@ Answer user with live data (no disclosure needed — it's live)
 - [ADR-062](ADR-062-platform-context-architecture-SUPERSEDED.md) — Prior model (filesystem_items as primary); this ADR amends its "conversational search" mandate
 - [ADR-063](ADR-063-activity-log-four-layer-model.md) — Four-layer model (Memory / Activity / Context / Work)
 - [ADR-050](ADR-050-mcp-gateway-architecture.md) — Platform tools (live API calls during conversation)
+- [ADR-085](ADR-085-refresh-platform-content-primitive.md) — RefreshPlatformContent primitive (supersedes Section 3)
 - [context-pipeline.md](../architecture/context-pipeline.md) — Updated to reflect this ADR
 - [tp-prompt-guide.md](../architecture/tp-prompt-guide.md) — TP prompt versioning

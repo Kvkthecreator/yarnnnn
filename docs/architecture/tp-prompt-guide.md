@@ -4,9 +4,9 @@
 > **Created**: 2026-02-11
 > **Updated**: 2026-02-27 (consistency sweep — ADR-076 Direct API references)
 > **Location**: `api/agents/thinking_partner.py`
-> **Primitives**: 9 (ADR-038 + ADR-045 + list_integrations)
+> **Primitives**: 10 (ADR-038 + ADR-045 + ADR-085 + list_integrations)
 > **Platform Tools**: Slack, Notion, Gmail, Calendar — all Direct API (ADR-076)
-> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-076: Direct API Consolidation](../adr/ADR-076-direct-api-consolidation.md), [ADR-065: Live-First Platform Context](../adr/ADR-065-live-first-platform-context.md)
+> **Related**: [ADR-038: Filesystem-as-Context](../adr/ADR-038-filesystem-as-context.md), [ADR-076: Direct API Consolidation](../adr/ADR-076-direct-api-consolidation.md), [ADR-085: RefreshPlatformContent](../adr/ADR-085-refresh-platform-content-primitive.md)
 
 ---
 
@@ -30,34 +30,33 @@ The Thinking Partner system prompt governs how TP interacts with users. This doc
 | **Explore before asking** | Use List/Search to find patterns before using Clarify |
 | **One clarifying question** | Use `Clarify` only when context + exploration don't resolve ambiguity |
 | **Confirm before creating** | Ask user, then create on confirmation |
-| **9 primitives** | Read, Write, Edit, List, Search, Execute, WebSearch, list_integrations, Clarify (no Respond, no Todo) |
-| **Live tools first** | For platform content queries, call live platform tools before searching the cache (ADR-065) |
-| **Disclose cache use** | When `platform_content` fallback is used, tell the user the data age (ADR-065) |
-| **Sync hand-off** | After triggering sync, inform user and stop — sync is async, no in-conversation polling tool available (ADR-065) |
+| **10 primitives** | Read, Write, Edit, List, Search, Execute, RefreshPlatformContent, WebSearch, list_integrations, Clarify (no Respond, no Todo) |
+| **Search first** | For platform content, Search synced data first. If stale/empty, RefreshPlatformContent to sync latest (ADR-085) |
+| **Disclose cache use** | When `platform_content` results are used, tell the user the data age |
+| **Live tools for writes** | Platform tools (`platform_slack_*`, etc.) for sending, CRUD, real-time interactive lookups |
 
-### Platform Content Access (ADR-065)
+### Platform Content Access (ADR-085)
 
-This is the most significant v6 change. Prior to v6, TP used `Search(scope="platform_content")` as the primary path for conversational platform queries. This was wrong: TP has direct live platform tools and should use them first.
+> **Updated from ADR-065**: The fire-and-forget `Execute(platform.sync)` → "come back later" pattern was replaced by synchronous `RefreshPlatformContent` in ADR-085.
 
 **Access order:**
 
 ```
-1. LIVE (primary) — platform_slack_*, platform_gmail_*, platform_notion_*, platform_calendar_*
-   → Direct API call. Always current. Use this first.
-
-2. CACHE FALLBACK — Search(scope="platform_content")
-   → Queries platform_content (ILIKE). May be hours old.
-   → Use only when live tools can't serve the query (cross-platform aggregation, tool unavailable).
+1. SEARCH (primary) — Search(scope="platform_content", platform="slack")
+   → Queries synced platform_content (ILIKE). May be hours old.
    → MUST disclose cache age: "Based on content synced 3 hours ago..."
 
-3. EMPTY CACHE → SYNC → HAND OFF TO USER
-   → Execute(action="platform.sync", target="platform:slack")
-   → Inform user: "I've started syncing — takes ~30–60 seconds. Ask again once it's done."
-   → STOP. No in-conversation polling tool available. Sync is async.
-   → User re-engages after sync completes; cache will be populated then.
+2. STALE/EMPTY → REFRESH → RE-QUERY
+   → RefreshPlatformContent(platform="slack")  — awaited, ~10-30s
+   → Search(scope="platform_content", platform="slack")  — now fresh
+   → Answer the user with fresh data
+
+3. LIVE TOOLS (writes/interactive) — platform_slack_*, platform_gmail_*, etc.
+   → For sending messages, creating drafts, CRUD on calendar events
+   → For interactive lookups (list channels, search by ID)
 ```
 
-**Why this matters:** The empty-query bug (`Search(query="")` after triggering sync) was caused by TP not having this model. It hit an empty cache, triggered sync, then immediately re-queried — getting nothing — because the job is async. With live tools as primary, the sync loop is only ever the last resort.
+**Why this matters:** The original ADR-065 model (live-first → cache fallback → fire-and-forget sync) had a dead end at step 3: TP triggered an async sync, told the user to come back, and stopped. RefreshPlatformContent eliminates this by awaiting the sync within the chat turn, allowing TP to immediately query the fresh data.
 
 **Memory is not a search domain.** `scope="memory"` is removed from valid Search scopes. Memory is injected into the system prompt at session start (working memory block). TP already has it. Searching it mid-conversation is redundant and architecturally wrong (ADR-065).
 
@@ -193,6 +192,25 @@ User: "What platforms are connected?"
 ---
 
 ## Changelog
+
+### v6.2 (2026-02-28)
+
+**Changes:**
+- Added `RefreshPlatformContent` primitive — synchronous cache refresh replacing fire-and-forget `Execute(action="platform.sync")` (ADR-085)
+- Reframed platform content access: Search first → RefreshPlatformContent if stale → re-query → answer
+- Removed `platform.sync` from Execute action catalog (singular implementation)
+- Primitive count updated to 10 (was 9): adds RefreshPlatformContent
+
+**Rationale:** ADR-085. The fire-and-forget sync pattern (Execute → "come back in 30-60 seconds") was a dead end. RefreshPlatformContent awaits the sync within the chat turn, enabling TP to answer real-time platform questions without breaking conversation flow.
+
+**Files changed:**
+- `api/services/primitives/refresh.py` — NEW primitive
+- `api/services/primitives/registry.py` — registered, chat-only mode
+- `api/services/primitives/execute.py` — removed platform.sync action
+- `api/services/primitives/search.py` — updated description and platform enum
+- `api/agents/tp_prompts/behaviors.py` — replaced Step 3
+- `api/agents/tp_prompts/platforms.py` — updated content access section
+- `api/agents/tp_prompts/tools.py` — added RefreshPlatformContent docs
 
 ### v6.1 (2026-02-19)
 

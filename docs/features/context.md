@@ -105,14 +105,22 @@ Tracks cursor and last_synced_at per `(user_id, platform, resource_id)`. Used by
 
 ## How content is accessed
 
-**Agent primitives** (available in both chat and headless modes, ADR-080):
-- `Search(scope="platform_content")` — semantic search via pgvector embeddings
+**Chat mode** (ADR-085):
+- `Search(scope="platform_content")` — primary query against synced data
+- `RefreshPlatformContent(platform="...")` — synchronous cache refresh if Search returns stale/empty (~10-30s)
+- Live platform tools (`platform_slack_*`, etc.) — for write operations and interactive lookups
+
+**Headless mode** (ADR-080):
+- `Search(scope="platform_content")` — read-only search
 - `FetchPlatformContent` — targeted retrieval by resource
 - `CrossPlatformQuery` — multi-platform search
+- `freshness.sync_stale_sources()` — blocking sync for stale sources before deliverable generation
 
 **Deliverable execution** uses the orchestration pipeline (ADR-045) for context gathering via `get_content_summary_for_generation()`. The agent in headless mode (ADR-080) can supplement with primitive calls during generation.
 
 **Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction. Can mark content as retained and create/trigger deliverables.
+
+**Context page** ("Run sync" button) — triggers `POST /api/integrations/{provider}/sync` for user-initiated refresh.
 
 ---
 

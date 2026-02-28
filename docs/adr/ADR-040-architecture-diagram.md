@@ -292,13 +292,13 @@ User asks about platform content
                                  └───────────┬────────────┘
                                              │
                               ┌──────────────┴─────────────┐
-                              │ RESULTS                     │ EMPTY
+                              │ RESULTS                     │ EMPTY/STALE
                               ▼                             ▼
                    ┌────────────────────┐    ┌─────────────────────────┐
-                   │ Respond, disclose  │    │ Execute(platform.sync)  │
-                   │ cache age:         │    │ + tell user:            │
-                   │ "Based on sync     │    │ "Syncing now, ~30–60s.  │
-                   │ from Feb 18..."    │    │ Ask again once done."   │
-                   └────────────────────┘    │ → STOP                  │
+                   │ Respond, disclose  │    │ RefreshPlatformContent  │
+                   │ cache age:         │    │ (platform="slack")      │
+                   │ "Based on sync     │    │ → awaited ~10-30s       │
+                   │ from Feb 18..."    │    │ → Search again          │
+                   └────────────────────┘    │ → Answer with fresh data│
                                              └─────────────────────────┘
 ```

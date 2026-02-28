@@ -245,12 +245,13 @@ These are action calls TP makes on behalf of the user during a chat turn. They a
 
 At the start of every TP session, the working memory block is assembled from **Memory only** (user_context + active deliverables + platform connection status). Raw platform content is **not** pre-injected.
 
-TP accesses platform content during a session in two ways, with a defined priority order (ADR-065):
+TP accesses platform content during a session in three steps (ADR-085):
 
-1. **Primary: Live platform tools** — `platform_gmail_search`, `platform_slack_list_channels`, `platform_notion_search`, etc. Direct API calls. Always current. Used first.
-2. **Fallback: `Search(scope="platform_content")`** — hits `platform_content` table (ILIKE text search). Used when live tools can't serve the query (cross-platform aggregation, live tool unavailable). When used, TP **must disclose the cache age** to the user.
+1. **Primary: `Search(scope="platform_content")`** — hits `platform_content` table (ILIKE text search). When used, TP **must disclose the cache age** to the user.
+2. **If stale/empty: `RefreshPlatformContent(platform="...")`** — synchronous cache refresh (~10-30s). Calls the same worker pipeline as the scheduler, awaited within the chat turn. 30-minute staleness threshold prevents redundant syncs.
+3. **Re-query: `Search(scope="platform_content")`** — now has fresh data. Answer the user.
 
-**If the cache is needed but empty**: TP triggers `Execute(action="platform.sync")`, informs the user ("takes ~30–60 seconds, ask again once done"), then stops. There is no in-conversation polling tool available — sync is async. The user re-engages after the job completes; the cache will be populated by then.
+Live platform tools (`platform_slack_*`, `platform_gmail_*`, etc.) are used for write operations, CRUD, and interactive lookups — not as the primary read path.
 
 ---
 

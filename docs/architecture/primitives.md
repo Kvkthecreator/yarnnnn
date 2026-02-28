@@ -14,7 +14,7 @@ Primitives are the universal operations available to the Thinking Partner (TP) f
 
 ### Design Principles
 
-1. **Minimal Surface** — 9 primitives cover all use cases
+1. **Minimal Surface** — 10 primitives cover all use cases
 2. **Universal Reference Syntax** — Consistent `type:identifier` addressing
 3. **Composable** — Primitives combine for complex operations
 4. **Self-Describing** — Results include context for further action
@@ -42,7 +42,7 @@ Users without platform connections can still provide rich context via documents 
 
 ---
 
-## The 9 Primitives
+## The 10 Primitives
 
 | Primitive | Purpose | Input | Output |
 |-----------|---------|-------|--------|
@@ -52,6 +52,7 @@ Users without platform connections can still provide rich context via documents 
 | **List** | Find entities by pattern | `pattern` | `items`, `count` |
 | **Search** | Find by content | `query`, `scope` | `results`, `count` |
 | **Execute** | Trigger external operation | `action`, `target` | `result` |
+| **RefreshPlatformContent** | Sync latest platform data | `platform` | `items_synced`, `message` |
 | **WebSearch** | Search the web | `query` | `results`, `count` |
 | **list_integrations** | Discover connected platforms + metadata | — | `integrations` |
 | **Clarify** | Ask user for input | `question`, `options` | `ui_action` |
@@ -419,10 +420,10 @@ Find entities by content using text search.
 
 **Scopes**: `platform_content`, `document`, `deliverable`, `work`, `all`
 
-**Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`
+**Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`, `calendar`
 
 > **Scope clarification**:
-> - `platform_content` searches imported platform data (Slack/Gmail/Notion)
+> - `platform_content` searches synced platform data (Slack/Gmail/Notion/Calendar). If stale/empty, use `RefreshPlatformContent` to sync latest (ADR-085).
 > - `document` searches uploaded files (PDF, DOCX, TXT, MD)
 > - `memory` is **not a valid scope** (ADR-065) — memory is already injected into working memory at session start. Passing `scope="memory"` returns an error.
 
@@ -435,8 +436,8 @@ Trigger external operations on entities.
 **Input**:
 ```json
 {
-  "action": "platform.sync",
-  "target": "platform:slack"
+  "action": "deliverable.generate",
+  "target": "deliverable:uuid-123"
 }
 ```
 
@@ -445,12 +446,12 @@ Trigger external operations on entities.
 {
   "success": true,
   "result": {
-    "status": "started",
-    "job_id": "job-uuid",
-    "provider": "slack"
+    "status": "staged",
+    "version_id": "version-uuid",
+    "version_number": 3
   },
-  "action": "platform.sync",
-  "target": "platform:slack"
+  "action": "deliverable.generate",
+  "target": "deliverable:uuid-123"
 }
 ```
 
@@ -458,23 +459,57 @@ Trigger external operations on entities.
 
 | Action | Target Type | Description | Requires |
 |--------|-------------|-------------|----------|
-| `platform.sync` | `platform` | Sync from platform | — |
 | `platform.publish` | `deliverable` | Publish deliverable to platform | `via` |
-| `platform.send` | `platform` | Send ad-hoc message to platform | `params` (see below) |
-| `platform.auth` | `platform` | Initiate OAuth | — |
 | `deliverable.generate` | `deliverable` | Generate content | — |
 | `deliverable.schedule` | `deliverable` | Update schedule | — |
 | `deliverable.approve` | `deliverable` | Approve version | `version_id` (optional) |
 | `memory.extract` | `session` | Extract memories | — |
 | `work.run` | `work` | Execute work | — |
+| `signal.process` | `system` | Run signal extraction | — |
 
-**platform.send params by platform**:
+> **Note**: `platform.sync` and `platform.send` removed — use `RefreshPlatformContent` primitive (ADR-085) and platform tools (`platform_slack_*`, etc.) respectively.
 
-| Platform | Required params | Example |
-|----------|-----------------|---------|
-| `slack` | `channel`, `message` | `{channel: "#general", message: "Hello!"}` |
-| `gmail` | `to`, `subject`, `body` | `{to: "user@example.com", subject: "Hi", body: "..."}` |
-| `notion` | `page_id`, `content` | `{page_id: "abc123", content: "Added note"}` |
+---
+
+### RefreshPlatformContent (ADR-085)
+
+Synchronous write-through cache refresh. Calls the same `_sync_platform_async()` worker pipeline as the scheduler, but awaited within the chat turn.
+
+**Input**:
+```json
+{
+  "platform": "slack"
+}
+```
+
+**Output** (fresh sync):
+```json
+{
+  "success": true,
+  "platform": "slack",
+  "items_synced": 42,
+  "refreshed_at": "2026-02-28T10:30:00Z",
+  "message": "Refreshed slack: 42 items synced. Use Search(scope='platform_content', platform='slack') to query."
+}
+```
+
+**Output** (skipped — already fresh):
+```json
+{
+  "success": true,
+  "platform": "slack",
+  "items_synced": 0,
+  "skipped": true,
+  "existing_items": 150,
+  "message": "slack content is fresh (synced within 30min). 150 items available."
+}
+```
+
+**Supported platforms**: `slack`, `gmail`, `notion`, `calendar`
+
+**Mode**: Chat only (`["chat"]`). Headless mode uses `freshness.sync_stale_sources()` instead.
+
+**Staleness threshold**: 30 minutes — skips re-sync if content was fetched recently.
 
 ---
 
@@ -553,6 +588,7 @@ api/services/primitives/
 ├── list.py          # List primitive
 ├── search.py        # Search primitive (text-based)
 ├── execute.py       # Execute primitive + action handlers
+├── refresh.py       # RefreshPlatformContent primitive (ADR-085)
 └── clarify.py       # Clarify primitive
 ```
 
@@ -586,6 +622,13 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 ---
 
 ## Changelog
+
+### 2026-02-28 — RefreshPlatformContent primitive (ADR-085)
+- Added `RefreshPlatformContent` primitive — synchronous cache refresh for platform content
+- Removed `platform.sync` and `platform.send` from Execute action catalog (replaced by RefreshPlatformContent and platform tools respectively)
+- Added `calendar` to Search platform filter enum
+- Primitive count updated from 9 → 10
+- File structure updated to include `refresh.py`
 
 ### 2026-02-23 — Schema references updated for ADR-059/072
 - Context Architecture section updated: four-layer model, `platform_content` replaces `filesystem_items`, `user_context` replaces knowledge tables
