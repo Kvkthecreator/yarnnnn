@@ -524,6 +524,11 @@ async def get_platform_tools_for_user(auth: Any) -> list[dict]:
 
         connected_providers = [i["platform"] for i in (result.data or [])]
 
+        # Google OAuth stores platform="gmail" but calendar tools are under "google".
+        # Expand to load calendar tools when gmail is connected.
+        if "gmail" in connected_providers and "google" not in connected_providers:
+            connected_providers.append("google")
+
         for provider in connected_providers:
             provider_tools = PLATFORM_TOOLS_BY_PROVIDER.get(provider, [])
             for tool in provider_tools:

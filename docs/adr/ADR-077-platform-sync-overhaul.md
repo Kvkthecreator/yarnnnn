@@ -130,6 +130,19 @@ The `platform-sync` cron was defined in `render.yaml` but **never provisioned on
 
 All `platform_connections.last_synced_at` updated. `activity_log` entries written for each `platform_synced` event. Content total: 335 → 377 items.
 
+### Google Split Sync Fix (2026-02-28)
+
+The worker had separate `provider=="gmail"`, `provider=="calendar"`, and `provider=="google"` branches. Since `platform_connections` stores `platform="gmail"` for the single Google OAuth row, the scheduler always passed `provider="gmail"` — which only called `_sync_gmail()`, never `_sync_calendar()`. The `provider=="google"` branch (which correctly splits sources by `metadata.platform`) was dead code for scheduled syncs.
+
+**Fix**: Unified all three branches into one `provider in ("gmail", "calendar", "google")` path that always does the split-sync. Worker now normalizes the DB lookup (`gmail/calendar/google` all query the `"gmail"` row) and splits `selected_sources` by landscape `metadata.platform`. This applies to both scheduled syncs (scheduler) and on-demand syncs (Refresh Data button).
+
+Also fixed downstream consumers:
+- `working_memory.py`: Synthesizes a "calendar" entry from the "gmail" DB row so TP sees both platforms
+- `project_tools.py`: `list_integrations` now returns both gmail and calendar items
+- `platform_tools.py`: Calendar tools load when gmail is connected
+- `integrations.py` landscape endpoint: Filters resources by `metadata.platform` per requested domain, fixes `sync_registry` query to use correct platform value, wraps `discover_landscape()` in error handling
+- `landscape.py`: Token decryption wrapped in error handling
+
 ## Verification
 
 After deployment:

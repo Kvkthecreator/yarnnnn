@@ -210,13 +210,24 @@ async def _get_connected_platforms(user_id: str, client: Any) -> list:
             for p in result.data:
                 last_synced = p.get("last_synced_at")
                 freshness = _calculate_freshness(last_synced, now)
+                platform_name = p.get("platform", "unknown")
 
                 platforms.append({
-                    "platform": p.get("platform", "unknown"),
+                    "platform": platform_name,
                     "status": p.get("status", "unknown"),
                     "last_synced": last_synced,
                     "freshness": freshness,
                 })
+
+                # Google OAuth stores one "gmail" row covering both Gmail and Calendar.
+                # Surface calendar as a separate connected platform for TP awareness.
+                if platform_name == "gmail":
+                    platforms.append({
+                        "platform": "calendar",
+                        "status": p.get("status", "unknown"),
+                        "last_synced": last_synced,
+                        "freshness": freshness,
+                    })
 
     except Exception as e:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch platforms: {e}")
@@ -389,6 +400,28 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
                 "resources_synced": resource_count,
             })
 
+            # Google OAuth stores one "gmail" row covering both Gmail and Calendar.
+            # Surface calendar separately with its own sync_registry count.
+            if platform == "gmail":
+                try:
+                    cal_result = (
+                        client.table("sync_registry")
+                        .select("resource_id", count="exact")
+                        .eq("user_id", user_id)
+                        .eq("platform", "calendar")
+                        .execute()
+                    )
+                    cal_count = cal_result.count or 0
+                except Exception:
+                    cal_count = 0
+
+                platform_freshness.append({
+                    "platform": "calendar",
+                    "status": status,
+                    "freshness": _calculate_freshness(last_synced, now),
+                    "resources_synced": cal_count,
+                })
+
         summary["platform_sync_freshness"] = platform_freshness
 
     except Exception as e:
@@ -535,7 +568,7 @@ def format_for_prompt(working_memory: dict) -> str:
         for p in platforms:
             status = p.get("status", "unknown")
             freshness = p.get("freshness", "unknown")
-            if status == "connected":
+            if status == "active":
                 lines.append(f"- {p.get('platform')}: {freshness}")
             else:
                 lines.append(f"- {p.get('platform')}: {status}")

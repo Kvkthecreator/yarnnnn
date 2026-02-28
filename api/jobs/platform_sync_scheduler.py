@@ -32,7 +32,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-PROVIDERS = ["slack", "gmail", "notion", "calendar"]
+# Note: "calendar" is NOT listed separately — it shares the "gmail" DB row (single Google OAuth).
+# The worker's provider="google" branch splits sources by metadata.platform and syncs both.
+PROVIDERS = ["slack", "gmail", "notion"]
 
 
 async def get_users_due_for_sync(supabase_client) -> list[dict]:
@@ -198,6 +200,8 @@ async def process_user_sync(supabase_client, user: dict) -> dict:
 
             # Call async worker directly — scheduler already runs in an event loop,
             # so we cannot use sync_platform() which wraps asyncio.run().
+            # Worker normalizes gmail/calendar/google to query the shared "gmail" DB row
+            # and splits sources by metadata.platform for the Google split-sync.
             result = await _sync_platform_async(
                 user_id=user_id,
                 provider=provider,

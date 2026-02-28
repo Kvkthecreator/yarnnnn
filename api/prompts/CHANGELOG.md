@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.28.1] - Fix Google/Gmail/Calendar domain separation in TP context
+
+### Changed
+- `api/services/working_memory.py`: Fixed `format_for_prompt()` platform status check from `== "connected"` to `== "active"` (matching DB enum). Added calendar as separate connected platform synthesized from the "gmail" DB row. TP now sees both "gmail" and "calendar" in working memory and system summary.
+- `api/services/project_tools.py`: `handle_list_integrations()` now synthesizes a "calendar" item from the "gmail" DB row. TP's `list_integrations` tool returns both gmail and calendar as connected platforms.
+- `api/services/platform_tools.py`: Calendar tools (mapped to "google" in registry) now load when "gmail" is connected. TP has access to calendar tools when Google OAuth is active.
+
+### Behavior
+- TP no longer reports "Gmail is disconnected" when platform_connections has status="active"
+- TP sees calendar as a connected platform and can use calendar tools
+- Working memory shows freshness for both gmail and calendar separately
+
+---
+
 ## [2026.02.27.2] - Dead code deletion: remove all deprecated type code (ADR-082)
 
 ### Deleted

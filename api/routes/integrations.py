@@ -2506,7 +2506,15 @@ async def get_landscape(
     if needs_discovery:
         # Discover landscape from provider (shared service)
         from services.landscape import discover_landscape
-        landscape_data = await discover_landscape(resolved_provider, user_id, integration.data[0])
+        try:
+            landscape_data = await discover_landscape(resolved_provider, user_id, integration.data[0])
+        except Exception as e:
+            logger.error(f"[LANDSCAPE] Discovery failed for {provider} user {user_id[:8]}: {e}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to discover {provider} resources: {str(e)[:200]}. "
+                       "This may indicate expired OAuth tokens. Try reconnecting the integration."
+            )
 
         # Preserve existing selected_sources through refresh
         # selected_sources can be dicts ({"id": ..., "name": ...}) or plain strings
@@ -2555,15 +2563,28 @@ async def get_landscape(
         discovered_at = integration.data[0].get("landscape_discovered_at")
 
     # Get sync records for this provider (ADR-058)
+    # Use original provider (not resolved_provider) because sync_registry stores
+    # "gmail" and "calendar" as separate platform values, not the DB connection's platform.
+    sync_platform = provider if provider in ("gmail", "calendar") else resolved_provider
     sync_result = auth.client.table("sync_registry").select(
         "resource_id, resource_name, last_synced_at, item_count, last_error, last_error_at"
-    ).eq("user_id", user_id).eq("platform", resolved_provider).execute()
+    ).eq("user_id", user_id).eq("platform", sync_platform).execute()
 
     sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
 
     # Build resource list with sync status
+    # The "gmail" DB row contains BOTH gmail labels and calendars in its landscape.
+    # Filter to only the requested domain so each context page shows its own resources.
+    domain_filter = provider if provider in ("gmail", "calendar") else None
+
     resources = []
     for resource in landscape_data.get("resources", []):
+        # Filter by domain when requesting a sub-platform of the Google connection
+        if domain_filter:
+            resource_platform = (resource.get("metadata") or {}).get("platform")
+            if resource_platform and resource_platform != domain_filter:
+                continue
+
         resource_id = resource.get("id")
         sync_data = sync_by_id.get(resource_id, {})
 
@@ -2587,10 +2608,7 @@ async def get_landscape(
     from services.platform_limits import get_limits_for_user, PROVIDER_LIMIT_MAP
 
     limits = get_limits_for_user(auth.client, user_id)
-    limit_field = PROVIDER_LIMIT_MAP.get(
-        "gmail" if resolved_provider == "google" else resolved_provider,
-        "slack_channels"
-    )
+    limit_field = PROVIDER_LIMIT_MAP.get(provider, "slack_channels")
     max_sources = getattr(limits, limit_field, 5)
     if max_sources == -1:
         max_sources = 999

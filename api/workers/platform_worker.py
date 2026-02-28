@@ -99,10 +99,14 @@ async def _sync_platform_async(
     client = create_client(supabase_url, supabase_key)
 
     try:
+        # Google OAuth stores one DB row as platform="gmail" covering both Gmail and Calendar.
+        # Normalize DB lookup: gmail/calendar/google all query the "gmail" row.
+        db_platform = "gmail" if provider in ("gmail", "calendar", "google") else provider
+
         # Get user's integration for this provider
         result = client.table("platform_connections").select("*").eq(
             "user_id", user_id
-        ).eq("platform", provider).single().execute()
+        ).eq("platform", db_platform).single().execute()
 
         if not result.data:
             return {
@@ -131,13 +135,9 @@ async def _sync_platform_async(
         # Perform the sync based on provider
         if provider == "slack":
             sync_result = await _sync_slack(client, user_id, integration, selected_sources)
-        elif provider == "gmail":
-            sync_result = await _sync_gmail(client, user_id, integration, selected_sources)
         elif provider == "notion":
             sync_result = await _sync_notion(client, user_id, integration, selected_sources)
-        elif provider == "calendar":
-            sync_result = await _sync_calendar(client, user_id, integration, selected_sources)
-        elif provider == "google":
+        elif provider in ("gmail", "calendar", "google"):
             # Google OAuth provides both Gmail and Calendar from a single connection.
             # Split selected_sources by type using landscape resource metadata.
             landscape = integration.get("landscape", {}) or {}

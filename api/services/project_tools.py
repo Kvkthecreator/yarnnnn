@@ -2370,6 +2370,24 @@ async def handle_list_integrations(auth, input: dict) -> dict:
             item["user_email"] = metadata["email"]
         items.append(item)
 
+    # Google OAuth stores one "gmail" DB row covering both Gmail and Calendar.
+    # Synthesize a separate "calendar" item so TP sees both platforms.
+    gmail_items = [i for i in items if i["platform"] in ("gmail", "google")]
+    for gmail_item in gmail_items:
+        calendar_item = {
+            "platform": "calendar",
+            "status": gmail_item["status"],
+            "connected_at": gmail_item["connected_at"],
+            "last_updated": gmail_item["last_updated"],
+        }
+        if gmail_item.get("designated_calendar_id"):
+            calendar_item["designated_calendar_id"] = gmail_item["designated_calendar_id"]
+        if gmail_item.get("designated_calendar_name"):
+            calendar_item["designated_calendar_name"] = gmail_item["designated_calendar_name"]
+        if gmail_item.get("user_email"):
+            calendar_item["user_email"] = gmail_item["user_email"]
+        items.append(calendar_item)
+
     # Check what's available vs connected
     available_platforms = ["slack", "gmail", "notion", "calendar"]
     connected = {i["platform"] for i in items if i["status"] == "active"}

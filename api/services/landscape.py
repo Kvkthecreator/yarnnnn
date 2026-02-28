@@ -116,20 +116,26 @@ async def discover_landscape(provider: str, user_id: str, integration: dict) -> 
         access_token = None
         refresh_token = None
 
-        if integration.get("refresh_token_encrypted"):
-            refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
-        elif integration.get("credentials_encrypted"):
-            access_token = token_manager.decrypt(integration["credentials_encrypted"])
-            logger.info(
-                f"[LANDSCAPE] No refresh token for {provider} user {user_id[:8]}, "
-                "using stored access token for landscape discovery."
-            )
-        else:
-            logger.warning(
-                f"[LANDSCAPE] No refresh token or access token for {provider} user {user_id}. "
-                "Cannot discover landscape."
-            )
-            return {"resources": []}
+        try:
+            if integration.get("refresh_token_encrypted"):
+                refresh_token = token_manager.decrypt(integration["refresh_token_encrypted"])
+            elif integration.get("credentials_encrypted"):
+                access_token = token_manager.decrypt(integration["credentials_encrypted"])
+                logger.info(
+                    f"[LANDSCAPE] No refresh token for {provider} user {user_id[:8]}, "
+                    "using stored access token for landscape discovery."
+                )
+            else:
+                logger.warning(
+                    f"[LANDSCAPE] No refresh token or access token for {provider} user {user_id}. "
+                    "Cannot discover landscape."
+                )
+                return {"resources": []}
+        except Exception as e:
+            logger.error(f"[LANDSCAPE] Token decryption failed for {provider} user {user_id[:8]}: {e}")
+            raise RuntimeError(
+                f"Token decryption failed for {provider}. The integration may need to be reconnected."
+            ) from e
 
         resources = []
 
