@@ -99,29 +99,30 @@ async def _sync_platform_async(
     client = create_client(supabase_url, supabase_key)
 
     try:
-        # Google OAuth stores one DB row as platform="gmail" covering both Gmail and Calendar.
-        # Normalize DB lookup: gmail/calendar/google all query the "gmail" row.
-        db_platform = "gmail" if provider in ("gmail", "calendar", "google") else provider
+        # Google OAuth may be stored as platform="gmail" or platform="google" depending
+        # on when the connection was created. Try both variants for Google-related providers.
+        if provider in ("gmail", "calendar", "google"):
+            db_candidates = ["gmail", "google"]
+        else:
+            db_candidates = [provider]
 
-        # Get user's integration for this provider
-        result = client.table("platform_connections").select("*").eq(
-            "user_id", user_id
-        ).eq("platform", db_platform).single().execute()
+        # Find an active connection from the candidate platform names
+        integration = None
+        for db_platform in db_candidates:
+            try:
+                result = client.table("platform_connections").select("*").eq(
+                    "user_id", user_id
+                ).eq("platform", db_platform).maybe_single().execute()
+                if result.data and result.data.get("status") in ("connected", "active"):
+                    integration = result.data
+                    break
+            except Exception:
+                continue
 
-        if not result.data:
+        if not integration:
             return {
                 "success": False,
-                "error": f"No {provider} integration found for user",
-            }
-
-        integration = result.data
-
-        # Check if integration is connected (accept both "connected" and "active")
-        status = integration.get("status")
-        if status not in ("connected", "active"):
-            return {
-                "success": False,
-                "error": f"{provider} integration is not connected (status={status})",
+                "error": f"No active {provider} integration found for user",
             }
 
         # ADR-056: Extract selected_sources from landscape if not provided
