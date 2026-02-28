@@ -1,10 +1,11 @@
 """
-System routes - Operations status (ADR-073)
+System routes - Operations status (ADR-073, ADR-084)
 
 Provides operational visibility into background orchestration:
 - Platform sync status with per-resource detail from sync_registry
 - Content accumulation from platform_content
 - Background job status from activity_log
+- Sync schedule observability: timezone, windows, hit/miss status (ADR-084)
 
 Mounted at /api/system
 """
@@ -15,6 +16,11 @@ from typing import Optional
 from datetime import datetime, timezone, timedelta
 
 from services.supabase import UserClient
+from services.platform_limits import (
+    SYNC_SCHEDULES,
+    get_next_sync_time,
+    _resolve_timezone,
+)
 
 router = APIRouter()
 
@@ -62,6 +68,22 @@ class BackgroundJobStatus(BaseModel):
     last_run_status: str = "unknown"  # success, failed, never_run
     last_run_summary: Optional[str] = None
     items_processed: int = 0
+    schedule_description: Optional[str] = None  # ADR-084: when this job is expected to run
+
+
+class ScheduleWindow(BaseModel):
+    """ADR-084: A single sync schedule window with execution status."""
+    time: str           # "08:00" in user's local timezone
+    time_utc: str       # ISO timestamp in UTC for this window today
+    status: str         # "completed" | "missed" | "upcoming" | "active"
+
+
+class SyncScheduleInfo(BaseModel):
+    """ADR-084: Sync schedule observability."""
+    timezone: str
+    sync_frequency_label: str
+    todays_windows: list[ScheduleWindow]
+    next_sync_at: Optional[str] = None
 
 
 class SystemStatusResponse(BaseModel):
@@ -70,6 +92,98 @@ class SystemStatusResponse(BaseModel):
     background_jobs: list[BackgroundJobStatus]
     tier: str = "free"
     sync_frequency: str = "2x_daily"
+    sync_schedule: Optional[SyncScheduleInfo] = None  # ADR-084
+
+
+# =============================================================================
+# ADR-084: Schedule Observability Helpers
+# =============================================================================
+
+# Static schedule descriptions for background jobs
+JOB_SCHEDULE_DESCRIPTIONS = {
+    "Platform Sync": "Per tier schedule",
+    "Signal Processing": "Daily at 06:00/08:00 UTC (Starter+)",
+    "Memory Extraction": "Daily at 00:00 UTC",
+    "Session Summaries": "Daily at 00:00 UTC",
+    "Pattern Detection": "Daily at 00:00 UTC",
+    "Conversation Analysis": "Daily at 06:00 UTC",
+    "Deliverable Generation": "When due (checked every 5 min)",
+    "Content Cleanup": "Daily at 00:00 UTC",
+    "Scheduler Heartbeat": "Every 5 min",
+}
+
+SYNC_FREQUENCY_LABELS = {
+    "1x_daily": "1x daily",
+    "2x_daily": "2x daily",
+    "4x_daily": "4x daily",
+    "hourly": "Hourly",
+}
+
+
+def _build_todays_windows(
+    sync_frequency: str,
+    user_tz_str: str,
+    now_utc: datetime,
+    sync_events: list[dict],
+) -> list[ScheduleWindow]:
+    """
+    Build today's schedule windows with hit/miss status.
+
+    Checks each schedule window against activity_log platform_synced events.
+    A window is "completed" if any sync event falls within window_start to
+    window_start + 30 minutes.
+    """
+    tz = _resolve_timezone(user_tz_str)
+    now_local = now_utc.astimezone(tz)
+    today_local = now_local.date()
+
+    schedule = SYNC_SCHEDULES.get(sync_frequency)
+
+    if schedule is None:
+        # Hourly — build windows for each hour of today
+        schedule = [f"{h:02d}:00" for h in range(24)]
+
+    # Parse sync event timestamps for comparison
+    event_times_utc = []
+    for ev in sync_events:
+        ts = ev.get("created_at")
+        if ts:
+            try:
+                event_times_utc.append(
+                    datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                )
+            except (ValueError, TypeError):
+                pass
+
+    windows = []
+    for time_str in schedule:
+        hour, minute = map(int, time_str.split(":"))
+        # Build this window's datetime in user's timezone, then convert to UTC
+        window_local = tz.localize(
+            datetime.combine(today_local, datetime.min.time().replace(hour=hour, minute=minute))
+        )
+        window_utc = window_local.astimezone(timezone.utc)
+        window_end_utc = window_utc + timedelta(minutes=30)
+
+        # Determine status
+        if now_utc < window_utc:
+            status = "upcoming"
+        elif now_utc < window_end_utc:
+            # Within the active window — check if already completed
+            hit = any(window_utc <= et <= window_end_utc for et in event_times_utc)
+            status = "completed" if hit else "active"
+        else:
+            # Past window — check for completion
+            hit = any(window_utc <= et <= window_end_utc for et in event_times_utc)
+            status = "completed" if hit else "missed"
+
+        windows.append(ScheduleWindow(
+            time=time_str,
+            time_utc=window_utc.isoformat(),
+            status=status,
+        ))
+
+    return windows
 
 
 # =============================================================================
@@ -100,12 +214,25 @@ async def get_system_status(auth: UserClient):
     limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
     sync_frequency = limits.sync_frequency
 
-    next_sync_hours = {
-        "2x_daily": 6,
-        "4x_daily": 4,
+    # ADR-084: Freshness thresholds for resource status badges
+    freshness_hours = {
+        "1x_daily": 24,
+        "2x_daily": 12,
+        "4x_daily": 6,
         "hourly": 1,
     }
-    hours_between = next_sync_hours.get(sync_frequency, 6)
+    hours_between = freshness_hours.get(sync_frequency, 12)
+
+    # ─── User Timezone (ADR-084) ─────────────────────────────────────────────
+    user_tz_str = "UTC"
+    try:
+        tz_result = auth.client.table("user_context").select(
+            "value"
+        ).eq("user_id", user_id).eq("key", "timezone").maybe_single().execute()
+        if tz_result.data:
+            user_tz_str = tz_result.data.get("value", "UTC") or "UTC"
+    except Exception:
+        pass
 
     # ─── Platform Connections ──────────────────────────────────────────────────
     platforms_result = auth.client.table("platform_connections").select(
@@ -247,11 +374,10 @@ async def get_system_status(auth: UserClient):
                     except (ValueError, TypeError):
                         pass
 
-            # Compute last_synced_at and next_sync_at from registry data
+            # Compute last_synced_at and next_sync_at
+            # ADR-084: Use schedule-aware calculation instead of last_sync + hours
             last_synced_str = latest_sync_dt.isoformat() if latest_sync_dt else p_data.get("last_synced_at")
-            next_sync = None
-            if latest_sync_dt:
-                next_sync = (latest_sync_dt + timedelta(hours=hours_between)).isoformat()
+            next_sync = get_next_sync_time(sync_frequency, user_tz_str)
 
             platform_sync.append(PlatformSyncStatus(
                 platform=platform,
@@ -365,11 +491,46 @@ async def get_system_status(auth: UserClient):
                     last_run_status="never_run",
                 ))
 
+    # ─── ADR-084: Sync Schedule Observability ────────────────────────────────
+    # Query today's platform_synced events for window status
+    tz = _resolve_timezone(user_tz_str)
+    now_local = now.astimezone(tz)
+    today_start_local = tz.localize(
+        datetime.combine(now_local.date(), datetime.min.time())
+    )
+    today_start_utc = today_start_local.astimezone(timezone.utc)
+
+    try:
+        sync_events_result = auth.client.table("activity_log").select(
+            "created_at"
+        ).eq("user_id", user_id).eq(
+            "event_type", "platform_synced"
+        ).gte("created_at", today_start_utc.isoformat()).execute()
+        sync_events = sync_events_result.data or []
+    except Exception:
+        sync_events = []
+
+    todays_windows = _build_todays_windows(
+        sync_frequency, user_tz_str, now, sync_events
+    )
+
+    sync_schedule = SyncScheduleInfo(
+        timezone=user_tz_str,
+        sync_frequency_label=SYNC_FREQUENCY_LABELS.get(sync_frequency, sync_frequency),
+        todays_windows=todays_windows,
+        next_sync_at=get_next_sync_time(sync_frequency, user_tz_str),
+    )
+
+    # Add schedule descriptions to background jobs
+    for job in background_jobs:
+        job.schedule_description = JOB_SCHEDULE_DESCRIPTIONS.get(job.job_type)
+
     return SystemStatusResponse(
         platform_sync=platform_sync,
         background_jobs=background_jobs,
         tier=tier,
         sync_frequency=sync_frequency,
+        sync_schedule=sync_schedule,
     )
 
 

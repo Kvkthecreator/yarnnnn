@@ -47,6 +47,21 @@ interface BackgroundJobStatus {
   last_run_status: 'success' | 'failed' | 'never_run' | 'unknown';
   last_run_summary: string | null;
   items_processed: number;
+  schedule_description: string | null;
+}
+
+// ADR-084: Schedule observability types
+interface ScheduleWindow {
+  time: string;
+  time_utc: string;
+  status: 'completed' | 'missed' | 'upcoming' | 'active';
+}
+
+interface SyncSchedule {
+  timezone: string;
+  sync_frequency_label: string;
+  todays_windows: ScheduleWindow[];
+  next_sync_at: string | null;
 }
 
 type PipelineStep =
@@ -184,6 +199,7 @@ export default function SystemPage() {
   const [loading, setLoading] = useState(true);
   const [platformSync, setPlatformSync] = useState<PlatformSyncStatus[]>([]);
   const [backgroundJobs, setBackgroundJobs] = useState<BackgroundJobStatus[]>([]);
+  const [syncSchedule, setSyncSchedule] = useState<SyncSchedule | null>(null);
   const [expandedMemoryDetail, setExpandedMemoryDetail] = useState(false);
 
   // Pipeline action state
@@ -206,6 +222,7 @@ export default function SystemPage() {
       const result = await api.system.getStatus();
       setPlatformSync(result.platform_sync);
       setBackgroundJobs(result.background_jobs);
+      setSyncSchedule(result.sync_schedule ?? null);
     } catch (err) {
       console.error('Failed to load system status:', err);
     } finally {
@@ -387,6 +404,7 @@ export default function SystemPage() {
         lastRunStatus: job?.last_run_status ?? 'never_run',
         lastRunSummary: job?.last_run_summary ?? null,
         itemsProcessed: job?.items_processed ?? 0,
+        scheduleDescription: job?.schedule_description ?? null,
         subJobs: [],
       };
     }
@@ -405,6 +423,7 @@ export default function SystemPage() {
       lastRunStatus: allNeverRun ? 'never_run' : hasFailed ? 'failed' : 'success',
       lastRunSummary: mostRecent?.last_run_summary ?? null,
       itemsProcessed: matchingJobs.reduce((sum, j) => sum + j.items_processed, 0),
+      scheduleDescription: null,  // Multi-type groups: descriptions on sub-jobs
       subJobs: matchingJobs,
     };
   });
@@ -609,6 +628,58 @@ export default function SystemPage() {
                 <h2 className="text-lg font-semibold">Background Activity</h2>
               </div>
 
+              {/* ADR-084: Sync schedule observability */}
+              {syncSchedule && (
+                <div className="border border-border rounded-lg p-4 mb-3 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <div className="flex items-center gap-2">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-muted text-xs font-medium text-muted-foreground">
+                        <Clock className="w-3 h-3" />
+                        {syncSchedule.timezone}
+                      </span>
+                      <span className="text-muted-foreground">
+                        {syncSchedule.sync_frequency_label} sync
+                      </span>
+                    </div>
+                    {syncSchedule.next_sync_at && (
+                      <span className="text-xs text-muted-foreground">
+                        Next: {formatDistanceToNow(new Date(syncSchedule.next_sync_at), { addSuffix: true })}
+                      </span>
+                    )}
+                  </div>
+                  {/* Window pills */}
+                  {syncSchedule.todays_windows.length <= 8 ? (
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {syncSchedule.todays_windows.map((w) => {
+                        const colors: Record<string, string> = {
+                          completed: 'bg-green-500',
+                          missed: 'bg-red-500',
+                          upcoming: 'bg-gray-300 dark:bg-gray-600',
+                          active: 'bg-blue-500 animate-pulse',
+                        };
+                        return (
+                          <div key={w.time} className="flex flex-col items-center gap-0.5" title={`${w.time} — ${w.status}`}>
+                            <div className={cn('w-2.5 h-2.5 rounded-full', colors[w.status] || colors.upcoming)} />
+                            <span className="text-[10px] text-muted-foreground leading-none">{w.time}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    /* Hourly: condensed summary */
+                    <div className="text-xs text-muted-foreground">
+                      {syncSchedule.todays_windows.filter((w) => w.status === 'completed').length}/
+                      {syncSchedule.todays_windows.length} windows completed today
+                      {syncSchedule.todays_windows.some((w) => w.status === 'missed') && (
+                        <span className="text-red-500 ml-2">
+                          ({syncSchedule.todays_windows.filter((w) => w.status === 'missed').length} missed)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
               <div className="border border-border rounded-lg divide-y divide-border">
                 {groupedJobs.map((group) => (
                   <div key={group.label}>
@@ -623,6 +694,12 @@ export default function SystemPage() {
                           {group.lastRunSummary && (
                             <div className="text-xs text-muted-foreground mt-0.5">
                               {group.lastRunSummary}
+                            </div>
+                          )}
+                          {/* ADR-084: Schedule description */}
+                          {group.scheduleDescription && (
+                            <div className="text-[11px] text-muted-foreground/70 mt-0.5">
+                              {group.scheduleDescription}
                             </div>
                           )}
                         </div>
@@ -665,9 +742,16 @@ export default function SystemPage() {
                             key={job.job_type}
                             className="px-4 py-2 pl-12 flex items-center justify-between text-sm border-b border-border/50 last:border-b-0"
                           >
-                            <div className="flex items-center gap-2">
-                              <span className="text-muted-foreground">{job.job_type}</span>
-                              <StatusBadge status={job.last_run_status} />
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-muted-foreground">{job.job_type}</span>
+                                <StatusBadge status={job.last_run_status} />
+                              </div>
+                              {job.schedule_description && (
+                                <div className="text-[11px] text-muted-foreground/70 mt-0.5">
+                                  {job.schedule_description}
+                                </div>
+                              )}
                             </div>
                             <div className="text-xs text-muted-foreground">
                               {job.last_run_at

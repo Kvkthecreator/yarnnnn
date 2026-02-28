@@ -1263,9 +1263,21 @@ export const api = {
           last_run_status: "success" | "failed" | "never_run" | "unknown";
           last_run_summary: string | null;
           items_processed: number;
+          schedule_description: string | null;  // ADR-084
         }>;
         tier: string;
         sync_frequency: string;
+        // ADR-084: Sync schedule observability
+        sync_schedule: {
+          timezone: string;
+          sync_frequency_label: string;
+          todays_windows: Array<{
+            time: string;
+            time_utc: string;
+            status: "completed" | "missed" | "upcoming" | "active";
+          }>;
+          next_sync_at: string | null;
+        } | null;
       }>("/api/system/status"),
 
     // Lightweight endpoint for polling sync completion during pipeline runs
