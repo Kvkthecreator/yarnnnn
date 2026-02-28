@@ -116,6 +116,12 @@ export function ResourceList({
     />
   );
 
+  const renderResourceGroup = (items: LandscapeResource[]) => (
+    <div className="space-y-2">
+      {items.map(renderResourceRow)}
+    </div>
+  );
+
   // Tier-appropriate upgrade CTA
   const upgradeTarget = tierLimits?.tier === 'free' ? 'Starter' : tierLimits?.tier === 'starter' ? 'Pro' : null;
 
@@ -283,9 +289,7 @@ export function ResourceList({
                 Recommended based on activity
               </h3>
             </div>
-            <div className="border border-primary/20 rounded-lg divide-y divide-border">
-              {recommended.map(renderResourceRow)}
-            </div>
+            {renderResourceGroup(recommended)}
           </div>
 
           {/* All others section */}
@@ -294,17 +298,13 @@ export function ResourceList({
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
                 All {resourceLabel.toLowerCase()}
               </h3>
-              <div className="border border-border rounded-lg divide-y divide-border">
-                {rest.map(renderResourceRow)}
-              </div>
+              {renderResourceGroup(rest)}
             </div>
           )}
         </div>
       ) : (
         /* Flat view: no recommendations available */
-        <div className="border border-border rounded-lg divide-y divide-border">
-          {resources.map(renderResourceRow)}
-        </div>
+        renderResourceGroup(resources)
       )}
     </section>
   );

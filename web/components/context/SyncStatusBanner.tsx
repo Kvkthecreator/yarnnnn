@@ -50,6 +50,16 @@ function formatNextSync(isoString: string | null | undefined): string | null {
   }
 }
 
+function getExpectedIntervalHours(syncFrequency: string): number {
+  const intervals: Record<string, number> = {
+    hourly: 1,
+    '4x_daily': 6,
+    '2x_daily': 12,
+    '1x_daily': 24,
+  };
+  return intervals[syncFrequency] ?? 12;
+}
+
 interface SyncStatusBannerProps {
   tier: string;
   syncFrequency: string;
@@ -69,6 +79,15 @@ export function SyncStatusBanner({
 }: SyncStatusBannerProps) {
   const frequencyInfo = SYNC_FREQUENCY_LABELS[syncFrequency] || SYNC_FREQUENCY_LABELS['2x_daily'];
   const nextSyncFormatted = formatNextSync(nextSync);
+  const expectedHours = getExpectedIntervalHours(syncFrequency);
+
+  const isLagging = (() => {
+    if (!lastSyncedAt) return false;
+    const elapsedMs = Date.now() - new Date(lastSyncedAt).getTime();
+    const elapsedHours = elapsedMs / (1000 * 60 * 60);
+    // Mark as delayed only when significantly past expected cadence.
+    return elapsedHours > expectedHours * 2;
+  })();
 
   // No sources selected AND no synced content — prompt to select
   if (selectedCount === 0 && syncedCount === 0) {
@@ -99,6 +118,40 @@ export function SyncStatusBanner({
               Your {tier} plan syncs {frequencyInfo.label.toLowerCase()}.
               {nextSyncFormatted && ` Next sync ${nextSyncFormatted}.`}
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (isLagging) {
+    return (
+      <div className="p-4 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+              <Clock className="w-4 h-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-amber-800 dark:text-amber-200">
+                Sync is behind schedule
+              </p>
+              <p className="text-sm text-amber-700 dark:text-amber-300 mt-1">
+                Last synced {formatDistanceToNow(new Date(lastSyncedAt as string), { addSuffix: true })}.
+                Expected cadence is {frequencyInfo.label.toLowerCase()}.
+              </p>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="flex items-center gap-1.5 text-sm text-amber-700 dark:text-amber-300">
+              {frequencyInfo.icon}
+              <span className="font-medium">{frequencyInfo.label}</span>
+            </div>
+            {nextSyncFormatted && (
+              <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+                Next sync {nextSyncFormatted}
+              </p>
+            )}
           </div>
         </div>
       </div>

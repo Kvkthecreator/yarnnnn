@@ -16,6 +16,8 @@ import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 
 type PlatformKey = 'slack' | 'gmail' | 'notion' | 'calendar';
+type HealthState = 'on_track' | 'needs_sync' | 'not_synced';
+type CadenceState = 'on_schedule' | 'delayed' | 'behind' | 'unknown' | 'live_mode';
 
 interface SyncResource {
   resource_id: string;
@@ -26,9 +28,7 @@ interface SyncResource {
 }
 
 interface SyncStatusResponse {
-  platform: string;
   synced_resources: SyncResource[];
-  stale_count: number;
 }
 
 interface PlatformSyncEvent {
@@ -45,40 +45,32 @@ interface PlatformSyncActivityProps {
   liveQueryMode?: boolean;
 }
 
-const PLATFORM_ACCENTS: Record<PlatformKey, { border: string; bg: string; text: string }> = {
-  slack: {
-    border: 'border-purple-200 dark:border-purple-900/60',
-    bg: 'bg-purple-50/80 dark:bg-purple-950/20',
-    text: 'text-purple-700 dark:text-purple-300',
-  },
-  gmail: {
-    border: 'border-red-200 dark:border-red-900/60',
-    bg: 'bg-red-50/80 dark:bg-red-950/20',
-    text: 'text-red-700 dark:text-red-300',
-  },
-  notion: {
-    border: 'border-neutral-300 dark:border-neutral-700',
-    bg: 'bg-neutral-100/70 dark:bg-neutral-900/40',
-    text: 'text-neutral-700 dark:text-neutral-300',
-  },
-  calendar: {
-    border: 'border-blue-200 dark:border-blue-900/60',
-    bg: 'bg-blue-50/80 dark:bg-blue-950/20',
-    text: 'text-blue-700 dark:text-blue-300',
-  },
-};
-
 function formatSyncFrequency(syncFrequency?: string): string | null {
   if (!syncFrequency) return null;
-
   const labels: Record<string, string> = {
-    '1x_daily': 'Daily',
-    '2x_daily': '2x daily',
-    '4x_daily': '4x daily',
     hourly: 'Hourly',
+    '4x_daily': 'Every 6 hours',
+    '2x_daily': 'Twice daily',
+    '1x_daily': 'Daily',
   };
-
   return labels[syncFrequency] || syncFrequency;
+}
+
+function expectedCadenceHours(syncFrequency?: string): number | null {
+  if (!syncFrequency) return null;
+  const hours: Record<string, number> = {
+    hourly: 1,
+    '4x_daily': 6,
+    '2x_daily': 12,
+    '1x_daily': 24,
+  };
+  return hours[syncFrequency] ?? null;
+}
+
+function resourceHealth(resource: SyncResource): HealthState {
+  if (resource.freshness_status === 'stale') return 'needs_sync';
+  if (resource.freshness_status === 'unknown') return 'not_synced';
+  return 'on_track';
 }
 
 function extractItemsSynced(event: PlatformSyncEvent | null): number {
@@ -92,9 +84,47 @@ function extractItemsSynced(event: PlatformSyncEvent | null): number {
   return 0;
 }
 
-function isSyncError(event: PlatformSyncEvent): boolean {
-  const hasErrorMeta = Boolean(event.metadata && event.metadata.error);
-  return hasErrorMeta || event.summary.toLowerCase().includes('(error)');
+function cadenceState(
+  lastRunAt: string | null,
+  syncFrequency?: string,
+  liveQueryMode?: boolean
+): CadenceState {
+  if (liveQueryMode) return 'live_mode';
+  if (!lastRunAt) return 'unknown';
+
+  const cadenceHours = expectedCadenceHours(syncFrequency);
+  if (!cadenceHours) return 'unknown';
+
+  const elapsedHours = (Date.now() - new Date(lastRunAt).getTime()) / (1000 * 60 * 60);
+  if (elapsedHours <= cadenceHours * 1.5) return 'on_schedule';
+  if (elapsedHours <= cadenceHours * 3) return 'delayed';
+  return 'behind';
+}
+
+function statusClasses(state: CadenceState): { box: string; text: string } {
+  switch (state) {
+    case 'on_schedule':
+      return {
+        box: 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60',
+        text: 'text-emerald-800 dark:text-emerald-300',
+      };
+    case 'delayed':
+    case 'behind':
+      return {
+        box: 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/60',
+        text: 'text-amber-800 dark:text-amber-300',
+      };
+    case 'live_mode':
+      return {
+        box: 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/60',
+        text: 'text-blue-800 dark:text-blue-300',
+      };
+    default:
+      return {
+        box: 'bg-muted/50 border-border',
+        text: 'text-foreground',
+      };
+  }
 }
 
 export function PlatformSyncActivity({
@@ -166,47 +196,69 @@ export function PlatformSyncActivity({
   };
 
   const latestEvent = events[0] || null;
-  const resourceCount = syncStatus?.synced_resources.length || 0;
-  const staleCount = syncStatus?.stale_count || 0;
-  const healthyCount = Math.max(resourceCount - staleCount, 0);
+  const resources = syncStatus?.synced_resources || [];
+  const resourceCount = resources.length;
+  const onTrackCount = resources.filter((r) => resourceHealth(r) === 'on_track').length;
+  const needsSyncCount = resources.filter((r) => resourceHealth(r) === 'needs_sync').length;
+  const notSyncedCount = resources.filter((r) => resourceHealth(r) === 'not_synced').length;
   const latestItemsSynced = extractItemsSynced(latestEvent);
+  const frequencyLabel = formatSyncFrequency(syncFrequency);
 
-  const topResources = useMemo(() => {
-    const rows = [...(syncStatus?.synced_resources || [])];
-    return rows
+  const lastRunAt = latestEvent?.created_at || resources.reduce((latest, r) => {
+    if (!r.last_synced) return latest;
+    if (!latest) return r.last_synced;
+    return new Date(r.last_synced) > new Date(latest) ? r.last_synced : latest;
+  }, null as string | null);
+
+  const cadence = cadenceState(lastRunAt, syncFrequency, liveQueryMode);
+  const style = statusClasses(cadence);
+
+  const summaryTitle = (() => {
+    if (cadence === 'live_mode') return 'Live calendar access';
+    if (cadence === 'on_schedule') return 'Sync is on schedule';
+    if (cadence === 'delayed') return 'Sync is delayed';
+    if (cadence === 'behind') return 'Sync is behind';
+    return 'Sync status unavailable';
+  })();
+
+  const summaryBody = (() => {
+    if (cadence === 'live_mode') {
+      return 'Calendar events are queried live. Background sync runs are supplemental.';
+    }
+    if (cadence === 'unknown') {
+      return 'No recent sync run detected yet. Select sources and run a sync to initialize status.';
+    }
+    const cadenceText = frequencyLabel ? `Expected cadence: ${frequencyLabel.toLowerCase()}.` : '';
+    const lastRunText = lastRunAt
+      ? `Last run ${formatDistanceToNow(new Date(lastRunAt), { addSuffix: true })}.`
+      : '';
+    return `${lastRunText} ${cadenceText}`.trim();
+  })();
+
+  const attentionResources = useMemo(() => {
+    return [...resources]
       .sort((a, b) => {
-        const rank: Record<SyncResource['freshness_status'], number> = {
-          stale: 0,
-          unknown: 1,
-          recent: 2,
-          fresh: 3,
+        const rank: Record<HealthState, number> = {
+          needs_sync: 0,
+          not_synced: 1,
+          on_track: 2,
         };
-        return rank[a.freshness_status] - rank[b.freshness_status];
+        return rank[resourceHealth(a)] - rank[resourceHealth(b)];
       })
       .slice(0, 6);
-  }, [syncStatus]);
-
-  const accent = PLATFORM_ACCENTS[platform];
-  const frequencyLabel = formatSyncFrequency(syncFrequency);
+  }, [resources]);
 
   return (
     <section className="rounded-xl border border-border bg-card overflow-hidden">
-      <div className={cn('px-4 md:px-5 py-3 border-b', accent.bg, accent.border)}>
+      <div className="px-4 md:px-5 py-3 border-b border-border bg-muted/20">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-base font-semibold">Sync Activity</h2>
+            <h2 className="text-base font-semibold">Sync status</h2>
             <p className="text-sm text-muted-foreground mt-0.5">
-              {liveQueryMode
-                ? 'Calendar is live-first. Sync records appear when refresh jobs run.'
-                : 'Platform freshness, recent sync runs, and source-level status.'}
+              Clear view of cadence, source health, and recent runs.
             </p>
           </div>
           <div className="flex items-center gap-2 shrink-0">
-            {frequencyLabel && (
-              <span className={cn('hidden md:inline-flex px-2 py-1 rounded-md text-xs font-medium border', accent.bg, accent.border, accent.text)}>
-                {frequencyLabel}
-              </span>
-            )}
             <button
               onClick={handleRefresh}
               disabled={refreshing || loading}
@@ -235,31 +287,45 @@ export function PlatformSyncActivity({
         </div>
       ) : (
         <div className="px-4 md:px-5 py-4 space-y-4">
+          <div className={cn('rounded-lg border px-3 py-2.5', style.box)}>
+            <div className="flex items-start gap-2">
+              {cadence === 'on_schedule' ? (
+                <CheckCircle2 className={cn('w-4 h-4 mt-0.5', style.text)} />
+              ) : (
+                <AlertTriangle className={cn('w-4 h-4 mt-0.5', style.text)} />
+              )}
+              <div>
+                <p className={cn('text-sm font-medium', style.text)}>{summaryTitle}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{summaryBody}</p>
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Tracked sources</p>
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Sources tracked</p>
               <p className="text-lg font-semibold mt-1">{resourceCount}</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Healthy</p>
-              <p className="text-lg font-semibold mt-1 text-green-600 dark:text-green-400">{healthyCount}</p>
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">On track</p>
+              <p className="text-lg font-semibold mt-1 text-emerald-600 dark:text-emerald-400">{onTrackCount}</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Stale</p>
-              <p className="text-lg font-semibold mt-1 text-amber-600 dark:text-amber-400">{staleCount}</p>
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Need sync</p>
+              <p className="text-lg font-semibold mt-1 text-amber-600 dark:text-amber-400">{needsSyncCount}</p>
             </div>
-            <div className="rounded-lg border border-border bg-muted/30 p-3">
-              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Latest items</p>
+            <div className="rounded-lg border border-border bg-background p-3">
+              <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Last run items</p>
               <p className="text-lg font-semibold mt-1">{latestItemsSynced}</p>
             </div>
           </div>
 
-          {(frequencyLabel || nextSync) && (
-            <div className="rounded-lg border border-border bg-muted/20 px-3 py-2 text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1">
+          {(frequencyLabel || nextSync || notSyncedCount > 0) && (
+            <div className="rounded-lg border border-border bg-background px-3 py-2 text-xs text-muted-foreground flex flex-wrap items-center gap-x-4 gap-y-1">
               {frequencyLabel && (
                 <span className="inline-flex items-center gap-1">
                   <Clock3 className="w-3 h-3" />
-                  Frequency: <span className="font-medium text-foreground">{frequencyLabel}</span>
+                  Cadence: <span className="font-medium text-foreground">{frequencyLabel}</span>
                 </span>
               )}
               {nextSync && (
@@ -267,6 +333,9 @@ export function PlatformSyncActivity({
                   <History className="w-3 h-3" />
                   Next sync {formatDistanceToNow(new Date(nextSync), { addSuffix: true })}
                 </span>
+              )}
+              {notSyncedCount > 0 && (
+                <span>{notSyncedCount} source{notSyncedCount > 1 ? 's' : ''} not synced yet</span>
               )}
             </div>
           )}
@@ -280,35 +349,39 @@ export function PlatformSyncActivity({
           <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
             <div className="rounded-lg border border-border overflow-hidden">
               <div className="px-3 py-2 border-b border-border bg-muted/20">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Resource freshness</p>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  Source health
+                </p>
               </div>
-              {topResources.length === 0 ? (
+              {attentionResources.length === 0 ? (
                 <div className="px-3 py-4 text-sm text-muted-foreground">
-                  No synced resources yet.
+                  No synced sources yet.
                 </div>
               ) : (
                 <div className="divide-y divide-border">
-                  {topResources.map((resource) => (
-                    <div key={resource.resource_id} className="px-3 py-2.5 flex items-center justify-between gap-3">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{resource.resource_name || resource.resource_id}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {resource.last_synced
-                            ? `Last synced ${formatDistanceToNow(new Date(resource.last_synced), { addSuffix: true })}`
-                            : 'No sync timestamp yet'}
-                        </p>
+                  {attentionResources.map((resource) => {
+                    const health = resourceHealth(resource);
+                    return (
+                      <div key={resource.resource_id} className="px-3 py-2.5 flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium truncate">{resource.resource_name || resource.resource_id}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {resource.last_synced
+                              ? `Last synced ${formatDistanceToNow(new Date(resource.last_synced), { addSuffix: true })}`
+                              : 'No sync timestamp yet'}
+                          </p>
+                        </div>
+                        <span className={cn(
+                          'px-2 py-0.5 rounded text-xs font-medium',
+                          health === 'on_track' && 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300',
+                          health === 'needs_sync' && 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300',
+                          health === 'not_synced' && 'bg-muted text-muted-foreground'
+                        )}>
+                          {health === 'on_track' ? 'On track' : health === 'needs_sync' ? 'Needs sync' : 'Not synced'}
+                        </span>
                       </div>
-                      <span className={cn(
-                        'px-2 py-0.5 rounded text-xs font-medium capitalize',
-                        resource.freshness_status === 'fresh' && 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300',
-                        resource.freshness_status === 'recent' && 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300',
-                        resource.freshness_status === 'stale' && 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300',
-                        resource.freshness_status === 'unknown' && 'bg-muted text-muted-foreground'
-                      )}>
-                        {resource.freshness_status}
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -319,18 +392,18 @@ export function PlatformSyncActivity({
               </div>
               {events.length === 0 ? (
                 <div className="px-3 py-4 text-sm text-muted-foreground">
-                  No sync activity in the last 30 days.
+                  No sync runs in the last 30 days.
                 </div>
               ) : (
                 <div className="divide-y divide-border">
                   {events.slice(0, 6).map((event) => {
-                    const errored = isSyncError(event);
+                    const errored = Boolean(event.metadata?.error) || event.summary.toLowerCase().includes('(error)');
                     return (
                       <div key={event.id} className="px-3 py-2.5 flex items-start gap-2.5">
                         {errored ? (
                           <AlertTriangle className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                         ) : (
-                          <CheckCircle2 className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                          <CheckCircle2 className="w-4 h-4 text-emerald-500 mt-0.5 shrink-0" />
                         )}
                         <div className="min-w-0 flex-1">
                           <p className="text-sm truncate">{event.summary}</p>

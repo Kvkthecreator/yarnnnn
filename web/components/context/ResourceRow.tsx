@@ -19,21 +19,19 @@ import type { LandscapeResource, PlatformContentItem } from '@/types';
 export function CoverageBadge({
   state,
   itemsExtracted,
-  lastExtractedAt,
   hasError,
 }: {
   state: string;
   itemsExtracted?: number;
-  lastExtractedAt?: string | null;
   hasError?: boolean;
 }) {
   const stateConfig: Record<string, { color: string; bg: string; label: string }> = {
-    covered: { color: 'text-green-700 dark:text-green-400', bg: 'bg-green-100 dark:bg-green-900/30', label: 'Synced' },
-    partial: { color: 'text-yellow-700 dark:text-yellow-400', bg: 'bg-yellow-100 dark:bg-yellow-900/30', label: 'Partial' },
-    stale: { color: 'text-orange-700 dark:text-orange-400', bg: 'bg-orange-100 dark:bg-orange-900/30', label: 'Stale' },
-    uncovered: { color: 'text-gray-600 dark:text-gray-400', bg: 'bg-gray-100 dark:bg-gray-800', label: 'Not synced' },
-    excluded: { color: 'text-gray-500 dark:text-gray-500', bg: 'bg-gray-50 dark:bg-gray-900', label: 'Excluded' },
-    error: { color: 'text-red-700 dark:text-red-400', bg: 'bg-red-100 dark:bg-red-900/30', label: 'Sync error' },
+    covered: { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/30', label: 'On track' },
+    partial: { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/30', label: 'On track' },
+    stale: { color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-50 dark:bg-amber-950/30', label: 'Needs sync' },
+    uncovered: { color: 'text-muted-foreground', bg: 'bg-muted', label: 'Not synced' },
+    excluded: { color: 'text-muted-foreground', bg: 'bg-muted/60', label: 'Excluded' },
+    error: { color: 'text-red-700 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30', label: 'Issue' },
   };
 
   const effectiveState = hasError
@@ -41,14 +39,10 @@ export function CoverageBadge({
     : (state === 'uncovered' && itemsExtracted && itemsExtracted > 0) ? 'covered' : state;
   const { color, bg, label } = stateConfig[effectiveState] || stateConfig.uncovered;
 
-  const timeLabel = lastExtractedAt && effectiveState !== 'uncovered' && effectiveState !== 'error'
-    ? `${label} ${formatDistanceToNow(new Date(lastExtractedAt), { addSuffix: true })}`
-    : label;
-
   return (
     <span className={cn('px-2 py-0.5 rounded text-xs font-medium', color, bg)}>
       {hasError && <AlertTriangle className="w-3 h-3 inline mr-1 -mt-0.5" />}
-      {timeLabel}
+      {label}
     </span>
   );
 }
@@ -99,11 +93,15 @@ export function ResourceRow({
   const hasError = !!resource.last_error;
 
   return (
-    <div className={cn(isSelected ? 'bg-primary/5' : '')}>
+    <div className={cn(
+      'border border-border rounded-lg bg-card overflow-hidden transition-colors',
+      isSelected && 'border-primary/40 bg-primary/[0.04]',
+      !disabled && 'hover:bg-muted/[0.35]'
+    )}>
       {/* Main row */}
       <div
         className={cn(
-          'w-full px-4 py-3 flex items-center justify-between transition-colors',
+          'w-full px-4 py-3 flex items-center justify-between',
           disabled ? 'opacity-50' : ''
         )}
       >
@@ -173,7 +171,6 @@ export function ResourceRow({
             <CoverageBadge
               state={resource.coverage_state}
               itemsExtracted={resource.items_extracted}
-              lastExtractedAt={resource.last_extracted_at}
               hasError={hasError}
             />
           )}
@@ -195,7 +192,7 @@ export function ResourceRow({
 
       {/* Expanded context section */}
       {isExpanded && showCoverage && hasSyncedContent && (
-        <div className="px-4 pb-3 pl-12">
+        <div className="px-4 pb-3 pl-12 border-t border-border bg-muted/[0.2]">
           {loadingContext ? (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
               <Loader2 className="w-3 h-3 animate-spin" />
