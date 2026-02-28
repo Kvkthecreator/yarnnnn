@@ -8,10 +8,9 @@ import type {
   LandscapeResource,
   SelectedSource,
   TierLimits,
-  PlatformDeliverable,
   PlatformContentItem,
 } from '@/types';
-import { getApiProvider, BACKEND_PROVIDER_MAP } from '@/types';
+import { getApiProvider } from '@/types';
 
 interface UsePlatformDataReturn {
   integration: IntegrationData | null;
@@ -19,7 +18,6 @@ interface UsePlatformDataReturn {
   selectedIds: Set<string>;
   originalIds: Set<string>;
   tierLimits: TierLimits | null;
-  deliverables: PlatformDeliverable[];
   platformContext: PlatformContentItem[];
   loading: boolean;
   error: string | null;
@@ -46,7 +44,6 @@ export function usePlatformData(
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [originalIds, setOriginalIds] = useState<Set<string>>(new Set());
   const [tierLimits, setTierLimits] = useState<TierLimits | null>(null);
-  const [deliverables, setDeliverables] = useState<PlatformDeliverable[]>([]);
   const [platformContext, setPlatformContext] = useState<PlatformContentItem[]>([]);
 
   const loadData = useCallback(async () => {
@@ -55,14 +52,12 @@ export function usePlatformData(
       setError(null);
 
       const apiProvider = getApiProvider(platform);
-      const backendProviders = BACKEND_PROVIDER_MAP[platform];
 
       const [
         integrationResult,
         landscapeResult,
         sourcesResult,
         limitsResult,
-        deliverablesResult,
         platformContextResult,
         calendarsResult,
       ] = await Promise.all([
@@ -74,7 +69,6 @@ export function usePlatformData(
           ? Promise.resolve({ sources: [] })
           : api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
-        api.deliverables.list().catch(() => []),
         options?.skipContext
           ? Promise.resolve({ items: [], total_count: 0, freshest_at: null, platform })
           : api.integrations.getPlatformContext(
@@ -121,13 +115,6 @@ export function usePlatformData(
       setSelectedIds(currentIds);
       setOriginalIds(currentIds);
 
-      // Filter deliverables targeting this platform
-      const platformDeliverables = ((deliverablesResult || []) as PlatformDeliverable[]).filter(
-        (d: PlatformDeliverable) =>
-          backendProviders.includes(d.destination?.platform || '')
-      );
-      setDeliverables(platformDeliverables);
-
       // Set platform context
       setPlatformContext(
         (platformContextResult as { items: PlatformContentItem[] })?.items || []
@@ -150,7 +137,6 @@ export function usePlatformData(
     selectedIds,
     originalIds,
     tierLimits,
-    deliverables,
     platformContext,
     loading,
     error,

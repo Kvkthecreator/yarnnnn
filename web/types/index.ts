@@ -882,15 +882,6 @@ export interface SelectedSource {
   last_sync_at: string | null;
 }
 
-export interface PlatformDeliverable {
-  id: string;
-  title: string;
-  status: string;
-  next_run_at?: string | null;
-  deliverable_type: string;
-  destination?: { platform?: string };
-}
-
 export type NumericLimitField = 'slack_channels' | 'gmail_labels' | 'notion_pages' | 'calendars' | 'total_platforms';
 
 export interface TierLimits {

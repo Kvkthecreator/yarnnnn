@@ -4,7 +4,7 @@
  * Notion Context Page
  *
  * Dedicated page for Notion integration management.
- * Shows: Connection status, page selection, sync status, deliverables.
+ * Shows: Connection status, page selection, and sync activity.
  * Notion-specific: parent_type metadata, database badges.
  */
 
@@ -20,7 +20,7 @@ import { PlatformNotConnected } from '@/components/context/PlatformNotConnected'
 import { PlatformHeader } from '@/components/context/PlatformHeader';
 import { SyncStatusBanner } from '@/components/context/SyncStatusBanner';
 import { ResourceList } from '@/components/context/ResourceList';
-import { PlatformDeliverablesList } from '@/components/context/PlatformDeliverablesList';
+import { PlatformSyncActivity } from '@/components/context/PlatformSyncActivity';
 import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
 
 const BENEFITS = [
@@ -114,7 +114,7 @@ export default function NotionContextPage() {
         onConnectionDetails={() => setShowConnectionModal(true)}
       />
 
-      <div className="p-6 space-y-8">
+      <div className="p-4 md:p-6 space-y-6 max-w-6xl">
         {data.tierLimits && (
           <SyncStatusBanner
             tier={data.tierLimits.tier}
@@ -128,6 +128,12 @@ export default function NotionContextPage() {
             }, null as string | null)}
           />
         )}
+
+        <PlatformSyncActivity
+          platform="notion"
+          syncFrequency={data.tierLimits?.limits.sync_frequency}
+          nextSync={data.tierLimits?.next_sync}
+        />
 
         <ResourceList
           resourceLabel="Pages"
@@ -161,12 +167,6 @@ export default function NotionContextPage() {
           renderMetadata={renderNotionMetadata}
           justConnected={justConnected}
           platformLabel="Notion"
-        />
-
-        <PlatformDeliverablesList
-          platform="notion"
-          platformLabel="Notion"
-          deliverables={data.deliverables}
         />
       </div>
 

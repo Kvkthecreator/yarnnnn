@@ -23,10 +23,10 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import type { IntegrationData, PlatformDeliverable } from '@/types';
+import type { IntegrationData } from '@/types';
 import { PlatformNotConnected } from '@/components/context/PlatformNotConnected';
 import { PlatformHeader } from '@/components/context/PlatformHeader';
-import { PlatformDeliverablesList } from '@/components/context/PlatformDeliverablesList';
+import { PlatformSyncActivity } from '@/components/context/PlatformSyncActivity';
 import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
 import { CalendarView } from '@/components/calendar/CalendarView';
 
@@ -55,7 +55,6 @@ export default function CalendarContextPage() {
   const [calendars, setCalendars] = useState<CalendarOption[]>([]);
   const [designatedCalendarId, setDesignatedCalendarId] = useState<string | null>(null);
   const [designatedCalendarName, setDesignatedCalendarName] = useState<string | null>(null);
-  const [deliverables, setDeliverables] = useState<PlatformDeliverable[]>([]);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [showPicker, setShowPicker] = useState(false);
@@ -88,25 +87,19 @@ export default function CalendarContextPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [integrationResult, calendarsResult, designatedResult, deliverablesResult] = await Promise.all([
+      const [integrationResult, calendarsResult, designatedResult] = await Promise.all([
         api.integrations.get('calendar').catch(() => null),
         api.integrations.listGoogleCalendars().catch(() => ({ calendars: [] })),
         api.integrations.getGoogleDesignatedSettings().catch(() => ({
           designated_calendar_id: null,
           designated_calendar_name: null,
         })),
-        api.deliverables.list().catch(() => []),
       ]);
 
       setIntegration(integrationResult as IntegrationData | null);
       setCalendars(calendarsResult?.calendars || []);
       setDesignatedCalendarId(designatedResult?.designated_calendar_id || null);
       setDesignatedCalendarName(designatedResult?.designated_calendar_name || null);
-
-      const calendarDeliverables = ((deliverablesResult || []) as PlatformDeliverable[]).filter(
-        (d) => d.destination?.platform === 'calendar'
-      );
-      setDeliverables(calendarDeliverables);
     } catch (err) {
       console.error('Failed to load calendar data:', err);
     } finally {
@@ -222,7 +215,12 @@ export default function CalendarContextPage() {
 
       {/* Calendar View */}
       {viewMode === 'calendar' && (
-        <div className="p-6">
+        <div className="p-4 md:p-6 max-w-6xl space-y-6">
+          <PlatformSyncActivity
+            platform="calendar"
+            liveQueryMode
+          />
+
           <CalendarView
             calendarId={activeCalendarId}
             calendars={calendars}
@@ -233,9 +231,9 @@ export default function CalendarContextPage() {
 
       {/* Details View */}
       {viewMode === 'details' && (
-        <div className="p-6 space-y-8 max-w-2xl">
+        <div className="p-4 md:p-6 space-y-6 max-w-4xl">
           {/* Default Calendar */}
-          <section>
+          <section className="rounded-xl border border-border bg-card p-4 md:p-5">
             <h2 className="text-base font-semibold mb-1">Default calendar</h2>
             <p className="text-sm text-muted-foreground mb-4">
               Where TP creates new events. Events are queried live — no sync needed.
@@ -309,7 +307,7 @@ export default function CalendarContextPage() {
           </section>
 
           {/* Capabilities */}
-          <section>
+          <section className="rounded-xl border border-border bg-card p-4 md:p-5">
             <h2 className="text-base font-semibold mb-3">What TP can do</h2>
             <div className="border border-border rounded-lg divide-y divide-border">
               {CAPABILITIES.map((capability) => (
@@ -324,11 +322,9 @@ export default function CalendarContextPage() {
             </p>
           </section>
 
-          {/* Deliverables */}
-          <PlatformDeliverablesList
+          <PlatformSyncActivity
             platform="calendar"
-            platformLabel="Calendar"
-            deliverables={deliverables}
+            liveQueryMode
           />
         </div>
       )}

@@ -4,7 +4,7 @@
  * Gmail Context Page
  *
  * Dedicated page for Gmail integration management.
- * Shows: Connection status, label selection, sync status, deliverables.
+ * Shows: Connection status, label selection, and sync activity.
  */
 
 import { useState, useEffect } from 'react';
@@ -19,13 +19,13 @@ import { PlatformNotConnected } from '@/components/context/PlatformNotConnected'
 import { PlatformHeader } from '@/components/context/PlatformHeader';
 import { SyncStatusBanner } from '@/components/context/SyncStatusBanner';
 import { ResourceList } from '@/components/context/ResourceList';
-import { PlatformDeliverablesList } from '@/components/context/PlatformDeliverablesList';
+import { PlatformSyncActivity } from '@/components/context/PlatformSyncActivity';
 import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
 
 const BENEFITS = [
   'Sync email labels as context',
   'Surface recent emails to TP',
-  'Send draft emails as deliverables',
+  'Track freshness of synced labels',
 ];
 
 function renderGmailMetadata(resource: LandscapeResource) {
@@ -100,7 +100,7 @@ export default function GmailContextPage() {
         onConnectionDetails={() => setShowConnectionModal(true)}
       />
 
-      <div className="p-6 space-y-8">
+      <div className="p-4 md:p-6 space-y-6 max-w-6xl">
         {data.tierLimits && (
           <SyncStatusBanner
             tier={data.tierLimits.tier}
@@ -114,6 +114,12 @@ export default function GmailContextPage() {
             }, null as string | null)}
           />
         )}
+
+        <PlatformSyncActivity
+          platform="gmail"
+          syncFrequency={data.tierLimits?.limits.sync_frequency}
+          nextSync={data.tierLimits?.next_sync}
+        />
 
         <ResourceList
           resourceLabel="Labels"
@@ -147,12 +153,6 @@ export default function GmailContextPage() {
           renderMetadata={renderGmailMetadata}
           justConnected={justConnected}
           platformLabel="Gmail"
-        />
-
-        <PlatformDeliverablesList
-          platform="gmail"
-          platformLabel="Gmail"
-          deliverables={data.deliverables}
         />
       </div>
 
