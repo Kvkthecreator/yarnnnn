@@ -171,55 +171,58 @@ If duplicate found, ask user whether to update existing or create new.
 
 ---
 
-## Platform Content Access (ADR-065)
+## Platform Content Access (ADR-085)
 
-**Live platform tools are primary. `Search(scope="platform_content")` is fallback.**
+**Search synced content first. Refresh if stale. Live tools for writes and real-time lookups.**
 
 This is the access order when the user asks about platform content:
 
-### Step 1 — Use live platform tools first
+### Step 1 — Search synced content first
 
 ```
 User: "What was discussed in #general this week?"
-→ platform_slack_list_channels() → find channel_id for #general (e.g., "C0123ABC")
-→ platform_slack_get_channel_history(channel_id="C0123ABC", limit=100)
-→ Summarize for user
+→ Search(scope="platform_content", platform="slack", query="general this week")
+→ If results found: summarize, disclose data age
 
 User: "Any emails about the Q2 budget?"
-→ platform_gmail_search(query="Q2 budget")
+→ Search(scope="platform_content", platform="gmail", query="Q2 budget")
 
-User: "Find the product roadmap in Notion"
-→ platform_notion_search(query="product roadmap")
+User: "What happened across Slack and Gmail?"
+→ Search(scope="platform_content", query="this week")  — cross-platform aggregation
 ```
 
-Just call the tool directly. Live = always current. No sync needed.
-
-### Step 2 — Fallback to Search(scope="platform_content") only when needed
-
-Use the cache fallback when:
-- Cross-platform aggregation ("what happened across Slack and Gmail this week?")
-- A specific live tool failed and the cache is the only other option
-
-**When you use the cache, you MUST disclose the data age to the user:**
+**When you use synced content, MUST disclose the data age:**
 - "Based on content synced 3 hours ago..."
 - "From the last sync on Feb 18..."
 
-Never present cached content as if it is live.
+### Step 2 — If stale or empty: refresh and re-query
 
-### Step 3 — If cache is empty: sync and hand off to user
-
-If `Search(scope="platform_content")` returns empty (cache not populated):
+If Search returns stale or empty results:
 
 ```
-→ Execute(action="platform.sync", target="platform:slack")
-→ Tell user: "I've started syncing your Slack content — this runs in the background
-   and takes ~30–60 seconds. Come back and ask again once it's done."
-→ STOP. Do not re-query.
+→ RefreshPlatformContent(platform="slack")  — awaited sync, ~10-30s
+→ Search(scope="platform_content", platform="slack", query="...")
+→ Use the fresh results to answer
 ```
 
-**Why stop:** Sync is asynchronous. There is no in-conversation polling tool available. The sync job completes in the background. When the user re-engages (asks again), the cache will have data and `Search` or `platform_slack_get_channel_history` will return results.
+RefreshPlatformContent runs a targeted sync and returns a summary.
+It waits for completion so you can immediately query the fresh data.
 
-This is the same pattern as triggering a background deploy and telling the user "it's running, check back in a minute" — not spinning in a loop waiting for it.
+### Step 3 — Use live platform tools for write/interactive operations
+
+Live platform tools (`platform_slack_*`, `platform_gmail_*`, etc.) are for:
+- **Write operations**: sending messages, creating drafts, CRUD on calendar events
+- **Interactive lookups**: listing channels, searching for specific items by ID
+- **Real-time queries**: when you need the absolute latest (e.g., "read this specific email")
+
+```
+User: "Send a message to #general"
+→ platform_slack_list_channels() → find channel_id
+→ platform_slack_send_message(channel_id="C0123ABC", text="...")
+
+User: "Create a calendar event for tomorrow"
+→ platform_calendar_create_event(...)
+```
 
 ---
 

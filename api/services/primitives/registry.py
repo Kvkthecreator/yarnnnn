@@ -19,6 +19,7 @@ from .edit import EDIT_TOOL, handle_edit
 from .search import SEARCH_TOOL, handle_search
 from .list import LIST_TOOL, handle_list
 from .execute import EXECUTE_TOOL, handle_execute
+from .refresh import REFRESH_PLATFORM_CONTENT_TOOL, handle_refresh_platform_content
 from .todo import TODO_TOOL, handle_todo
 from .web_search import WEB_SEARCH_PRIMITIVE, handle_web_search
 from .system_state import GET_SYSTEM_STATE_TOOL, handle_get_system_state
@@ -131,6 +132,8 @@ PRIMITIVES = [
     LIST_TOOL,
     # External operations
     EXECUTE_TOOL,
+    # Platform content refresh (ADR-085)
+    REFRESH_PLATFORM_CONTENT_TOOL,
     # Web operations (ADR-045)
     WEB_SEARCH_PRIMITIVE,
     # Platform discovery — resolves connection metadata (authed_user_id, designated_page_id, etc.)
@@ -150,6 +153,7 @@ HANDLERS: dict[str, Callable] = {
     "Search": handle_search,
     "List": handle_list,
     "Execute": handle_execute,
+    "RefreshPlatformContent": handle_refresh_platform_content,
     "Todo": handle_todo,
     "WebSearch": handle_web_search,
     "GetSystemState": handle_get_system_state,
@@ -226,6 +230,7 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "Write":            ["chat"],
     "Edit":             ["chat"],
     "Execute":          ["chat"],
+    "RefreshPlatformContent": ["chat"],  # ADR-085
     "Todo":             ["chat"],
     "Respond":          ["chat"],
     "Clarify":          ["chat"],

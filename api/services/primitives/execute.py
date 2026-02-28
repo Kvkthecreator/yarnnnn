@@ -5,9 +5,10 @@ External operations on YARNNN entities. For platform MCP operations,
 use MCP tools directly (ADR-048).
 
 Usage:
-  Execute(action="platform.sync", target="platform:slack")
   Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
   Execute(action="deliverable.generate", target="deliverable:uuid")
+
+Note: platform.sync removed (ADR-085) — use RefreshPlatformContent primitive instead.
 """
 
 from typing import Any
@@ -20,7 +21,6 @@ EXECUTE_TOOL = {
     "description": """Perform YARNNN orchestration operations.
 
 Actions:
-- platform.sync: Pull latest content from platform into synced storage
 - platform.publish: Push approved deliverable content to platform
 - deliverable.generate: Run content generation pipeline
 - deliverable.schedule: Update deliverable schedule
@@ -32,8 +32,9 @@ Actions:
 NOTE: For direct platform operations (send messages, search pages, etc.),
 use MCP tools directly: mcp__slack__*, mcp__notion__*, etc. (ADR-048)
 
+NOTE: platform.sync removed — use RefreshPlatformContent(platform="...") instead (ADR-085).
+
 Examples:
-- Execute(action="platform.sync", target="platform:slack")
 - Execute(action="deliverable.generate", target="deliverable:uuid-123")
 - Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
 - Execute(action="deliverable.approve", target="deliverable:uuid")
@@ -65,11 +66,8 @@ Examples:
 
 # Action catalog with descriptions
 # ADR-048: platform.send and platform.search removed - use MCP tools directly
+# ADR-085: platform.sync removed - use RefreshPlatformContent primitive instead
 ACTION_CATALOG = {
-    "platform.sync": {
-        "description": "Sync latest content from platform into platform_content",
-        "target_types": ["platform"],
-    },
     "platform.publish": {
         "description": "Publish approved deliverable content to platform",
         "target_types": ["deliverable"],
@@ -136,13 +134,21 @@ async def handle_execute(auth: Any, input: dict) -> dict:
     # Validate action exists
     action_def = ACTION_CATALOG.get(action)
     if not action_def:
-        # ADR-048: Provide helpful message for removed actions
+        # Provide helpful message for removed actions
         if action in ("platform.send", "platform.search"):
             return {
                 "success": False,
                 "error": "action_moved",
                 "message": f"'{action}' has been removed. Use MCP tools directly: "
                            f"mcp__slack__* for Slack, mcp__notion__* for Notion (ADR-048).",
+                "available_actions": list(ACTION_CATALOG.keys()),
+            }
+        if action == "platform.sync":
+            return {
+                "success": False,
+                "error": "action_moved",
+                "message": "'platform.sync' has been replaced by RefreshPlatformContent(platform='...') "
+                           "which runs a synchronous sync and returns results (ADR-085).",
                 "available_actions": list(ACTION_CATALOG.keys()),
             }
         return {
@@ -228,7 +234,6 @@ async def handle_execute(auth: Any, input: dict) -> dict:
 def _get_action_handler(action: str):
     """Get handler function for action."""
     handlers = {
-        "platform.sync": _handle_platform_sync,
         "platform.publish": _handle_platform_publish,
         "deliverable.generate": _handle_deliverable_generate,
         "deliverable.approve": _handle_deliverable_approve,
@@ -236,28 +241,6 @@ def _get_action_handler(action: str):
         "signal.process": _handle_signal_process,
     }
     return handlers.get(action)
-
-
-async def _handle_platform_sync(auth, entity, ref, via, params):
-    """Sync latest from platform into platform_content."""
-    import asyncio
-    from workers.platform_worker import sync_platform
-
-    provider = entity.get("provider")
-
-    # Fire-and-forget sync in thread pool (ADR-083: no RQ)
-    # sync_platform uses asyncio.run() internally, so run in thread
-    asyncio.ensure_future(asyncio.to_thread(
-        sync_platform,
-        user_id=auth.user_id,
-        provider=provider,
-    ))
-
-    return {
-        "status": "started",
-        "provider": provider,
-        "message": f"Started syncing {provider}",
-    }
 
 
 async def _handle_platform_publish(auth, entity, ref, via, params):

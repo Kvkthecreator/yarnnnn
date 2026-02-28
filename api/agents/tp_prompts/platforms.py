@@ -29,11 +29,14 @@ Don't ask "are you connected to Slack?" — call `list_integrations` to find out
 | Gmail | Draft to user's own email | `user_email` from list_integrations |
 | Calendar | User's designated calendar | `designated_calendar_id` from list_integrations (fallback: `primary`) |
 
-### Reading platform content (ADR-065)
+### Reading platform content (ADR-085)
 
-1. **Use live platform tools first** — `platform_slack_get_channel_history`, `platform_gmail_search`, etc. Tool descriptions show the exact workflow.
-2. **Fallback to cache** — `Search(scope="platform_content")` only when live tools fail or for cross-platform aggregation. Disclose age: "Based on content synced 3 hours ago..."
-3. **If cache is empty** — `Execute(action="platform.sync", target="platform:slack")`, tell user sync is running in the background (~30–60s), and STOP. Do not re-query immediately.
+1. **Search first** — `Search(scope="platform_content", platform="slack")` queries synced data
+2. **If stale/empty → Refresh** — `RefreshPlatformContent(platform="slack")` syncs latest (awaited, ~10-30s)
+3. **Re-query** — `Search(scope="platform_content")` again to get fresh results
+4. **Live tools for write/interactive** — `platform_slack_*`, `platform_gmail_*` for sending, CRUD, real-time lookups
+
+Always disclose data age: "Based on content synced 3 hours ago..."
 
 ### Calendar CRUD — full workflow
 

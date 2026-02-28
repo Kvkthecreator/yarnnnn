@@ -6,6 +6,26 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.02.28.2] - Add RefreshPlatformContent primitive (ADR-085)
+
+### Added
+- `api/services/primitives/refresh.py`: New `RefreshPlatformContent` primitive — synchronous write-through cache refresh. Calls `_sync_platform_async()` (same pipeline as scheduler), awaits completion, returns summary. 30-minute staleness threshold prevents redundant syncs.
+- `api/services/primitives/registry.py`: Registered as chat-only primitive (headless uses `freshness.sync_stale_sources()`).
+
+### Changed
+- `api/services/primitives/search.py`: Replaced ADR-065 "live-first" guidance with ADR-085 pattern (Search → RefreshPlatformContent → Search). Added "calendar" to platform enum.
+- `api/services/primitives/execute.py`: Removed `platform.sync` action (singular implementation — replaced by RefreshPlatformContent). Added helpful error message redirecting TP to new primitive.
+- `api/agents/tp_prompts/platforms.py`: Updated "Reading platform content" section from fire-and-forget to synchronous refresh flow.
+- `api/agents/tp_prompts/behaviors.py`: Replaced Step 3 (fire-and-forget + STOP) with synchronous refresh-and-requery pattern.
+- `api/agents/tp_prompts/tools.py`: Added RefreshPlatformContent to tool docs. Updated Search description. Removed platform.sync from Execute examples.
+
+### Behavior
+- TP can now answer real-time platform questions within a single chat turn (Search → Refresh → Search → answer)
+- No more "come back in 30-60 seconds" dead end when cache is stale/empty
+- `Execute(action="platform.sync")` returns a helpful redirect message instead of running
+
+---
+
 ## [2026.02.28.1] - Fix Google/Gmail/Calendar domain separation in TP context
 
 ### Changed

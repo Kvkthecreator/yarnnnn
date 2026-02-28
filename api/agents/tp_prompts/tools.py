@@ -31,16 +31,24 @@ TOOLS_SECTION = """---
 - `List(pattern="platform:*")` - connected platforms
 - `List(pattern="memory:*")` - all memories (read-only)
 
-**Search(query, scope?)** - Semantic search over **synced content only**
-- `Search(query="database decisions", scope="memory")`
-- NOTE: This searches locally synced content, NOT the platform directly. For live platform search, use `Execute(action="platform.search")`
+**Search(query, scope?)** - Search synced platform content, documents, deliverables
+- `Search(query="Q2 budget", scope="platform_content", platform="slack")` - search Slack content
+- `Search(query="roadmap", scope="document")` - search uploaded documents
+- `Search(query="weekly report", scope="all")` - search everything
+
+### Platform Refresh
+
+**RefreshPlatformContent(platform)** - Sync latest platform data into cache
+- `RefreshPlatformContent(platform="slack")` - refresh Slack content
+- `RefreshPlatformContent(platform="gmail")` - refresh Gmail content
+- `RefreshPlatformContent(platform="calendar")` - refresh Calendar content
+- Use when Search returns stale/empty results. Then re-query with Search.
 
 ### External Operations
 
 **Execute(action, target, params?)** - Trigger YARNNN orchestration operations
 - `Execute(action="deliverable.generate", target="deliverable:uuid")` - generate content
 - `Execute(action="deliverable.approve", target="deliverable:uuid")` - approve pending version
-- `Execute(action="platform.sync", target="platform:slack")` - sync platform data
 - `Execute(action="platform.publish", target="deliverable:uuid", via="platform:slack")` - publish deliverable
 
 ### Web Operations

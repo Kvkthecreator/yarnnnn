@@ -25,13 +25,14 @@ SEARCH_TOOL = {
     "name": "Search",
     "description": """Find entities by content using text search. Returns refs for use with Read.
 
-IMPORTANT — platform content access order (ADR-065):
-1. Use live platform tools FIRST (platform_slack_*, platform_gmail_*, platform_notion_*, etc.)
-2. Only use Search(scope="platform_content") as FALLBACK for cross-platform aggregation or when live tools fail
-3. When using platform_content results, always disclose the synced_at age to the user
+IMPORTANT — platform content access (ADR-085):
+1. Search(scope="platform_content") is the primary way to query synced platform data
+2. If results are stale or empty, use RefreshPlatformContent(platform="...") to sync latest (~10-30s)
+3. Then re-query with Search — content will be fresh
+4. When using results, disclose the synced_at age to the user
 
 Examples:
-- Search(query="Q2 planning discussion", scope="platform_content") - FALLBACK: search cached Slack/Gmail/Notion
+- Search(query="Q2 planning discussion", scope="platform_content") - search synced Slack/Gmail/Notion/Calendar
 - Search(query="weekly status", scope="deliverable") - search deliverables
 - Search(query="competitor analysis", scope="document") - search uploaded documents
 - Search(query="competitor analysis") - search all scopes (excludes memory — already in working memory)
@@ -43,7 +44,7 @@ Workflow for documents:
 2. Read(ref="document:<UUID>") → returns full document content
 
 Scopes:
-- platform_content: CACHE of platform data (Slack, Gmail, Notion). May be hours old. Disclose age when used.
+- platform_content: Synced platform data (Slack, Gmail, Notion, Calendar). May be hours old — disclose age. Use RefreshPlatformContent to get latest.
 - document: Uploaded documents (PDF, DOCX, TXT, MD) - searches actual content, not just filenames
 - deliverable: Your recurring deliverables
 - work: Work tickets
@@ -64,7 +65,7 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
             },
             "platform": {
                 "type": "string",
-                "enum": ["slack", "gmail", "notion"],
+                "enum": ["slack", "gmail", "notion", "calendar"],
                 "description": "Filter platform_content by platform (optional)"
             },
             "limit": {
