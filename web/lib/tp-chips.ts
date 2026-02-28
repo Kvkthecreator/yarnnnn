@@ -13,7 +13,7 @@ import { DeskSurface } from '@/types/desk';
 export function getSurfaceLabel(surface: DeskSurface): string {
   switch (surface.type) {
     case 'idle':
-      return 'Dashboard';
+      return 'Thinking Partner';
     case 'deliverable-review':
       return 'Review';
     case 'deliverable-detail':
@@ -37,7 +37,7 @@ export function getSurfaceLabel(surface: DeskSurface): string {
     case 'platform-detail':
       return 'Platform';
     default:
-      return 'Dashboard';
+      return 'Thinking Partner';
   }
 }
 

@@ -231,10 +231,10 @@ function AuthenticatedLayoutInner({
         label: currentRoute.label,
       };
     }
-    // On dashboard = Chat (home)
+    // On dashboard = Thinking Partner (home)
     return {
       icon: MessageCircle,
-      label: 'Chat',
+      label: 'Thinking Partner',
     };
   };
 
@@ -275,8 +275,8 @@ function AuthenticatedLayoutInner({
 
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
-              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-40 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* ADR-037: Chat (home) - always first */}
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+                {/* ADR-037: Thinking Partner (home) - always first */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -292,7 +292,7 @@ function AuthenticatedLayoutInner({
                   )}
                 >
                   <MessageCircle className="w-4 h-4" />
-                  Chat
+                  Thinking Partner
                 </button>
 
                 {/* Divider */}
