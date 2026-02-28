@@ -176,7 +176,7 @@ async def process_user_sync(supabase_client, user: dict) -> dict:
     Returns:
         Dict with sync results
     """
-    from workers.platform_worker import sync_platform
+    from workers.platform_worker import _sync_platform_async
 
     user_id = user["user_id"]
     providers = user["providers"]
@@ -196,8 +196,9 @@ async def process_user_sync(supabase_client, user: dict) -> dict:
 
             logger.info(f"[SYNC] {provider}: syncing {len(selected_sources)} selected sources")
 
-            # Run sync for this provider with selected sources
-            result = sync_platform(
+            # Call async worker directly — scheduler already runs in an event loop,
+            # so we cannot use sync_platform() which wraps asyncio.run().
+            result = await _sync_platform_async(
                 user_id=user_id,
                 provider=provider,
                 selected_sources=selected_sources,
