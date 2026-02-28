@@ -68,3 +68,16 @@ Add a `RefreshPlatformContent` primitive that performs a **synchronous, awaited*
 - 30-minute staleness threshold prevents redundant syncs during rapid-fire questions
 - No new API clients or sync logic — fully reuses existing worker pipeline
 - Future platforms (Linear, Microsoft, etc.) automatically supported once added to `_sync_platform_async()`
+
+## Known Concern: Dual Freshness Check Implementations
+
+Two modules implement staleness checks via different mechanisms:
+
+| Module | Queries | Threshold | Mode |
+|--------|---------|-----------|------|
+| `refresh.py` (this ADR) | `platform_content.fetched_at` | 30 minutes | Chat |
+| `freshness.py` (ADR-049) | `sync_registry.last_synced_at` | 24 hours (configurable) | Headless |
+
+Today these are both simple threshold comparisons and serve distinct modes — acceptable as-is. However, if freshness logic grows more complex (per-source staleness, exponential backoff on failure, tier-aware thresholds), the two implementations will diverge and become a maintenance risk.
+
+**Recommendation**: If either implementation needs to become more sophisticated, extract a shared `is_platform_fresh(user_id, platform, threshold_minutes)` utility that both modules call. Do not pre-emptively abstract — wait until complexity actually materializes.

@@ -82,14 +82,20 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
 
     user_id = auth.user_id
 
-    # Google OAuth stores one DB row as platform="gmail" for both Gmail and Calendar
-    db_platform = "gmail" if platform in ("gmail", "calendar") else platform
+    # Google OAuth may store as platform="gmail" or platform="google" depending on
+    # when the connection was created. Check both for Gmail/Calendar connections.
+    if platform in ("gmail", "calendar"):
+        db_platforms = ["gmail", "google"]
+    else:
+        db_platforms = [platform]
 
     # 1. Check platform is connected
     try:
         conn_result = auth.client.table("platform_connections").select(
             "id, status"
-        ).eq("user_id", user_id).eq("platform", db_platform).maybe_single().execute()
+        ).eq("user_id", user_id).in_("platform", db_platforms).in_(
+            "status", ["connected", "active"]
+        ).limit(1).execute()
 
         if not conn_result.data:
             return {
@@ -98,7 +104,7 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
                 "message": f"{platform} is not connected. Connect it in Settings.",
             }
 
-        status = conn_result.data.get("status")
+        status = conn_result.data[0].get("status")
         if status not in ("connected", "active"):
             return {
                 "success": False,
