@@ -10,7 +10,7 @@
  * - Settings is meta (not a layer)
  *
  * Navigation structure (ADR-063 aligned):
- * - Chat (home) | Deliverables (Work) | Memory | Context | Activity | Settings
+ * - Thinking Partner (home) | Deliverables (Work) | Memory | Context | Activity | Settings
  *
  * Four-Layer Model:
  * - Memory (/memory): What YARNNN knows about you (Profile, Styles, Entries)
@@ -29,6 +29,7 @@ import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/lib/utils';
 import { SetupConfirmModal } from '@/components/modals/SetupConfirmModal';
+import { HOME_LABEL, HOME_ROUTE, isHomeRoute } from '@/lib/routes';
 
 interface AuthenticatedLayoutProps {
   children: React.ReactNode;
@@ -111,7 +112,7 @@ interface RouteItem {
 }
 
 // ADR-063: Four-Layer Model Navigation + ADR-072: System (Operations)
-// Chat | Deliverables (Work) | Memory | Context | Activity | System | Settings
+// Thinking Partner | Deliverables (Work) | Memory | Context | Activity | System | Settings
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' },
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
@@ -133,12 +134,6 @@ function getRouteFromPathname(pathname: string): RouteItem | null {
   return null;
 }
 
-// Check if pathname is the dashboard (surfaces live here)
-function isDashboardRoute(pathname: string): boolean {
-  return pathname === '/dashboard' || pathname.startsWith('/dashboard/');
-}
-
-
 // Inner component that can use desk context
 function AuthenticatedLayoutInner({
   children,
@@ -153,7 +148,7 @@ function AuthenticatedLayoutInner({
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Determine navigation context
-  const isOnDashboard = isDashboardRoute(pathname);
+  const isOnHome = isHomeRoute(pathname);
   const currentRoute = getRouteFromPathname(pathname);
 
   // Handle surface change from TP tool results (with optional handoff message)
@@ -192,8 +187,8 @@ function AuthenticatedLayoutInner({
 
       // For remaining surfaces (work, review, create, etc.), use surface system
       // If not on dashboard, navigate there first
-      if (!isDashboardRoute(window.location.pathname)) {
-        router.push('/dashboard');
+      if (!isHomeRoute(window.location.pathname)) {
+        router.push(HOME_ROUTE);
       }
       // Use handoff version if we have a message from TP
       if (handoffMessage) {
@@ -205,13 +200,13 @@ function AuthenticatedLayoutInner({
     [setSurface, setSurfaceWithHandoff, router]
   );
 
-  // Navigate to dashboard (handles both route nav and surface reset)
-  const navigateToDashboard = useCallback(() => {
-    if (!isOnDashboard) {
-      router.push('/dashboard');
+  // Navigate to home (handles both route nav and surface reset)
+  const navigateToHome = useCallback(() => {
+    if (!isOnHome) {
+      router.push(HOME_ROUTE);
     }
     setSurface({ type: 'idle' });
-  }, [isOnDashboard, router, setSurface]);
+  }, [isOnHome, router, setSurface]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -231,10 +226,10 @@ function AuthenticatedLayoutInner({
         label: currentRoute.label,
       };
     }
-    // On dashboard = Thinking Partner (home)
+    // On home route = Thinking Partner
     return {
       icon: MessageCircle,
-      label: 'Thinking Partner',
+      label: HOME_LABEL,
     };
   };
 
@@ -246,10 +241,10 @@ function AuthenticatedLayoutInner({
       <div className="flex flex-col h-screen bg-background">
         {/* Top Bar - Single unified bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
-          {/* Left: Logo - always navigates to dashboard */}
+          {/* Left: Logo - always navigates home */}
           <div className="flex items-center gap-4">
             <button
-              onClick={navigateToDashboard}
+              onClick={navigateToHome}
               className="text-xl font-brand hover:opacity-80 transition-opacity"
             >
               yarnnn
@@ -280,19 +275,19 @@ function AuthenticatedLayoutInner({
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    if (!isOnDashboard) {
-                      router.push('/dashboard');
+                    if (!isOnHome) {
+                      router.push(HOME_ROUTE);
                     }
                     setSurface({ type: 'idle' });
                     setDropdownOpen(false);
                   }}
                   className={cn(
                     'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    isOnDashboard && 'bg-primary/5 text-primary'
+                    isOnHome && 'bg-primary/5 text-primary'
                   )}
                 >
                   <MessageCircle className="w-4 h-4" />
-                  Thinking Partner
+                  {HOME_LABEL}
                 </button>
 
                 {/* Divider */}

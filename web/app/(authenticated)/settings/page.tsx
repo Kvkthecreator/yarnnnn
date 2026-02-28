@@ -28,6 +28,7 @@ import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
 import { createClient } from "@/lib/supabase/client";
 import { useTP } from "@/contexts/TPContext";
+import { HOME_ROUTE } from "@/lib/routes";
 
 // ADR-039: MemoryStats removed - stats now shown in Context page
 
@@ -271,7 +272,7 @@ export default function SettingsPage() {
           // Clear TP chat state before redirect
           clearMessages();
           // Redirect to dashboard after reset
-          setTimeout(() => router.push("/dashboard"), 2000);
+          setTimeout(() => router.push(HOME_ROUTE), 2000);
           break;
         case "deactivate":
           result = await api.account.deactivateAccount();

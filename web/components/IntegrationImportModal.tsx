@@ -25,6 +25,7 @@ import {
 import { api } from "@/lib/api/client";
 import { useRouter } from "next/navigation";
 import { useDesk } from "@/contexts/DeskContext";
+import { HOME_LABEL, HOME_ROUTE } from "@/lib/routes";
 
 type Provider = "slack" | "notion" | "gmail" | "calendar";
 type CoverageState = "uncovered" | "partial" | "covered" | "stale" | "excluded";
@@ -564,16 +565,16 @@ export function IntegrationImportModal({
                 } else if (deskContext?.clearSurface) {
                   deskContext.clearSurface();
                 } else {
-                  router.push('/dashboard');
+                  router.push(HOME_ROUTE);
                 }
                 handleClose();
               }}
               onStartChat={() => {
-                // Navigate to chat/dashboard
+                // Navigate to Thinking Partner home
                 if (deskContext?.setSurface) {
                   deskContext.setSurface({ type: 'idle' });
                 } else {
-                  router.push('/');
+                  router.push(HOME_ROUTE);
                 }
                 handleClose();
               }}
@@ -990,7 +991,7 @@ function ImportJobStatus({
                     className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
                   >
                     <MessageSquare className="w-4 h-4" />
-                    Try it in Chat
+                    Try it in {HOME_LABEL}
                     <ArrowRight className="w-3 h-3" />
                   </button>
                 )}

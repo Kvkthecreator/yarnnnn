@@ -34,6 +34,7 @@ import {
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { HOME_ROUTE } from '@/lib/routes';
 
 // =============================================================================
 // Types
@@ -768,7 +769,7 @@ export default function MemoryPage() {
           <EntriesSection
             entries={entries}
             loading={false}
-            onAdd={() => router.push('/dashboard?action=add-memory')}
+            onAdd={() => router.push(`${HOME_ROUTE}?action=add-memory`)}
             onDelete={handleDeleteEntry}
           />
         )}

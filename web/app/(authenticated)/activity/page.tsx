@@ -47,6 +47,7 @@ import {
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { HOME_ROUTE } from '@/lib/routes';
 
 // =============================================================================
 // Types
@@ -325,7 +326,7 @@ export default function ActivityPage() {
         }
         break;
       case 'chat_session':
-        router.push('/dashboard');
+        router.push(HOME_ROUTE);
         break;
     }
   };

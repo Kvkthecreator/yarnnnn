@@ -9,6 +9,7 @@
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
+import { HOME_ROUTE } from '@/lib/routes';
 
 export default function DeliverableDetailPage() {
   const params = useParams();
@@ -17,7 +18,7 @@ export default function DeliverableDetailPage() {
 
   useEffect(() => {
     // Redirect to dashboard with surface params
-    router.replace(`/dashboard?surface=deliverable-detail&deliverableId=${deliverableId}`);
+    router.replace(`${HOME_ROUTE}?surface=deliverable-detail&deliverableId=${deliverableId}`);
   }, [deliverableId, router]);
 
   return (

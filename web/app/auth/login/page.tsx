@@ -9,6 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ShaderBackground } from "@/components/landing/ShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { getSafeNextPath } from "@/lib/auth/redirect";
+import { HOME_ROUTE } from "@/lib/routes";
 
 function LoginForm() {
   const searchParams = useSearchParams();
@@ -17,7 +18,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<"login" | "signup">("login");
-  const nextPath = getSafeNextPath(searchParams.get("next"), "/dashboard");
+  const nextPath = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
   const callbackRedirect = typeof window === "undefined"
     ? ""
     : `${window.location.origin}/auth/callback?next=${encodeURIComponent(nextPath)}`;

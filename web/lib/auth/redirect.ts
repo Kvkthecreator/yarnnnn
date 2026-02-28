@@ -1,6 +1,8 @@
+import { HOME_ROUTE } from "@/lib/routes";
+
 const AUTH_PATH_PREFIX = "/auth/";
 
-export function getSafeNextPath(next: string | null | undefined, fallback = "/dashboard"): string {
+export function getSafeNextPath(next: string | null | undefined, fallback = HOME_ROUTE): string {
   if (!next) return fallback;
 
   if (!next.startsWith("/") || next.startsWith("//")) {

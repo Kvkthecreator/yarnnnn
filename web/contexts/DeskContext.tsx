@@ -16,6 +16,7 @@ import {
   paramsToSurface,
 } from '@/types/desk';
 import { api } from '@/lib/api/client';
+import { isHomeRoute } from '@/lib/routes';
 
 // =============================================================================
 // Initial State
@@ -191,7 +192,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
   // ---------------------------------------------------------------------------
   useEffect(() => {
     // Only sync when on dashboard routes
-    if (pathname !== '/dashboard' && !pathname.startsWith('/dashboard/')) {
+    if (!isHomeRoute(pathname)) {
       return;
     }
 
@@ -252,7 +253,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
 
       // Only update URL with surface params when on /dashboard
       // Other routes (like /settings) don't use the surface system
-      if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+      if (isHomeRoute(pathname)) {
         const params = surfaceToParams(surface);
         const newUrl = `${pathname}?${params.toString()}`;
         // Use push instead of replace so browser back/forward works
@@ -265,7 +266,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
   const clearSurface = useCallback(() => {
     dispatch({ type: 'CLEAR_SURFACE' });
     // Only update URL when on /dashboard
-    if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+    if (isHomeRoute(pathname)) {
       router.push(pathname, { scroll: false });
     }
   }, [pathname, router]);
@@ -283,7 +284,7 @@ export function DeskProvider({ children }: DeskProviderProps) {
       dispatch({ type: 'SET_SURFACE_WITH_HANDOFF', surface, handoffMessage: message });
 
       // Only update URL with surface params when on /dashboard
-      if (pathname === '/dashboard' || pathname.startsWith('/dashboard/')) {
+      if (isHomeRoute(pathname)) {
         const params = surfaceToParams(surface);
         const newUrl = `${pathname}?${params.toString()}`;
         // Use push instead of replace so browser back/forward works

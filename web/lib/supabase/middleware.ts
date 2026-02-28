@@ -2,9 +2,10 @@ import { createMiddlewareClient } from "@supabase/auth-helpers-nextjs";
 import { NextResponse, type NextRequest } from "next/server";
 import { isAdminEmail } from "@/lib/internal-access";
 import { getCurrentPathWithSearch, getSafeNextPath } from "@/lib/auth/redirect";
+import { HOME_ROUTE } from "@/lib/routes";
 
 const PROTECTED_PREFIXES = [
-  "/dashboard",
+  HOME_ROUTE,
   "/projects",
   "/deliverables",
   "/memory",
@@ -56,9 +57,9 @@ export async function updateSession(request: NextRequest) {
       return redirectToLogin(request);
     }
     if (!isAdminEmail(user.email)) {
-      // Redirect non-admins to dashboard
+      // Redirect non-admins to home
       const url = request.nextUrl.clone();
-      url.pathname = "/dashboard";
+      url.pathname = HOME_ROUTE;
       return NextResponse.redirect(url);
     }
   }
@@ -66,7 +67,7 @@ export async function updateSession(request: NextRequest) {
   // Redirect authenticated users away from auth pages
   if (isAuthRoute && user) {
     const nextParam = request.nextUrl.searchParams.get("next");
-    const nextPath = getSafeNextPath(nextParam, "/dashboard");
+    const nextPath = getSafeNextPath(nextParam, HOME_ROUTE);
     return NextResponse.redirect(new URL(nextPath, request.url));
   }
 

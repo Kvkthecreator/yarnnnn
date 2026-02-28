@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Suspense } from "react";
 import { getSafeNextPath } from "@/lib/auth/redirect";
+import { HOME_ROUTE } from "@/lib/routes";
 
 function CallbackHandler() {
   const router = useRouter();
@@ -16,7 +17,7 @@ function CallbackHandler() {
     const handleCallback = async () => {
       const error = searchParams.get("error");
       const errorDescription = searchParams.get("error_description");
-      const next = getSafeNextPath(searchParams.get("next"), "/dashboard");
+      const next = getSafeNextPath(searchParams.get("next"), HOME_ROUTE);
       const nextParam = `&next=${encodeURIComponent(next)}`;
 
       if (error) {

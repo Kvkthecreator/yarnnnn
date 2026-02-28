@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { isAdminEmail } from "@/lib/internal-access";
+import { HOME_ROUTE } from "@/lib/routes";
 import { ArrowLeft, Shield } from "lucide-react";
 
 interface AdminLayoutProps {
@@ -29,7 +30,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       }
 
       if (!isAdminEmail(user.email)) {
-        router.replace("/dashboard");
+        router.replace(HOME_ROUTE);
         return;
       }
 
@@ -69,7 +70,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
           <div className="flex items-center justify-between h-14">
             <div className="flex items-center gap-4">
               <Link
-                href="/dashboard"
+                href={HOME_ROUTE}
                 className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
               >
                 <ArrowLeft className="w-4 h-4" />
