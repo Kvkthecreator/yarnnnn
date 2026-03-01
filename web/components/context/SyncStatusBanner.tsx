@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, Clock, RefreshCw, Sparkles, Zap } from 'lucide-react';
+import { AlertTriangle, Check, Clock, RefreshCw, Sparkles, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 
 const SYNC_FREQUENCY_LABELS: Record<string, { label: string; description: string; icon: React.ReactNode }> = {
@@ -67,6 +67,7 @@ interface SyncStatusBannerProps {
   selectedCount: number;
   syncedCount: number;
   lastSyncedAt?: string | null;
+  errorCount?: number;
 }
 
 export function SyncStatusBanner({
@@ -76,6 +77,7 @@ export function SyncStatusBanner({
   selectedCount,
   syncedCount,
   lastSyncedAt,
+  errorCount = 0,
 }: SyncStatusBannerProps) {
   const frequencyInfo = SYNC_FREQUENCY_LABELS[syncFrequency] || SYNC_FREQUENCY_LABELS['2x_daily'];
   const nextSyncFormatted = formatNextSync(nextSync);
@@ -118,6 +120,40 @@ export function SyncStatusBanner({
               Your {tier} plan syncs {frequencyInfo.label.toLowerCase()}.
               {nextSyncFormatted && ` Next sync ${nextSyncFormatted}.`}
             </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ADR-086: Sync errors take priority over timing states
+  if (errorCount > 0) {
+    return (
+      <div className="p-4 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-red-100 dark:bg-red-900/50 flex items-center justify-center">
+              <AlertTriangle className="w-4 h-4 text-red-600 dark:text-red-400" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                {errorCount} source{errorCount !== 1 ? 's' : ''} {errorCount !== 1 ? 'have' : 'has'} sync errors
+              </p>
+              <p className="text-sm text-red-700 dark:text-red-300 mt-1">
+                Some sources may have outdated content. Check source details below.
+              </p>
+            </div>
+          </div>
+          <div className="text-right shrink-0">
+            <div className="flex items-center gap-1.5 text-sm text-red-700 dark:text-red-300">
+              {frequencyInfo.icon}
+              <span className="font-medium">{frequencyInfo.label}</span>
+            </div>
+            {nextSyncFormatted && (
+              <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                Next sync {nextSyncFormatted}
+              </p>
+            )}
           </div>
         </div>
       </div>

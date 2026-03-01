@@ -14,9 +14,10 @@ import {
 import { formatDistanceToNow } from 'date-fns';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
+import { categorizeSyncError } from '@/lib/sync-errors';
 
 type PlatformKey = 'slack' | 'gmail' | 'notion' | 'calendar';
-type HealthState = 'on_track' | 'needs_sync' | 'not_synced';
+type HealthState = 'error' | 'on_track' | 'needs_sync' | 'not_synced';
 type CadenceState = 'on_schedule' | 'delayed' | 'behind' | 'unknown' | 'live_mode';
 
 interface SyncResource {
@@ -25,6 +26,8 @@ interface SyncResource {
   last_synced: string | null;
   freshness_status: 'fresh' | 'recent' | 'stale' | 'unknown';
   items_synced: number;
+  last_error?: string | null;
+  last_error_at?: string | null;
 }
 
 interface SyncStatusResponse {
@@ -68,6 +71,7 @@ function expectedCadenceHours(syncFrequency?: string): number | null {
 }
 
 function resourceHealth(resource: SyncResource): HealthState {
+  if (resource.last_error) return 'error';
   if (resource.freshness_status === 'stale') return 'needs_sync';
   if (resource.freshness_status === 'unknown') return 'not_synced';
   return 'on_track';
@@ -198,6 +202,7 @@ export function PlatformSyncActivity({
   const latestEvent = events[0] || null;
   const resources = syncStatus?.synced_resources || [];
   const resourceCount = resources.length;
+  const errorCount = resources.filter((r) => resourceHealth(r) === 'error').length;
   const onTrackCount = resources.filter((r) => resourceHealth(r) === 'on_track').length;
   const needsSyncCount = resources.filter((r) => resourceHealth(r) === 'needs_sync').length;
   const notSyncedCount = resources.filter((r) => resourceHealth(r) === 'not_synced').length;
@@ -239,6 +244,7 @@ export function PlatformSyncActivity({
     return [...resources]
       .sort((a, b) => {
         const rank: Record<HealthState, number> = {
+          error: -1,
           needs_sync: 0,
           not_synced: 1,
           on_track: 2,
@@ -301,11 +307,17 @@ export function PlatformSyncActivity({
             </div>
           </div>
 
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+          <div className={cn('grid gap-2', errorCount > 0 ? 'grid-cols-2 md:grid-cols-5' : 'grid-cols-2 md:grid-cols-4')}>
             <div className="rounded-lg border border-border bg-background p-3">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Sources tracked</p>
               <p className="text-lg font-semibold mt-1">{resourceCount}</p>
             </div>
+            {errorCount > 0 && (
+              <div className="rounded-lg border border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/20 p-3">
+                <p className="text-[11px] uppercase tracking-wide text-red-600 dark:text-red-400">Errors</p>
+                <p className="text-lg font-semibold mt-1 text-red-600 dark:text-red-400">{errorCount}</p>
+              </div>
+            )}
             <div className="rounded-lg border border-border bg-background p-3">
               <p className="text-[11px] uppercase tracking-wide text-muted-foreground">On track</p>
               <p className="text-lg font-semibold mt-1 text-emerald-600 dark:text-emerald-400">{onTrackCount}</p>
@@ -361,23 +373,29 @@ export function PlatformSyncActivity({
                 <div className="divide-y divide-border">
                   {attentionResources.map((resource) => {
                     const health = resourceHealth(resource);
+                    const errorCategory = health === 'error' ? categorizeSyncError(resource.last_error ?? null) : null;
                     return (
                       <div key={resource.resource_id} className="px-3 py-2.5 flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <p className="text-sm font-medium truncate">{resource.resource_name || resource.resource_id}</p>
                           <p className="text-xs text-muted-foreground">
-                            {resource.last_synced
-                              ? `Last synced ${formatDistanceToNow(new Date(resource.last_synced), { addSuffix: true })}`
-                              : 'No sync timestamp yet'}
+                            {health === 'error' && errorCategory
+                              ? errorCategory.description
+                              : resource.last_synced
+                                ? `Last synced ${formatDistanceToNow(new Date(resource.last_synced), { addSuffix: true })}`
+                                : 'No sync timestamp yet'}
                           </p>
                         </div>
                         <span className={cn(
-                          'px-2 py-0.5 rounded text-xs font-medium',
+                          'px-2 py-0.5 rounded text-xs font-medium whitespace-nowrap',
+                          health === 'error' && 'bg-red-50 text-red-700 dark:bg-red-950/30 dark:text-red-300',
                           health === 'on_track' && 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300',
                           health === 'needs_sync' && 'bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-300',
                           health === 'not_synced' && 'bg-muted text-muted-foreground'
                         )}>
-                          {health === 'on_track' ? 'On track' : health === 'needs_sync' ? 'Needs sync' : 'Not synced'}
+                          {health === 'error'
+                            ? (errorCategory?.label ?? 'Error')
+                            : health === 'on_track' ? 'On track' : health === 'needs_sync' ? 'Needs sync' : 'Not synced'}
                         </span>
                       </div>
                     );

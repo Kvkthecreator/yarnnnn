@@ -54,7 +54,7 @@ interface BackgroundJobStatus {
 interface ScheduleWindow {
   time: string;
   time_utc: string;
-  status: 'completed' | 'missed' | 'upcoming' | 'active';
+  status: 'completed' | 'failed' | 'missed' | 'upcoming' | 'active';
 }
 
 interface SyncSchedule {
@@ -653,6 +653,7 @@ export default function SystemPage() {
                       {syncSchedule.todays_windows.map((w) => {
                         const colors: Record<string, string> = {
                           completed: 'bg-green-500',
+                          failed: 'bg-amber-500',
                           missed: 'bg-red-500',
                           upcoming: 'bg-gray-300 dark:bg-gray-600',
                           active: 'bg-blue-500 animate-pulse',
@@ -670,6 +671,11 @@ export default function SystemPage() {
                     <div className="text-xs text-muted-foreground">
                       {syncSchedule.todays_windows.filter((w) => w.status === 'completed').length}/
                       {syncSchedule.todays_windows.length} windows completed today
+                      {syncSchedule.todays_windows.some((w) => w.status === 'failed') && (
+                        <span className="text-amber-500 ml-2">
+                          ({syncSchedule.todays_windows.filter((w) => w.status === 'failed').length} failed)
+                        </span>
+                      )}
                       {syncSchedule.todays_windows.some((w) => w.status === 'missed') && (
                         <span className="text-red-500 ml-2">
                           ({syncSchedule.todays_windows.filter((w) => w.status === 'missed').length} missed)

@@ -115,6 +115,7 @@ export default function SlackContextPage() {
             nextSync={data.tierLimits.next_sync}
             selectedCount={data.selectedIds.size}
             syncedCount={data.resources.filter(r => r.items_extracted > 0).length}
+            errorCount={data.resources.filter(r => r.last_error).length}
             lastSyncedAt={data.resources.reduce((latest, r) => {
               if (!r.last_extracted_at) return latest;
               return !latest || r.last_extracted_at > latest ? r.last_extracted_at : latest;

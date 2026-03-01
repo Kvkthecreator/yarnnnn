@@ -3065,14 +3065,15 @@ async def get_platform_sync_status(
     if not integration or not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
-    # Get sync registry entries for this platform
+    # Get sync registry entries for this platform (ADR-086: include error fields)
     sync_result = auth.client.table("sync_registry").select(
-        "resource_id, resource_name, last_synced_at, item_count, source_latest_at"
+        "resource_id, resource_name, last_synced_at, item_count, source_latest_at, last_error, last_error_at"
     ).eq("user_id", user_id).eq("platform", provider).execute()
 
     now = datetime.now(timezone.utc)
     synced_resources = []
     stale_count = 0
+    error_count = 0
 
     for entry in (sync_result.data or []):
         last_synced = entry.get("last_synced_at")
@@ -3097,16 +3098,23 @@ async def get_platform_sync_status(
             freshness_status = "unknown"
             stale_count += 1
 
+        last_error = entry.get("last_error")
+        if last_error:
+            error_count += 1
+
         synced_resources.append({
             "resource_id": entry.get("resource_id"),
             "resource_name": entry.get("resource_name"),
             "last_synced": last_synced,
             "freshness_status": freshness_status,
             "items_synced": entry.get("item_count", 0),
+            "last_error": last_error,
+            "last_error_at": entry.get("last_error_at"),
         })
 
     return {
         "platform": provider,
         "synced_resources": synced_resources,
         "stale_count": stale_count,
+        "error_count": error_count,
     }

@@ -1007,8 +1007,11 @@ export const api = {
           last_synced: string | null;
           freshness_status: "fresh" | "recent" | "stale" | "unknown";
           items_synced: number;
+          last_error?: string | null;
+          last_error_at?: string | null;
         }>;
         stale_count: number;
+        error_count: number;
       }>(`/api/integrations/${provider}/sync-status`),
 
     // ADR-049: Trigger platform sync (alias for triggerSync with broader typing)
@@ -1274,7 +1277,7 @@ export const api = {
           todays_windows: Array<{
             time: string;
             time_utc: string;
-            status: "completed" | "missed" | "upcoming" | "active";
+            status: "completed" | "failed" | "missed" | "upcoming" | "active";
           }>;
           next_sync_at: string | null;
         } | null;

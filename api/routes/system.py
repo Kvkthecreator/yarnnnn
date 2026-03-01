@@ -75,7 +75,7 @@ class ScheduleWindow(BaseModel):
     """ADR-084: A single sync schedule window with execution status."""
     time: str           # "08:00" in user's local timezone
     time_utc: str       # ISO timestamp in UTC for this window today
-    status: str         # "completed" | "missed" | "upcoming" | "active"
+    status: str         # "completed" | "failed" | "missed" | "upcoming" | "active"
 
 
 class SyncScheduleInfo(BaseModel):
@@ -127,11 +127,15 @@ def _build_todays_windows(
     sync_events: list[dict],
 ) -> list[ScheduleWindow]:
     """
-    Build today's schedule windows with hit/miss status.
+    Build today's schedule windows with hit/miss/failed status.
 
     Checks each schedule window against activity_log platform_synced events.
-    A window is "completed" if any sync event falls within window_start to
-    window_start + 30 minutes.
+    Status values:
+    - "completed": sync event in window, no error
+    - "failed": sync event in window, but has metadata.error (ADR-086)
+    - "missed": past window, no sync event
+    - "upcoming": future window
+    - "active": current window, no event yet
     """
     tz = _resolve_timezone(user_tz_str)
     now_local = now_utc.astimezone(tz)
@@ -143,15 +147,15 @@ def _build_todays_windows(
         # Hourly — build windows for each hour of today
         schedule = [f"{h:02d}:00" for h in range(24)]
 
-    # Parse sync event timestamps for comparison
-    event_times_utc = []
+    # Parse sync events with timestamps and error status
+    parsed_events: list[tuple[datetime, bool]] = []
     for ev in sync_events:
         ts = ev.get("created_at")
         if ts:
             try:
-                event_times_utc.append(
-                    datetime.fromisoformat(ts.replace("Z", "+00:00"))
-                )
+                event_dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
+                has_error = bool((ev.get("metadata") or {}).get("error"))
+                parsed_events.append((event_dt, has_error))
             except (ValueError, TypeError):
                 pass
 
@@ -168,14 +172,21 @@ def _build_todays_windows(
         # Determine status
         if now_utc < window_utc:
             status = "upcoming"
-        elif now_utc < window_end_utc:
-            # Within the active window — check if already completed
-            hit = any(window_utc <= et <= window_end_utc for et in event_times_utc)
-            status = "completed" if hit else "active"
         else:
-            # Past window — check for completion
-            hit = any(window_utc <= et <= window_end_utc for et in event_times_utc)
-            status = "completed" if hit else "missed"
+            # Find events in this window
+            window_events = [
+                (et, err) for et, err in parsed_events
+                if window_utc <= et <= window_end_utc
+            ]
+
+            if window_events:
+                # Any event with error → "failed"; all clean → "completed"
+                any_error = any(err for _, err in window_events)
+                status = "failed" if any_error else "completed"
+            elif now_utc < window_end_utc:
+                status = "active"
+            else:
+                status = "missed"
 
         windows.append(ScheduleWindow(
             time=time_str,
@@ -502,7 +513,7 @@ async def get_system_status(auth: UserClient):
 
     try:
         sync_events_result = auth.client.table("activity_log").select(
-            "created_at"
+            "created_at, metadata"
         ).eq("user_id", user_id).eq(
             "event_type", "platform_synced"
         ).gte("created_at", today_start_utc.isoformat()).execute()
