@@ -1050,6 +1050,7 @@ async def run_unified_scheduler():
             ))
             users_result_data = [{"id": uid} for uid in _pattern_user_ids]
 
+            per_user_counts = {}
             for user_row in users_result_data:
                 user_id = user_row["id"]
                 try:
@@ -1060,6 +1061,7 @@ async def run_unified_scheduler():
                     if extracted > 0:
                         pattern_extracted += extracted
                         pattern_users += 1
+                        per_user_counts[user_id] = extracted
                 except Exception as e:
                     logger.warning(f"[PATTERN] Error detecting patterns for {user_id}: {e}")
 
@@ -1071,14 +1073,14 @@ async def run_unified_scheduler():
                 # Write per-user pattern events
                 try:
                     from services.activity_log import write_activity as _pw
-                    for user_row in users_result_data:
+                    for uid, count in per_user_counts.items():
                         await _pw(
                             client=supabase,
-                            user_id=user_row["id"],
+                            user_id=uid,
                             event_type="pattern_detected",
-                            summary=f"Pattern detection: {pattern_extracted} pattern(s) found",
+                            summary=f"Pattern detection: {count} pattern(s) found",
                             metadata={
-                                "patterns_extracted": pattern_extracted,
+                                "patterns_extracted": count,
                                 "users_analyzed": pattern_users,
                             },
                         )

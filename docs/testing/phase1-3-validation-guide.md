@@ -1,8 +1,8 @@
 # Phase 1-3 Integration Testing Guide
 
-**Date**: 2026-02-20
+**Date**: 2026-03-01 (updated)
 **Scope**: Validation and testing for Phases 1-3 implementation
-**Related**: ADR-069, ADR-070, ADR-071
+**Related**: ADR-069, ADR-070, ADR-071, ADR-082, ADR-085
 
 ---
 
@@ -106,30 +106,36 @@ LIMIT 5;
 **Objective**: Verify daily pattern detection runs and extracts behavioral patterns
 
 **Prerequisites**:
-- User has activity_log entries spanning multiple days
-- At least 3 deliverable_run events
+- User has `activity_log` entries spanning multiple days
+- At least 5 `deliverable_run` events (threshold for time-of-day and type patterns)
+- For edit/formatting patterns: `deliverable_approved` events with `had_edits`/length metadata
 
 **Test Steps**:
 1. Trigger pattern detection manually or wait until midnight UTC
-2. Check `user_context` for new pattern-sourced entries
-3. Verify 5 pattern types are being detected
+2. Check `user_context` for new entries with `source='pattern'`
+3. Verify applicable pattern types are being detected
 
-**Expected Pattern Types**:
+**Expected Pattern Types** (rule-based, all have minimum thresholds):
 
-| Pattern Type | Key | Example Value |
-|---|---|---|
-| Day-of-week | `pattern:deliverable_day` | "Typically runs deliverables on Mondays" |
-| Time-of-day | `pattern:deliverable_time` | "Typically runs deliverables in the afternoon (12pm-6pm)" |
-| Type preference | `pattern:deliverable_type_preference` | "Frequently uses meeting_prep deliverables" |
-| Edit location | `pattern:edit_location` | "Tends to edit intro sections when revising" |
-| Formatting length | `pattern:formatting_length` | "Prefers concise output; typically shortens generated content" |
+| Pattern Type | Key | Threshold | Example Value |
+|---|---|---|---|
+| Day-of-week | `pattern:deliverable_day` | >50% on one day AND ≥3 runs | "Typically runs deliverables on Thursdays" |
+| Time-of-day | `pattern:deliverable_time` | ≥5 total runs AND >50% in one block AND ≥3 in block | "Typically runs deliverables in the morning (6am-12pm)" |
+| Type preference | `pattern:deliverable_type_preference` | ≥5 runs AND >60% one type | "Frequently uses status_report deliverables" |
+| Edit location | `pattern:edit_location` | ≥3 `deliverable_approved` events with `had_edits` | "Tends to edit intro sections when revising" |
+| Formatting length | `pattern:formatting_length` | ≥3 approvals with `final_length`/`draft_length` and >30% change | "Prefers concise output; typically shortens generated content" |
+
+**Note**: Patterns 4-5 require the approval flow to emit `deliverable_approved` activity_log events with metadata. If no approvals have occurred, only patterns 1-3 can fire.
 
 **Manual Trigger** (for testing):
 ```python
-# In unified_scheduler.py, temporarily comment out midnight check
-# if now.hour == 0 and now.minute < 5:  # Comment this line
+from services.memory import process_patterns
+from supabase import create_client
+import os, asyncio
 
-# Then trigger scheduler manually
+client = create_client(os.environ["SUPABASE_URL"], os.environ["SUPABASE_SERVICE_KEY"])
+result = asyncio.run(process_patterns(client=client, user_id="USER_ID"))
+print(f"Patterns written: {result}")
 ```
 
 **Database Verification**:
@@ -144,58 +150,12 @@ LIMIT 10;
 
 ---
 
-### 4. New Deliverable Types (Phase 2)
+### 4. ~~New Deliverable Types (Phase 2)~~ — Deprecated
 
-**Objective**: Verify 3 new strategic intelligence types are fully functional
+> **ADR-082**: The original Phase 2 types (`deep_research`, `daily_strategy_reflection`, `intelligence_brief`) have been absorbed into the consolidated type system. `research_brief` and `status_report` now cover these use cases. See ADR-082 for the 8 active types.
 
-#### 4A. Deep Research Deliverable
-
-**Test Steps**:
-1. Via TP: "Create a deep research deliverable about quantum computing trends"
-2. Or via UI: Create new deliverable, select type `deep_research`
-3. Configure topic and sources
-4. Trigger execution
-
-**Expected Result**:
-- Deliverable created with `deliverable_type=deep_research`
-- Execution uses `ResearchStrategy` (web search via Anthropic native tool)
-- Version content has 5 sections: Executive Summary, Key Findings, Detailed Analysis, Sources, Synthesis
-- `source_snapshots` includes web search results
-
-**Type Config Verification**:
-```python
-# Should return binding="research"
-from api.routes.deliverables import get_type_classification
-assert get_type_classification("deep_research")["binding"] == "research"
-```
-
-#### 4B. Daily Strategy Reflection Deliverable
-
-**Test Steps**:
-1. Via TP: "Set up a daily strategy reflection"
-2. Or via UI: Create new deliverable, select type `daily_strategy_reflection`
-3. Configure reflection focus
-4. Trigger execution
-
-**Expected Result**:
-- Deliverable created with `deliverable_type=daily_strategy_reflection`
-- Execution uses `CrossPlatformStrategy` (synthesizes across all platforms)
-- Version content has 4 sections: Context Summary, Strategic Insights, Decision Points, Action Items
-- `source_snapshots` includes calendar, gmail, slack, notion
-
-#### 4C. Intelligence Brief Deliverable
-
-**Test Steps**:
-1. Via TP: "Create an intelligence brief for competitive analysis"
-2. Or via UI: Create new deliverable, select type `intelligence_brief`
-3. Configure brief type and focus areas
-4. Trigger execution
-
-**Expected Result**:
-- Deliverable created with `deliverable_type=intelligence_brief`
-- Execution uses `HybridStrategy` (research + platform grounding)
-- Version content has 6 sections: Priority Signals, Situational Analysis, Market Intelligence, Operational Context, Strategic Implications, Watch List
-- `source_snapshots` includes both web search and platform sources
+**Current active types** (verify via `TYPE_PROMPTS` in deliverable generation):
+`status_report`, `research_brief`, `meeting_prep`, `slack_channel_digest`, `gmail_inbox_brief`, `weekly_calendar_preview`, `notion_page_tracker`, `custom`
 
 ---
 
@@ -256,34 +216,33 @@ LIMIT 1;
 
 ### 6. TP Tool Integration
 
-**Objective**: Verify TP can create new deliverable types via Write tool
+**Objective**: Verify TP can create deliverables via Write tool
 
 **Test Cases**:
 
 ```
-User: "Create a deep research deliverable about AI safety"
+User: "Create a weekly status report"
 TP: Write(ref="deliverable:new", content={
-  title: "AI Safety Research",
-  deliverable_type: "deep_research",
-  config: {topic: "AI safety"}
+  title: "Weekly Status Report",
+  deliverable_type: "status_report",
+  frequency: "weekly"
 })
-→ Expect: Deliverable created with type=deep_research
+→ Expect: Deliverable created with type=status_report
 ```
 
 ```
-User: "Set up a daily strategy reflection"
+User: "Set up a research brief about AI safety"
 TP: Write(ref="deliverable:new", content={
-  title: "Daily Strategy Check-in",
-  deliverable_type: "daily_strategy_reflection",
-  frequency: "daily"
+  title: "AI Safety Research",
+  deliverable_type: "research_brief"
 })
-→ Expect: Deliverable created with type=daily_strategy_reflection
+→ Expect: Deliverable created with type=research_brief
 ```
 
 **Verification**:
 - Check TP response acknowledges creation
 - Check deliverables table has new row with correct type
-- Check type_config matches expected binding (research, cross_platform, hybrid)
+- Verify `deliverable_type` is one of the 8 active types (ADR-082)
 
 ---
 
@@ -295,7 +254,7 @@ TP: Write(ref="deliverable:new", content={
 
 - [ ] [four-layer-model.md](../architecture/four-layer-model.md) has bidirectional learning section
 - [ ] [memory.md](../features/memory.md) lists 3 extraction sources
-- [ ] [deliverables.md](../features/deliverables.md) mentions 3 origins (user_configured, analyst_suggested, signal_emergent)
+- [ ] [deliverables.md](../architecture/deliverables.md) mentions 3 origins (user_configured, analyst_suggested, signal_emergent)
 - [ ] [ADR-069](../adr/ADR-069-layer-4-content-in-signal-reasoning.md) exists and describes Layer 4 integration
 - [ ] [ADR-070](../adr/ADR-070-enhanced-activity-pattern-detection.md) exists and describes 5 pattern types
 - [ ] [ADR-071](../adr/ADR-071-strategic-architecture-principles.md) exists and describes 8 strategic principles
@@ -306,7 +265,7 @@ TP: Write(ref="deliverable:new", content={
 grep -r "bidirectional learning" docs/architecture/
 grep -r "quality flywheel" docs/architecture/
 grep -r "three extraction sources" docs/features/memory.md
-grep -r "signal_emergent" docs/features/deliverables.md
+grep -r "signal_emergent" docs/architecture/deliverables.md
 ```
 
 ---
@@ -436,12 +395,12 @@ git push origin main
 
 Phase 1-3 implementation is considered validated when:
 
-- [ ] All 8 automated validation checks pass
+- [ ] All automated validation checks pass
 - [ ] Manual signal processing includes Layer 4 content
 - [ ] Memory extraction from approval creates `source=feedback` entries
-- [ ] Daily pattern detection creates `source=pattern` entries
-- [ ] All 3 new deliverable types execute successfully
-- [ ] TP can create new deliverable types via Write tool
+- [ ] Daily pattern detection creates `source=pattern` entries in `user_context`
+- [ ] 8 active deliverable types execute successfully (ADR-082)
+- [ ] TP can create deliverables via Write tool
 - [ ] Signal processing demonstrates quality-aware decision making (staleness/coverage)
 - [ ] No performance regression (signal processing <10s, pattern detection <30s)
 - [ ] Documentation matches implementation

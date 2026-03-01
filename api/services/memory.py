@@ -198,7 +198,7 @@ class MemoryService:
                 user_id=user_id,
                 key=pattern["key"],
                 value=pattern["value"],
-                source="tp_extracted",
+                source="pattern",
                 confidence=0.6,
             )
             if success:

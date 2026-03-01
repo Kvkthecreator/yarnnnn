@@ -143,17 +143,17 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 ### Common Debug Queries
 
 ```sql
--- Count entities by user
-SELECT user_id, COUNT(*) FROM memories GROUP BY user_id;
+-- Count entities by user (ADR-059: user_context replaces memories)
+SELECT user_id, COUNT(*) FROM user_context GROUP BY user_id;
 SELECT user_id, COUNT(*) FROM deliverables GROUP BY user_id;
 
 -- Recent memories
-SELECT id, content, created_at FROM memories
+SELECT key, value, source, confidence, updated_at FROM user_context
 WHERE user_id = '<uuid>'
-ORDER BY created_at DESC LIMIT 5;
+ORDER BY updated_at DESC LIMIT 5;
 
--- Check integrations
-SELECT provider, status, updated_at FROM user_integrations
+-- Check platform connections (ADR-059: platform_connections replaces user_integrations)
+SELECT platform, status, updated_at FROM platform_connections
 WHERE user_id = '<uuid>';
 ```
 
