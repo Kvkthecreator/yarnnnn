@@ -45,9 +45,9 @@ logger = logging.getLogger(__name__)
 # DB stores 'gmail' for Google OAuth (covers both Gmail and Calendar).
 # This map resolves any provider name to the platform_connections.platform value(s) to search.
 PROVIDER_ALIASES: dict[str, list[str]] = {
-    "gmail": ["gmail"],
-    "calendar": ["gmail"],    # Calendar resolves to gmail DB row
-    "google": ["gmail"],      # Backward compat fallback
+    "gmail": ["gmail", "google"],      # May be stored as either
+    "calendar": ["gmail", "google"],   # Calendar resolves to Google OAuth row
+    "google": ["google", "gmail"],     # Newer connections use "google", legacy used "gmail"
     "slack": ["slack"],
     "notion": ["notion"],
 }
@@ -911,22 +911,25 @@ async def check_integration_health(
     from integrations.platform_registry import get_platform_config
 
     user_id = auth.user_id
-    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
-    # Check if integration exists (resolve alias to DB platform)
-    result = auth.client.table("platform_connections").select(
-        "id, status, metadata, updated_at"
-    ).eq("user_id", user_id).eq("platform", resolved_platform).limit(1).execute()
+    # Check if integration exists (try all alias candidates)
+    integration = None
+    for p in providers_to_try:
+        result = auth.client.table("platform_connections").select(
+            "id, status, metadata, updated_at"
+        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        if result.data:
+            integration = result.data[0]
+            break
 
-    if not result.data:
+    if not integration:
         return IntegrationHealthResponse(
             provider=provider,
             status="unhealthy",
             errors=[f"No {provider} integration found. Connect it first."],
             recommendations=[f"Go to System → Integrations → Connect {provider}"]
         )
-
-    integration = result.data[0]
 
     if integration.get("status") != "active":
         return IntegrationHealthResponse(
@@ -975,15 +978,21 @@ async def disconnect_integration(
     Deletes stored tokens and export preferences.
     """
     user_id = auth.user_id
-    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
     try:
-        # Delete integration (cascade will handle export preferences)
-        result = auth.client.table("platform_connections").delete().eq(
-            "user_id", user_id
-        ).eq("platform", resolved_platform).execute()
+        # Try all alias candidates (Google may be stored as "google" or "gmail")
+        result_data = None
+        for p in providers_to_try:
+            result = auth.client.table("platform_connections").delete().eq(
+                "user_id", user_id
+            ).eq("platform", p).execute()
+            if result.data:
+                if result_data is None:
+                    result_data = []
+                result_data.extend(result.data)
 
-        if not result.data:
+        if not result_data:
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
 
         logger.info(f"[INTEGRATIONS] User {user_id} disconnected {provider}")
@@ -1034,7 +1043,7 @@ async def export_to_provider(
     from integrations.exporters import get_exporter_registry, ExporterContext
 
     user_id = auth.user_id
-    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
     registry = get_exporter_registry()
 
     # Get exporter for this platform
@@ -1051,31 +1060,36 @@ async def export_to_provider(
         integration_id = None
 
         if exporter.requires_auth:
-            integration = auth.client.table("platform_connections").select(
-                "id, credentials_encrypted, refresh_token_encrypted, metadata, status"
-            ).eq("user_id", user_id).eq("platform", resolved_platform).limit(1).execute()
+            integration_row = None
+            for p in providers_to_try:
+                _result = auth.client.table("platform_connections").select(
+                    "id, credentials_encrypted, refresh_token_encrypted, metadata, status"
+                ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+                if _result.data:
+                    integration_row = _result.data[0]
+                    break
 
-            if not integration.data:
+            if not integration_row:
                 raise HTTPException(
                     status_code=404,
                     detail=f"No {provider} integration found. Please connect first."
                 )
 
-            if integration.data[0]["status"] != IntegrationStatus.ACTIVE.value:
+            if integration_row["status"] != IntegrationStatus.ACTIVE.value:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"{provider} integration is {integration.data[0]['status']}. Please reconnect."
+                    detail=f"{provider} integration is {integration_row['status']}. Please reconnect."
                 )
 
-            integration_id = integration.data[0]["id"]
+            integration_id = integration_row["id"]
             token_manager = get_token_manager()
 
             # Decrypt tokens
-            access_token = token_manager.decrypt(integration.data[0]["credentials_encrypted"])
-            refresh_token = token_manager.decrypt(integration.data[0]["refresh_token_encrypted"]) if integration.data[0].get("refresh_token_encrypted") else None
+            access_token = token_manager.decrypt(integration_row["credentials_encrypted"])
+            refresh_token = token_manager.decrypt(integration_row["refresh_token_encrypted"]) if integration_row.get("refresh_token_encrypted") else None
 
             # Build metadata, adding refresh_token for Gmail (ADR-029)
-            metadata = integration.data[0].get("metadata", {}) or {}
+            metadata = integration_row.get("metadata", {}) or {}
             if provider == "gmail" and refresh_token:
                 metadata["refresh_token"] = refresh_token
 
@@ -2867,19 +2881,24 @@ async def update_selected_sources(
     from services.platform_limits import validate_sources_update
 
     user_id = auth.user_id
-    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
     # Validate against limits
     valid, message, allowed_ids = validate_sources_update(
         auth.client, user_id, provider, request.source_ids
     )
 
-    # Get integration (resolve alias to DB platform)
-    integration = auth.client.table("platform_connections").select(
-        "id, landscape"
-    ).eq("user_id", user_id).eq("platform", resolved_platform).limit(1).execute()
+    # Get integration (resolve alias to DB platform, try all candidates)
+    integration = None
+    for p in providers_to_try:
+        result = auth.client.table("platform_connections").select(
+            "id, landscape"
+        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        if result.data:
+            integration = result
+            break
 
-    if not integration.data:
+    if not integration or not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
     # Get current landscape
@@ -3031,14 +3050,19 @@ async def get_platform_sync_status(
     from datetime import timezone
 
     user_id = auth.user_id
-    resolved_platform = PROVIDER_ALIASES.get(provider, [provider])[0]
+    providers_to_try = PROVIDER_ALIASES.get(provider, [provider])
 
-    # Verify integration exists (resolve alias to DB platform)
-    integration = auth.client.table("platform_connections").select(
-        "id, status"
-    ).eq("user_id", user_id).eq("platform", resolved_platform).limit(1).execute()
+    # Verify integration exists (try all alias candidates)
+    integration = None
+    for p in providers_to_try:
+        result = auth.client.table("platform_connections").select(
+            "id, status"
+        ).eq("user_id", user_id).eq("platform", p).limit(1).execute()
+        if result.data:
+            integration = result
+            break
 
-    if not integration.data:
+    if not integration or not integration.data:
         raise HTTPException(status_code=404, detail=f"No {provider} integration found")
 
     # Get sync registry entries for this platform
