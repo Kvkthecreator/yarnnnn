@@ -9,7 +9,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
-import type { LandscapeResource, TierLimits, PlatformContentItem } from '@/types';
+import type { LandscapeResource, TierLimits } from '@/types';
 import { ResourceRow } from './ResourceRow';
 
 interface ResourceListProps {
@@ -39,15 +39,6 @@ interface ResourceListProps {
   onDiscard: () => void;
   onImport: () => void;
   onSkipImport: () => void;
-
-  /** Resource expansion state (from useResourceExpansion) */
-  expandedResourceIds: Set<string>;
-  resourceContextCache: Record<string, PlatformContentItem[]>;
-  loadingResourceContext: Record<string, boolean>;
-  resourceContextTotalCount: Record<string, number>;
-  loadingMoreContext: Record<string, boolean>;
-  onToggleExpand: (resourceId: string) => void;
-  onLoadMore: (resourceId: string) => void;
 
   /** Per-resource metadata renderer (platform-specific) */
   renderMetadata?: (resource: LandscapeResource) => React.ReactNode;
@@ -79,13 +70,6 @@ export function ResourceList({
   onDiscard,
   onImport,
   onSkipImport,
-  expandedResourceIds,
-  resourceContextCache,
-  loadingResourceContext,
-  resourceContextTotalCount,
-  loadingMoreContext,
-  onToggleExpand,
-  onLoadMore,
   renderMetadata,
   justConnected,
   platformLabel,
@@ -105,13 +89,6 @@ export function ResourceList({
       isSelected={selectedIds.has(resource.id)}
       onToggle={() => onToggle(resource.id)}
       disabled={!selectedIds.has(resource.id) && atLimit}
-      isExpanded={expandedResourceIds.has(resource.id)}
-      onToggleExpand={() => onToggleExpand(resource.id)}
-      contextItems={resourceContextCache[resource.id] || []}
-      loadingContext={loadingResourceContext[resource.id] || false}
-      totalCount={resourceContextTotalCount[resource.id] || 0}
-      loadingMore={loadingMoreContext[resource.id] || false}
-      onLoadMore={() => onLoadMore(resource.id)}
       renderMetadata={renderMetadata}
     />
   );

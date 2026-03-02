@@ -4,7 +4,7 @@
  * Notion Context Page
  *
  * Dedicated page for Notion integration management.
- * Shows: Connection status, page selection, and sync activity.
+ * Two tabs: Sources (page selection) and Context (synced content feed).
  * Notion-specific: parent_type metadata, database badges.
  */
 
@@ -15,12 +15,12 @@ import { formatDistanceToNow } from 'date-fns';
 import type { LandscapeResource } from '@/types';
 import { usePlatformData } from '@/hooks/usePlatformData';
 import { useSourceSelection } from '@/hooks/useSourceSelection';
-import { useResourceExpansion } from '@/hooks/useResourceExpansion';
 import { PlatformNotConnected } from '@/components/context/PlatformNotConnected';
 import { PlatformHeader } from '@/components/context/PlatformHeader';
-import { SyncStatusBanner } from '@/components/context/SyncStatusBanner';
+import { CompactSyncStatus } from '@/components/context/CompactSyncStatus';
+import { PlatformTabSwitcher } from '@/components/context/PlatformTabSwitcher';
+import { PlatformContextFeed } from '@/components/context/PlatformContextFeed';
 import { ResourceList } from '@/components/context/ResourceList';
-import { PlatformSyncActivity } from '@/components/context/PlatformSyncActivity';
 import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
 
 const BENEFITS = [
@@ -60,8 +60,8 @@ export default function NotionContextPage() {
   const searchParams = useSearchParams();
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [justConnected, setJustConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<'sources' | 'context'>('sources');
 
-  // Handle OAuth redirect: detect first-connect, then clean URL
   useEffect(() => {
     if (searchParams.get('status') === 'connected') {
       setJustConnected(true);
@@ -81,7 +81,6 @@ export default function NotionContextPage() {
     setOriginalIds: data.setOriginalIds,
     reload: data.reload,
   });
-  const expansion = useResourceExpansion('notion');
 
   if (data.loading) {
     return (
@@ -116,7 +115,8 @@ export default function NotionContextPage() {
 
       <div className="p-4 md:p-6 space-y-6 max-w-6xl">
         {data.tierLimits && (
-          <SyncStatusBanner
+          <CompactSyncStatus
+            platform="notion"
             tier={data.tierLimits.tier}
             syncFrequency={data.tierLimits.limits.sync_frequency}
             nextSync={data.tierLimits.next_sync}
@@ -130,45 +130,40 @@ export default function NotionContextPage() {
           />
         )}
 
-        <PlatformSyncActivity
-          platform="notion"
-          syncFrequency={data.tierLimits?.limits.sync_frequency}
-          nextSync={data.tierLimits?.next_sync}
-        />
+        <PlatformTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <ResourceList
-          resourceLabel="Pages"
-          resourceLabelSingular="page"
-          resourceIcon={<FileText className="w-4 h-4" />}
-          workspaceName={data.integration.workspace_name}
-          resources={data.resources}
-          tierLimits={data.tierLimits}
-          selectedIds={data.selectedIds}
-          hasChanges={sourceSelection.hasChanges}
-          atLimit={sourceSelection.atLimit}
-          limit={sourceSelection.limit}
-          saving={sourceSelection.saving}
-          error={sourceSelection.error || data.error}
-          showImportPrompt={sourceSelection.showImportPrompt}
-          importing={sourceSelection.importing}
-          importProgress={sourceSelection.importProgress}
-          newlySelectedIds={sourceSelection.newlySelectedIds}
-          onToggle={sourceSelection.handleToggle}
-          onSave={sourceSelection.handleSave}
-          onDiscard={sourceSelection.handleDiscard}
-          onImport={sourceSelection.handleImport}
-          onSkipImport={sourceSelection.handleSkipImport}
-          expandedResourceIds={expansion.expandedResourceIds}
-          resourceContextCache={expansion.resourceContextCache}
-          loadingResourceContext={expansion.loadingResourceContext}
-          resourceContextTotalCount={expansion.resourceContextTotalCount}
-          loadingMoreContext={expansion.loadingMoreContext}
-          onToggleExpand={expansion.handleToggleExpand}
-          onLoadMore={expansion.handleLoadMore}
-          renderMetadata={renderNotionMetadata}
-          justConnected={justConnected}
-          platformLabel="Notion"
-        />
+        {activeTab === 'sources' && (
+          <ResourceList
+            resourceLabel="Pages"
+            resourceLabelSingular="page"
+            resourceIcon={<FileText className="w-4 h-4" />}
+            workspaceName={data.integration.workspace_name}
+            resources={data.resources}
+            tierLimits={data.tierLimits}
+            selectedIds={data.selectedIds}
+            hasChanges={sourceSelection.hasChanges}
+            atLimit={sourceSelection.atLimit}
+            limit={sourceSelection.limit}
+            saving={sourceSelection.saving}
+            error={sourceSelection.error || data.error}
+            showImportPrompt={sourceSelection.showImportPrompt}
+            importing={sourceSelection.importing}
+            importProgress={sourceSelection.importProgress}
+            newlySelectedIds={sourceSelection.newlySelectedIds}
+            onToggle={sourceSelection.handleToggle}
+            onSave={sourceSelection.handleSave}
+            onDiscard={sourceSelection.handleDiscard}
+            onImport={sourceSelection.handleImport}
+            onSkipImport={sourceSelection.handleSkipImport}
+            renderMetadata={renderNotionMetadata}
+            justConnected={justConnected}
+            platformLabel="Notion"
+          />
+        )}
+
+        {activeTab === 'context' && (
+          <PlatformContextFeed platform="notion" />
+        )}
       </div>
 
       <ConnectionDetailsModal

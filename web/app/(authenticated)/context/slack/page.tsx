@@ -4,7 +4,7 @@
  * Slack Context Page
  *
  * Dedicated page for Slack integration management.
- * Shows: Connection status, channel selection, and sync activity.
+ * Two tabs: Sources (channel selection) and Context (synced content feed).
  */
 
 import { useState, useEffect } from 'react';
@@ -14,12 +14,12 @@ import { formatDistanceToNow } from 'date-fns';
 import type { LandscapeResource } from '@/types';
 import { usePlatformData } from '@/hooks/usePlatformData';
 import { useSourceSelection } from '@/hooks/useSourceSelection';
-import { useResourceExpansion } from '@/hooks/useResourceExpansion';
 import { PlatformNotConnected } from '@/components/context/PlatformNotConnected';
 import { PlatformHeader } from '@/components/context/PlatformHeader';
-import { SyncStatusBanner } from '@/components/context/SyncStatusBanner';
+import { CompactSyncStatus } from '@/components/context/CompactSyncStatus';
+import { PlatformTabSwitcher } from '@/components/context/PlatformTabSwitcher';
+import { PlatformContextFeed } from '@/components/context/PlatformContextFeed';
 import { ResourceList } from '@/components/context/ResourceList';
-import { PlatformSyncActivity } from '@/components/context/PlatformSyncActivity';
 import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
 
 const BENEFITS = [
@@ -53,8 +53,8 @@ export default function SlackContextPage() {
   const searchParams = useSearchParams();
   const [showConnectionModal, setShowConnectionModal] = useState(false);
   const [justConnected, setJustConnected] = useState(false);
+  const [activeTab, setActiveTab] = useState<'sources' | 'context'>('sources');
 
-  // Handle OAuth redirect: detect first-connect, then clean URL
   useEffect(() => {
     if (searchParams.get('status') === 'connected') {
       setJustConnected(true);
@@ -74,7 +74,6 @@ export default function SlackContextPage() {
     setOriginalIds: data.setOriginalIds,
     reload: data.reload,
   });
-  const expansion = useResourceExpansion('slack');
 
   if (data.loading) {
     return (
@@ -109,7 +108,8 @@ export default function SlackContextPage() {
 
       <div className="p-4 md:p-6 space-y-6 max-w-6xl">
         {data.tierLimits && (
-          <SyncStatusBanner
+          <CompactSyncStatus
+            platform="slack"
             tier={data.tierLimits.tier}
             syncFrequency={data.tierLimits.limits.sync_frequency}
             nextSync={data.tierLimits.next_sync}
@@ -123,45 +123,40 @@ export default function SlackContextPage() {
           />
         )}
 
-        <PlatformSyncActivity
-          platform="slack"
-          syncFrequency={data.tierLimits?.limits.sync_frequency}
-          nextSync={data.tierLimits?.next_sync}
-        />
+        <PlatformTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
 
-        <ResourceList
-          resourceLabel="Channels"
-          resourceLabelSingular="channel"
-          resourceIcon={<Hash className="w-4 h-4" />}
-          workspaceName={data.integration.workspace_name}
-          resources={data.resources}
-          tierLimits={data.tierLimits}
-          selectedIds={data.selectedIds}
-          hasChanges={sourceSelection.hasChanges}
-          atLimit={sourceSelection.atLimit}
-          limit={sourceSelection.limit}
-          saving={sourceSelection.saving}
-          error={sourceSelection.error || data.error}
-          showImportPrompt={sourceSelection.showImportPrompt}
-          importing={sourceSelection.importing}
-          importProgress={sourceSelection.importProgress}
-          newlySelectedIds={sourceSelection.newlySelectedIds}
-          onToggle={sourceSelection.handleToggle}
-          onSave={sourceSelection.handleSave}
-          onDiscard={sourceSelection.handleDiscard}
-          onImport={sourceSelection.handleImport}
-          onSkipImport={sourceSelection.handleSkipImport}
-          expandedResourceIds={expansion.expandedResourceIds}
-          resourceContextCache={expansion.resourceContextCache}
-          loadingResourceContext={expansion.loadingResourceContext}
-          resourceContextTotalCount={expansion.resourceContextTotalCount}
-          loadingMoreContext={expansion.loadingMoreContext}
-          onToggleExpand={expansion.handleToggleExpand}
-          onLoadMore={expansion.handleLoadMore}
-          renderMetadata={renderSlackMetadata}
-          justConnected={justConnected}
-          platformLabel="Slack"
-        />
+        {activeTab === 'sources' && (
+          <ResourceList
+            resourceLabel="Channels"
+            resourceLabelSingular="channel"
+            resourceIcon={<Hash className="w-4 h-4" />}
+            workspaceName={data.integration.workspace_name}
+            resources={data.resources}
+            tierLimits={data.tierLimits}
+            selectedIds={data.selectedIds}
+            hasChanges={sourceSelection.hasChanges}
+            atLimit={sourceSelection.atLimit}
+            limit={sourceSelection.limit}
+            saving={sourceSelection.saving}
+            error={sourceSelection.error || data.error}
+            showImportPrompt={sourceSelection.showImportPrompt}
+            importing={sourceSelection.importing}
+            importProgress={sourceSelection.importProgress}
+            newlySelectedIds={sourceSelection.newlySelectedIds}
+            onToggle={sourceSelection.handleToggle}
+            onSave={sourceSelection.handleSave}
+            onDiscard={sourceSelection.handleDiscard}
+            onImport={sourceSelection.handleImport}
+            onSkipImport={sourceSelection.handleSkipImport}
+            renderMetadata={renderSlackMetadata}
+            justConnected={justConnected}
+            platformLabel="Slack"
+          />
+        )}
+
+        {activeTab === 'context' && (
+          <PlatformContextFeed platform="slack" />
+        )}
       </div>
 
       <ConnectionDetailsModal
