@@ -50,6 +50,10 @@ docs/working_docs/*.xls
 docs/working_docs/*.key
 docs/working_docs/*.numbers
 docs/working_docs/*.pages
+docs/working_docs/assets/*.png
+docs/working_docs/assets/*.jpg
+docs/working_docs/assets/*.jpeg
+docs/working_docs/assets/*.gif
 docs/working_docs/previous_versions/*.pdf
 docs/working_docs/previous_versions/*.pptx
 docs/working_docs/previous_versions/*.ppt
@@ -60,3 +64,7 @@ docs/working_docs/previous_versions/*.xls
 docs/working_docs/previous_versions/*.key
 docs/working_docs/previous_versions/*.numbers
 docs/working_docs/previous_versions/*.pages
+
+# Lock files (LibreOffice etc.)
+.~lock.*
+*.tmp
