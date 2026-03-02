@@ -1,0 +1,7 @@
+# Exclude non-deploy directories from Vercel upload
+# These add ~9 MB of docs/screenshots/backend code that aren't needed for the Next.js build
+docs/
+api/
+supabase/
+.claude/
+.venv/
