@@ -1,7 +1,7 @@
 # Exclude non-deploy directories from Vercel upload
-# These add ~9 MB of docs/screenshots/backend code that aren't needed for the Next.js build
-docs/
-api/
-supabase/
-.claude/
-.venv/
+# Use leading slash to anchor patterns to repo root (avoid matching web/lib/api/ etc.)
+/docs/
+/supabase/
+/.claude/
+/.venv/
+/api/
