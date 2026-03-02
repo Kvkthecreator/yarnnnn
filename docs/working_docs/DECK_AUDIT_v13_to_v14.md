@@ -299,9 +299,74 @@ Based on the audit, here's the recommended restructure mapped to NARRATIVE.md be
 
 ---
 
-## Next Steps
+## Progress Log
 
-1. Align on this audit (confirm decisions on open items)
-2. Execute v14 edits on the .pptx file
-3. Use v14 as source for 1-minute video script
-4. Use v14 as source for VC application supplements
+### Phase 1: Deck Hardening — COMPLETE (2026-03-01)
+
+- [x] NARRATIVE.md created — canonical story architecture (6 beats, vocabulary rules, anti-patterns)
+- [x] Slide-by-slide audit completed (this document)
+- [x] v14 edits executed on .pptx:
+  - Slide reorder: product moved to position 5 (from 13)
+  - Architecture slide removed (absorbed into moat)
+  - Copy edits across 9 slides for vocabulary alignment
+  - Four-pillar footer reframed: Chat Mode / Headless Mode / 4 Integrations / Context Engine (ADR-080 aligned)
+  - Total: 16 slides (down from 17)
+- [x] Product screenshots integrated — 4 real service screenshots replace mockup on product slide
+  - `page_TP(chat).png` → Chat Mode pillar
+  - `page_deliverables.png` → Headless Mode pillar
+  - `page_system.png` → 4 Integrations pillar
+  - `page_context(details).png` → Context Engine pillar
+- [x] Visual QA passed (text overlap on insight slide caught and fixed)
+
+**Deliverable**: `docs/working_docs/IR Deck - yarnnn v14.pptx`
+
+### Phase 2: VC Application Materials — COMPLETE (2026-03-01)
+
+**Approach**: Canonical, VC-agnostic answer bank. Version per application (PearX, YC, etc.) as needed.
+**Template used for scoping**: PearX S26 (pear.vc/pearx-application, deadline Apr 12, 2026)
+
+#### Deliverables Produced
+
+- [x] **Video script** — `docs/working_docs/PEARX_VIDEO_SCRIPT_v1.md`
+  - ~155 words, 60 seconds. Founder intro → problem → product → insight → CTA
+  - Kevin records to unlisted YouTube
+- [x] **Canonical answer bank** — `docs/working_docs/VC_ANSWER_BANK.md`
+  - 8 written answers: one-liner, building/why, unique insight, traction, competitors, market size, novel problem-solving, outlier/founder-fit
+  - Plus appendix: elevator pitch, Twitter-length, "Why Now" standalone
+  - Each answer has PearX + YC field mappings in brackets
+  - VC-agnostic — copy-paste and trim per application
+- [x] **Deck PDF** — `docs/working_docs/IR Deck - yarnnn v14.pdf`
+  - Exported from v14 .pptx via LibreOffice
+
+#### PearX S26 Field Mapping (for Kevin's reference)
+
+| # | PearX Field | Canonical Source | Kevin Action |
+|---|-------------|-----------------|--------------|
+| 6 | One-line description | Answer Bank §1 | Copy-paste |
+| 7 | 1-min video | Video Script v1 | Record & upload to YouTube |
+| 8 | Product demo (optional) | — | Record screen of yarnnn.com |
+| 9 | Pitch deck PDF | `IR Deck - yarnnn v14.pdf` | Upload |
+| 10 | Building & why | Answer Bank §2 | Copy-paste, trim if needed |
+| 11 | Unique insight | Answer Bank §3 | Copy-paste |
+| 12 | How far along | Answer Bank §4 | Copy-paste |
+| 15 | Competitors | Answer Bank §5 | Copy-paste |
+| 16 | Market size | Answer Bank §6 | Copy-paste |
+| 18 | Novel problem-solving | Answer Bank §7 | Copy-paste |
+| 19 | What makes you an outlier | Answer Bank §8 | Copy-paste |
+| 1-5, 13-14, 17, 20 | Basic info / selects | — | Kevin fills directly |
+
+### Asset Inventory
+
+| Asset | Location | Status |
+|-------|----------|--------|
+| IR Deck v14 (.pptx) | `docs/working_docs/IR Deck - yarnnn v14.pptx` | Final |
+| IR Deck v14 (.pdf) | `docs/working_docs/IR Deck - yarnnn v14.pdf` | Final |
+| NARRATIVE.md | `docs/NARRATIVE.md` | Final |
+| Deck Audit | `docs/working_docs/DECK_AUDIT_v13_to_v14.md` | This file |
+| Video Script | `docs/working_docs/PEARX_VIDEO_SCRIPT_v1.md` | v1 draft |
+| VC Answer Bank | `docs/working_docs/VC_ANSWER_BANK.md` | v1 draft |
+| Product Screenshots (8) | `docs/working_docs/assets/page_*.png` | Available |
+| Financial Model | `docs/working_docs/YARNNN - Financial Model & Supplementals.xlsx` | Exists |
+| ICP Deep-Dive v2 | `docs/working_docs/YARNNN - ICP Deep-Dive v2.docx` | Exists |
+| Content Strategy | `docs/working_docs/CONTENT_STRATEGY_v1.md` | Exists |
+| GTM Positioning | `docs/GTM_POSITIONING.md` | Exists |
