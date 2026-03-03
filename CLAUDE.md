@@ -29,6 +29,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-067**: Session compaction and continuity - follows Claude Code's model
 - **ADR-072**: Unified Content Layer - platform_content with retention-based accumulation, TP execution pipeline
 - **ADR-080**: Unified Agent Modes - one agent (chat + headless), mode-gated primitives, supersedes ADR-061 two-path separation
+- **ADR-087**: Deliverable Scoped Context - per-deliverable instructions + memory, session routing via deliverable_id
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 

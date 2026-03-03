@@ -10,13 +10,14 @@ Sources (Memory + Activity layers only):
   activity_log   — recent system events: deliverable runs, syncs, memory writes (Activity)
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
-What goes in the prompt (~2,000 tokens):
+What goes in the prompt (~2,000 tokens, + ~500 for deliverable scope):
   - About you: name, role, company, timezone
   - Preferences: tone_*, verbosity_*, preference:*
   - What you've told me: fact:*, instruction:*
   - Active deliverables (max 5)
   - Connected platforms + sync freshness (structured, not just strings) ← ADR-072
   - System summary: last signal pass, pending reviews, failed jobs ← ADR-072
+  - Scoped deliverable: instructions + memory (if session is deliverable-scoped) ← ADR-087
 
 Raw platform_content is NOT included here.
 TP fetches it via Search when needed.
@@ -42,17 +43,24 @@ ACTIVITY_LOOKBACK_DAYS = 7     # ADR-063: Window for activity_log query
 WORKING_MEMORY_TOKEN_BUDGET = 2000
 
 
-async def build_working_memory(user_id: str, client: Any) -> dict:
+async def build_working_memory(
+    user_id: str,
+    client: Any,
+    deliverable: Optional[dict] = None,
+) -> dict:
     """
     Build the working memory object for TP system prompt injection.
 
     Args:
         user_id: The authenticated user's ID
         client: Supabase client instance
+        deliverable: Optional deliverable dict for scoped context (ADR-087).
+                     Expected keys: id, title, deliverable_type,
+                     deliverable_instructions, deliverable_memory.
 
     Returns:
         Dict structured for JSON serialization into the prompt.
-        Designed to stay under ~2,000 tokens.
+        Designed to stay under ~2,000 tokens (+ ~500 for deliverable scope).
     """
     # Load user_memory rows — the single source of truth for stated preferences
     context_rows = await _get_user_memory(user_id, client)
@@ -67,6 +75,10 @@ async def build_working_memory(user_id: str, client: Any) -> dict:
         # ADR-072: Replace raw activity dump with structured system summary
         "system_summary": await _get_system_summary(user_id, client),
     }
+
+    # ADR-087: Inject deliverable-scoped context if session is scoped
+    if deliverable:
+        working_memory["scoped_deliverable"] = _extract_deliverable_scope(deliverable)
 
     return working_memory
 
@@ -144,6 +156,47 @@ def _extract_known(rows: list[dict]) -> list[dict]:
                 "source": row.get("source", ""),
             })
     return known
+
+
+def _extract_deliverable_scope(deliverable: dict) -> dict:
+    """
+    Extract deliverable-scoped context for working memory injection (ADR-087).
+
+    Returns a structured dict with instructions and memory for the scoped deliverable.
+    """
+    instructions = (deliverable.get("deliverable_instructions") or "").strip()
+    memory = deliverable.get("deliverable_memory") or {}
+
+    scope = {
+        "id": deliverable.get("id"),
+        "title": deliverable.get("title", "Untitled"),
+        "type": deliverable.get("deliverable_type", "custom"),
+    }
+
+    if instructions:
+        scope["instructions"] = instructions
+
+    # Extract recent session summaries (last 3)
+    session_summaries = memory.get("session_summaries", [])
+    if session_summaries:
+        scope["session_summaries"] = session_summaries[-3:]
+
+    # Extract feedback patterns
+    feedback_patterns = memory.get("feedback_patterns", [])
+    if feedback_patterns:
+        scope["feedback_patterns"] = feedback_patterns
+
+    # Extract observations (last 5)
+    observations = memory.get("observations", [])
+    if observations:
+        scope["observations"] = observations[-5:]
+
+    # Extract goal info if present
+    goal = memory.get("goal")
+    if goal:
+        scope["goal"] = goal
+
+    return scope
 
 
 async def _get_active_deliverables(user_id: str, client: Any) -> list:
@@ -579,6 +632,45 @@ def format_for_prompt(working_memory: dict) -> str:
         lines.append(f"\n### Recent conversations")
         for s in sessions:
             lines.append(f"- {s.get('date')}: {s.get('summary')}")
+
+    # ADR-087: Scoped deliverable context — instructions + memory for active deliverable
+    scoped = working_memory.get("scoped_deliverable")
+    if scoped:
+        title = scoped.get("title", "Untitled")
+        dtype = scoped.get("type", "custom").replace("_", " ").title()
+        lines.append(f"\n### Current deliverable: {title} ({dtype})")
+
+        instructions = scoped.get("instructions")
+        if instructions:
+            lines.append(f"\n**Instructions:**\n{instructions}")
+
+        feedback = scoped.get("feedback_patterns", [])
+        if feedback:
+            lines.append("\n**Learned patterns:**")
+            for pattern in feedback:
+                lines.append(f"- {pattern}")
+
+        summaries = scoped.get("session_summaries", [])
+        if summaries:
+            lines.append("\n**Recent sessions:**")
+            for s in summaries:
+                lines.append(f"- {s.get('date', '')}: {s.get('summary', '')}")
+
+        observations = scoped.get("observations", [])
+        if observations:
+            lines.append("\n**Observations:**")
+            for obs in observations:
+                lines.append(f"- {obs.get('date', '')}: {obs.get('note', '')}")
+
+        goal = scoped.get("goal")
+        if goal:
+            lines.append(f"\n**Goal:** {goal.get('description', '')}")
+            status = goal.get("status", "")
+            if status:
+                lines.append(f"Status: {status}")
+            milestones = goal.get("milestones", [])
+            if milestones:
+                lines.append(f"Milestones: {', '.join(milestones)}")
 
     # System Summary (ADR-072) — structured operational state
     system_summary = working_memory.get("system_summary", {})

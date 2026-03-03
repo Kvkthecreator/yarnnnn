@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.03.1] - ADR-087 Phase 1: Deliverable-scoped context injection
+
+### Changed
+- `api/services/working_memory.py`: `build_working_memory()` accepts optional `deliverable` dict. When scoped, injects deliverable instructions, feedback patterns, session summaries, observations, and goal into the working memory prompt under "### Current deliverable".
+- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` accepts optional `deliverable` dict. Injects `deliverable_instructions` as "## Deliverable Instructions" and `deliverable_memory` feedback/observations as "## Deliverable Memory" into headless generation prompts.
+- `api/agents/thinking_partner.py`: Passes `scoped_deliverable` parameter from chat route through to `build_working_memory()`.
+- Expected behavior: When a user chats on a deliverable page, TP now sees that deliverable's instructions and accumulated memory. When headless generation runs, the agent sees the same context. Both modes share a common understanding of the deliverable.
+
+---
+
 ## [2026.02.28.2] - Add RefreshPlatformContent primitive (ADR-085)
 
 ### Added

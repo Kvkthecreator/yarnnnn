@@ -459,11 +459,15 @@ class ThinkingPartnerAgent(BaseAgent):
         is_onboarding = params.get("is_onboarding", False)
         surface_content = params.get("surface_content")  # ADR-023: What user is viewing
         selected_domain_name = params.get("selected_domain_name")  # ADR-034: Selected context
+        scoped_deliverable = params.get("scoped_deliverable")  # ADR-087: Deliverable-scoped context
 
         # ADR-058: Build working memory (replaces most memory searches)
+        # ADR-087: Pass scoped_deliverable for per-deliverable instructions + memory injection
         injected_context = None
         try:
-            injected_context = await build_working_memory(auth.user_id, auth.client)
+            injected_context = await build_working_memory(
+                auth.user_id, auth.client, deliverable=scoped_deliverable
+            )
         except Exception:
             # Working memory is best-effort; fall back to legacy path
             pass

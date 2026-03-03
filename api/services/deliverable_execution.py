@@ -221,9 +221,10 @@ def _build_headless_system_prompt(
     deliverable_type: str,
     trigger_context: Optional[dict] = None,
     research_directive: Optional[str] = None,
+    deliverable: Optional[dict] = None,
 ) -> str:
     """
-    Build system prompt for headless mode generation (ADR-080/081).
+    Build system prompt for headless mode generation (ADR-080/081/087).
 
     The headless agent has read-only tools (Search, Read, List, WebSearch,
     GetSystemState) available for investigating when gathered context is
@@ -233,10 +234,14 @@ def _build_headless_system_prompt(
     ADR-081: For research/hybrid bindings, a research_directive is injected
     that instructs the agent to actively use WebSearch for web research.
 
+    ADR-087: Deliverable instructions and memory are injected into the prompt
+    to give the agent per-deliverable behavioral context and accumulated knowledge.
+
     Args:
         deliverable_type: The deliverable type (status_report, etc.)
         trigger_context: Optional trigger info with signal reasoning
         research_directive: Optional research instruction for research/hybrid types
+        deliverable: Optional deliverable dict with deliverable_instructions and deliverable_memory
 
     Returns:
         Complete system prompt string
@@ -250,6 +255,34 @@ def _build_headless_system_prompt(
 - Do not use emojis in headers or content unless the user's preferences explicitly request them.
 - Use plain markdown headers (##, ###) and bullet points for structure.
 - If the user's context mentions a preference for conciseness, prioritize brevity over completeness."""
+
+    # ADR-087: Inject deliverable-scoped instructions and memory
+    if deliverable:
+        instructions = (deliverable.get("deliverable_instructions") or "").strip()
+        if instructions:
+            prompt += f"""
+
+## Deliverable Instructions
+The user has set these behavioral directives for this deliverable:
+{instructions}"""
+
+        memory = deliverable.get("deliverable_memory") or {}
+        memory_parts = []
+
+        feedback_patterns = memory.get("feedback_patterns", [])
+        if feedback_patterns:
+            memory_parts.append("**Learned from past feedback:**")
+            for pattern in feedback_patterns:
+                memory_parts.append(f"- {pattern}")
+
+        observations = memory.get("observations", [])
+        if observations:
+            memory_parts.append("**Recent observations:**")
+            for obs in observations[-5:]:
+                memory_parts.append(f"- {obs.get('date', '')}: {obs.get('note', '')}")
+
+        if memory_parts:
+            prompt += "\n\n## Deliverable Memory\n" + "\n".join(memory_parts)
 
     # ADR-081: Research directive overrides default tool guidance
     if research_directive:
@@ -364,9 +397,10 @@ async def generate_draft_inline(
         past_versions=past_versions,
     )
 
-    # ADR-080/081: Headless system prompt with tool usage + research directive
+    # ADR-080/081/087: Headless system prompt with tool usage, research directive,
+    # and deliverable-scoped instructions + memory
     system_prompt = _build_headless_system_prompt(
-        deliverable_type, trigger_context, research_directive
+        deliverable_type, trigger_context, research_directive, deliverable
     )
 
     # ADR-081: Binding-aware tool round limit

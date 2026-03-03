@@ -229,7 +229,7 @@ async def get_due_deliverables(supabase_client) -> list[dict]:
 
     result = (
         supabase_client.table("deliverables")
-        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, destination, recipient_context, last_run_at")
+        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, destination, recipient_context, last_run_at, deliverable_instructions, deliverable_memory")
         .eq("status", "active")
         .lte("next_run_at", now.isoformat())
         .execute()

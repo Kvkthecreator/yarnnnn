@@ -297,10 +297,9 @@ TP conversation containers. Inactivity-based session boundary (ADR-067).
 | compaction_summary | TEXT | In-session compaction summary (ADR-067 Phase 3) |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Bumped on every message append — doubles as last_message_at |
+| deliverable_id | UUID | ADR-087: FK → deliverables (nullable, ON DELETE SET NULL). Routes session to a specific deliverable for scoped memory accumulation. |
 
 **Session boundary**: `get_or_create_chat_session()` reuses sessions active within 4h inactivity window (ADR-067 Phase 2).
-
-**Proposed (ADR-087):** `deliverable_id UUID FK → deliverables` — routing key for deliverable-scoped memory accumulation.
 
 ---
 
@@ -354,11 +353,9 @@ Scheduled output configurations. The unit of work in YARNNN — each deliverable
 | last_run_at | TIMESTAMPTZ | Last execution |
 | next_run_at | TIMESTAMPTZ | Next scheduled run |
 | last_triggered_at | TIMESTAMPTZ | Last event trigger |
-
-**Proposed (ADR-087):** Three new columns:
-- `deliverable_instructions` TEXT — user-authored behavioral directives
-- `deliverable_memory` JSONB — system-accumulated knowledge
-- `mode` TEXT — `'recurring'` | `'goal'`
+| deliverable_instructions | TEXT | ADR-087: User-authored behavioral directives (default `''`) |
+| deliverable_memory | JSONB | ADR-087: System-accumulated knowledge `{}` |
+| mode | TEXT | ADR-087: `recurring` (default) or `goal` |
 
 ---
 
@@ -411,14 +408,13 @@ Built at session start from **Memory + Activity** layers. Raw platform content i
 
 ### Recent activity
 {last 10 events from activity_log, last 7 days}
+### Current deliverable: {title} ({type})   ← ADR-087, only when session is scoped
+{instructions, feedback_patterns, session_summaries, observations, goal}
 ```
 
-Injected into TP's system prompt (~2,000 token budget). During a session, TP accesses platform content via `Search(scope="platform_content")` (hits `platform_content` table with semantic search) or direct platform tools (live API calls).
+Injected into TP's system prompt (~2,000 token budget + ~500 for deliverable scope). During a session, TP accesses platform content via `Search(scope="platform_content")` (hits `platform_content` table with semantic search) or direct platform tools (live API calls).
 
-**Proposed (ADR-087):** When a session is in deliverable scope, two additional sections are injected:
-- `### Instructions for this deliverable` — from `deliverable_instructions`
-- `### What I know about this deliverable` — from `deliverable_memory`
-- Sub-allocation: ~500 tokens for scoped context within the overall budget.
+**ADR-087:** When a session is in deliverable scope (via `surface_context.deliverableId`), the scoped deliverable's instructions and memory are injected into the working memory prompt. The headless generation prompt also receives the same context.
 
 ---
 
@@ -446,6 +442,12 @@ Injected into TP's system prompt (~2,000 token budget). During a session, TP acc
 | 077 | ADR-072: Create platform_content, migrate filesystem_items, drop legacy | Applied |
 | 078 | ADR-072: Add source_ref/source_type to user_context | Applied |
 | 079 | Daily token usage function | Applied |
+| 080 | Activity log granular events | Applied |
+| 081 | Signal history RLS | Applied |
+| 082 | MCP OAuth tables (ADR-075) | Applied |
+| 083 | Sync registry error columns | Applied |
+| 084 | ADR-087: Rename user_context → user_memory | Pending |
+| 085 | ADR-087: Deliverable scoped context (instructions, memory, mode, deliverable_id) | Pending |
 
 ---
 
@@ -455,10 +457,10 @@ Per ADR-072 (migration 077):
 - `filesystem_items` — replaced by `platform_content` with retention-based accumulation
 
 Per ADR-059 (migration 057):
-- `knowledge_profile` — replaced by `user_context` keys: `name`, `role`, `company`, `timezone`, `summary`
-- `knowledge_styles` — replaced by `user_context` keys: `tone_{platform}`, `verbosity_{platform}`
+- `knowledge_profile` — replaced by `user_memory` keys: `name`, `role`, `company`, `timezone`, `summary`
+- `knowledge_styles` — replaced by `user_memory` keys: `tone_{platform}`, `verbosity_{platform}`
 - `knowledge_domains` — removed entirely (deliverable.sources carries source context directly)
-- `knowledge_entries` — replaced by `user_context` with key pattern `{type}:{content}`
+- `knowledge_entries` — replaced by `user_memory` with key pattern `{type}:{content}`
 
 Per ADR-058 (migration 045):
 - `user_integrations`, `ephemeral_context`, `documents`, `chunks`, `context_domains`, `memories`

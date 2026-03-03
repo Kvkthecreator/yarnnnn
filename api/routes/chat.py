@@ -5,12 +5,18 @@ ADR-006: Session and message architecture
 ADR-007: Tool use for TP authority (unified streaming + tools)
 ADR-059/064: Memory via user_memory table and build_working_memory()
 ADR-067: Session compaction and conversational continuity
+ADR-087: Deliverable-scoped context (deliverable_id on sessions, scoped working memory)
 
 Session Philosophy (ADR-067):
 - In-session compaction at 80% of MAX_HISTORY_TOKENS (40k of 50k)
 - Cross-session continuity via chat_sessions.summary (written by nightly cron)
 - Inactivity-based session boundary (4h, not UTC midnight)
 - Compaction format: assistant <summary> block prepended to remaining history
+
+ADR-087: Deliverable Scoping:
+- surface_context.deliverableId routes the session to a specific deliverable
+- deliverable_id set on chat_sessions row at creation time
+- Deliverable's instructions + memory injected into working memory
 
 Endpoints:
 - POST /chat - Global chat with streaming + tools
@@ -757,6 +763,28 @@ async def global_chat(
         + (f" (compaction block present)" if compaction_block else "")
     )
 
+    # ADR-087: Extract deliverable_id from surface_context for scoped sessions
+    deliverable_id = None
+    scoped_deliverable = None
+    if request.surface_context and request.surface_context.deliverableId:
+        deliverable_id = request.surface_context.deliverableId
+        # Set deliverable_id on the session row for memory routing
+        try:
+            auth.client.table("chat_sessions").update(
+                {"deliverable_id": deliverable_id}
+            ).eq("id", session_id).execute()
+        except Exception as e:
+            logger.warning(f"[TP] Failed to set deliverable_id on session: {e}")
+        # Fetch the deliverable for working memory injection
+        try:
+            d_result = auth.client.table("deliverables").select(
+                "id, title, deliverable_type, deliverable_instructions, deliverable_memory"
+            ).eq("id", deliverable_id).eq("user_id", auth.user_id).single().execute()
+            if d_result.data:
+                scoped_deliverable = d_result.data
+        except Exception as e:
+            logger.warning(f"[TP] Failed to fetch scoped deliverable: {e}")
+
     # ADR-059/064: Memory now loaded via build_working_memory in execute_stream_with_tools
     # ContextBundle is passed for backwards compatibility but is empty
     context = ContextBundle()
@@ -829,6 +857,7 @@ async def global_chat(
                     "is_onboarding": is_onboarding,
                     "surface_content": surface_content,  # ADR-023: What user is viewing
                     "images": images_for_api,  # Inline base64 images
+                    "scoped_deliverable": scoped_deliverable,  # ADR-087: Deliverable-scoped context
                 },
             ):
                 if event.type == "text":
