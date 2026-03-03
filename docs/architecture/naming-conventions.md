@@ -48,7 +48,7 @@ These names appear in code, API documentation, and architecture docs. They shoul
 |---------|------------|-------------------|-------------------|
 | Per-deliverable behavioral directives | **`deliverable_instructions`** | `deliverables.deliverable_instructions` (TEXT) | OpenClaw AGENTS.md, Cowork skills, CLAUDE.md rules |
 | Per-deliverable accumulated knowledge | **`deliverable_memory`** | `deliverables.deliverable_memory` (JSONB) | OpenClaw MEMORY.md + daily logs |
-| Global user knowledge | **`user_memory`** | `user_context` table (rename pending) | OpenClaw USER.md + SOUL.md |
+| Global user knowledge | **`user_memory`** | `user_memory` table (renamed from `user_context` in ADR-087 migration) | OpenClaw USER.md + SOUL.md |
 | Raw platform input | **`platform_content`** | `platform_content` table | Source files, filesystem |
 | Assembled prompt input per turn | **Working memory** | `build_working_memory()` output | Context assembly, bootstrap context |
 | Agent capabilities | **Primitives** | `api/services/primitives/` | Tools (intentionally distinct — see below) |
@@ -88,7 +88,7 @@ Deliverable          →      deliverable              →   deliverables (table
   └─ Versions        →      deliverable_versions     →   deliverable_versions (table)
 
 Context (page)       →      platform_content         →   platform_content (table)
-Memory (page)        →      user_memory              →   user_context (table — rename pending)
+Memory (page)        →      user_memory              →   user_memory (table)
 Thinking Partner     →      TP / chat mode           →   chat_sessions + session_messages
 ```
 
@@ -100,7 +100,7 @@ Existing names that don't follow these conventions. Each has a migration plan.
 
 | Current name | Should become | Scope of change | When |
 |-------------|---------------|-----------------|------|
-| `user_context` (table) | `user_memory` | DB rename + all backend references + frontend API calls | Next schema migration window (after ADR-087 Phase 1) |
+| `user_context` (table) | `user_memory` | DB rename + all backend references + frontend API calls | **ADR-087 migration window** (bundled as separate commit before Phase 1 columns) |
 | `template_structure` + `type_config` + `recipient_context` (deliverable columns) | Consider consolidating under instructions layer | Backend fields + frontend forms | After ADR-087 Phase 1 validates; these are structural instructions vs. behavioral instructions — may stay separate with clearer naming |
 | `filesystem_items` references in code | Should all be `platform_content` | Grep + replace (table already renamed per ADR-072) | Immediate cleanup |
 | `surface_context` (frontend → backend) | `chat_context` or rename to match `deliverable_id` routing | Frontend API call + backend handler | ADR-087 Phase 1 (when we wire `deliverable_id`) |
@@ -137,7 +137,7 @@ The naming should carry through from code to product to market. Here's how each 
 
 | Layer | How it appears |
 |-------|---------------|
-| **DB** | `user_context` (→ `user_memory`), `deliverables.deliverable_memory` |
+| **DB** | `user_memory`, `deliverables.deliverable_memory` |
 | **API** | `GET /api/memory/context` |
 | **Frontend** | Memory page (global), Memory section in deliverable detail (per-deliverable) |
 | **Marketing** | "YARNNN remembers what matters. Global memory for you, specialized memory for each deliverable." |

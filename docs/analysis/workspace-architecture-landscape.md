@@ -31,7 +31,7 @@ Quick reference for this document:
 |---------|------------|-------------------|
 | Per-deliverable behavioral directives | `deliverable_instructions` | OpenClaw AGENTS.md, Cowork skills |
 | Per-deliverable accumulated knowledge | `deliverable_memory` | OpenClaw MEMORY.md, daily logs |
-| Global user knowledge | `user_context` → future `user_memory` | OpenClaw USER.md + SOUL.md |
+| Global user knowledge | `user_memory` | OpenClaw USER.md + SOUL.md |
 | Raw platform input | `platform_content` | Source files, filesystem |
 | Assembled prompt input | Working memory | Context assembly |
 | Agent capabilities | Primitives | Tools (intentionally distinct) |
@@ -165,7 +165,7 @@ This collapses the heartbeat, signal processing, and event trigger concerns into
 | Generated output | — | Agent responses | `deliverable_versions` |
 | Per-project instructions | CLAUDE.md | AGENTS.md + SOUL.md | `deliverable_instructions` |
 | Per-project memory | CLAUDE.md (accumulated) | MEMORY.md + daily logs | `deliverable_memory` |
-| Global user profile | — | USER.md | `user_context` (→ `user_memory`) |
+| Global user profile | — | USER.md | `user_memory` |
 | Execution schedule | CI/CD | HEARTBEAT.md + crons | `schedule` + `trigger_config` |
 | Tool configuration | — | TOOLS.md | Primitives registry |
 | Input routing | CLI invocation | Gateway | `process_deliverable_input()` [Step 2] |
@@ -178,7 +178,7 @@ This collapses the heartbeat, signal processing, and event trigger concerns into
 
 | Current name | Should become | Why | When |
 |-------------|---------------|-----|------|
-| `user_context` (table) | `user_memory` | It's memory, not assembled context | Next schema migration window |
+| `user_context` (table) | `user_memory` | It's memory, not assembled context | **ADR-087 migration window** (bundled as separate commit) |
 | `template_structure` + `type_config` + `recipient_context` | Consider consolidating under `deliverable_instructions` | All part of the instructions layer | After ADR-087 Phase 1 validates |
 | Signal processing (in `unified_scheduler.py`) + event triggers (`event_triggers.py`) + webhooks | Converge into unified input model | Scattered input paths | ADR-088 / ADR-087 Phase 2 |
 

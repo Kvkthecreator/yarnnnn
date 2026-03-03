@@ -32,7 +32,7 @@ This ADR adopts market-aligned naming to reduce conceptual drift as the AI agent
 | **Tools** (capabilities the agent can invoke) | Primitives (existing, intentionally distinct) | Claude Code tools, OpenClaw tool layer |
 | **Context** (assembled prompt input per turn) | Working memory injection (existing) | OpenClaw `resolveBootstrapContextForRun()`, Claude Code context assembly |
 
-**Naming debt (future cleanup):** `user_context` table → should eventually become `user_memory`. Deferred to a natural migration window.
+**Naming debt (resolved):** `user_context` table → renamed to `user_memory` in the same migration window as this ADR (separate commit, applied first).
 
 ### How this relates to platform content
 
@@ -80,7 +80,7 @@ Sessions get a lightweight `deliverable_id` FK as a routing key for memory accum
 |---|---|---|
 | `deliverable_id` | `UUID NULL FK deliverables(id) ON DELETE SET NULL` | Routing key for memory accumulation |
 
-**0 changes to `user_context`.** Global user memory stays global.
+**0 schema changes to `user_memory`** (renamed from `user_context` in same migration window). Global user memory stays global.
 
 **0 changes to session creation RPC.** `deliverable_id` set on session row at creation time.
 

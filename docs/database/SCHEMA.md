@@ -14,7 +14,7 @@
 user      1──n platform_connections    (OAuth connections to platforms)
 user      1──n platform_content        (unified content layer — synced content with retention)
 user      1──n filesystem_documents    (uploaded files)
-user      1──n user_context            (Memory — what TP knows about the user)
+user      1──n user_memory             (Memory — what TP knows about the user)
 user      1──n activity_log            (Activity — what YARNNN has done)
 user      1──n chat_sessions           (TP conversations)
 user      1──n deliverables            (scheduled outputs)
@@ -29,13 +29,13 @@ deliverables 1──n deliverable_versions       (generated outputs)
 
 ## Four-Layer Model
 
-### Layer 1: Memory (user_context)
+### Layer 1: Memory (user_memory)
 
 What TP knows *about the user* — stable, explicit, user-owned. Injected into every TP session.
 
 | Table | Purpose |
 |-------|---------|
-| `user_context` | Single flat Memory store (replaces the four knowledge_* tables from ADR-058) |
+| `user_memory` | Single flat Memory store (renamed from `user_context` in ADR-087 migration window) |
 
 ### Layer 2: Activity (activity_log)
 
@@ -70,9 +70,9 @@ What TP produces.
 
 ## Memory Table
 
-### 1. user_context
+### 1. user_memory
 
-Single flat key-value Memory store. Replaces `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries` (all dropped in migration 057).
+Single flat key-value Memory store. Renamed from `user_context` in ADR-087 migration window. Replaces `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries` (all dropped in migration 057).
 
 | Column | Type | Notes |
 |--------|------|-------|
