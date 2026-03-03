@@ -1,7 +1,7 @@
 # ADR-087: Deliverable Scoped Context
 
-**Status:** Phase 1 Implemented (v3 — naming aligned to market conventions)
-**Date:** 2026-03-02 (v1), 2026-03-03 (v2 rewrite, v3 naming revision)
+**Status:** Phases 1–3 Implemented. Primitive write paths added (ADR-091 prerequisite).
+**Date:** 2026-03-02 (v1), 2026-03-03 (v2 rewrite, v3 naming revision), 2026-03-04 (primitive additions)
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — one agent, two modes; this ADR bridges them via scoped context

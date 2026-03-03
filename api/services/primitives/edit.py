@@ -5,7 +5,12 @@ Modify existing entity.
 
 Usage:
   Edit(ref="deliverable:uuid-123", changes={status: "paused"})
+  Edit(ref="deliverable:uuid-123", changes={deliverable_instructions: "Use formal tone."})
   Edit(ref="memory:uuid-456", changes={content: "Updated content"})
+
+For deliverable_memory, use append_observation or set_goal keys (scoped writes, not replace):
+  Edit(ref="deliverable:uuid-123", changes={append_observation: {note: "Q4 data finalized"}})
+  Edit(ref="deliverable:uuid-123", changes={set_goal: {description: "...", status: "in_progress"}})
 """
 
 from typing import Any
@@ -20,9 +25,12 @@ EDIT_TOOL = {
 
 Examples:
 - Edit(ref="deliverable:uuid-123", changes={status: "paused"})
+- Edit(ref="deliverable:uuid-123", changes={deliverable_instructions: "Always use bullet points."})
+- Edit(ref="deliverable:uuid-123", changes={append_observation: {note: "Q4 data is now finalized"}})
+- Edit(ref="deliverable:uuid-123", changes={set_goal: {description: "...", status: "in_progress", milestones: [...]}})
 - Edit(ref="memory:uuid-456", changes={content: "Updated preference"})
-- Edit(ref="work:uuid-789", changes={is_active: false})
 
+For deliverable_memory, use append_observation or set_goal (scoped writes — do not pass raw deliverable_memory JSONB).
 Only specified fields are updated; others remain unchanged.""",
     "input_schema": {
         "type": "object",
@@ -118,17 +126,25 @@ async def handle_edit(auth: Any, input: dict) -> dict:
             "ref": ref_str,
         }
 
-    # Filter out immutable fields
+    # ADR-091: Scoped deliverable_memory writes — append_observation / set_goal
+    # These are handled specially to avoid clobbering system-accumulated memory.
+    if parsed.entity_type == "deliverable" and (
+        "append_observation" in changes or "set_goal" in changes
+    ):
+        return await _handle_deliverable_memory_write(auth, parsed, existing, changes)
+
+    # Filter out immutable fields (and scoped memory keys, handled above)
     filtered_changes = {
         k: v for k, v in changes.items()
-        if k not in IMMUTABLE_FIELDS
+        if k not in IMMUTABLE_FIELDS and k not in ("append_observation", "set_goal", "deliverable_memory")
     }
 
     if not filtered_changes:
         return {
             "success": False,
             "error": "no_valid_changes",
-            "message": f"Cannot modify fields: {', '.join(changes.keys())}",
+            "message": f"Cannot modify fields: {', '.join(changes.keys())}. "
+                       f"Use append_observation or set_goal to write deliverable memory.",
         }
 
     # Add updated_at
@@ -174,6 +190,100 @@ async def handle_edit(auth: Any, input: dict) -> dict:
             "message": str(e),
             "ref": ref_str,
         }
+
+
+async def _handle_deliverable_memory_write(auth: Any, parsed: Any, existing: dict, changes: dict) -> dict:
+    """
+    Scoped write to deliverable_memory JSONB.
+
+    ADR-091: append_observation appends to observations list (never replaces).
+    set_goal replaces the goal object only (observations untouched).
+    Raw deliverable_memory writes are blocked to avoid clobbering system-accumulated memory.
+    """
+    import json
+
+    current_memory = existing.get("deliverable_memory") or {}
+    if isinstance(current_memory, str):
+        try:
+            current_memory = json.loads(current_memory)
+        except Exception:
+            current_memory = {}
+
+    updated_memory = dict(current_memory)
+    applied = []
+
+    if "append_observation" in changes:
+        obs = changes["append_observation"]
+        if not isinstance(obs, dict) or "note" not in obs:
+            return {
+                "success": False,
+                "error": "invalid_observation",
+                "message": "append_observation requires {note: '...', source: '...' (optional)}",
+            }
+        observation = {
+            "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+            "source": obs.get("source", "user"),
+            "note": obs["note"],
+        }
+        observations = list(updated_memory.get("observations") or [])
+        observations.append(observation)
+        # Cap at 20 — headless extraction compacts periodically
+        updated_memory["observations"] = observations[-20:]
+        applied.append("append_observation")
+
+    if "set_goal" in changes:
+        goal = changes["set_goal"]
+        if not isinstance(goal, dict) or "description" not in goal:
+            return {
+                "success": False,
+                "error": "invalid_goal",
+                "message": "set_goal requires {description: '...', status: '...', milestones: [...] (optional)}",
+            }
+        updated_memory["goal"] = {
+            "description": goal["description"],
+            "status": goal.get("status", "in_progress"),
+            "milestones": goal.get("milestones", []),
+        }
+        applied.append("set_goal")
+
+    try:
+        result = auth.client.table("deliverables").update({
+            "deliverable_memory": updated_memory,
+            "updated_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", parsed.identifier).eq("user_id", auth.user_id).execute()
+
+        if not result.data:
+            return {
+                "success": False,
+                "error": "update_failed",
+                "message": "Failed to update deliverable memory",
+            }
+
+        return {
+            "success": True,
+            "data": result.data[0],
+            "ref": f"deliverable:{parsed.identifier}",
+            "entity_type": "deliverable",
+            "changes_applied": applied,
+            "message": _format_memory_write_message(applied, changes),
+        }
+    except Exception as e:
+        return {
+            "success": False,
+            "error": "memory_write_failed",
+            "message": str(e),
+        }
+
+
+def _format_memory_write_message(applied: list, changes: dict) -> str:
+    parts = []
+    if "append_observation" in applied:
+        note = changes["append_observation"].get("note", "")
+        parts.append(f"Observation added: \"{note[:60]}{'...' if len(note) > 60 else ''}\"")
+    if "set_goal" in applied:
+        desc = changes["set_goal"].get("description", "")
+        parts.append(f"Goal set: \"{desc[:60]}{'...' if len(desc) > 60 else ''}\"")
+    return ". ".join(parts)
 
 
 def _format_edit_message(entity_type: str, changes: dict, data: dict) -> str:

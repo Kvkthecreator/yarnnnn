@@ -25,8 +25,8 @@ Actions:
 - deliverable.generate: Run content generation pipeline
 - deliverable.schedule: Update deliverable schedule
 - deliverable.approve: Approve pending version
+- deliverable.acknowledge: Append a lightweight observation to deliverable memory from conversation context (use when user shares relevant information that should persist, but doesn't warrant full generation)
 - memory.extract: Extract from conversation
-- work.run: Execute work immediately
 - signal.process: Run signal extraction and triage on synced platform content
 
 NOTE: For direct platform operations (send messages, search pages, etc.),
@@ -36,6 +36,7 @@ NOTE: platform.sync removed — use RefreshPlatformContent(platform="...") inste
 
 Examples:
 - Execute(action="deliverable.generate", target="deliverable:uuid-123")
+- Execute(action="deliverable.acknowledge", target="deliverable:uuid-123", params={note: "User confirmed Q4 data is now finalized"})
 - Execute(action="platform.publish", target="deliverable:uuid", via="platform:twitter")
 - Execute(action="deliverable.approve", target="deliverable:uuid")
 - Execute(action="signal.process", target="system:signals")""",
@@ -83,6 +84,10 @@ ACTION_CATALOG = {
     },
     "deliverable.approve": {
         "description": "Approve pending deliverable version",
+        "target_types": ["deliverable"],
+    },
+    "deliverable.acknowledge": {
+        "description": "Append observation to deliverable memory (ADR-091: lightweight context update, no generation)",
         "target_types": ["deliverable"],
     },
     "memory.extract": {
@@ -233,6 +238,7 @@ def _get_action_handler(action: str):
         "platform.publish": _handle_platform_publish,
         "deliverable.generate": _handle_deliverable_generate,
         "deliverable.approve": _handle_deliverable_approve,
+        "deliverable.acknowledge": _handle_deliverable_acknowledge,
         "signal.process": _handle_signal_process,
     }
     return handlers.get(action)
@@ -337,6 +343,51 @@ async def _handle_deliverable_approve(auth, entity, ref, via, params):
         "status": "approved",
         "version_id": version_id,
         "message": "Version approved",
+    }
+
+
+async def _handle_deliverable_acknowledge(auth, entity, ref, via, params):
+    """
+    Lightweight context update: append an observation to deliverable_memory.
+
+    ADR-091: Graduated response — lighter than full generation, used when user
+    shares information relevant to a deliverable that should persist across sessions.
+    Observation cap: 20 most recent (system compacts periodically).
+    """
+    from datetime import datetime, timezone
+    import json
+
+    note = params.get("note", "").strip()
+    if not note:
+        raise ValueError("params.note is required for deliverable.acknowledge")
+
+    deliverable_id = entity.get("id")
+    current_memory = entity.get("deliverable_memory") or {}
+    if isinstance(current_memory, str):
+        try:
+            current_memory = json.loads(current_memory)
+        except Exception:
+            current_memory = {}
+
+    updated_memory = dict(current_memory)
+    observations = list(updated_memory.get("observations") or [])
+    observations.append({
+        "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
+        "source": "user",
+        "note": note,
+    })
+    updated_memory["observations"] = observations[-20:]
+
+    auth.client.table("deliverables").update({
+        "deliverable_memory": updated_memory,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", deliverable_id).eq("user_id", auth.user_id).execute()
+
+    return {
+        "status": "acknowledged",
+        "note": note,
+        "observations_total": len(updated_memory["observations"]),
+        "message": f"Noted: \"{note[:80]}{'...' if len(note) > 80 else ''}\"",
     }
 
 

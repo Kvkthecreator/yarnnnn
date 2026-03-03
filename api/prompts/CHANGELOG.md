@@ -6,6 +6,20 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.04.1] - ADR-091: Deliverable workspace primitives
+
+### Changed
+- `api/services/primitives/edit.py`: Added scoped `deliverable_memory` write paths — `append_observation` and `set_goal` keys on deliverable Edit calls. Raw `deliverable_memory` JSONB replacement blocked to prevent clobbering system-accumulated memory. Added `deliverable_instructions` as an editable field (was previously accepted by the generic update path but not documented or validated).
+- `api/services/primitives/execute.py`: Added `deliverable.acknowledge` action — lightweight observation append to `deliverable_memory` from conversation context. Haiku-level cost, no generation triggered. Observations capped at 20 most recent. Removed dead `work.run` from tool description (deleted in ADR-090).
+
+### Expected behavior
+- TP can now update deliverable instructions from chat: `Edit(ref="deliverable:uuid", changes={deliverable_instructions: "Always use bullet points."})`
+- TP can record user-shared context without triggering full generation: `Execute(action="deliverable.acknowledge", target="deliverable:uuid", params={note: "Q4 data is finalized"})`
+- Memory writes are scoped (append-only for observations) — system-accumulated observations are preserved
+- Enables ADR-091 deliverable workspace: chat on deliverable page can act on deliverable state directly
+
+---
+
 ## [2026.03.03.2] - ADR-087 Phase 2: Simplified memory architecture
 
 ### Changed

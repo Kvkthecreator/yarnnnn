@@ -1,7 +1,7 @@
 # ADR-087 Phase 3: Surface Layout & Data Mapping
 
 **Date:** 2026-03-03
-**Status:** Design — awaiting approval before implementation
+**Status:** Superseded by [ADR-091: Workspace Layout & Navigation](ADR-091-workspace-layout-navigation.md) (2026-03-04). Tab layout implemented as Phase 3 interim; full Cowork-style layout with scoped chat is ADR-091.
 **References:**
 - [ADR-087: Deliverable Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — Phase 3 spec
 - [ADR-090: Work Tickets Consolidation](../adr/ADR-090-work-tickets-consolidation.md) — Phase 2 (surface redirects, combined here)
