@@ -21,7 +21,7 @@ ALTER TABLE deliverables
 ADD COLUMN IF NOT EXISTS deliverable_memory JSONB NOT NULL DEFAULT '{}';
 
 COMMENT ON COLUMN deliverables.deliverable_memory IS
-'ADR-087: System-accumulated knowledge about this deliverable. Structure: {session_summaries: [], feedback_patterns: [], observations: [], goal: {}}. Grows over time, compacted periodically.';
+'ADR-087: System-accumulated knowledge about this deliverable. Structure: {observations: [{date, note}], goal: {description, status, milestones}}. Session summaries queried via chat_sessions.deliverable_id FK, not stored here.';
 
 -- Deliverable mode: recurring (default) or goal (finite completion)
 ALTER TABLE deliverables
