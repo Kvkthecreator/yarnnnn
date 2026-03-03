@@ -2,14 +2,16 @@
 YARNNN v5 - Unified Scheduler
 
 Consolidates all scheduled job processing:
-- ADR-017: Recurring work tickets
-- ADR-018: Recurring deliverables
+- Recurring deliverables (ADR-018)
+- Weekly digests
+- Import jobs
+- Nightly conversation analysis + memory extraction
+- Signal processing
+- Platform content cleanup (ADR-072)
 
 Run every 5 minutes via Render cron:
   schedule: "*/5 * * * *"
   command: cd api && python -m jobs.unified_scheduler
-
-This replaces the separate work_scheduler.py to reduce cron job overhead.
 """
 
 from __future__ import annotations
@@ -25,7 +27,6 @@ from croniter import croniter
 
 from .email import (
     send_email,
-    send_work_complete_email,
 )
 from .digest import generate_digest_content
 from .import_jobs import get_pending_import_jobs, process_import_job, recover_stale_processing_jobs
@@ -405,146 +406,6 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
 
 
 # =============================================================================
-# Work Ticket Processing (ADR-017) - Preserved from work_scheduler.py
-# =============================================================================
-
-async def get_due_work(supabase_client) -> list[dict]:
-    """Query recurring work due for execution."""
-    now = datetime.now(timezone.utc)
-
-    # Try new ADR-017 function first
-    try:
-        result = supabase_client.rpc(
-            "get_due_work",
-            {"check_time": now.isoformat()}
-        ).execute()
-        return result.data or []
-    except Exception:
-        pass
-
-    # Fall back to old function
-    try:
-        result = supabase_client.rpc(
-            "get_due_work_templates",
-            {"check_time": now.isoformat()}
-        ).execute()
-        return result.data or []
-    except Exception:
-        return []
-
-
-async def process_work(supabase_client, work: dict) -> bool:
-    """Process a single recurring work item."""
-    from services.work_execution import execute_work_ticket
-
-    work_id = work.get("work_id") or work.get("template_id")
-    user_id = work["user_id"]
-    cron_expr = work.get("frequency_cron") or work.get("schedule_cron")
-    tz_name = work.get("timezone") or work.get("schedule_timezone", "UTC")
-
-    logger.info(f"[WORK] Processing: {work['task'][:50]}...")
-
-    try:
-        # 1. Spawn execution ticket
-        ticket_data = {
-            "task": work["task"],
-            "agent_type": work["agent_type"],
-            "status": "pending",
-            "parameters": work.get("parameters", {}),
-            "user_id": user_id,
-            "parent_template_id": work_id,
-            "is_template": False,
-        }
-
-        result = supabase_client.table("work_tickets").insert(ticket_data).execute()
-        if not result.data:
-            logger.error(f"[WORK] Failed to create execution ticket")
-            return False
-
-        ticket_id = result.data[0]["id"]
-        logger.info(f"[WORK] Created execution: {ticket_id}")
-
-        # 2. Execute the work
-        exec_result = await execute_work_ticket(supabase_client, user_id, ticket_id)
-
-        if not exec_result.get("success"):
-            logger.warning(f"[WORK] Execution failed: {exec_result.get('error')}")
-
-        # 3. Update schedule
-        now = datetime.now(timezone.utc)
-        import pytz
-        try:
-            tz = pytz.timezone(tz_name)
-        except Exception:
-            tz = pytz.UTC
-
-        if cron_expr:
-            local_time = now.astimezone(tz)
-            cron = croniter(cron_expr, local_time)
-            next_run = cron.get_next(datetime).astimezone(timezone.utc)
-        else:
-            next_run = now + timedelta(weeks=1)
-
-        supabase_client.table("work_tickets").update({
-            "schedule_last_run_at": now.isoformat(),
-            "schedule_next_run_at": next_run.isoformat(),
-        }).eq("id", work_id).execute()
-
-        # 4. Send completion email
-        if await should_send_email(supabase_client, user_id, "work_complete"):
-            user_email = await get_user_email(supabase_client, user_id)
-            if user_email and exec_result.get("success"):
-                # Get outputs
-                outputs_result = supabase_client.table("work_outputs").select("id, title, output_type, content").eq("ticket_id", ticket_id).execute()
-                outputs = []
-                for row in (outputs_result.data or []):
-                    import json
-                    summary = ""
-                    content = row.get("content", "")
-                    if content:
-                        try:
-                            parsed = json.loads(content)
-                            if isinstance(parsed, dict):
-                                summary = parsed.get("summary", "")[:200]
-                        except Exception:
-                            summary = content[:200] if content else ""
-                    outputs.append({
-                        "id": row["id"],
-                        "title": row["title"],
-                        "type": row["output_type"],
-                        "summary": summary,
-                    })
-
-                await send_work_complete_email(
-                    to=user_email,
-                    project_name="yarnnn",
-                    agent_type=work["agent_type"],
-                    task=work["task"],
-                    outputs=outputs,
-                    project_id="",
-                )
-                logger.info(f"[WORK] ✓ Email sent to {user_email}")
-
-        logger.info(f"[WORK] ✓ Complete: {work['task'][:50]}")
-        return exec_result.get("success", False)
-
-    except Exception as e:
-        logger.error(f"[WORK] ✗ Error: {e}")
-
-        # Update schedule to prevent retry storm
-        try:
-            now = datetime.now(timezone.utc)
-            next_run = now + timedelta(weeks=1)
-            supabase_client.table("work_tickets").update({
-                "schedule_next_run_at": next_run.isoformat(),
-            }).eq("id", work_id).execute()
-        except Exception:
-            pass
-
-        return False
-
-
-# =============================================================================
 # Digest Processing (Weekly Digests)
 # =============================================================================
 
@@ -697,20 +558,6 @@ async def run_unified_scheduler():
                 deliverable_success += 1
         except Exception as e:
             logger.error(f"[DELIVERABLE] Unexpected error: {e}")
-
-    # -------------------------------------------------------------------------
-    # Process Work Tickets (ADR-017)
-    # -------------------------------------------------------------------------
-    work_items = await get_due_work(supabase)
-    logger.info(f"[WORK] Found {len(work_items)} due for execution")
-
-    work_success = 0
-    for work in work_items:
-        try:
-            if await process_work(supabase, work):
-                work_success += 1
-        except Exception as e:
-            logger.error(f"[WORK] Unexpected error: {e}")
 
     # -------------------------------------------------------------------------
     # Process Weekly Digests (runs hourly, but we check if due)
@@ -1206,7 +1053,6 @@ async def run_unified_scheduler():
 
     summary_parts = [
         f"deliverables={deliverable_summary}",
-        f"work={work_success}/{len(work_items)}",
         f"digests={digest_success}/{digest_count}",
         f"imports={import_success}/{import_count}",
     ]
@@ -1229,8 +1075,8 @@ async def run_unified_scheduler():
         from services.activity_log import write_activity
 
         # Build heartbeat summary
-        total_checked = len(deliverables) + len(work_items) + digest_count + import_count
-        total_triggered = deliverable_success + work_success + digest_success + import_success
+        total_checked = len(deliverables) + digest_count + import_count
+        total_triggered = deliverable_success + digest_success + import_success
 
         heartbeat_summary = f"Scheduler cycle: {total_triggered}/{total_checked} items processed"
 
@@ -1240,8 +1086,6 @@ async def run_unified_scheduler():
             "deliverables_checked": len(deliverables),
             "deliverables_triggered": deliverable_success,
             "deliverables_skipped": deliverable_skipped,
-            "work_checked": len(work_items),
-            "work_triggered": work_success,
             "digests_checked": digest_count,
             "digests_triggered": digest_success,
             "imports_checked": import_count,

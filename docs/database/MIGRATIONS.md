@@ -9,6 +9,14 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ---
 
+### 086 — Cleanup Dead RPCs + Fix Constraints (2026-03-03) ✅
+
+- Drops `get_due_work_templates(TIMESTAMPTZ)` RPC (ADR-017 legacy, referenced columns that don't exist)
+- Drops `get_due_work(TIMESTAMPTZ)` RPC (never existed in prod, IF EXISTS)
+- Fixes `notifications_source_type_check` to include `'suggestion'` (blocked nightly analysis since Feb 24)
+
+---
+
 ### 085 — Deliverable Scoped Context (2026-03-03) ✅
 
 - Adds `deliverable_instructions` (TEXT), `deliverable_memory` (JSONB), `mode` (TEXT) to `deliverables`
