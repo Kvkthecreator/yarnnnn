@@ -175,8 +175,8 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         sessions = auth.client.table("chat_sessions").select("id", count="exact").eq("user_id", user_id).execute()
         chat_sessions_count = sessions.count or 0
 
-        # Count memories (ADR-059: user_context, entry-type keys only)
-        memories = auth.client.table("user_context").select("id", count="exact").eq("user_id", user_id).or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%").execute()
+        # Count memories (ADR-059: user_memory, entry-type keys only)
+        memories = auth.client.table("user_memory").select("id", count="exact").eq("user_id", user_id).or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%").execute()
         memories_count = memories.count or 0
 
         # Count documents
@@ -282,8 +282,8 @@ async def clear_all_memories(auth: UserClient) -> OperationResult:
     user_id = auth.user_id
 
     try:
-        # ADR-059: Delete entry-type keys from user_context (fact:/instruction:/preference:)
-        result = auth.client.table("user_context").delete().eq("user_id", user_id).or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%").execute()
+        # ADR-059: Delete entry-type keys from user_memory (fact:/instruction:/preference:)
+        result = auth.client.table("user_memory").delete().eq("user_id", user_id).or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%").execute()
         deleted_count = len(result.data or [])
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all memories: {deleted_count}")
@@ -404,8 +404,8 @@ async def clear_all_context(auth: UserClient) -> OperationResult:
         result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
         deleted["chat_sessions"] = len(result.data or [])
 
-        # Delete all user_context rows (ADR-059)
-        result = auth.client.table("user_context").delete().eq("user_id", user_id).execute()
+        # Delete all user_memory rows (ADR-059)
+        result = auth.client.table("user_memory").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
         # Delete documents (chunks cascade)
@@ -518,8 +518,8 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
         deleted["chat_sessions"] = len(result.data or [])
 
-        # 5. Delete all user_context rows (ADR-059)
-        result = auth.client.table("user_context").delete().eq("user_id", user_id).execute()
+        # 5. Delete all user_memory rows (ADR-059)
+        result = auth.client.table("user_memory").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
         # 6. Delete documents
@@ -616,8 +616,8 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
         deleted["chat_sessions"] = len(result.data or [])
 
-        # 5. Delete all user_context rows (ADR-059)
-        result = auth.client.table("user_context").delete().eq("user_id", user_id).execute()
+        # 5. Delete all user_memory rows (ADR-059)
+        result = auth.client.table("user_memory").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
         # 6. Delete documents

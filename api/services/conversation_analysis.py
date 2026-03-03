@@ -304,9 +304,9 @@ async def get_user_knowledge(
         List of knowledge entries
     """
     try:
-        # ADR-059: Read from user_context
+        # ADR-059: Read from user_memory
         result = (
-            client.table("user_context")
+            client.table("user_memory")
             .select("key, value")
             .eq("user_id", user_id)
             .limit(20)

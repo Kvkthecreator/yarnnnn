@@ -162,12 +162,12 @@ All 8 checks pass:
 **Test 2: Memory Extraction from Approval**
 - Action: Approve deliverable version with edits
 - Expected: `process_feedback()` called async
-- Verification: Check `user_context` for `source=feedback` entries
+- Verification: Check `user_memory` for `source=feedback` entries
 
 **Test 3: Pattern Detection**
 - Trigger: Wait until midnight UTC or manually trigger scheduler
 - Expected: `process_patterns()` detects 5 pattern types
-- Verification: Check `user_context` for `source=pattern` entries
+- Verification: Check `user_memory` for `source=pattern` entries
 
 **Test 4: New Deliverable Types**
 - Action: Create deliverable with type `deep_research`
@@ -215,7 +215,7 @@ WHERE table_name = 'user_notification_preferences'
 
 -- Check for new memory sources
 SELECT DISTINCT source, COUNT(*)
-FROM user_context
+FROM user_memory
 GROUP BY source;
 
 -- Verify new deliverable types

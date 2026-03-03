@@ -6,7 +6,7 @@ Analogous to Claude Code reading CLAUDE.md — TP reads what's explicitly stated
 nothing inferred by background jobs.
 
 Sources (Memory + Activity layers only):
-  user_context   — stated preferences, profile, facts, instructions (Memory)
+  user_memory   — stated preferences, profile, facts, instructions (Memory)
   activity_log   — recent system events: deliverable runs, syncs, memory writes (Activity)
   filesystem_*   — raw synced platform content (searched on demand, not in prompt)
 
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 MAX_DELIVERABLES = 5
 MAX_PLATFORMS = 5
 MAX_RECENT_SESSIONS = 3
-MAX_CONTEXT_ENTRIES = 20       # Max user_context rows to include in prompt
+MAX_CONTEXT_ENTRIES = 20       # Max user_memory rows to include in prompt
 MAX_ACTIVITY_EVENTS = 10       # ADR-063: Recent activity events injected into prompt
 SESSION_LOOKBACK_DAYS = 7
 ACTIVITY_LOOKBACK_DAYS = 7     # ADR-063: Window for activity_log query
@@ -54,8 +54,8 @@ async def build_working_memory(user_id: str, client: Any) -> dict:
         Dict structured for JSON serialization into the prompt.
         Designed to stay under ~2,000 tokens.
     """
-    # Load user_context rows — the single source of truth for stated preferences
-    context_rows = await _get_user_context(user_id, client)
+    # Load user_memory rows — the single source of truth for stated preferences
+    context_rows = await _get_user_memory(user_id, client)
 
     working_memory = {
         "profile": _extract_profile(context_rows),
@@ -71,21 +71,21 @@ async def build_working_memory(user_id: str, client: Any) -> dict:
     return working_memory
 
 
-async def _get_user_context(user_id: str, client: Any) -> list[dict]:
+async def _get_user_memory(user_id: str, client: Any) -> list[dict]:
     """
-    Fetch all user_context rows for the user.
+    Fetch all user_memory rows for the user.
 
     ADR-059: Single SELECT replaces four separate table queries.
     """
     try:
-        result = client.table("user_context").select(
+        result = client.table("user_memory").select(
             "key, value, source, confidence"
         ).eq("user_id", user_id).limit(MAX_CONTEXT_ENTRIES).execute()
 
         return result.data or []
 
     except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to fetch user_context: {e}")
+        logger.warning(f"[WORKING_MEMORY] Failed to fetch user_memory: {e}")
         return []
 
 

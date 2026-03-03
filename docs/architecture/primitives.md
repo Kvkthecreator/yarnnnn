@@ -25,7 +25,7 @@ YARNNN uses a four-layer model (ADR-063):
 
 | Layer | Table | Purpose |
 |-------|-------|---------|
-| **Memory** | `user_context` | User facts, preferences, patterns |
+| **Memory** | `user_memory` | User facts, preferences, patterns |
 | **Activity** | `activity_log` | System provenance (what YARNNN has done) |
 | **Context** | `platform_content` | Synced platform data with retention-based accumulation |
 | **Work** | `deliverable_versions` | Generated content outputs |
@@ -36,7 +36,7 @@ YARNNN uses a four-layer model (ADR-063):
 |--------|---------|-------------|------------|
 | **Platforms** | `platform_content` | OAuth → Sync Worker | `scope="platform_content"` |
 | **Documents** | `filesystem_documents` + `filesystem_chunks` | File upload | `scope="document"` |
-| **Memory** | `user_context` | Nightly extraction + user edits | `scope="memory"` |
+| **Memory** | `user_memory` | Nightly extraction + user edits | `scope="memory"` |
 
 Users without platform connections can still provide rich context via documents and direct statements. Memory is extracted implicitly from conversations (ADR-064).
 
@@ -101,7 +101,7 @@ YARNNN uses a tiered entity model. **TP-facing** entities are directly addressab
 
 | Type | Table | Description | Notes |
 |------|-------|-------------|-------|
-| `memory` | `user_context` | User facts, preferences, patterns | Auto-injected into context via working memory |
+| `memory` | `user_memory` | User facts, preferences, patterns | Auto-injected into context via working memory |
 | `platform_content` | `platform_content` | Synced platform data | Retention-based accumulation (ADR-072) |
 
 > **ADR-064 Note**: Memory is implicit — TP has no explicit memory tools. Extraction happens nightly from conversations. Users can edit memories via the Context page.
@@ -631,8 +631,8 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 - File structure updated to include `refresh.py`
 
 ### 2026-02-23 — Schema references updated for ADR-059/072
-- Context Architecture section updated: four-layer model, `platform_content` replaces `filesystem_items`, `user_context` replaces knowledge tables
-- Entity type tables updated: `platform_connections` (was `user_integrations`), `user_context` (was `memories`), `platform_content` (was `ephemeral_context`), removed `domain`/`context_domains`
+- Context Architecture section updated: four-layer model, `platform_content` replaces `filesystem_items`, `user_memory` replaces knowledge tables
+- Entity type tables updated: `platform_connections` (was `user_integrations`), `user_memory` (was `memories`), `platform_content` (was `ephemeral_context`), removed `domain`/`context_domains`
 - Memory entity schema rewritten for ADR-064 implicit memory model
 - Removed `memory` and `domain` from Write required fields (TP no longer has explicit memory tools)
 

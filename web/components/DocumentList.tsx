@@ -5,7 +5,7 @@
  * ADR-008: Document Pipeline
  *
  * Displays uploaded documents with upload button, status, and actions.
- * Used in UserContextPanel to show user's documents and extracted memories.
+ * Used in UserMemoryPanel to show user's documents and extracted memories.
  */
 
 import { useRef, useState } from "react";

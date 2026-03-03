@@ -391,8 +391,8 @@ async def _handle_signal_process(auth, entity, ref, via, params):
         }
 
     # Fetch context for LLM reasoning (same as signal_processing route)
-    user_context = (
-        auth.client.table("user_context")
+    user_memory = (
+        auth.client.table("user_memory")
         .select("key, value")
         .eq("user_id", auth.user_id)
         .limit(20)
@@ -435,7 +435,7 @@ async def _handle_signal_process(auth, entity, ref, via, params):
 
     result = await process_signal(
         auth.client, auth.user_id, signal_summary,
-        user_context, recent_activity, existing_deliverables,
+        user_memory, recent_activity, existing_deliverables,
     )
 
     created = 0

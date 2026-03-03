@@ -249,8 +249,8 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
         persona_deliverable_title = persona.deliverable_config.get("title") if persona.deliverable_config else None
         await cleanup_synthetic_user(client, user_id, persona.name, persona_deliverable_title)
 
-        # 1. Create user_context (profile) with test prefix keys (upsert pattern)
-        logger.info(f"  Creating user_context...")
+        # 1. Create user_memory (profile) with test prefix keys (upsert pattern)
+        logger.info(f"  Creating user_memory...")
         profile_rows = [
             {"key": f"{test_prefix}name", "value": persona.name},
             {"key": f"{test_prefix}role", "value": persona.role},
@@ -261,7 +261,7 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
         for row in profile_rows:
             # Check if exists
             existing = (
-                client.table("user_context")
+                client.table("user_memory")
                 .select("id")
                 .eq("user_id", user_id)
                 .eq("key", row["key"])
@@ -269,20 +269,20 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
             )
             if existing.data:
                 # Update
-                client.table("user_context").update({
+                client.table("user_memory").update({
                     "value": row["value"],
                     "updated_at": now.isoformat(),
                 }).eq("user_id", user_id).eq("key", row["key"]).execute()
             else:
                 # Insert
-                client.table("user_context").insert({
+                client.table("user_memory").insert({
                     "user_id": user_id,
                     "key": row["key"],
                     "value": row["value"],
                     "source": "user_stated",
                     "confidence": 1.0,
                 }).execute()
-        logger.info(f"    ✓ Ensured {len(profile_rows)} user_context rows")
+        logger.info(f"    ✓ Ensured {len(profile_rows)} user_memory rows")
 
         # 2. Create/update platform_connections (upsert to handle existing)
         logger.info(f"  Creating platform_connections...")
@@ -423,8 +423,8 @@ async def cleanup_synthetic_user(client: Any, user_id: str, persona_name: str, p
     test_prefix = f"TEST_{persona_name.replace(' ', '_').upper()}_"
 
     try:
-        # Delete user_context with test prefix for this persona only
-        client.table("user_context").delete().eq("user_id", user_id).like("key", f"{test_prefix}%").execute()
+        # Delete user_memory with test prefix for this persona only
+        client.table("user_memory").delete().eq("user_id", user_id).like("key", f"{test_prefix}%").execute()
     except Exception:
         pass
 
@@ -570,14 +570,14 @@ async def run_signal_processing(client: Any, user_id: str, persona: SyntheticUse
             )
 
         # Get context for reasoning
-        user_context_result = (
-            client.table("user_context")
+        user_memory_result = (
+            client.table("user_memory")
             .select("key, value")
             .eq("user_id", user_id)
             .limit(20)
             .execute()
         )
-        user_context = user_context_result.data or []
+        user_memory = user_memory_result.data or []
 
         recent_activity = await get_recent_activity(client, user_id, limit=10, days=7)
 
@@ -594,7 +594,7 @@ async def run_signal_processing(client: Any, user_id: str, persona: SyntheticUse
             client=client,
             user_id=user_id,
             signal_summary=signal_summary,
-            user_context=user_context,
+            user_memory=user_memory,
             recent_activity=recent_activity,
             existing_deliverables=existing_deliverables,
         )
@@ -612,7 +612,7 @@ async def run_signal_processing(client: Any, user_id: str, persona: SyntheticUse
                 "actions": [a.action_type for a in processing_result.actions],
                 "deliverables_created": created,
             },
-            tables_queried=["platform_content", "platform_connections", "user_context", "activity_log", "deliverables"],
+            tables_queried=["platform_content", "platform_connections", "user_memory", "activity_log", "deliverables"],
         )
 
     except Exception as e:
@@ -704,7 +704,7 @@ async def run_deliverable_execution(
                 "delivery_status": delivery_status,
                 "delivery_note": "Delivery skipped (no email integration in test)" if delivery_status == "failed" else None,
             },
-            tables_queried=["deliverables", "deliverable_versions", "platform_content", "user_context"],
+            tables_queried=["deliverables", "deliverable_versions", "platform_content", "user_memory"],
         )
 
     except Exception as e:
@@ -902,9 +902,9 @@ async def run_memory_extraction(
             session_id=str(uuid4()),
         )
 
-        # Query what was written to user_context (source="tp_extracted" per memory.py)
+        # Query what was written to user_memory (source="tp_extracted" per memory.py)
         context_result = (
-            client.table("user_context")
+            client.table("user_memory")
             .select("key, value, source")
             .eq("user_id", user_id)
             .eq("source", "tp_extracted")
@@ -919,7 +919,7 @@ async def run_memory_extraction(
                 "count": extracted_count,
                 "memories": [{"key": m["key"], "value": m["value"][:100]} for m in extracted_memories],
             },
-            tables_queried=["deliverable_versions", "user_context"],
+            tables_queried=["deliverable_versions", "user_memory"],
         )
 
     except Exception as e:
@@ -929,7 +929,7 @@ async def run_memory_extraction(
             success=False,
             error=str(e),
             traceback=traceback.format_exc(),
-            tables_queried=["deliverable_versions", "user_context"],
+            tables_queried=["deliverable_versions", "user_memory"],
         )
 
 

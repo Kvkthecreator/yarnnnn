@@ -53,7 +53,7 @@ async def load_context_for_work(
     try:
         # ADR-059: Load user context entries (fact/instruction/preference keys)
         user_result = (
-            client.table("user_context")
+            client.table("user_memory")
             .select("*")
             .eq("user_id", user_id)
             .limit(max_memories)

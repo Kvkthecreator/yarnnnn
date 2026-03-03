@@ -143,12 +143,12 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 ### Common Debug Queries
 
 ```sql
--- Count entities by user (ADR-059: user_context replaces memories)
-SELECT user_id, COUNT(*) FROM user_context GROUP BY user_id;
+-- Count entities by user (ADR-059: user_memory replaces memories)
+SELECT user_id, COUNT(*) FROM user_memory GROUP BY user_id;
 SELECT user_id, COUNT(*) FROM deliverables GROUP BY user_id;
 
 -- Recent memories
-SELECT key, value, source, confidence, updated_at FROM user_context
+SELECT key, value, source, confidence, updated_at FROM user_memory
 WHERE user_id = '<uuid>'
 ORDER BY updated_at DESC LIMIT 5;
 

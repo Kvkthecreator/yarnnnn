@@ -103,13 +103,13 @@ async def get_users_due_for_sync(supabase_client) -> list[dict]:
 async def _get_user_sync_info(supabase_client, user_id: str) -> Optional[dict]:
     """Get user's tier and timezone for sync scheduling.
 
-    ADR-059: timezone lives in user_context (key='timezone').
+    ADR-059: timezone lives in user_memory (key='timezone').
     Tier comes from workspaces.subscription_status.
     """
-    # Timezone from user_context (ADR-059)
+    # Timezone from user_memory (ADR-059)
     timezone = "UTC"
     try:
-        tz_result = supabase_client.table("user_context").select(
+        tz_result = supabase_client.table("user_memory").select(
             "value"
         ).eq("user_id", user_id).eq("key", "timezone").maybe_single().execute()
         timezone = tz_result.data.get("value", "UTC") if tz_result.data else "UTC"

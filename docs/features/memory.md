@@ -25,7 +25,7 @@ It is stable, explicit, and user-owned. Memory formation is **implicit** — TP 
 
 ---
 
-## Table: `user_context`
+## Table: `user_memory`
 
 Single flat key-value store. One row per fact. Defined in ADR-059.
 
@@ -84,7 +84,7 @@ ADR-064: Memory is written by the **Memory Service** (`api/services/memory.py`),
 
 ## How Memory is read
 
-At the start of every TP session, `working_memory.py → build_working_memory()` reads all `user_context` rows and formats them into the system prompt:
+At the start of every TP session, `working_memory.py → build_working_memory()` reads all `user_memory` rows and formats them into the system prompt:
 
 ```
 ### About you
@@ -141,7 +141,7 @@ User: "I prefer bullet points over prose"
 TP: "Got it, I'll use bullet points going forward."
 ```
 
-At session end, the backend extracts "prefers bullet points" and writes it to `user_context`. Next session, TP knows about this preference from the working memory prompt.
+At session end, the backend extracts "prefers bullet points" and writes it to `user_memory`. Next session, TP knows about this preference from the working memory prompt.
 
 If the user asks "what do you know about me?", TP can describe the working memory block injected at session start.
 
@@ -162,7 +162,7 @@ Users can add, edit, and delete Memory entries directly. Changes are immediate.
 
 - [ADR-064](../adr/ADR-064-unified-memory-service.md) — Unified Memory Service (three extraction sources)
 - [ADR-070](../adr/ADR-070-enhanced-activity-pattern-detection.md) — Enhanced pattern detection (5 pattern types)
-- [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design (user_context)
+- [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design (user_memory)
 - [ADR-063](../adr/ADR-063-activity-log-four-layer-model.md) — Four-layer model
 - [four-layer-model.md](../architecture/four-layer-model.md) — Architectural overview (bidirectional learning)
 - `api/services/memory.py` — Memory extraction service (process_conversation, process_feedback, process_patterns)

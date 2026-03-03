@@ -183,7 +183,7 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 | `HybridStrategy` | `hybrid` | Platform content + research directive for headless agent (ADR-081) |
 
 4. Strategy calls `get_content_summary_for_generation()` — chronological content dump with signal markers (`[UNANSWERED]`, `[STALLED]`, `[URGENT]`, `[DECISION]`), capped at 20 items/source, 500 chars/item
-5. User memories appended from `user_context` (fact/instruction/preference keys)
+5. User memories appended from `user_memory` (fact/instruction/preference keys)
 6. Past version feedback appended (if any)
 7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context
 8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware round limits (ADR-081). Research/hybrid types receive a research directive and use WebSearch for web investigation.

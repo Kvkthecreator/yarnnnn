@@ -10,7 +10,7 @@ This will:
 1. Delete all deliverable_versions for user's deliverables
 2. Delete all deliverables
 3. Delete all chat_sessions (and cascade to session_messages)
-4. Delete all user_context rows (ADR-059)
+4. Delete all user_memory rows (ADR-059)
 5. Delete all work_outputs for user's work_tickets
 6. Delete all work_tickets
 
@@ -98,13 +98,13 @@ def purge_user_data(email: str, dry_run: bool = False):
         sessions = client.table("chat_sessions").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(sessions.data or [])} chat sessions")
 
-    # 3. Delete user_context (ADR-059: replaces knowledge_entries)
-    print(f"\n🗑️  {action} user_context...")
+    # 3. Delete user_memory (ADR-059: replaces knowledge_entries)
+    print(f"\n🗑️  {action} user_memory...")
     if not dry_run:
-        result = client.table("user_context").delete().eq("user_id", user_id).execute()
+        result = client.table("user_memory").delete().eq("user_id", user_id).execute()
         print(f"   Deleted {len(result.data or [])} context entries")
     else:
-        memories = client.table("user_context").select("id").eq("user_id", user_id).execute()
+        memories = client.table("user_memory").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(memories.data or [])} context entries")
 
     # 4. Delete work_outputs and work_tickets

@@ -71,7 +71,7 @@ async def process_signal(
     client,
     user_id: str,
     signal_summary: SignalSummary,
-    user_context: list[dict],
+    user_memory: list[dict],
     recent_activity: list[dict],
     existing_deliverables: list[dict],
 ) -> SignalProcessingResult:
@@ -82,7 +82,7 @@ async def process_signal(
         client: Supabase service-role client
         user_id: The user
         signal_summary: Output of extract_signal_summary()
-        user_context: Rows from user_context table (memory)
+        user_memory: Rows from user_memory table (memory)
         recent_activity: Recent rows from activity_log
         existing_deliverables: Active/paused deliverables for deduplication
 
@@ -118,7 +118,7 @@ async def process_signal(
     # Build the reasoning prompt
     prompt = _build_reasoning_prompt(
         signal_summary=signal_summary,
-        user_context=user_context,
+        user_memory=user_memory,
         recent_activity=recent_activity,
         existing_deliverables=existing_deliverables,
     )
@@ -427,7 +427,7 @@ async def _advance_deliverable_run(client, deliverable_id: str) -> None:
 
 def _build_reasoning_prompt(
     signal_summary: SignalSummary,
-    user_context: list[dict],
+    user_memory: list[dict],
     recent_activity: list[dict],
     existing_deliverables: list[dict],
 ) -> str:
@@ -476,9 +476,9 @@ def _build_reasoning_prompt(
 
     # Format user context (memory) - unchanged
     context_text = ""
-    if user_context:
+    if user_memory:
         lines = []
-        for row in user_context[:15]:
+        for row in user_memory[:15]:
             key = row.get("key", "")
             value = row.get("value", "")
             if key.startswith(("fact:", "preference:", "instruction:")):

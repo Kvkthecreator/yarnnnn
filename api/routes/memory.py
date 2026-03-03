@@ -1,7 +1,7 @@
 """
 Memory routes - ADR-059: Simplified Context Model + ADR-063: Activity Log
 
-Mounted at /api/memory. Single store: user_context table (key/value with source tracking).
+Mounted at /api/memory. Single store: user_memory table (key/value with source tracking).
 
 Endpoints:
   GET  /profile              - Get profile fields (name, role, company, timezone, summary)
@@ -102,8 +102,8 @@ ENTRY_PREFIXES = ("fact:", "instruction:", "preference:")
 
 
 def _upsert_context(client, user_id: str, key: str, value: str, source: str = "user_stated") -> None:
-    """Upsert a single key in user_context."""
-    client.table("user_context").upsert({
+    """Upsert a single key in user_memory."""
+    client.table("user_memory").upsert({
         "user_id": user_id,
         "key": key,
         "value": value,
@@ -114,8 +114,8 @@ def _upsert_context(client, user_id: str, key: str, value: str, source: str = "u
 
 
 def _delete_context_key(client, user_id: str, key: str) -> None:
-    """Delete a single key from user_context (hard delete — no need for soft delete here)."""
-    client.table("user_context").delete().eq("user_id", user_id).eq("key", key).execute()
+    """Delete a single key from user_memory (hard delete — no need for soft delete here)."""
+    client.table("user_memory").delete().eq("user_id", user_id).eq("key", key).execute()
 
 
 # ─── Onboarding ───────────────────────────────────────────────────────────────
@@ -126,8 +126,8 @@ async def get_onboarding_state(auth: UserClient):
     from datetime import timedelta
 
     try:
-        # Count user_context entries (fact/instruction/preference)
-        memory_result = auth.client.table("user_context")\
+        # Count user_memory entries (fact/instruction/preference)
+        memory_result = auth.client.table("user_memory")\
             .select("id", count="exact")\
             .eq("user_id", auth.user_id)\
             .execute()
@@ -170,9 +170,9 @@ async def get_onboarding_state(auth: UserClient):
 
 @router.get("/profile", response_model=ProfileResponse)
 async def get_profile(auth: UserClient):
-    """Get user's profile from user_context."""
+    """Get user's profile from user_memory."""
     try:
-        result = auth.client.table("user_context")\
+        result = auth.client.table("user_memory")\
             .select("key, value")\
             .eq("user_id", auth.user_id)\
             .in_("key", list(PROFILE_KEYS))\
@@ -191,7 +191,7 @@ async def get_profile(auth: UserClient):
 
 @router.patch("/profile", response_model=ProfileResponse)
 async def update_profile(update: ProfileUpdate, auth: UserClient):
-    """Upsert profile fields in user_context."""
+    """Upsert profile fields in user_memory."""
     try:
         update_dict = update.model_dump(exclude_none=True)
 
@@ -213,9 +213,9 @@ async def update_profile(update: ProfileUpdate, auth: UserClient):
 
 @router.get("/styles", response_model=StylesListResponse)
 async def get_styles(auth: UserClient):
-    """Get tone/verbosity preferences per platform from user_context."""
+    """Get tone/verbosity preferences per platform from user_memory."""
     try:
-        result = auth.client.table("user_context")\
+        result = auth.client.table("user_memory")\
             .select("key, value")\
             .eq("user_id", auth.user_id)\
             .or_("key.like.tone_%,key.like.verbosity_%")\
@@ -245,7 +245,7 @@ async def get_styles(auth: UserClient):
 
 @router.patch("/styles/{platform}", response_model=StyleItem)
 async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
-    """Set tone/verbosity for a platform in user_context."""
+    """Set tone/verbosity for a platform in user_memory."""
     try:
         if update.tone is not None:
             if update.tone:
@@ -260,7 +260,7 @@ async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
                 _delete_context_key(auth.client, auth.user_id, f"verbosity_{platform}")
 
         # Return current state
-        result = auth.client.table("user_context")\
+        result = auth.client.table("user_memory")\
             .select("key, value")\
             .eq("user_id", auth.user_id)\
             .in_("key", [f"tone_{platform}", f"verbosity_{platform}"])\
@@ -285,12 +285,12 @@ async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
 @router.get("/user/memories", response_model=list[ContextEntry])
 async def list_user_memories(auth: UserClient):
     """
-    List knowledge entries from user_context.
+    List knowledge entries from user_memory.
 
     Returns all rows whose key starts with fact:, instruction:, or preference:.
     """
     try:
-        result = auth.client.table("user_context")\
+        result = auth.client.table("user_memory")\
             .select("*")\
             .eq("user_id", auth.user_id)\
             .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
@@ -305,7 +305,7 @@ async def list_user_memories(auth: UserClient):
 
 @router.post("/user/memories", response_model=ContextEntry)
 async def create_user_memory(entry: EntryCreate, auth: UserClient):
-    """Create a knowledge entry in user_context."""
+    """Create a knowledge entry in user_memory."""
     try:
         # Build a key from type + content (truncated, alphanumeric)
         import re
@@ -323,7 +323,7 @@ async def create_user_memory(entry: EntryCreate, auth: UserClient):
             "updated_at": now,
         }
 
-        result = auth.client.table("user_context")\
+        result = auth.client.table("user_memory")\
             .upsert(record, on_conflict="user_id,key")\
             .execute()
 
@@ -343,14 +343,14 @@ async def import_user_memories(request: BulkImportRequest, auth: UserClient):
     """
     Bulk import: extract knowledge entries from pasted text.
 
-    Uses LLM extraction, then writes results to user_context.
+    Uses LLM extraction, then writes results to user_memory.
     """
     if not request.text or len(request.text.strip()) < 50:
         raise HTTPException(status_code=400, detail="Text too short (minimum 50 characters)")
 
     try:
-        from services.memory import extract_from_text_to_user_context
-        count = await extract_from_text_to_user_context(
+        from services.memory import extract_from_text_to_user_memory
+        count = await extract_from_text_to_user_memory(
             user_id=auth.user_id,
             text=request.text,
             db_client=auth.client,
@@ -368,7 +368,7 @@ async def import_user_memories(request: BulkImportRequest, auth: UserClient):
 async def delete_memory(entry_id: UUID, auth: UserClient):
     """Delete a context entry by id (hard delete)."""
     try:
-        result = auth.client.table("user_context")\
+        result = auth.client.table("user_memory")\
             .delete()\
             .eq("id", str(entry_id))\
             .eq("user_id", auth.user_id)\

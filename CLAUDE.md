@@ -23,7 +23,7 @@ grep -r "<keyword>" docs/adr/
 
 Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-049**: Context freshness model - SUPERSEDED by ADR-072 (accumulation moat thesis)
-- **ADR-059**: Simplified context model - current Memory schema (user_context), inference removal
+- **ADR-059**: Simplified context model - current Memory schema (user_memory), inference removal
 - **ADR-062**: Platform context architecture - SUPERSEDED by ADR-072 (unified content layer)
 - **ADR-063**: Four-layer model (Memory / Activity / Context / Work) - activity_log, working memory injection
 - **ADR-067**: Session compaction and continuity - follows Claude Code's model
@@ -151,7 +151,7 @@ You MUST:
 - `platform_connections` (not `user_integrations`)
 - `platform_content` — unified content layer with retention (ADR-072, replaces `filesystem_items`)
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
-- `user_context` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
+- `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
 **Removed files** (ADR-064):

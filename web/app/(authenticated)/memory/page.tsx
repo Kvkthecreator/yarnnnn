@@ -10,7 +10,7 @@
  * - Communication Styles: Tone/verbosity per platform
  * - Knowledge Entries: Facts, preferences, instructions (with source badges)
  *
- * Data lives in: user_context table
+ * Data lives in: user_memory table
  * Written by: User directly, backend extraction (ADR-064)
  * Read by: working_memory.py at session start
  */

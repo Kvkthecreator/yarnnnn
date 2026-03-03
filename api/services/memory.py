@@ -75,7 +75,7 @@ class MemoryService:
             logger.debug(f"[memory] No facts extracted from session {session_id}")
             return 0
 
-        # Write to user_context
+        # Write to user_memory
         written = 0
         for fact in facts:
             success = await self._write_memory(
@@ -228,7 +228,7 @@ class MemoryService:
         """
         try:
             result = (
-                client.table("user_context")
+                client.table("user_memory")
                 .select("key, value, source, confidence")
                 .eq("user_id", user_id)
                 .order("confidence", desc=True)
@@ -236,7 +236,7 @@ class MemoryService:
             )
             entries = result.data or []
         except Exception as e:
-            logger.error(f"[memory] Failed to read user_context: {e}")
+            logger.error(f"[memory] Failed to read user_memory: {e}")
             return ""
 
         if not entries:
@@ -510,7 +510,7 @@ CONVERSATION:
         confidence: float,
     ) -> bool:
         """
-        Write a memory to user_context with upsert.
+        Write a memory to user_memory with upsert.
 
         Returns True on success, False on failure.
         """
@@ -528,7 +528,7 @@ CONVERSATION:
         try:
             # Check if exists
             existing = (
-                client.table("user_context")
+                client.table("user_memory")
                 .select("id, source, confidence")
                 .eq("user_id", user_id)
                 .eq("key", key)
@@ -547,7 +547,7 @@ CONVERSATION:
                     logger.debug(f"[memory] Skipping update: {key} (user_stated takes priority)")
                     return False
 
-                client.table("user_context").update({
+                client.table("user_memory").update({
                     "value": value,
                     "source": source,
                     "confidence": confidence,
@@ -555,7 +555,7 @@ CONVERSATION:
                 }).eq("id", old["id"]).execute()
             else:
                 record["created_at"] = now
-                client.table("user_context").insert(record).execute()
+                client.table("user_memory").insert(record).execute()
 
             # Log to activity_log
             try:
@@ -580,7 +580,7 @@ CONVERSATION:
 
     def _format_for_prompt(self, entries: list[dict]) -> str:
         """
-        Format user_context entries for system prompt injection.
+        Format user_memory entries for system prompt injection.
 
         Groups by type and formats readably.
         """
@@ -760,7 +760,7 @@ async def generate_session_summary(messages: list[dict], session_date: str) -> O
     return await _service.generate_session_summary(messages, session_date)
 
 
-async def extract_from_text_to_user_context(user_id: str, text: str, db_client) -> int:
+async def extract_from_text_to_user_memory(user_id: str, text: str, db_client) -> int:
     """
     Extract memories from user-provided text (bulk import).
 

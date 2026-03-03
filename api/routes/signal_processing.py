@@ -180,14 +180,14 @@ async def trigger_signal_processing(
             )
 
         # Fetch context for LLM reasoning
-        user_context_result = (
-            supabase.table("user_context")
+        user_memory_result = (
+            supabase.table("user_memory")
             .select("key, value")
             .eq("user_id", user_id)
             .limit(20)
             .execute()
         )
-        user_context = user_context_result.data or []
+        user_memory = user_memory_result.data or []
 
         recent_activity = await get_recent_activity(
             client=supabase,
@@ -240,7 +240,7 @@ async def trigger_signal_processing(
             client=supabase,
             user_id=user_id,
             signal_summary=signal_summary,
-            user_context=user_context,
+            user_memory=user_memory,
             recent_activity=recent_activity,
             existing_deliverables=existing_deliverables,
         )

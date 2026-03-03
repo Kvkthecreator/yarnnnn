@@ -237,7 +237,7 @@ async def get_system_status(auth: UserClient):
     # ─── User Timezone (ADR-084) ─────────────────────────────────────────────
     user_tz_str = "UTC"
     try:
-        tz_result = auth.client.table("user_context").select(
+        tz_result = auth.client.table("user_memory").select(
             "value"
         ).eq("user_id", user_id).eq("key", "timezone").maybe_single().execute()
         if tz_result.data:

@@ -141,7 +141,7 @@ Signals are **not stored** in the database. They're ephemeral observations extra
    - Produce structured SignalSummary object
 
 2. **Reason over signals** (single LLM call)
-   - Input: SignalSummary + user_context + recent_activity + existing_deliverables
+   - Input: SignalSummary + user_memory + recent_activity + existing_deliverables
    - Output: List of actions (create_signal_emergent | trigger_existing | no_action)
    - Constraints: confidence ≥ 0.60, deduplication, type deduplication
 

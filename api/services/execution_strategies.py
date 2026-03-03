@@ -394,9 +394,9 @@ def get_execution_strategy(deliverable: dict) -> ExecutionStrategy:
 async def _get_user_memories(client, user_id: str) -> str:
     """Get user context entries for prompt injection."""
     try:
-        # ADR-059: Read from user_context (fact/instruction/preference keys)
+        # ADR-059: Read from user_memory (fact/instruction/preference keys)
         result = (
-            client.table("user_context")
+            client.table("user_memory")
             .select("key, value")
             .eq("user_id", user_id)
             .limit(20)

@@ -11,7 +11,7 @@ Write points (all non-fatal — callers continue regardless of log failure):
   - routes/deliverables.py: 'deliverable_approved' / 'deliverable_rejected' on version status change
   - platform_worker.py: 'platform_synced' after sync batch completes
   - routes/integrations.py: 'integration_connected' / 'integration_disconnected' on OAuth lifecycle
-  - TP memory tools: 'memory_written' after user_context upsert
+  - TP memory tools: 'memory_written' after user_memory upsert
   - chat.py: 'chat_session' when session ends
   - signal_processing.py: 'signal_processed' after signal reasoning pass (ADR-072)
   - unified_scheduler.py: 'deliverable_scheduled' when deliverable queued (ADR-072)

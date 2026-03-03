@@ -17,7 +17,7 @@ Context is never injected wholesale into the TP system prompt. It is fetched on 
 
 ## What it is not
 
-- Not stable user knowledge — that is Memory (`user_context`)
+- Not stable user knowledge — that is Memory (`user_memory`)
 - Not a log of YARNNN's actions — that is Activity (`activity_log`)
 - Not generated output — that is Work (`deliverable_versions`)
 - Not pre-loaded into the TP prompt — TP fetches it on demand

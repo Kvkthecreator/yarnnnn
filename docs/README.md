@@ -10,7 +10,7 @@
 > - [ADR-063: Four-Layer Model](adr/ADR-063-activity-log-four-layer-model.md) — Memory / Activity / Context / Work
 > - [ADR-064: Unified Memory Service](adr/ADR-064-unified-memory-service.md) — Implicit memory, nightly extraction
 >
-> The system follows a **Four-Layer Model**: Memory (`user_context`), Activity (`activity_log`), Context (`platform_content`), and Work (`deliverable_versions`). Platform content flows through a single fetch path (sync worker only) and accumulates based on significance.
+> The system follows a **Four-Layer Model**: Memory (`user_memory`), Activity (`activity_log`), Context (`platform_content`), and Work (`deliverable_versions`). Platform content flows through a single fetch path (sync worker only) and accumulates based on significance.
 
 ## Quick Links
 

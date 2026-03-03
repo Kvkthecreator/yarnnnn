@@ -1,10 +1,10 @@
 "use client";
 
 /**
- * UserContextPanel
- * ADR-059: User Context Entries
+ * UserMemoryPanel
+ * ADR-059: User Memory Entries
  *
- * Displays user context entries (key-value pairs) and documents.
+ * Displays user memory entries (key-value pairs) and documents.
  * Supports both sidebar mode and inline mode.
  */
 
@@ -22,8 +22,8 @@ import {
 import { api } from "@/lib/api/client";
 import { DocumentList } from "@/components/DocumentList";
 
-// ADR-059: User context entry format (from user_context table)
-interface UserContextEntry {
+// ADR-059: User memory entry format (from user_memory table)
+interface UserMemoryEntry {
   id: string;
   key: string;
   value: string;
@@ -33,19 +33,19 @@ interface UserContextEntry {
   updated_at: string;
 }
 
-interface UserContextPanelProps {
+interface UserMemoryPanelProps {
   isOpen: boolean;
   onClose: () => void;
   inline?: boolean;
 }
 
-export function UserContextPanel({ isOpen, onClose, inline = false }: UserContextPanelProps) {
-  const [entries, setEntries] = useState<UserContextEntry[]>([]);
+export function UserMemoryPanel({ isOpen, onClose, inline = false }: UserMemoryPanelProps) {
+  const [entries, setEntries] = useState<UserMemoryEntry[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [expandedSources, setExpandedSources] = useState<Set<string>>(new Set());
 
-  // Fetch user context entries on mount
+  // Fetch user memory entries on mount
   useEffect(() => {
     async function fetchEntries() {
       try {
@@ -100,7 +100,7 @@ export function UserContextPanel({ isOpen, onClose, inline = false }: UserContex
       acc[source].push(entry);
       return acc;
     },
-    {} as Record<string, UserContextEntry[]>
+    {} as Record<string, UserMemoryEntry[]>
   );
 
   // Sort sources by count (most items first)

@@ -2133,8 +2133,8 @@ async def handle_create_deliverable(auth, input: dict) -> dict:
     sample_memories = []
 
     try:
-        # ADR-059: Count memories from user_context (fact:/instruction:/preference: keys)
-        user_mem_result = auth.client.table("user_context")\
+        # ADR-059: Count memories from user_memory (fact:/instruction:/preference: keys)
+        user_mem_result = auth.client.table("user_memory")\
             .select("id, value", count="exact")\
             .eq("user_id", auth.user_id)\
             .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
@@ -2276,11 +2276,11 @@ async def handle_list_memories(auth, input: dict) -> dict:
     Returns:
         Dict with memories list
     """
-    # ADR-059: Read from user_context
+    # ADR-059: Read from user_memory
     search = input.get("search")
     limit = input.get("limit", 20)
 
-    query = auth.client.table("user_context")\
+    query = auth.client.table("user_memory")\
         .select("id, key, value, source, created_at, updated_at")\
         .eq("user_id", auth.user_id)\
         .order("created_at", desc=True)\

@@ -112,15 +112,15 @@ async def get_overview_stats(admin: AdminAuth):
             .execute()
         projects_7d = projects_7d_result.count or 0
 
-        # Total memories (ADR-059: user_context entry-type keys)
-        memories_result = client.table("user_context")\
+        # Total memories (ADR-059: user_memory entry-type keys)
+        memories_result = client.table("user_memory")\
             .select("id", count="exact")\
             .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
         total_memories = memories_result.count or 0
 
         # Memories in last 7 days
-        memories_7d_result = client.table("user_context")\
+        memories_7d_result = client.table("user_memory")\
             .select("id", count="exact")\
             .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .gte("created_at", seven_days_ago)\
@@ -189,7 +189,7 @@ async def list_users(admin: AdminAuth):
                 project_count = projects.count or 0
 
             # Get memory count (ADR-059)
-            memories = client.table("user_context")\
+            memories = client.table("user_memory")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
                 .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
@@ -232,10 +232,10 @@ async def get_memory_stats(admin: AdminAuth):
     try:
         client = admin.client
 
-        # ADR-059: user_context replaces knowledge_entries; count by source
+        # ADR-059: user_memory replaces knowledge_entries; count by source
         by_source = {}
         for source in ["user_stated", "tp_extracted", "document"]:
-            result = client.table("user_context")\
+            result = client.table("user_memory")\
                 .select("id", count="exact")\
                 .eq("source", source)\
                 .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
@@ -243,7 +243,7 @@ async def get_memory_stats(admin: AdminAuth):
             by_source[source] = result.count or 0
 
         # All entry-type context rows
-        total_result = client.table("user_context")\
+        total_result = client.table("user_memory")\
             .select("id", count="exact")\
             .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
@@ -255,7 +255,7 @@ async def get_memory_stats(admin: AdminAuth):
         }
 
         # Average confidence (replaces importance)
-        all_memories = client.table("user_context")\
+        all_memories = client.table("user_memory")\
             .select("confidence")\
             .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
@@ -413,7 +413,7 @@ async def export_users_excel(admin: AdminAuth):
                 project_count = projects.count or 0
 
             # Get memory count (ADR-059)
-            memories = client.table("user_context")\
+            memories = client.table("user_memory")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
                 .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
@@ -553,8 +553,8 @@ async def export_full_report(admin: AdminAuth):
             .execute()
         total_projects = projects_result.count or 0
 
-        # Memories (ADR-059: user_context entry-type keys)
-        memories_result = client.table("user_context")\
+        # Memories (ADR-059: user_memory entry-type keys)
+        memories_result = client.table("user_memory")\
             .select("id, created_at", count="exact")\
             .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
             .execute()
@@ -601,7 +601,7 @@ async def export_full_report(admin: AdminAuth):
                 project_count = projects.count or 0
 
             # Memory count (ADR-059)
-            memories = client.table("user_context")\
+            memories = client.table("user_memory")\
                 .select("id", count="exact")\
                 .eq("user_id", user_id)\
                 .or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%")\
@@ -1268,8 +1268,8 @@ async def admin_trigger_signal_processing(
             }
 
         # Gather context needed by process_signal
-        uc_result = client.table("user_context").select("*").eq("user_id", user_id).execute()
-        user_context = uc_result.data or []
+        uc_result = client.table("user_memory").select("*").eq("user_id", user_id).execute()
+        user_memory = uc_result.data or []
 
         al_result = client.table("activity_log").select("*").eq(
             "user_id", user_id
@@ -1283,7 +1283,7 @@ async def admin_trigger_signal_processing(
 
         # Process signals (LLM triage)
         processing_result = await process_signal(
-            client, user_id, summary, user_context, recent_activity, existing_deliverables
+            client, user_id, summary, user_memory, recent_activity, existing_deliverables
         )
 
         return {

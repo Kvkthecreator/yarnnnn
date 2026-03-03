@@ -92,7 +92,7 @@ Confidence: 0.7
 **Database Verification**:
 ```sql
 SELECT key, value, source, confidence
-FROM user_context
+FROM user_memory
 WHERE user_id = 'USER_ID'
   AND source = 'feedback'
 ORDER BY updated_at DESC
@@ -112,7 +112,7 @@ LIMIT 5;
 
 **Test Steps**:
 1. Trigger pattern detection manually or wait until midnight UTC
-2. Check `user_context` for new entries with `source='pattern'`
+2. Check `user_memory` for new entries with `source='pattern'`
 3. Verify applicable pattern types are being detected
 
 **Expected Pattern Types** (rule-based, all have minimum thresholds):
@@ -141,7 +141,7 @@ print(f"Patterns written: {result}")
 **Database Verification**:
 ```sql
 SELECT key, value, source, confidence, created_at
-FROM user_context
+FROM user_memory
 WHERE user_id = 'USER_ID'
   AND source = 'pattern'
 ORDER BY created_at DESC
@@ -398,7 +398,7 @@ Phase 1-3 implementation is considered validated when:
 - [ ] All automated validation checks pass
 - [ ] Manual signal processing includes Layer 4 content
 - [ ] Memory extraction from approval creates `source=feedback` entries
-- [ ] Daily pattern detection creates `source=pattern` entries in `user_context`
+- [ ] Daily pattern detection creates `source=pattern` entries in `user_memory`
 - [ ] 8 active deliverable types execute successfully (ADR-082)
 - [ ] TP can create deliverables via Write tool
 - [ ] Signal processing demonstrates quality-aware decision making (staleness/coverage)

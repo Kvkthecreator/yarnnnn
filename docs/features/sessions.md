@@ -43,9 +43,9 @@ When a new session starts, TP gets a fresh **working memory block** injected int
 
 | What's in working memory | Source | How it gets there |
 |---|---|---|
-| Name, role, company, timezone | `user_context` | User sets via Context page |
-| Tone and verbosity preferences | `user_context` | User sets or nightly extraction |
-| Facts, instructions, preferences | `user_context` | User sets or nightly extraction |
+| Name, role, company, timezone | `user_memory` | User sets via Context page |
+| Tone and verbosity preferences | `user_memory` | User sets or nightly extraction |
+| Facts, instructions, preferences | `user_memory` | User sets or nightly extraction |
 | Active deliverables (up to 5) | `deliverables` | Always live |
 | Connected platforms + sync freshness | `platform_connections` | Always live |
 | Recent activity (last 10 events, 7-day window) | `activity_log` | Written by pipeline + sync |
@@ -72,7 +72,7 @@ Claude Code uses auto-compaction — context-window-pressure-driven, not time-ba
 |---|---|---|
 | **Session boundary** | Context-window-driven | Inactivity-based (4h default) |
 | **In-session overflow** | Auto-compaction (`<summary>` block prepended) | Compaction at 80% of 50k token budget |
-| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | `user_context` + deliverables + activity + `chat_sessions.summary` |
+| **Cross-session memory** | CLAUDE.md + auto memory (MEMORY.md) | `user_memory` + deliverables + activity + `chat_sessions.summary` |
 | **Session summaries** | Auto-generated during compaction | Written by nightly cron |
 | **Session resumption** | `--continue` / `--resume <id>` | Not supported (session_id ignored, deferred) |
 

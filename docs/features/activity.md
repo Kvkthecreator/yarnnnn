@@ -20,7 +20,7 @@ Recent activity is injected into every TP session at startup, so TP can answer "
 
 - Not platform content — that is Context (`platform_content`)
 - Not generated output — that is Work (`deliverable_versions`)
-- Not stable user knowledge — that is Memory (`user_context`)
+- Not stable user knowledge — that is Memory (`user_memory`)
 - Not a replacement for `deliverable_versions` or `session_messages` — those still hold the full records; Activity holds lightweight summaries
 
 ---
@@ -73,7 +73,7 @@ platform_worker.py
   → write_activity("platform_synced", summary="Synced gmail: 12 items", ...)
 
 memory.py (nightly extraction)
-  → user_context upsert succeeds
+  → user_memory upsert succeeds
   → write_activity("memory_written", summary="Noted: prefers bullet points", ...)
 
 signal_processing.py

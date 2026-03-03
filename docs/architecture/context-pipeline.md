@@ -12,7 +12,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│  MEMORY  (user_context)                                      │
+│  MEMORY  (user_memory)                                      │
 │  What TP knows about you — stable, explicit, auditable      │
 │  Injected into every TP session (working memory block)      │
 │  source_ref tracks provenance of each entry                  │
@@ -48,7 +48,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 
 | | Claude Code | Clawdbot | Yarnnn |
 |---|---|---|---|
-| **Memory** | CLAUDE.md | SOUL.md / USER.md | `user_context` |
+| **Memory** | CLAUDE.md | SOUL.md / USER.md | `user_memory` |
 | **Activity** | Git commit log | Script execution log | `activity_log` |
 | **Context** | Source files (read on demand) | Local filesystem | `platform_content` |
 | **Work** | Build output | Script output | `deliverable_versions` |
@@ -105,9 +105,9 @@ This is how YARNNN builds intelligence over time. A user with 6 months of delive
 
 ---
 
-## Memory Layer: user_context
+## Memory Layer: user_memory
 
-**Table**: `user_context`
+**Table**: `user_memory`
 **ADR**: ADR-059
 
 A single flat key-value store for everything TP knows *about the user*. Replaces the prior four-table inference pipeline (`knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`).
@@ -243,7 +243,7 @@ These are action calls TP makes on behalf of the user during a chat turn. They a
 
 ## What TP Has at Session Start
 
-At the start of every TP session, the working memory block is assembled from **Memory only** (user_context + active deliverables + platform connection status). Raw platform content is **not** pre-injected.
+At the start of every TP session, the working memory block is assembled from **Memory only** (user_memory + active deliverables + platform connection status). Raw platform content is **not** pre-injected.
 
 TP accesses platform content during a session in three steps (ADR-085):
 
@@ -257,7 +257,7 @@ Live platform tools (`platform_slack_*`, `platform_gmail_*`, etc.) are used for 
 
 ## Document Uploads
 
-Uploaded documents are processed into `filesystem_chunks` (chunked, embedded, indexed). They are searchable via `Search(scope="document")`. Documents do **not** automatically extract into Memory (`user_context`).
+Uploaded documents are processed into `filesystem_chunks` (chunked, embedded, indexed). They are searchable via `Search(scope="document")`. Documents do **not** automatically extract into Memory (`user_memory`).
 
 **Intentional oversight**: there is a legitimate future use case for "promote document to Memory" — where a user wants a style guide, brief, or set of standing instructions to always be present in working memory rather than just searchable. This should be implemented as an explicit user action, not automatic extraction. It is deferred pending architectural hardening.
 

@@ -149,15 +149,15 @@ async def test_signal_processing(user_email: str, signals_filter: str = "all"):
     logger.info(f"{'='*60}")
 
     try:
-        user_context_result = (
-            supabase.table("user_context")
+        user_memory_result = (
+            supabase.table("user_memory")
             .select("key, value")
             .eq("user_id", user_id)
             .limit(20)
             .execute()
         )
-        user_context = user_context_result.data or []
-        logger.info(f"✓ User context entries: {len(user_context)}")
+        user_memory = user_memory_result.data or []
+        logger.info(f"✓ User context entries: {len(user_memory)}")
 
         recent_activity = await get_recent_activity(
             client=supabase,
@@ -191,7 +191,7 @@ async def test_signal_processing(user_email: str, signals_filter: str = "all"):
             client=supabase,
             user_id=user_id,
             signal_summary=signal_summary,
-            user_context=user_context,
+            user_memory=user_memory,
             recent_activity=recent_activity,
             existing_deliverables=existing_deliverables,
         )

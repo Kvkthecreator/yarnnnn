@@ -37,7 +37,7 @@ export interface Memory {
   updated_at: string;
 }
 
-// ADR-059: User context entry (key-value pairs in user_context table)
+// ADR-059: User context entry (key-value pairs in user_memory table)
 // ADR-072: Added source_ref and source_type for provenance tracking
 export interface UserContextEntry {
   id: string;

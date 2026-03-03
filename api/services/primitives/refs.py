@@ -23,7 +23,7 @@ Entity types:
   - action: Executable actions (for discovery)
   - system: System-level targets (signals, scheduler, etc.)
 
-NOTE: Per ADR-059, 'memory' maps to user_context (replaces knowledge_entries).
+NOTE: Per ADR-059, 'memory' maps to user_memory (replaces knowledge_entries).
       Platform content (Slack/Gmail/Notion imports) lives in platform_content (ADR-072).
 
 Special identifiers:
@@ -74,7 +74,7 @@ ENTITY_TYPES = {
     "deliverable",
     "platform",
     "platform_content",  # ADR-072: unified content layer
-    "memory",  # ADR-059: user_context
+    "memory",  # ADR-059: user_memory
     "session",
     "domain",
     "document",
@@ -158,9 +158,9 @@ TABLE_MAP = {
     "deliverable": "deliverables",
     "platform": "platform_connections",
     "platform_content": "platform_content",  # ADR-072: unified content layer
-    "memory": "user_context",  # ADR-059: Replaces knowledge_entries
+    "memory": "user_memory",  # ADR-059: Replaces knowledge_entries
     "session": "chat_sessions",
-    "domain": "user_context",  # ADR-059: knowledge_domains removed
+    "domain": "user_memory",  # ADR-059: knowledge_domains removed
     "document": "filesystem_documents",  # ADR-058
     "work": "work_tickets",
 }

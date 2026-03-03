@@ -31,7 +31,7 @@ async def store_style_memory(
     profile,
     job_id: str,
 ) -> bool:
-    # ADR-059: Style inference removed. TP learns style conversationally via user_context.
+    # ADR-059: Style inference removed. TP learns style conversationally via user_memory.
     return False
 
 

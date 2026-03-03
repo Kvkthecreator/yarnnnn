@@ -9,6 +9,69 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ---
 
+### 084 — Rename user_context → user_memory (2026-03-03)
+
+- Renames `user_context` table to `user_memory`
+- Renames indexes: `user_context_user_id_idx` → `user_memory_user_id_idx`, `idx_user_context_source_ref` → `idx_user_memory_source_ref`
+- Renames RLS policy and unique constraint
+- ADR-087: Naming debt resolution (naming-conventions.md)
+
+---
+
+### 083 — Sync registry error columns (2026-02-27) ✅
+
+- Adds error tracking columns to `sync_registry`
+- ADR-077: Platform sync reliability
+
+---
+
+### 082 — MCP OAuth tables (2026-02-27) ✅
+
+- Creates `mcp_oauth_clients`, `mcp_oauth_codes`, `mcp_oauth_access_tokens`, `mcp_oauth_refresh_tokens`
+- ADR-075: MCP server OAuth 2.1 storage
+
+---
+
+### 081 — Signal history RLS (2026-02-27) ✅
+
+- Adds RLS policies to `signal_history` table
+- ADR-068: Signal processing access control
+
+---
+
+### 080 — Activity log granular events (2026-02-27) ✅
+
+- Extends `activity_log_event_type_check` with granular event types
+- ADR-063: Activity layer expansion
+
+---
+
+### 079 — Daily token usage (2026-02-25) ✅
+
+- Creates `get_daily_token_usage()` SQL function
+- Aggregates `input_tokens + output_tokens` from `session_messages.metadata`
+- ADR-053: Token budget enforcement
+
+---
+
+### 078 — User context source ref (2026-02-25) ✅
+
+- Adds `source_ref UUID` and `source_type TEXT` to `user_context` (now `user_memory`)
+- Partial index on `source_ref WHERE source_ref IS NOT NULL`
+- ADR-072: Provenance tracking for extracted memories
+
+---
+
+### 074–077 — ADR-072 + ADR-077 Platform Content (2026-02-25) ✅
+
+- 074: Creates `platform_content` table (replaces `filesystem_items`)
+- 075: Migrates `filesystem_items` data → `platform_content`
+- 076: Drops `filesystem_items` table
+- 077: Platform sync overhaul indexes and constraints
+- TTLs: Slack 14d, Gmail 30d, Notion 90d, Calendar 2d
+
+---
+
 ### 073 — Drop governance columns (2026-02-19) ✅
 
 - Removes `governance` and `governance_ceiling` columns from `deliverables`
@@ -109,8 +172,8 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ### 055–057 — ADR-059 Simplified Context Model (2026-02-18) ✅
 
-- Creates `user_context(user_id, key, value, source, confidence)` — single flat Memory store
-- Migrates stated fields from `knowledge_profile`, `knowledge_entries`, `knowledge_styles` → `user_context`
+- Creates `user_memory(user_id, key, value, source, confidence)` — single flat Memory store
+- Migrates stated fields from `knowledge_profile`, `knowledge_entries`, `knowledge_styles` → `user_memory`
 - Drops `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`
 
 ---

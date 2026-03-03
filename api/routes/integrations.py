@@ -2397,7 +2397,7 @@ async def oauth_callback(
                 "user_id", user_id
             ).eq("platform", provider).execute()
 
-            # ADR-059: user_context has no inferred/platform-sourced entries; nothing to delete.
+            # ADR-059: user_memory has no inferred/platform-sourced entries; nothing to delete.
 
             logger.info(f"[INTEGRATIONS] Updated {provider} for user {user_id}, purged old workspace data")
         else:
@@ -2843,10 +2843,10 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     """
     from services.platform_limits import get_usage_summary
 
-    # Get user's timezone from user_context (ADR-059: timezone stored as key='timezone')
+    # Get user's timezone from user_memory (ADR-059: timezone stored as key='timezone')
     user_tz = "UTC"
     try:
-        tz_result = auth.client.table("user_context").select(
+        tz_result = auth.client.table("user_memory").select(
             "value"
         ).eq("user_id", auth.user_id).eq("key", "timezone").maybe_single().execute()
         if tz_result.data:

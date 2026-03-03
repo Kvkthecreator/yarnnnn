@@ -543,7 +543,7 @@ TP was giving users a lengthy technical explanation of how to find channel IDs i
 
 ### Removed
 - `api/routes/chat.py`: Deleted `load_memories()` function and all its RPC calls
-  - `search_memories` RPC: referenced `memories` table which no longer exists (ADR-059 collapsed to `user_context`)
+  - `search_memories` RPC: referenced `memories` table which no longer exists (ADR-059 collapsed to `user_memory`)
   - `get_memories_by_importance` RPC: same legacy table reference
   - These RPC functions never existed in the database after ADR-059 migration, causing 404 errors
 - `api/routes/chat.py`: Removed `get_embedding` import (was only used by `load_memories`)
@@ -561,7 +561,7 @@ TP was giving users a lengthy technical explanation of how to find channel IDs i
 - Chat endpoint no longer makes unnecessary RPC calls that fail silently
 
 ### Root cause
-ADR-059 collapsed `memories`, `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries` into `user_context`. The `load_memories()` function and its RPC calls were dead code referencing the old schema. The code silently caught the 404 errors and continued with empty memories, while `build_working_memory()` correctly loaded context from `user_context` table.
+ADR-059 collapsed `memories`, `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries` into `user_memory`. The `load_memories()` function and its RPC calls were dead code referencing the old schema. The code silently caught the 404 errors and continued with empty memories, while `build_working_memory()` correctly loaded context from `user_memory` table.
 
 ---
 

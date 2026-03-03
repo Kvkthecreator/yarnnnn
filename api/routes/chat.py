@@ -3,7 +3,7 @@ Chat routes - Thinking Partner conversations
 
 ADR-006: Session and message architecture
 ADR-007: Tool use for TP authority (unified streaming + tools)
-ADR-059/064: Memory via user_context table and build_working_memory()
+ADR-059/064: Memory via user_memory table and build_working_memory()
 ADR-067: Session compaction and conversational continuity
 
 Session Philosophy (ADR-067):

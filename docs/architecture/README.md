@@ -27,7 +27,7 @@
 |----------|--------|-------------|--------|
 | [activity.md](../features/activity.md) | Current | 2026-02-26 | activity_log table, event types, write/read paths |
 | [context.md](../features/context.md) | Current | 2026-02-25 | platform_content table, retention semantics, sync methods |
-| [memory.md](../features/memory.md) | Current | 2026-02-20 | user_context table, three write paths, working memory format |
+| [memory.md](../features/memory.md) | Current | 2026-02-20 | user_memory table, three write paths, working memory format |
 | [sessions.md](../features/sessions.md) | Current | 2026-02-27 | Session lifecycle (ADR-067), inactivity boundary, compaction |
 | [email-notifications.md](../features/email-notifications.md) | Current | 2026-02-27 | Resend email delivery, templates, preferences |
 | [tp-configuration.md](../features/tp-configuration.md) | **Archived** | 2026-02-27 | Redirect stub — superseded by tp-prompt-guide.md |

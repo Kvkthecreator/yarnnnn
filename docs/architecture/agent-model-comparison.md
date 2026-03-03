@@ -136,7 +136,7 @@ Unlike always-on agents, YARNNN's deliverables sleep between triggers. This is a
 
 ### 3. Accumulation is the moat — per deliverable
 
-Global user memory (`user_context`) captures cross-cutting preferences. But the real compounding happens at the deliverable level. A deliverable that has run 50 times carries 50 sessions of feedback patterns, observations, and session summaries. This is a moat that resets to zero if the user switches to any tool-based alternative.
+Global user memory (`user_memory`) captures cross-cutting preferences. But the real compounding happens at the deliverable level. A deliverable that has run 50 times carries 50 sessions of feedback patterns, observations, and session summaries. This is a moat that resets to zero if the user switches to any tool-based alternative.
 
 ### 4. Graduated response preserves the task-based foundation
 

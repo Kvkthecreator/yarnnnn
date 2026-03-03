@@ -241,10 +241,10 @@ async def _search_user_memories(
     limit: int,
 ) -> list[dict]:
     """
-    ADR-059: Search user_context table for user knowledge (fact:/instruction:/preference: keys).
+    ADR-059: Search user_memory table for user knowledge (fact:/instruction:/preference: keys).
     """
     try:
-        result = auth.client.table("user_context").select(
+        result = auth.client.table("user_memory").select(
             "id, key, value, source, confidence, created_at"
         ).eq(
             "user_id", auth.user_id

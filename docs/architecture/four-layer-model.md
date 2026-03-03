@@ -14,7 +14,7 @@ YARNNN organises all persistent state into four layers. Each layer has a distinc
 │  Layer 1 — Memory                                   │
 │  What the user has explicitly stated and what      │
 │  YARNNN has learned about their preferences         │
-│  Table: user_context (with source_ref provenance)   │
+│  Table: user_memory (with source_ref provenance)   │
 │  Stable · Explicit + Implicit · Auditable          │
 └─────────────────────────────────────────────────────┘
 ┌─────────────────────────────────────────────────────┐
@@ -55,7 +55,7 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 
 | Layer | YARNNN | Claude Code | Git |
 |---|---|---|---|
-| Memory | `user_context` | `CLAUDE.md` | — |
+| Memory | `user_memory` | `CLAUDE.md` | — |
 | Activity | `activity_log` | — | commit log |
 | Context | `platform_content` (unified layer) | source files on disk | working tree |
 | Work | `deliverable_versions` | build output | tagged release |
@@ -70,7 +70,7 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 
 **What it is**: Everything YARNNN knows *about the user* — name, role, preferences, stated facts, standing instructions.
 
-**Table**: `user_context` — single flat key-value store. One row per fact.
+**Table**: `user_memory` — single flat key-value store. One row per fact.
 
 **How it is written** — ADR-064 implicit extraction:
 1. User edits directly on the Context page (Profile / Styles / Entries tabs)
@@ -95,7 +95,7 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 | event_type | Written by | When |
 |---|---|---|
 | `deliverable_run` | `deliverable_execution.py` | After version created |
-| `memory_written` | `memory.py` | After `user_context` upsert (implicit extraction) |
+| `memory_written` | `memory.py` | After `user_memory` upsert (implicit extraction) |
 | `platform_synced` | `platform_worker.py` | After sync batch completes |
 | `chat_session` | `chat.py` | After each chat turn |
 
@@ -241,7 +241,7 @@ The layers interact in defined ways. Data flows downward for generation; learnin
                           ▼
         ┌─────── build_working_memory() ────────┐
         │                                       │
-        │  reads Memory (user_context)          │
+        │  reads Memory (user_memory)          │
         │  reads Activity (last 10 events)      │
         │                                       │
         └──────────────►  TP system prompt ◄────┘
@@ -341,7 +341,7 @@ While data flows **unidirectionally downward** for generation (Memory → Activi
 1. **Deliverable feedback loop** (Work → Memory)
    - When: User approves edited deliverable version
    - What: `process_feedback()` analyzes diff between draft and final
-   - Writes: Length preferences, format preferences to `user_context`
+   - Writes: Length preferences, format preferences to `user_memory`
    - Source: `feedback` (confidence: 0.7)
 
 2. **Pattern detection loop** (Activity → Memory)
@@ -375,7 +375,7 @@ The more deliverables a user runs, the more the system learns what they value. T
 | Why does `activity_log` exist if `deliverable_versions` records runs? | `deliverable_versions` holds full generated content. `activity_log` holds lightweight event summaries for prompt injection and pattern detection. Neither replaces the other. |
 | Does TP get platform content in its system prompt? | No. Context is fetched on demand via primitives, never pre-loaded. |
 | Is Memory updated during a session? | Memory is read at session start and does not update mid-session. Memory extraction happens at session end or via background jobs (ADR-064), taking effect in the *next* session's working memory. |
-| What is `source_ref` on `user_context`? | Provenance tracking (ADR-072). Every memory entry links to its origin (session_message, deliverable_version, platform_content, activity_log). |
+| What is `source_ref` on `user_memory`? | Provenance tracking (ADR-072). Every memory entry links to its origin (session_message, deliverable_version, platform_content, activity_log). |
 | How does deliverable execution work? | Orchestration pipeline (ADR-045): strategy gathers content from `platform_content`, `build_type_prompt()` assembles prompt, agent (headless mode, ADR-080) generates draft with curated primitives, delivered immediately (ADR-066). |
 | What happens if `write_activity()` fails? | The calling operation continues. All log writes are non-fatal by design. |
 | Can a user write to `activity_log`? | No. Service-role writes only. Users can SELECT their own rows. |
