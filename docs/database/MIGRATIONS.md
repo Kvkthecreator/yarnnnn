@@ -9,12 +9,21 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ---
 
-### 084 — Rename user_context → user_memory (2026-03-03)
+### 085 — Deliverable Scoped Context (2026-03-03) ✅
+
+- Adds `deliverable_instructions` (TEXT), `deliverable_memory` (JSONB), `mode` (TEXT) to `deliverables`
+- Adds `deliverable_id` (UUID FK → deliverables) to `chat_sessions` with partial index
+- CHECK constraint: `mode IN ('recurring', 'goal')`
+- ADR-087 Phase 1: Schema + read path wiring
+
+---
+
+### 084 — Rename user_context → user_memory (2026-03-03) ✅
 
 - Renames `user_context` table to `user_memory`
 - Renames indexes: `user_context_user_id_idx` → `user_memory_user_id_idx`, `idx_user_context_source_ref` → `idx_user_memory_source_ref`
 - Renames RLS policy and unique constraint
-- ADR-087: Naming debt resolution (naming-conventions.md)
+- ADR-087: Naming debt resolution
 
 ---
 

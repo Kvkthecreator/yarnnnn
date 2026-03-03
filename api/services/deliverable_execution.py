@@ -269,12 +269,6 @@ The user has set these behavioral directives for this deliverable:
         memory = deliverable.get("deliverable_memory") or {}
         memory_parts = []
 
-        feedback_patterns = memory.get("feedback_patterns", [])
-        if feedback_patterns:
-            memory_parts.append("**Learned from past feedback:**")
-            for pattern in feedback_patterns:
-                memory_parts.append(f"- {pattern}")
-
         observations = memory.get("observations", [])
         if observations:
             memory_parts.append("**Recent observations:**")

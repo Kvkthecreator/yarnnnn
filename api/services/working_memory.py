@@ -78,7 +78,7 @@ async def build_working_memory(
 
     # ADR-087: Inject deliverable-scoped context if session is scoped
     if deliverable:
-        working_memory["scoped_deliverable"] = _extract_deliverable_scope(deliverable)
+        working_memory["scoped_deliverable"] = await _extract_deliverable_scope(deliverable, client)
 
     return working_memory
 
@@ -158,17 +158,22 @@ def _extract_known(rows: list[dict]) -> list[dict]:
     return known
 
 
-def _extract_deliverable_scope(deliverable: dict) -> dict:
+async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
     """
     Extract deliverable-scoped context for working memory injection (ADR-087).
 
-    Returns a structured dict with instructions and memory for the scoped deliverable.
+    Returns a structured dict with instructions, session history (via FK query),
+    and memory (observations, goal) for the scoped deliverable.
+
+    Session summaries are queried from chat_sessions by deliverable_id FK,
+    NOT duplicated into deliverable_memory JSONB.
     """
     instructions = (deliverable.get("deliverable_instructions") or "").strip()
     memory = deliverable.get("deliverable_memory") or {}
+    deliverable_id = deliverable.get("id")
 
     scope = {
-        "id": deliverable.get("id"),
+        "id": deliverable_id,
         "title": deliverable.get("title", "Untitled"),
         "type": deliverable.get("deliverable_type", "custom"),
     }
@@ -176,17 +181,31 @@ def _extract_deliverable_scope(deliverable: dict) -> dict:
     if instructions:
         scope["instructions"] = instructions
 
-    # Extract recent session summaries (last 3)
-    session_summaries = memory.get("session_summaries", [])
-    if session_summaries:
-        scope["session_summaries"] = session_summaries[-3:]
+    # Query scoped session summaries via deliverable_id FK (ADR-087 Phase 2)
+    if deliverable_id:
+        try:
+            sessions_result = (
+                client.table("chat_sessions")
+                .select("summary, created_at")
+                .eq("deliverable_id", deliverable_id)
+                .not_.is_("summary", "null")
+                .order("created_at", desc=True)
+                .limit(3)
+                .execute()
+            )
+            scoped_sessions = sessions_result.data or []
+            if scoped_sessions:
+                scope["session_summaries"] = [
+                    {
+                        "date": s.get("created_at", "")[:10],
+                        "summary": (s.get("summary") or "")[:300],
+                    }
+                    for s in scoped_sessions
+                ]
+        except Exception as e:
+            logger.warning(f"[WORKING_MEMORY] Failed to fetch scoped sessions: {e}")
 
-    # Extract feedback patterns
-    feedback_patterns = memory.get("feedback_patterns", [])
-    if feedback_patterns:
-        scope["feedback_patterns"] = feedback_patterns
-
-    # Extract observations (last 5)
+    # Extract observations (last 5) from JSONB
     observations = memory.get("observations", [])
     if observations:
         scope["observations"] = observations[-5:]
@@ -341,29 +360,6 @@ async def _get_recent_sessions(user_id: str, client: Any) -> list:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch recent sessions: {e}")
 
     return sessions
-
-
-async def _get_recent_activity(user_id: str, client: Any) -> list[dict]:
-    """
-    Fetch recent activity events for working memory prompt injection.
-
-    ADR-063: Activity layer — records what YARNNN has done.
-    Returns last MAX_ACTIVITY_EVENTS events within ACTIVITY_LOOKBACK_DAYS.
-
-    NOTE: Deprecated in favor of _get_system_summary (ADR-072).
-    Kept for backwards compatibility during transition.
-    """
-    try:
-        from services.activity_log import get_recent_activity
-        return await get_recent_activity(
-            client=client,
-            user_id=user_id,
-            limit=MAX_ACTIVITY_EVENTS,
-            days=ACTIVITY_LOOKBACK_DAYS,
-        )
-    except Exception as e:
-        logger.warning(f"[WORKING_MEMORY] Failed to fetch recent activity: {e}")
-        return []
 
 
 async def _get_system_summary(user_id: str, client: Any) -> dict:
@@ -644,12 +640,6 @@ def format_for_prompt(working_memory: dict) -> str:
         if instructions:
             lines.append(f"\n**Instructions:**\n{instructions}")
 
-        feedback = scoped.get("feedback_patterns", [])
-        if feedback:
-            lines.append("\n**Learned patterns:**")
-            for pattern in feedback:
-                lines.append(f"- {pattern}")
-
         summaries = scoped.get("session_summaries", [])
         if summaries:
             lines.append("\n**Recent sessions:**")
@@ -711,20 +701,5 @@ def format_for_prompt(working_memory: dict) -> str:
         failed = system_summary.get("failed_jobs_24h", 0)
         if failed > 0:
             lines.append(f"- Failed jobs (24h): {failed}")
-
-    # Fallback: Recent Activity (ADR-063) — for backwards compatibility
-    elif working_memory.get("recent_activity"):
-        activity = working_memory.get("recent_activity", [])
-        if activity:
-            lines.append(f"\n### Recent activity")
-            for event in activity:
-                created_at = event.get("created_at", "")
-                try:
-                    dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                    ts = dt.strftime("%Y-%m-%d %H:%M")
-                except Exception:
-                    ts = created_at[:16]
-                summary = event.get("summary", "")
-                lines.append(f"- {ts} · {summary}")
 
     return "\n".join(lines)

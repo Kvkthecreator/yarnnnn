@@ -1,6 +1,6 @@
 # ADR-087: Deliverable Scoped Context
 
-**Status:** Proposed (v3 — naming aligned to market conventions)
+**Status:** Phase 1 Implemented (v3 — naming aligned to market conventions)
 **Date:** 2026-03-02 (v1), 2026-03-03 (v2 rewrite, v3 naming revision)
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**
@@ -103,14 +103,6 @@ This is separate from `template_structure` (output format) and `type_config` (ty
 
 ```json
 {
-  "session_summaries": [
-    {"date": "2026-03-01", "summary": "Discussed shifting from quarterly to monthly cadence..."},
-    {"date": "2026-02-25", "summary": "Reviewed draft, user wants more data citations..."}
-  ],
-  "feedback_patterns": [
-    "User consistently expands the executive summary",
-    "User removes the 'next steps' section"
-  ],
   "observations": [
     {"date": "2026-03-02", "source": "signal", "note": "Spike in #engineering mentions of Q2 deadline"}
   ],
@@ -124,7 +116,10 @@ This is separate from `template_structure` (output format) and `type_config` (ty
 
 Stored as JSONB for structured appends. Rendered as markdown for prompt injection — the same pattern `format_for_prompt()` in `working_memory.py` already uses.
 
-Note: `instructions` are NOT in this JSONB. They live in `deliverable_instructions` (TEXT) because they're user-authored and should be directly editable, not buried in a JSON blob.
+**What is NOT in this JSONB** (and why):
+- `instructions` — live in `deliverable_instructions` (TEXT). User-authored, directly editable.
+- `session_summaries` — queried at read time from `chat_sessions` via `deliverable_id` FK. No duplication needed.
+- `feedback_patterns` — removed. The approval-gate feedback model was superseded by YARNNN's conversational iteration model: users refine output through TP chat and `deliverable_instructions`, not through post-hoc edit-diff analysis. Learning happens in conversation, not in review stamps.
 
 ### Scoping behavior
 
@@ -132,7 +127,7 @@ When a deliverable is active (user is chatting in deliverable context):
 
 - **Working memory** (`build_working_memory`): Includes `deliverable_instructions` and `deliverable_memory` as new sections. Two field reads from the deliverable dict.
 - **Session creation**: `deliverable_id` set on the session row as a routing key.
-- **Memory writes**: Global facts → `user_context` (unchanged). Deliverable-specific facts → `deliverable_memory` (JSONB append).
+- **Memory writes**: Global facts → `user_memory` (unchanged). Deliverable observations → `deliverable_memory` (JSONB append, future — signals/agent only).
 - **Headless execution** (`_build_headless_system_prompt`): Includes both fields from the deliverable dict. Already loaded — no new queries.
 
 When no deliverable is active: all behavior unchanged. Fully backwards-compatible.
@@ -141,29 +136,53 @@ When no deliverable is active: all behavior unchanged. Fully backwards-compatibl
 
 ## Implementation Phases
 
-### Phase 1: Schema + Read Paths (Backend only)
+### Phase 1: Schema + Read Paths (Backend only) — IMPLEMENTED (2026-03-03)
 
-Migration:
+Migration 084: `user_context` → `user_memory` rename (naming debt, separate commit)
+Migration 085: ADR-087 columns:
 - `ALTER TABLE deliverables ADD COLUMN deliverable_instructions TEXT DEFAULT ''`
 - `ALTER TABLE deliverables ADD COLUMN deliverable_memory JSONB DEFAULT '{}'`
 - `ALTER TABLE deliverables ADD COLUMN mode TEXT DEFAULT 'recurring'`
 - `ALTER TABLE chat_sessions ADD COLUMN deliverable_id UUID REFERENCES deliverables(id) ON DELETE SET NULL`
 
-Wiring:
+Wiring (all implemented):
 - `POST /chat`: Extract `deliverable_id` from `surface_context`, set on session row, pass deliverable to `build_working_memory()`
-- `build_working_memory()`: Accept optional deliverable dict, include `deliverable_instructions` and `deliverable_memory` as new sections
+- `build_working_memory()`: Accept optional deliverable dict, include `deliverable_instructions` and `deliverable_memory` as new sections via `_extract_deliverable_scope()`
 - `_build_headless_system_prompt()`: Include both fields from the deliverable dict
+- `unified_scheduler.py`: SELECT list updated to include new columns
 
 **Validation:** TP sessions in deliverable context get scoped instructions + memory. Headless execution sees both. Global sessions unchanged.
 
-### Phase 2: Write Paths + Input Unification
+### Phase 2: Backend Processing Cleanup + Scoped Session Reads — IMPLEMENTED (2026-03-03)
 
-- `process_feedback()`: Write feedback patterns to `deliverable_memory` instead of unscoped `user_context` rows
-- Nightly cron: For sessions with `deliverable_id`, append session summary to `deliverable_memory.session_summaries`
-- Size management: Cap `deliverable_memory` injection at ~500 tokens. Compaction for long-running deliverables.
-- **Input unification:** Introduce `process_deliverable_input()` — a single function that all input paths call (schedule, event, signal, future heartbeat). Routes to: full generation, memory update, or log-only. See [ADR-088](ADR-088-input-gateway-work-serialization.md).
+Architectural reassessment during Phase 2 planning led to significant simplification:
 
-**Validation:** Memory accumulates over time. Feedback patterns and session history enrich subsequent generations. Input paths converge to one decision point.
+**Deleted (governance-era artifacts, superseded by conversational iteration model):**
+- `process_feedback()` + `_analyze_edit_patterns()` — edit-diff heuristics wrote crude patterns to global `user_memory`. Replaced by: users refine output through TP chat + `deliverable_instructions`. Learning happens in conversation, not review stamps.
+- `process_patterns()` + `_detect_activity_patterns()` — activity log pattern detection wrote marginal observations ("runs deliverables on Mondays") to `user_memory`. Speculative inference, not worth complexity.
+- `process_feedback()` caller in `deliverables.py` — approval-gate trigger removed.
+- `process_patterns()` caller in `unified_scheduler.py` — nightly pattern detection removed.
+
+**Domain separation (backend processing):**
+- **Platform sync**: `platform_sync_scheduler.py` → `platform_worker.py` → `platform_content`. Unchanged, clean.
+- **Scheduled generation**: `unified_scheduler.py` deliverable loop → `execute_deliverable_generation()`. Unchanged, clean.
+- **Signal processing**: Hourly in `unified_scheduler.py`. Unchanged. Future: revisit alongside activity patterns if needed.
+- **User memory extraction**: `memory.py` scoped explicitly as user_memory service. `process_conversation()` extracts stable personal facts → `user_memory` rows. Nightly cron.
+- **Session continuity**: `session_continuity.py` (new). `generate_session_summary()` moved out of `memory.py`. Chat-layer feature, not memory concern. Writes to `chat_sessions.summary`.
+
+**Scoped session reads:**
+- `_extract_deliverable_scope()` queries `chat_sessions` by `deliverable_id` FK at read time for scoped session history. No JSONB duplication of session summaries.
+- `deliverable_memory` JSONB simplified to: `observations` + `goal` only.
+
+**Size management:**
+- ~500 token budget for deliverable scope section, enforced at render time in `format_for_prompt()`.
+- Observations capped at last 5. No compaction needed for current JSONB schema.
+
+**Deferred:**
+- `process_deliverable_input()` / triage function (ADR-088) — defer until event triggers fire at volume.
+- Nightly cron session summary changes — none needed (read-at-query replaces write-at-cron).
+
+**Validation:** Backend processing has clean domain boundaries. Dead code removed per Discipline 2 (singular implementation). Session continuity separated from memory extraction.
 
 ### Phase 3: Frontend + Goal Mode
 
@@ -174,13 +193,6 @@ Wiring:
 
 **Validation:** Users can create goal-oriented workspaces alongside recurring deliverables. Instructions and memory are visible and editable.
 
-### Phase 4: Memory Extraction Scoping
-
-- `process_conversation()`: Route deliverable-specific facts to `deliverable_memory`, global facts to `user_context`
-- Extraction prompt: scope awareness, version bump per Prompt Change Protocol
-
-**Validation:** Deliverable-specific learnings stay scoped. Global preferences stay global.
-
 ---
 
 ## Backend Function Changes
@@ -190,13 +202,13 @@ Wiring:
 | POST /chat handler | routes/chat.py | Extract deliverable_id from surface_context, set on session, pass deliverable to build_working_memory | 1 |
 | `build_working_memory()` | services/working_memory.py | Accept optional deliverable dict, include deliverable_instructions + deliverable_memory sections | 1 |
 | `_build_headless_system_prompt()` | services/deliverable_execution.py | Include deliverable_instructions + deliverable_memory in prompt | 1 |
-| `process_feedback()` | services/memory.py | Write feedback patterns to deliverable_memory | 2 |
-| Nightly memory cron | jobs/unified_scheduler.py | Append session summary to deliverable_memory for sessions with deliverable_id | 2 |
-| `process_deliverable_input()` | NEW — services/input_router.py | Unified input routing: decide action per input type + signal strength | 2 |
-| `process_conversation()` | services/memory.py | Route deliverable-specific facts to deliverable_memory, global to user_context | 4 |
-| Extraction prompt | services/memory.py | Add scope awareness, version bump per Prompt Change Protocol | 4 |
+| `_extract_deliverable_scope()` | services/working_memory.py | Query chat_sessions by deliverable_id FK for scoped session history (replaces JSONB read) | 2 |
+| `process_feedback()` | services/memory.py | **DELETED** — governance-era artifact, superseded by conversational iteration | 2 |
+| `process_patterns()` | services/memory.py | **DELETED** — marginal value activity pattern detection | 2 |
+| `generate_session_summary()` | services/session_continuity.py | **MOVED** from memory.py — chat-layer feature, not memory concern | 2 |
+| `memory.py` | services/memory.py | Scoped explicitly as user_memory service: process_conversation + get_for_prompt only | 2 |
 
-**What does NOT change:** `user_context` table schema, `_write_memory()` signature, `_get_user_context()`, `_get_recent_sessions()`, `get_or_create_chat_session` RPC, execution_strategies.py, platform_worker.py, platform_sync_scheduler.py, primitives/registry.py, thinking_partner.py (system prompt), deliverable_pipeline.py (type prompts), platform_content.py.
+**What does NOT change:** `user_memory` table schema, `_write_memory()` signature, `get_or_create_chat_session` RPC, execution_strategies.py, platform_worker.py, platform_sync_scheduler.py, primitives/registry.py, thinking_partner.py (system prompt), deliverable_pipeline.py (type prompts), platform_content.py.
 
 ---
 
@@ -219,7 +231,7 @@ Wiring:
 
 ### Neutral
 
-- `user_context` table unchanged (naming debt acknowledged, deferred)
+- `user_memory` table unchanged (naming debt resolved — renamed from `user_context` in migration 084)
 - `projects` ghost entity remains. Clean activation path exists.
 - Existing instruction fields (`template_structure`, `type_config`, `recipient_context`) unchanged. Future consolidation possible.
 
@@ -233,7 +245,7 @@ For consistency across future ADRs and code:
 |---------|-----------------|-----|
 | Per-deliverable behavioral directives | `deliverable_instructions` | ~~work_context~~, ~~skills~~, ~~config~~ |
 | Per-deliverable accumulated knowledge | `deliverable_memory` | ~~work_context~~, ~~context~~, ~~history~~ |
-| Global user knowledge | `user_context` (table — rename to `user_memory` deferred) | — |
+| Global user knowledge | `user_memory` (table — renamed from `user_context` in migration 084) | — |
 | Raw platform input | `platform_content` (table) | — |
 | Assembled prompt input | Working memory (function output) | — |
 | Agent capabilities | Primitives (intentionally distinct from market "tools") | — |

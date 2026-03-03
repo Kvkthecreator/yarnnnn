@@ -1625,23 +1625,6 @@ async def update_version(
         except Exception:
             pass  # Non-fatal
 
-    # ADR-064: Memory extraction from deliverable feedback
-    # When user approves with edits, extract learning patterns
-    if request.status == "approved" and request.final_content and current.get("draft_content"):
-        try:
-            from services.memory import process_feedback
-            from services.supabase import get_service_client
-            import asyncio
-            asyncio.create_task(process_feedback(
-                client=get_service_client(),
-                user_id=auth.user_id,
-                deliverable_id=str(deliverable_id),
-                original=current.get("draft_content", ""),
-                edited=request.final_content,
-            ))
-        except Exception:
-            pass  # Non-fatal
-
     return VersionResponse(
         id=v["id"],
         deliverable_id=v["deliverable_id"],

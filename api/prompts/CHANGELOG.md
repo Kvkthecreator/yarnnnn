@@ -6,11 +6,29 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.03.2] - ADR-087 Phase 2: Simplified memory architecture
+
+### Changed
+- `api/services/memory.py`: Renamed `MemoryService` → `UserMemoryService`. Explicitly scoped as user_memory service. Deleted `process_feedback()`, `_analyze_edit_patterns()`, `process_patterns()`, `_detect_activity_patterns()`, `generate_session_summary()`. Only `process_conversation()` and `get_for_prompt()` remain.
+- `api/services/working_memory.py`: `_extract_deliverable_scope()` now async — queries `chat_sessions` by `deliverable_id` FK at read time instead of reading `session_summaries` from JSONB. Removed `feedback_patterns` rendering from `format_for_prompt()`.
+- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` no longer renders `feedback_patterns` — only `observations` from `deliverable_memory` JSONB.
+- Expected behavior: Deliverable learning now happens through conversational iteration (TP chat + `deliverable_instructions`), not approval-gate edit-diff analysis. Session summaries are queried live via FK, not duplicated in JSONB.
+
+### Added
+- `api/services/session_continuity.py`: `generate_session_summary()` moved here from memory.py. Chat-layer feature for cross-session conversational continuity (YARNNN's equivalent of Claude Code auto-memory).
+
+### Removed
+- `process_feedback()` caller in `api/routes/deliverables.py` — approval-gate feedback loop deleted
+- `process_patterns()` caller in `api/jobs/unified_scheduler.py` — activity pattern detection deleted
+- `feedback_patterns` and `session_summaries` reads from `deliverable_memory` JSONB
+
+---
+
 ## [2026.03.03.1] - ADR-087 Phase 1: Deliverable-scoped context injection
 
 ### Changed
-- `api/services/working_memory.py`: `build_working_memory()` accepts optional `deliverable` dict. When scoped, injects deliverable instructions, feedback patterns, session summaries, observations, and goal into the working memory prompt under "### Current deliverable".
-- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` accepts optional `deliverable` dict. Injects `deliverable_instructions` as "## Deliverable Instructions" and `deliverable_memory` feedback/observations as "## Deliverable Memory" into headless generation prompts.
+- `api/services/working_memory.py`: `build_working_memory()` accepts optional `deliverable` dict. When scoped, injects deliverable instructions, observations, and goal into the working memory prompt under "### Current deliverable".
+- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` accepts optional `deliverable` dict. Injects `deliverable_instructions` as "## Deliverable Instructions" and `deliverable_memory` observations as "## Deliverable Memory" into headless generation prompts.
 - `api/agents/thinking_partner.py`: Passes `scoped_deliverable` parameter from chat route through to `build_working_memory()`.
 - Expected behavior: When a user chats on a deliverable page, TP now sees that deliverable's instructions and accumulated memory. When headless generation runs, the agent sees the same context. Both modes share a common understanding of the deliverable.
 

@@ -122,10 +122,8 @@ A single flat key-value store for everything TP knows *about the user*. Replaces
 
 **Written by**:
 - User directly via the Context page (Profile, Styles, Entries sections)
-- Backend Memory Service via nightly cron and pipeline hooks (ADR-064):
+- User Memory Service (`api/services/memory.py`) via nightly cron (ADR-064, ADR-087 Phase 2):
   - `process_conversation()` — nightly cron (midnight UTC), processes prior day's sessions in batch
-  - `process_feedback()` — triggered when user approves an edited deliverable version
-  - `process_patterns()` — daily background job (activity_log analysis)
 
 **Never written by**: TP directly during conversation. The explicit `create_memory` / `update_memory` tools were removed in ADR-064. Conversation memory extraction is a **batch nightly job**, not a real-time session-end hook. A preference stated today is available in working memory the next morning.
 

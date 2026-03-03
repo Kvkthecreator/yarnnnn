@@ -1,22 +1,26 @@
 """
-Unified Memory Service — ADR-064
+User Memory Service — ADR-064, ADR-087 Phase 2
 
-Backend service for implicit memory extraction from multiple sources.
-Replaces explicit TP memory tools with boundary-triggered extraction.
+Dedicated service for user_memory extraction and retrieval.
+Extracts stable personal facts from conversations and persists them
+as key-value rows in the user_memory table.
 
-Write sources:
-  - Conversation: nightly cron (midnight UTC) processes prior day's sessions in batch via process_conversation()
-  - Deliverable feedback: triggered when user approves edited version via process_feedback()
-  - Activity patterns: daily background job via process_patterns()
+This service is explicitly scoped to user_memory (global, cross-deliverable).
+Deliverable-scoped context lives in deliverable_instructions (user-authored)
+and deliverable_memory JSONB (agent observations, goal state).
+Session continuity lives in session_continuity.py.
+
+Write:
+  - process_conversation(): nightly cron (midnight UTC) extracts stable facts
+    from prior day's sessions → user_memory rows
 
 Read:
-  - get_for_prompt(): formats memories for TP system prompt injection
+  - get_for_prompt(): formats user_memory for TP system prompt injection
 """
 
-import hashlib
 import logging
 import os
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Optional
 
 logger = logging.getLogger(__name__)
@@ -28,12 +32,12 @@ EXTRACTION_MODEL = os.getenv("MEMORY_EXTRACTION_MODEL", "claude-sonnet-4-2025051
 MIN_MESSAGES_FOR_EXTRACTION = 3
 
 
-class MemoryService:
+class UserMemoryService:
     """
-    Unified memory extraction and persistence.
+    User memory extraction and persistence.
 
-    Replaces explicit TP memory tools with implicit extraction
-    at pipeline boundaries.
+    Extracts stable personal facts from conversations and writes them
+    to user_memory. Scoped to global (cross-deliverable) knowledge only.
     """
 
     async def process_conversation(
@@ -48,7 +52,7 @@ class MemoryService:
 
         Called by the nightly cron job (unified_scheduler.py, midnight UTC)
         for all sessions from the previous day. Not triggered at real-time session end.
-        Uses LLM to identify facts worth remembering.
+        Uses LLM to identify stable facts worth remembering.
 
         Args:
             client: Supabase client (service role)
@@ -62,7 +66,7 @@ class MemoryService:
         # Skip if too few messages
         user_messages = [m for m in messages if m.get("role") == "user"]
         if len(user_messages) < MIN_MESSAGES_FOR_EXTRACTION:
-            logger.debug(f"[memory] Skipping extraction: only {len(user_messages)} user messages")
+            logger.debug(f"[user_memory] Skipping extraction: only {len(user_messages)} user messages")
             return 0
 
         # Build conversation text for extraction
@@ -72,7 +76,7 @@ class MemoryService:
         facts = await self._extract_facts(conversation_text)
 
         if not facts:
-            logger.debug(f"[memory] No facts extracted from session {session_id}")
+            logger.debug(f"[user_memory] No facts extracted from session {session_id}")
             return 0
 
         # Write to user_memory
@@ -89,122 +93,7 @@ class MemoryService:
             if success:
                 written += 1
 
-        logger.info(f"[memory] Extracted {written} memories from session {session_id}")
-        return written
-
-    async def process_feedback(
-        self,
-        client,
-        user_id: str,
-        deliverable_id: str,
-        original: str,
-        edited: str,
-    ) -> int:
-        """
-        Learn from user edits to deliverable output.
-
-        Called when user approves an edited version.
-        Analyzes diff to identify consistent patterns.
-
-        Args:
-            client: Supabase client
-            user_id: User ID
-            deliverable_id: Deliverable ID
-            original: Original generated content
-            edited: User-edited content
-
-        Returns:
-            Number of memories written
-        """
-        # Skip if no meaningful edits
-        if not original or not edited:
-            return 0
-
-        if original.strip() == edited.strip():
-            return 0
-
-        # For v1, use simple heuristics
-        # Future: LLM-based diff analysis
-        patterns = self._analyze_edit_patterns(original, edited)
-
-        if not patterns:
-            return 0
-
-        written = 0
-        for pattern in patterns:
-            success = await self._write_memory(
-                client=client,
-                user_id=user_id,
-                key=pattern["key"],
-                value=pattern["value"],
-                source="tp_extracted",
-                confidence=0.7,
-            )
-            if success:
-                written += 1
-
-        logger.info(f"[memory] Extracted {written} patterns from deliverable {deliverable_id}")
-        return written
-
-    async def process_patterns(
-        self,
-        client,
-        user_id: str,
-    ) -> int:
-        """
-        Analyze activity_log for behavioral patterns.
-
-        Called by unified_scheduler (daily job).
-        Rule-based pattern detection.
-
-        Args:
-            client: Supabase client
-            user_id: User ID
-
-        Returns:
-            Number of memories written
-        """
-        # Query recent activity
-        since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-
-        try:
-            result = (
-                client.table("activity_log")
-                .select("event_type, summary, metadata, created_at")
-                .eq("user_id", user_id)
-                .gte("created_at", since)
-                .order("created_at", desc=True)
-                .limit(100)
-                .execute()
-            )
-            events = result.data or []
-        except Exception as e:
-            logger.error(f"[memory] Failed to query activity_log: {e}")
-            return 0
-
-        if not events:
-            return 0
-
-        # Detect patterns
-        patterns = self._detect_activity_patterns(events)
-
-        if not patterns:
-            return 0
-
-        written = 0
-        for pattern in patterns:
-            success = await self._write_memory(
-                client=client,
-                user_id=user_id,
-                key=pattern["key"],
-                value=pattern["value"],
-                source="pattern",
-                confidence=0.6,
-            )
-            if success:
-                written += 1
-
-        logger.info(f"[memory] Detected {written} activity patterns for user {user_id}")
+        logger.info(f"[user_memory] Extracted {written} memories from session {session_id}")
         return written
 
     async def get_for_prompt(
@@ -236,7 +125,7 @@ class MemoryService:
             )
             entries = result.data or []
         except Exception as e:
-            logger.error(f"[memory] Failed to read user_memory: {e}")
+            logger.error(f"[user_memory] Failed to read user_memory: {e}")
             return ""
 
         if not entries:
@@ -326,179 +215,8 @@ CONVERSATION:
             return data.get("facts", [])
 
         except Exception as e:
-            logger.error(f"[memory] Extraction LLM call failed: {e}")
+            logger.error(f"[user_memory] Extraction LLM call failed: {e}")
             return []
-
-    def _analyze_edit_patterns(self, original: str, edited: str) -> list[dict]:
-        """
-        Simple heuristic analysis of edit patterns.
-
-        For v1, detect basic patterns without LLM.
-        """
-        patterns = []
-
-        # Length change
-        orig_len = len(original)
-        edit_len = len(edited)
-
-        if edit_len < orig_len * 0.7:
-            patterns.append({
-                "key": "preference:length",
-                "value": "Tends to shorten generated content significantly",
-            })
-        elif edit_len > orig_len * 1.3:
-            patterns.append({
-                "key": "preference:length",
-                "value": "Tends to expand generated content with more detail",
-            })
-
-        # Bullet points added
-        orig_bullets = original.count("- ") + original.count("* ")
-        edit_bullets = edited.count("- ") + edited.count("* ")
-
-        if edit_bullets > orig_bullets + 3:
-            patterns.append({
-                "key": "preference:format",
-                "value": "Prefers bullet points over prose paragraphs",
-            })
-
-        return patterns
-
-    def _detect_activity_patterns(self, events: list[dict]) -> list[dict]:
-        """
-        Rule-based detection of behavioral patterns from activity log.
-
-        ADR-064 Phase 1B: Enhanced pattern detection beyond day-of-week.
-        Detects: day-of-week, time-of-day, deliverable type preferences, formatting patterns.
-        """
-        patterns = []
-        from collections import Counter
-
-        # 1. Day-of-week patterns
-        day_counts = Counter()
-        hour_counts = Counter()
-        type_counts = Counter()
-
-        for event in events:
-            if event.get("event_type") == "deliverable_run":
-                created_at = event.get("created_at", "")
-                if created_at:
-                    try:
-                        dt = datetime.fromisoformat(created_at.replace("Z", "+00:00"))
-                        day_counts[dt.strftime("%A")] += 1
-                        hour_counts[dt.hour] += 1
-                    except ValueError:
-                        pass
-
-                # Extract deliverable type from metadata
-                metadata = event.get("metadata", {})
-                if isinstance(metadata, dict):
-                    dtype = metadata.get("deliverable_type")
-                    if dtype:
-                        type_counts[dtype] += 1
-
-        # Day of week pattern (one day has >50% of activity and ≥3 runs)
-        if day_counts:
-            most_common_day, count = day_counts.most_common(1)[0]
-            total = sum(day_counts.values())
-            if count > total * 0.5 and count >= 3:
-                patterns.append({
-                    "key": "pattern:deliverable_day",
-                    "value": f"Typically runs deliverables on {most_common_day}s",
-                })
-
-        # 2. Time-of-day patterns
-        if hour_counts:
-            total_runs = sum(hour_counts.values())
-            if total_runs >= 5:
-                # Group into time blocks
-                morning = sum(hour_counts[h] for h in range(6, 12))  # 6am-12pm
-                afternoon = sum(hour_counts[h] for h in range(12, 18))  # 12pm-6pm
-                evening = sum(hour_counts[h] for h in range(18, 24))  # 6pm-12am
-                night = sum(hour_counts[h] for h in range(0, 6))  # 12am-6am
-
-                blocks = {
-                    "morning (6am-12pm)": morning,
-                    "afternoon (12pm-6pm)": afternoon,
-                    "evening (6pm-12am)": evening,
-                    "late night (12am-6am)": night,
-                }
-
-                # If one block has >50% of activity
-                for block_name, block_count in blocks.items():
-                    if block_count > total_runs * 0.5 and block_count >= 3:
-                        patterns.append({
-                            "key": "pattern:deliverable_time",
-                            "value": f"Typically runs deliverables in the {block_name}",
-                        })
-                        break
-
-        # 3. Deliverable type preferences
-        if type_counts:
-            total_types = sum(type_counts.values())
-            if total_types >= 5:
-                most_common_type, type_count = type_counts.most_common(1)[0]
-                if type_count > total_types * 0.6:
-                    patterns.append({
-                        "key": "pattern:deliverable_type_preference",
-                        "value": f"Frequently uses {most_common_type} deliverables (primary workflow type)",
-                    })
-
-        # 4. Edit location patterns (from deliverable_approved events)
-        edit_locations = Counter()
-        for event in events:
-            if event.get("event_type") == "deliverable_approved":
-                metadata = event.get("metadata", {})
-                if isinstance(metadata, dict) and metadata.get("had_edits"):
-                    # Heuristic: analyze summary text for location hints
-                    summary = event.get("summary", "").lower()
-                    if "intro" in summary or "opening" in summary or "beginning" in summary:
-                        edit_locations["intro"] += 1
-                    elif "conclusion" in summary or "closing" in summary or "ending" in summary:
-                        edit_locations["conclusion"] += 1
-                    elif "body" in summary or "middle" in summary:
-                        edit_locations["body"] += 1
-
-        if edit_locations:
-            most_common_loc, loc_count = edit_locations.most_common(1)[0]
-            total_edits = sum(edit_locations.values())
-            if loc_count > total_edits * 0.6 and loc_count >= 3:
-                patterns.append({
-                    "key": "pattern:edit_location",
-                    "value": f"Tends to edit {most_common_loc} sections when revising deliverables",
-                })
-
-        # 5. Formatting patterns (from length/structure in metadata)
-        length_preferences = []
-        for event in events:
-            if event.get("event_type") == "deliverable_approved":
-                metadata = event.get("metadata", {})
-                if isinstance(metadata, dict):
-                    final_length = metadata.get("final_length")
-                    draft_length = metadata.get("draft_length")
-                    if final_length and draft_length:
-                        if final_length < draft_length * 0.7:
-                            length_preferences.append("shorter")
-                        elif final_length > draft_length * 1.3:
-                            length_preferences.append("longer")
-
-        if length_preferences:
-            from collections import Counter
-            length_counter = Counter(length_preferences)
-            most_common_pref, pref_count = length_counter.most_common(1)[0]
-            if pref_count >= 3:
-                if most_common_pref == "shorter":
-                    patterns.append({
-                        "key": "pattern:formatting_length",
-                        "value": "Prefers concise output; typically shortens generated content",
-                    })
-                elif most_common_pref == "longer":
-                    patterns.append({
-                        "key": "pattern:formatting_length",
-                        "value": "Prefers detailed output; typically expands generated content",
-                    })
-
-        return patterns
 
     async def _write_memory(
         self,
@@ -538,13 +256,13 @@ CONVERSATION:
             if existing.data:
                 # Only update if new confidence is higher or source is more authoritative
                 old = existing.data[0]
-                source_priority = {"user_stated": 10, "conversation": 5, "feedback": 3, "pattern": 1}
+                source_priority = {"user_stated": 10, "conversation": 5, "tp_extracted": 3}
                 old_priority = source_priority.get(old["source"], 0)
                 new_priority = source_priority.get(source, 0)
 
                 # Don't overwrite user_stated with lower priority
                 if old_priority > new_priority:
-                    logger.debug(f"[memory] Skipping update: {key} (user_stated takes priority)")
+                    logger.debug(f"[user_memory] Skipping update: {key} (user_stated takes priority)")
                     return False
 
                 client.table("user_memory").update({
@@ -575,7 +293,7 @@ CONVERSATION:
             return True
 
         except Exception as e:
-            logger.error(f"[memory] Failed to write {key}: {e}")
+            logger.error(f"[user_memory] Failed to write {key}: {e}")
             return False
 
     def _format_for_prompt(self, entries: list[dict]) -> str:
@@ -609,8 +327,6 @@ CONVERSATION:
                 instructions.append(value)
             elif key.startswith("preference:"):
                 preferences.append(value)
-            elif key.startswith("pattern:"):
-                facts.append(value)  # Patterns are facts about behavior
 
         # Build output
         sections = []
@@ -661,103 +377,18 @@ CONVERSATION:
         return "\n\n".join(sections)
 
 
-    async def generate_session_summary(
-        self,
-        messages: list[dict],
-        session_date: str,
-    ) -> Optional[str]:
-        """
-        Generate a prose summary of a completed session for cross-session continuity.
-
-        ADR-067 Phase 1: YARNNN equivalent of Claude Code's auto memory (MEMORY.md).
-        Called by nightly cron after process_conversation() for each session.
-        Written to chat_sessions.summary; read by working_memory._get_recent_sessions().
-
-        Args:
-            messages: Conversation messages (role, content)
-            session_date: ISO date string (YYYY-MM-DD) for prefix in summary
-
-        Returns:
-            Prose summary string, or None if session too short/empty
-        """
-        import anthropic
-
-        user_messages = [m for m in messages if m.get("role") == "user"]
-        if len(user_messages) < MIN_MESSAGES_FOR_EXTRACTION:
-            return None
-
-        conversation_text = self._format_conversation(messages)
-
-        prompt = """Summarise this conversation in 2-4 sentences for use as context in a future session.
-
-Focus on:
-- Decisions made or agreed on
-- Work in progress or left unfinished
-- Actions taken (deliverables set up, platform actions executed)
-- Anything the user explicitly asked to continue or follow up on
-
-Do NOT include:
-- Questions that were fully answered and closed
-- General small talk
-- Information that won't be relevant next session
-
-Write in past tense, third-person neutral. Be specific and concrete — prefer "settled on 4-section board update format" over "discussed document structure."
-
-CONVERSATION:
-"""
-
-        try:
-            client = anthropic.Anthropic()
-            response = client.messages.create(
-                model=EXTRACTION_MODEL,
-                max_tokens=256,
-                messages=[
-                    {"role": "user", "content": prompt + conversation_text}
-                ],
-            )
-            summary_text = response.content[0].text.strip()
-            if not summary_text:
-                return None
-            # Prefix with date for working memory rendering
-            return f"[{session_date}] {summary_text}"
-
-        except Exception as e:
-            logger.error(f"[memory] Session summary LLM call failed: {e}")
-            return None
-
-
 # Module-level instance for convenience
-_service = MemoryService()
+_service = UserMemoryService()
 
 
 async def process_conversation(client, user_id: str, messages: list[dict], session_id: str) -> int:
-    """Extract memories from a completed conversation."""
+    """Extract stable personal facts from a completed conversation → user_memory."""
     return await _service.process_conversation(client, user_id, messages, session_id)
 
 
-async def process_feedback(client, user_id: str, deliverable_id: str, original: str, edited: str) -> int:
-    """Learn from user edits to deliverable output."""
-    return await _service.process_feedback(client, user_id, deliverable_id, original, edited)
-
-
-async def process_patterns(client, user_id: str) -> int:
-    """Analyze activity patterns for a user."""
-    return await _service.process_patterns(client, user_id)
-
-
 async def get_for_prompt(client, user_id: str, token_budget: int = 2000) -> str:
-    """Format memories for system prompt injection."""
+    """Format user_memory for system prompt injection."""
     return await _service.get_for_prompt(client, user_id, token_budget)
-
-
-async def generate_session_summary(messages: list[dict], session_date: str) -> Optional[str]:
-    """
-    Generate a prose summary of a session for cross-session continuity.
-
-    ADR-067 Phase 1. Called by nightly cron after process_conversation().
-    Written to chat_sessions.summary.
-    """
-    return await _service.generate_session_summary(messages, session_date)
 
 
 async def extract_from_text_to_user_memory(user_id: str, text: str, db_client) -> int:

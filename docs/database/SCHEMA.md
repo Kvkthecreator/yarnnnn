@@ -409,12 +409,12 @@ Built at session start from **Memory + Activity** layers. Raw platform content i
 ### Recent activity
 {last 10 events from activity_log, last 7 days}
 ### Current deliverable: {title} ({type})   ← ADR-087, only when session is scoped
-{instructions, feedback_patterns, session_summaries, observations, goal}
+{instructions, session_summaries (queried via deliverable_id FK), observations, goal}
 ```
 
 Injected into TP's system prompt (~2,000 token budget + ~500 for deliverable scope). During a session, TP accesses platform content via `Search(scope="platform_content")` (hits `platform_content` table with semantic search) or direct platform tools (live API calls).
 
-**ADR-087:** When a session is in deliverable scope (via `surface_context.deliverableId`), the scoped deliverable's instructions and memory are injected into the working memory prompt. The headless generation prompt also receives the same context.
+**ADR-087:** When a session is in deliverable scope (via `surface_context.deliverableId`), the scoped deliverable's instructions and memory are injected into the working memory prompt. Session summaries are queried from `chat_sessions` by `deliverable_id` FK (not duplicated in JSONB). The headless generation prompt also receives the same context.
 
 ---
 

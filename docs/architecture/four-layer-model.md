@@ -324,37 +324,39 @@ While data flows **unidirectionally downward** for generation (Memory → Activi
 ┌──────────────────────────────────────────────────────────────┐
 │                    LEARNING (Upward)                          │
 │                                                               │
-│   Work (L4) ─────► Deliverable Feedback ──► Memory (L1)     │
-│                    (ADR-064: process_feedback)                │
+│   Chat (TP) ─────► Conversation Extraction ──► Memory (L1)  │
+│                    (ADR-064: nightly cron)                    │
+│                                                               │
+│   Chat (TP) ─────► Conversational Iteration ──► Instructions │
+│                    (ADR-087: deliverable_instructions)        │
 │                                                               │
 │   Work (L4) ─────► Content Quality Signal ──► Signal (L4)   │
 │                    (ADR-069: recent_content in reasoning)     │
 │                                                               │
-│   Activity (L2) ──► Pattern Detection ────► Memory (L1)     │
-│                    (ADR-064/070: process_patterns)            │
-│                                                               │
 └──────────────────────────────────────────────────────────────┘
 ```
 
-### Three feedback mechanisms (ADR-064 completion)
+### Feedback mechanisms
 
-1. **Deliverable feedback loop** (Work → Memory)
-   - When: User approves edited deliverable version
-   - What: `process_feedback()` analyzes diff between draft and final
-   - Writes: Length preferences, format preferences to `user_memory`
-   - Source: `feedback` (confidence: 0.7)
+1. **Conversation extraction** (Chat → Memory)
+   - When: Nightly cron (midnight UTC) processes prior day's sessions
+   - What: `process_conversation()` extracts stable personal facts via LLM
+   - Writes: Preferences, facts, instructions to `user_memory`
+   - Source: `tp_extracted` (confidence: 0.8)
 
-2. **Pattern detection loop** (Activity → Memory)
-   - When: Daily at midnight UTC for all users
-   - What: `process_patterns()` detects 5 behavioral patterns from activity_log
-   - Writes: Day/time preferences, type preferences, edit/format patterns
-   - Source: `pattern` (confidence: 0.6)
+2. **Conversational iteration** (Chat → Instructions)
+   - When: User chats with TP about a deliverable, refining how it should work
+   - What: User updates `deliverable_instructions` based on conversation
+   - Writes: Behavioral directives directly to `deliverables.deliverable_instructions`
+   - ADR-087: Replaces the old approval-gate feedback model
 
 3. **Content quality signal** (Work → Work)
    - When: Signal processing runs (hourly/daily)
    - What: Recent deliverable content included in signal reasoning prompts
    - Effect: LLM assesses whether existing deliverables still address current signals
    - Enables: Smart `trigger_existing` vs `create_signal_emergent` decisions
+
+**Removed** (ADR-087 Phase 2): `process_feedback()` (edit-diff heuristics) and `process_patterns()` (activity log pattern detection). Superseded by the conversational iteration model.
 
 ### Key insight: Layer 4 is both output and input
 

@@ -925,7 +925,8 @@ async def run_unified_scheduler():
     summaries_written = 0
     if now.hour == 0 and now.minute < 5:  # Only in first 5 minutes of midnight UTC
         try:
-            from services.memory import process_conversation, generate_session_summary
+            from services.memory import process_conversation
+            from services.session_continuity import generate_session_summary
 
             # Get sessions from yesterday
             yesterday = (now - timedelta(days=1)).date().isoformat()
@@ -1023,72 +1024,6 @@ async def run_unified_scheduler():
 
         except Exception as e:
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")
-
-    # -------------------------------------------------------------------------
-    # ADR-064: Activity Pattern Detection (daily at midnight UTC)
-    # Analyzes activity_log for behavioral patterns and writes to user_memory
-    # -------------------------------------------------------------------------
-    pattern_users = 0
-    pattern_extracted = 0
-
-    if now.hour == 0 and now.minute < 5:
-        try:
-            from services.memory import process_patterns
-
-            # Get users with recent activity (bounded — pattern detection only useful for active users)
-            since_patterns = (now - timedelta(days=14)).isoformat()
-            users_result = (
-                supabase.table("activity_log")
-                .select("user_id")
-                .gte("created_at", since_patterns)
-                .limit(200)
-                .execute()
-            )
-            # Deduplicate
-            _pattern_user_ids = list(set(
-                row["user_id"] for row in (users_result.data or [])
-            ))
-            users_result_data = [{"id": uid} for uid in _pattern_user_ids]
-
-            per_user_counts = {}
-            for user_row in users_result_data:
-                user_id = user_row["id"]
-                try:
-                    extracted = await process_patterns(
-                        client=supabase,
-                        user_id=user_id,
-                    )
-                    if extracted > 0:
-                        pattern_extracted += extracted
-                        pattern_users += 1
-                        per_user_counts[user_id] = extracted
-                except Exception as e:
-                    logger.warning(f"[PATTERN] Error detecting patterns for {user_id}: {e}")
-
-            if pattern_users > 0:
-                logger.info(
-                    f"[PATTERN] Activity pattern detection complete: {pattern_users} users, "
-                    f"{pattern_extracted} patterns extracted"
-                )
-                # Write per-user pattern events
-                try:
-                    from services.activity_log import write_activity as _pw
-                    for uid, count in per_user_counts.items():
-                        await _pw(
-                            client=supabase,
-                            user_id=uid,
-                            event_type="pattern_detected",
-                            summary=f"Pattern detection: {count} pattern(s) found",
-                            metadata={
-                                "patterns_extracted": count,
-                                "users_analyzed": pattern_users,
-                            },
-                        )
-                except Exception:
-                    pass
-
-        except Exception as e:
-            logger.warning(f"[PATTERN] Activity pattern detection phase skipped: {e}")
 
     # -------------------------------------------------------------------------
     # ADR-068 Phase 4: Split Signal Processing
