@@ -19,7 +19,6 @@
  * - deliverable-create → /deliverables/new (user-driven creation)
  *
  * Remaining surfaces (TP-invoked only):
- * - work-output, work-list: Work tracking
  * - context-editor: Edit specific memory
  * - idle: Default state
  */
@@ -27,8 +26,6 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { DeskSurface } from '@/types/desk';
-import { WorkOutputSurface } from '@/components/surfaces/WorkOutputSurface';
-import { WorkListSurface } from '@/components/surfaces/WorkListSurface';
 import { ContextEditorSurface } from '@/components/surfaces/ContextEditorSurface';
 import { IdleSurface } from '@/components/surfaces/IdleSurface';
 import { HandoffBanner } from './HandoffBanner';
@@ -98,12 +95,6 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
       // ADR-067: deliverable-create redirects via useEffect, show idle as fallback
       case 'deliverable-create':
         return <IdleSurface />;
-
-      case 'work-output':
-        return <WorkOutputSurface workId={surface.workId} outputId={surface.outputId} />;
-
-      case 'work-list':
-        return <WorkListSurface filter={surface.filter} />;
 
       case 'context-editor':
         return <ContextEditorSurface memoryId={surface.memoryId} />;

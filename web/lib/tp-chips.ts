@@ -20,10 +20,6 @@ export function getSurfaceLabel(surface: DeskSurface): string {
       return 'Deliverable';
     case 'deliverable-list':
       return 'Deliverables';
-    case 'work-output':
-      return 'Work Output';
-    case 'work-list':
-      return 'Work';
     case 'context-browser':
       return 'Context';
     case 'context-editor':
@@ -53,9 +49,6 @@ export function getSurfaceIcon(surface: DeskSurface): string {
     case 'deliverable-detail':
     case 'deliverable-list':
       return 'Calendar';
-    case 'work-output':
-    case 'work-list':
-      return 'Briefcase';
     case 'context-browser':
     case 'context-editor':
       return 'Brain';

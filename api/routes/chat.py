@@ -642,39 +642,6 @@ Status: {d['status']}
 Schedule: {d.get('schedule', {})}
 """
 
-        elif surface_type == "work-output" and surface.workId:
-            # User is viewing work output
-            work_result = client.table("work_tickets")\
-                .select("task, agent_type, status")\
-                .eq("id", surface.workId)\
-                .eq("user_id", user_id)\
-                .single()\
-                .execute()
-
-            # Get the latest output
-            output_result = client.table("work_outputs")\
-                .select("title, content, output_type")\
-                .eq("ticket_id", surface.workId)\
-                .order("created_at", desc=True)\
-                .limit(1)\
-                .execute()
-
-            if work_result.data:
-                w = work_result.data
-                content_section = ""
-                if output_result.data:
-                    o = output_result.data[0]
-                    content = o.get("content", "")
-                    if len(content) > 8000:
-                        content = content[:8000] + "\n\n[Content truncated...]"
-                    content_section = f"\n### Output: {o.get('title', 'Untitled')}\n{content}"
-
-                return f"""## Currently Viewing: Work Output
-Task: {w['task'][:200]}
-Agent: {w['agent_type']}
-Status: {w['status']}{content_section}
-"""
-
         elif surface_type == "context-browser":
             # User is browsing their context/memories - just note it
             return "## Currently Viewing: Context Browser\nUser is browsing their stored memories and context."

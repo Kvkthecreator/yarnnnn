@@ -11,7 +11,7 @@ Flow:
     → mark_content_retained() (ADR-073)
     → record_source_snapshots() (ADR-049)
     → deliver immediately (ADR-066)
-    → single work_ticket, single version row
+    → write activity_log (ADR-090 Phase 3)
 
 ADR-049 Integration:
 - Freshness check before generation
@@ -152,69 +152,6 @@ async def create_version_record(
     return result.data[0] if result.data else {"id": version_id}
 
 
-async def create_work_ticket(
-    client,
-    user_id: str,
-    deliverable_id: str,
-    version_id: str,
-) -> dict:
-    """
-    Create a single work ticket for the generation.
-
-    ADR-042: No chaining (depends_on_work_id=NULL), no pipeline_step.
-    """
-    ticket_id = str(uuid4())
-    now = datetime.now(timezone.utc).isoformat()
-
-    result = (
-        client.table("work_tickets")
-        .insert({
-            "id": ticket_id,
-            "user_id": user_id,
-            "task": "deliverable.generate",
-            "agent_type": "deliverable",
-            "status": "running",
-            "deliverable_id": deliverable_id,
-            "deliverable_version_id": version_id,
-            "started_at": now,
-            # ADR-042: Explicitly NULL - no chaining
-            "depends_on_work_id": None,
-            "pipeline_step": None,
-            "chain_output_as_memory": False,
-        })
-        .execute()
-    )
-
-    return result.data[0] if result.data else {"id": ticket_id}
-
-
-async def log_execution_inputs(
-    ticket_id: str,
-    deliverable: dict,
-    context_summary: dict,
-):
-    """
-    Log execution inputs to work_execution_log for debugging.
-
-    ADR-042: Replaces full context snapshots with lightweight input logging.
-    Uses service role client — work_execution_log has no user INSERT policy.
-    """
-    try:
-        from services.supabase import get_service_client
-        service_client = get_service_client()
-        service_client.table("work_execution_log").insert({
-            "ticket_id": ticket_id,
-            "stage": "started",
-            "message": f"Generating {deliverable.get('deliverable_type', 'custom')} deliverable",
-            "metadata": {
-                "deliverable_id": deliverable.get("id"),
-                "deliverable_type": deliverable.get("deliverable_type"),
-                "sources_count": len(deliverable.get("sources", [])),
-                "context_summary": context_summary,
-            },
-        }).execute()
-    except Exception as e:
-        logger.warning(f"[EXEC] Failed to log inputs: {e}")
 
 
 def _build_headless_system_prompt(
@@ -525,57 +462,6 @@ async def update_version_for_delivery(
     }).eq("id", version_id).execute()
 
 
-async def complete_work_ticket(
-    client,
-    ticket_id: str,
-    result: dict,
-):
-    """Mark work ticket as completed."""
-    now = datetime.now(timezone.utc).isoformat()
-
-    # Update ticket status (result stored in execution log instead)
-    client.table("work_tickets").update({
-        "status": "completed",
-        "completed_at": now,
-    }).eq("id", ticket_id).execute()
-
-    # Log completion with result details
-    try:
-        client.table("work_execution_log").insert({
-            "ticket_id": ticket_id,
-            "stage": "completed",
-            "message": "Generation complete",
-            "metadata": result,
-        }).execute()
-    except Exception:
-        pass
-
-
-async def fail_work_ticket(
-    client,
-    ticket_id: str,
-    error_message: str,
-):
-    """Mark work ticket as failed."""
-    now = datetime.now(timezone.utc).isoformat()
-
-    client.table("work_tickets").update({
-        "status": "failed",
-        "completed_at": now,
-        "error_message": error_message,
-    }).eq("id", ticket_id).execute()
-
-    # Log failure
-    try:
-        client.table("work_execution_log").insert({
-            "ticket_id": ticket_id,
-            "stage": "failed",
-            "message": error_message,
-        }).execute()
-    except Exception:
-        pass
-
-
 # =============================================================================
 # Main Entry Point - ADR-042, ADR-045, ADR-066 Delivery-First
 # =============================================================================
@@ -623,7 +509,6 @@ async def execute_deliverable_generation(
     )
 
     version = None
-    ticket = None
     freshness_result = None
 
     try:
@@ -645,11 +530,7 @@ async def execute_deliverable_generation(
         version = await create_version_record(client, deliverable_id, next_version)
         version_id = version["id"]
 
-        # 3. Create single work ticket (no chaining)
-        ticket = await create_work_ticket(client, user_id, deliverable_id, version_id)
-        ticket_id = ticket["id"]
-
-        # 4. ADR-045: Select and execute strategy for context gathering
+        # 3. ADR-045: Select and execute strategy for context gathering
         strategy = get_execution_strategy(deliverable)
         gathered_result = await strategy.gather_context(client, user_id, deliverable)
 
@@ -664,17 +545,14 @@ async def execute_deliverable_generation(
             "stale_sources": len(freshness_result["stale_sources"]) if freshness_result else 0,
         }
 
-        # 5. Log inputs for debugging
-        await log_execution_inputs(ticket_id, deliverable, context_summary)
-
-        # 6. Generate draft inline (ADR-080/081: pass trigger_context + research_directive)
+        # 4. Generate draft inline (ADR-080/081: pass trigger_context + research_directive)
         research_directive = context_summary.get("research_directive")
         draft = await generate_draft_inline(
             client, user_id, deliverable, gathered_context,
             trigger_context, research_directive,
         )
 
-        # 7. ADR-066: Prepare version for delivery (no staged status)
+        # 5. ADR-066: Prepare version for delivery (no staged status)
         await update_version_for_delivery(client, version_id, draft)
 
         # ADR-073: Mark consumed platform content as retained
@@ -704,18 +582,12 @@ async def execute_deliverable_generation(
                 })
         await record_source_snapshots(client, version_id, sources_for_snapshot)
 
-        # 8. Complete work ticket
-        await complete_work_ticket(client, ticket_id, {
-            "draft_length": len(draft),
-            "sources_used": context_summary.get("sources_used", []),
-        })
-
-        # 9. Update deliverable last_run_at
+        # 6. Update deliverable last_run_at
         client.table("deliverables").update({
             "last_run_at": datetime.now(timezone.utc).isoformat(),
         }).eq("id", deliverable_id).execute()
 
-        # 10. ADR-066: Always attempt delivery (no governance check)
+        # 7. ADR-066: Always attempt delivery (no governance check)
         # Email-first: normalize/fallback to user's email if destination incomplete
         # get_user_email requires service role (auth.admin API)
         from services.supabase import get_service_client as _get_svc
@@ -828,13 +700,6 @@ async def execute_deliverable_generation(
                     "status": "failed",
                     "delivery_error": str(e),
                 }).eq("id", version["id"]).execute()
-            except Exception:
-                pass
-
-        # Mark ticket as failed
-        if ticket:
-            try:
-                await fail_work_ticket(client, ticket["id"], str(e))
             except Exception:
                 pass
 

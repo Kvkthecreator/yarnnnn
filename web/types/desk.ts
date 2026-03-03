@@ -15,9 +15,6 @@ export type DeskSurface =
   | { type: 'deliverable-review'; deliverableId: string; versionId: string }
   | { type: 'deliverable-detail'; deliverableId: string }
   | { type: 'deliverable-list'; status?: 'active' | 'paused' | 'archived' }
-  // Work
-  | { type: 'work-output'; workId: string; outputId?: string }
-  | { type: 'work-list'; filter?: 'active' | 'completed' | 'all' }
   // Context (ADR-034: user's accumulated knowledge, scoped by emergent domains)
   | { type: 'context-browser'; scope: 'user' | 'deliverable'; scopeId?: string }
   | { type: 'context-editor'; memoryId: string }
@@ -190,17 +187,6 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
         status: data.status as 'active' | 'paused' | 'archived' | undefined,
       };
 
-    // Work
-    case 'output':
-    case 'work-output':
-      return {
-        type: 'work-output',
-        workId: data.workId as string,
-        outputId: data.outputId as string | undefined,
-      };
-    case 'work-list':
-      return { type: 'work-list' };
-
     // Context (ADR-034)
     case 'context':
     case 'memory':
@@ -261,13 +247,6 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
     case 'deliverable-list':
       if (surface.status) params.set('status', surface.status);
       break;
-    case 'work-output':
-      params.set('wid', surface.workId);
-      if (surface.outputId) params.set('oid', surface.outputId);
-      break;
-    case 'work-list':
-      if (surface.filter) params.set('filter', surface.filter);
-      break;
     case 'context-browser':
       params.set('scope', surface.scope);
       if (surface.scopeId) params.set('scopeId', surface.scopeId);
@@ -313,13 +292,6 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
     }
     case 'deliverable-list':
       return { type: 'deliverable-list', status: (params.get('status') as 'active' | 'paused' | 'archived') || undefined };
-    case 'work-output': {
-      const wid = params.get('wid');
-      if (wid) return { type: 'work-output', workId: wid, outputId: params.get('oid') || undefined };
-      break;
-    }
-    case 'work-list':
-      return { type: 'work-list', filter: (params.get('filter') as 'active' | 'completed' | 'all') || undefined };
     case 'context-browser':
       return {
         type: 'context-browser',

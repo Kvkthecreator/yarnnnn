@@ -30,12 +30,10 @@ class DangerZoneStats(BaseModel):
     chat_sessions: int
     memories: int
     documents: int
-    work_tickets: int
 
     # Content subtotals
     deliverables: int
     deliverable_versions: int
-    work_outputs: int
 
     # Platform content (ADR-072)
     platform_content: int
@@ -183,17 +181,6 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
         documents = auth.client.table("filesystem_documents").select("id", count="exact").eq("user_id", user_id).execute()
         documents_count = documents.count or 0
 
-        # Count work tickets
-        work_tickets = auth.client.table("work_tickets").select("id", count="exact").eq("user_id", user_id).execute()
-        work_tickets_count = work_tickets.count or 0
-
-        # Count work outputs (through tickets)
-        work_ids = auth.client.table("work_tickets").select("id").eq("user_id", user_id).execute()
-        work_outputs_count = 0
-        for w in (work_ids.data or []):
-            outputs = auth.client.table("work_outputs").select("id", count="exact").eq("ticket_id", w["id"]).execute()
-            work_outputs_count += outputs.count or 0
-
         # Count deliverables (exclude archived)
         deliverables = auth.client.table("deliverables").select("id", count="exact").eq("user_id", user_id).neq("status", "archived").execute()
         deliverables_count = deliverables.count or 0
@@ -229,8 +216,6 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
             chat_sessions=chat_sessions_count,
             memories=memories_count,
             documents=documents_count,
-            work_tickets=work_tickets_count,
-            work_outputs=work_outputs_count,
             deliverables=deliverables_count,
             deliverable_versions=versions_count,
             platform_content=platform_content_count,
@@ -322,30 +307,6 @@ async def clear_all_documents(auth: UserClient) -> OperationResult:
         raise HTTPException(status_code=500, detail="Failed to clear documents")
 
 
-@router.delete("/account/work")
-async def clear_work_history(auth: UserClient) -> OperationResult:
-    """
-    Delete all work tickets and outputs for the current user.
-    Work outputs cascade automatically via FK.
-    """
-    user_id = auth.user_id
-
-    try:
-        result = auth.client.table("work_tickets").delete().eq("user_id", user_id).execute()
-        deleted_count = len(result.data or [])
-
-        logger.info(f"[ACCOUNT] User {user_id} cleared work history: {deleted_count} tickets")
-
-        return OperationResult(
-            success=True,
-            message=f"Cleared {deleted_count} work tickets",
-            deleted={"work_tickets": deleted_count}
-        )
-    except Exception as e:
-        logger.error(f"[ACCOUNT] Failed to clear work history for {user_id}: {e}")
-        raise HTTPException(status_code=500, detail="Failed to clear work history")
-
-
 # =============================================================================
 # Tier 2: Category Reset (Grouped Deletions)
 # =============================================================================
@@ -374,15 +335,11 @@ async def clear_all_content(auth: UserClient) -> OperationResult:
         result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
         deleted["deliverables"] = len(result.data or [])
 
-        # Delete work tickets (outputs cascade)
-        result = auth.client.table("work_tickets").delete().eq("user_id", user_id).execute()
-        deleted["work_tickets"] = len(result.data or [])
-
         logger.info(f"[ACCOUNT] User {user_id} cleared all content: {deleted}")
 
         return OperationResult(
             success=True,
-            message=f"Cleared {deleted['deliverables']} deliverables and {deleted['work_tickets']} work tickets",
+            message=f"Cleared {deleted['deliverables']} deliverables",
             deleted=deleted
         )
     except Exception as e:
@@ -510,27 +467,23 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
         deleted["deliverables"] = len(result.data or [])
 
-        # 3. Delete work tickets (outputs cascade)
-        result = auth.client.table("work_tickets").delete().eq("user_id", user_id).execute()
-        deleted["work_tickets"] = len(result.data or [])
-
-        # 4. Delete chat sessions (messages cascade)
+        # 3. Delete chat sessions (messages cascade)
         result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
         deleted["chat_sessions"] = len(result.data or [])
 
-        # 5. Delete all user_memory rows (ADR-059)
+        # 4. Delete all user_memory rows (ADR-059)
         result = auth.client.table("user_memory").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
-        # 6. Delete documents
+        # 5. Delete documents
         result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
-        # 6b. Delete synced platform content (ADR-072)
+        # 5b. Delete synced platform content (ADR-072)
         result = auth.client.table("platform_content").delete().eq("user_id", user_id).execute()
         deleted["platform_content"] = len(result.data or [])
 
-        # 7. Delete integration data
+        # 6. Delete integration data
         result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
         deleted["export_logs"] = len(result.data or [])
 
@@ -552,7 +505,7 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
         result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
         deleted["platform_connections"] = len(result.data or [])
 
-        # 7b. Delete notification preferences
+        # 6b. Delete notification preferences
         try:
             auth.client.table("user_notification_preferences").delete().eq("user_id", user_id).execute()
         except Exception:
@@ -608,27 +561,23 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
         deleted["deliverables"] = len(result.data or [])
 
-        # 3. Delete work tickets (outputs cascade)
-        result = auth.client.table("work_tickets").delete().eq("user_id", user_id).execute()
-        deleted["work_tickets"] = len(result.data or [])
-
-        # 4. Delete chat sessions
+        # 3. Delete chat sessions
         result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
         deleted["chat_sessions"] = len(result.data or [])
 
-        # 5. Delete all user_memory rows (ADR-059)
+        # 4. Delete all user_memory rows (ADR-059)
         result = auth.client.table("user_memory").delete().eq("user_id", user_id).execute()
         deleted["memories"] = len(result.data or [])
 
-        # 6. Delete documents
+        # 5. Delete documents
         result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
         deleted["documents"] = len(result.data or [])
 
-        # 6b. Delete synced platform content (ADR-072)
+        # 5b. Delete synced platform content (ADR-072)
         result = auth.client.table("platform_content").delete().eq("user_id", user_id).execute()
         deleted["platform_content"] = len(result.data or [])
 
-        # 7. Delete integration data
+        # 6. Delete integration data
         result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
         deleted["export_logs"] = len(result.data or [])
 
@@ -650,13 +599,13 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
         result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
         deleted["platform_connections"] = len(result.data or [])
 
-        # 7b. Delete notification preferences
+        # 6b. Delete notification preferences
         try:
             auth.client.table("user_notification_preferences").delete().eq("user_id", user_id).execute()
         except Exception:
             pass  # Table may not exist yet for this user
 
-        # 8. Delete workspaces (don't recreate)
+        # 7. Delete workspaces (don't recreate)
         for wid in workspace_ids:
             auth.client.table("workspaces").delete().eq("id", wid).execute()
         deleted["workspaces"] = len(workspace_ids)

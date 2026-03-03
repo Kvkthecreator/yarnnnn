@@ -2,9 +2,10 @@
 YARNNN v5 - Digest Content Generation
 
 Generates weekly digest content for a user:
-- Recent work tickets (completed, in progress)
-- Work outputs delivered
+- Recent deliverable versions (delivered, in progress)
 - New memories added
+
+ADR-090 Phase 3: Migrated from work_tickets/work_outputs → deliverable_versions.
 """
 
 from __future__ import annotations
@@ -23,10 +24,9 @@ class DigestContent:
     period_start: datetime
     period_end: datetime
 
-    # Activity counts
-    tickets_completed: int = 0
-    tickets_in_progress: int = 0
-    outputs_delivered: int = 0
+    # Activity counts (ADR-090: sourced from deliverable_versions)
+    versions_delivered: int = 0
+    versions_in_progress: int = 0
     memories_added: int = 0
 
     # Highlights (top items to feature)
@@ -36,9 +36,8 @@ class DigestContent:
     def is_empty(self) -> bool:
         """Check if there's any activity to report."""
         return (
-            self.tickets_completed == 0
-            and self.tickets_in_progress == 0
-            and self.outputs_delivered == 0
+            self.versions_delivered == 0
+            and self.versions_in_progress == 0
             and self.memories_added == 0
         )
 
@@ -47,7 +46,7 @@ class DigestContent:
         """Email subject line."""
         if self.is_empty:
             return "yarnnn: Weekly digest – no activity this week"
-        return f"yarnnn: Weekly digest – {self.tickets_completed} completed, {self.outputs_delivered} outputs"
+        return f"yarnnn: Weekly digest – {self.versions_delivered} delivered, {self.memories_added} memories"
 
     @property
     def text(self) -> str:
@@ -64,14 +63,13 @@ class DigestContent:
             lines.append("Start a new deliverable to get things moving!")
         else:
             lines.append("Activity Summary:")
-            lines.append(f"  - Work tickets completed: {self.tickets_completed}")
-            lines.append(f"  - Work tickets in progress: {self.tickets_in_progress}")
-            lines.append(f"  - Outputs delivered: {self.outputs_delivered}")
+            lines.append(f"  - Deliverables completed: {self.versions_delivered}")
+            lines.append(f"  - Deliverables in progress: {self.versions_in_progress}")
             lines.append(f"  - Memories added: {self.memories_added}")
 
             if self.top_outputs:
                 lines.append("")
-                lines.append("Recent Outputs:")
+                lines.append("Recent Deliveries:")
                 for output in self.top_outputs[:3]:
                     lines.append(f"  - {output['title']}")
 
@@ -111,16 +109,12 @@ class DigestContent:
     {"<p>No activity this week. Create a new deliverable to get things moving!</p>" if self.is_empty else f'''
     <div class="stats">
         <div class="stat">
-            <div class="stat-value">{self.tickets_completed}</div>
-            <div class="stat-label">Completed</div>
+            <div class="stat-value">{self.versions_delivered}</div>
+            <div class="stat-label">Delivered</div>
         </div>
         <div class="stat">
-            <div class="stat-value">{self.tickets_in_progress}</div>
+            <div class="stat-value">{self.versions_in_progress}</div>
             <div class="stat-label">In Progress</div>
-        </div>
-        <div class="stat">
-            <div class="stat-value">{self.outputs_delivered}</div>
-            <div class="stat-label">Outputs</div>
         </div>
         <div class="stat">
             <div class="stat-value">{self.memories_added}</div>
@@ -144,9 +138,8 @@ class DigestContent:
             "user_name": self.user_name,
             "period_start": self.period_start.isoformat(),
             "period_end": self.period_end.isoformat(),
-            "tickets_completed": self.tickets_completed,
-            "tickets_in_progress": self.tickets_in_progress,
-            "outputs_delivered": self.outputs_delivered,
+            "versions_delivered": self.versions_delivered,
+            "versions_in_progress": self.versions_in_progress,
             "memories_added": self.memories_added,
             "top_outputs": self.top_outputs,
         }
@@ -171,38 +164,53 @@ async def generate_digest_content(
         period_end=now,
     )
 
-    # Count completed tickets
-    completed_result = supabase_client.table("work_tickets").select(
+    # ADR-090 Phase 3: Query deliverable_versions instead of work_tickets/work_outputs.
+    # Join deliverable_versions → deliverables to scope by user_id and get titles.
+
+    # Count delivered versions this week
+    delivered_result = supabase_client.table("deliverable_versions").select(
         "id", count="exact"
-    ).eq("user_id", user_id).eq(
-        "status", "completed"
-    ).gte("completed_at", week_ago.isoformat()).execute()
-
-    content.tickets_completed = completed_result.count or 0
-
-    # Count in-progress tickets
-    in_progress_result = supabase_client.table("work_tickets").select(
-        "id", count="exact"
-    ).eq("user_id", user_id).eq("status", "running").execute()
-
-    content.tickets_in_progress = in_progress_result.count or 0
-
-    # Get recent outputs - get ticket IDs first, then outputs
-    ticket_ids_result = supabase_client.table("work_tickets").select(
+    ).eq("status", "delivered").gte(
+        "delivered_at", week_ago.isoformat()
+    ).execute()
+    # Filter by user via deliverable ownership (deliverable_versions has no user_id)
+    # We fetch IDs via deliverables first
+    user_deliverable_ids_result = supabase_client.table("deliverables").select(
         "id"
     ).eq("user_id", user_id).execute()
+    user_deliverable_ids = [d["id"] for d in (user_deliverable_ids_result.data or [])]
 
-    ticket_ids = [t["id"] for t in (ticket_ids_result.data or [])]
+    if user_deliverable_ids:
+        delivered_result = supabase_client.table("deliverable_versions").select(
+            "id", count="exact"
+        ).in_("deliverable_id", user_deliverable_ids).eq(
+            "status", "delivered"
+        ).gte("delivered_at", week_ago.isoformat()).execute()
+        content.versions_delivered = delivered_result.count or 0
 
-    if ticket_ids:
-        outputs_result = supabase_client.table("work_outputs").select(
-            "id, title, created_at"
-        ).in_("ticket_id", ticket_ids).gte(
-            "created_at", week_ago.isoformat()
-        ).order("created_at", desc=True).limit(5).execute()
+        in_progress_result = supabase_client.table("deliverable_versions").select(
+            "id", count="exact"
+        ).in_("deliverable_id", user_deliverable_ids).eq(
+            "status", "generating"
+        ).execute()
+        content.versions_in_progress = in_progress_result.count or 0
 
-        content.outputs_delivered = len(outputs_result.data or [])
-        content.top_outputs = outputs_result.data or []
+        # Recent delivered versions with deliverable titles for highlights
+        recent_result = supabase_client.table("deliverable_versions").select(
+            "id, deliverable_id, delivered_at, deliverables(title)"
+        ).in_("deliverable_id", user_deliverable_ids).eq(
+            "status", "delivered"
+        ).gte("delivered_at", week_ago.isoformat()).order(
+            "delivered_at", desc=True
+        ).limit(5).execute()
+
+        content.top_outputs = [
+            {
+                "title": (v.get("deliverables") or {}).get("title", "Untitled"),
+                "delivered_at": v.get("delivered_at"),
+            }
+            for v in (recent_result.data or [])
+        ]
 
     # Count new memories (ADR-059: user_memory entry-type keys)
     memories_result = supabase_client.table("user_memory").select(

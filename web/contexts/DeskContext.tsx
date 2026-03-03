@@ -217,10 +217,6 @@ export function DeskProvider({ children }: DeskProviderProps) {
         const current = state.surface as { type: 'deliverable-review'; deliverableId: string; versionId: string };
         const url = surfaceFromUrl as { type: 'deliverable-review'; deliverableId: string; versionId: string };
         shouldUpdate = current.deliverableId !== url.deliverableId || current.versionId !== url.versionId;
-      } else if (currentType === 'work-output') {
-        const current = state.surface as { type: 'work-output'; workId: string };
-        const url = surfaceFromUrl as { type: 'work-output'; workId: string };
-        shouldUpdate = current.workId !== url.workId;
       } else if (currentType === 'context-editor') {
         const current = state.surface as { type: 'context-editor'; memoryId: string };
         const url = surfaceFromUrl as { type: 'context-editor'; memoryId: string };
