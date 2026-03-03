@@ -26,8 +26,10 @@ def main():
 
     # Check tables exist
     tables = [
-        "workspaces", "projects", "blocks", "documents",
-        "block_relations", "work_tickets", "work_outputs", "agent_sessions"
+        "deliverables", "deliverable_versions",
+        "chat_sessions", "session_messages",
+        "user_memory", "platform_content", "platform_connections",
+        "filesystem_documents", "filesystem_chunks",
     ]
 
     print("\n=== TABLE CHECK ===")

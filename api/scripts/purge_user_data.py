@@ -11,8 +11,6 @@ This will:
 2. Delete all deliverables
 3. Delete all chat_sessions (and cascade to session_messages)
 4. Delete all user_memory rows (ADR-059)
-5. Delete all work_outputs for user's work_tickets
-6. Delete all work_tickets
 
 WARNING: This is destructive and cannot be undone!
 """
@@ -107,26 +105,7 @@ def purge_user_data(email: str, dry_run: bool = False):
         memories = client.table("user_memory").select("id").eq("user_id", user_id).execute()
         print(f"   Would delete {len(memories.data or [])} context entries")
 
-    # 4. Delete work_outputs and work_tickets
-    print(f"\n📋 Fetching work_tickets...")
-    tickets = client.table("work_tickets").select("id").eq("user_id", user_id).execute()
-    ticket_ids = [t["id"] for t in (tickets.data or [])]
-    print(f"   Found {len(ticket_ids)} work tickets")
-
-    if ticket_ids:
-        print(f"\n🗑️  {action} work_outputs...")
-        for tid in ticket_ids:
-            if not dry_run:
-                result = client.table("work_outputs").delete().eq("ticket_id", tid).execute()
-
-    print(f"\n🗑️  {action} work_tickets...")
-    if not dry_run:
-        result = client.table("work_tickets").delete().eq("user_id", user_id).execute()
-        print(f"   Deleted {len(result.data or [])} work tickets")
-    else:
-        print(f"   Would delete {len(ticket_ids)} work tickets")
-
-    # 5. knowledge_domains removed (ADR-059); nothing to delete.
+    # knowledge_domains removed (ADR-059); work_tickets removed (ADR-090).
 
     print(f"\n{'🔍 DRY RUN COMPLETE' if dry_run else '✅ PURGE COMPLETE'}")
     print(f"User {email} is now in cold-start state (zero deliverables, no chat history).")
@@ -145,7 +124,7 @@ if __name__ == "__main__":
 
     if not dry_run:
         print(f"\n⚠️  WARNING: This will permanently delete ALL data for {email}")
-        print("This includes: deliverables, chat history, memories, work tickets, context domains")
+        print("This includes: deliverables, chat history, memories")
         confirm = input("Type 'yes' to confirm: ")
         if confirm.lower() != "yes":
             print("Aborted.")
