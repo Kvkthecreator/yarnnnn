@@ -1,6 +1,6 @@
 # ADR-088: Unified Input Processing & Work Serialization
 
-**Status:** Proposed — implements as part of ADR-087 Phase 2
+**Status:** Proposed (Parked — ADR-087 Phase 2 explicitly deferred this; un-park when event trigger volume justifies graduated response)
 **Date:** 2026-03-03
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**

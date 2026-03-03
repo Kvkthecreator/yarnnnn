@@ -533,6 +533,37 @@ export interface GmailDestinationOptions {
 // ADR-031: Platform-native deliverable variants
 export type PlatformVariant = "slack_digest" | "email_summary" | "notion_page" | string;
 
+// ADR-087: Deliverable memory observation
+export interface DeliverableObservation {
+  date: string;
+  source?: string;
+  note: string;
+}
+
+// ADR-087: Deliverable memory goal
+export interface DeliverableGoal {
+  description: string;
+  status: string;
+  milestones?: string[];
+}
+
+// ADR-087: Deliverable memory structure
+export interface DeliverableMemory {
+  observations?: DeliverableObservation[];
+  goal?: DeliverableGoal;
+}
+
+// ADR-087: Deliverable mode
+export type DeliverableMode = 'recurring' | 'goal';
+
+// ADR-087: Scoped chat session
+export interface DeliverableSession {
+  id: string;
+  created_at: string;
+  summary?: string;
+  message_count: number;
+}
+
 export interface Deliverable {
   id: string;
   title: string;
@@ -558,6 +589,10 @@ export interface Deliverable {
   destination?: Destination;
   // ADR-068: Deliverable origin
   origin?: 'user_configured' | 'analyst_suggested' | 'signal_emergent';
+  // ADR-087: Deliverable-scoped context
+  deliverable_instructions?: string;
+  deliverable_memory?: DeliverableMemory;
+  mode?: DeliverableMode;
   // Quality metrics (ADR-018: feedback loop)
   quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
@@ -598,6 +633,9 @@ export interface DeliverableUpdate {
   status?: DeliverableStatus;
   // ADR-028: Destination-first deliverables
   destination?: Destination;
+  // ADR-087: Deliverable-scoped context
+  deliverable_instructions?: string;
+  mode?: DeliverableMode;
   // Legacy fields
   description?: string;
   template_structure?: TemplateStructure;

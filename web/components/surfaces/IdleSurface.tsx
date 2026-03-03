@@ -43,7 +43,7 @@ import {
 import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import { formatDistanceToNow } from 'date-fns';
-import type { Deliverable, ScheduleConfig, Work, Document as DocType } from '@/types';
+import type { Deliverable, ScheduleConfig, Document as DocType } from '@/types';
 
 // Format schedule to human readable string
 function formatSchedule(schedule?: ScheduleConfig): string | null {
@@ -71,7 +71,6 @@ const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
 
 interface DashboardData {
   deliverables: Deliverable[];
-  recentWork: Work[];
   memoryCount: number;
   recentDocs: DocType[];
 }
@@ -100,16 +99,14 @@ export function IdleSurface() {
 
   const loadDashboardData = async () => {
     try {
-      const [deliverables, workResult, memories, docsResult] = await Promise.all([
+      const [deliverables, memories, docsResult] = await Promise.all([
         api.deliverables.list().catch(() => []),
-        api.work.listAll({ limit: 5 }).catch(() => ({ work: [] })),
         api.userMemories.list().catch(() => []),
         api.documents.list().catch(() => ({ documents: [] })),
       ]);
 
       setData({
         deliverables: deliverables || [],
-        recentWork: (workResult.work || []).slice(0, 5),
         memoryCount: memories?.length || 0,
         recentDocs: (docsResult.documents || []).slice(0, 3),
       });
@@ -339,44 +336,6 @@ export function IdleSurface() {
                 </button>
               ))}
             </div>
-          </DashboardSection>
-        )}
-
-        {/* Recent Work */}
-        {data?.recentWork && data.recentWork.length > 0 && (
-          <DashboardSection
-            icon={<FileText className="w-4 h-4" />}
-            title="Recent Work"
-            action={
-              <button
-                onClick={() => setSurface({ type: 'work-list' })}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1"
-              >
-                View all
-                <ChevronRight className="w-3 h-3" />
-              </button>
-            }
-          >
-            {data.recentWork.slice(0, 3).map((w) => (
-              <button
-                key={w.id}
-                onClick={() => setSurface({ type: 'work-output', workId: w.id })}
-                disabled={w.status !== 'completed'}
-                className={`w-full p-3 border border-border rounded-lg text-left ${
-                  w.status === 'completed' ? 'hover:bg-muted' : 'opacity-60'
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-sm font-medium">{w.task}</span>
-                    <p className="text-xs text-muted-foreground">{w.agent_type}</p>
-                  </div>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(w.created_at), { addSuffix: true })}
-                  </span>
-                </div>
-              </button>
-            ))}
           </DashboardSection>
         )}
 

@@ -14,14 +14,6 @@ import type {
   DocumentUploadResponse,
   DocumentDownloadResponse,
   DocumentListResponse,
-  WorkTicket,
-  WorkTicketCreate,
-  WorkTicketDetail,
-  WorkExecutionResponse,
-  WorkListResponse,
-  WorkUpdateRequest,
-  WorkUpdateResponse,
-  WorkDeleteResponse,
   DeleteResponse,
   OnboardingStateResponse,
   SubscriptionStatus,
@@ -285,46 +277,6 @@ export const api = {
       ),
   },
 
-  // Work endpoints (ADR-017: Unified Work Model)
-  work: {
-    // Get ticket with outputs
-    get: (ticketId: string) =>
-      request<WorkTicketDetail>(`/api/work/${ticketId}`),
-
-    // Execute a pending ticket
-    execute: (ticketId: string) =>
-      request<WorkExecutionResponse>(`/api/work/${ticketId}/execute`, {
-        method: "POST",
-      }),
-
-    // List all work (one-time and recurring) for current user
-    listAll: (options?: {
-      activeOnly?: boolean;
-      includeCompleted?: boolean;
-      limit?: number;
-    }) => {
-      const params = new URLSearchParams();
-      if (options?.activeOnly) params.append("active_only", "true");
-      if (options?.includeCompleted === false) params.append("include_completed", "false");
-      if (options?.limit) params.append("limit", options.limit.toString());
-      const query = params.toString();
-      return request<WorkListResponse>(`/api/work${query ? `?${query}` : ""}`);
-    },
-
-    // Update work (pause/resume, change task, change frequency)
-    update: (workId: string, data: WorkUpdateRequest) =>
-      request<WorkUpdateResponse>(`/api/work/${workId}`, {
-        method: "PATCH",
-        body: JSON.stringify(data),
-      }),
-
-    // Delete work and all outputs
-    delete: (workId: string) =>
-      request<WorkDeleteResponse>(`/api/work/${workId}`, {
-        method: "DELETE",
-      }),
-  },
-
   // Chat endpoints (streaming handled separately in useChat hook)
   chat: {
     // Get global chat history
@@ -519,6 +471,14 @@ export const api = {
         `/api/deliverables/${deliverableId}/versions/${versionId}/dismiss`,
         { method: "DELETE" }
       ),
+
+    // ADR-087 Phase 3: Scoped sessions
+    listSessions: (deliverableId: string, limit?: number) => {
+      const params = limit ? `?limit=${limit}` : "";
+      return request<Array<{ id: string; created_at: string; summary?: string; message_count: number }>>(
+        `/api/deliverables/${deliverableId}/sessions${params}`
+      );
+    },
   },
 
   // Account management

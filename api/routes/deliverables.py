@@ -552,6 +552,9 @@ class DeliverableUpdate(BaseModel):
     destinations: Optional[list[dict]] = None
     # ADR-031 Phase 6: Synthesizer flag
     is_synthesizer: Optional[bool] = None
+    # ADR-087: Deliverable-scoped context
+    deliverable_instructions: Optional[str] = None
+    mode: Optional[Literal["recurring", "goal"]] = None
     # Legacy fields (deprecated)
     description: Optional[str] = None
     template_structure: Optional[TemplateStructure] = None
@@ -603,6 +606,10 @@ class DeliverableResponse(BaseModel):
     source_freshness: Optional[list[dict]] = None  # [{source_index, provider, last_fetched_at, is_stale}]
     # ADR-068: Deliverable origin (how it came to exist)
     origin: str = "user_configured"  # user_configured | analyst_suggested | signal_emergent
+    # ADR-087: Deliverable-scoped context
+    deliverable_instructions: Optional[str] = None
+    deliverable_memory: Optional[dict] = None
+    mode: str = "recurring"  # recurring | goal
     # Legacy fields (for backwards compatibility)
     description: Optional[str] = None
     template_structure: Optional[dict] = None
@@ -824,6 +831,10 @@ async def create_deliverable(
         destination=deliverable.get("destination"),
         # ADR-068: Deliverable origin
         origin=deliverable.get("origin", "user_configured"),
+        # ADR-087: Deliverable-scoped context
+        deliverable_instructions=deliverable.get("deliverable_instructions"),
+        deliverable_memory=deliverable.get("deliverable_memory"),
+        mode=deliverable.get("mode", "recurring"),
         # Legacy fields
         description=deliverable.get("description"),
         template_structure=deliverable.get("template_structure"),
@@ -944,6 +955,10 @@ async def list_deliverables(
             avg_edit_distance=avg_edit_distance,
             # ADR-068: Deliverable origin
             origin=d.get("origin", "user_configured"),
+            # ADR-087: Deliverable-scoped context
+            deliverable_instructions=d.get("deliverable_instructions"),
+            deliverable_memory=d.get("deliverable_memory"),
+            mode=d.get("mode", "recurring"),
             # Legacy
             description=d.get("description"),
             template_structure=d.get("template_structure"),
@@ -1066,6 +1081,10 @@ async def get_deliverable(
             destination=deliverable.get("destination"),
             # ADR-068: Deliverable origin
             origin=deliverable.get("origin", "user_configured"),
+            # ADR-087: Deliverable-scoped context
+            deliverable_instructions=deliverable.get("deliverable_instructions"),
+            deliverable_memory=deliverable.get("deliverable_memory"),
+            mode=deliverable.get("mode", "recurring"),
             # Legacy
             description=deliverable.get("description"),
             template_structure=deliverable.get("template_structure"),
@@ -1154,6 +1173,11 @@ async def update_deliverable(
     # ADR-028: Destination-first deliverables
     if request.destination is not None:
         update_data["destination"] = request.destination
+    # ADR-087: Deliverable-scoped context
+    if request.deliverable_instructions is not None:
+        update_data["deliverable_instructions"] = request.deliverable_instructions
+    if request.mode is not None:
+        update_data["mode"] = request.mode
     # Legacy fields
     if request.description is not None:
         update_data["description"] = request.description
@@ -1192,6 +1216,10 @@ async def update_deliverable(
         destination=d.get("destination"),
         # ADR-068: Deliverable origin
         origin=d.get("origin", "user_configured"),
+        # ADR-087: Deliverable-scoped context
+        deliverable_instructions=d.get("deliverable_instructions"),
+        deliverable_memory=d.get("deliverable_memory"),
+        mode=d.get("mode", "recurring"),
         # Legacy
         description=d.get("description"),
         template_structure=d.get("template_structure"),
@@ -1785,6 +1813,66 @@ async def dismiss_suggested_version(
     return {"success": True, "message": "Suggestion dismissed"}
 
 
+# =============================================================================
+# ADR-087 Phase 3: Scoped Sessions
+# =============================================================================
+
+
+@router.get("/{deliverable_id}/sessions")
+async def list_deliverable_sessions(
+    deliverable_id: UUID,
+    auth: UserClient,
+    limit: int = 10,
+) -> list[dict]:
+    """
+    List scoped chat sessions for a deliverable.
+
+    ADR-087: Sessions are scoped to deliverables via chat_sessions.deliverable_id FK.
+    Returns recent sessions with summary and message count.
+    """
+    # Verify ownership
+    check = (
+        auth.client.table("deliverables")
+        .select("id")
+        .eq("id", str(deliverable_id))
+        .eq("user_id", auth.user_id)
+        .single()
+        .execute()
+    )
+    if not check.data:
+        raise HTTPException(status_code=404, detail="Deliverable not found")
+
+    # Query scoped sessions
+    result = (
+        auth.client.table("chat_sessions")
+        .select("id, created_at, summary")
+        .eq("deliverable_id", str(deliverable_id))
+        .order("created_at", desc=True)
+        .limit(limit)
+        .execute()
+    )
+
+    sessions = result.data or []
+
+    # Get message counts per session
+    response = []
+    for s in sessions:
+        count_result = (
+            auth.client.table("session_messages")
+            .select("id", count="exact")
+            .eq("session_id", s["id"])
+            .execute()
+        )
+        response.append({
+            "id": s["id"],
+            "created_at": s["created_at"],
+            "summary": s.get("summary"),
+            "message_count": count_result.count or 0,
+        })
+
+    return response
+
+
 @router.post("/{deliverable_id}/promote-to-recurring")
 async def promote_to_recurring(
     deliverable_id: UUID,
@@ -1862,6 +1950,10 @@ async def promote_to_recurring(
         destination=d.get("destination"),
         destinations=d.get("destinations") or [],
         origin=d.get("origin", "user_configured"),
+        # ADR-087: Deliverable-scoped context
+        deliverable_instructions=d.get("deliverable_instructions"),
+        deliverable_memory=d.get("deliverable_memory"),
+        mode=d.get("mode", "recurring"),
         description=d.get("description"),
     )
 
