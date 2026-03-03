@@ -155,11 +155,18 @@ You MUST:
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
-**Removed files** (ADR-064):
+**Removed files** (ADR-064 + ADR-090):
 - `api/services/extraction.py` — replaced by `memory.py`
+- `api/services/work_execution.py` — replaced by `deliverable_execution.py`
+- `api/agents/factory.py`, `api/agents/deliverable.py` — replaced by `generate_draft_inline()`
+- `api/routes/work.py`, `api/routes/agents.py` — work_tickets endpoints removed
 
 **Removed tables** (ADR-059 — do not reference in new code):
 - `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`
+
+**Tables pending removal** (ADR-090 Phase 3 — still in schema but being phased out):
+- `work_tickets` — currently used as audit trail by `deliverable_execution.py`, will be replaced by `activity_log`
+- `work_outputs` — frontend surfaces still reference, will redirect to `deliverable_versions`
 
 ### ADR-077: Platform Sync Overhaul
 

@@ -36,6 +36,7 @@ ADRs document significant architectural decisions made during development.
 | [087](ADR-087-workspace-scoping-architecture.md) | **Workspace Scoping Architecture** | **Proposed** | 2026-03-02 |
 | [088](ADR-088-input-gateway-work-serialization.md) | **Input Gateway & Work Serialization** | **Proposed (Parked)** | 2026-03-03 |
 | [089](ADR-089-agent-autonomy-context-aware-triggers.md) | **Agent Autonomy & Context-Aware Triggers** | **Proposed (Parked)** | 2026-03-03 |
+| [090](ADR-090-work-tickets-consolidation.md) | **Work Tickets Consolidation** | **Phase 1 Complete** | 2026-03-03 |
 
 ## Canonical Architecture Docs
 
