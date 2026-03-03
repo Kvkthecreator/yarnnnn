@@ -3,8 +3,8 @@
 **Supabase Project**: `noxgqcwynkzqabljjyon`
 **Architecture**: ADR-063 Four-Layer Model (Memory / Activity / Context / Work)
 **Extensions**: pgvector (for embeddings on platform_content, filesystem_chunks)
-**Last Updated**: 2026-02-20
-**Key ADR**: ADR-072 (Unified Content Layer)
+**Last Updated**: 2026-03-03
+**Key ADRs**: ADR-072 (Unified Content Layer), ADR-087 (Deliverable Scoped Context — proposed)
 
 ---
 
@@ -211,11 +211,11 @@ Unreferenced content expires after TTL.
 | Referenced by signal_processing | `true` | `NULL` | Retained indefinitely |
 | Accessed during TP session | `true` | `NULL` | Retained indefinitely |
 
-**TTL by platform**:
-- Slack: 7 days
-- Gmail: 14 days
-- Notion: 30 days
-- Calendar: 1 day
+**TTL by platform** (ADR-077, extended from original values):
+- Slack: 14 days
+- Gmail: 30 days
+- Notion: 90 days
+- Calendar: 2 days
 
 ---
 
@@ -281,16 +281,26 @@ Per-resource sync state tracking.
 
 ### 8. chat_sessions
 
-TP conversation containers.
+TP conversation containers. Inactivity-based session boundary (ADR-067).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
 | user_id | UUID | FK → auth.users |
+| project_id | UUID | FK → projects (nullable, currently unused — all values NULL) |
+| session_type | TEXT | `thinking_partner` (default) |
 | status | TEXT | `active`, `completed`, `archived` |
-| summary | TEXT | Optional session summary |
+| started_at | TIMESTAMPTZ | Session start |
+| ended_at | TIMESTAMPTZ | Session end (nullable) |
+| context_metadata | JSONB | Session context `{}` |
+| summary | TEXT | Prose summary written by nightly cron (ADR-067 Phase 1) |
+| compaction_summary | TEXT | In-session compaction summary (ADR-067 Phase 3) |
 | created_at | TIMESTAMPTZ | Auto |
-| updated_at | TIMESTAMPTZ | Auto |
+| updated_at | TIMESTAMPTZ | Bumped on every message append — doubles as last_message_at |
+
+**Session boundary**: `get_or_create_chat_session()` reuses sessions active within 4h inactivity window (ADR-067 Phase 2).
+
+**Proposed (ADR-087):** `deliverable_id UUID FK → deliverables` — routing key for deliverable-scoped memory accumulation.
 
 ---
 
@@ -316,41 +326,66 @@ Note: `knowledge_extracted` and `knowledge_extracted_at` columns were dropped in
 
 ### 10. deliverables
 
-Scheduled output configurations.
+Scheduled output configurations. The unit of work in YARNNN — each deliverable is a self-contained specialist (see [Agent Model Comparison](../architecture/agent-model-comparison.md)).
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
 | user_id | UUID | FK → auth.users |
+| project_id | UUID | FK → projects (nullable, currently unused — all values NULL) |
 | title | TEXT | Deliverable name |
-| deliverable_type | TEXT | Type identifier |
+| description | TEXT | Optional description |
+| deliverable_type | TEXT | Type identifier (8 active types — ADR-082) |
+| type_config | JSONB | Type-specific settings `{}` |
+| type_classification | JSONB | `{binding, temporal_pattern}` (ADR-044) |
 | status | TEXT | `active`, `paused`, `archived` |
 | sources | JSONB | `[{platform, resource_id, resource_name}]` |
 | schedule | JSONB | `{frequency, time, timezone}` |
-| recipient_context | JSONB | Delivery configuration |
-| template | JSONB | Template settings |
-| type_classification | JSONB | `{binding, temporal_pattern}` |
+| recipient_context | JSONB | Audience/delivery configuration |
+| template_structure | JSONB | Output format/structure settings `{}` |
+| destination | JSONB | Primary delivery destination (ADR-028) |
+| destinations | JSONB | Multiple delivery destinations `[]` |
+| platform_variant | TEXT | Platform-specific variant (nullable) |
+| trigger_type | TEXT | `schedule` (default), `event`, `manual` |
+| trigger_config | JSONB | Event trigger configuration (nullable) |
+| origin | TEXT | `user_configured`, `analyst_suggested`, `signal_emergent` (ADR-068) |
 | created_at | TIMESTAMPTZ | Auto |
 | updated_at | TIMESTAMPTZ | Auto |
+| last_run_at | TIMESTAMPTZ | Last execution |
 | next_run_at | TIMESTAMPTZ | Next scheduled run |
+| last_triggered_at | TIMESTAMPTZ | Last event trigger |
+
+**Proposed (ADR-087):** Three new columns:
+- `deliverable_instructions` TEXT — user-authored behavioral directives
+- `deliverable_memory` JSONB — system-accumulated knowledge
+- `mode` TEXT — `'recurring'` | `'goal'`
 
 ---
 
 ### 11. deliverable_versions
 
-Generated outputs.
+Generated outputs. Each version captures the draft, the user's final edit, and structured feedback.
 
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
 | deliverable_id | UUID | FK → deliverables |
-| content | TEXT | Generated content |
-| version_number | INTEGER | Sequence number |
-| status | TEXT | `draft`, `approved`, `published`, `suggested` |
-| source_snapshots | JSONB | Context used at generation |
-| generated_at | TIMESTAMPTZ | Auto |
+| version_number | INTEGER | Sequence number (unique per deliverable) |
+| status | TEXT | `generating`, `staged`, `reviewing`, `approved`, `rejected`, `suggested` |
+| draft_content | TEXT | What YARNNN produced |
+| final_content | TEXT | What the user approved/sent (after edits) |
+| edit_diff | JSONB | Structured diff between draft and final |
+| edit_categories | JSONB | `{additions, deletions, restructures, rewrites}` |
+| edit_distance_score | FLOAT | 0.0 = no edits, 1.0 = complete rewrite |
+| feedback_notes | TEXT | Explicit user feedback |
+| source_snapshots | JSONB | Context used at generation `[]` |
+| delivery_mode | TEXT | `draft`, `direct`, NULL (ADR-032) |
+| analyst_metadata | JSONB | For `suggested` status — confidence, detected pattern (ADR-060) |
+| context_snapshot_id | UUID | Future: reference to context state |
+| pipeline_run_id | UUID | Reference to gather work ticket |
+| created_at | TIMESTAMPTZ | Auto |
+| staged_at | TIMESTAMPTZ | When staged for review |
 | approved_at | TIMESTAMPTZ | When approved |
-| published_at | TIMESTAMPTZ | When published |
 
 ---
 
@@ -380,6 +415,11 @@ Built at session start from **Memory + Activity** layers. Raw platform content i
 
 Injected into TP's system prompt (~2,000 token budget). During a session, TP accesses platform content via `Search(scope="platform_content")` (hits `platform_content` table with semantic search) or direct platform tools (live API calls).
 
+**Proposed (ADR-087):** When a session is in deliverable scope, two additional sections are injected:
+- `### Instructions for this deliverable` — from `deliverable_instructions`
+- `### What I know about this deliverable` — from `deliverable_memory`
+- Sub-allocation: ~500 tokens for scoped context within the overall budget.
+
 ---
 
 ## Migrations
@@ -390,15 +430,22 @@ Injected into TP's system prompt (~2,000 token budget). During a session, TP acc
 | 043-045 | ADR-058: Terminology rename + knowledge_* tables created | Applied (knowledge_* dropped in 057) |
 | 046 | Restore integration_import_jobs | Applied |
 | 047-050 | Fix RPCs for ADR-058 schema | Applied |
-| 051-054 | ADR-060: Background Conversation Analyst | Applied |
+| 051-054 | ADR-060: Background Conversation Analyst + suggested status | Applied |
 | 055 | ADR-059: Create user_context table | Applied |
 | 056 | ADR-059: Migrate stated data from knowledge_* → user_context | Applied |
 | 057 | ADR-059: Drop knowledge_profile/styles/domains/entries | Applied |
 | 058 | Fix SECURITY DEFINER view | Applied |
 | 059 | ADR-059: Drop dead columns from session_messages | Applied |
 | 060 | ADR-063: Create activity_log table | Applied |
+| 061 | ADR-067: Session compaction — summary, compaction_summary, inactivity-based boundary | Applied |
+| 064 | Deliverable type constraint expansion | Applied |
+| 070 | ADR-068: Deliverable origin column (signal_emergent) | Applied |
+| 071 | ADR-068: Signal history table | Applied |
+| 073 | ADR-066: Drop governance/governance_ceiling columns | Applied |
+| 075 | Phase 2 strategic types — type constraint update | Applied |
 | 077 | ADR-072: Create platform_content, migrate filesystem_items, drop legacy | Applied |
 | 078 | ADR-072: Add source_ref/source_type to user_context | Applied |
+| 079 | Daily token usage function | Applied |
 
 ---
 

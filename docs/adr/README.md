@@ -33,6 +33,9 @@ ADRs document significant architectural decisions made during development.
 | [036](ADR-036-two-layer-architecture.md) | **Two-Layer Architecture** | **Accepted** | 2026-02-10 |
 | [037](ADR-037-chat-first-surface-architecture.md) | **Chat-First Surface Architecture** | **Accepted** | 2026-02-10 |
 | [042](ADR-042-deliverable-execution-simplification.md) | **Deliverable Execution Simplification** | **Proposed** | 2026-02-11 |
+| [087](ADR-087-workspace-scoping-architecture.md) | **Workspace Scoping Architecture** | **Proposed** | 2026-03-02 |
+| [088](ADR-088-input-gateway-work-serialization.md) | **Input Gateway & Work Serialization** | **Proposed (Parked)** | 2026-03-03 |
+| [089](ADR-089-agent-autonomy-context-aware-triggers.md) | **Agent Autonomy & Context-Aware Triggers** | **Proposed (Parked)** | 2026-03-03 |
 
 ## Canonical Architecture Docs
 
