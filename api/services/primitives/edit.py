@@ -194,10 +194,4 @@ def _format_edit_message(entity_type: str, changes: dict, data: dict) -> str:
             return f"Updated memory content"
         return f"Updated memory: {', '.join(change_list)}"
 
-    elif entity_type == "work":
-        if "is_active" in changes:
-            status = "resumed" if changes["is_active"] else "paused"
-            return f"Work {status}"
-        return f"Updated work: {', '.join(change_list)}"
-
     return f"Updated {entity_type}: {', '.join(change_list)}"

@@ -1,16 +1,14 @@
 """
 Base agent interface and shared types
 
-ADR-005: Unified memory architecture with embeddings
-ADR-009: Work and agent orchestration
-ADR-016: Layered agent architecture and unified output model
+Shared data classes used by ThinkingPartnerAgent and integration agents.
+ADR-090: WorkOutput, SUBMIT_OUTPUT_TOOL, factory, and DeliverableAgent removed.
 """
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from typing import Optional, Any
+from typing import Optional
 from uuid import UUID
-import json
 import logging
 
 logger = logging.getLogger(__name__)
@@ -89,49 +87,10 @@ class ContextBundle:
 
 
 @dataclass
-class WorkOutput:
-    """
-    Single unified output from agent work (ADR-016).
-
-    Each work execution produces ONE output. The agent determines
-    the structure within the content field.
-
-    Fields:
-    - title: Human-readable title for the output
-    - content: Markdown body (agent decides internal structure)
-    - metadata: Agent-specific metadata (varies by agent type)
-
-    Metadata by agent type:
-    - Research: sources, confidence, scope, depth
-    - Content: format, platform, tone, word_count
-    - Reporting: style, audience, period
-    """
-    title: str
-    content: str  # Markdown - agent decides structure
-    metadata: dict = field(default_factory=dict)
-
-    def to_dict(self) -> dict:
-        """Convert to dict for database storage."""
-        return {
-            "title": self.title,
-            "content": self.content,
-            "metadata": self.metadata,
-        }
-
-
-@dataclass
 class AgentResult:
-    """
-    Result from agent execution (ADR-016).
-
-    For work agents: success + work_output (single output)
-    For TP: success + content (conversation response)
-    """
+    """Result from agent execution."""
     success: bool
     error: Optional[str] = None
-
-    # Work output (ADR-016: single unified output per work)
-    work_output: Optional[WorkOutput] = None
 
     # For TP/chat responses
     content: Optional[str] = None
@@ -141,65 +100,12 @@ class AgentResult:
     output_tokens: int = 0
 
 
-# Tool definition for work agents (ADR-016)
-# Single unified output per work execution
-SUBMIT_OUTPUT_TOOL = {
-    "name": "submit_output",
-    "description": """Submit your completed work output.
-
-Call this ONCE when your work is complete. Each work execution produces exactly ONE output.
-Structure your content as markdown - you decide the internal structure based on the task.
-
-The output will be displayed to the user in the output panel. Make it complete and self-contained.""",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "title": {
-                "type": "string",
-                "description": "Clear title for the output (what was produced)"
-            },
-            "content": {
-                "type": "string",
-                "description": "The complete output in markdown format. Structure it appropriately for the task (sections, lists, etc.)"
-            },
-            "metadata": {
-                "type": "object",
-                "description": "Optional metadata about the output",
-                "properties": {
-                    "confidence": {
-                        "type": "number",
-                        "description": "Confidence score 0.0-1.0",
-                        "minimum": 0.0,
-                        "maximum": 1.0
-                    },
-                    "sources": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "Sources or references used"
-                    },
-                    "word_count": {
-                        "type": "integer",
-                        "description": "Word count (for content outputs)"
-                    },
-                    "format": {
-                        "type": "string",
-                        "description": "Content format (e.g., linkedin, blog, email)"
-                    }
-                }
-            }
-        },
-        "required": ["title", "content"]
-    }
-}
-
-
 class BaseAgent(ABC):
     """
-    Base class for all work agents.
+    Base class for agents.
 
     Subclasses must implement execute() method.
-
-    ADR-016: Work agents produce ONE unified output via submit_output tool.
+    Currently used by ThinkingPartnerAgent.
     """
 
     AGENT_TYPE: str = "base"
@@ -207,7 +113,7 @@ class BaseAgent(ABC):
 
     def __init__(self, model: str = "claude-sonnet-4-20250514"):
         self.model = model
-        self.tools = [SUBMIT_OUTPUT_TOOL]
+        self.tools = []
 
     @abstractmethod
     async def execute(
@@ -328,14 +234,3 @@ class BaseAgent(ABC):
         context_text = self.build_context_prompt(context, style_context)
         return self.SYSTEM_PROMPT.format(context=context_text)
 
-    def _parse_work_output(self, tool_calls: list[dict]) -> Optional[WorkOutput]:
-        """Parse submit_output tool call into WorkOutput (ADR-016: single output)."""
-        for call in tool_calls:
-            if call.get("name") == "submit_output":
-                input_data = call.get("input", {})
-                return WorkOutput(
-                    title=input_data.get("title", "Untitled"),
-                    content=input_data.get("content", ""),
-                    metadata=input_data.get("metadata", {}),
-                )
-        return None

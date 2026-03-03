@@ -78,7 +78,6 @@ ENTITY_TYPES = {
     "session",
     "domain",
     "document",
-    "work",
     "action",  # For action discovery
     "system",  # System-level targets (for Execute actions)
 }
@@ -162,7 +161,6 @@ TABLE_MAP = {
     "session": "chat_sessions",
     "domain": "user_memory",  # ADR-059: knowledge_domains removed
     "document": "filesystem_documents",  # ADR-058
-    "work": "work_tickets",
 }
 
 

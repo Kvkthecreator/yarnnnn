@@ -46,7 +46,6 @@ Use ref ending in ':new' to create. Content schema depends on entity type.""",
 REQUIRED_FIELDS = {
     "deliverable": ["title"],  # deliverable_type has default in schema
     "memory": ["content"],
-    "work": ["task", "agent_type"],
     "document": ["name"],
     "domain": ["name"],
 }
@@ -63,10 +62,6 @@ DEFAULTS = {
         "entry_type": "fact",  # Default type
         "is_active": True,
         "importance": 0.5,
-    },
-    "work": {
-        "frequency": "once",
-        "status": "pending",
     },
 }
 
@@ -148,8 +143,6 @@ async def handle_write(auth: Any, input: dict) -> dict:
         entity_data = _process_deliverable(entity_data)
     elif parsed.entity_type == "memory":
         entity_data = _process_memory(entity_data)
-    elif parsed.entity_type == "work":
-        entity_data = _process_work(entity_data)
     elif parsed.entity_type == "document":
         entity_data = _process_document(entity_data)
 
@@ -314,28 +307,6 @@ def _process_document(data: dict) -> dict:
     return data
 
 
-def _process_work(data: dict) -> dict:
-    """Process work-specific fields.
-
-    Flat field mappings (convenience for TP):
-    - description, priority, deadline -> parameters.*
-    """
-    # Set is_recurring based on frequency
-    frequency = data.get("frequency", "once")
-    data["is_recurring"] = frequency != "once"
-
-    # Move convenience fields to parameters JSONB
-    parameters = data.get("parameters", {})
-    if isinstance(parameters, dict):
-        for field in ["description", "priority", "deadline"]:
-            if field in data:
-                parameters[field] = data.pop(field)
-    if parameters:
-        data["parameters"] = parameters
-
-    return data
-
-
 def _format_write_message(entity_type: str, data: dict) -> str:
     """Generate a human-readable message for the write result."""
     if entity_type == "deliverable":
@@ -346,10 +317,6 @@ def _format_write_message(entity_type: str, data: dict) -> str:
     elif entity_type == "memory":
         content = data.get("content", "")[:40]
         return f"Saved: {content}..."
-
-    elif entity_type == "work":
-        task = data.get("task", "")[:40]
-        return f"Created work: {task}..."
 
     elif entity_type == "document":
         name = data.get("name", "Untitled")

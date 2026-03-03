@@ -175,11 +175,6 @@ def _format_read_message(parsed, data) -> str:
         content = data.get("content", "")[:50]
         return f"Memory: {content}..."
 
-    elif parsed.entity_type == "work":
-        task = data.get("task", "")[:50]
-        status = data.get("status", "unknown")
-        return f"Work: {task}... ({status})"
-
     elif parsed.entity_type == "document":
         filename = data.get("filename", "Unknown")
         page_count = data.get("page_count", 0)

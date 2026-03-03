@@ -1,25 +1,16 @@
 """
 Agent implementations
 
-ADR-061: Two-Path Architecture
-- DeliverableAgent: Path B - async deliverable generation
-- ThinkingPartnerAgent: Path A - real-time conversation
-
-Legacy agents (SynthesizerAgent, ReportAgent) have been removed.
-Legacy type names are mapped to DeliverableAgent for backwards compatibility.
+- ThinkingPartnerAgent: Real-time TP conversation agent
+- Base classes: BaseAgent, ContextBundle, Memory (shared types)
+- Integration agents: ContextImportAgent, platform_semantics
 """
 
-from .base import BaseAgent, AgentResult, ContextBundle, Memory, WorkOutput
-from .factory import create_agent, get_valid_agent_types, normalize_agent_type, LEGACY_TYPE_MAP
+from .base import BaseAgent, AgentResult, ContextBundle, Memory
 
 __all__ = [
     "BaseAgent",
     "AgentResult",
     "ContextBundle",
     "Memory",
-    "WorkOutput",
-    "create_agent",
-    "get_valid_agent_types",
-    "normalize_agent_type",
-    "LEGACY_TYPE_MAP",
 ]

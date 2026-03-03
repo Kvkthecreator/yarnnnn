@@ -146,10 +146,6 @@ def _format_list_message(entity_type: str, items: list) -> str:
     elif entity_type == "memory":
         return f"Found {count} memory/memories"
 
-    elif entity_type == "work":
-        pending = sum(1 for i in items if i.get("status") == "pending")
-        return f"Found {count} work item(s) ({pending} pending)"
-
     elif entity_type == "action":
         return f"Found {count} available action(s)"
 

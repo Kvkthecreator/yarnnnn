@@ -60,7 +60,7 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
             },
             "scope": {
                 "type": "string",
-                "enum": ["platform_content", "document", "deliverable", "work", "all"],
+                "enum": ["platform_content", "document", "deliverable", "all"],
                 "description": "What to search. Default: 'all'. Note: memory is not a scope — it is already in your working memory context."
             },
             "platform": {
@@ -83,7 +83,6 @@ SEARCH_FIELDS = {
     "platform_content": ["content"],
     "deliverable": ["title", "description"],
     "document": ["filename"],  # documents table uses 'filename' not 'name'
-    "work": ["task"],
     "memory": ["content"],  # ADR-038: User-stated facts only
 }
 
@@ -131,7 +130,7 @@ async def handle_search(auth: Any, input: dict) -> dict:
         # Determine scopes to search
         # ADR-065: 'all' excludes memory (already in working memory prompt)
         if scope == "all":
-            scopes = ["platform_content", "document", "deliverable", "work"]
+            scopes = ["platform_content", "document", "deliverable"]
         else:
             scopes = [scope]
 

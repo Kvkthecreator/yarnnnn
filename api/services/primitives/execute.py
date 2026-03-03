@@ -89,10 +89,6 @@ ACTION_CATALOG = {
         "description": "Extract memories from conversation",
         "target_types": ["session"],
     },
-    "work.run": {
-        "description": "Execute work immediately",
-        "target_types": ["work"],
-    },
     "signal.process": {
         "description": "Run signal processing — extract signals from platform content and take actions",
         "target_types": ["system"],
@@ -237,7 +233,6 @@ def _get_action_handler(action: str):
         "platform.publish": _handle_platform_publish,
         "deliverable.generate": _handle_deliverable_generate,
         "deliverable.approve": _handle_deliverable_approve,
-        "work.run": _handle_work_run,
         "signal.process": _handle_signal_process,
     }
     return handlers.get(action)
@@ -342,25 +337,6 @@ async def _handle_deliverable_approve(auth, entity, ref, via, params):
         "status": "approved",
         "version_id": version_id,
         "message": "Version approved",
-    }
-
-
-async def _handle_work_run(auth, entity, ref, via, params):
-    """Execute work immediately (ADR-083: inline, no RQ)."""
-    work_id = entity.get("id")
-
-    from services.work_execution import execute_work_ticket
-
-    result = await execute_work_ticket(
-        client=auth.client,
-        user_id=auth.user_id,
-        ticket_id=work_id,
-    )
-
-    return {
-        "status": "completed" if result.get("success") else "failed",
-        "work_id": work_id,
-        "message": result.get("error") or "Work execution completed",
     }
 
 
