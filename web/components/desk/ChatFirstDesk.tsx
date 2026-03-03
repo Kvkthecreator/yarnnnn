@@ -2,15 +2,10 @@
 
 /**
  * ADR-037: Chat-First Surface Architecture
+ * ADR-091: Workspace Layout & Navigation Architecture
  *
- * Chat-first desk layout - TP is the primary interface
- *
- * Layout:
- * - Mobile: TP full screen
- * - Desktop: TP takes 60%+ of screen, surfaces as needed
- *
- * This inverts the traditional desk layout where surfaces were primary
- * and TP was a side drawer.
+ * Global TP workspace — renders WorkspaceLayout with "Thinking Partner" identity.
+ * No deliverable scope. Chat is the primary interface.
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
@@ -20,7 +15,6 @@ import {
   Circle,
   Loader2,
   Send,
-  ChevronRight,
   X,
   Paperclip,
 } from 'lucide-react';
@@ -28,12 +22,11 @@ import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
 import { Todo, TPImageAttachment } from '@/types/desk';
 import { cn } from '@/lib/utils';
-import { getTPStateIndicators } from '@/lib/tp-chips';
 import { SkillPicker } from '@/components/tp/SkillPicker';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
-import { SurfaceRouter } from './SurfaceRouter';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
+import { WorkspaceLayout } from './WorkspaceLayout';
 
 /**
  * Format token count with K suffix for thousands (like Claude Code)
@@ -63,7 +56,6 @@ export function ChatFirstDesk() {
   const [attachments, setAttachments] = useState<File[]>([]);
   const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
-  const [surfacePanelOpen, setSurfacePanelOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -111,7 +103,6 @@ export function ChatFirstDesk() {
     for (const file of attachments) {
       const base64 = await fileToBase64(file);
       const mediaType = file.type as TPImageAttachment['mediaType'];
-      // Only include supported image types
       if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mediaType)) {
         images.push({ data: base64, mediaType });
       }
@@ -123,13 +114,11 @@ export function ChatFirstDesk() {
     setAttachmentPreviews([]);
   };
 
-  // Helper to convert File to base64 string (without data URL prefix)
   const fileToBase64 = (file: File): Promise<string> => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
       reader.onload = () => {
         const result = reader.result as string;
-        // Remove "data:image/xxx;base64," prefix
         const base64 = result.split(',')[1];
         resolve(base64);
       };
@@ -144,14 +133,10 @@ export function ChatFirstDesk() {
     textareaRef.current?.focus();
   };
 
-  // File attachment handling
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     const imageFiles = files.filter((f) => f.type.startsWith('image/'));
-
     if (imageFiles.length === 0) return;
-
-    // Create previews for images
     imageFiles.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (e) => {
@@ -159,13 +144,8 @@ export function ChatFirstDesk() {
       };
       reader.readAsDataURL(file);
     });
-
     setAttachments((prev) => [...prev, ...imageFiles]);
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
+    if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
   const removeAttachment = (index: number) => {
@@ -174,7 +154,6 @@ export function ChatFirstDesk() {
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    // Submit on Enter (without Shift)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e as unknown as React.FormEvent);
@@ -185,10 +164,6 @@ export function ChatFirstDesk() {
     respondToClarification(option);
   };
 
-  // Get surface label for panel header
-  const indicators = getTPStateIndicators(surface);
-  const surfaceLabel = indicators.surface.label;
-
   const formatSkillName = (skill: string) => {
     return skill
       .split('-')
@@ -196,60 +171,36 @@ export function ChatFirstDesk() {
       .join(' ');
   };
 
-  const getTitle = () => {
-    if (activeSkill) return formatSkillName(activeSkill);
-    return 'Thinking Partner';
-  };
-
-  // Check if there's a non-idle surface to show
-  const hasActiveSurface = surface.type !== 'idle';
+  const identityLabel = activeSkill ? formatSkillName(activeSkill) : 'Thinking Partner';
 
   return (
-    <div className="h-full flex justify-center">
-      {/* Main Chat Area - Primary, centered with max-width like ChatGPT/Claude */}
-      <div className="flex-1 flex flex-col bg-background min-w-0 max-w-3xl">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
-          <div className="flex items-center gap-2">
-            <MessageCircle className="w-5 h-5 text-primary" />
-            <span className="font-medium">{getTitle()}</span>
-            {isLoading && <Loader2 className="w-4 h-4 animate-spin text-primary" />}
+    <WorkspaceLayout
+      identity={{
+        icon: <MessageCircle className="w-5 h-5" />,
+        label: identityLabel,
+        badge: isLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : undefined,
+      }}
+    >
+      {/* Todos — only show when there's active work */}
+      {todos.length > 0 && todos.some((t) => t.status === 'in_progress') && (
+        <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-xs font-medium text-muted-foreground">Progress</span>
+            <span className="text-xs text-muted-foreground">
+              {todos.filter((t) => t.status === 'completed').length}/{todos.length}
+            </span>
           </div>
-
-          {/* Surface toggle - only show if there's an active surface */}
-          {hasActiveSurface && (
-            <button
-              onClick={() => setSurfacePanelOpen(!surfacePanelOpen)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-muted hover:bg-muted/80 transition-colors"
-            >
-              <span className="truncate max-w-[120px]">{surfaceLabel}</span>
-              <ChevronRight className={cn(
-                'w-4 h-4 transition-transform',
-                surfacePanelOpen && 'rotate-90'
-              )} />
-            </button>
-          )}
+          <div className="space-y-1.5 max-h-28 overflow-y-auto">
+            {todos.map((todo, i) => (
+              <TodoItem key={i} todo={todo} />
+            ))}
+          </div>
         </div>
+      )}
 
-        {/* Todos - Only show when there's active work (in_progress or pending after started) */}
-        {todos.length > 0 && todos.some((t) => t.status === 'in_progress') && (
-          <div className="px-4 py-3 border-b border-border bg-muted/20 shrink-0">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-medium text-muted-foreground">Progress</span>
-              <span className="text-xs text-muted-foreground">
-                {todos.filter((t) => t.status === 'completed').length}/{todos.length}
-              </span>
-            </div>
-            <div className="space-y-1.5 max-h-28 overflow-y-auto">
-              {todos.map((todo, i) => (
-                <TodoItem key={i} todo={todo} />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* Messages - Primary content area */}
-        <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+      {/* Messages — centered with max-width */}
+      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        <div className="max-w-3xl mx-auto w-full space-y-4">
           {messages.length === 0 && !isLoading && (
             <div className="text-center py-8">
               <MessageCircle className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
@@ -257,10 +208,7 @@ export function ChatFirstDesk() {
               <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
                 I&apos;m your Thinking Partner. Connect a platform to give me context about your work.
               </p>
-
-              {/* ADR-049 + ADR-057: Show platforms with inline connect buttons */}
               <PlatformSyncStatus className="mb-6" />
-
               <div className="flex flex-wrap justify-center gap-2">
                 <button
                   onClick={() => setInput('/create ')}
@@ -289,7 +237,6 @@ export function ChatFirstDesk() {
               <span className="text-[10px] font-medium text-muted-foreground uppercase tracking-wide block mb-1">
                 {msg.role === 'user' ? 'You' : 'TP'}
               </span>
-              {/* Display attached images */}
               {msg.images && msg.images.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2">
                   {msg.images.map((img, i) => (
@@ -302,11 +249,9 @@ export function ChatFirstDesk() {
                   ))}
                 </div>
               )}
-              {/* ADR-042: Render message blocks if available, otherwise legacy content */}
               {msg.blocks && msg.blocks.length > 0 ? (
                 <MessageBlocks blocks={msg.blocks} />
               ) : msg.role === 'assistant' && !msg.content && isLoading ? (
-                /* Show thinking indicator for empty streaming assistant message */
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Loader2 className="w-4 h-4 animate-spin" />
                   <span>Thinking...</span>
@@ -314,7 +259,6 @@ export function ChatFirstDesk() {
               ) : (
                 <>
                   <p className="whitespace-pre-wrap">{msg.content}</p>
-                  {/* Legacy: Inline tool results - Claude Code style */}
                   {msg.toolResults && msg.toolResults.length > 0 && (
                     <ToolResultList results={msg.toolResults} compact />
                   )}
@@ -323,7 +267,6 @@ export function ChatFirstDesk() {
             </div>
           ))}
 
-          {/* Status indicator - only show "Thinking" before first content */}
           {status.type === 'thinking' && messages[messages.length - 1]?.role === 'user' && (
             <div className="flex items-center gap-2 text-muted-foreground text-sm">
               <Loader2 className="w-4 h-4 animate-spin" />
@@ -331,7 +274,6 @@ export function ChatFirstDesk() {
             </div>
           )}
 
-          {/* Clarification options - Claude Code style chips */}
           {status.type === 'clarify' && pendingClarification && (
             <div className="space-y-3 bg-muted/50 rounded-lg p-4 max-w-2xl border border-border">
               <p className="text-sm font-medium">{pendingClarification.question}</p>
@@ -355,134 +297,101 @@ export function ChatFirstDesk() {
 
           <div ref={messagesEndRef} />
         </div>
-
-        {/* Input - Claude Code IDE style */}
-        <div className="p-4 border-t border-border shrink-0">
-          <div className="relative max-w-2xl mx-auto">
-            <SkillPicker
-              query={skillQuery ?? ''}
-              onSelect={handleSkillSelect}
-              onClose={() => setSkillPickerOpen(false)}
-              isOpen={skillPickerOpen}
-            />
-            <form onSubmit={handleSubmit}>
-              {/* Attachment previews */}
-              {attachmentPreviews.length > 0 && (
-                <div className="flex flex-wrap gap-2 mb-2 p-2 rounded-t-lg border border-b-0 border-border bg-muted/30">
-                  {attachmentPreviews.map((preview, index) => (
-                    <div key={index} className="relative group">
-                      <img
-                        src={preview}
-                        alt={`Attachment ${index + 1}`}
-                        className="h-16 w-16 object-cover rounded-md border border-border"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => removeAttachment(index)}
-                        className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-background border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {/* Input container */}
-              <div
-                className={cn(
-                  'flex items-end gap-2 border border-border bg-background transition-colors',
-                  attachmentPreviews.length > 0 ? 'rounded-b-lg border-t-0' : 'rounded-lg',
-                  'focus-within:ring-2 focus-within:ring-primary/50'
-                )}
-              >
-                {/* Attachment button */}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  multiple
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading}
-                  className="shrink-0 p-3 text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-                  title="Attach images"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
-
-                {/* Textarea */}
-                <textarea
-                  ref={textareaRef}
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isLoading}
-                  placeholder={
-                    status.type === 'clarify'
-                      ? 'Type your answer...'
-                      : 'Ask anything or type / for skills...'
-                  }
-                  rows={1}
-                  className="flex-1 py-3 pr-2 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
-                />
-
-                {/* Send button */}
-                <button
-                  type="submit"
-                  disabled={isLoading || (!input.trim() && attachments.length === 0)}
-                  className="shrink-0 p-3 text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:opacity-50 transition-colors"
-                  aria-label="Send"
-                >
-                  <Send className="w-5 h-5" />
-                </button>
-              </div>
-
-              {/* Footer: hints and token usage */}
-              <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/60">
-                <span>Enter to send, Shift+Enter for new line</span>
-                {tokenUsage && (
-                  <span className="font-mono tabular-nums">
-                    {formatTokenCount(tokenUsage.totalTokens)} tokens
-                  </span>
-                )}
-              </div>
-            </form>
-          </div>
-        </div>
       </div>
 
-      {/* Surface Panel - Secondary, slides in when needed */}
-      {hasActiveSurface && (
-        <div
-          className={cn(
-            'hidden md:block border-l border-border bg-background transition-all duration-300',
-            surfacePanelOpen ? 'w-[480px]' : 'w-0 overflow-hidden'
-          )}
-        >
-          {surfacePanelOpen && (
-            <div className="h-full flex flex-col">
-              <div className="flex items-center justify-between px-4 py-3 border-b border-border">
-                <span className="font-medium text-sm truncate">{surfaceLabel}</span>
-                <button
-                  onClick={() => setSurfacePanelOpen(false)}
-                  className="p-1.5 hover:bg-muted rounded-md transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      {/* Input */}
+      <div className="p-4 border-t border-border shrink-0">
+        <div className="relative max-w-2xl mx-auto">
+          <SkillPicker
+            query={skillQuery ?? ''}
+            onSelect={handleSkillSelect}
+            onClose={() => setSkillPickerOpen(false)}
+            isOpen={skillPickerOpen}
+          />
+          <form onSubmit={handleSubmit}>
+            {attachmentPreviews.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-2 p-2 rounded-t-lg border border-b-0 border-border bg-muted/30">
+                {attachmentPreviews.map((preview, index) => (
+                  <div key={index} className="relative group">
+                    <img
+                      src={preview}
+                      alt={`Attachment ${index + 1}`}
+                      className="h-16 w-16 object-cover rounded-md border border-border"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeAttachment(index)}
+                      className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-background border border-border rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-destructive hover:text-destructive-foreground"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                ))}
               </div>
-              <div className="flex-1 overflow-hidden">
-                <SurfaceRouter surface={surface} />
-              </div>
+            )}
+
+            <div
+              className={cn(
+                'flex items-end gap-2 border border-border bg-background transition-colors',
+                attachmentPreviews.length > 0 ? 'rounded-b-lg border-t-0' : 'rounded-lg',
+                'focus-within:ring-2 focus-within:ring-primary/50'
+              )}
+            >
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isLoading}
+                className="shrink-0 p-3 text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
+                title="Attach images"
+              >
+                <Paperclip className="w-5 h-5" />
+              </button>
+
+              <textarea
+                ref={textareaRef}
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={isLoading}
+                placeholder={
+                  status.type === 'clarify'
+                    ? 'Type your answer...'
+                    : 'Ask anything or type / for skills...'
+                }
+                rows={1}
+                className="flex-1 py-3 pr-2 text-sm bg-transparent resize-none focus:outline-none disabled:opacity-50 max-h-[200px]"
+              />
+
+              <button
+                type="submit"
+                disabled={isLoading || (!input.trim() && attachments.length === 0)}
+                className="shrink-0 p-3 text-primary hover:text-primary/80 disabled:text-muted-foreground disabled:opacity-50 transition-colors"
+                aria-label="Send"
+              >
+                <Send className="w-5 h-5" />
+              </button>
             </div>
-          )}
+
+            <div className="mt-1.5 flex items-center justify-between text-[10px] text-muted-foreground/60">
+              <span>Enter to send, Shift+Enter for new line</span>
+              {tokenUsage && (
+                <span className="font-mono tabular-nums">
+                  {formatTokenCount(tokenUsage.totalTokens)} tokens
+                </span>
+              )}
+            </div>
+          </form>
         </div>
-      )}
-    </div>
+      </div>
+    </WorkspaceLayout>
   );
 }
 
