@@ -1,134 +1,171 @@
-# ADR-088: Unified Input Processing & Work Serialization
+# ADR-088: Trigger Dispatch
 
-**Status:** Proposed (Parked — un-park when event trigger volume justifies full graduated response routing)
+**Status:** Proposed (Parked — un-park when event trigger volume or context staleness justifies graduated response routing)
 
-**Note on ADR-091:** `deliverable.acknowledge` (ADR-091) added a *chat-driven* write path to `deliverable_memory` — the user supervises via TP and the agent records an observation. This ADR is about the *background* path: event triggers, signals, and scheduled inputs routing through a unified decision model. These are parallel paths, not substitutes. ADR-091 does not un-park this ADR.
-**Date:** 2026-03-03
+**Note on ADR-091:** `deliverable.acknowledge` (ADR-091) is a chat-driven write path — the user supervises via TP, the agent records an observation. This ADR is about the background path: cron + webhook + signal triggers routing through a single decision point. Parallel paths, not substitutes.
+
+**When to un-park:** When over-reactive full generations from event triggers (Problem 1) or context staleness between scheduled runs (Problem 2) becomes felt in practice. Technical prerequisites are satisfied (ADR-087 fully implemented).
+
+**Date:** 2026-03-03 (v1), 2026-03-04 (v2 — renamed to Trigger Dispatch, restructured around dispatch_trigger())
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**
-- [ADR-087: Deliverable Scoped Context](ADR-087-workspace-scoping-architecture.md) — the storage fields this ADR routes writes to
-- [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — the two execution modes
-- [ADR-068: Signal-Emergent Deliverables](ADR-068-signal-emergent-deliverables.md) — existing signal detection
-- [ADR-089: Agent Autonomy](ADR-089-agent-autonomy-context-aware-triggers.md) — autonomous actions that build on this routing
-- [Development Landscape](../analysis/workspace-architecture-landscape.md) — Step 2
+- [ADR-087: Deliverable Scoped Context](ADR-087-workspace-scoping-architecture.md) — `deliverable_memory` is the write target for medium-strength dispatch
+- [ADR-089: Agent Autonomy](ADR-089-agent-autonomy-context-aware-triggers.md) — autonomous context updates that flow through dispatch
+- [ADR-068: Signal-Emergent Deliverables](ADR-068-signal-emergent-deliverables.md) — signal processing, the third dispatch caller
+- [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — headless mode used for both high and medium dispatch actions
+- [ADR-083: Remove RQ Worker](ADR-083-remove-rq-worker.md) — inline execution model this ADR builds on
 
 ---
 
-## Context
+## Problem
 
-YARNNN has five input types that can trigger work on a deliverable, handled by five separate code paths with no unified decision model:
+Three separate backend paths all funnel to `execute_deliverable_generation()` with no shared decision logic:
 
-| Input type | Current handler | Action |
-|------------|----------------|--------|
-| User messages | `POST /chat` → TP agent loop | Full conversation |
-| Scheduled generation | `unified_scheduler.py` → headless | Full generation |
-| Platform events | `event_triggers.py` → headless | Full generation (with cooldown) |
-| Signal detection | `unified_scheduler.py` (hourly) | Create new deliverable OR ignore |
-| Platform sync | `platform_sync_scheduler.py` | Write to platform_content (not deliverable-scoped) |
+| Caller | Trigger origin | Current action |
+|--------|---------------|----------------|
+| `unified_scheduler.py` → `process_deliverable()` | Cron (every 5min, schedule-based) | Full generation |
+| `event_triggers.py` → `execute_event_triggers()` | Platform webhook (Slack, Gmail) | Full generation |
+| `unified_scheduler.py` → `run_signal_processing()` | Cron (hourly signal scan) | Full generation OR nothing |
 
-This scattered approach has two problems:
+This is binary: every trigger either fires a full version generation or is ignored. Two consequences:
 
-1. **No graduated response.** Every trigger either fires a full generation or is ignored. With `deliverable_memory` (ADR-087), a lighter action is possible: update the deliverable's memory without generating a full version.
+**1. Over-reaction.** A Slack mention in a monitored channel fires a full generation. Sometimes the right action is "note this" — not "generate a new version." Cooldowns mitigate frequency but don't change the action type.
 
-2. **No concurrency coordination.** If two inputs target the same deliverable simultaneously, both write to `deliverable_memory` with no serialization. With one user and temporal separation this is safe, but it becomes a real risk as input frequency increases.
-
-### What OpenClaw does
-
-OpenClaw routes all inputs through a **Gateway** (unified routing) to a **Lane Queue** (serial execution per workspace). YARNNN doesn't need the full infrastructure, but it needs the **conceptual unification**: one decision point for "something happened relevant to this deliverable — what action should the agent take?"
+**2. Context staleness.** Between scheduled generations, relevant platform content accumulates but `deliverable_memory` doesn't update. The next generation sees a batch of context at once rather than incrementally accumulated observations. Signal processing against existing deliverables currently does nothing — that path is absent.
 
 ---
 
 ## Decision
 
-### Introduce `process_deliverable_input()`
+### Introduce `dispatch_trigger()` in `api/services/trigger_dispatch.py`
 
-A single function that all deliverable-relevant input paths call. It receives an input event and decides the action:
+A single function that all background trigger paths call. Receives a trigger and decides the action based on signal strength:
 
 ```python
-async def process_deliverable_input(
+async def dispatch_trigger(
     client,
-    deliverable_id: str,
-    input_type: str,       # 'schedule' | 'event' | 'signal' | 'heartbeat'
-    input_data: dict,      # type-specific payload
-    signal_strength: str   # 'high' | 'medium' | 'low'
-) -> str:                  # 'generated' | 'memory_updated' | 'logged'
+    deliverable: dict,
+    trigger_type: str,        # 'schedule' | 'event' | 'signal'
+    trigger_context: dict,    # type-specific payload (passed through to execution)
+    signal_strength: str,     # 'high' | 'medium' | 'low'
+) -> str:                     # 'generated' | 'memory_updated' | 'logged'
 ```
 
 ### Action routing
 
-| Signal strength | Action | Cost | Example |
+| Signal strength | Action | Cost | Used for |
 |----------------|--------|------|---------|
-| **High** | Full generation (`execute_deliverable_generation()`) | Opus-level | Schedule fires, direct @mention, user-configured trigger |
-| **Medium** | Memory update (append to `deliverable_memory`) | Haiku-level | New messages in monitored channel, tangential signal |
-| **Low** | Log only (to `event_trigger_log`) | Zero LLM cost | Low-relevance activity, already-seen content |
+| `high` | `execute_deliverable_generation()` | Full LLM cost | Schedule fires, direct @mention |
+| `medium` | Append observation to `deliverable_memory` | Haiku-level | Platform event in monitored source, signal against existing deliverable |
+| `low` | Log only (`activity_log`) | Zero LLM cost | Low-relevance activity, already-seen content |
 
-Signal strength can be:
-- **Rule-based:** Schedule and direct mentions = high. Platform events with cooldown = medium. Everything else = low.
-- **Model-assessed:** Haiku classifies relevance given the deliverable's instructions and current memory. (Phase 2 of this ADR, after rule-based validates.)
+### Signal strength assignment — Phase 1, rule-based
 
-### Callers
+| Trigger | Strength | Rationale |
+|---------|----------|-----------|
+| `schedule` | always `high` | User configured this schedule — honor it |
+| `event` (webhook match) | `medium` | Something happened; accumulate context, let schedule generate |
+| `signal` → new deliverable | `high` | Signal warranted creating this deliverable; generate immediately |
+| `signal` → existing deliverable | `medium` | Relevant signal; note it for the next generation |
 
-| Current code path | Change |
-|-------------------|--------|
-| `unified_scheduler.py` (scheduled generation) | Calls `process_deliverable_input(type='schedule', strength='high')` |
-| `event_triggers.py` (platform events) | Calls `process_deliverable_input(type='event', strength=assessed)` |
-| Signal processing (hourly in `unified_scheduler.py`) | For existing deliverables: calls `process_deliverable_input(type='signal', strength='medium')`. For new: still creates deliverable. |
-| Future heartbeat | Calls `process_deliverable_input(type='heartbeat', strength='medium')` |
+The key behavior change: **event triggers shift from `high` to `medium` by default.** Schedule is the only path that always produces a full version. Events feed memory, not versions directly.
 
-### Concurrency serialization
+### Caller changes — 3 call sites, surgical
 
-Within `process_deliverable_input()`, use **Postgres advisory locks** per deliverable for `deliverable_memory` writes:
+```python
+# unified_scheduler.py → process_deliverable()
+# Before:
+result = await execute_deliverable_generation(client, user_id, deliverable, trigger_context)
+# After:
+result = await dispatch_trigger(client, deliverable, 'schedule', trigger_context, 'high')
+
+# event_triggers.py → execute_event_triggers()
+# Before:
+result = await execute_deliverable_generation(client, user_id, deliverable, trigger_context)
+# After:
+result = await dispatch_trigger(client, deliverable, 'event', trigger_context, 'medium')
+
+# unified_scheduler.py → run_signal_processing() — existing deliverable path (currently absent)
+# New:
+result = await dispatch_trigger(client, deliverable, 'signal', trigger_context, 'medium')
+```
+
+Everything else is unchanged: scheduler cron cadence, webhook handler normalization, `event_triggers.py` matching and cooldown logic, `execute_deliverable_generation()` itself.
+
+### Concurrency
+
+Medium-strength actions (memory writes) use a Postgres advisory lock per deliverable inside `dispatch_trigger()`:
 
 ```python
 async with advisory_lock(client, deliverable_id):
-    current = await get_deliverable_memory(client, deliverable_id)
-    updated = merge_memory(current, new_data)
-    await update_deliverable_memory(client, deliverable_id, updated)
+    current = await get_deliverable(client, deliverable_id)
+    updated_memory = append_observation(current["deliverable_memory"], observation)
+    await update_deliverable_memory(client, deliverable_id, updated_memory)
 ```
 
-This is lightweight (Postgres-native, no new infrastructure) and sufficient for current scale. If YARNNN grows to need true queuing, the advisory lock can be replaced with an async task queue without changing the caller interface.
+Lightweight, Postgres-native, no new infrastructure. Replaceable with async task queue if needed later without changing the caller interface.
 
 ---
 
-## Implementation
+## What dispatch_trigger is NOT
 
-### Phase 1: Unified routing (ADR-087 Phase 2)
+- **Not a scheduler.** `unified_scheduler.py` and `platform_sync_scheduler.py` remain the cron entrypoints, unchanged.
+- **Not a queue.** No Redis, no RQ, no message broker. Inline execution per ADR-083.
+- **Not a TP chat path.** `POST /chat` is entirely separate — streaming, session-scoped, full primitives. It does not go through dispatch.
+- **Not a new agent.** Medium-strength dispatch uses a direct Haiku API call to extract an observation string — it does not invoke the headless agent loop.
 
-- Create `api/services/input_router.py` with `process_deliverable_input()`
-- Refactor `event_triggers.py` to call it instead of directly calling `execute_deliverable_generation()`
-- Refactor scheduled generation in `unified_scheduler.py` to call it
-- Add advisory lock for `deliverable_memory` writes
-- Rule-based signal strength (high/medium/low based on input type)
+---
 
-### Phase 2: Model-assessed routing (after validation)
+## Implementation Phases
 
-- Add Haiku-based relevance assessment for medium-strength signals
-- The assessment prompt receives: deliverable title, instructions, current memory summary, incoming content
-- Returns: relevance score + suggested observation (if medium) or generation trigger (if high)
+### Phase 1: Rule-based dispatch
+
+1. Create `api/services/trigger_dispatch.py` with `dispatch_trigger()`
+2. Implement `_append_trigger_observation()` for the medium path:
+   - Haiku call: deliverable title + instructions + current memory summary + event content → observation string
+   - Append to `deliverable_memory.observations` with advisory lock
+3. Update 3 call sites (see above)
+4. Add `advisory_lock()` helper (Postgres `pg_try_advisory_lock`)
+
+No schema changes. No new tables.
+
+### Phase 2: Model-assessed signal strength
+
+Replace rule-based `signal_strength` at call sites with a Haiku classification step inside `dispatch_trigger()`:
+
+```python
+signal_strength = await _assess_signal_strength(
+    client, deliverable, trigger_context
+)
+# Prompt receives: deliverable title + instructions + current memory summary + incoming event content
+# Returns: 'high' | 'medium' | 'low'
+```
+
+Phase 1 callers pass `signal_strength` explicitly. Phase 2 makes it optional, falling back to model-assessed when omitted. No caller interface change required for Phase 1 code.
 
 ---
 
 ## Consequences
 
 ### Positive
-- One decision point for all deliverable-relevant inputs
-- Graduated response: not everything triggers full generation
-- Clear path to heartbeat and autonomous actions (ADR-089)
-- Concurrency protection via advisory locks
+- Single decision point for all background trigger paths — one place to reason about "what should happen when X fires"
+- Event triggers accumulate context rather than generating immediately — scheduled generations become better-informed
+- Clear path to ADR-089 autonomous actions: medium-strength dispatch is the same mechanism, just called from new trigger origins
+- Concurrency protection for `deliverable_memory` writes
 
 ### Negative
-- Refactor of existing event trigger and scheduler code
-- Advisory locks add latency (~1ms per lock acquisition, negligible)
-- Model-assessed routing (Phase 2) adds Haiku cost per event
+- Event-triggered immediate generation no longer happens by default — users relying on webhook-triggered versions get output at the next scheduled run instead. Mitigated by: schedule triggers remain `high`, manual runs always available.
+- Haiku cost per medium-strength event (Phase 2 model-assessed path only; Phase 1 rule-based medium is still Haiku but for observation extraction, not routing)
 
 ### Neutral
-- `POST /chat` (user messages) does NOT go through this function — TP chat is a fundamentally different interaction pattern (streaming, multi-turn) that shouldn't be gated by input routing
-- Platform sync unchanged — it writes to `platform_content`, not `deliverable_memory`
+- `POST /chat` unchanged — TP chat is not a dispatch concern
+- Platform sync unchanged — writes to `platform_content`, not `deliverable_memory`
+- `execute_deliverable_generation()` unchanged — still the `high` path, called by dispatch rather than directly
 
 ---
 
 ## References
 
-- [OpenClaw Gateway Architecture](https://docs.openclaw.ai/cli/gateway) — the unified routing pattern
-- [Pre-ADR Analysis Section 12](../analysis/workspace-architecture-analysis-2026-03-02.md) — OpenClaw deep-dive
-- [event_triggers.py](../../api/services/event_triggers.py) — existing event matching
+- [event_triggers.py](../../api/services/event_triggers.py) — existing event matching and cooldown infrastructure
+- [unified_scheduler.py](../../api/jobs/unified_scheduler.py) — schedule + signal callers
+- [deliverable_execution.py](../../api/services/deliverable_execution.py) — the `high` path (`execute_deliverable_generation`)

@@ -11,7 +11,7 @@
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**
 - [ADR-087: Deliverable Scoped Context](ADR-087-workspace-scoping-architecture.md) — the `deliverable_memory` field this ADR writes to
-- [ADR-088: Unified Input Processing](ADR-088-input-gateway-work-serialization.md) — the routing function this ADR's actions flow through
+- [ADR-088: Trigger Dispatch](ADR-088-input-gateway-work-serialization.md) — `dispatch_trigger()`, the routing function this ADR's autonomous actions flow through
 - [ADR-068: Signal-Emergent Deliverables](ADR-068-signal-emergent-deliverables.md) — existing signal detection + deliverable creation
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — headless execution mode used for autonomous actions
 - [Pre-ADR Analysis](../analysis/workspace-architecture-analysis-2026-03-02.md) — Section 12.6 (Learning 6: Heartbeats), Section 13.6 (existing event-driven paths)

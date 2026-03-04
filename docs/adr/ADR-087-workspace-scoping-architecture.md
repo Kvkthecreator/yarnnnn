@@ -9,7 +9,7 @@
 - [ADR-064: Unified Memory Service](ADR-064-unified-memory-service.md) — implicit memory via nightly cron; this ADR adds deliverable-scoped memory
 - [ADR-067: Session Compaction](ADR-067-session-compaction-architecture.md) — session boundaries and summaries; this ADR routes them per deliverable
 - [ADR-038: Filesystem as Context](ADR-038-filesystem-as-context.md) — platform sync as "automated git pull"
-- [ADR-088: Unified Input Processing](ADR-088-input-gateway-work-serialization.md) — how inputs route to deliverables (Step 2, follows this ADR)
+- [ADR-088: Trigger Dispatch](ADR-088-input-gateway-work-serialization.md) — `dispatch_trigger()` routes background triggers to generation vs memory update (Step 2, follows this ADR)
 - [Pre-ADR Analysis](../analysis/workspace-architecture-analysis-2026-03-02.md) — v1-v5 analysis, OpenClaw comparison, ghost entity discovery
 - [Development Landscape](../analysis/workspace-architecture-landscape.md) — sequencing and track dependencies
 
@@ -179,7 +179,7 @@ Architectural reassessment during Phase 2 planning led to significant simplifica
 - Observations capped at last 5. No compaction needed for current JSONB schema.
 
 **Deferred:**
-- `process_deliverable_input()` / triage function (ADR-088) — defer until event triggers fire at volume.
+- `dispatch_trigger()` / ADR-088 — defer until event triggers fire at volume.
 - Nightly cron session summary changes — none needed (read-at-query replaces write-at-cron).
 
 **Validation:** Backend processing has clean domain boundaries. Dead code removed per Discipline 2 (singular implementation). Session continuity separated from memory extraction.
