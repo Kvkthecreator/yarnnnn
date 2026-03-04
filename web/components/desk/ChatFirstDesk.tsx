@@ -6,9 +6,14 @@
  *
  * Global TP workspace — renders WorkspaceLayout with "Thinking Partner" identity.
  * No deliverable scope. Chat is the primary interface.
+ *
+ * Panel tabs:
+ * - Deliverables: compact entry cards linking to /deliverables/[id]
+ * - Context: platform sync status (existing PlatformSyncStatus component)
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
+import Link from 'next/link';
 import {
   MessageCircle,
   CheckCircle2,
@@ -17,6 +22,11 @@ import {
   Send,
   X,
   Paperclip,
+  Play,
+  Pause,
+  Plus,
+  FileText,
+  ArrowRight,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -26,7 +36,107 @@ import { SkillPicker } from '@/components/tp/SkillPicker';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
-import { WorkspaceLayout } from './WorkspaceLayout';
+import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
+import { api } from '@/lib/api/client';
+import type { Deliverable } from '@/types';
+
+// =============================================================================
+// Panel: Deliverables (compact entry cards)
+// =============================================================================
+
+function DeliverablesPanel() {
+  const [deliverables, setDeliverables] = useState<Deliverable[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.deliverables.list()
+      .then((data) => setDeliverables(data))
+      .catch((err) => console.error('Failed to load deliverables:', err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center p-6">
+        <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (deliverables.length === 0) {
+    return (
+      <div className="p-4 text-center">
+        <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
+        <p className="text-sm text-muted-foreground mb-3">No deliverables yet</p>
+        <Link
+          href="/deliverables/new"
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          Create one
+        </Link>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      <div className="divide-y divide-border flex-1 overflow-y-auto">
+        {deliverables.map((d) => (
+          <Link
+            key={d.id}
+            href={`/deliverables/${d.id}`}
+            className="flex items-center justify-between px-3 py-2.5 hover:bg-muted/50 transition-colors group"
+          >
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                {d.status === 'paused' ? (
+                  <Pause className="w-3 h-3 text-amber-500 shrink-0" />
+                ) : (
+                  <Play className="w-3 h-3 text-green-500 shrink-0" />
+                )}
+                <span className="text-sm font-medium truncate">{d.title}</span>
+              </div>
+              <span className="text-xs text-muted-foreground">
+                {d.latest_version_status === 'delivered' ? 'Delivered' :
+                 d.latest_version_status === 'failed' ? 'Failed' :
+                 d.latest_version_status === 'generating' ? 'Generating...' :
+                 d.version_count ? `${d.version_count} version${d.version_count !== 1 ? 's' : ''}` :
+                 'No deliveries yet'}
+              </span>
+            </div>
+            <ArrowRight className="w-3.5 h-3.5 text-muted-foreground shrink-0 opacity-0 group-hover:opacity-100 transition-opacity ml-2" />
+          </Link>
+        ))}
+      </div>
+      <div className="px-3 py-2 border-t border-border shrink-0">
+        <Link
+          href="/deliverables/new"
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <Plus className="w-3.5 h-3.5" />
+          New deliverable
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
+// Panel: Context (platform sync status)
+// =============================================================================
+
+function ContextPanel() {
+  return (
+    <div className="overflow-y-auto">
+      <PlatformSyncStatus />
+    </div>
+  );
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
 
 /**
  * Format token count with K suffix for thousands (like Claude Code)
@@ -37,6 +147,10 @@ function formatTokenCount(tokens: number): string {
   }
   return tokens.toString();
 }
+
+// =============================================================================
+// Main component
+// =============================================================================
 
 export function ChatFirstDesk() {
   const {
@@ -173,6 +287,19 @@ export function ChatFirstDesk() {
 
   const identityLabel = activeSkill ? formatSkillName(activeSkill) : 'Thinking Partner';
 
+  const panelTabs: WorkspacePanelTab[] = [
+    {
+      id: 'deliverables',
+      label: 'Deliverables',
+      content: <DeliverablesPanel />,
+    },
+    {
+      id: 'context',
+      label: 'Context',
+      content: <ContextPanel />,
+    },
+  ];
+
   return (
     <WorkspaceLayout
       identity={{
@@ -180,6 +307,7 @@ export function ChatFirstDesk() {
         label: identityLabel,
         badge: isLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : undefined,
       }}
+      panelTabs={panelTabs}
     >
       {/* Todos — only show when there's active work */}
       {todos.length > 0 && todos.some((t) => t.status === 'in_progress') && (
@@ -208,7 +336,6 @@ export function ChatFirstDesk() {
               <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
                 I&apos;m your Thinking Partner. Connect a platform to give me context about your work.
               </p>
-              <PlatformSyncStatus className="mb-6" />
               <div className="flex flex-wrap justify-center gap-2">
                 <button
                   onClick={() => setInput('/create ')}
