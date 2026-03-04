@@ -1,6 +1,6 @@
 # ADR-088: Trigger Dispatch
 
-**Status:** Proposed (Parked — un-park when event trigger volume or context staleness justifies graduated response routing)
+**Status:** Phase 1 Implemented (2026-03-04) — schedule + event call sites. Signal medium path deferred to Phase 2 (requires signal_processing.py changes, combine with ADR-089 un-parking).
 
 **Note on ADR-091:** `deliverable.acknowledge` (ADR-091) is a chat-driven write path — the user supervises via TP, the agent records an observation. This ADR is about the background path: cron + webhook + signal triggers routing through a single decision point. Parallel paths, not substitutes.
 
@@ -118,14 +118,17 @@ Lightweight, Postgres-native, no new infrastructure. Replaceable with async task
 
 ## Implementation Phases
 
-### Phase 1: Rule-based dispatch
+### Phase 1: Rule-based dispatch — IMPLEMENTED (2026-03-04)
 
-1. Create `api/services/trigger_dispatch.py` with `dispatch_trigger()`
-2. Implement `_append_trigger_observation()` for the medium path:
-   - Haiku call: deliverable title + instructions + current memory summary + event content → observation string
-   - Append to `deliverable_memory.observations` with advisory lock
-3. Update 3 call sites (see above)
-4. Add `advisory_lock()` helper (Postgres `pg_try_advisory_lock`)
+- Created `api/services/trigger_dispatch.py` with `dispatch_trigger()`
+- High path: delegates to `execute_deliverable_generation()`, passes result through
+- Medium path: builds observation from trigger_context, appends to `deliverable_memory.observations` (capped at 20), writes `activity_log` event_type `memory_written`
+- Low path: writes `activity_log` event_type `scheduler_heartbeat`, no LLM cost
+- Concurrency: optimistic read-modify-write (safe at single-user scale; no advisory lock needed)
+- Updated 2 call sites:
+  - `event_triggers.py` → `execute_event_triggers()`: `dispatch_trigger(..., 'medium')`
+  - `unified_scheduler.py` → `process_deliverable()`: `dispatch_trigger(..., 'high')`
+- Signal call site deferred: `trigger_existing` action already advances schedule (high equivalent). True medium-strength signal path requires new action type in `signal_processing.py` — deferred to Phase 2.
 
 No schema changes. No new tables.
 

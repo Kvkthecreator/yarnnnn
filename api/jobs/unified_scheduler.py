@@ -304,7 +304,7 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
 
     Returns True if successful.
     """
-    from services.deliverable_execution import execute_deliverable_generation
+    from services.trigger_dispatch import dispatch_trigger
     from services.activity_log import write_activity
 
     deliverable_id = deliverable["id"]
@@ -335,12 +335,13 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
         logger.warning(f"[DELIVERABLE] Failed to write scheduled event: {e}")
 
     try:
-        # ADR-042: Single call replaces version creation + 3-step pipeline
-        result = await execute_deliverable_generation(
+        # ADR-088: Route through dispatch — schedule triggers always generate (high)
+        result = await dispatch_trigger(
             client=supabase_client,
-            user_id=user_id,
             deliverable=deliverable,
+            trigger_type="schedule",
             trigger_context={"type": "schedule"},
+            signal_strength="high",
         )
 
         success = result.get("success", False)

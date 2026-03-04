@@ -30,7 +30,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-072**: Unified Content Layer - platform_content with retention-based accumulation, TP execution pipeline
 - **ADR-080**: Unified Agent Modes - one agent (chat + headless), mode-gated primitives, supersedes ADR-061 two-path separation
 - **ADR-087**: Deliverable Scoped Context - per-deliverable instructions + memory, session routing via deliverable_id
-- **ADR-088**: Trigger Dispatch - `dispatch_trigger()` in `trigger_dispatch.py`, single decision point for schedule/event/signal triggers (parked, prerequisites met)
+- **ADR-088**: Trigger Dispatch - `dispatch_trigger()` in `api/services/trigger_dispatch.py`, single decision point for schedule/event/signal triggers (Phase 1 implemented)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 

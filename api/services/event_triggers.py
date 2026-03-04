@@ -445,7 +445,7 @@ async def execute_event_triggers(
     Returns:
         Dict with execution summary
     """
-    from services.deliverable_execution import execute_deliverable_generation
+    from services.trigger_dispatch import dispatch_trigger
 
     executed = 0
     skipped = 0
@@ -474,18 +474,20 @@ async def execute_event_triggers(
 
             deliverable = deliverable_result.data
 
-            # ADR-042: Execute with simplified single-call flow
-            result = await execute_deliverable_generation(
+            # ADR-088: Route through dispatch — event triggers accumulate context (medium)
+            result = await dispatch_trigger(
                 client=db_client,
-                user_id=match.user_id,
                 deliverable=deliverable,
+                trigger_type="event",
                 trigger_context={
                     "type": "event",
                     "platform": event.platform,
                     "event_type": event.event_type,
                     "resource_id": event.resource_id,
                     "event_ts": event.event_ts.isoformat(),
+                    "content_preview": event.content_preview,
                 },
+                signal_strength="medium",
             )
 
             if result.get("success"):
