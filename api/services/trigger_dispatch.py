@@ -52,6 +52,10 @@ async def dispatch_trigger(
         return await _dispatch_high(client, deliverable, trigger_type, trigger_context)
 
     elif signal_strength == "medium":
+        # ADR-092: Reactive mode upgrades to high when observation threshold is met
+        mode = deliverable.get("mode", "recurring")
+        if mode == "reactive":
+            return await _dispatch_medium_reactive(client, deliverable, trigger_type, trigger_context)
         return await _dispatch_medium(client, deliverable, trigger_type, trigger_context)
 
     else:  # low
@@ -157,6 +161,105 @@ async def _dispatch_medium(
 
     except Exception as e:
         logger.error(f"[DISPATCH] medium failed for {title}: {e}")
+        return {"action": "memory_updated", "success": False, "error": str(e)}
+
+
+async def _dispatch_medium_reactive(
+    client,
+    deliverable: dict,
+    trigger_type: str,
+    trigger_context: dict,
+) -> dict:
+    """
+    ADR-092: Reactive mode medium dispatch.
+
+    Appends an observation to deliverable_memory.observations.
+    When len(observations) >= threshold (default 5), upgrades to high — generates a
+    version and clears the observation queue.
+    """
+    from services.activity_log import write_activity
+
+    deliverable_id = deliverable.get("id")
+    user_id = deliverable.get("user_id")
+    title = deliverable.get("title", "Untitled")
+    trigger_config = deliverable.get("trigger_config") or {}
+    threshold = trigger_config.get("observation_threshold", 5)
+
+    logger.info(f"[DISPATCH] reactive medium: {title} ({deliverable_id}), threshold={threshold}")
+
+    try:
+        observation = _build_observation(trigger_type, trigger_context)
+
+        # Fresh read
+        fresh = (
+            client.table("deliverables")
+            .select("deliverable_memory")
+            .eq("id", deliverable_id)
+            .single()
+            .execute()
+        )
+        current_memory = (fresh.data or {}).get("deliverable_memory") or {}
+
+        observations = current_memory.get("observations", [])
+        observations.append({
+            "date": datetime.now(timezone.utc).date().isoformat(),
+            "source": trigger_type,
+            "note": observation,
+        })
+        if len(observations) > 20:
+            observations = observations[-20:]
+
+        if len(observations) >= threshold:
+            # Threshold met — upgrade to generation, clear queue
+            logger.info(f"[DISPATCH] reactive threshold met ({len(observations)}/{threshold}) → generate: {title}")
+            updated_memory = {
+                **current_memory,
+                "observations": [],  # cleared after generation
+                "last_generated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            client.table("deliverables").update(
+                {"deliverable_memory": updated_memory}
+            ).eq("id", deliverable_id).execute()
+
+            result = await _dispatch_high(client, deliverable, trigger_type, trigger_context)
+            result["reactive_threshold_met"] = True
+            result["observations_cleared"] = len(observations)
+            return result
+        else:
+            # Below threshold — accumulate and wait
+            updated_memory = {**current_memory, "observations": observations}
+            client.table("deliverables").update(
+                {"deliverable_memory": updated_memory}
+            ).eq("id", deliverable_id).execute()
+
+            try:
+                await write_activity(
+                    client=client,
+                    user_id=user_id,
+                    event_type="memory_written",
+                    summary=f"Reactive observation ({len(observations)}/{threshold}): {title}",
+                    event_ref=deliverable_id,
+                    metadata={
+                        "trigger_type": trigger_type,
+                        "note": observation[:200],
+                        "observation_count": len(observations),
+                        "threshold": threshold,
+                    },
+                )
+            except Exception:
+                pass  # Non-fatal
+
+            logger.info(f"[DISPATCH] reactive observation {len(observations)}/{threshold}: {title}")
+            return {
+                "action": "memory_updated",
+                "success": True,
+                "deliverable_id": deliverable_id,
+                "observation_count": len(observations),
+                "threshold": threshold,
+            }
+
+    except Exception as e:
+        logger.error(f"[DISPATCH] reactive medium failed for {title}: {e}")
         return {"action": "memory_updated", "success": False, "error": str(e)}
 
 

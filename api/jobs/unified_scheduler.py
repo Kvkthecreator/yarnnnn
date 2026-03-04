@@ -228,10 +228,13 @@ async def get_due_deliverables(supabase_client) -> list[dict]:
     """
     now = datetime.now(timezone.utc)
 
+    # ADR-092: Exclude reactive and proactive/coordinator deliverables — they have
+    # their own trigger paths (event_triggers.py and proactive_next_review_at).
     result = (
         supabase_client.table("deliverables")
-        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, destination, recipient_context, last_run_at, deliverable_instructions, deliverable_memory")
+        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, destination, recipient_context, last_run_at, deliverable_instructions, deliverable_memory, mode, trigger_config")
         .eq("status", "active")
+        .in_("mode", ["recurring", "goal"])
         .lte("next_run_at", now.isoformat())
         .execute()
     )
