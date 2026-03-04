@@ -1066,10 +1066,10 @@ export default function DeliverableWorkspacePage() {
           badge: (
             <div className="flex items-center gap-1.5">
               {modeBadge}
-              {deliverable.origin === 'signal_emergent' && (
+              {(deliverable.origin === 'signal_emergent' || deliverable.origin === 'coordinator_created') && (
                 <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
                   <Sparkles className="w-2.5 h-2.5" />
-                  Signal
+                  {deliverable.origin === 'coordinator_created' ? 'Coordinator' : 'Signal'}
                 </span>
               )}
               {deliverable.origin === 'analyst_suggested' && (

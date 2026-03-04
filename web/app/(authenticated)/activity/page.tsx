@@ -450,10 +450,10 @@ export default function ActivityPage() {
                               {source}
                             </span>
                           )}
-                          {/* Origin badge for signal-emergent deliverables */}
-                          {config.category === 'deliverables' && origin === 'signal_emergent' && (
+                          {/* Origin badge for signal-emergent and coordinator-created deliverables */}
+                          {config.category === 'deliverables' && (origin === 'signal_emergent' || origin === 'coordinator_created') && (
                             <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                              signal
+                              {origin === 'coordinator_created' ? 'coordinator' : 'signal'}
                             </span>
                           )}
                         </div>

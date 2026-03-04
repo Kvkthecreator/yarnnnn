@@ -474,6 +474,8 @@ class EventTriggerConfig(BaseModel):
     event_types: list[str] = Field(default_factory=list)  # ["app_mention", "message_im"]
     resource_ids: list[str] = Field(default_factory=list)  # ["C123", "D456"]
     cooldown: Optional[CooldownConfig] = None
+    # ADR-092: Reactive mode — number of observations before generating a version
+    observation_threshold: int = 5
     # Optional filters
     sender_filter: Optional[list[str]] = None  # Only trigger for specific senders
     keyword_filter: Optional[list[str]] = None  # Only trigger if content contains keywords
@@ -527,6 +529,10 @@ class DeliverableCreate(BaseModel):
     destinations: Optional[list[dict]] = None  # Array of destination configs
     # ADR-031 Phase 6: Synthesizer flag
     is_synthesizer: bool = False  # If true, uses cross-platform context assembly
+    # ADR-092: Mode taxonomy
+    mode: Literal["recurring", "goal", "reactive", "proactive", "coordinator"] = "recurring"
+    # ADR-087: Deliverable-scoped context
+    deliverable_instructions: Optional[str] = None
     # Legacy fields (deprecated, use type_config)
     description: Optional[str] = None
     template_structure: Optional[TemplateStructure] = None
@@ -554,7 +560,10 @@ class DeliverableUpdate(BaseModel):
     is_synthesizer: Optional[bool] = None
     # ADR-087: Deliverable-scoped context
     deliverable_instructions: Optional[str] = None
-    mode: Optional[Literal["recurring", "goal"]] = None
+    # ADR-092: Mode taxonomy extended
+    mode: Optional[Literal["recurring", "goal", "reactive", "proactive", "coordinator"]] = None
+    # ADR-092: Proactive/coordinator review scheduling
+    proactive_next_review_at: Optional[str] = None
     # Legacy fields (deprecated)
     description: Optional[str] = None
     template_structure: Optional[TemplateStructure] = None
@@ -605,11 +614,15 @@ class DeliverableResponse(BaseModel):
     # ADR-030: Source freshness
     source_freshness: Optional[list[dict]] = None  # [{source_index, provider, last_fetched_at, is_stale}]
     # ADR-068: Deliverable origin (how it came to exist)
-    origin: str = "user_configured"  # user_configured | analyst_suggested | signal_emergent
+    # ADR-092: coordinator_created added
+    origin: str = "user_configured"  # user_configured | analyst_suggested | signal_emergent | coordinator_created
     # ADR-087: Deliverable-scoped context
     deliverable_instructions: Optional[str] = None
     deliverable_memory: Optional[dict] = None
-    mode: str = "recurring"  # recurring | goal
+    # ADR-092: Mode taxonomy extended
+    mode: str = "recurring"  # recurring | goal | reactive | proactive | coordinator
+    # ADR-092: Proactive/coordinator review scheduling
+    proactive_next_review_at: Optional[str] = None
     # Legacy fields (for backwards compatibility)
     description: Optional[str] = None
     template_structure: Optional[dict] = None
@@ -796,6 +809,10 @@ async def create_deliverable(
         "next_run_at": next_run_at,
         # ADR-028: Destination-first deliverables
         "destination": request.destination,
+        # ADR-092: Mode taxonomy
+        "mode": request.mode,
+        # ADR-087: Deliverable-scoped context
+        "deliverable_instructions": request.deliverable_instructions,
     }
 
     result = (
@@ -1178,6 +1195,8 @@ async def update_deliverable(
         update_data["deliverable_instructions"] = request.deliverable_instructions
     if request.mode is not None:
         update_data["mode"] = request.mode
+    if request.proactive_next_review_at is not None:
+        update_data["proactive_next_review_at"] = request.proactive_next_review_at
     # Legacy fields
     if request.description is not None:
         update_data["description"] = request.description

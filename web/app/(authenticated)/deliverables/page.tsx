@@ -175,8 +175,9 @@ function DeliverableCard({
   const latestStatus = deliverable.latest_version_status;
 
   // ADR-068: Origin badge for signal-emergent and analyst-suggested deliverables
+  // ADR-092: coordinator_created added alongside signal_emergent
   const getOriginBadge = () => {
-    if (deliverable.origin === 'signal_emergent') {
+    if (deliverable.origin === 'signal_emergent' || deliverable.origin === 'coordinator_created') {
       return (
         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
           <Sparkles className="w-2.5 h-2.5" />

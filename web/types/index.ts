@@ -435,8 +435,8 @@ export interface DeliverableMemory {
   goal?: DeliverableGoal;
 }
 
-// ADR-087: Deliverable mode
-export type DeliverableMode = 'recurring' | 'goal';
+// ADR-087: Deliverable mode (ADR-092: extended with reactive, proactive, coordinator)
+export type DeliverableMode = 'recurring' | 'goal' | 'reactive' | 'proactive' | 'coordinator';
 
 // ADR-087: Scoped chat session
 export interface DeliverableSession {
@@ -469,12 +469,14 @@ export interface Deliverable {
   latest_version_status?: VersionStatus;
   // ADR-028: Destination-first deliverables
   destination?: Destination;
-  // ADR-068: Deliverable origin
-  origin?: 'user_configured' | 'analyst_suggested' | 'signal_emergent';
+  // ADR-068: Deliverable origin (ADR-092: coordinator_created added)
+  origin?: 'user_configured' | 'analyst_suggested' | 'signal_emergent' | 'coordinator_created';
   // ADR-087: Deliverable-scoped context
   deliverable_instructions?: string;
   deliverable_memory?: DeliverableMemory;
   mode?: DeliverableMode;
+  // ADR-092: Proactive/coordinator review scheduling
+  proactive_next_review_at?: string;
   // Quality metrics (ADR-018: feedback loop)
   quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
