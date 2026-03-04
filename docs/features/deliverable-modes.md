@@ -137,3 +137,21 @@ Coordinator and proactive deliverables together enable what feels like a living 
 This is not an always-on background process. It's a network of sleeping specialists that wake up at the right time, assess their domain, act if warranted, and go back to sleep. The quality of each specialist's output compounds with every execution — because each one carries forward everything it has learned about its specific job.
 
 That compounding per specialist — not per conversation, not per session, but per deliverable — is the core of YARNNN's model.
+
+---
+
+## Type × Mode — Natural pairings (ADR-093)
+
+Types and modes are orthogonal — any combination is valid — but some pairings are the natural home for each type:
+
+| Type | Natural modes | Notes |
+|------|--------------|-------|
+| `digest` | recurring, reactive | Platform-bound synthesis. Slack digests pair naturally with reactive (accumulate-then-generate). Calendar digests pair with recurring. |
+| `brief` | proactive, coordinator, goal | Calendar-triggered meeting briefs work well as coordinator children. Standalone prep works as goal. |
+| `status` | recurring, goal | Recurring is the default. Goal mode for time-bounded status (e.g. "until launch"). |
+| `watch` | proactive, reactive | Proactive for open-ended domain monitoring. Reactive for threshold-based event watch. |
+| `deep_research` | goal | Investigation has a defined end. Runs until the research objective is complete. |
+| `coordinator` | coordinator | A type and mode in one. The coordinator type makes the coordinator mode discoverable. |
+| `custom` | any | User defines both intent and execution character. |
+
+**The key insight:** mode answers *when/how* a deliverable decides to act. Type answers *what the user is building*. They are independent dimensions. A `digest` can be recurring or reactive. A `brief` can be coordinator-triggered or goal-driven. The names don't imply a mode.

@@ -113,61 +113,43 @@ const DELIVERY_OPTIONS: DeliveryOption[] = [
 ];
 
 // =============================================================================
-// Type Definitions (ADR-067: 6 visible types)
+// Type Definitions (ADR-093: 7 purpose-first types)
 // =============================================================================
 
 const DELIVERABLE_TYPES: TypeDefinition[] = [
-  // Platform Monitors
+  // Platform-bound digests
   {
-    id: 'slack_channel_digest',
-    label: 'Slack Digest',
-    description: 'Summarize what happened in your channels',
+    id: 'digest',
+    label: 'Digest',
+    description: 'Regular synthesis of what\'s happening in a specific place',
     icon: <Slack className="w-5 h-5" />,
     category: 'platform',
-    primaryPlatform: 'slack',
     classification: {
       binding: 'platform_bound',
       temporal_pattern: 'scheduled',
-      primary_platform: 'slack',
       freshness_requirement_hours: 1,
     },
     defaultSchedule: { frequency: 'weekly', day: 'monday', time: '09:00' },
   },
+  // Situation briefs
   {
-    id: 'gmail_inbox_brief',
-    label: 'Gmail Brief',
-    description: 'Daily inbox triage and priorities',
-    icon: <Mail className="w-5 h-5" />,
-    category: 'platform',
-    primaryPlatform: 'gmail',
+    id: 'brief',
+    label: 'Brief',
+    description: 'Situation-specific document before a key event or meeting',
+    icon: <Users className="w-5 h-5" />,
+    category: 'synthesis',
     classification: {
-      binding: 'platform_bound',
-      temporal_pattern: 'scheduled',
-      primary_platform: 'gmail',
+      binding: 'cross_platform',
+      temporal_pattern: 'reactive',
       freshness_requirement_hours: 1,
     },
-    defaultSchedule: { frequency: 'daily', time: '08:00' },
+    defaultSchedule: { frequency: 'weekly', day: 'monday', time: '08:00' },
   },
+  // Cross-platform status
   {
-    id: 'research_brief',
-    label: 'Notion Changelog',
-    description: 'Track changes in your documents',
-    icon: <FileText className="w-5 h-5" />,
-    category: 'platform',
-    primaryPlatform: 'notion',
-    classification: {
-      binding: 'platform_bound',
-      temporal_pattern: 'scheduled',
-      primary_platform: 'notion',
-      freshness_requirement_hours: 4,
-    },
-    defaultSchedule: { frequency: 'weekly', day: 'friday', time: '16:00' },
-  },
-  // Synthesis Work
-  {
-    id: 'weekly_status',
-    label: 'Weekly Status',
-    description: 'Cross-platform progress update',
+    id: 'status',
+    label: 'Status Update',
+    description: 'Regular cross-platform summary for a person or audience',
     icon: <BarChart3 className="w-5 h-5" />,
     category: 'synthesis',
     classification: {
@@ -177,20 +159,35 @@ const DELIVERABLE_TYPES: TypeDefinition[] = [
     },
     defaultSchedule: { frequency: 'weekly', day: 'friday', time: '16:00' },
   },
+  // Intelligence monitoring
   {
-    id: 'meeting_prep',
-    label: 'Meeting Prep',
-    description: 'Context brief for upcoming meetings',
-    icon: <Users className="w-5 h-5" />,
+    id: 'watch',
+    label: 'Watch',
+    description: 'Standing-order intelligence on a domain you can\'t monitor full-time',
+    icon: <FileText className="w-5 h-5" />,
     category: 'synthesis',
     classification: {
       binding: 'cross_platform',
-      temporal_pattern: 'reactive',
-      primary_platform: 'calendar',
-      freshness_requirement_hours: 1,
+      temporal_pattern: 'on_demand',
+      freshness_requirement_hours: 4,
     },
-    defaultSchedule: { frequency: 'daily', time: '08:00' },
+    defaultSchedule: { frequency: 'weekly', day: 'monday', time: '09:00' },
   },
+  // Deep research (goal mode)
+  {
+    id: 'deep_research',
+    label: 'Deep Research',
+    description: 'Bounded investigation into something specific, then done',
+    icon: <Mail className="w-5 h-5" />,
+    category: 'synthesis',
+    classification: {
+      binding: 'research',
+      temporal_pattern: 'on_demand',
+      freshness_requirement_hours: 24,
+    },
+    defaultSchedule: { frequency: 'weekly', day: 'friday', time: '16:00' },
+  },
+  // Custom
   {
     id: 'custom',
     label: 'Custom',

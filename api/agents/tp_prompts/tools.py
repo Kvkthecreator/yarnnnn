@@ -19,7 +19,7 @@ TOOLS_SECTION = """---
 - `Read(ref="platform:slack")` - platform by provider
 
 **Write(ref, content)** - Create new entity
-- `Write(ref="deliverable:new", content={title: "Weekly Update", deliverable_type: "status_report"})`
+- `Write(ref="deliverable:new", content={title: "Weekly Update", deliverable_type: "status"})`
 - (Memory writes are implicit - see Memory section below)
 
 **Edit(ref, changes)** - Modify existing entity
@@ -95,7 +95,7 @@ Format: `<type>:<identifier>`
 ```
 Write(ref="deliverable:new", content={
   title: "Weekly Status",
-  deliverable_type: "status_report",
+  deliverable_type: "status",
   frequency: "weekly",
   recipient_name: "Sarah"
 })

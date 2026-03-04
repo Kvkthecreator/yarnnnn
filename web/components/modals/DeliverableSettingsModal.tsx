@@ -78,15 +78,14 @@ const DAY_OPTIONS = [
   { value: 'sunday', label: 'Sunday' },
 ];
 
-// ADR-082: 8 active type labels (deprecated types fall through to raw name)
+// ADR-093: 7 purpose-first type labels
 const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
-  slack_channel_digest: 'Channel Digest',
-  gmail_inbox_brief: 'Inbox Brief',
-  notion_page_summary: 'Page Summary',
-  meeting_prep: 'Meeting Prep',
-  weekly_calendar_preview: 'Week Preview',
-  status_report: 'Status Report',
-  research_brief: 'Research Brief',
+  digest: 'Digest',
+  brief: 'Brief',
+  status: 'Status Update',
+  watch: 'Watch',
+  deep_research: 'Deep Research',
+  coordinator: 'Coordinator',
   custom: 'Custom',
 };
 

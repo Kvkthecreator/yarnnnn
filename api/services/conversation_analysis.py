@@ -26,7 +26,7 @@ ANALYSIS_MODEL = "claude-sonnet-4-20250514"
 class AnalystSuggestion:
     """A suggested deliverable detected from conversation patterns."""
     confidence: float  # 0.0 - 1.0
-    deliverable_type: str  # e.g., "status_report", "slack_channel_digest"
+    deliverable_type: str  # e.g., "digest", "status", "brief", "deep_research"
     title: str
     description: str
     suggested_frequency: str  # "daily", "weekly", "biweekly", "monthly"
@@ -35,28 +35,27 @@ class AnalystSuggestion:
     source_sessions: list[str] = field(default_factory=list)
 
 
-# Deliverable types available for suggestion
+# Deliverable types available for suggestion (ADR-093: 7 purpose-first types)
 SUGGESTABLE_TYPES = {
-    # Platform-bound (single platform)
-    "slack_channel_digest": {
+    "digest": {
         "binding": "platform_bound",
-        "primary_platform": "slack",
-        "description": "Weekly digest of a Slack channel",
+        "description": "Regular synthesis of what's happening in a specific place",
     },
-    "gmail_inbox_brief": {
-        "binding": "platform_bound",
-        "primary_platform": "gmail",
-        "description": "Daily inbox summary with priority triage",
-    },
-    # Cross-platform
-    "status_report": {
+    "brief": {
         "binding": "cross_platform",
-        "description": "Status update across all connected platforms",
+        "description": "Situation-specific document before a key event or meeting",
     },
-    # Research
-    "research_brief": {
+    "status": {
+        "binding": "cross_platform",
+        "description": "Regular cross-platform summary for a person or audience",
+    },
+    "watch": {
+        "binding": "cross_platform",
+        "description": "Standing-order intelligence on a domain worth monitoring",
+    },
+    "deep_research": {
         "binding": "research",
-        "description": "Web research on a specific topic",
+        "description": "Bounded investigation into a specific topic, then done",
     },
 }
 
@@ -179,7 +178,7 @@ Return a JSON array of suggestions. Each suggestion:
 ```json
 {
   "confidence": 0.75,
-  "deliverable_type": "slack_channel_digest",
+  "deliverable_type": "digest",
   "title": "Weekly #engineering Digest",
   "description": "Summary of key discussions and decisions from #engineering",
   "suggested_frequency": "weekly",
@@ -188,12 +187,12 @@ Return a JSON array of suggestions. Each suggestion:
 }
 ```
 
-**Valid deliverable_type values:**
-- slack_channel_digest: Slack channel summary
-- gmail_inbox_brief: Email inbox triage
-- status_report: Cross-platform status update
-- weekly_status: Weekly activity summary
-- research_brief: Web research on a topic
+**Valid deliverable_type values (ADR-093):**
+- digest: Regular synthesis of what's happening in a specific place (platform inferred from sources)
+- brief: Situation-specific document before a key event or meeting
+- status: Regular cross-platform summary for a person or audience
+- watch: Standing-order intelligence on a domain worth monitoring
+- deep_research: Bounded investigation into a specific topic
 
 **Valid frequency values:**
 - daily, weekly, biweekly, monthly

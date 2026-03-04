@@ -47,189 +47,143 @@ Keep it simple - one question at a time.
     },
 
     # =========================================================================
-    # Deliverable Types
+    # Deliverable Type Skills (ADR-093: 7 purpose-first types)
     # =========================================================================
-    "board-update": {
-        "name": "board-update",
-        "description": "Create a recurring board update deliverable",
-        "trigger_patterns": ["board update", "investor update", "board report", "investor report"],
-        "deliverable_type": "board_update",
+    "status": {
+        "name": "status",
+        "description": "Create a recurring status update deliverable",
+        "trigger_patterns": ["status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update"],
+        "deliverable_type": "status",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Board Update
+## Active Skill: Status Update
 
-Create a board/investor update deliverable.
-
-**Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. If missing recipient, ask: `Clarify(question="Who receives this?", options=["Board of directors", "Lead investor", "All investors"])`
-3. Confirm: "I'll create a monthly Board Update for [recipient]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "stakeholder_update", frequency: "monthly", recipient_name})`
-5. Offer first draft: "Created. Generate first draft now?"
-
-**Defaults:** frequency=monthly, type=stakeholder_update
-""",
-    },
-
-    "status-report": {
-        "name": "status-report",
-        "description": "Create a recurring status report deliverable",
-        "trigger_patterns": ["status report", "weekly report", "progress report", "status update"],
-        "deliverable_type": "status_report",
-        "system_prompt_addition": """
----
-
-## Active Skill: Status Report
-
-Create a status report deliverable.
+Create a status update deliverable — a regular cross-platform summary for a person or audience.
 
 **Flow:**
 1. Check for duplicates: `List(pattern="deliverable:*")`
-2. If missing recipient, ask: `Clarify(question="Who receives this?", options=["Manager", "Team", "Stakeholders"])`
-3. Confirm: "I'll create a weekly Status Report for [recipient]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "status_report", frequency: "weekly", recipient_name})`
+2. If missing recipient, ask: `Clarify(question="Who receives this?", options=["Manager", "Team", "Stakeholders", "Board"])`
+3. Confirm: "I'll create a weekly Status Update for [recipient]. Ready?"
+4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "status", frequency: "weekly", recipient_name})`
 5. Offer first draft
 
-**Defaults:** frequency=weekly, type=status_report
+**Defaults:** frequency=weekly, type=status
 """,
     },
 
-    "research-brief": {
-        "name": "research-brief",
-        "description": "Create a recurring research brief deliverable",
-        "trigger_patterns": ["research brief", "competitive intel", "market research", "competitor analysis", "competitor brief"],
-        "deliverable_type": "research_brief",
+    "digest": {
+        "name": "digest",
+        "description": "Create a recurring digest deliverable",
+        "trigger_patterns": ["slack digest", "channel digest", "inbox brief", "email digest", "notion summary", "calendar preview", "weekly digest"],
+        "deliverable_type": "digest",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Research Brief
+## Active Skill: Digest
 
-Create a research/competitive intelligence deliverable.
+Create a digest deliverable — a regular synthesis of what's happening in a specific place (Slack channel, email inbox, Notion page, calendar).
 
 **Flow:**
 1. Check for duplicates: `List(pattern="deliverable:*")`
-2. If missing focus, ask: `Clarify(question="What should I research?", options=["Competitors", "Market trends", "Technology"])`
-3. Confirm: "I'll create a weekly Research Brief on [focus]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "research_brief", frequency: "weekly"})`
+2. Ask source: `Clarify(question="What should this digest cover?", options=["Slack channel", "Email inbox", "Notion page", "Calendar"])`
+3. Confirm: "I'll create a [frequency] Digest from [source]. Ready?"
+4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "digest", frequency, sources})`
 5. Offer first draft
 
-**Defaults:** frequency=weekly, type=research_brief
+**Defaults:** frequency=weekly, type=digest
 """,
     },
 
-    "stakeholder-update": {
-        "name": "stakeholder-update",
-        "description": "Create a recurring stakeholder update deliverable",
-        "trigger_patterns": ["stakeholder update", "client update", "client report", "stakeholder report"],
-        "deliverable_type": "stakeholder_update",
+    "brief": {
+        "name": "brief",
+        "description": "Create a brief deliverable for a specific event or situation",
+        "trigger_patterns": ["meeting brief", "meeting prep", "event prep", "call prep", "1:1 prep", "one on one prep", "meeting summary", "one-on-one"],
+        "deliverable_type": "brief",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Stakeholder Update
+## Active Skill: Brief
 
-Create a stakeholder/client update deliverable.
+Create a brief deliverable — a situation-specific document before a key event (meeting, call, presentation).
 
 **Flow:**
 1. Check for duplicates: `List(pattern="deliverable:*")`
-2. If missing stakeholder, ask: `Clarify(question="Who is this for?", options=["Client", "Executive", "Partner"])`
-3. Confirm: "I'll create a [frequency] update for [stakeholder]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "stakeholder_update", frequency, recipient_name})`
+2. Ask event: `Clarify(question="What's this brief for?", options=["Recurring 1:1", "Team sync", "Client call", "Presentation"])`
+3. Confirm: "I'll create a [frequency] brief for [event]. Ready?"
+4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "brief", frequency})`
 5. Offer first draft
 
-**Defaults:** frequency=weekly, type=stakeholder_update
+**Defaults:** frequency=weekly, type=brief
 """,
     },
 
-    "meeting-summary": {
-        "name": "meeting-summary",
-        "description": "Create a recurring meeting summary deliverable",
-        "trigger_patterns": ["meeting summary", "meeting notes", "meeting recap", "standup notes"],
-        "deliverable_type": "meeting_summary",
+    "deep-research": {
+        "name": "deep-research",
+        "description": "Create a deep research deliverable",
+        "trigger_patterns": ["research brief", "deep research", "competitive intel", "market research", "competitor analysis", "competitor brief"],
+        "deliverable_type": "deep_research",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Meeting Summary
+## Active Skill: Deep Research
 
-Create a meeting summary deliverable.
+Create a deep research deliverable — a bounded investigation into a specific topic, then done.
 
 **Flow:**
 1. Check for duplicates: `List(pattern="deliverable:*")`
-2. If missing meeting type, ask: `Clarify(question="What meeting?", options=["Standup", "Team sync", "1:1", "All-hands"])`
-3. Confirm: "I'll create a [frequency] summary for [meeting]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "meeting_summary", frequency})`
+2. If missing focus, ask: `Clarify(question="What should I research?", options=["Competitors", "Market trends", "Technology", "Industry"])`
+3. Confirm: "I'll create a Deep Research report on [focus]. Ready?"
+4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "deep_research", mode: "goal"})`
 5. Offer first draft
 
-**Defaults:** frequency=weekly, type=meeting_summary
+**Defaults:** mode=goal (runs once to completion), type=deep_research
 """,
     },
 
-    # =========================================================================
-    # Beta Tier Skills
-    # =========================================================================
-    "newsletter-section": {
-        "name": "newsletter-section",
-        "description": "Create a recurring newsletter section deliverable",
-        "trigger_patterns": ["newsletter", "newsletter section", "weekly digest", "founder letter", "product update"],
-        "deliverable_type": "newsletter_section",
-        "tier": "beta",
+    "watch": {
+        "name": "watch",
+        "description": "Create a watch deliverable for ongoing domain monitoring",
+        "trigger_patterns": ["watch brief", "intel brief", "competitive watch", "monitor", "keep an eye on", "intelligence brief"],
+        "deliverable_type": "watch",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Newsletter Section (Beta)
+## Active Skill: Watch
 
-Create a newsletter section deliverable.
+Create a watch deliverable — standing-order intelligence on a domain you can't monitor full-time.
 
 **Flow:**
 1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask section type: `Clarify(question="What section?", options=["Intro/letter", "Main story", "Product updates", "Roundup"])`
-3. Confirm and create with `Write(ref="deliverable:new", ...)`
+2. Ask domain: `Clarify(question="What domain should I watch?", options=["Competitors", "Industry news", "Customer signals", "Regulatory changes"])`
+3. Confirm: "I'll create a Watch brief for [domain]. Ready?"
+4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "watch", mode: "proactive"})`
+5. Offer first draft
 
-**Defaults:** frequency=weekly, type=newsletter_section
+**Defaults:** mode=proactive, type=watch
 """,
     },
 
-    "changelog": {
-        "name": "changelog",
-        "description": "Create a recurring changelog/release notes deliverable",
-        "trigger_patterns": ["changelog", "release notes", "version update", "product release", "what's new"],
-        "deliverable_type": "changelog",
-        "tier": "beta",
+    "custom": {
+        "name": "custom",
+        "description": "Create a custom deliverable with user-defined intent",
+        "trigger_patterns": ["newsletter", "changelog", "release notes", "client proposal", "custom deliverable"],
+        "deliverable_type": "custom",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Changelog (Beta)
+## Active Skill: Custom
 
-Create a changelog/release notes deliverable.
-
-**Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask audience: `Clarify(question="Who's the audience?", options=["Developers", "End users", "Mixed"])`
-3. Confirm and create with `Write(ref="deliverable:new", ...)`
-
-**Defaults:** frequency=weekly, type=changelog
-""",
-    },
-
-    "one-on-one-prep": {
-        "name": "one-on-one-prep",
-        "description": "Create a recurring 1:1 meeting prep deliverable",
-        "trigger_patterns": ["1:1 prep", "one on one prep", "1-1 prep", "one-on-one", "meeting prep for"],
-        "deliverable_type": "one_on_one_prep",
-        "tier": "beta",
-        "system_prompt_addition": """
----
-
-## Active Skill: 1:1 Prep (Beta)
-
-Create a 1:1 meeting prep deliverable.
+Create a custom deliverable — the user defines exactly what they want.
 
 **Flow:**
 1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask relationship: `Clarify(question="Who's this with?", options=["Direct report", "Manager", "Skip level", "Mentee"])`
-3. Confirm and create with `Write(ref="deliverable:new", ...)`
+2. Ask for description: `Clarify(question="Describe what this deliverable should produce", options=[])`
+3. Confirm: "I'll create a Custom deliverable: [description]. Ready?"
+4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "custom", description})`
+5. Offer first draft
 
-**Defaults:** frequency=weekly, type=one_on_one_prep
+**Defaults:** frequency=weekly, type=custom
 """,
     },
 }

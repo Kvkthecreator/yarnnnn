@@ -175,57 +175,21 @@ export interface IntegrationImportFilters {
   page_id?: string;        // Notion page filter
 }
 
-// ADR-019: Deliverable Types
-// ADR-029 Phase 3: Added email-specific deliverable types
-// ADR-031 Phase 6: Cross-Platform Synthesizers
-// ADR-035: Platform-First Wave 1 Types
-// ADR-044: Type Reconceptualization (context binding + temporal pattern)
+// ADR-093: Deliverable Types (7 purpose-first types)
 export type DeliverableType =
-  // Tier 1 - Stable
-  | "status_report"
-  | "stakeholder_update"
-  | "research_brief"
-  | "meeting_summary"
-  | "custom"
-  // Beta Tier
-  | "client_proposal"
-  | "performance_self_assessment"
-  | "newsletter_section"
-  | "changelog"
-  | "one_on_one_prep"
-  | "board_update"
-  // ADR-029 Phase 3: Email-specific types
-  | "inbox_summary"
-  | "reply_draft"
-  | "follow_up_tracker"
-  | "thread_summary"
-  // ADR-031 Phase 6: Cross-Platform Synthesizers
-  | "weekly_status"
-  | "project_brief"
-  | "cross_platform_digest"
-  | "activity_summary"
-  // ADR-035: Platform-First Wave 1 Types
-  | "slack_channel_digest"
-  | "slack_standup"
-  | "gmail_inbox_brief"
-  | "notion_page_summary"
-  // ADR-046: Calendar-triggered types
-  | "meeting_prep"
-  | "weekly_calendar_preview";
+  | "digest"        // Regular synthesis of what's happening in a specific place
+  | "brief"         // Situation-specific document before a key event
+  | "status"        // Regular cross-platform summary for a person or audience
+  | "watch"         // Standing-order intelligence on a domain
+  | "deep_research" // Bounded investigation into something specific, then done
+  | "coordinator"   // Meta-specialist that watches a domain and dispatches other work
+  | "custom";       // User-defined intent
 
-// ADR-082: 8 active types for UI selection (full union retained for backwards compat)
-export type ActiveDeliverableType =
-  | "slack_channel_digest"
-  | "gmail_inbox_brief"
-  | "notion_page_summary"
-  | "weekly_calendar_preview"
-  | "meeting_prep"
-  | "status_report"
-  | "research_brief"
-  | "custom";
+// ADR-093: All 7 types are stable — no deprecated tier
+export type ActiveDeliverableType = DeliverableType;
 
-// ADR-082: stable (active) or deprecated (backwards compat only)
-export type DeliverableTier = "stable" | "deprecated";
+// ADR-093: all stable
+export type DeliverableTier = "stable";
 
 // ADR-044: Type Classification (two-dimensional)
 export type ContextBinding = "platform_bound" | "cross_platform" | "research" | "hybrid";
@@ -244,100 +208,63 @@ export interface TypeClassification {
 }
 
 // =============================================================================
-// ADR-082: Active Type Configurations (8 types)
+// ADR-093: Type Configurations (7 purpose-first types)
 // =============================================================================
 
-export interface StatusReportSections {
-  summary: boolean;
-  accomplishments: boolean;
-  blockers: boolean;
-  next_steps: boolean;
-  metrics: boolean;
+export interface DigestConfig {
+  focus?: string;
+  reply_threshold?: number;
+  reaction_threshold?: number;
+  max_items?: number;
 }
 
-export interface StatusReportConfig {
-  subject: string;
-  audience: "manager" | "stakeholders" | "team" | "executive";
-  sections: StatusReportSections;
-  detail_level: "brief" | "standard" | "detailed";
-  tone: "formal" | "conversational";
+export interface BriefConfig {
+  event_title?: string;
+  attendees?: string[];
+  focus_areas?: string[];
+  depth?: "concise" | "standard" | "detailed";
 }
 
-export interface ResearchBriefSections {
-  key_takeaways: boolean;
-  findings: boolean;
-  implications: boolean;
-  recommendations: boolean;
+export interface StatusConfig {
+  subject?: string;
+  audience?: "manager" | "stakeholders" | "team" | "executive";
+  detail_level?: "brief" | "standard" | "detailed";
+  tone?: "formal" | "conversational";
 }
 
-export interface ResearchBriefConfig {
-  focus_area: "competitive" | "market" | "technology" | "industry";
-  subjects: string[];
+export interface WatchConfig {
+  domain?: string;
+  signals?: string[];
+  threshold_notes?: string;
+}
+
+export interface DeepResearchConfig {
+  focus_area?: "competitive" | "market" | "technology" | "industry" | "general";
+  subjects?: string[];
   purpose?: string;
-  sections: ResearchBriefSections;
-  depth: "scan" | "analysis" | "deep_dive";
+  depth?: "scan" | "analysis" | "deep_dive";
+}
+
+export interface CoordinatorConfig {
+  domain?: string;
+  dispatch_rules?: string[];
 }
 
 export interface CustomConfig {
-  description: string;
+  description?: string;
   structure_notes?: string;
   example_content?: string;
 }
 
-export interface SlackChannelDigestSections {
-  hot_threads: boolean;
-  key_decisions: boolean;
-  unanswered_questions: boolean;
-  mentions: boolean;
-}
-
-export interface SlackChannelDigestConfig {
-  focus: "highlights" | "decisions" | "questions" | "all";
-  include_threads: boolean;
-  reaction_threshold: number;
-  reply_threshold: number;
-  sections: SlackChannelDigestSections;
-  max_items: number;
-}
-
-export interface GmailInboxBriefSections {
-  urgent: boolean;
-  action_required: boolean;
-  fyi: boolean;
-  follow_ups: boolean;
-}
-
-export interface GmailInboxBriefConfig {
-  focus: "triage" | "summary" | "action_items";
-  priority_senders: string[];
-  sections: GmailInboxBriefSections;
-  include_sent: boolean;
-  max_items: number;
-}
-
-export interface NotionPageSummarySections {
-  changes: boolean;
-  new_content: boolean;
-  completed_tasks: boolean;
-  open_comments: boolean;
-}
-
-export interface NotionPageSummaryConfig {
-  summary_type: "changelog" | "overview" | "activity";
-  include_subpages: boolean;
-  max_depth: number;
-  sections: NotionPageSummarySections;
-  time_range_days: number;
-}
-
-// ADR-082: Union type for type_config (active types + fallback)
+// ADR-093: Union type for type_config (7 types + fallback)
 export type TypeConfig =
-  | StatusReportConfig
-  | ResearchBriefConfig
+  | DigestConfig
+  | BriefConfig
+  | StatusConfig
+  | WatchConfig
+  | DeepResearchConfig
+  | CoordinatorConfig
   | CustomConfig
-  | SlackChannelDigestConfig
-  | GmailInboxBriefConfig
-  | NotionPageSummaryConfig
   | Record<string, unknown>;
 
 export interface RecipientContext {

@@ -20,7 +20,7 @@ WRITE_TOOL = {
     "description": """Create a new entity.
 
 Examples:
-- Write(ref="deliverable:new", content={title: "Weekly Update", deliverable_type: "status_report"})
+- Write(ref="deliverable:new", content={title: "Weekly Update", deliverable_type: "status"})
 - Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})
 - Write(ref="work:new", content={task: "Research competitors", agent_type: "research"})
 

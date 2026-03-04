@@ -50,7 +50,7 @@ Optional: deliverable_instructions, sources (inherits coordinator's if omitted),
             },
             "deliverable_type": {
                 "type": "string",
-                "description": "Type of deliverable (e.g. meeting_prep, status_report, custom)"
+                "description": "Type of deliverable (e.g. brief, status, digest, watch, deep_research, coordinator, custom)"
             },
             "deliverable_instructions": {
                 "type": "string",
@@ -67,7 +67,7 @@ Optional: deliverable_instructions, sources (inherits coordinator's if omitted),
             },
             "dedup_key": {
                 "type": "string",
-                "description": "Unique key for this event (e.g. 'meeting_prep:calendar_event_id_xyz'). Used to prevent duplicate creation."
+                "description": "Unique key for this event (e.g. 'brief:calendar_event_id_xyz'). Used to prevent duplicate creation."
             }
         },
         "required": ["title", "deliverable_type"]

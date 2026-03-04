@@ -80,46 +80,14 @@ interface PlatformTypeOption {
   platform: 'slack' | 'gmail' | 'notion' | 'calendar';
 }
 
-// ADR-082: 5 platform-bound types (consolidated from 8)
+// ADR-093: digest type shown as platform-grouped (platform inferred from sources[])
 const PLATFORM_TYPES: PlatformTypeOption[] = [
-  // Slack
   {
-    value: 'slack_channel_digest',
-    label: 'Channel Digest',
-    description: 'What happened while you were away',
+    value: 'digest',
+    label: 'Digest',
+    description: 'Regular synthesis of a specific channel, inbox, or page',
     icon: <Hash className="w-5 h-5" />,
-    platform: 'slack',
-  },
-  // Gmail
-  {
-    value: 'gmail_inbox_brief',
-    label: 'Inbox Brief',
-    description: 'Prioritized email summary',
-    icon: <Mail className="w-5 h-5" />,
-    platform: 'gmail',
-  },
-  // Notion
-  {
-    value: 'notion_page_summary',
-    label: 'Page Summary',
-    description: 'What changed in your docs',
-    icon: <FileCode className="w-5 h-5" />,
-    platform: 'notion',
-  },
-  // Calendar
-  {
-    value: 'meeting_prep',
-    label: 'Meeting Prep',
-    description: 'Context brief for upcoming meetings',
-    icon: <Users className="w-5 h-5" />,
-    platform: 'calendar',
-  },
-  {
-    value: 'weekly_calendar_preview',
-    label: 'Week Preview',
-    description: 'Overview of your week ahead',
-    icon: <Clock className="w-5 h-5" />,
-    platform: 'calendar',
+    platform: 'slack',  // default display platform; actual platform comes from sources
   },
 ];
 
@@ -134,13 +102,31 @@ interface CrossPlatformTypeOption {
   icon: React.ReactNode;
 }
 
-// ADR-082: 1 cross-platform type (consolidated from 8)
+// ADR-093: cross-platform types
 const CROSS_PLATFORM_TYPES: CrossPlatformTypeOption[] = [
   {
-    value: 'status_report',
-    label: 'Status Report',
-    description: 'Cross-platform synthesis of your week',
+    value: 'brief',
+    label: 'Brief',
+    description: 'Situation-specific document before a key event or meeting',
+    icon: <Users className="w-5 h-5" />,
+  },
+  {
+    value: 'status',
+    label: 'Status Update',
+    description: 'Regular cross-platform summary for a person or audience',
     icon: <BarChart3 className="w-5 h-5" />,
+  },
+  {
+    value: 'watch',
+    label: 'Watch',
+    description: 'Standing-order intelligence on a domain worth monitoring',
+    icon: <Clock className="w-5 h-5" />,
+  },
+  {
+    value: 'custom',
+    label: 'Custom',
+    description: 'Define your own output from scratch',
+    icon: <FileCode className="w-5 h-5" />,
   },
 ];
 
@@ -150,9 +136,9 @@ const CROSS_PLATFORM_TYPES: CrossPlatformTypeOption[] = [
 
 const RESEARCH_TYPES: CrossPlatformTypeOption[] = [
   {
-    value: 'research_brief',
-    label: 'Research Brief',
-    description: 'Synthesized findings on a topic',
+    value: 'deep_research',
+    label: 'Deep Research',
+    description: 'Bounded investigation into something specific, then done',
     icon: <Search className="w-5 h-5" />,
   },
 ];

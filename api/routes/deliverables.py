@@ -32,79 +32,28 @@ router = APIRouter()
 
 
 # =============================================================================
-# ADR-019: Deliverable Type Definitions
+# ADR-093: Deliverable Type Definitions (7 purpose-first types)
 # =============================================================================
 
 DeliverableType = Literal[
-    # Tier 1 - Stable
-    "status_report",
-    "stakeholder_update",
-    "research_brief",
-    "meeting_summary",
-    "custom",
-    # Beta Tier
-    "client_proposal",
-    "performance_self_assessment",
-    "newsletter_section",
-    "changelog",
-    "one_on_one_prep",
-    "board_update",
-    # ADR-029 Phase 3: Email-specific
-    "inbox_summary",
-    "reply_draft",
-    "follow_up_tracker",
-    "thread_summary",
-    # ADR-031 Phase 6: Cross-Platform Synthesizers
-    "weekly_status",
-    "project_brief",
-    "cross_platform_digest",
-    "activity_summary",
-    # ADR-035: Platform-First Wave 1 Types
-    "slack_channel_digest",
-    "slack_standup",
-    "gmail_inbox_brief",
-    "notion_page_summary",
-    # ADR-046: Calendar Types
-    "meeting_prep",
-    "weekly_calendar_preview",
-    # Phase 2: Strategic Intelligence Types
-    "deep_research",
-    "daily_strategy_reflection",
-    "intelligence_brief",
+    "digest",        # Synthesis of what's happening in a specific place (platform inferred from sources)
+    "brief",         # Situation-specific document before a key event
+    "status",        # Regular cross-platform summary for a person or audience
+    "watch",         # Standing-order intelligence on a domain
+    "deep_research", # Bounded investigation into something specific, then done
+    "coordinator",   # Meta-specialist that watches a domain and dispatches other work
+    "custom",        # User-defined intent
 ]
 
-# ADR-082: Type tier mapping — 8 active types, 19 deprecated
+# ADR-093: All 7 types are stable
 TYPE_TIERS = {
-    # Active types (ADR-082)
-    "slack_channel_digest": "stable",
-    "gmail_inbox_brief": "stable",
-    "notion_page_summary": "stable",
-    "weekly_calendar_preview": "stable",
-    "meeting_prep": "stable",
-    "status_report": "stable",
-    "research_brief": "stable",
+    "digest": "stable",
+    "brief": "stable",
+    "status": "stable",
+    "watch": "stable",
+    "deep_research": "stable",
+    "coordinator": "stable",
     "custom": "stable",
-    # Deprecated types — remain in DB for backwards compat, not selectable in UI
-    "slack_standup": "deprecated",
-    "inbox_summary": "deprecated",
-    "reply_draft": "deprecated",
-    "follow_up_tracker": "deprecated",
-    "thread_summary": "deprecated",
-    "meeting_summary": "deprecated",
-    "one_on_one_prep": "deprecated",
-    "stakeholder_update": "deprecated",
-    "board_update": "deprecated",
-    "weekly_status": "deprecated",
-    "project_brief": "deprecated",
-    "cross_platform_digest": "deprecated",
-    "activity_summary": "deprecated",
-    "daily_strategy_reflection": "deprecated",
-    "deep_research": "deprecated",
-    "intelligence_brief": "deprecated",
-    "client_proposal": "deprecated",
-    "performance_self_assessment": "deprecated",
-    "newsletter_section": "deprecated",
-    "changelog": "deprecated",
 }
 
 
@@ -114,107 +63,61 @@ TYPE_TIERS = {
 
 def get_type_classification(deliverable_type: str) -> dict:
     """
-    ADR-044/045/082: Get type_classification for a deliverable type.
+    ADR-093: Get type_classification for a deliverable type.
 
-    This determines which execution strategy is used:
-    - platform_bound: Single platform context (PlatformBoundStrategy)
+    Determines which execution strategy is used:
+    - platform_bound: Single platform context — inferred from sources[] for digest
     - cross_platform: Multi-platform synthesis (CrossPlatformStrategy)
     - research: Web research via headless agent WebSearch (ADR-081)
     - hybrid: Research + platform grounding (HybridStrategy)
 
-    ADR-082: Deprecated types alias to their parent type's classification.
-
     Returns:
         dict with binding, temporal_pattern, and optional primary_platform
     """
-    # ADR-082: Alias deprecated types to their parent
-    _TYPE_ALIASES = {
-        # slack_channel_digest absorbs:
-        "slack_standup": "slack_channel_digest",
-        # gmail_inbox_brief absorbs:
-        "inbox_summary": "gmail_inbox_brief",
-        "reply_draft": "gmail_inbox_brief",
-        "follow_up_tracker": "gmail_inbox_brief",
-        "thread_summary": "gmail_inbox_brief",
-        # meeting_prep absorbs:
-        "meeting_summary": "meeting_prep",
-        "one_on_one_prep": "meeting_prep",
-        # status_report absorbs:
-        "stakeholder_update": "status_report",
-        "board_update": "status_report",
-        "weekly_status": "status_report",
-        "project_brief": "status_report",
-        "cross_platform_digest": "status_report",
-        "activity_summary": "status_report",
-        "daily_strategy_reflection": "status_report",
-        # research_brief absorbs:
-        "deep_research": "research_brief",
-        "intelligence_brief": "research_brief",
-        # custom absorbs:
-        "client_proposal": "custom",
-        "performance_self_assessment": "custom",
-        "newsletter_section": "custom",
-        "changelog": "custom",
-    }
-
-    resolved_type = _TYPE_ALIASES.get(deliverable_type, deliverable_type)
-
-    # Active type classifications (ADR-082: 8 types)
-    if resolved_type == "slack_channel_digest":
+    if deliverable_type == "digest":
+        # Platform inferred from sources[] at assembly time, not from type
         return {
             "binding": "platform_bound",
             "temporal_pattern": "scheduled",
-            "primary_platform": "slack",
             "freshness_requirement_hours": 1,
         }
 
-    if resolved_type == "gmail_inbox_brief":
+    if deliverable_type == "brief":
         return {
-            "binding": "platform_bound",
-            "temporal_pattern": "scheduled",
-            "primary_platform": "gmail",
-            "freshness_requirement_hours": 1,
-        }
-
-    if resolved_type == "notion_page_summary":
-        return {
-            "binding": "platform_bound",
-            "temporal_pattern": "scheduled",
-            "primary_platform": "notion",
-            "freshness_requirement_hours": 4,
-        }
-
-    if resolved_type == "meeting_prep":
-        return {
-            "binding": "platform_bound",
+            "binding": "cross_platform",
             "temporal_pattern": "reactive",
-            "primary_platform": "calendar",
             "freshness_requirement_hours": 1,
         }
 
-    if resolved_type == "weekly_calendar_preview":
-        return {
-            "binding": "platform_bound",
-            "temporal_pattern": "scheduled",
-            "primary_platform": "calendar",
-            "freshness_requirement_hours": 4,
-        }
-
-    if resolved_type == "research_brief":
-        return {
-            "binding": "research",
-            "temporal_pattern": "on_demand",
-            "freshness_requirement_hours": 24,
-        }
-
-    if resolved_type == "status_report":
+    if deliverable_type == "status":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "scheduled",
             "freshness_requirement_hours": 4,
         }
 
-    # Default: hybrid for custom and unknown types
+    if deliverable_type == "watch":
+        return {
+            "binding": "cross_platform",
+            "temporal_pattern": "on_demand",
+            "freshness_requirement_hours": 4,
+        }
+
+    if deliverable_type == "deep_research":
+        return {
+            "binding": "research",
+            "temporal_pattern": "on_demand",
+            "freshness_requirement_hours": 24,
+        }
+
+    if deliverable_type == "coordinator":
+        return {
+            "binding": "cross_platform",
+            "temporal_pattern": "on_demand",
+            "freshness_requirement_hours": 4,
+        }
+
+    # custom and unknown types
     return {
         "binding": "hybrid",
         "temporal_pattern": "on_demand",
@@ -222,112 +125,71 @@ def get_type_classification(deliverable_type: str) -> dict:
     }
 
 
-class StatusReportSections(BaseModel):
-    """Sections to include in a status report."""
-    summary: bool = True
-    accomplishments: bool = True
-    blockers: bool = True
-    next_steps: bool = True
-    metrics: bool = False
+# =============================================================================
+# ADR-093: Type Configs (7 purpose-first types)
+# =============================================================================
+
+class DigestConfig(BaseModel):
+    """Configuration for digest type. Platform inferred from sources[] at assembly time."""
+    focus: str = "key discussions and decisions"
+    reply_threshold: int = 3    # Min replies to flag as hot thread (Slack)
+    reaction_threshold: int = 2  # Min reactions to surface a message (Slack)
+    max_items: int = 15
 
 
-class StatusReportConfig(BaseModel):
-    """Configuration for status report type."""
-    subject: str  # "Engineering Team", "Project Alpha"
+class BriefConfig(BaseModel):
+    """Configuration for brief type (meeting prep, event prep, call prep)."""
+    event_title: Optional[str] = None   # Meeting/event name if calendar-triggered
+    attendees: list[str] = Field(default_factory=list)
+    focus_areas: list[str] = Field(default_factory=list)  # Topics to prioritize
+    depth: Literal["concise", "standard", "detailed"] = "standard"
+
+
+class StatusConfig(BaseModel):
+    """Configuration for status type (cross-platform status update)."""
+    subject: str = ""  # "Engineering Team", "Project Alpha"
     audience: Literal["manager", "stakeholders", "team", "executive"] = "stakeholders"
-    sections: StatusReportSections = Field(default_factory=StatusReportSections)
     detail_level: Literal["brief", "standard", "detailed"] = "standard"
     tone: Literal["formal", "conversational"] = "formal"
 
 
-class ResearchBriefSections(BaseModel):
-    """Sections to include in a research brief."""
-    key_takeaways: bool = True
-    findings: bool = True
-    implications: bool = True
-    recommendations: bool = False
+class WatchConfig(BaseModel):
+    """Configuration for watch type (standing-order intelligence monitoring)."""
+    domain: str = ""  # "competitive landscape", "AI regulation", "customer feedback"
+    signals: list[str] = Field(default_factory=list)  # What to look for
+    threshold_notes: Optional[str] = None  # When to surface (guidance for proactive mode)
 
 
-class ResearchBriefConfig(BaseModel):
-    """Configuration for research brief type."""
-    focus_area: Literal["competitive", "market", "technology", "industry"]
-    subjects: list[str]  # ["Competitor A", "Competitor B"] or ["AI trends"]
-    purpose: Optional[str] = None  # "Inform product roadmap decisions"
-    sections: ResearchBriefSections = Field(default_factory=ResearchBriefSections)
+class DeepResearchConfig(BaseModel):
+    """Configuration for deep_research type (bounded investigation)."""
+    focus_area: Literal["competitive", "market", "technology", "industry", "general"] = "general"
+    subjects: list[str] = Field(default_factory=list)
+    purpose: Optional[str] = None
     depth: Literal["scan", "analysis", "deep_dive"] = "analysis"
+
+
+class CoordinatorConfig(BaseModel):
+    """Configuration for coordinator type (meta-specialist that dispatches work)."""
+    domain: str = ""  # Domain this coordinator watches
+    dispatch_rules: list[str] = Field(default_factory=list)  # What triggers dispatching
 
 
 class CustomConfig(BaseModel):
     """Configuration for custom/freeform deliverable type."""
-    description: str
+    description: str = ""
     structure_notes: Optional[str] = None
     example_content: Optional[str] = None
 
 
-# =============================================================================
-# ADR-082: Active Type Configs (8 types)
-# =============================================================================
-
-class SlackChannelDigestSections(BaseModel):
-    """Sections to include in Slack channel digest."""
-    hot_threads: bool = True
-    key_decisions: bool = True
-    unanswered_questions: bool = True
-    mentions: bool = True
-
-
-class SlackChannelDigestConfig(BaseModel):
-    """Configuration for Slack channel digest (Wave 1)."""
-    focus: Literal["highlights", "decisions", "questions", "all"] = "highlights"
-    include_threads: bool = True
-    reaction_threshold: int = 2  # Min reactions to surface a message
-    reply_threshold: int = 3  # Min replies to mark as hot thread
-    sections: SlackChannelDigestSections = Field(default_factory=SlackChannelDigestSections)
-    max_items: int = 15  # Max items to include in digest
-
-
-class GmailInboxBriefSections(BaseModel):
-    """Sections to include in Gmail inbox brief."""
-    urgent: bool = True
-    action_required: bool = True
-    fyi: bool = True
-    follow_ups: bool = True
-
-
-class GmailInboxBriefConfig(BaseModel):
-    """Configuration for Gmail inbox brief (Wave 1)."""
-    focus: Literal["triage", "summary", "action_items"] = "triage"
-    priority_senders: list[str] = Field(default_factory=list)  # High-priority email addresses
-    sections: GmailInboxBriefSections = Field(default_factory=GmailInboxBriefSections)
-    include_sent: bool = True  # Include sent emails for context
-    max_items: int = 20
-
-
-class NotionPageSummarySections(BaseModel):
-    """Sections to include in Notion page summary."""
-    changes: bool = True
-    new_content: bool = True
-    completed_tasks: bool = True
-    open_comments: bool = True
-
-
-class NotionPageSummaryConfig(BaseModel):
-    """Configuration for Notion page summary (Wave 1)."""
-    summary_type: Literal["changelog", "overview", "activity"] = "changelog"
-    include_subpages: bool = True
-    max_depth: int = 2  # How deep to recurse into subpages
-    sections: NotionPageSummarySections = Field(default_factory=NotionPageSummarySections)
-    time_range_days: int = 7
-
-
-# ADR-082: Union type for type_config (8 active types)
+# ADR-093: Union type for type_config (7 types)
 TypeConfig = Union[
-    StatusReportConfig,
-    ResearchBriefConfig,
+    DigestConfig,
+    BriefConfig,
+    StatusConfig,
+    WatchConfig,
+    DeepResearchConfig,
+    CoordinatorConfig,
     CustomConfig,
-    SlackChannelDigestConfig,
-    GmailInboxBriefConfig,
-    NotionPageSummaryConfig,
 ]
 
 
@@ -410,16 +272,15 @@ def compute_feedback_summary(approved_versions: list[dict]) -> FeedbackSummary:
 
 
 def get_default_config(deliverable_type: DeliverableType) -> dict:
-    """Get default configuration for a deliverable type (ADR-082: 8 active types)."""
+    """Get default configuration for a deliverable type (ADR-093: 7 types)."""
     defaults = {
-        "status_report": StatusReportConfig(subject="", audience="stakeholders"),
-        "research_brief": ResearchBriefConfig(focus_area="competitive", subjects=[]),
-        "custom": CustomConfig(description=""),
-        "slack_channel_digest": SlackChannelDigestConfig(),
-        "gmail_inbox_brief": GmailInboxBriefConfig(),
-        "notion_page_summary": NotionPageSummaryConfig(),
-        # meeting_prep and weekly_calendar_preview don't have config models —
-        # they're built from calendar event data at runtime
+        "digest": DigestConfig(),
+        "brief": BriefConfig(),
+        "status": StatusConfig(),
+        "watch": WatchConfig(),
+        "deep_research": DeepResearchConfig(),
+        "coordinator": CoordinatorConfig(),
+        "custom": CustomConfig(),
     }
     return defaults.get(deliverable_type, defaults["custom"]).model_dump()
 
