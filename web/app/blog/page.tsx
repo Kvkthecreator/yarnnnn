@@ -1,6 +1,6 @@
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
+import { ThemeShaderBackground } from "@/components/landing/ThemeShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import BlogPostList from "@/components/blog/BlogPostList";
 import { getAllPosts } from "@/lib/blog";
@@ -40,19 +40,19 @@ export default function BlogPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-[#0f1419] text-white overflow-x-hidden">
-      <GrainOverlay variant="dark" />
-      <ShaderBackgroundDark />
+    <div className="relative min-h-screen flex flex-col bg-background text-foreground overflow-x-hidden">
+      <GrainOverlay />
+      <ThemeShaderBackground />
 
       <div className="relative z-10 flex flex-col min-h-screen">
-        <LandingHeader inverted />
+        <LandingHeader />
 
         <main className="flex-1">
           <section className="max-w-2xl mx-auto px-6 py-24 md:py-32">
             <h1 className="text-4xl md:text-5xl font-medium mb-4 tracking-tight leading-[1.1]">
               Blog
             </h1>
-            <p className="text-white/50 mb-16 max-w-lg">
+            <p className="text-muted-foreground mb-16 max-w-lg">
               Ideas on context-powered AI agents, autonomous work, and why your
               agent should get smarter the longer you use it.
             </p>
@@ -61,7 +61,7 @@ export default function BlogPage() {
           </section>
         </main>
 
-        <LandingFooter inverted />
+        <LandingFooter />
       </div>
 
       <script

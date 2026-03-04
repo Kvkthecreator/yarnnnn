@@ -35,8 +35,8 @@ export default function BlogPostList({ posts }: { posts: BlogPostMeta[] }) {
             onClick={() => setActiveTab(tab.key)}
             className={`px-3 py-1.5 text-sm rounded-full transition-colors ${
               activeTab === tab.key
-                ? "text-white bg-white/10"
-                : "text-white/40 hover:text-white/60"
+                ? "text-foreground bg-foreground/10"
+                : "text-muted-foreground/60 hover:text-muted-foreground"
             }`}
           >
             {tab.label}
@@ -45,13 +45,13 @@ export default function BlogPostList({ posts }: { posts: BlogPostMeta[] }) {
       </div>
 
       {filtered.length === 0 ? (
-        <p className="text-white/30">No posts in this category yet.</p>
+        <p className="text-muted-foreground/60">No posts in this category yet.</p>
       ) : (
         <div className="space-y-12">
           {filtered.map((post) => (
             <article key={post.slug}>
               <Link href={`/blog/${post.slug}`} className="group block">
-                <div className="flex items-center gap-3 text-sm text-white/30 mb-2">
+                <div className="flex items-center gap-3 text-sm text-muted-foreground/60 mb-2">
                   <time dateTime={post.date}>
                     {format(new Date(post.date), "MMMM d, yyyy")}
                   </time>
@@ -60,18 +60,18 @@ export default function BlogPostList({ posts }: { posts: BlogPostMeta[] }) {
                   {post.category === "opinion" && (
                     <>
                       <span>&middot;</span>
-                      <span className="text-white/40">Opinion</span>
+                      <span className="text-muted-foreground/70">Opinion</span>
                     </>
                   )}
                 </div>
-                <h2 className="text-xl md:text-2xl font-medium group-hover:text-white/80 transition-colors mb-2">
+                <h2 className="text-xl md:text-2xl font-medium group-hover:opacity-70 transition-colors mb-2">
                   {post.title}
                 </h2>
-                <p className="text-white/50 leading-relaxed">
+                <p className="text-muted-foreground leading-relaxed">
                   {post.description}
                 </p>
                 {post.category === "opinion" && (
-                  <p className="text-sm text-white/30 mt-2">
+                  <p className="text-sm text-muted-foreground/60 mt-2">
                     {getDisplayAuthor(post.author)}
                   </p>
                 )}

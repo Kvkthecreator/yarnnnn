@@ -5,7 +5,7 @@ import { format } from "date-fns";
 import ReactMarkdown from "react-markdown";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
-import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
+import { ThemeShaderBackground } from "@/components/landing/ThemeShaderBackground";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { getPostBySlug, getPostSlugs } from "@/lib/blog";
 import { BRAND } from "@/lib/metadata";
@@ -97,19 +97,19 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
   };
 
   return (
-    <div className="relative min-h-screen flex flex-col bg-[#0f1419] text-white overflow-x-hidden">
-      <GrainOverlay variant="dark" />
-      <ShaderBackgroundDark />
+    <div className="relative min-h-screen flex flex-col bg-background text-foreground overflow-x-hidden">
+      <GrainOverlay />
+      <ThemeShaderBackground />
 
       <div className="relative z-10 flex flex-col min-h-screen">
-        <LandingHeader inverted />
+        <LandingHeader />
 
         <main className="flex-1">
           <article className="max-w-2xl mx-auto px-6 py-24 md:py-32">
             {/* Back link */}
             <Link
               href="/blog"
-              className="text-sm text-white/30 hover:text-white/60 transition-colors mb-8 inline-block"
+              className="text-sm text-muted-foreground/60 hover:text-muted-foreground transition-colors mb-8 inline-block"
             >
               &larr; Back to blog
             </Link>
@@ -119,7 +119,7 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
               <h1 className="text-3xl md:text-4xl lg:text-5xl font-medium tracking-tight leading-[1.1] mb-4">
                 {post.title}
               </h1>
-              <div className="flex items-center gap-3 text-sm text-white/30">
+              <div className="flex items-center gap-3 text-sm text-muted-foreground/60">
                 <time dateTime={post.date}>
                   {format(new Date(post.date), "MMMM d, yyyy")}
                 </time>
@@ -135,13 +135,13 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
             </header>
 
             {/* Post content */}
-            <div className="prose prose-invert prose-lg max-w-none">
+            <div className="prose prose-neutral dark:prose-invert prose-lg max-w-none">
               <ReactMarkdown>{post.content}</ReactMarkdown>
             </div>
           </article>
         </main>
 
-        <LandingFooter inverted />
+        <LandingFooter />
       </div>
 
       {/* Structured data */}
