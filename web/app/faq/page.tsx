@@ -20,24 +20,24 @@ const faqSections: FaqSection[] = [
     category: "General",
     items: [
       {
-        question: "What is yarnnn?",
+        question: "What is yarnnn in simple terms?",
         answer:
-          "yarnnn is an autonomous AI work platform. It connects to Slack, Gmail, Notion, and Calendar, then runs deliverable specialists that produce real output for you in the background.",
+          "yarnnn is an AI assistant that does recurring work for you. You connect your tools, it prepares drafts, and you approve them.",
       },
       {
         question: "What is TP (Thinking Partner)?",
         answer:
-          "TP is yarnnn's interactive interface. You use TP to define deliverables, refine outputs, and supervise the system. TP and background execution share the same underlying context and intelligence.",
+          "TP is the chat interface inside yarnnn. You talk to it like a teammate to set things up, ask questions, and improve drafts.",
       },
       {
-        question: "How is yarnnn different from ChatGPT or Claude?",
+        question: "How is this different from ChatGPT or Claude?",
         answer:
-          "Chat tools are primarily session-centric. yarnnn is system-centric: it maintains synced work context, runs scheduled or trigger-based deliverables, and improves those specialists over time through versioned supervision.",
+          "Those tools are great for one-off prompts. yarnnn is built for recurring work. It uses your connected tools and keeps improving from your edits over time.",
       },
       {
-        question: "Is yarnnn an AI agent platform?",
+        question: "Do I need to understand technical AI concepts?",
         answer:
-          "yarnnn is focused on supervised autonomous work, not generic task automation. The core unit is the deliverable specialist with explicit type, mode, source scope, and version history.",
+          "No. Most people just describe the task they want done and review the output. Advanced settings are optional.",
       },
     ],
   },
@@ -45,74 +45,74 @@ const faqSections: FaqSection[] = [
     category: "Platforms & Data",
     items: [
       {
-        question: "Which platforms does yarnnn connect to?",
+        question: "Which tools can I connect?",
         answer:
-          "Slack, Gmail, Google Calendar, and Notion. You authorize via OAuth and choose source scope where applicable (channels, labels, pages).",
+          "Slack, Gmail, Google Calendar, and Notion.",
       },
       {
-        question: "Is my data safe?",
+        question: "Can yarnnn send emails or post messages for me?",
         answer:
-          "Yes. Data is encrypted in transit and at rest. OAuth tokens are encrypted. Access is user-scoped. You can change source selections or disconnect any integration at any time.",
+          "No. Core integrations are read-focused for context. You stay in control of final approval and sending.",
       },
       {
-        question: "What does yarnnn sync?",
+        question: "Is my data secure?",
         answer:
-          "Only selected source content and metadata needed for context-aware generation. Sync behavior and cadence depend on your tier.",
+          "Yes. Data is encrypted in transit and at rest. Access is tied to your account, and you can disconnect tools anytime.",
       },
       {
-        question: "Can yarnnn post or edit things in my tools?",
+        question: "Can I choose what yarnnn reads?",
         answer:
-          "No. Core integrations are read-oriented for context ingestion. You stay in control of approvals and delivery decisions.",
+          "Yes. You can choose channels, labels, and pages so yarnnn only uses relevant content.",
       },
     ],
   },
   {
-    category: "Deliverables",
+    category: "Workflows",
     items: [
       {
-        question: "What are deliverables?",
+        question: "What kind of work can yarnnn do?",
         answer:
-          "Deliverables are autonomous specialists that generate versioned outputs for recurring or triggered work. Each has its own instructions, memory, and source scope.",
+          "Weekly updates, meeting prep, status reports, and other repeated writing tasks based on your work tools.",
       },
       {
-        question: "Which deliverable types are supported?",
+        question: "Do I need to set up complicated rules?",
         answer:
-          "Current intent-first types are: digest, brief, status, watch, deep_research, coordinator, and custom.",
+          "No. Start with a simple schedule like once a week. You can add more control later if needed.",
       },
       {
-        question: "Which execution modes are supported?",
+        question: "How does it get better over time?",
         answer:
-          "Modes are recurring, goal, reactive, proactive, and coordinator. Mode controls how and when a deliverable decides to run.",
+          "When you edit or approve drafts, yarnnn learns your style and priorities. Future drafts are closer to what you want.",
       },
       {
-        question: "How do deliverables improve over time?",
+        question: "Can I always review before anything is final?",
         answer:
-          "Each approved/edit-reviewed version becomes signal for future runs. Specialists learn your preferred structure, emphasis, and tone as they execute.",
+          "Yes. The default model is supervised: yarnnn drafts, you review and approve.",
       },
     ],
   },
   {
-    category: "Pricing & Plans",
+    category: "Pricing",
     items: [
       {
         question: "What plans are available?",
         answer:
-          "yarnnn has Free, Starter, and Pro plans. All plans include Slack, Gmail, Notion, and Calendar integration support.",
+          "Free, Starter, and Pro.",
       },
       {
-        question: "What are current deliverable limits?",
+        question: "What are current workflow limits?",
         answer:
-          "Free supports 2 active deliverables, Starter supports 5, and Pro is unlimited.",
+          "Free: 2 active workflows. Starter: 5 active workflows. Pro: unlimited.",
       },
       {
-        question: "How does sync frequency scale by tier?",
+        question: "How often does yarnnn sync my tools?",
         answer:
-          "Free: 1x daily. Starter: 4x daily. Pro: hourly.",
+          "Free: once daily. Starter: four times daily. Pro: hourly.",
       },
       {
-        question: "How does source capacity scale by tier?",
+        question: "Do all plans include tool connections?",
         answer:
-          "Limits scale by provider. For example: Slack sources are 5 (Free), 15 (Starter), unlimited (Pro). Similar scaling applies to Gmail and Notion.",
+          "Yes. Slack, Gmail, Notion, and Calendar are available on all plans.",
       },
     ],
   },
@@ -120,19 +120,19 @@ const faqSections: FaqSection[] = [
     category: "Getting Started",
     items: [
       {
-        question: "How do I get started?",
+        question: "What should I do first?",
         answer:
-          "Sign up, connect one platform, then define your first deliverable through TP or the deliverable UI. You can usually have a first run quickly.",
+          "Connect one tool, then ask for one weekly draft. Start small and build from there.",
       },
       {
-        question: "Do I need to configure everything up front?",
+        question: "How fast will I see value?",
         answer:
-          "No. Start with one specialist and one high-signal source. Expand type coverage and mode sophistication as you build confidence.",
+          "Usually right away. You can get a first draft quickly after setup.",
       },
       {
-        question: "What is the best first deliverable?",
+        question: "Best first use case?",
         answer:
-          "Most teams start with a recurring digest or status update. These give fast value and create clean supervision signal for future improvements.",
+          "A weekly update is the easiest place to start because it is simple, recurring, and easy to review.",
       },
     ],
   },
@@ -143,14 +143,14 @@ const allFaqItems = faqSections.flatMap((s) => s.items);
 export const metadata = getMarketingMetadata({
   title: "FAQ",
   description:
-    "Frequently asked questions about yarnnn: product model, integrations, deliverable types and modes, pricing, and getting started.",
+    "Simple answers about how yarnnn works, what it connects to, pricing, and how to get started quickly.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
-    "autonomous ai faq",
-    "deliverable modes",
+    "ai for work faq",
+    "workflow automation faq",
     "thinking partner faq",
-    "context powered ai",
+    "autonomous ai faq",
   ],
 });
 
@@ -182,7 +182,7 @@ export default function FaqPage() {
               Frequently asked questions
             </h1>
             <p className="text-white/50 mb-16 max-w-xl">
-              Product model, integrations, pricing, and how to get meaningful autonomous output quickly.
+              Straight answers on setup, pricing, and what yarnnn can do for you.
             </p>
 
             <div className="space-y-16">
@@ -204,7 +204,7 @@ export default function FaqPage() {
 
             <div className="mt-24 text-center">
               <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
-              <p className="text-white/50 mb-8">Start with one deliverable, then expand from real usage signal.</p>
+              <p className="text-white/50 mb-8">Start with one weekly workflow and adjust from real usage.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href="/auth/login"
