@@ -340,8 +340,9 @@ async def generate_draft_inline(
     max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(binding, 3)
 
     # ADR-080: Mode-gated tools and executor
+    # ADR-092: Pass deliverable sources so headless RefreshPlatformContent can scope to them
     headless_tools = get_tools_for_mode("headless")
-    executor = create_headless_executor(client, user_id)
+    executor = create_headless_executor(client, user_id, deliverable_sources=deliverable.get("sources"))
 
     import json
 

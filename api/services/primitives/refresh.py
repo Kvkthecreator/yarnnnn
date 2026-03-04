@@ -1,8 +1,12 @@
 """
-RefreshPlatformContent Primitive (ADR-085)
+RefreshPlatformContent Primitive (ADR-085, extended by ADR-092)
 
 Synchronous write-through cache refresh for platform content.
 RAG cache-miss pattern: Search finds stale/empty → Refresh syncs latest → Search again.
+
+Modes:
+  chat    — 30-minute staleness guard; any connected platform
+  headless — no staleness guard (infrequent, purposeful); scoped to deliverable's sources
 
 Usage:
   RefreshPlatformContent(platform="slack")
@@ -17,7 +21,7 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-# Minimum time between refreshes to prevent redundant syncs
+# Minimum time between refreshes to prevent redundant syncs (chat mode only)
 STALENESS_THRESHOLD_MINUTES = 30
 
 
@@ -54,17 +58,18 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
     """
     Handle RefreshPlatformContent primitive.
 
-    Checks connection status and freshness, then runs a synchronous sync
-    via the existing platform worker pipeline.
+    Chat mode: checks 30-minute staleness guard, any connected platform.
+    Headless mode (ADR-092): no staleness guard; scoped to deliverable's configured sources.
 
     Args:
-        auth: Auth context with user_id and client
+        auth: Auth context with user_id, client, and optionally headless/deliverable_sources
         input: {"platform": "slack|gmail|notion|calendar"}
 
     Returns:
         {success, platform, items_synced, message, refreshed_at}
     """
     platform = input.get("platform", "")
+    is_headless = getattr(auth, "headless", False)
 
     if not platform:
         return {
@@ -81,6 +86,27 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
         }
 
     user_id = auth.user_id
+
+    # ADR-092: Headless mode — verify platform is in deliverable's configured sources
+    if is_headless:
+        deliverable_sources = getattr(auth, "deliverable_sources", None)
+        if deliverable_sources is not None:
+            # deliverable_sources is a list of source dicts with a 'platform' key
+            configured_platforms = {
+                s.get("platform", "") for s in deliverable_sources if isinstance(s, dict)
+            }
+            # google connection covers both gmail and calendar
+            if "google" in configured_platforms:
+                configured_platforms.update({"gmail", "calendar"})
+            if platform not in configured_platforms:
+                return {
+                    "success": False,
+                    "error": "platform_not_in_sources",
+                    "message": (
+                        f"Headless refresh is scoped to this deliverable's configured sources. "
+                        f"{platform} is not in the configured sources."
+                    ),
+                }
 
     # Google OAuth may store as platform="gmail" or platform="google" depending on
     # when the connection was created. Check both for Gmail/Calendar connections.
@@ -119,37 +145,39 @@ async def handle_refresh_platform_content(auth: Any, input: dict) -> dict:
             "message": f"Failed to check {platform} connection: {e}",
         }
 
-    # 2. Check freshness — skip if recently synced
-    try:
-        now = datetime.now(timezone.utc)
-        threshold = now - timedelta(minutes=STALENESS_THRESHOLD_MINUTES)
+    # 2. Check freshness — skip if recently synced (chat mode only)
+    # ADR-092: Headless mode skips this guard — headless runs are already infrequent and purposeful
+    if not is_headless:
+        try:
+            now = datetime.now(timezone.utc)
+            threshold = now - timedelta(minutes=STALENESS_THRESHOLD_MINUTES)
 
-        freshness_result = auth.client.table("platform_content").select(
-            "fetched_at"
-        ).eq("user_id", user_id).eq("platform", platform).gte(
-            "fetched_at", threshold.isoformat()
-        ).limit(1).execute()
+            freshness_result = auth.client.table("platform_content").select(
+                "fetched_at"
+            ).eq("user_id", user_id).eq("platform", platform).gte(
+                "fetched_at", threshold.isoformat()
+            ).limit(1).execute()
 
-        if freshness_result.data:
-            # Content was fetched recently — count existing items instead of re-syncing
-            count_result = auth.client.table("platform_content").select(
-                "id", count="exact"
-            ).eq("user_id", user_id).eq("platform", platform).execute()
+            if freshness_result.data:
+                # Content was fetched recently — count existing items instead of re-syncing
+                count_result = auth.client.table("platform_content").select(
+                    "id", count="exact"
+                ).eq("user_id", user_id).eq("platform", platform).execute()
 
-            item_count = count_result.count or 0
+                item_count = count_result.count or 0
 
-            return {
-                "success": True,
-                "platform": platform,
-                "items_synced": 0,
-                "skipped": True,
-                "existing_items": item_count,
-                "message": f"{platform} content is fresh (synced within {STALENESS_THRESHOLD_MINUTES}min). "
-                           f"{item_count} items available. Use Search(scope='platform_content', platform='{platform}') to query.",
-            }
-    except Exception as e:
-        # Non-fatal — proceed with sync anyway
-        logger.warning(f"[REFRESH] Freshness check failed for {platform}: {e}")
+                return {
+                    "success": True,
+                    "platform": platform,
+                    "items_synced": 0,
+                    "skipped": True,
+                    "existing_items": item_count,
+                    "message": f"{platform} content is fresh (synced within {STALENESS_THRESHOLD_MINUTES}min). "
+                               f"{item_count} items available. Use Search(scope='platform_content', platform='{platform}') to query.",
+                }
+        except Exception as e:
+            # Non-fatal — proceed with sync anyway
+            logger.warning(f"[REFRESH] Freshness check failed for {platform}: {e}")
 
     # 3. Run synchronous sync via existing worker pipeline
     try:

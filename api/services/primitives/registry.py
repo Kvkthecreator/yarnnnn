@@ -230,7 +230,7 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     "Write":            ["chat"],
     "Edit":             ["chat"],
     "Execute":          ["chat"],
-    "RefreshPlatformContent": ["chat"],  # ADR-085
+    "RefreshPlatformContent": ["chat", "headless"],  # ADR-085, extended by ADR-092
     "Todo":             ["chat"],
     "Respond":          ["chat"],
     "Clarify":          ["chat"],
@@ -259,7 +259,7 @@ def get_tools_for_mode(mode: str) -> list[dict]:
     return tools
 
 
-def create_headless_executor(client: Any, user_id: str):
+def create_headless_executor(client: Any, user_id: str, deliverable_sources: Optional[list] = None):
     """
     Create a tool executor function for headless mode.
 
@@ -270,14 +270,18 @@ def create_headless_executor(client: Any, user_id: str):
     Args:
         client: Supabase client (service role)
         user_id: User UUID for data scoping
+        deliverable_sources: ADR-092 — deliverable's configured sources list, used by
+                             RefreshPlatformContent to scope headless refreshes
     """
     class HeadlessAuth:
         """Minimal auth context for headless execution."""
-        def __init__(self, client, user_id):
+        def __init__(self, client, user_id, deliverable_sources=None):
             self.client = client
             self.user_id = user_id
+            self.headless = True  # ADR-092: signals headless mode to primitives
+            self.deliverable_sources = deliverable_sources  # ADR-092: source scoping
 
-    auth = HeadlessAuth(client, user_id)
+    auth = HeadlessAuth(client, user_id, deliverable_sources)
 
     async def executor(tool_name: str, tool_input: dict) -> dict:
         # Verify tool is allowed in headless mode
