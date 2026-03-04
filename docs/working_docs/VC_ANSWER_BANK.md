@@ -139,3 +139,17 @@ The combination is rare: a systems thinker shaped by navigating between disconne
 ### "Why Now" (standalone paragraph)
 
 > ClawdBot proved explosive demand for personalized, context-aware AI in January 2026 — 17,830 GitHub stars in 24 hours. Every platform cycle's application layer forms within 3–5 years of platform maturity. LLMs are 3 years in. No one is building the work context layer. The architecture is built, the product is live, and we're making the bet that this cycle rhymes — just like every one before it. This funding is about speed: a Tech Lead and a GTM Lead to claim the category while the window is open.
+
+---
+
+## VC Applications Tracker
+
+| # | Fund | Stage | Date Applied | Status | Notes |
+|---|------|-------|-------------|--------|-------|
+| 1 | PearX (S26) | Accelerator | 2026-03-04 | Submitted | YC-style accelerator application |
+| 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website |
+| 3 | Hustle Fund | Pre-seed | 2026-03-04 | Submitted | Typeform; ~2 week review cycle; deck upload skipped (optional) |
+| 4 | Outlander VC | Pre-seed | 2026-03-04 | Submitted | Typeform + video interview step (videoask.com/fxt7uhkqo) |
+
+**Raising**: $500K pre-seed at $5M post-money valuation
+**Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
