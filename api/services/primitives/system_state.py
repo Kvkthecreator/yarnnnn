@@ -6,10 +6,9 @@ snapshot. Gives TP the same visibility into system state that a human operator
 would have.
 
 Data sources:
-  - activity_log: Last signal_processed, last platform_synced per platform, scheduler_heartbeat
+  - activity_log: Last platform_synced per platform, scheduler_heartbeat, deliverable runs
   - sync_registry: Per-resource sync freshness
   - integration_import_jobs: Active/failed job state
-  - signal_history: Recent signal activity
   - platform_connections: Available resources (landscape)
 
 This is a read-only aggregation layer — no writes, no side effects.
@@ -30,13 +29,12 @@ GET_SYSTEM_STATE_TOOL = {
     "description": """Get a snapshot of YARNNN's operational state.
 
 Use when the user asks about system status, sync state, or "what happened":
-- "What happened last night?" → check scheduler_heartbeat, signal processing
+- "What happened last night?" → check scheduler_heartbeat, deliverable runs
 - "Why didn't my digest run?" → check deliverable execution state
 - "Is Slack syncing?" → check per-platform sync freshness
 - "What platforms are connected?" → check platform connections with landscape
 
 Returns structured SystemStateSnapshot with:
-- last_signal_pass: When signals were last processed, what was triggered
 - platform_sync_status: Per-platform sync freshness with resource details
 - pending_reviews: Count of deliverable versions awaiting review
 - failed_jobs: Any failed import jobs in last 24 hours

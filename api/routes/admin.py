@@ -969,9 +969,6 @@ class AdminPipelineStats(BaseModel):
     heartbeats_24h: int = 0
     deliverables_scheduled_24h: int = 0
     deliverables_executed_24h: int = 0
-    # Signals
-    signals_processed_24h: int = 0
-    signals_processed_7d: int = 0
     # Event triggers
     triggers_executed_24h: int = 0
     triggers_skipped_24h: int = 0
@@ -1083,7 +1080,7 @@ async def get_pipeline_stats(admin: AdminAuth):
 
         # By retention reason
         content_retained_by_reason = {}
-        for reason in ["deliverable_execution", "signal_processing", "tp_session"]:
+        for reason in ["deliverable_execution", "tp_session"]:
             r_result = client.table("platform_content").select(
                 "id", count="exact"
             ).eq("retained", True).eq("retained_reason", reason).execute()
@@ -1122,21 +1119,6 @@ async def get_pipeline_stats(admin: AdminAuth):
         ).execute()
         deliverables_executed_24h = de_24h.count or 0
 
-        # ─── Signals ──────────────────────────────────────────────────────────
-        sig_24h = client.table("activity_log").select(
-            "id", count="exact"
-        ).eq("event_type", "signal_processed").gte(
-            "created_at", cutoff_24h
-        ).execute()
-        signals_24h = sig_24h.count or 0
-
-        sig_7d = client.table("activity_log").select(
-            "id", count="exact"
-        ).eq("event_type", "signal_processed").gte(
-            "created_at", cutoff_7d
-        ).execute()
-        signals_7d = sig_7d.count or 0
-
         # ─── Event Triggers ───────────────────────────────────────────────────
         triggers_executed = 0
         triggers_skipped = 0
@@ -1172,8 +1154,6 @@ async def get_pipeline_stats(admin: AdminAuth):
             heartbeats_24h=heartbeats_24h,
             deliverables_scheduled_24h=deliverables_scheduled_24h,
             deliverables_executed_24h=deliverables_executed_24h,
-            signals_processed_24h=signals_24h,
-            signals_processed_7d=signals_7d,
             triggers_executed_24h=triggers_executed,
             triggers_skipped_24h=triggers_skipped,
             triggers_failed_24h=triggers_failed,
@@ -1224,86 +1204,6 @@ async def admin_trigger_sync(
         raise HTTPException(status_code=500, detail=f"Sync failed: {str(e)}")
 
 
-@router.post("/trigger-signal-processing/{user_id}")
-async def admin_trigger_signal_processing(
-    user_id: str,
-    x_service_key: Optional[str] = Header(None),
-) -> dict:
-    """
-    Admin endpoint to trigger signal processing for a specific user.
-    Protected by service key header. Runs synchronously and returns results.
-    """
-    supabase_key = os.environ.get("SUPABASE_SERVICE_KEY", "")
-    if not x_service_key or x_service_key != supabase_key:
-        raise HTTPException(status_code=403, detail="Invalid service key")
-
-    supabase_url = os.environ.get("SUPABASE_URL", "")
-    if not supabase_url or not supabase_key:
-        raise HTTPException(status_code=500, detail="Missing Supabase credentials")
-
-    from supabase import create_client
-    from services.signal_extraction import extract_signal_summary
-    from services.signal_processing import process_signal
-
-    client = create_client(supabase_url, supabase_key)
-
-    try:
-        # Extract signals from platform_content
-        summary = await extract_signal_summary(client, user_id)
-        extraction_result = {
-            "platforms_queried": summary.platforms_queried,
-            "total_items": summary.total_items,
-            "has_calendar": summary.calendar_content is not None,
-            "has_gmail": summary.gmail_content is not None,
-            "has_slack": summary.slack_content is not None,
-            "has_notion": summary.notion_content is not None,
-        }
-
-        if summary.total_items == 0:
-            return {
-                "user_id": user_id,
-                "status": "no_content",
-                "extraction": extraction_result,
-                "processing": None,
-            }
-
-        # Gather context needed by process_signal
-        uc_result = client.table("user_memory").select("*").eq("user_id", user_id).execute()
-        user_memory = uc_result.data or []
-
-        al_result = client.table("activity_log").select("*").eq(
-            "user_id", user_id
-        ).order("created_at", desc=True).limit(20).execute()
-        recent_activity = al_result.data or []
-
-        dl_result = client.table("deliverables").select("*").eq(
-            "user_id", user_id
-        ).in_("status", ["active", "paused"]).execute()
-        existing_deliverables = dl_result.data or []
-
-        # Process signals (LLM triage)
-        processing_result = await process_signal(
-            client, user_id, summary, user_memory, recent_activity, existing_deliverables
-        )
-
-        return {
-            "user_id": user_id,
-            "status": "completed",
-            "extraction": extraction_result,
-            "processing": {
-                "signals_detected": getattr(processing_result, "signals_detected", 0),
-                "actions": [str(a) for a in getattr(processing_result, "actions", [])],
-                "reasoning": getattr(processing_result, "reasoning_summary", ""),
-            },
-        }
-    except Exception as e:
-        import traceback
-        return {
-            "user_id": user_id,
-            "status": "error",
-            "error": str(e),
-            "traceback": traceback.format_exc(),
-        }
 
 
 # =============================================================================

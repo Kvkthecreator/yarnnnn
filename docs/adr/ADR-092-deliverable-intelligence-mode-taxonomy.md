@@ -1,6 +1,6 @@
 # ADR-092: Deliverable Intelligence & Mode Taxonomy
 
-**Status:** Phase 4 Implemented (Phase 1: schema/types; Phase 2: reactive dispatch; Phase 3: RefreshPlatformContent headless; Phase 4: proactive review pass)
+**Status:** Phase 5 Implemented — Signal Processing Dissolved (Phase 1: schema/types; Phase 2: reactive dispatch; Phase 3: RefreshPlatformContent headless; Phase 4: proactive review pass; Phase 5: coordinator primitives + signal processing removal)
 **Date:** 2026-03-04
 **Authors:** Kevin Kim, Claude (analysis)
 **Supersedes:**
@@ -381,7 +381,7 @@ The deliverable types themselves (`meeting_prep`, `silence_alert`, `contact_drif
 - **Strengthens YARNNN's position.** The deliverable model now provides the "living agent" experience that OpenClaw achieves with a persistent always-on process — but YARNNN achieves it with sleeping specialists that only wake when warranted. Cost-efficient. Quality-compounding. Architecturally clean.
 
 ### Negative
-- **Migration cost.** Signal processing is live and provides value (meeting_prep briefs). Phase 5 removal requires coordinator deliverables to be working first. There is a transition period where both exist — this is acceptable for migration purposes but must not become a permanent dual approach (CLAUDE.md discipline: singular implementation).
+- **Migration cost.** Signal processing provided live value (meeting_prep briefs). Phase 5 complete: signal_extraction.py, signal_processing.py, routes/signal_processing.py deleted; signal_history table dropped; unified_scheduler signal block removed. Coordinator deliverables now provide the equivalent capability with user-configured domain scope and accumulated memory.
 - **Coordinator deliverable UX.** Users must understand that a coordinator deliverable is a meta-deliverable. This requires clear product communication and UI design. The concept is correct; the onboarding is non-trivial.
 - **No global scan.** Signal processing scanned all platform content for all users holistically. Coordinator deliverables are user-configured and domain-scoped. A signal that doesn't fall within any configured coordinator's domain will not be caught. This is intentional — YARNNN's model is explicit configuration, not ambient surveillance.
 

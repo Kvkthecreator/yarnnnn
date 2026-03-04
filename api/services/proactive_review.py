@@ -89,6 +89,25 @@ Respond with ONLY a JSON object — no prose before or after:
 
 The `until` field in sleep must be an ISO 8601 UTC timestamp. Default to 24 hours from now if unsure."""
 
+    # Coordinator mode: mention write primitives
+    if mode == "coordinator":
+        prompt += """
+
+## Coordinator Write Primitives
+
+As a coordinator, you also have access to:
+
+**CreateDeliverable** — create a new child deliverable when you detect a condition that warrants it
+(e.g. an upcoming meeting needing prep, a stalled project, an emerging issue).
+Check deliverable_memory.created_deliverables before creating to avoid duplicates.
+
+**AdvanceDeliverableSchedule** — advance an existing deliverable to run now when conditions warrant it.
+
+Use List or Search to find existing deliverables before creating or advancing.
+Your JSON decision still controls the overall outcome — use `generate` only if THIS coordinator
+deliverable should itself produce a new version (rare). Use `observe` or `sleep` for most cycles,
+creating/advancing child deliverables as needed via tools during the review pass."""
+
     # Inject memory context
     review_log = memory.get("review_log", [])
     observations = memory.get("observations", [])
@@ -108,6 +127,17 @@ The `until` field in sleep must be an ISO 8601 UTC timestamp. Default to 24 hour
         memory_parts.append("**Pending observations:**")
         for obs in observations[-5:]:
             memory_parts.append(f"- {obs.get('date', '')}: {obs.get('note', '')}")
+
+    # Coordinator mode: inject created_deliverables dedup log
+    if mode == "coordinator":
+        created_deliverables = memory.get("created_deliverables", [])
+        if created_deliverables:
+            memory_parts.append("**Created deliverables (dedup log — last 10):**")
+            for cd in created_deliverables[-10:]:
+                memory_parts.append(
+                    f"- [{cd.get('date', '')}] {cd.get('title', '')} "
+                    f"(key: {cd.get('dedup_key', 'none')})"
+                )
 
     if memory_parts:
         prompt += "\n\n## Your Accumulated Memory\n" + "\n".join(memory_parts)
@@ -185,7 +215,10 @@ async def run_proactive_review(
 
         headless_tools = get_tools_for_mode("headless")
         executor = create_headless_executor(
-            client, user_id, deliverable_sources=deliverable.get("sources")
+            client,
+            user_id,
+            deliverable_sources=deliverable.get("sources"),
+            coordinator_deliverable_id=deliverable.get("id"),
         )
 
         # Tool-use loop — agent may look at sources before deciding

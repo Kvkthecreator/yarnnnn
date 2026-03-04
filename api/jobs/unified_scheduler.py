@@ -3,10 +3,10 @@ YARNNN v5 - Unified Scheduler
 
 Consolidates all scheduled job processing:
 - Recurring deliverables (ADR-018)
+- Proactive/coordinator deliverables (ADR-092)
 - Weekly digests
 - Import jobs
 - Nightly conversation analysis + memory extraction
-- Signal processing
 - Platform content cleanup (ADR-072)
 
 Run every 5 minutes via Render cron:
@@ -994,178 +994,6 @@ async def run_unified_scheduler():
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")
 
     # -------------------------------------------------------------------------
-    # ADR-068 Phase 4: Split Signal Processing
-    # - Calendar signals (hourly): Time-sensitive meeting prep briefs
-    # - Other signals (hourly): Gmail, Slack, Notion signals
-    # Cost gate: Only runs for users with active platform connections.
-    # -------------------------------------------------------------------------
-    signal_users = 0
-    signal_created = 0
-    signal_daily_users = 0
-    signal_daily_created = 0
-
-    if now.minute < 5:
-        try:
-            from services.signal_extraction import extract_signal_summary
-            from services.signal_processing import process_signal, execute_signal_actions
-            from services.activity_log import get_recent_activity
-
-            # Get users with active platform connections (cost gate)
-            active_result = (
-                supabase.table("platform_connections")
-                .select("user_id")
-                .eq("status", "active")
-                .execute()
-            )
-            active_user_ids = list(set(
-                row["user_id"] for row in (active_result.data or [])
-            ))
-
-            logger.info(f"[SIGNAL] Signal check: {len(active_user_ids)} users with active platforms")
-
-            # ADR-053: Filter out free-tier users (signal processing requires Starter+)
-            from services.platform_limits import get_user_tier
-            paid_user_ids = []
-            for uid in active_user_ids:
-                tier = get_user_tier(supabase, uid)
-                if tier != "free":
-                    paid_user_ids.append(uid)
-                else:
-                    logger.debug(f"[SIGNAL] Skipping free-tier user {uid}")
-
-            if len(paid_user_ids) < len(active_user_ids):
-                logger.info(
-                    f"[SIGNAL] Tier gate: {len(paid_user_ids)}/{len(active_user_ids)} users eligible (Starter+)"
-                )
-
-            # Run both signal phases per user (calendar + non_calendar)
-            for user_id in paid_user_ids:
-                for signals_filter, label in [("calendar_only", "calendar"), ("non_calendar", "daily")]:
-                    try:
-                        signal_summary = await extract_signal_summary(
-                            supabase, user_id, signals_filter=signals_filter
-                        )
-
-                        if not signal_summary.has_signals:
-                            continue
-
-                        # Fetch context for reasoning
-                        user_memory_result = (
-                            supabase.table("user_memory")
-                            .select("key, value")
-                            .eq("user_id", user_id)
-                            .limit(20)
-                            .execute()
-                        )
-                        user_memory = user_memory_result.data or []
-
-                        recent_activity = await get_recent_activity(
-                            client=supabase,
-                            user_id=user_id,
-                            limit=10,
-                            days=7,
-                        )
-
-                        # ADR-069: Fetch Layer 4 content for signal reasoning
-                        # Bounded: limit to 5 most recent versions per deliverable
-                        existing_deliverables_raw = (
-                            supabase.table("deliverables")
-                            .select("""
-                                id, title, deliverable_type, next_run_at, status,
-                                deliverable_versions!inner(
-                                    final_content,
-                                    draft_content,
-                                    created_at,
-                                    status
-                                )
-                            """)
-                            .eq("user_id", user_id)
-                            .in_("status", ["active", "paused"])
-                            .limit(20)
-                            .execute()
-                        )
-
-                        # Extract most recent version per deliverable (sort versions client-side)
-                        existing_deliverables = []
-                        for d in (existing_deliverables_raw.data or []):
-                            versions = sorted(
-                                d.get("deliverable_versions", []),
-                                key=lambda v: v.get("created_at", ""),
-                                reverse=True,
-                            )
-                            recent_version = versions[0] if versions else None
-                            existing_deliverables.append({
-                                "id": d["id"],
-                                "title": d["title"],
-                                "deliverable_type": d["deliverable_type"],
-                                "next_run_at": d.get("next_run_at"),
-                                "status": d["status"],
-                                "recent_content": (
-                                    recent_version.get("final_content") or
-                                    recent_version.get("draft_content")
-                                ) if recent_version else None,
-                                "recent_version_date": recent_version.get("created_at") if recent_version else None,
-                            })
-
-                        # Single LLM call — reason over signals
-                        processing_result = await process_signal(
-                            client=supabase,
-                            user_id=user_id,
-                            signal_summary=signal_summary,
-                            user_memory=user_memory,
-                            recent_activity=recent_activity,
-                            existing_deliverables=existing_deliverables,
-                        )
-
-                        if processing_result.actions:
-                            created = await execute_signal_actions(
-                                client=supabase,
-                                user_id=user_id,
-                                result=processing_result,
-                            )
-                            if label == "calendar":
-                                signal_created += created
-                                if created > 0:
-                                    signal_users += 1
-                            else:
-                                signal_daily_created += created
-                                if created > 0:
-                                    signal_daily_users += 1
-
-                            if created > 0:
-                                logger.info(
-                                    f"[SIGNAL] Created {created} {label} signal deliverable(s) "
-                                    f"for {user_id}"
-                                )
-                        else:
-                            # Write signal_processed even when 0 actions so system page shows last run
-                            try:
-                                from services.activity_log import write_activity as _sw
-                                await _sw(
-                                    client=supabase,
-                                    user_id=user_id,
-                                    event_type="signal_processed",
-                                    summary=f"Signal processing ({label}): {signal_summary.total_items} item(s), 0 actions",
-                                    metadata={"signals_evaluated": signal_summary.total_items, "actions_taken": [], "items_processed": 0},
-                                )
-                            except Exception:
-                                pass
-
-                    except Exception as e:
-                        logger.warning(f"[SIGNAL] Error processing {label} signals for {user_id}: {e}")
-
-            total_su = signal_users + signal_daily_users
-            total_sc = signal_created + signal_daily_created
-            if total_su > 0:
-                logger.info(
-                    f"[SIGNAL] Signal phase complete: {total_su} users, "
-                    f"{total_sc} deliverables created"
-                )
-
-        except Exception as e:
-            logger.warning(f"[SIGNAL] Signal processing skipped: {e}")
-
-    # -------------------------------------------------------------------------
     # Summary
     # -------------------------------------------------------------------------
     deliverable_summary = f"{deliverable_success}/{len(deliverables)}"
@@ -1181,10 +1009,6 @@ async def run_unified_scheduler():
         summary_parts.append(f"analysis={analysis_suggestions} suggestions from {analysis_users} users")
     if memory_extracted > 0:
         summary_parts.append(f"memory={memory_extracted} from {memory_users} sessions")
-    if signal_users > 0 or signal_daily_users > 0:
-        total_signal_created = signal_created + signal_daily_created
-        total_signal_users = signal_users + signal_daily_users
-        summary_parts.append(f"signals={total_signal_created} from {total_signal_users} users")
     if proactive_reviewed > 0:
         summary_parts.append(f"proactive={proactive_reviewed} reviewed")
 
@@ -1213,7 +1037,6 @@ async def run_unified_scheduler():
             "digests_triggered": digest_success,
             "imports_checked": import_count,
             "imports_triggered": import_success,
-            "signals_created": signal_created + signal_daily_created,
             "proactive_reviewed": proactive_reviewed,
             "memory_extracted": memory_extracted,
             "analysis_suggestions": analysis_suggestions,

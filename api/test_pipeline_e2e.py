@@ -460,8 +460,7 @@ async def cleanup_synthetic_user(client: Any, user_id: str, persona_name: str, p
         pass
 
     try:
-        # Delete activity_log test events (signal_processed with test deliverables)
-        # This is best-effort - we can't easily identify test events
+        # Delete activity_log test events — best-effort, can't easily identify test events
         pass
     except Exception:
         pass
@@ -493,7 +492,7 @@ class PipelineResult:
 
 
 async def run_pipeline_for_persona(client: Any, persona: SyntheticUser) -> PipelineResult:
-    """Run the full 5-step pipeline for a persona."""
+    """Run the full 4-step pipeline for a persona."""
     logger.info(f"\n{'='*60}")
     logger.info(f"PIPELINE: {persona.name}")
     logger.info(f"{'='*60}")
@@ -501,129 +500,45 @@ async def run_pipeline_for_persona(client: Any, persona: SyntheticUser) -> Pipel
     result = PipelineResult(persona_name=persona.name)
     user_id = persona.user_id
 
-    # Step 1: Signal Processing
-    logger.info(f"\n  Step 1: Signal Processing")
-    step1 = await run_signal_processing(client, user_id, persona)
-    result.steps.append(step1)
-    if not step1.success:
-        logger.error(f"    ✗ Step 1 failed: {step1.error}")
-        return result
-    logger.info(f"    ✓ Step 1 complete: {step1.data}")
-
-    # Step 2: Deliverable Execution
-    logger.info(f"\n  Step 2: Deliverable Execution")
+    # Step 1: Deliverable Execution
+    logger.info(f"\n  Step 1: Deliverable Execution")
     step2 = await run_deliverable_execution(client, user_id, persona)
     result.steps.append(step2)
     if not step2.success:
-        logger.error(f"    ✗ Step 2 failed: {step2.error}")
+        logger.error(f"    ✗ Step 1 failed: {step2.error}")
         return result
-    logger.info(f"    ✓ Step 2 complete: generated version")
+    logger.info(f"    ✓ Step 1 complete: generated version")
 
-    # Step 3: Simulate User Edit
-    logger.info(f"\n  Step 3: Simulate User Edit")
+    # Step 2: Simulate User Edit
+    logger.info(f"\n  Step 2: Simulate User Edit")
     step3 = await simulate_user_edit(client, user_id, persona, step2.data)
     result.steps.append(step3)
     if not step3.success:
-        logger.error(f"    ✗ Step 3 failed: {step3.error}")
+        logger.error(f"    ✗ Step 2 failed: {step3.error}")
         return result
-    logger.info(f"    ✓ Step 3 complete: applied {len(persona.edit_instructions)} edits")
+    logger.info(f"    ✓ Step 2 complete: applied {len(persona.edit_instructions)} edits")
 
-    # Step 4: Memory Extraction
-    logger.info(f"\n  Step 4: Memory Extraction")
+    # Step 3: Memory Extraction
+    logger.info(f"\n  Step 3: Memory Extraction")
     step4 = await run_memory_extraction(client, user_id, persona, step3.data)
     result.steps.append(step4)
     if not step4.success:
-        logger.error(f"    ✗ Step 4 failed: {step4.error}")
+        logger.error(f"    ✗ Step 3 failed: {step4.error}")
         return result
-    logger.info(f"    ✓ Step 4 complete: extracted {step4.data.get('count', 0)} memories")
+    logger.info(f"    ✓ Step 3 complete: extracted {step4.data.get('count', 0)} memories")
 
-    # Step 5: Second Deliverable Run
-    logger.info(f"\n  Step 5: Second Deliverable Run")
+    # Step 4: Second Deliverable Run
+    logger.info(f"\n  Step 4: Second Deliverable Run")
     step5 = await run_deliverable_execution(client, user_id, persona, is_second_run=True)
     result.steps.append(step5)
     if not step5.success:
-        logger.error(f"    ✗ Step 5 failed: {step5.error}")
+        logger.error(f"    ✗ Step 4 failed: {step5.error}")
         return result
-    logger.info(f"    ✓ Step 5 complete: generated v2")
+    logger.info(f"    ✓ Step 4 complete: generated v2")
 
     result.completed = True
     logger.info(f"\n  ✓ Pipeline complete for {persona.name}")
     return result
-
-
-async def run_signal_processing(client: Any, user_id: str, persona: SyntheticUser) -> StepResult:
-    """Step 1: Run signal processing."""
-    try:
-        from services.signal_extraction import extract_signal_summary
-        from services.signal_processing import process_signal, execute_signal_actions
-        from services.activity_log import get_recent_activity
-
-        # Extract signals
-        signal_summary = await extract_signal_summary(client, user_id, signals_filter="all")
-
-        if not signal_summary.has_signals:
-            return StepResult(
-                step_name="signal_processing",
-                success=True,
-                data={"signals_found": False, "actions": []},
-                tables_queried=["platform_content", "platform_connections"],
-            )
-
-        # Get context for reasoning
-        user_memory_result = (
-            client.table("user_memory")
-            .select("key, value")
-            .eq("user_id", user_id)
-            .limit(20)
-            .execute()
-        )
-        user_memory = user_memory_result.data or []
-
-        recent_activity = await get_recent_activity(client, user_id, limit=10, days=7)
-
-        existing_deliverables = (
-            client.table("deliverables")
-            .select("id, title, deliverable_type, next_run_at, status")
-            .eq("user_id", user_id)
-            .in_("status", ["active", "paused"])
-            .execute()
-        ).data or []
-
-        # Process signals
-        processing_result = await process_signal(
-            client=client,
-            user_id=user_id,
-            signal_summary=signal_summary,
-            user_memory=user_memory,
-            recent_activity=recent_activity,
-            existing_deliverables=existing_deliverables,
-        )
-
-        # Execute actions
-        created = 0
-        if processing_result.actions:
-            created = await execute_signal_actions(client, user_id, processing_result)
-
-        return StepResult(
-            step_name="signal_processing",
-            success=True,
-            data={
-                "signals_found": True,
-                "actions": [a.action_type for a in processing_result.actions],
-                "deliverables_created": created,
-            },
-            tables_queried=["platform_content", "platform_connections", "user_memory", "activity_log", "deliverables"],
-        )
-
-    except Exception as e:
-        import traceback
-        return StepResult(
-            step_name="signal_processing",
-            success=False,
-            error=str(e),
-            traceback=traceback.format_exc(),
-            tables_queried=["platform_content", "platform_connections"],
-        )
 
 
 async def run_deliverable_execution(
@@ -983,15 +898,6 @@ def generate_report(results: list[PipelineResult]) -> str:
         lines.append("-"*40)
         for r in completed:
             lines.append(f"\n{r.persona_name}:")
-
-            # Signal processing
-            signal_step = next((s for s in r.steps if s.step_name == "signal_processing"), None)
-            if signal_step and signal_step.data:
-                d = signal_step.data
-                lines.append(f"  Signal processing:")
-                lines.append(f"    Signals found: {d.get('signals_found', False)}")
-                lines.append(f"    Actions: {d.get('actions', [])}")
-                lines.append(f"    Deliverables created: {d.get('deliverables_created', 0)}")
 
             # Deliverable execution (v1 vs v2)
             exec_steps = [s for s in r.steps if s.step_name == "deliverable_execution"]
