@@ -242,6 +242,107 @@ async def get_due_deliverables(supabase_client) -> list[dict]:
     return result.data or []
 
 
+async def get_due_proactive_deliverables(supabase_client) -> list[dict]:
+    """
+    ADR-092 Phase 4: Query proactive and coordinator deliverables due for review.
+
+    Returns active proactive/coordinator deliverables where
+    proactive_next_review_at <= now (or is NULL — never reviewed before).
+    """
+    now = datetime.now(timezone.utc)
+
+    result = (
+        supabase_client.table("deliverables")
+        .select("id, user_id, title, deliverable_type, type_config, schedule, sources, destination, recipient_context, last_run_at, deliverable_instructions, deliverable_memory, mode, trigger_config")
+        .eq("status", "active")
+        .in_("mode", ["proactive", "coordinator"])
+        .or_(f"proactive_next_review_at.is.null,proactive_next_review_at.lte.{now.isoformat()}")
+        .execute()
+    )
+
+    return result.data or []
+
+
+async def process_proactive_deliverable(supabase_client, deliverable: dict) -> bool:
+    """
+    ADR-092 Phase 4: Process a single proactive/coordinator deliverable.
+
+    Runs a lightweight Haiku review pass. On "generate", proceeds to full generation.
+    On "observe" or "sleep", updates memory and proactive_next_review_at only.
+
+    Returns True if the review pass completed without error (regardless of action taken).
+    """
+    from services.proactive_review import run_proactive_review, apply_review_decision
+    from services.activity_log import write_activity
+
+    deliverable_id = deliverable["id"]
+    user_id = deliverable["user_id"]
+    title = deliverable["title"]
+    mode = deliverable.get("mode", "proactive")
+
+    logger.info(f"[PROACTIVE] Reviewing: {title} ({deliverable_id}), mode={mode}")
+
+    try:
+        decision = await run_proactive_review(
+            client=supabase_client,
+            user_id=user_id,
+            deliverable=deliverable,
+        )
+
+        action = decision.get("action", "observe")
+
+        if action == "generate":
+            # Full generation path — reuse existing dispatch
+            from services.trigger_dispatch import dispatch_trigger
+            result = await dispatch_trigger(
+                client=supabase_client,
+                deliverable=deliverable,
+                trigger_type="schedule",
+                trigger_context={"type": "proactive_review", "review_decision": decision},
+                signal_strength="high",
+            )
+            # apply_review_decision updates memory + proactive_next_review_at
+            apply_review_decision(supabase_client, deliverable, decision)
+
+            try:
+                await write_activity(
+                    client=supabase_client,
+                    user_id=user_id,
+                    event_type="deliverable_scheduled",
+                    summary=f"Proactive generation: {title}",
+                    event_ref=deliverable_id,
+                    metadata={"mode": mode, "review_action": "generate"},
+                )
+            except Exception:
+                pass  # Non-fatal
+
+            return result.get("success", False)
+
+        else:
+            # observe or sleep — update memory, no generation
+            apply_review_decision(supabase_client, deliverable, decision)
+            note = decision.get("note", "")
+
+            try:
+                await write_activity(
+                    client=supabase_client,
+                    user_id=user_id,
+                    event_type="memory_written",
+                    summary=f"Proactive review [{action}]: {title}",
+                    event_ref=deliverable_id,
+                    metadata={"mode": mode, "review_action": action, "note": note[:200] if note else ""},
+                )
+            except Exception:
+                pass  # Non-fatal
+
+            logger.info(f"[PROACTIVE] {action}: {title} — {note[:100] if note else ''}")
+            return True
+
+    except Exception as e:
+        logger.error(f"[PROACTIVE] Review failed for {title}: {e}")
+        return False
+
+
 async def should_skip_deliverable(
     supabase_client,
     deliverable: dict,
@@ -562,6 +663,22 @@ async def run_unified_scheduler():
                 deliverable_success += 1
         except Exception as e:
             logger.error(f"[DELIVERABLE] Unexpected error: {e}")
+
+    # -------------------------------------------------------------------------
+    # ADR-092 Phase 4: Proactive / Coordinator Review Pass
+    # -------------------------------------------------------------------------
+    proactive_reviewed = 0
+    proactive_generated = 0
+    proactive_deliverables = await get_due_proactive_deliverables(supabase)
+    logger.info(f"[PROACTIVE] Found {len(proactive_deliverables)} due for review")
+
+    for deliverable in proactive_deliverables:
+        try:
+            success = await process_proactive_deliverable(supabase, deliverable)
+            if success:
+                proactive_reviewed += 1
+        except Exception as e:
+            logger.error(f"[PROACTIVE] Unexpected error: {e}")
 
     # -------------------------------------------------------------------------
     # Process Weekly Digests (runs hourly, but we check if due)
@@ -1068,6 +1185,8 @@ async def run_unified_scheduler():
         total_signal_created = signal_created + signal_daily_created
         total_signal_users = signal_users + signal_daily_users
         summary_parts.append(f"signals={total_signal_created} from {total_signal_users} users")
+    if proactive_reviewed > 0:
+        summary_parts.append(f"proactive={proactive_reviewed} reviewed")
 
     # -------------------------------------------------------------------------
     # ADR-072: Write scheduler_heartbeat event for system state awareness
@@ -1095,6 +1214,7 @@ async def run_unified_scheduler():
             "imports_checked": import_count,
             "imports_triggered": import_success,
             "signals_created": signal_created + signal_daily_created,
+            "proactive_reviewed": proactive_reviewed,
             "memory_extracted": memory_extracted,
             "analysis_suggestions": analysis_suggestions,
             "errors": errors_encountered if errors_encountered else None,
