@@ -2,8 +2,8 @@
 
 > **Status**: Canonical
 > **Created**: 2026-02-10
-> **Updated**: 2026-02-27 (consistency sweep — removed duplicate schema, ADR-076 references)
-> **Related ADRs**: ADR-059 (Simplified Context), ADR-072 (Unified Content Layer), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-076 (Direct API), ADR-064 (Unified Memory)
+> **Updated**: 2026-03-04 (ADR-091 — Edit scoped memory writes; Execute deliverable.acknowledge; work entity removed; deliverable schema updated with instructions/memory/mode)
+> **Related ADRs**: ADR-059 (Simplified Context), ADR-072 (Unified Content Layer), ADR-042 (Execution Simplification), ADR-045 (WebSearch), ADR-076 (Direct API), ADR-064 (Unified Memory), ADR-087 (Deliverable Scoped Context), ADR-091 (Workspace Layout)
 > **Implementation**: `api/services/primitives/`
 
 ---
@@ -86,16 +86,17 @@ All entity references follow a consistent grammar:
 
 YARNNN uses a tiered entity model. **TP-facing** entities are directly addressable by the Thinking Partner. **Background** entities are infrastructure that TP doesn't directly manipulate.
 
-#### TP-Facing Entities (6)
+#### TP-Facing Entities (5)
 
 | Type | Table | Description |
 |------|-------|-------------|
-| `deliverable` | `deliverables` | Recurring content outputs |
+| `deliverable` | `deliverables` | Recurring content outputs with scoped instructions + memory |
 | `platform` | `platform_connections` | Connected platforms (by provider name) |
 | `document` | `documents` | Uploaded documents |
-| `work` | `work_tickets` | Work execution records |
-| `session` | `chat_sessions` | Chat sessions |
+| `session` | `chat_sessions` | Chat sessions (scoped via `deliverable_id`) |
 | `action` | (virtual) | Available actions for Execute |
+
+> **ADR-090 Note**: `work` entity removed — `work_tickets` table dropped. Deliverable execution audit trail migrated to `activity_log`.
 
 #### Background Entities (Infrastructure)
 
@@ -118,15 +119,18 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 |-------|------|-------------|---------|
 | `id` | UUID | Primary key | — |
 | `title` | string | Deliverable name | ✓ Primary |
-| `description` | string | Optional description | — |
 | `status` | enum | `active`, `paused`, `archived` | ✓ Badge |
+| `mode` | enum | `recurring` \| `goal` | ✓ Badge |
 | `schedule` | JSONB | `{frequency, day, time, timezone}` | ✓ Frequency |
-| `recipient_context` | JSONB | `{name, role, priorities}` | — |
 | `sources` | JSONB[] | Data source configs | — |
-| `template_structure` | JSONB | Output template config | — |
+| `destination` | JSONB | `{platform, target}` | — |
 | `next_run_at` | timestamp | Next scheduled run | — |
+| `deliverable_instructions` | TEXT | Agent behavioral instructions (user-editable) | — |
+| `deliverable_memory` | JSONB | `{observations: [{date, source, note}], goal: {description, status, milestones}}` | — |
 
-**Display Priority:** `title` > `status` > `schedule.frequency`
+**Display Priority:** `title` > `status` > `mode` > `schedule.frequency`
+
+> **ADR-087 Note**: `deliverable_instructions` and `deliverable_memory` are scoped to each deliverable and injected into the headless generation prompt. Memory is system-accumulated; use `Edit(append_observation)` or `Edit(set_goal)` — never write raw `deliverable_memory`. See Edit spec below.
 
 #### platform_content
 
@@ -193,19 +197,6 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 | `settings` | JSONB | Platform-specific settings | — |
 
 **Display Priority:** `provider` > `status`
-
-#### work
-
-| Field | Type | Description | Display |
-|-------|------|-------------|---------|
-| `id` | UUID | Primary key | — |
-| `description` | string | Task description | ✓ Primary |
-| `status` | enum | `pending`, `running`, `completed`, `failed` | ✓ Badge |
-| `agent_type` | string | Which agent handles it | — |
-| `result` | JSONB | Execution result | — |
-| `deliverable_id` | UUID | Optional linked deliverable | — |
-
-**Display Priority:** `description` > `status`
 
 #### session
 
@@ -311,15 +302,13 @@ Create a new entity.
 | Type | Required |
 |------|----------|
 | `deliverable` | `title`, `deliverable_type` |
-| `work` | `task`, `agent_type` |
 | `document` | `name` |
 
 **Defaults Applied**:
 
 | Type | Defaults |
 |------|----------|
-| `deliverable` | `status: active`, `frequency: weekly` |
-| `work` | `frequency: once`, `status: pending` |
+| `deliverable` | `status: active`, `frequency: weekly`, `mode: recurring` |
 
 ---
 
@@ -348,9 +337,37 @@ Modify an existing entity.
 ```
 
 **Immutable Fields** (cannot be edited):
-- `id`
-- `user_id`
-- `created_at`
+- `id`, `user_id`, `created_at`
+
+**Deliverable-specific editable fields** (ADR-087/091):
+- `status` — `active` / `paused` / `archived`
+- `deliverable_instructions` — plain text behavioral instructions for the agent
+- `schedule` — update recurrence
+- `destination` — update delivery target
+
+**Deliverable memory writes — scoped operations only** (ADR-091):
+
+Raw `deliverable_memory` writes are blocked. Use scoped keys instead:
+
+```json
+// Append an observation (never replaces existing observations)
+{
+  "ref": "deliverable:uuid-123",
+  "changes": {
+    "append_observation": { "note": "Q4 data is now finalized", "source": "user" }
+  }
+}
+
+// Set or replace the goal object (observations untouched)
+{
+  "ref": "deliverable:uuid-123",
+  "changes": {
+    "set_goal": { "description": "...", "status": "in_progress", "milestones": ["..."] }
+  }
+}
+```
+
+Observations are capped at 20 most recent. For lightweight observation appends from conversation context, prefer `Execute(action="deliverable.acknowledge", ...)` — it's a single-call shorthand.
 
 ---
 
@@ -459,15 +476,19 @@ Trigger external operations on entities.
 
 | Action | Target Type | Description | Requires |
 |--------|-------------|-------------|----------|
-| `platform.publish` | `deliverable` | Publish deliverable to platform | `via` |
-| `deliverable.generate` | `deliverable` | Generate content | — |
-| `deliverable.schedule` | `deliverable` | Update schedule | — |
-| `deliverable.approve` | `deliverable` | Approve version | `version_id` (optional) |
-| `memory.extract` | `session` | Extract memories | — |
-| `work.run` | `work` | Execute work | — |
-| `signal.process` | `system` | Run signal extraction | — |
+| `platform.publish` | `deliverable` | Publish approved version to platform | `via` |
+| `deliverable.generate` | `deliverable` | Run content generation pipeline | — |
+| `deliverable.schedule` | `deliverable` | Update deliverable schedule | — |
+| `deliverable.approve` | `deliverable` | Approve pending version | `params.version_id` (optional) |
+| `deliverable.acknowledge` | `deliverable` | Append one observation from conversation context to `deliverable_memory` (lightweight, no generation) | `params.note` |
+| `memory.extract` | `session` | Extract memories from session | — |
+| `signal.process` | `system` | Run signal extraction pipeline | — |
 
-> **Note**: `platform.sync` and `platform.send` removed — use `RefreshPlatformContent` primitive (ADR-085) and platform tools (`platform_slack_*`, etc.) respectively.
+> **Note**: `platform.sync`, `platform.send`, and `work.run` removed — use `RefreshPlatformContent` (ADR-085), platform MCP tools, and `deliverable.generate` respectively. `work` entity removed (ADR-090).
+
+**`deliverable.acknowledge` vs `Edit(append_observation)`:**
+- `acknowledge` — TP calls this during chat when the user says something worth persisting ("note that Q4 is finalized"). Single call, source="user", immediate.
+- `append_observation` via Edit — more explicit, allows setting `source` field, can be chained with other changes. Use when you want fine-grained control.
 
 ---
 
@@ -622,6 +643,13 @@ result = await execute_primitive(auth, tool_use.name, tool_use.input)
 ---
 
 ## Changelog
+
+### 2026-03-04 — ADR-090 + ADR-091 updates
+
+- **Edit primitive**: Added `deliverable_instructions` as editable field. Added scoped `deliverable_memory` write paths: `append_observation` (appends, never replaces, cap 20) and `set_goal` (replaces goal only). Raw `deliverable_memory` writes blocked to prevent clobbering system-accumulated memory.
+- **Execute primitive**: Added `deliverable.acknowledge` action — lightweight observation append from conversation context (no generation). Removed `work.run` (ADR-090 — `work` entity dropped).
+- **Entity schema**: `work` entity removed (ADR-090 — `work_tickets` table dropped). Deliverable schema updated with `deliverable_instructions`, `deliverable_memory`, `mode` fields (ADR-087).
+- **TP-Facing Entities**: 6 → 5 (work removed).
 
 ### 2026-02-28 — RefreshPlatformContent primitive (ADR-085)
 - Added `RefreshPlatformContent` primitive — synchronous cache refresh for platform content

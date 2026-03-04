@@ -87,22 +87,23 @@ Primitives declare which modes they are available in. One registry, one maintena
 ```python
 PRIMITIVE_MODES = {
     # Read-only investigation — both modes
-    "Search":           ["chat", "headless"],
-    "Read":             ["chat", "headless"],
-    "List":             ["chat", "headless"],
-    "GetSystemState":   ["chat", "headless"],
-    "WebSearch":        ["chat", "headless"],
+    "Search":                   ["chat", "headless"],
+    "Read":                     ["chat", "headless"],
+    "List":                     ["chat", "headless"],
+    "GetSystemState":           ["chat", "headless"],
+    "WebSearch":                ["chat", "headless"],
 
     # Write/action/UI primitives — chat only
-    "Write":            ["chat"],
-    "Edit":             ["chat"],
-    "Execute":          ["chat"],
-    "Todo":             ["chat"],
-    "Respond":          ["chat"],
-    "Clarify":          ["chat"],
-    "list_integrations": ["chat"],
+    "Write":                    ["chat"],
+    "Edit":                     ["chat"],   # includes deliverable_instructions + scoped memory writes (ADR-091)
+    "Execute":                  ["chat"],   # includes deliverable.acknowledge (ADR-091)
+    "RefreshPlatformContent":   ["chat"],   # ADR-085
+    "Clarify":                  ["chat"],
+    "list_integrations":        ["chat"],
 }
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
+# Todo and Respond are handled in the HANDLERS map but not in PRIMITIVES list
+# (TP's natural output and conversation stream serve those roles).
 ```
 
 When a primitive is updated or added, it is tagged with modes. Updates improve both modes simultaneously. No drift.
