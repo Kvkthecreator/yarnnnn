@@ -11,6 +11,7 @@
 ## How It Works
 
 * [What are deliverables?](concepts/what-are-deliverables.md)
+* [Deliverable types and modes](concepts/deliverable-types-and-modes.md)
 * [The AI assistant](concepts/ai-assistant.md)
 * [How YARNNN learns](concepts/how-yarnnn-learns.md)
 * [How your data is used](concepts/how-your-data-is-used.md)
@@ -38,4 +39,5 @@
 ## Resources
 
 * [FAQ](resources/faq.md)
+* [Versioning & Sync](resources/versioning.md)
 * [Changelog](changelog.md)

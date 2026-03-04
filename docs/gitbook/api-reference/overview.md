@@ -1,41 +1,54 @@
 # API Reference
 
-YARNNN provides a REST API for programmatic access to the AI assistant and deliverable management.
+YARNNN exposes a REST API for chat, integrations, and deliverable lifecycle management.
 
 ## Base URL
 
-```
+```text
 https://api.yarnnn.com
+```
+
+## Core endpoint groups
+
+| Group | Base path |
+|---|---|
+| Chat | `/api/chat` |
+| Deliverables | `/api/deliverables` |
+| Integrations | `/api/integrations` |
+| Limits | `/api/user/limits` |
+| System | `/api/system` |
+
+## Health check
+
+```text
+GET /health
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "version": "5.0.0"
+}
 ```
 
 ## Authentication
 
-All requests require a Bearer token in the `Authorization` header:
+All `/api/*` endpoints require a Bearer token.
 
+```text
+Authorization: Bearer <token>
 ```
-Authorization: Bearer <your-token>
-```
 
-See [Authentication](authentication.md) for details on obtaining tokens.
+See [Authentication](authentication.md).
 
-## Available endpoints
+## Error format
 
-| Section | Description |
-|---|---|
-| [Authentication](authentication.md) | Sign in and manage tokens |
-| [Chat](chat.md) | Send messages to the AI assistant |
-| [Deliverables](deliverables.md) | Create and manage deliverables |
-
-## Response format
-
-All responses are JSON. Errors return a structured message:
+Most errors return:
 
 ```json
 {
   "detail": "Description of what went wrong"
 }
 ```
-
-## Rate limits
-
-Usage limits are applied per account based on your plan. See [Plans](../plans/plans.md) for details.

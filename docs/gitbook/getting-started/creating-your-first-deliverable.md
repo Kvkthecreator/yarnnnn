@@ -1,57 +1,65 @@
 # Creating Your First Deliverable
 
-A deliverable is a recurring piece of work that YARNNN produces for you automatically. Think of it as a standing order: "every Monday morning, summarize what happened in these Slack channels and have it ready for me."
+A deliverable is a specialist that runs in the background and produces recurring or trigger-based output for you.
 
-## Why deliverables matter
+## Step 1: Pick a type (what you're building)
 
-Most AI tools wait for you to ask. YARNNN proactively produces work on a schedule — so your Monday morning digest, meeting prep brief, or weekly status report is ready before you even think about it.
+Choose the job you want done:
 
-## Two ways to create a deliverable
+- **Digest**: summarize activity in a source
+- **Brief**: prep for a specific event or situation
+- **Status**: structured update for an audience
+- **Watch**: monitor a domain and surface signal
+- **Deep Research**: investigate a focused question until complete
+- **Coordinator**: monitor and dispatch other deliverables
+- **Custom**: define your own structure and behavior
 
-### Option 1: The wizard
+## Step 2: Pick a mode (how it should act)
 
-1. Go to **Dashboard** → **Create Deliverable**
-2. Pick a type:
-   - **Digest** — summarize activity across sources
-   - **Meeting prep** — briefing before your meetings
-   - **Status report** — structured update from multiple tools
-   - **Custom** — define your own format
-3. Select which sources to pull from (e.g., #engineering + #product channels)
-4. Set a schedule (e.g., every Monday at 9am)
-5. Save and activate
+- **Recurring**: fixed schedule
+- **Goal**: runs until objective is complete
+- **Reactive**: event-driven, threshold-based
+- **Proactive**: periodic review, generate when warranted
+- **Coordinator**: proactive with dispatch authority
 
-### Option 2: Tell the AI assistant
+## Step 3: Choose sources
 
-Open the assistant and describe what you want:
+Select the context the deliverable should use:
 
-> "Create a weekly summary of #engineering and #product, delivered every Monday at 9am"
+- Slack channels
+- Gmail labels
+- Notion pages/databases
+- Calendar events
+- Uploaded documents
 
-> "Set up a daily meeting prep for my calendar events"
+## Step 4: Add instructions
 
-> "I want a bi-weekly status report pulling from Slack and Gmail"
+Describe what “good” output means for this specialist:
 
-The assistant will configure everything for you.
+- audience and tone
+- must-include sections
+- brevity/format constraints
+- exclusions or priorities
 
-## What happens after you create one
+## Step 5: Activate and supervise
 
-1. **YARNNN generates a draft** on your schedule
-2. **You see it on your dashboard** — read through the draft
-3. **Refine if needed** — tell the assistant "make it shorter" or "focus on action items"
-4. **Approve** — mark it as done, and it's delivered to your chosen destination
-5. **It gets better** — YARNNN learns from your edits and applies them next time
+Once active, YARNNN will run according to mode rules and generate versioned outputs.
 
-## Your first deliverable: a suggestion
+For each version:
 
-If you're not sure where to start, try this:
+1. Review
+2. Edit if needed
+3. Approve
 
-> **Weekly Slack Digest** — summarizes your busiest channels, delivered Monday at 9am
+Your edits are learned and carried into future runs.
 
-It's the simplest way to see YARNNN working for you. After a couple of weeks, you'll notice the summaries start matching your preferences without you having to edit.
+## Recommended first setup
 
-## How long until it's "good"?
+Start with a **Digest + Recurring** combination:
 
-- **Version 1**: A solid first draft. You'll probably tweak it.
-- **Version 2-3**: Noticeably better. YARNNN has learned your style.
-- **Version 4+**: Minimal editing needed. It knows what you want.
+- Type: `digest`
+- Mode: `recurring`
+- Sources: 1-2 high-signal Slack channels
+- Schedule: every Monday morning
 
-Every edit you make teaches YARNNN something — preferred length, format, focus areas, writing style. The more you use it, the less you need to touch it.
+This gives fast value and creates clean feedback data for later specialists.

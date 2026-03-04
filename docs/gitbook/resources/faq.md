@@ -4,78 +4,72 @@
 
 ### What is YARNNN?
 
-YARNNN is an AI work agent that connects to your tools (Slack, Gmail, Notion, Google Calendar), learns how you work, and produces recurring output on your behalf — digests, meeting prep, status reports, and more — automatically and on schedule.
+YARNNN is an autonomous AI work system that connects to your tools (Slack, Gmail, Notion, Google Calendar), accumulates context, and produces supervised deliverables on your behalf.
 
 ### How is YARNNN different from ChatGPT or Claude?
 
-Traditional AI chatbots are reactive and stateless — you paste in context, get a response, and they forget everything. YARNNN is **connected** to your actual work tools, **remembers** your preferences across sessions, and **proactively produces work** on a schedule without you having to ask.
+Most chat tools are prompt-by-prompt and session-centric. YARNNN is system-centric: it runs configured specialists in the background, keeps version history, and improves from execution feedback over time.
 
 ### What kind of work can YARNNN do?
 
-YARNNN produces **recurring deliverables** — any structured output that draws from your connected tools:
+YARNNN supports seven deliverable types:
 
-- Weekly Slack digests
-- Meeting prep briefings
-- Status reports from multiple platforms
-- Email drafts
-- Custom formats you define
-
-### Does YARNNN replace my existing AI tools?
-
-YARNNN is complementary. Use ChatGPT or Claude for general-purpose AI tasks. Use YARNNN for **work that requires your actual work context** — your Slack messages, emails, Notion docs, and calendar.
+- `digest`
+- `brief`
+- `status`
+- `watch`
+- `deep_research`
+- `coordinator`
+- `custom`
 
 ## Setup & Integrations
 
 ### Which platforms does YARNNN support?
 
-Slack, Gmail, Notion, and Google Calendar. All four are available on every plan.
+Slack, Gmail, Notion, and Google Calendar.
 
 ### Can YARNNN post in Slack, send emails, or edit Notion pages?
 
-No. YARNNN has **read-only access** to all connected platforms. It reads your content to provide context but never modifies anything.
-
-### What happens if I disconnect a platform?
-
-Syncing stops immediately and the connection is removed. Previously synced content expires naturally over time.
+No. Integrations are read-only for context ingestion.
 
 ### Can I control what YARNNN can see?
 
-Yes. For Slack, Gmail, and Notion, you select exactly which channels, labels, or pages to sync. YARNNN never accesses content you haven't explicitly selected. Calendar syncs automatically since event data is lightweight.
+Yes. You choose sources per platform (channels/labels/pages), and you can update selections at any time.
 
 ## Deliverables
 
+### Do deliverables have version history?
+
+Yes. Every generation creates an immutable deliverable version you can review, approve, reject, and compare over time.
+
 ### How do deliverables improve over time?
 
-Every time you edit a deliverable draft before approving it, YARNNN learns from your changes. Consistent patterns (like always shortening intros or adding bullet points) become permanent preferences applied to future versions.
+Each specialist uses prior version feedback and memory to adapt future output. Consistent edits become persistent behavior.
 
-### Can I create custom deliverable types?
+### What execution modes are available?
 
-Yes. While YARNNN offers templates (digest, meeting prep, status report), you can create fully custom deliverables with your own instructions, format, and sources.
-
-### What if I don't like a draft?
-
-You can refine it using the AI assistant ("make it shorter", "focus on action items"), edit it directly, or discard it entirely. YARNNN learns from all of these actions.
+- `recurring`
+- `goal`
+- `reactive`
+- `proactive`
+- `coordinator`
 
 ## Privacy & Security
 
 ### Who can see my data?
 
-Only you. Your data is encrypted and isolated with row-level security. No other user can access your synced content, preferences, or deliverables.
+Only your authenticated account. Data is user-scoped and isolated.
 
-### Does YARNNN train AI models on my data?
+### Does YARNNN train external models on my data?
 
-No. Your data is used exclusively to power your YARNNN experience — your AI assistant and your deliverables. It is never used to train external models.
-
-### Can I delete my data?
-
-Yes. You can delete individual preferences from the Context page, disconnect platforms to stop syncing, or contact support to permanently delete your entire account and all associated data.
+No. User data is used to power that user's YARNNN experience.
 
 ## Plans
 
-### Is the Free plan really free?
+### Where can I see current limits?
 
-Yes. The Free plan has no time limit and no credit card required. It includes 2 sources per platform and 2 deliverables — enough to try YARNNN and see if it works for you.
+Check [Plans](../plans/plans.md). Limits are versioned and may evolve with product updates.
 
-### What does "sources per platform" mean?
+### Can I upgrade or downgrade later?
 
-A source is a specific channel (Slack), label (Gmail), or page (Notion) that YARNNN syncs. The Free plan lets you sync 2 sources per platform. Starter allows 5, and Pro is unlimited.
+Yes. Plan changes can be handled from billing/subscription flows.

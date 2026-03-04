@@ -1,41 +1,42 @@
 # Chat API
 
-The Chat API lets you send messages to YARNNN's AI assistant programmatically. Responses are streamed in real time.
+Chat endpoints power the Thinking Partner experience.
 
-## Send a message
+## Send message
 
+```text
+POST /api/chat
 ```
-POST /chat
-```
 
-### Request
+Request body:
 
 ```json
 {
-  "message": "What was discussed in #engineering this week?",
-  "session_id": "optional-session-id"
+  "message": "What changed in #engineering this week?",
+  "surface_context": {
+    "type": "idle"
+  }
 }
 ```
 
-| Field | Required | Description |
-|---|---|---|
-| `message` | Yes | Your message to the AI assistant |
-| `session_id` | No | Continue an existing conversation. Omit to start a new one. |
+Notes:
 
-### Response
+- Response is streamed as `text/event-stream`.
+- The API reuses/creates a chat session automatically.
+- If daily token budget is exceeded for your tier, returns `429`.
 
-Responses are streamed in real time. The final event includes the session ID for continuing the conversation.
+## Get recent chat history
 
-## Get conversation history
-
-```
-GET /chat/history?session_id=<session-id>
+```text
+GET /api/chat/history?limit=1
 ```
 
-Returns the full message history for a conversation session.
+Response includes recent sessions and message arrays.
 
-## Sessions
+## List available skills
 
-- Each conversation is a **session** with its own history
-- Sessions persist across page reloads
-- Start a new session by omitting `session_id`, or continue an existing one by including it
+```text
+GET /api/skills
+```
+
+Returns skill metadata used by the assistant.

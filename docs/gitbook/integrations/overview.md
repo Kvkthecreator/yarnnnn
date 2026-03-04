@@ -1,6 +1,6 @@
 # Integrations — Connect Your Work Tools
 
-YARNNN connects to four platforms to give the AI agent access to your work context. All platforms are available on every plan.
+YARNNN connects to four platforms to give the AI system real work context.
 
 ## Supported integrations
 
@@ -15,34 +15,28 @@ YARNNN connects to four platforms to give the AI agent access to your work conte
 
 1. Click **Connect** on a platform
 2. Authorize read-only access through the platform's login
-3. Select which sources YARNNN should follow
-4. Your content starts syncing immediately
+3. Select which sources YARNNN should follow (where applicable)
+4. Content sync starts and updates on your tier cadence
 
 **YARNNN is read-only.** It can see your content but never posts, sends, or modifies anything.
 
-## How many sources can I sync?
+## Limits and sync cadence
 
-| Plan | Sources per platform |
-|---|---|
-| **Free** | 2 |
-| **Starter** | 5 |
-| **Pro** | Unlimited |
+Source limits and sync frequency are tier-based and can vary by provider. See [Plans](../plans/plans.md) for current enforced limits.
 
-## The more you connect, the better it works
+## Why multi-platform context matters
 
-YARNNN's AI gets better with more context. Connecting multiple platforms means:
-
-- Cross-platform questions work ("find everything about Project Alpha across Slack and Gmail")
-- Deliverables can pull from multiple sources (Slack + Notion → status report)
-- The AI assistant gives more complete, grounded answers
+- Cross-platform questions become grounded and complete
+- Deliverables can combine evidence across systems
+- Output quality improves as context accumulates
 
 ## Use YARNNN from Claude or ChatGPT
 
-Already use Claude or ChatGPT? You don't have to switch to yarnnn.com to access your work context. The [MCP connector](mcp-connector.md) lets you search your synced content, trigger deliverables, and more — directly from your AI tool of choice.
+Use the [MCP connector](mcp-connector.md) to access YARNNN context and deliverables from external AI tools.
 
 ## Security and privacy
 
-- **Read-only access** — YARNNN never modifies your data
-- **Encrypted connections** — all data in transit and at rest
-- **Your data is isolated** — no other user can see it
-- **Disconnect anytime** — one click to revoke access
+- Read-only access
+- Encrypted transport and storage
+- User-scoped data isolation
+- Disconnect at any time

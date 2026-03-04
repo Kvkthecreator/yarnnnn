@@ -1,52 +1,32 @@
 # Plans
 
-YARNNN offers three plans to match your needs. All plans include access to all four platform integrations — Slack, Gmail, Notion, and Google Calendar.
+Plan limits below are aligned to current backend enforcement as of **March 4, 2026**.
 
 ## Plan comparison
 
 | | **Free** | **Starter** | **Pro** |
 |---|---|---|---|
-| **Platform connections** | All 4 | All 4 | All 4 |
-| **Sources per platform** | 2 | 5 | Unlimited |
-| **Deliverables** | 2 | 5 | Unlimited |
-| **Sync frequency** | Once per day | 4 times per day | Every hour |
-| **AI assistant** | Included | Included | Included |
-| **Smart signal detection** | — | Included | Included |
+| Price | $0 | $9/mo | $19/mo |
+| Platforms available | 4 | 4 | 4 |
+| Slack sources | 5 | 15 | Unlimited |
+| Gmail labels | 5 | 10 | Unlimited |
+| Notion pages | 10 | 25 | Unlimited |
+| Calendar sources | Automatic | Automatic | Automatic |
+| Active deliverables | 2 | 5 | Unlimited |
+| Sync frequency | 1x daily | 4x daily | Hourly |
+| Daily token budget | 50,000 | 250,000 | Unlimited |
 
-## Which plan is right for you?
+## Sync cadence
 
-### Free — Try it out
+| Plan | Schedule |
+|---|---|
+| Free | 08:00 (user timezone) |
+| Starter | 00:00, 06:00, 12:00, 18:00 (user timezone) |
+| Pro | Every hour |
 
-Perfect for getting started. Connect your tools, set up a couple of deliverables, and see how YARNNN works for you. No credit card required.
+## Notes
 
-**Best for:** Individuals exploring AI-powered work automation.
-
-### Starter — Daily driver
-
-More sources, more deliverables, faster syncing, and smart signal detection that surfaces important activity automatically. This is the plan for professionals who want YARNNN as part of their daily workflow.
-
-**Best for:** Knowledge workers who want to automate repetitive work and stay on top of multiple channels and tools.
-
-### Pro — Full power
-
-Unlimited everything. Hourly syncing means your context is always fresh. Unlimited deliverables means you can automate as much as you want.
-
-**Best for:** Power users, managers, and anyone who wants maximum automation.
-
-## All plans include
-
-- **AI assistant** — context-aware, always available
-- **All four platform integrations** — Slack, Gmail, Notion, Google Calendar
-- **Learning and personalization** — YARNNN gets better the more you use it
-- **Full data control** — view, edit, or delete anything YARNNN knows about you
-
-## FAQ
-
-**Can I upgrade or downgrade at any time?**
-Yes. Plan changes take effect immediately.
-
-**What happens to my data if I downgrade?**
-Your existing deliverables and preferences are preserved. If you exceed the lower plan's limits, you'll need to choose which deliverables to keep active.
-
-**Is there a free trial of Starter or Pro?**
-The Free plan is available permanently with no time limit. You can upgrade when you're ready.
+- Source limits are enforced per provider.
+- Calendar is read from connected calendars and does not require per-resource source selection.
+- Usage and next sync timestamp are available via `GET /api/user/limits`.
+- Limit values may be revised over time; check the [changelog](../changelog.md) and [versioning page](../resources/versioning.md) for updates.

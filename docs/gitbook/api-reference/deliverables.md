@@ -1,71 +1,110 @@
 # Deliverables API
 
-Create, manage, and trigger deliverables programmatically.
+Manage autonomous deliverables and their version history.
 
-## List your deliverables
+## Deliverable types
 
-```
-GET /api/deliverables
-```
+Current supported `deliverable_type` values:
 
-Returns all deliverables for your account.
+- `digest`
+- `brief`
+- `status`
+- `watch`
+- `deep_research`
+- `coordinator`
+- `custom`
 
-## Create a deliverable
+## Deliverable modes
 
-```
+Current `mode` values:
+
+- `recurring`
+- `goal`
+- `reactive`
+- `proactive`
+- `coordinator`
+
+## Create deliverable
+
+```text
 POST /api/deliverables
 ```
 
-### Request
+Example:
 
 ```json
 {
   "title": "Weekly Engineering Digest",
   "deliverable_type": "digest",
-  "sources": [
-    {
-      "platform": "slack",
-      "resource_id": "C123ABC",
-      "resource_name": "#engineering"
-    }
-  ],
+  "mode": "recurring",
   "schedule": {
     "frequency": "weekly",
     "day": "monday",
     "time": "09:00",
-    "timezone": "Asia/Singapore"
-  }
+    "timezone": "America/Los_Angeles"
+  },
+  "sources": [
+    {
+      "type": "integration_import",
+      "provider": "slack",
+      "source": "C123ABC",
+      "value": "C123ABC",
+      "label": "#engineering"
+    }
+  ],
+  "deliverable_instructions": "Summarize decisions, blockers, and owners."
 }
 ```
 
-## Get deliverable details
+## List deliverables
 
-```
-GET /api/deliverables/:id
-```
-
-Returns the deliverable configuration and its recent versions.
-
-## Update a deliverable
-
-```
-PATCH /api/deliverables/:id
+```text
+GET /api/deliverables
 ```
 
-Update the title, sources, schedule, or status.
+Optional query params:
 
-## Archive a deliverable
+- `status=active|paused|archived`
+- `limit=<int>`
 
-```
-DELETE /api/deliverables/:id
-```
+## Get deliverable
 
-Archives the deliverable. It stops running, but version history is preserved.
-
-## Run a deliverable now
-
-```
-POST /api/deliverables/:id/execute
+```text
+GET /api/deliverables/{deliverable_id}
 ```
 
-Triggers an immediate run, producing a new version. Useful for testing or on-demand generation.
+## Update deliverable
+
+```text
+PATCH /api/deliverables/{deliverable_id}
+```
+
+## Archive deliverable
+
+```text
+DELETE /api/deliverables/{deliverable_id}
+```
+
+## Trigger immediate run
+
+```text
+POST /api/deliverables/{deliverable_id}/run
+```
+
+Returns execution status and new version metadata when successful.
+
+## Version endpoints
+
+- `GET /api/deliverables/{deliverable_id}/versions`
+- `GET /api/deliverables/{deliverable_id}/versions/{version_id}`
+- `PATCH /api/deliverables/{deliverable_id}/versions/{version_id}`
+- `POST /api/deliverables/{deliverable_id}/versions/{version_id}/enable`
+- `DELETE /api/deliverables/{deliverable_id}/versions/{version_id}/dismiss`
+
+## Source freshness endpoint
+
+```text
+GET /api/deliverables/{deliverable_id}/sources/freshness
+```
+
+Returns per-source freshness metadata for the deliverable.

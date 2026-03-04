@@ -4,36 +4,45 @@ YARNNN is an AI work agent that connects to your everyday tools, learns how you 
 
 ## The problem
 
-You spend hours every week on repetitive knowledge work: summarizing Slack threads, prepping for meetings, writing status updates, staying on top of email. AI chatbots can help — but only when you remember to open them, paste in context, and prompt them from scratch every time.
+You spend hours every week on repetitive knowledge work: summarizing Slack threads, prepping for meetings, writing status updates, and staying on top of email. AI chatbots can help, but only when you remember to open them, paste context, and prompt from scratch.
 
 ## How YARNNN is different
 
-YARNNN is not a chatbot you talk to when you need help. It's an **AI agent that works autonomously** — reading your Slack, Gmail, Notion, and Calendar, then producing work on a schedule without you having to ask.
+YARNNN is not a chatbot you talk to when you need help. It's an autonomous AI work system that continuously syncs your work context and runs specialist deliverables in the background.
 
 | Traditional AI tools | YARNNN |
 |---|---|
 | You paste context every time | Connects to your tools and stays up to date |
-| Forgets everything between sessions | Remembers your preferences and learns over time |
-| You do the work, AI assists | AI does the work, you review and approve |
-| On-demand only | Runs on a schedule, produces output automatically |
+| Forgets everything between sessions | Accumulates memory and context over time |
+| You do the work, AI assists | AI does the work, you supervise |
+| On-demand only | Runs on schedule or by intelligent trigger |
 
 ## What you can do with YARNNN
 
-- **Get a weekly Slack digest** — summarizing what happened across your channels, delivered every Monday morning
-- **Auto-generate meeting prep** — a briefing pulled from relevant channels and emails, ready before your meeting starts
-- **Create status reports** — pulling from Slack, Gmail, and Notion, formatted and ready for review
-- **Ask questions with context** — "What did the team decide about the API redesign?" and get answers grounded in your actual Slack and email threads
-- **Let it learn** — every time you edit a draft, YARNNN gets better at producing what you want next time
+- Generate recurring digests, briefs, and status updates automatically
+- Run proactive or reactive specialists that surface signal when it matters
+- Ask context-grounded questions across Slack, Gmail, Notion, and Calendar
+- Trigger deliverables from YARNNN, Claude, or ChatGPT via MCP connector
+- Improve quality over time as deliverables learn from your edits
 
 ## How it works
 
-1. **Connect** your tools — Slack, Gmail, Notion, Google Calendar
-2. **Set up deliverables** — recurring outputs like digests, briefs, and reports
-3. **Review and refine** — YARNNN drafts, you approve (or tweak with the AI assistant)
-4. **It gets smarter** — learns your style, preferences, and what matters to you
+1. Connect your tools
+2. Configure deliverables (type + mode + sources)
+3. Review and supervise outputs
+4. Let each specialist improve through execution history
 
 ## Get started
 
-- [Quickstart guide](getting-started/quickstart.md) — up and running in 5 minutes
-- [What are deliverables?](concepts/what-are-deliverables.md) — the core of how YARNNN works for you
-- [Meet the AI assistant](concepts/ai-assistant.md) — your always-available thinking partner
+- [Quickstart guide](getting-started/quickstart.md)
+- [What are deliverables?](concepts/what-are-deliverables.md)
+- [Deliverable types and modes](concepts/deliverable-types-and-modes.md)
+- [Versioning & sync](resources/versioning.md)
+
+## Maintainer note
+
+To refresh GitBook changelog/version metadata from recent commits:
+
+```bash
+python3 scripts/sync_gitbook.py
+```

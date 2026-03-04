@@ -1,25 +1,29 @@
 # Authentication
 
-YARNNN uses token-based authentication. All API requests require a valid token.
+YARNNN API endpoints are protected and require an authenticated user token.
 
-## Getting started
+## Header format
 
-Authentication is handled through the YARNNN web app at [app.yarnnn.com](https://app.yarnnn.com). Sign up with email and password.
-
-## Using the API
-
-Include your token in the `Authorization` header of every request:
-
-```
+```text
 Authorization: Bearer <your-token>
 ```
 
-## Token management
+## How tokens are issued
 
-- Tokens are issued on login
-- Expired tokens are automatically refreshed by the web app
-- You can revoke tokens by logging out
+- Sign in through the YARNNN app.
+- The app manages session/token refresh.
+- Use that access token for API calls.
 
-## Data isolation
+## Scope model
 
-All API requests are scoped to your account. You can only access your own data — synced content, deliverables, preferences, and conversations.
+Requests are user-scoped. Data is isolated by authenticated user identity, including:
+
+- chat sessions
+- deliverables and versions
+- integration sources and synced content
+- memory/profile records
+
+## Common auth failures
+
+- `401`: missing/invalid token
+- `403`: token valid but resource access is not allowed

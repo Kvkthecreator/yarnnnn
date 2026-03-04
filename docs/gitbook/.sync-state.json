@@ -1,0 +1,14 @@
+{
+  "docs_version": "v5.0.0-docs.20260304",
+  "history": [
+    {
+      "commit_count": 18,
+      "docs_version": "v5.0.0-docs.20260304",
+      "head": "45ff552f7e13cc07edbaff0e53730f2a87e2ea75",
+      "range": "0c9ab5e..45ff552",
+      "synced_at": "2026-03-04 07:32:45Z"
+    }
+  ],
+  "last_synced_at": "2026-03-04 07:33:57Z",
+  "last_synced_commit": "45ff552f7e13cc07edbaff0e53730f2a87e2ea75"
+}
