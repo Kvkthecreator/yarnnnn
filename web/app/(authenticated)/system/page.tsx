@@ -68,7 +68,6 @@ type PipelineStep =
   | 'idle'
   | 'triggering'
   | 'waiting_for_sync'
-  | 'processing_signals'
   | 'complete'
   | 'complete_with_warning';
 
@@ -207,9 +206,6 @@ export default function SystemPage() {
   const [pipelineStep, setPipelineStep] = useState<PipelineStep>('idle');
   const [pipelineResult, setPipelineResult] = useState<{
     synced_platforms: string[];
-    signals_detected: number;
-    deliverables_created: number;
-    existing_triggered: number;
     message: string;
     syncTimedOut?: boolean;
   } | null>(null);
@@ -316,34 +312,11 @@ export default function SystemPage() {
 
       if (abortRef.current) return;
 
-      // Step 3: Process signals
-      setPipelineStep('processing_signals');
-      let signalResult = { signals_detected: 0, deliverables_created: 0, existing_triggered: 0, message: '' as string };
-
-      try {
-        const result = await api.signalProcessing.trigger('all');
-        signalResult = { ...result, message: result.message || '' };
-      } catch (err) {
-        // Signal processing may fail (free tier, rate limit, etc.)
-        // Still show sync success
-        const errMsg = err instanceof Error ? err.message : '';
-        if (errMsg.includes('tier') || errMsg.includes('403')) {
-          signalResult.message = 'Signal processing requires Starter plan or above';
-        } else if (errMsg.includes('rate') || errMsg.includes('429')) {
-          signalResult.message = 'Signal processing is on cooldown (5 min between runs)';
-        } else {
-          signalResult.message = 'Signal processing unavailable';
-        }
-      }
-
       const finalStep = syncResult.timedOut ? 'complete_with_warning' : 'complete';
       setPipelineStep(finalStep);
       setPipelineResult({
         synced_platforms: syncProviders,
-        signals_detected: signalResult.signals_detected,
-        deliverables_created: signalResult.deliverables_created,
-        existing_triggered: signalResult.existing_triggered,
-        message: signalResult.message || 'Pipeline complete',
+        message: 'Sync complete',
         syncTimedOut: syncResult.timedOut,
       });
 
@@ -351,37 +324,6 @@ export default function SystemPage() {
       await loadData();
     } catch (err) {
       setPipelineError(err instanceof Error ? err.message : 'Pipeline failed');
-      setPipelineStep('idle');
-    } finally {
-      setPipelineRunning(false);
-    }
-  };
-
-  // ---------------------------------------------------------------------------
-  // Pipeline: Process signals only (from existing data)
-  // ---------------------------------------------------------------------------
-
-  const handleSignalsOnly = async () => {
-    setPipelineRunning(true);
-    setPipelineStep('processing_signals');
-    setPipelineResult(null);
-    setPipelineError(null);
-
-    try {
-      const signalResult = await api.signalProcessing.trigger('all');
-
-      setPipelineStep('complete');
-      setPipelineResult({
-        synced_platforms: [],
-        signals_detected: signalResult.signals_detected,
-        deliverables_created: signalResult.deliverables_created,
-        existing_triggered: signalResult.existing_triggered,
-        message: signalResult.message || 'Signal processing complete',
-      });
-
-      await loadData();
-    } catch (err) {
-      setPipelineError(err instanceof Error ? err.message : 'Signal processing failed');
       setPipelineStep('idle');
     } finally {
       setPipelineRunning(false);
@@ -432,8 +374,8 @@ export default function SystemPage() {
   // Step indicator helpers
   // ---------------------------------------------------------------------------
 
-  const getStepStatus = (step: 'triggering' | 'waiting_for_sync' | 'processing_signals') => {
-    const order: PipelineStep[] = ['triggering', 'waiting_for_sync', 'processing_signals', 'complete', 'complete_with_warning'];
+  const getStepStatus = (step: 'triggering' | 'waiting_for_sync') => {
+    const order: PipelineStep[] = ['triggering', 'waiting_for_sync', 'complete', 'complete_with_warning'];
     const currentIdx = order.indexOf(pipelineStep);
     const stepIdx = order.indexOf(step);
 
@@ -505,62 +447,32 @@ export default function SystemPage() {
                       )}
                       Refresh Data
                     </button>
-                    <button
-                      onClick={handleSignalsOnly}
-                      disabled={pipelineRunning}
-                      className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      or process signals from existing data
-                    </button>
                   </div>
 
                   {/* Step indicator (shown during pipeline execution) */}
                   {pipelineRunning && pipelineStep !== 'idle' && (
                     <div className="space-y-1.5 py-1">
-                      {pipelineStep === 'processing_signals' && !pipelineResult ? (
-                        // Signals-only mode: single step
-                        <StepItem label="Scanning for signals..." status="active" />
-                      ) : (
-                        // Full pipeline: 3 steps
-                        <>
-                          <StepItem
-                            label="Syncing platforms..."
-                            status={getStepStatus('triggering')}
-                          />
-                          <StepItem
-                            label="Waiting for sync to complete..."
-                            status={getStepStatus('waiting_for_sync')}
-                          />
-                          <StepItem
-                            label="Scanning for signals..."
-                            status={getStepStatus('processing_signals')}
-                          />
-                        </>
-                      )}
+                      <StepItem
+                        label="Syncing platforms..."
+                        status={getStepStatus('triggering')}
+                      />
+                      <StepItem
+                        label="Waiting for sync to complete..."
+                        status={getStepStatus('waiting_for_sync')}
+                      />
                     </div>
                   )}
 
                   {/* Result banner */}
                   {pipelineResult && !pipelineRunning && (() => {
-                    const hasActions = pipelineResult.deliverables_created > 0 || pipelineResult.existing_triggered > 0;
-                    const hasSignals = pipelineResult.signals_detected > 0;
                     const syncTimedOut = pipelineResult.syncTimedOut;
-
-                    const variant = syncTimedOut ? 'amber' : hasActions ? 'green' : hasSignals ? 'green' : 'yellow';
+                    const variant = syncTimedOut ? 'amber' : 'green';
                     const colors = {
                       green: { bg: 'bg-green-50 dark:bg-green-900/20', border: 'border-green-200 dark:border-green-800', title: 'text-green-800 dark:text-green-200', body: 'text-green-700 dark:text-green-300', meta: 'text-green-600 dark:text-green-400', dismiss: 'text-green-600 dark:text-green-400' },
-                      yellow: { bg: 'bg-yellow-50 dark:bg-yellow-900/20', border: 'border-yellow-200 dark:border-yellow-800', title: 'text-yellow-800 dark:text-yellow-200', body: 'text-yellow-700 dark:text-yellow-300', meta: 'text-yellow-600 dark:text-yellow-400', dismiss: 'text-yellow-600 dark:text-yellow-400' },
                       amber: { bg: 'bg-amber-50 dark:bg-amber-900/20', border: 'border-amber-200 dark:border-amber-800', title: 'text-amber-800 dark:text-amber-200', body: 'text-amber-700 dark:text-amber-300', meta: 'text-amber-600 dark:text-amber-400', dismiss: 'text-amber-600 dark:text-amber-400' },
                     }[variant];
-
-                    const label = syncTimedOut
-                      ? 'Sync is still running in the background'
-                      : hasActions
-                        ? 'Pipeline Complete — Actions Taken'
-                        : hasSignals
-                          ? 'Pipeline Complete'
-                          : 'Pipeline Complete — No Signals Found';
-                    const Icon = syncTimedOut ? AlertTriangle : hasActions ? CheckCircle2 : hasSignals ? CheckCircle2 : AlertTriangle;
+                    const label = syncTimedOut ? 'Sync is still running in the background' : 'Sync Complete';
+                    const Icon = syncTimedOut ? AlertTriangle : CheckCircle2;
 
                     return (
                       <div className={`rounded-md ${colors.bg} border ${colors.border} p-3 text-sm`}>
@@ -571,20 +483,11 @@ export default function SystemPage() {
                               {label}
                             </div>
                             <p className={colors.body}>{pipelineResult.message}</p>
-                            <div className={`flex gap-4 text-xs ${colors.meta}`}>
-                              {pipelineResult.synced_platforms.length > 0 && (
-                                <span>{pipelineResult.synced_platforms.length} platform(s) synced</span>
-                              )}
-                              {pipelineResult.signals_detected > 0 && (
-                                <span>{pipelineResult.signals_detected} signal(s) scanned</span>
-                              )}
-                              {pipelineResult.deliverables_created > 0 && (
-                                <span>{pipelineResult.deliverables_created} deliverable(s) created</span>
-                              )}
-                              {pipelineResult.existing_triggered > 0 && (
-                                <span>{pipelineResult.existing_triggered} existing triggered</span>
-                              )}
-                            </div>
+                            {pipelineResult.synced_platforms.length > 0 && (
+                              <div className={`text-xs ${colors.meta}`}>
+                                {pipelineResult.synced_platforms.length} platform(s) synced
+                              </div>
+                            )}
                           </div>
                           <button
                             onClick={() => setPipelineResult(null)}
