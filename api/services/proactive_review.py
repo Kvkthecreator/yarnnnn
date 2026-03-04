@@ -245,11 +245,11 @@ async def run_proactive_review(
 
             # Execute tool calls and continue loop
             tool_results = []
-            for tool_use in response.tool_uses:
-                result = await executor(tool_use["name"], tool_use.get("input", {}))
+            for tu in response.tool_uses:
+                result = await executor(tu.name, tu.input)
                 tool_results.append({
                     "type": "tool_result",
-                    "tool_use_id": tool_use["id"],
+                    "tool_use_id": tu.id,
                     "content": json.dumps(result),
                 })
 
@@ -257,12 +257,12 @@ async def run_proactive_review(
             assistant_content = []
             if response.text:
                 assistant_content.append({"type": "text", "text": response.text})
-            for tool_use in response.tool_uses:
+            for tu in response.tool_uses:
                 assistant_content.append({
                     "type": "tool_use",
-                    "id": tool_use["id"],
-                    "name": tool_use["name"],
-                    "input": tool_use.get("input", {}),
+                    "id": tu.id,
+                    "name": tu.name,
+                    "input": tu.input,
                 })
             messages.append({"role": "assistant", "content": assistant_content})
             messages.append({"role": "user", "content": tool_results})
