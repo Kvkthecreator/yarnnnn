@@ -8,11 +8,10 @@ Usage:
     cd api && python test_pipeline_e2e.py
 
 This tests:
-1. Signal processing pass
-2. Deliverable execution (headless TP mode)
-3. Simulated user edit
-4. Memory extraction
-5. Second deliverable run (verify edit patterns reflected)
+1. Deliverable execution (headless TP mode)
+2. Simulated user edit
+3. Memory extraction
+4. Second deliverable run (verify edit patterns reflected)
 
 If execution fails at any step, stops and reports exact error.
 """
