@@ -31,6 +31,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-080**: Unified Agent Modes - one agent (chat + headless), mode-gated primitives, supersedes ADR-061 two-path separation
 - **ADR-087**: Deliverable Scoped Context - per-deliverable instructions + memory, session routing via deliverable_id
 - **ADR-088**: Trigger Dispatch - `dispatch_trigger()` in `api/services/trigger_dispatch.py`, single decision point for schedule/event/signal triggers (Phase 1 implemented)
+- **ADR-092**: Deliverable Intelligence & Mode Taxonomy - five modes (`recurring`, `goal`, `reactive`, `proactive`, `coordinator`); signal processing dissolved from L3; `RefreshPlatformContent` extended to headless; coordinator deliverables replace `signal_emergent` origin (Proposed — no code changes yet)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 

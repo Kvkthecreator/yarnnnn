@@ -1,9 +1,10 @@
 # ADR-068: Signal-Emergent Deliverables
 
 **Date**: 2026-02-19
-**Status**: Implemented
+**Status**: Superseded by [ADR-092: Deliverable Intelligence & Mode Taxonomy](ADR-092-deliverable-intelligence-mode-taxonomy.md) (2026-03-04)
 **Updated**: 2026-02-20 — Extended to all platforms (Slack, Notion)
 **Updated**: 2026-02-20 — Architectural reframe: Content significance reasoning (not absence/thresholds)
+**Updated**: 2026-03-04 — Superseded. Signal processing as L3 infrastructure is dissolved. The capability moves into L4 coordinator deliverables (ADR-092). `origin=signal_emergent` rows are relabeled `coordinator_created` in migration. The two-phase model (orchestration → artifact creation) survives as the coordinator deliverable pattern.
 **Extends**: ADR-061 (Two-Path Architecture) — adds a new Phase B orchestrator phase
 **Extends**: ADR-060 (Background Conversation Analyst) — widens the signal input beyond TP sessions
 **Relates to**: ADR-063 (Four-Layer Model), ADR-045 (Execution Strategies), ADR-018 (Recurring Deliverables)

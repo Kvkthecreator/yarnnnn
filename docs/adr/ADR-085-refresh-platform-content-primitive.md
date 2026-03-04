@@ -1,7 +1,7 @@
 # ADR-085: RefreshPlatformContent Primitive
 
-**Status**: Implemented
-**Date**: 2026-02-28
+**Status**: Implemented — Extended by ADR-092 (headless mode support)
+**Date**: 2026-02-28 (updated 2026-03-04)
 **Supersedes**: ADR-065 "live-first" platform content access pattern (partially)
 
 ## Context
@@ -41,10 +41,13 @@ Add a `RefreshPlatformContent` primitive that performs a **synchronous, awaited*
 ### Primitive definition
 
 - **Name**: `RefreshPlatformContent`
-- **Mode**: `["chat"]` only — headless uses `freshness.sync_stale_sources()`
+- **Mode**: `["chat", "headless"]` — extended to headless by ADR-092
 - **Parameters**: `platform` (enum: slack, gmail, notion, calendar)
-- **Staleness threshold**: 30 minutes — skips re-sync if content was fetched recently
+- **Staleness threshold**: 30 minutes (chat only) — headless calls skip this guard (purposeful, infrequent)
+- **Headless scoping**: When called in headless mode, refresh is scoped to the deliverable's configured `sources` only — not arbitrary platforms
 - **Engine**: Calls `_sync_platform_async()` from `platform_worker.py` (same pipeline as scheduler)
+
+> **ADR-092 note:** Headless `RefreshPlatformContent` enables proactive and reactive deliverables to refresh their own source context mid-execution during a review pass. The `freshness.sync_stale_sources()` pre-flight in the standard generation pipeline is unchanged — it runs before agent invocation as an orchestration step. Headless `RefreshPlatformContent` is available for agent-initiated targeted refresh during the tool-use loop.
 
 ### Singular implementation
 

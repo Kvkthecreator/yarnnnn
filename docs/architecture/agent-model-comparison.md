@@ -1,9 +1,10 @@
 # YARNNN Agent Model: Position & Conviction
 
 **Status:** Canonical
-**Date:** 2026-03-03
+**Date:** 2026-03-03 (updated 2026-03-04 for ADR-092)
 **Authors:** Kevin Kim, Claude (analysis)
 **Related:**
+- [ADR-092: Deliverable Intelligence & Mode Taxonomy](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md) — the fullest expression of this model; defines coordinator, proactive, reactive modes and dissolves signal processing
 - [ADR-087: Deliverable Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md)
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md)
 - [ADR-072: Unified Content Layer](../adr/ADR-072-unified-content-layer-tp-execution-pipeline.md)
@@ -77,7 +78,7 @@ Adopting the agent model would mean rebuilding infrastructure for a product conc
 | Mode-gated primitives (tools serve the task) | Unified input routing (one gateway for all signals) | `process_deliverable_input()` — one decision point, graduated response |
 | Session-scoped chat (TP is conversational) | Instructions as behavioral directives (AGENTS.md) | `deliverable_instructions` — user-authored, per-deliverable |
 | Orchestration boundary (pipeline manages lifecycle) | Workspace as context container | Deliverable as context container (instructions + memory + sources + outputs) |
-| — | Heartbeats (periodic self-review) | ADR-089: periodic workspace review per deliverable (when validated) |
+| — | Heartbeats (periodic self-review) | ADR-092: `proactive` and `coordinator` modes — periodic domain review per deliverable, sleeping between cycles |
 
 ---
 
@@ -99,11 +100,15 @@ This is a complete agent definition — without the overhead of a persistent pro
 
 ### What makes this distinct
 
-**Multiplicity without overhead.** A user can have 20 deliverables, each with unique instructions and accumulated memory, running at different frequencies, watching different sources. This is 20 specialized agents — with the resource cost of zero when they're not executing.
+**Multiplicity without overhead.** A user can have 20 deliverables, each with unique instructions and accumulated memory, running at different modes and frequencies. This is 20 specialized agents — with the resource cost of zero when they're not executing.
 
-**Graduated response.** Not every signal requires full generation. With unified input processing (ADR-088), the system can note observations in `deliverable_memory` (cheap, Haiku-level) or trigger full generation (expensive, Opus-level) based on signal strength. The agent stays informed without being always-on.
+**Graduated response.** Not every signal requires full generation. Dispatch routing (ADR-088) and the review pass (ADR-092) both implement graduated response: `observe`, `sleep`, `generate`. The agent stays informed without being always-on.
 
-**Quality compounds per specialist.** The meeting prep deliverable gets better at meeting prep. The competitor tracker gets better at tracking competitors. Each deliverable's memory is domain-specific, not diluted across a generalized agent identity.
+**Quality compounds per specialist.** The meeting prep deliverable gets better at meeting prep. The coordinator watching your calendar gets better at knowing when prep is actually needed. Each deliverable's memory is domain-specific, not diluted across a generalized agent identity.
+
+**Living agent experience without always-on cost.** Coordinator and proactive deliverables (ADR-092) provide the "feels like a living agent" experience that OpenClaw achieves with a persistent always-on process — but YARNNN achieves it with sleeping specialists. Each wakes, reviews its domain, acts if warranted, and returns to sleep. The experience is proactive and personified. The architecture is cost-efficient and cleanly bounded.
+
+**L3 is genuinely dumb.** Platform sync populates `platform_content`. Downstream consumers mark content retained. Nothing reasons at L3. Signal processing — which was L3 infrastructure doing L4 intelligence work — is dissolved (ADR-092). All intelligence lives in deliverables.
 
 ---
 

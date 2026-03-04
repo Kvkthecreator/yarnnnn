@@ -9,6 +9,8 @@
 
 YARNNN organises all persistent state into four layers. Each layer has a distinct purpose, lifecycle, and access rules. **The layers form both a generation pipeline (unidirectional) and a learning system (bidirectional feedback).**
 
+> **ADR-092 update (2026-03-04):** L3 is now genuinely dumb — platform sync writes, downstream consumers mark content retained. Signal processing as a separate L3-level reasoning subsystem is dissolved. Deliverable intelligence (proactive, reactive, coordinator modes) lives entirely in L4. See [ADR-092](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md).
+
 ```
 ┌─────────────────────────────────────────────────────┐
 │  Layer 1 — Memory                                   │
@@ -134,20 +136,17 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### Two writers to `platform_content`
+### Writers to `platform_content`
 
 **Platform Sync** (`platform_worker.py`):
 - Runs continuously on tier-appropriate frequency
 - Fetches content from external platforms
 - Writes with `retained=false`, `expires_at=NOW()+TTL`
-- Knows nothing about significance — just syncs
+- Knows nothing about significance — just syncs. L3 does not reason.
 
-**Signal Processing** (`signal_extraction.py`):
-- Reads live platform APIs for time-sensitive signals
-- When it identifies significant content, writes directly with `retained=true`
-- Sets `retained_reason='signal_processing'`, `retained_ref=signal_action_id`
+**Deliverable Execution** and **TP Sessions** mark existing records as `retained=true` after consuming them.
 
-Additionally, **Deliverable Execution** and **TP Sessions** mark existing records as retained after use.
+> **ADR-092:** Signal processing no longer writes to `platform_content`. It was an L3-level reasoning subsystem that violated the layer boundary. That capability moves into L4 coordinator deliverables.
 
 ### Retention policy
 
@@ -155,7 +154,6 @@ Additionally, **Deliverable Execution** and **TP Sessions** mark existing record
 |---|---|---|---|
 | Content never referenced | `false` | `NOW() + TTL` | Expires after TTL |
 | Referenced by deliverable_version | `true` | `NULL` | Retained indefinitely |
-| Referenced by signal_processing | `true` | `NULL` | Retained indefinitely |
 | Accessed during TP session | `true` | `NULL` | Retained indefinitely |
 
 **TTL by platform** (for unreferenced content, ADR-077):
@@ -175,7 +173,7 @@ Additionally, **Deliverable Execution** and **TP Sessions** mark existing record
 
 **Deliverable execution** uses the orchestration pipeline (ADR-045) for context gathering: `get_content_summary_for_generation()` fetches content chronologically from `platform_content`, formatted with signal markers. The agent in headless mode (ADR-080) then generates content with access to curated read-only primitives for supplementary investigation.
 
-**Signal processing** reads from `platform_content` (ADR-073) for behavioral signal extraction, then can create or trigger deliverables based on what it observes.
+**Coordinator deliverables** (ADR-092, `mode=coordinator`) read `platform_content` via headless mode primitives and can create or advance child deliverables based on what they find — but this is L4 intelligence, not L3 infrastructure.
 
 ### The accumulation moat
 
@@ -281,15 +279,18 @@ The layers interact in defined ways. Data flows downward for generation; learnin
                           │
               write_activity()            ──► writes Activity (L2)
 
-                    Signal processing
+                    Coordinator/Proactive deliverable (ADR-092)
                           │
-              reads platform_content (L3)
+              Scheduler: proactive_next_review_at
                           │
-         LLM reasoning (Haiku): what warrants action?
+              Agent (headless mode) — review pass
+               reads platform_content via primitives
                           │
-         creates/triggers deliverables    ──► writes Work (L4)
+         observe / generate / create_child / advance_schedule
                           │
-         marks significant content retained ──► updates Context (L3)
+         creates child deliverables       ──► writes Work (L4)
+                          │
+         marks consumed content retained  ──► updates Context (L3)
 ```
 
 **What never happens**:
@@ -297,10 +298,10 @@ The layers interact in defined ways. Data flows downward for generation; learnin
 - Activity is never written by user-facing clients
 - Context (platform content) is never pre-loaded into the TP system prompt
 
-**What now happens** (ADR-072, ADR-073, ADR-080):
+**What now happens** (ADR-072, ADR-080, ADR-092):
 - TP sessions (chat mode) mark accessed `platform_content` records as retained
 - Deliverable execution uses strategy pipeline (ADR-045) for context gathering, then agent in headless mode (ADR-080) generates with curated primitives
-- Signal processing reads `platform_content` (ADR-073), marks significant content as retained; signal reasoning forwarded to headless mode (ADR-080)
+- Coordinator and proactive deliverables (ADR-092) review their domain via headless primitives; create or advance child deliverables when warranted; mark consumed content retained
 - `source_snapshots` includes specific `platform_content_ids` for provenance
 
 ---
@@ -316,8 +317,8 @@ While data flows **unidirectionally downward** for generation (Memory → Activi
 │   Memory (L1) ───────┐                                       │
 │                      │                                       │
 │   Activity (L2) ─────┤                                       │
-│                      ├──► Signal Processing ──► Work (L4)   │
-│   Context (L3) ──────┘     (ADR-068/069)                     │
+│                      ├──► Deliverable Execution ──► Work (L4)│
+│   Context (L3) ──────┘     (ADR-045/080/092)                 │
 │                                                               │
 └──────────────────────────────────────────────────────────────┘
 
@@ -351,10 +352,10 @@ While data flows **unidirectionally downward** for generation (Memory → Activi
    - ADR-087: Replaces the old approval-gate feedback model
 
 3. **Content quality signal** (Work → Work)
-   - When: Signal processing runs (hourly/daily)
-   - What: Recent deliverable content included in signal reasoning prompts
-   - Effect: LLM assesses whether existing deliverables still address current signals
-   - Enables: Smart `trigger_existing` vs `create_signal_emergent` decisions
+   - When: Coordinator/proactive deliverable review pass runs
+   - What: Recent deliverable content included in review prompt context
+   - Effect: Agent assesses whether existing deliverables are current or if new work is warranted
+   - Enables: Smart `advance_schedule` vs `create_child` vs `observe` decisions (ADR-092)
 
 **Removed** (ADR-087 Phase 2): `process_feedback()` (edit-diff heuristics) and `process_patterns()` (activity log pattern detection). Superseded by the conversational iteration model.
 
@@ -385,8 +386,8 @@ The more deliverables a user runs, the more the system learns what they value. T
 | How does Layer 4 content influence future work? | Recent deliverable version content (400-char preview) is included in signal reasoning prompts (ADR-069). This enables quality-aware orchestration decisions. |
 | What are the three memory extraction sources? | 1) Conversation (nightly batch), 2) Deliverable feedback (on approval), 3) Activity patterns (daily detection). See ADR-064. |
 | Is signal processing real-time? | No. Signals are extracted on cron schedule (hourly). Near-real-time via webhooks is future work. |
-| Does signal processing write to `platform_content`? | Signal processing reads from `platform_content` (ADR-073) and marks significant content as `retained=true`. It can also create or trigger deliverables based on observed patterns. |
-| Can signal-emergent deliverables become recurring? | Yes. Deliverables can be promoted from one-time (`origin=signal_emergent`, no schedule) to recurring (add schedule). Origin field preserves provenance. |
+| Does anything write to `platform_content` beyond platform sync? | No. Platform sync is the only writer. Downstream consumers (deliverable execution, TP sessions, coordinator deliverables) mark existing records `retained=true` after consuming them. L3 does not reason. (ADR-092) |
+| Can coordinator-created deliverables become recurring? | Yes. Deliverables with `origin=coordinator_created` can be promoted to recurring (add schedule). Origin field preserves provenance. |
 | What is the "accumulation moat"? | Retained `platform_content` accumulates over time — the content that proved significant through downstream consumption. This is the compounding intelligence layer that makes YARNNN's outputs improve with tenure. |
 
 ---
@@ -425,8 +426,8 @@ The more deliverables a user runs, the more the system learns what they value. T
 **Layer-specific ADRs**:
 - [ADR-059](../adr/ADR-059-simplified-context-model.md) — Memory table design
 - [ADR-064](../adr/ADR-064-unified-memory-service.md) — Implicit memory extraction
-- [ADR-068](../adr/ADR-068-signal-emergent-deliverables.md) — Signal processing and deliverable origins
-- [ADR-069](../adr/ADR-069-layer-4-content-in-signal-reasoning.md) — Layer 4 content in signal reasoning
+- [ADR-068](../adr/ADR-068-signal-emergent-deliverables.md) — Signal-emergent deliverables (Superseded by ADR-092)
+- [ADR-092](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md) — Deliverable Intelligence & Mode Taxonomy (dissolves signal processing, defines coordinator/proactive/reactive modes)
 - [ADR-071](../adr/ADR-071-strategic-architecture-principles.md) — Strategic architecture principles
 
 **Architecture docs**:

@@ -1,7 +1,7 @@
 # Architecture: Agent Execution Model
 
 **Status:** Canonical
-**Date:** 2026-02-26 (updated for ADR-080 unified agent modes)
+**Date:** 2026-02-26 (updated 2026-03-04 for ADR-092: headless mode extended primitives, review pass, coordinator mode)
 **Supersedes:** ADR-016 (Layered Agent Architecture) — work agent delegation model
 **Codifies:** ADR-080 (Unified Agent Modes) — evolves ADR-061 two-path separation into one agent with modal execution
 **Related:**
@@ -72,11 +72,18 @@ Orchestration → Agent (mode="headless") → Text → Orchestration continues
 - Generate deliverable content from gathered context
 - Investigate supplementary context via primitives when the gathered context is insufficient
 - Produce structured, formatted output following type-specific templates
+- For `proactive` and `coordinator` modes (ADR-092): execute a **review pass** — assess domain, return `generate / observe / create_child / advance_schedule / sleep` rather than content
 
 **Headless mode explicitly does NOT:**
 - Hold session state or conversation history
-- Execute write operations (create deliverables, send messages, update preferences)
 - Know about delivery, retention, or version management — that is orchestration
+
+**ADR-092 extension — coordinator/proactive write primitives:**
+Coordinator and proactive modes add two headless-only write primitives, scoped exclusively to orchestration actions:
+- `CreateDeliverable` — creates a child deliverable with `origin=coordinator_created`; headless only
+- `AdvanceDeliverableSchedule` — advances another deliverable's `next_run_at` to now; headless only
+
+These are not available in chat mode. TP continues to create deliverables via its own `CreateDeliverable` primitive (chat-only). The names are shared but the implementations and mode gates are distinct.
 
 ---
 
@@ -97,9 +104,14 @@ PRIMITIVE_MODES = {
     "Write":                    ["chat"],
     "Edit":                     ["chat"],   # includes deliverable_instructions + scoped memory writes (ADR-091)
     "Execute":                  ["chat"],   # includes deliverable.acknowledge (ADR-091)
-    "RefreshPlatformContent":   ["chat"],   # ADR-085
+    "RefreshPlatformContent":   ["chat", "headless"],  # ADR-085 extended by ADR-092 (headless: scoped to deliverable sources, no staleness guard)
     "Clarify":                  ["chat"],
     "list_integrations":        ["chat"],
+
+    # Coordinator/proactive primitives — headless only (ADR-092)
+    # These are orchestration actions, not user-facing chat operations
+    "CreateDeliverable":        ["headless"],   # coordinator mode: creates child with origin=coordinator_created
+    "AdvanceDeliverableSchedule": ["headless"], # coordinator mode: trigger_existing replacement
 }
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
 # Todo and Respond are handled in the HANDLERS map but not in PRIMITIVES list
@@ -114,28 +126,47 @@ When a primitive is updated or added, it is tagged with modes. Updates improve b
 
 Backend orchestration is NOT agent work. The orchestration pipeline invokes the agent at one step and receives text back.
 
+**Standard generation pipeline** (`recurring`, `goal`, `reactive` on threshold):
 ```
 Backend Orchestration
-├── 1. Trigger (scheduler / manual / signal)
-├── 2. Freshness check (ADR-049)
-├── 3. Strategy selection + context gathering (ADR-045)
-├── 4. Version + ticket creation
+├── 1. Trigger (scheduler / event / manual)
+├── 2. dispatch_trigger() routing (ADR-088) — signal_strength → high/medium/low
+├── 3. Freshness check + strategy selection + context gathering (ADR-045)
+├── 4. Version creation
 ├── 5. Agent (mode="headless")           ← agent invocation
-│   ├── Receives: gathered context + type prompt + signal reasoning + research directive (if research/hybrid)
-│   ├── Can use: Search, Read, List, WebSearch, GetSystemState
-│   ├── Cannot use: Write, Edit, Execute, Todo, Respond, Clarify
+│   ├── Receives: gathered context + type prompt + deliverable_instructions + deliverable_memory
+│   ├── Can use: Search, Read, List, WebSearch, GetSystemState, RefreshPlatformContent
+│   ├── Cannot use: Write, Edit, Execute, Clarify, CreateDeliverable, AdvanceDeliverableSchedule
 │   ├── Max tool rounds: binding-aware (2-6, ADR-081)
 │   └── Returns: structured content (text)
 ├── 6. Retention marking (ADR-072)
-├── 7. Source snapshots (ADR-049)
+├── 7. Source snapshots
 ├── 8. Delivery — email, Slack, Notion (ADR-066, no approval gate)
 └── 9. Activity logging
 ```
 
+**Review pass pipeline** (`proactive`, `coordinator` modes — ADR-092):
+```
+Backend Orchestration
+├── 1. Trigger (proactive_next_review_at <= NOW())
+├── 2. Agent (mode="headless", review prompt)  ← review invocation
+│   ├── Receives: deliverable_instructions + deliverable_memory + source context
+│   ├── Can use: Search, Read, List, CrossPlatformQuery, RefreshPlatformContent
+│   ├── Coordinator also: CreateDeliverable, AdvanceDeliverableSchedule
+│   └── Returns: {action: "generate"|"observe"|"create_child"|"advance_schedule"|"sleep", ...}
+├── 3. Orchestration acts on returned action:
+│   ├── generate → proceeds to standard generation pipeline above
+│   ├── observe → appends note to deliverable_memory.review_log
+│   ├── create_child → creates child deliverable + executes immediately
+│   ├── advance_schedule → sets another deliverable's next_run_at = now
+│   └── sleep → sets proactive_next_review_at = agent-specified time
+└── 4. Activity logging
+```
+
 **Orchestration's responsibilities:**
-- **Signal Processing phase** (ADR-068): Extract behavioral signals from `platform_content`, reason over what the user's world warrants, create/trigger deliverables
+- **Coordinator/proactive review phase** (ADR-092): Schedule review passes for `proactive` and `coordinator` deliverables, act on agent's returned action
 - **Analysis phase** (ADR-060): Mine TP session content for recurring patterns, create analyst-suggested deliverables
-- **Execution phase**: Execute deliverables on schedule or on manual trigger, select execution strategy, invoke agent in headless mode, deliver outputs, mark content retained
+- **Execution phase**: Execute deliverables on trigger, select execution strategy, invoke agent in headless mode, deliver outputs, mark content retained
 
 **Orchestration explicitly does NOT:**
 - Participate in conversation
