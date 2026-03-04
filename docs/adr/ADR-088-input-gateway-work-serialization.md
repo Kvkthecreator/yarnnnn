@@ -1,6 +1,8 @@
 # ADR-088: Unified Input Processing & Work Serialization
 
-**Status:** Proposed (Parked — superseded in part by ADR-091 `deliverable.acknowledge` action; un-park when event trigger volume justifies full graduated response routing)
+**Status:** Proposed (Parked — un-park when event trigger volume justifies full graduated response routing)
+
+**Note on ADR-091:** `deliverable.acknowledge` (ADR-091) added a *chat-driven* write path to `deliverable_memory` — the user supervises via TP and the agent records an observation. This ADR is about the *background* path: event triggers, signals, and scheduled inputs routing through a unified decision model. These are parallel paths, not substitutes. ADR-091 does not un-park this ADR.
 **Date:** 2026-03-03
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**

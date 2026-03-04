@@ -1,6 +1,12 @@
 # ADR-089: Agent Autonomy & Context-Aware Triggers
 
-**Status:** Proposed (Partially un-parked — `deliverable.acknowledge` action implemented in ADR-091 Commit 1; full autonomous trigger logic remains parked)
+**Status:** Proposed (Parked — parking condition now met; un-parking is a deliberate product decision)
+
+**Parking condition update:** The original condition was "ADR-087 Phase 2 complete: `deliverable_memory` write paths are wired and demonstrably improve headless generation quality." ADR-087 Phase 2 is now complete and all three phases are implemented. The technical prerequisite is satisfied.
+
+**Note on ADR-091:** `deliverable.acknowledge` is a *user-initiated* supervision action — the user asks TP to acknowledge a version, TP writes an observation. This is the opposite of autonomous: the agent acts because the user asked. It does not un-park this ADR. This ADR is about the agent noticing something and acting without being prompted.
+
+**When to un-park:** Product decision — the technical gate is cleared. Un-park when the cost of context staleness between generations (Problem 2) or over-reactive full generations from event triggers (Problem 1) becomes felt in practice.
 **Date:** 2026-03-03
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**

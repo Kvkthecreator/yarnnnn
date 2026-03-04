@@ -1,7 +1,7 @@
 # ADR-087: Deliverable Scoped Context
 
-**Status:** Phases 1–3 Implemented. Primitive write paths added (ADR-091 prerequisite).
-**Date:** 2026-03-02 (v1), 2026-03-03 (v2 rewrite, v3 naming revision), 2026-03-04 (primitive additions)
+**Status:** Fully Implemented (2026-03-04). Goal-mode behavioral differentiation deferred (see Phase 3 note).
+**Date:** 2026-03-02 (v1), 2026-03-03 (v2 rewrite, v3 naming revision), 2026-03-04 (primitive additions + ADR-091 frontend)
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**
 - [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — one agent, two modes; this ADR bridges them via scoped context
@@ -184,14 +184,16 @@ Architectural reassessment during Phase 2 planning led to significant simplifica
 
 **Validation:** Backend processing has clean domain boundaries. Dead code removed per Discipline 2 (singular implementation). Session continuity separated from memory extraction.
 
-### Phase 3: Frontend + Goal Mode
+### Phase 3: Frontend + Goal Mode — IMPLEMENTED (2026-03-04, ADR-091)
 
-- Deliverable detail page: instructions editor (TEXT), memory viewer, scoped chat
-- Mode selector on creation (recurring vs goal)
-- Goal mode UI: progress, milestones, no schedule
-- Workspace chat entry point from dashboard/sidebar
+- Deliverable workspace page (`/deliverables/[id]`): scoped TP chat dominant left, collapsible right panel
+- Panel tabs: Versions, Memory (observations + goal viewer), Instructions (editable TEXT field), Sessions
+- Mode field present on deliverable and visible in UI header badge
+- Workspace chat entry point from dashboard Deliverables panel tab
 
-**Validation:** Users can create goal-oriented workspaces alongside recurring deliverables. Instructions and memory are visible and editable.
+**Validation:** Users can view and edit deliverable instructions, read accumulated memory, and chat in scoped TP sessions that inject `deliverable_instructions` + `deliverable_memory` into working memory.
+
+**Deferred (not blocking):** Goal-mode behavioral differentiation — `mode='goal'` deliverables currently behave identically to `mode='recurring'` (same schedule fields, same generation pipeline). Distinct goal-mode lifecycle (schedule-less, milestone progression, completion state) is a future product decision. The `mode` field, schema, and UI label are in place; only the behavioral branching remains.
 
 ---
 
