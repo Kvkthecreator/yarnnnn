@@ -427,6 +427,8 @@ export interface DeliverableCreate {
   sources?: DataSource[];
   // ADR-028: Destination-first deliverables
   destination?: Destination;
+  // ADR-092: Mode taxonomy
+  mode?: DeliverableMode;
   // Legacy fields
   description?: string;
   template_structure?: TemplateStructure;
@@ -446,7 +448,10 @@ export interface DeliverableUpdate {
   destination?: Destination;
   // ADR-087: Deliverable-scoped context
   deliverable_instructions?: string;
+  // ADR-092: Mode taxonomy + scheduling
   mode?: DeliverableMode;
+  proactive_next_review_at?: string;
+  trigger_config?: Record<string, unknown>;
   // Legacy fields
   description?: string;
   template_structure?: TemplateStructure;

@@ -444,6 +444,8 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
         sources,
         schedule,
         type_classification: selectedType.classification,
+        // deep_research is goal mode (one-shot, on-demand) — all others default to recurring
+        mode: selectedType.id === 'deep_research' ? 'goal' : undefined,
       };
 
       const deliverable = await api.deliverables.create(createData);
