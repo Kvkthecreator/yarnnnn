@@ -92,7 +92,7 @@ MAYA = SyntheticUser(
     ],
     deliverable_config={
         "title": "Client Project Brief",
-        "deliverable_type": "intelligence_brief",
+        "deliverable_type": "brief",
         "schedule": {"frequency": "weekly", "day": "monday", "time": "09:00", "timezone": "America/Los_Angeles"},
         "sources": [{"type": "integration_import", "provider": "google", "source": "gmail"}],
         "recipient_context": {"name": "Self", "channel": "review"},
@@ -148,7 +148,7 @@ JAMES = SyntheticUser(
     ],
     deliverable_config={
         "title": "Weekly Founder Brief",
-        "deliverable_type": "daily_strategy_reflection",
+        "deliverable_type": "digest",
         "schedule": {"frequency": "weekly", "day": "friday", "time": "17:00", "timezone": "America/New_York"},
         "sources": [
             {"type": "integration_import", "provider": "slack", "source": "#product"},
@@ -204,7 +204,7 @@ SARAH = SyntheticUser(
     ],
     deliverable_config={
         "title": "Engineering Weekly Digest",
-        "deliverable_type": "intelligence_brief",
+        "deliverable_type": "digest",
         "schedule": {"frequency": "weekly", "day": "friday", "time": "16:00", "timezone": "America/Chicago"},
         "sources": [
             {"type": "integration_import", "provider": "slack", "source": "#engineering"},
@@ -396,7 +396,7 @@ async def create_synthetic_user(client: Any, persona: SyntheticUser) -> str:
                 "schedule": persona.deliverable_config["schedule"],
                 "sources": persona.deliverable_config["sources"],
                 "recipient_context": persona.deliverable_config["recipient_context"],
-                "next_run_at": now.isoformat(),
+                "next_run_at": (now.replace(year=now.year + 1)).isoformat(),  # Far future — prevent scheduler pickup during test
                 "created_at": now.isoformat(),
                 "updated_at": now.isoformat(),
             }

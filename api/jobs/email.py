@@ -52,6 +52,10 @@ async def send_email(
     from_addr = from_email or os.environ.get(
         "RESEND_FROM_EMAIL", "yarnnn <noreply@yarnnn.com>"
     )
+    # Normalize display name to lowercase (env var may have been set with wrong casing)
+    if "<" in from_addr:
+        display, addr = from_addr.split("<", 1)
+        from_addr = f"{display.strip().lower()} <{addr}"
 
     payload = {
         "from": from_addr,

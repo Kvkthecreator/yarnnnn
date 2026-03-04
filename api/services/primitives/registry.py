@@ -28,7 +28,6 @@ from .coordinator import (
     ADVANCE_DELIVERABLE_SCHEDULE_TOOL, handle_advance_deliverable_schedule,
 )
 from services.platform_tools import is_platform_tool, handle_platform_tool
-from services.project_tools import handle_list_integrations
 
 
 # Communication primitives (kept from legacy for respond/clarify)
@@ -100,6 +99,43 @@ async def handle_clarify(auth: Any, input: dict) -> dict:
             "type": "CLARIFY",
             "data": {"question": question, "options": options},
         },
+    }
+
+
+async def handle_list_integrations(auth: Any, input: dict) -> dict:
+    """List user's connected platform integrations."""
+    result = auth.client.table("platform_connections")\
+        .select("id, platform, status, metadata, created_at, updated_at")\
+        .eq("user_id", auth.user_id)\
+        .execute()
+
+    integrations = result.data or []
+    items = []
+    for i in integrations:
+        metadata = i.get("metadata") or {}
+        item = {
+            "platform": i["platform"],
+            "status": i["status"],
+            "connected_at": i["created_at"],
+            "last_updated": i["updated_at"],
+            "workspace_name": metadata.get("team_name") or metadata.get("workspace_name"),
+            "email": metadata.get("email"),
+        }
+        if i["platform"] == "slack" and metadata.get("authed_user_id"):
+            item["authed_user_id"] = metadata["authed_user_id"]
+        if i["platform"] == "notion" and metadata.get("designated_page_id"):
+            item["designated_page_id"] = metadata["designated_page_id"]
+        if i["platform"] == "google":
+            if metadata.get("user_email"):
+                item["user_email"] = metadata["user_email"]
+            if metadata.get("designated_calendar_id"):
+                item["designated_calendar_id"] = metadata["designated_calendar_id"]
+        items.append(item)
+
+    return {
+        "success": True,
+        "integrations": items,
+        "count": len(items),
     }
 
 

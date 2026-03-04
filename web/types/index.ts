@@ -379,7 +379,7 @@ export interface Deliverable {
   deliverable_type: DeliverableType;
   type_config?: TypeConfig;
   // ADR-031: Platform-native variants
-  platform_variant?: PlatformVariant;  // e.g., "slack_digest" for status_report
+  platform_variant?: PlatformVariant;  // platform-native render variant (legacy field)
   // ADR-044: Type classification (binding + temporal pattern)
   type_classification?: TypeClassification;
   project_id?: string;

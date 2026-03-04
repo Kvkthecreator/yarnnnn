@@ -371,7 +371,7 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     # --- CreateDeliverable: success case ---
     r1 = await handle_create_deliverable(auth, {
         "title": f"{TEST_PREFIX}Child Meeting Prep",
-        "deliverable_type": "meeting_prep",
+        "deliverable_type": "brief",
         "deliverable_instructions": "Prepare briefing for external meeting",
         "dedup_key": "meeting:test-event-abc123",
     })
@@ -403,7 +403,7 @@ async def phase4_coordinator(supabase, ids: dict) -> PhaseResult:
     assert_true(result, "dedup_key in created_deliverables log", "meeting:test-event-abc123" in dedup_keys)
 
     # --- CreateDeliverable: missing title ---
-    r_no_title = await handle_create_deliverable(auth, {"deliverable_type": "meeting_prep"})
+    r_no_title = await handle_create_deliverable(auth, {"deliverable_type": "brief"})
     assert_eq(result, "CreateDeliverable missing title → success=False", r_no_title.get("success"), False)
     assert_eq(result, "CreateDeliverable missing title → error=missing_title", r_no_title.get("error"), "missing_title")
 
