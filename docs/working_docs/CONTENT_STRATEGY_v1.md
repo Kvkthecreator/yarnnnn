@@ -230,10 +230,10 @@ Examples:
 - "OpenAI acquired OpenClaw. But persistent memory was never the real product."
 
 **4c. The Solo Builder Journey**
-Honest, human, real. The 72 ADRs. The architectural depth. The tradeoffs.
+Honest, human, real. The 93 ADRs. The architectural depth. The tradeoffs.
 
 Examples:
-- "72 architectural decision records. Solo founder. Here's what that looks like."
+- "93 architectural decision records. Solo founder. Here's what that looks like."
 - "The loneliest part of building an AI startup alone isn't the code. It's the decisions."
 
 **Frequency:** 1 post/week. Alternate angles across weeks.

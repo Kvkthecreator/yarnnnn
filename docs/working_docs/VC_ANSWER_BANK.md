@@ -1,8 +1,8 @@
 # VC Application Answer Bank — Canonical
 
 **Purpose**: Canonical written answers for VC/accelerator applications. VC-agnostic — adapt per application as needed.
-**Source**: IR Deck v15 + NARRATIVE.md v2 + ESSENCE.md
-**Date**: 2026-03-02 (v2 — reframed to honest-bet / platform-cycle thesis)
+**Source**: IR Deck v16 + NARRATIVE.md v2 + ESSENCE.md
+**Date**: 2026-03-04 (v3 — updated ADR counts, deliverable language to reflect ADR-090/092/093)
 
 **How to use**: Copy-paste the canonical version, then trim or expand to fit each application's word limits and tone. Field mappings for specific applications are noted in brackets.
 
@@ -52,7 +52,7 @@ This means the moat isn't the model, the integrations, or the UI. The moat is th
 
 The MVP is live at yarnnn.com with paying tiers (Free / Starter $9/mo / Pro $19/mo). All four platform integrations — Slack, Gmail, Notion, and Google Calendar — are connected and syncing. TP operates in both chat mode (context-aware conversations) and headless mode (scheduled autonomous deliverables).
 
-The technical foundation is unusually deep for a pre-seed company: 80+ Architecture Decision Records document every design choice, from the unified content layer to the retention-based accumulation model. This isn't a wrapper on an API — it's a purpose-built context engine designed from day one for cross-platform context accumulation and agent interoperability (MCP).
+The technical foundation is unusually deep for a pre-seed company: 90+ Architecture Decision Records document every design choice, from the unified content layer to the five-mode deliverable intelligence system. This isn't a wrapper on an API — it's a purpose-built context engine designed from day one for cross-platform context accumulation and agent interoperability (MCP).
 
 The strongest demand signal came from ClawdBot (also called OpenClaw), an open-source project by a separate team that went viral in January 2026: 17,830 GitHub stars in 24 hours — the fastest single-day growth in GitHub history. What drove that explosion wasn't a better chatbot — it was the promise of AI that's yours: personalized, persistent, and capable of operating in your context. But 95% of users couldn't actually use it — it required VPS provisioning, had 200+ security leaks flagged by GitGuardian, and offered no recurring workflows. yarnnn is the productized version of what ClawdBot proved people want.
 
@@ -66,7 +66,7 @@ We're now testing two core hypotheses: (1) that TP already knows your work from 
 
 The competitive landscape splits into three categories, and yarnnn is the only product that bridges the gap between them:
 
-**General AI assistants (ChatGPT, Claude, Gemini)**: Extraordinary general-purpose models with improving memory and expanding tools. But their architecture is model-centric, not context-centric — they optimize for breadth across all users, not depth for any specific user. They accumulate some preferences; they don't accumulate your full work context across four platforms and use it for autonomous scheduled output. They're the engine — we're building the vehicle.
+**General AI assistants (ChatGPT, Claude, Gemini)**: Extraordinary general-purpose models with improving memory and expanding tools. But their architecture is model-centric, not context-centric — they optimize for breadth across all users, not depth for any specific user. They accumulate some preferences; they don't accumulate your full work context across four platforms and use it for intelligent autonomous deliverables. They're the engine — we're building the vehicle.
 
 **Autonomous agent startups (Devin, AutoGPT, CrewAI)**: These can act independently, but generically. They have no persistent understanding of your specific clients, projects, or preferences. Autonomy without accumulated context produces impressive demos but weak repeat performance for the same user over time.
 
@@ -118,7 +118,7 @@ As a Korean-born founder who has worked across the US, Southeast Asia, and globa
 
 That's not just a professional skill — it's how I see the world. Systems that should talk to each other but don't. Context that exists in one place but is invisible in another. The gap between what technology can do and what any specific person actually needs it to do. yarnnn is the product expression of that instinct: the models are extraordinary, but your work context is scattered across platforms, and no one is building the layer that makes AI understand your specific world.
 
-On the technical side: I shipped the entire MVP solo — full-stack application (Next.js + FastAPI + Supabase), four platform integrations, a unified agent architecture documented across 80+ Architecture Decision Records, and a working context accumulation engine — all before raising a dollar. That's the ability to make hundreds of architectural decisions under uncertainty and ship a coherent product alone.
+On the technical side: I shipped the entire MVP solo — full-stack application (Next.js + FastAPI + Supabase), four platform integrations, a unified agent architecture documented across 90+ Architecture Decision Records, and a working context accumulation engine — all before raising a dollar. That's the ability to make hundreds of architectural decisions under uncertainty and ship a coherent product alone.
 
 The combination is rare: a systems thinker shaped by navigating between disconnected worlds, deep domain expertise in the exact problem space, and the technical ability to build the full stack solo. I don't just understand the context problem — I've been living it, across cultures and industries, for a decade.
 
