@@ -1,9 +1,8 @@
-import Link from "next/link";
-import { format } from "date-fns";
 import LandingHeader from "@/components/landing/LandingHeader";
 import LandingFooter from "@/components/landing/LandingFooter";
 import { ShaderBackgroundDark } from "@/components/landing/ShaderBackgroundDark";
 import { GrainOverlay } from "@/components/landing/GrainOverlay";
+import BlogPostList from "@/components/blog/BlogPostList";
 import { getAllPosts } from "@/lib/blog";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
@@ -58,34 +57,7 @@ export default function BlogPage() {
               agent should get smarter the longer you use it.
             </p>
 
-            {posts.length === 0 ? (
-              <p className="text-white/30">No posts yet. Check back soon.</p>
-            ) : (
-              <div className="space-y-12">
-                {posts.map((post) => (
-                  <article key={post.slug}>
-                    <Link
-                      href={`/blog/${post.slug}`}
-                      className="group block"
-                    >
-                      <div className="flex items-center gap-3 text-sm text-white/30 mb-2">
-                        <time dateTime={post.date}>
-                          {format(new Date(post.date), "MMMM d, yyyy")}
-                        </time>
-                        <span>&middot;</span>
-                        <span>{post.readingTime}</span>
-                      </div>
-                      <h2 className="text-xl md:text-2xl font-medium group-hover:text-white/80 transition-colors mb-2">
-                        {post.title}
-                      </h2>
-                      <p className="text-white/50 leading-relaxed">
-                        {post.description}
-                      </p>
-                    </Link>
-                  </article>
-                ))}
-              </div>
-            )}
+            <BlogPostList posts={posts} />
           </section>
         </main>
 

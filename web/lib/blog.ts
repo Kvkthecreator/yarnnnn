@@ -12,6 +12,7 @@ export interface BlogPost {
   description: string;
   date: string;
   author: string;
+  category: "core" | "opinion";
   tags: string[];
   geoTier: number;
   canonicalUrl: string;
@@ -72,6 +73,7 @@ export function getPostBySlug(slug: string): BlogPost | null {
     description: data.description || "",
     date: data.date,
     author: data.author || "yarnnn",
+    category: data.category === "opinion" ? "opinion" : "core",
     tags: data.tags || [],
     geoTier: data.geoTier || 1,
     canonicalUrl: toAbsoluteUrl(
@@ -107,6 +109,7 @@ export function getAllPosts(): BlogPostMeta[] {
         description: data.description || "",
         date: data.date,
         author: data.author || "yarnnn",
+        category: (data.category === "opinion" ? "opinion" : "core") as BlogPost["category"],
         tags: data.tags || [],
         geoTier: data.geoTier || 1,
         canonicalUrl: toAbsoluteUrl(

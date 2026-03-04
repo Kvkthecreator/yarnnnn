@@ -69,11 +69,17 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
     image: [post.imageUrl],
     keywords: post.tags.join(", "),
     wordCount: post.wordCount,
-    author: {
-      "@type": "Organization",
-      name: BRAND.name,
-      url: BRAND.url,
-    },
+    author:
+      post.category === "opinion"
+        ? {
+            "@type": "Person",
+            name: post.author === "kvk" ? "Kevin Kim" : post.author,
+          }
+        : {
+            "@type": "Organization",
+            name: BRAND.name,
+            url: BRAND.url,
+          },
     publisher: {
       "@type": "Organization",
       name: BRAND.name,
@@ -119,6 +125,12 @@ export default function BlogPostPage({ params }: BlogPostPageProps) {
                 </time>
                 <span>&middot;</span>
                 <span>{post.readingTime}</span>
+                {post.category === "opinion" && (
+                  <>
+                    <span>&middot;</span>
+                    <span>{post.author === "kvk" ? "Kevin Kim" : post.author}</span>
+                  </>
+                )}
               </div>
             </header>
 
