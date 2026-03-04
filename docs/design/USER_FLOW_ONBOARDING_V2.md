@@ -40,7 +40,7 @@ screen     to context  grouping           syncs
 
 ### Experience
 
-Dashboard shows `PlatformSyncStatus` component in `ChatFirstDesk`:
+Dashboard shows `PlatformSyncStatus` component in `WorkspaceLayout`:
 - 4 platform buttons (Slack, Gmail, Notion, Calendar) with connect CTAs
 - Document upload option
 - Tier info: "Free plan: 2 sources per platform, syncs 2x daily"

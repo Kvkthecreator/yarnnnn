@@ -1,4 +1,4 @@
-# ADR-091: Workspace Layout & Navigation Architecture
+# Workspace Layout & Navigation Architecture
 
 **Date:** 2026-03-04
 **Status:** Implemented (2026-03-04) — all 5 commits shipped
@@ -10,7 +10,7 @@
 - [ADR-087: Deliverable Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — per-deliverable instructions + memory
 - [ADR-088: Unified Input Processing](../adr/ADR-088-input-gateway-work-serialization.md) — parked, builds on this
 - [ADR-089: Agent Autonomy](../adr/ADR-089-agent-autonomy-context-aware-triggers.md) — parked, builds on this
-- [ADR-087 Phase 3 Surface Layout](ADR-087-phase3-surface-layout.md) — current tabbed detail page, superseded by this
+- [Phase 3 Surface Layout (history)](SURFACE-LAYOUT-PHASE3-HISTORY.md) — tabbed detail page, superseded by this
 
 ---
 
@@ -217,9 +217,9 @@ The existing dropdown behavior (for switching skills or surfaces) moves to a dif
 
 ---
 
-## 7. `ChatFirstDesk` Refactor Strategy
+## 7. `WorkspaceLayout` Refactor (from `ChatFirstDesk`)
 
-The current `ChatFirstDesk` component is tightly coupled to the dashboard. The refactor extracts it into a reusable `WorkspaceLayout`:
+`ChatFirstDesk` was extracted into a reusable `WorkspaceLayout`:
 
 ```
 ChatFirstDesk (current)
