@@ -1,6 +1,6 @@
 # ADR-089: Agent Autonomy & Context-Aware Triggers
 
-**Status:** Proposed (Parked — un-park after ADR-087 Phase 2 + ADR-088 validate)
+**Status:** Proposed (Partially un-parked — `deliverable.acknowledge` action implemented in ADR-091 Commit 1; full autonomous trigger logic remains parked)
 **Date:** 2026-03-03
 **Authors:** Kevin Kim, Claude (analysis)
 **References:**

@@ -1,15 +1,12 @@
 'use client';
 
 /**
- * ADR-023: Supervisor Desk Architecture
- *
- * Route redirect - opens deliverable detail surface via URL params.
+ * ADR-091: Legacy route redirect → /deliverables/[id] workspace
  */
 
 import { useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
-import { HOME_ROUTE } from '@/lib/routes';
 
 export default function DeliverableDetailPage() {
   const params = useParams();
@@ -17,8 +14,7 @@ export default function DeliverableDetailPage() {
   const deliverableId = params.id as string;
 
   useEffect(() => {
-    // Redirect to dashboard with surface params
-    router.replace(`${HOME_ROUTE}?surface=deliverable-detail&deliverableId=${deliverableId}`);
+    router.replace(`/deliverables/${deliverableId}`);
   }, [deliverableId, router]);
 
   return (

@@ -1,9 +1,9 @@
 # User Flow: Platform-First Onboarding (v3)
 
-> **Status**: Current
+> **Status**: Current (Updated 2026-03-04 — ADR-091 dashboard/workspace changes noted)
 > **Date**: 2026-02-26
 > **Supersedes**: Onboarding V2 (2026-02-09)
-> **Related ADRs**: ADR-053 (Tier Model), ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-079 (Smart Source Auto-Selection)
+> **Related ADRs**: ADR-053 (Tier Model), ADR-057 (Streamlined Onboarding), ADR-072 (Unified Content Layer), ADR-079 (Smart Source Auto-Selection), ADR-091 (Workspace Layout)
 
 ---
 
@@ -12,6 +12,8 @@
 Users connect platforms (Slack, Gmail, Notion, Calendar) and select which sources to sync. Context accumulates over time through tier-based scheduled syncs. TP (Thinking Partner) uses this context in conversations and deliverable generation.
 
 **Key design principle**: Context pages (`/context/{platform}`) are the **singular** source selection experience. No modals, no wizards — one place for everything.
+
+**ADR-091 update**: `/dashboard` is now a **global TP launcher** (chat + Deliverables panel + Context panel). Each deliverable has its own workspace at `/deliverables/[id]` with scoped TP chat. Users navigate from the Deliverables panel on the dashboard into deliverable workspaces.
 
 ---
 

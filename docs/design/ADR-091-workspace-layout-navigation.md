@@ -1,7 +1,7 @@
 # ADR-091: Workspace Layout & Navigation Architecture
 
 **Date:** 2026-03-04
-**Status:** Design — awaiting approval before implementation
+**Status:** Implemented (2026-03-04) — all 5 commits shipped
 **Authors:** Kevin Kim, Claude
 
 **References:**
