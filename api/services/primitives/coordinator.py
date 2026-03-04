@@ -247,11 +247,11 @@ async def handle_advance_deliverable_schedule(auth: Any, input: dict) -> dict:
             .select("id, title, status, user_id")
             .eq("id", deliverable_id)
             .eq("user_id", user_id)
-            .single()
+            .maybe_single()
             .execute()
         )
 
-        if not check.data:
+        if not check or not check.data:
             return {
                 "success": False,
                 "error": "not_found",
