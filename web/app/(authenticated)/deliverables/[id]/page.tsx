@@ -37,6 +37,9 @@ import {
   Repeat,
   Target,
   Brain,
+  Zap,
+  Eye,
+  Bot,
   PenLine,
   History,
   Send,
@@ -86,6 +89,9 @@ function getPlatformEmoji(deliverable: Deliverable): string {
 
 function formatSchedule(deliverable: Deliverable): string {
   if (deliverable.mode === 'goal') return 'Goal';
+  if (deliverable.mode === 'reactive') return 'Reactive';
+  if (deliverable.mode === 'proactive') return 'Proactive';
+  if (deliverable.mode === 'coordinator') return 'Coordinator';
   const s = deliverable.schedule;
   if (!s) return 'No schedule';
   const time = s.time || '09:00';
@@ -198,7 +204,9 @@ function VersionsPanel({
       {/* Schedule / run row */}
       <div className="px-3 py-2.5 border-b border-border shrink-0 flex items-center justify-between gap-2">
         <div className="text-xs text-muted-foreground">
-          {isGoalMode ? 'Goal mode' : deliverable.next_run_at ? (
+          {deliverable.mode !== 'recurring' ? (
+            <span className="capitalize">{deliverable.mode} mode</span>
+          ) : deliverable.next_run_at ? (
             <>
               Next: <span className="font-medium text-foreground">
                 {format(new Date(deliverable.next_run_at), 'EEE, MMM d')} at {format(new Date(deliverable.next_run_at), 'h:mm a')}
@@ -1004,17 +1012,45 @@ export default function DeliverableWorkspacePage() {
   // Header pieces
   // ==========================================================================
 
-  const modeBadge = isGoalMode ? (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-      <Target className="w-2.5 h-2.5" />
-      Goal
-    </span>
-  ) : (
-    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-      <Repeat className="w-2.5 h-2.5" />
-      Rec
-    </span>
-  );
+  const modeBadge = (() => {
+    switch (deliverable.mode) {
+      case 'goal':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+            <Target className="w-2.5 h-2.5" />
+            Goal
+          </span>
+        );
+      case 'reactive':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
+            <Zap className="w-2.5 h-2.5" />
+            Reactive
+          </span>
+        );
+      case 'proactive':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
+            <Eye className="w-2.5 h-2.5" />
+            Proactive
+          </span>
+        );
+      case 'coordinator':
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+            <Bot className="w-2.5 h-2.5" />
+            Coordinator
+          </span>
+        );
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
+            <Repeat className="w-2.5 h-2.5" />
+            Rec
+          </span>
+        );
+    }
+  })();
 
   const headerControls = (
     <div className="flex items-center gap-1.5">

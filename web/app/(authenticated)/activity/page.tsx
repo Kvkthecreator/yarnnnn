@@ -38,7 +38,6 @@ import {
   Unlink,
   ThumbsUp,
   ThumbsDown,
-  Zap,
   TrendingUp,
   Trash2,
   FileOutput,
@@ -135,12 +134,6 @@ const EVENT_CONFIG: Record<string, {
     color: 'text-green-500',
     category: 'sync',
   },
-  signal_processed: {
-    label: 'Signal',
-    icon: <Zap className="w-4 h-4" />,
-    color: 'text-amber-500',
-    category: 'signals',
-  },
   content_cleanup: {
     label: 'Cleanup',
     icon: <Trash2 className="w-4 h-4" />,
@@ -188,7 +181,6 @@ const FILTER_CATEGORIES = [
   { key: 'deliverables', label: 'Deliverables' },
   { key: 'memory', label: 'Memory' },
   { key: 'sync', label: 'Sync' },
-  { key: 'signals', label: 'Signals' },
   { key: 'chat', label: 'Chat' },
 ] as const;
 
@@ -199,7 +191,6 @@ const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
   deliverables: ['deliverable_run', 'deliverable_approved', 'deliverable_rejected', 'deliverable_generated', 'deliverable_scheduled'],
   memory: ['memory_written', 'session_summary_written', 'pattern_detected', 'conversation_analyzed'],
   sync: ['platform_synced', 'content_cleanup'],
-  signals: ['signal_processed'],
   chat: ['chat_session'],
 };
 
@@ -315,9 +306,6 @@ export default function ActivityPage() {
         } else {
           router.push('/system');
         }
-        break;
-      case 'signal_processed':
-        router.push('/system');
         break;
       case 'integration_connected':
       case 'integration_disconnected':
@@ -467,7 +455,7 @@ export default function ActivityPage() {
                             </>
                           )}
                           {/* Item count for sync/signal events */}
-                          {(item.event_type === 'platform_synced' || item.event_type === 'signal_processed') && itemCount !== undefined && (
+                          {item.event_type === 'platform_synced' && itemCount !== undefined && (
                             <>
                               <span>&middot;</span>
                               <span>{itemCount} items</span>

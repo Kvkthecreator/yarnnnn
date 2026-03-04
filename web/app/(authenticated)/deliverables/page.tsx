@@ -25,6 +25,7 @@ import {
   Mail,
   MessageSquare,
   Sparkles,
+  Bot,
   Check,
   X,
   BarChart3,
@@ -175,9 +176,17 @@ function DeliverableCard({
   const latestStatus = deliverable.latest_version_status;
 
   // ADR-068: Origin badge for signal-emergent and analyst-suggested deliverables
-  // ADR-092: coordinator_created added alongside signal_emergent
+  // ADR-092: coordinator_created replaces signal_emergent as primary auto-creation origin
   const getOriginBadge = () => {
-    if (deliverable.origin === 'signal_emergent' || deliverable.origin === 'coordinator_created') {
+    if (deliverable.origin === 'coordinator_created') {
+      return (
+        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+          <Bot className="w-2.5 h-2.5" />
+          Coordinator
+        </span>
+      );
+    }
+    if (deliverable.origin === 'signal_emergent') {
       return (
         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
           <Sparkles className="w-2.5 h-2.5" />
