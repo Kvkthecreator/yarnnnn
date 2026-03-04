@@ -1,51 +1,30 @@
-# YARNNN Essence v6.0
+# YARNNN Essence
 
-**Purpose**: Foundation document for fresh implementation
+**Purpose**: Foundation document — what YARNNN is, what it believes, how it works.
 **Status**: Active
 **Date**: 2026-01-28
-**Updated**: 2026-02-23 (repositioned: context-powered autonomous AI)
+**Updated**: 2026-03-04 (v7.0 — reflects ADR-080, ADR-087, ADR-090, ADR-092)
 
 ---
 
 ## Core Thesis
 
-YARNNN is an **autonomous AI system that works on your behalf** — powered by accumulated context from your real work platforms.
+YARNNN is an **autonomous AI agent platform** — powered by accumulated context from your real work platforms.
 
-It connects to your tools (Slack, Gmail, Notion, Calendar), accumulates understanding of your work world over time, and uses that context to act autonomously: producing deliverables, surfacing signals, and operating as a thinking partner that already knows your world.
+It connects to the tools where your work lives (Slack, Gmail, Notion, Calendar), accumulates understanding of your work world over time, and uses that context to act autonomously: producing deliverables, operating as a thinking partner that already knows your world, and dispatching work before you ask for it.
 
 **The value proposition in one sentence:**
 > AI that works autonomously on your behalf — and gets smarter the longer you use it, because it accumulates context from your actual work.
 
-**What makes this different from every other AI tool:**
+**What makes this structurally different from every other AI tool:**
 - **Autonomous output**: Produces work (reports, digests, briefs) on schedule without prompting
-- **Persistent context**: Syncs continuously with your platforms — Slack, Gmail, Notion, Calendar
-- **Accumulated intelligence**: Every sync cycle, every edit, every interaction deepens the system's understanding
-- **Compounding moat**: 90 days of accumulated context is irreplaceable — the system becomes more valuable with tenure
+- **Persistent context**: Syncs continuously with Slack, Gmail, Notion, Calendar
+- **Accumulated intelligence**: Every sync cycle, every edit, every interaction deepens the system's understanding — per deliverable, not per conversation
+- **Compounding moat**: 90 days of accumulated context per specialist is irreplaceable — the system becomes more valuable with tenure
 
-**The insight**: Most AI tools are stateless — they forget everything between sessions. The few that persist data don't act on it autonomously. YARNNN does both: it accumulates context AND uses it to work independently. The accumulated context is what makes the autonomy meaningful rather than generic.
-
-**The ClawdBot connection**: The demand signal that validated this thesis was ClawdBot/OpenClaw — millions of users demonstrated appetite for AI that persists and knows them. YARNNN is the professional evolution: persistence → understanding → autonomous work.
+**The insight**: Most AI tools are stateless — they forget everything between sessions. The few that persist data don't act on it autonomously. YARNNN does both: accumulates context AND uses it to work independently. The accumulated context is what makes the autonomy meaningful rather than generic.
 
 ---
-
-## The Three Pillars of Autonomy
-
-YARNNN's autonomous capability rests on three pillars, each architecturally distinct:
-
-### 1. Thinking Partner (TP) — The Intelligent Interface
-An AI agent with real-time access to your synced platform context. Not a chatbot — a Claude Code-like agent with primitive-based tool use (Search, FetchPlatformContent, CrossPlatformQuery), sub-agent delegation, and web search. The TP already knows your work world before you say a word.
-
-### 2. Deliverables — Autonomous Output
-Scheduled, recurring work artifacts (reports, digests, briefs) produced without user prompting. Deliverables can be user-configured, analyst-suggested, or signal-emergent (triggered automatically when patterns are detected). Each version improves through a feedback loop where user edits become training data.
-
-### 3. Context Accumulation — The Moat
-Continuous platform sync (Slack, Gmail, Notion, Calendar) feeds a unified content layer (`platform_content`) with retention-based accumulation. Content that proves significant is retained indefinitely. Memory extraction distills patterns from conversations, feedback, and activity. The four-layer model (Memory → Activity → Context → Work) creates a compounding intelligence loop.
-
-**The relationship between these pillars:**
-- Context accumulation ENABLES meaningful autonomy (without context, autonomous output is generic)
-- Deliverables are the primary expression of autonomy (push-based, scheduled, improving)
-- TP is how the user supervises and steers the autonomous system
-- Each pillar reinforces the others: more deliverable runs → more learning → better context → smarter TP → better deliverables
 
 ## The Supervision Model
 
@@ -59,492 +38,271 @@ YARNNN embodies a fundamental shift in how users relate to AI-assisted work:
 | **Data/Workflow** | Deliverables | Objects to supervise |
 | **UI/Interaction** | TP (Thinking Partner) | Method of supervision |
 
-See [Design Principle: Supervision Model](design/DESIGN-PRINCIPLE-supervision-model.md) for full framework.
+Every screen is a supervision surface. TP is always present and interactive — not requiring navigation. Deliverables are always visible — not hidden behind menus.
 
 ---
 
-## Domain Model (7 Entities)
+## The Three Pillars
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        WORKSPACE                             │
-│  (multi-tenancy root - one per user/org)                    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                         PROJECT                              │
-│  User's work container. Has context + agents + outputs.     │
-│                                                              │
-│  Fields: id, name, description, workspace_id, created_at    │
-└─────────────────────────────────────────────────────────────┘
-                              │
-              ┌───────────────┼───────────────┐
-              ▼               ▼               ▼
-┌─────────────────┐  ┌─────────────────┐  ┌─────────────────┐
-│     BLOCKS      │  │   DOCUMENTS     │  │  WORK_TICKETS   │
-│                 │  │                 │  │                 │
-│ Atomic knowledge│  │ Uploaded files  │  │ Work requests   │
-│ units (text,    │  │ (PDF, DOCX)     │  │ with lifecycle  │
-│ structured)     │  │ parsed → blocks │  │                 │
-│                 │  │                 │  │ pending →       │
-│ id, content,    │  │ id, filename,   │  │ running →       │
-│ block_type,     │  │ file_url,       │  │ completed       │
-│ project_id,     │  │ project_id,     │  │                 │
-│ metadata        │  │ parsed_blocks[] │  │ id, task,       │
-│                 │  │                 │  │ agent_type,     │
-└─────────────────┘  └─────────────────┘  │ project_id      │
-        │                                  └─────────────────┘
-        │                                          │
-        ▼                                          ▼
-┌─────────────────┐                      ┌─────────────────┐
-│ BLOCK_RELATIONS │                      │  WORK_OUTPUTS   │
-│                 │                      │                 │
-│ Semantic links  │                      │ Agent products  │
-│ between blocks  │                      │ (files, text)   │
-│                 │                      │                 │
-│ source_id,      │                      │ id, title,      │
-│ target_id,      │                      │ output_type,    │
-│ relation_type   │                      │ file_url,       │
-│                 │                      │ ticket_id       │
-└─────────────────┘                      └─────────────────┘
-                                                  │
-                                                  ▼
-                                         ┌─────────────────┐
-                                         │ AGENT_SESSIONS  │
-                                         │                 │
-                                         │ Execution logs  │
-                                         │ for provenance  │
-                                         │                 │
-                                         │ id, agent_type, │
-                                         │ ticket_id,      │
-                                         │ messages[]      │
-                                         └─────────────────┘
-```
+YARNNN's autonomous capability rests on three pillars, each architecturally distinct:
 
-### Entity Definitions
+### 1. Thinking Partner (TP) — The Intelligent Interface
 
-| Entity | Purpose | Key Fields |
+A context-aware AI agent with real-time access to accumulated platform context. Not a chatbot — an agent with primitive-based tool use (Search, FetchPlatformContent, CrossPlatformQuery), scoped to the user's work world before the first message arrives.
+
+TP operates in two modes:
+- **Chat mode** — Streaming, interactive, full primitive set (15 tool rounds). Used in conversation.
+- **Headless mode** — Non-streaming, background, curated read-only primitives (3 tool rounds). Used for autonomous deliverable generation.
+
+Same agent. Same intelligence. Same primitive access. Different execution context.
+
+### 2. Deliverables — Autonomous Output
+
+Scheduled, autonomous work artifacts — each one a purpose-built specialist. Each deliverable has:
+- Its own `deliverable_instructions` — user-authored behavioral directive (how it should behave, what it prioritizes)
+- Its own `deliverable_memory` — system-accumulated knowledge (what it has learned from every execution)
+- Its own sources, schedule, output history, and execution mode
+
+Deliverables are the primary expression of autonomy in YARNNN. They run on schedule, produce versioned immutable output, sleep between executions (zero resource cost), and get smarter with each run — because memory accumulates per specialist, not per conversation.
+
+**The five execution modes** (how a deliverable decides when to act):
+
+| Mode | Character | Execution logic |
+|------|-----------|-----------------|
+| `recurring` | Clockwork | Fixed schedule, always runs on time |
+| `goal` | Project | Fixed schedule, stops when objective is complete |
+| `reactive` | On-call | Watches source; accumulates observations; generates at threshold |
+| `proactive` | Living specialist | Periodic self-review; generates when it judges conditions warrant |
+| `coordinator` | Meta-specialist | Proactive + can create new deliverables and advance schedules for others |
+
+Mode shapes *when* a deliverable acts. Instructions and memory shape *how* it acts.
+
+### 3. Context Accumulation — The Moat
+
+Continuous platform sync feeds a unified content layer (`platform_content`) with retention-based accumulation. Content that proves significant — referenced by a deliverable run, a TP session, or a pattern match — is retained indefinitely. Content that isn't expires after TTL (Slack 14d, Gmail 30d, Notion 90d, Calendar 2d).
+
+This is not "store everything" — it's "accumulate what proved significant." The accumulated corpus grows with every meaningful execution, creating a moat that compounds with tenure.
+
+**The four-layer model** (Memory → Activity → Context → Work):
+- **Memory** (`user_memory`): What YARNNN knows about the user — stable, explicit, user-owned. Extracted nightly from TP conversations.
+- **Activity** (`activity_log`): What the system has done — append-only provenance log.
+- **Context** (`platform_content`): The accumulated content layer — synced, retained, searchable.
+- **Work** (`deliverables`, `deliverable_versions`): The output layer — versioned, immutable, supervised.
+
+**The relationship between pillars:**
+- Context accumulation enables meaningful autonomy (without context, autonomous output is generic)
+- Deliverables are the primary expression of autonomy (push-based, scheduled, improving)
+- TP is how the user supervises and steers the autonomous system
+- Each pillar reinforces the others: more deliverable runs → more learning → better context → smarter TP → better deliverables
+
+---
+
+## Domain Model
+
+The product revolves around five core entities. (Previous domain model with Workspace / Project / Block / Block_Relation / Work_Ticket / Work_Output / Agent_Session is retired — see ADR-090.)
+
+| Entity | Purpose | Key fields |
 |--------|---------|------------|
-| **workspace** | Multi-tenant isolation | id, name, owner_id |
-| **project** | User's work container | id, name, workspace_id |
-| **block** | Atomic knowledge unit | id, content, block_type, project_id, metadata |
-| **document** | Uploaded file reference | id, filename, file_url, project_id |
-| **block_relation** | Semantic link | source_id, target_id, relation_type |
-| **work_ticket** | Work request lifecycle | id, task, agent_type, status, project_id |
-| **work_output** | Agent deliverable | id, title, output_type, file_url, ticket_id |
-| **agent_session** | Execution log | id, agent_type, ticket_id, messages |
+| **deliverables** | The autonomous specialist | id, user_id, title, deliverable_type, mode, status, sources, schedule, trigger_config, deliverable_instructions, deliverable_memory, origin |
+| **deliverable_versions** | Immutable output record | id, deliverable_id, content, version_number, metadata (source_snapshots, trigger_context, generation_cost) |
+| **platform_content** | Accumulated context layer | id, user_id, platform, resource_id, item_id, content, retained, retained_reason, expires_at |
+| **user_memory** | Stable user knowledge | id, user_id, key, value, source, confidence |
+| **activity_log** | System provenance | id, user_id, event_type, metadata, created_at |
 
-### Relationships
+Supporting entities:
+- `platform_connections` — OAuth credentials + sync preferences + selected sources
+- `chat_sessions` + `session_messages` — TP conversation history (with optional `deliverable_id` FK for scoped sessions)
+- `filesystem_documents` + `filesystem_chunks` — Uploaded documents (searchable)
 
-```
-workspace 1──n project
-project   1──n block
-project   1──n document
-project   1──n work_ticket
-block     n──n block (via block_relation)
-work_ticket 1──n work_output
-work_ticket 1──1 agent_session
-```
+**Retired entities** (ADR-090): `work_tickets`, `work_outputs` — do not reference in new code.
 
 ---
 
-## Agent Architecture (4 Types)
+## Agent Architecture
 
-### Agent Types
+### One Agent, Two Modes (ADR-080)
 
-| Agent | Purpose | Input | Output |
-|-------|---------|-------|--------|
-| **Research** | Investigate topics using context | Query + context blocks | Research summary (markdown) |
-| **Content** | Create content from context | Brief + context blocks | Content draft (markdown/doc) |
-| **Reporting** | Generate structured reports | Parameters + context | Report file (PDF/PPTX) |
-| **Thinking Partner** | Conversational assistant | Chat + optional context | Chat responses |
-
-### Execution Pattern
+YARNNN has one agent — TP — that operates in two execution contexts:
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     AGENT EXECUTION                          │
-└─────────────────────────────────────────────────────────────┘
-
-1. CONTEXT LOADING
-   ┌──────────────┐
-   │ work_ticket  │ ──→ load project_id
-   └──────────────┘           │
-                              ▼
-                    ┌──────────────────┐
-                    │ SELECT * FROM    │
-                    │ blocks WHERE     │
-                    │ project_id = ?   │
-                    └──────────────────┘
-                              │
-                              ▼
-                    ┌──────────────────┐
-                    │ context_bundle   │
-                    │ (blocks + docs)  │
-                    └──────────────────┘
-
-2. AGENT EXECUTION
-   ┌──────────────────┐
-   │ AgentFactory     │
-   │ .create(type)    │ ──→ Research | Content | Reporting | TP
-   └──────────────────┘
-            │
-            ▼
-   ┌──────────────────┐
-   │ agent.execute(   │
-   │   task,          │
-   │   context_bundle │
-   │ )                │
-   └──────────────────┘
-            │
-            ▼
-   ┌──────────────────┐
-   │ LLM API call     │
-   │ (Claude/GPT/     │
-   │  Gemini)         │
-   └──────────────────┘
-
-3. OUTPUT CAPTURE
-   ┌──────────────────┐
-   │ agent response   │
-   └──────────────────┘
-            │
-            ▼
-   ┌──────────────────┐
-   │ work_output      │
-   │ .create(         │
-   │   ticket_id,     │
-   │   content/file   │
-   │ )                │
-   └──────────────────┘
+Chat Mode (interactive)              Headless Mode (background)
+─────────────────────────            ──────────────────────────
+Entry: /api/chat                     Entry: generate_draft_inline()
+Streaming: yes                       Streaming: no
+Tool rounds: 15                      Tool rounds: 3
+Primitives: full set                 Primitives: read-only subset
+User: conversational                 User: supervisor reviewing output
 ```
 
-### Agent Interface (Pseudocode)
+The boundary is preserved: backend orchestration (scheduler, strategy, delivery, retention) stays outside the agent. The agent is invoked at the generation step and returns text.
 
-```python
-class BaseAgent:
-    async def execute(
-        self,
-        task: str,
-        context: ContextBundle,
-        parameters: dict
-    ) -> AgentResult:
-        """
-        1. Build system prompt with context
-        2. Call LLM
-        3. Parse response
-        4. Return structured result
-        """
-        pass
+### The Deliverable as Lightweight Agent (ADR-092, agent-model-comparison.md)
 
-class ResearchAgent(BaseAgent):
-    """Deep investigation using context as source material"""
+Each deliverable is not a template or a config — it is a purpose-built specialist agent:
 
-class ContentAgent(BaseAgent):
-    """Content creation using context for voice/facts"""
+| Component | Deliverable field | Agent equivalent |
+|-----------|------------------|-----------------|
+| Identity | title + deliverable_type | Agent name + role |
+| Instructions | `deliverable_instructions` | System prompt behavioral directive |
+| Memory | `deliverable_memory` | Accumulated execution knowledge |
+| Sources | `sources` JSONB | Context scope |
+| Schedule | `schedule` + `trigger_config` | Execution trigger |
+| Output history | `deliverable_versions` | Immutable response log |
+| Capabilities | Mode-gated primitives | Available tools |
 
-class ReportingAgent(BaseAgent):
-    """Structured report generation (PPTX, PDF)"""
+This is why the deliverable is the unit of both *work* and *intelligence*. The mode shapes its execution character. The instructions shape its behavior. The memory makes it better over time.
 
-class ThinkingPartnerAgent(BaseAgent):
-    """Conversational, maintains chat history"""
-```
+### Primitive Registry (Mode-Gated)
+
+Primitives are the agent's tools. They are mode-gated — some available in both chat and headless, some chat-only, some headless-only:
+
+| Primitive | Chat | Headless | Notes |
+|-----------|------|----------|-------|
+| Search | ✓ | ✓ | Semantic search over platform_content |
+| FetchPlatformContent | ✓ | ✓ | Fetch specific resource content |
+| CrossPlatformQuery | ✓ | ✓ | Cross-platform synthesis |
+| RefreshPlatformContent | ✓ | ✓ | Trigger live platform fetch |
+| CreateDeliverable | ✓ | headless only (coordinator) | Coordinator write primitive |
+| AdvanceDeliverableSchedule | ✓ | headless only (coordinator) | Coordinator write primitive |
+| SendSlackMessage | ✓ | ✗ | Chat-only (user must confirm) |
+| EditMemory | ✓ | ✗ | Chat-only (explicit user action) |
+
+### Deliverable Scoped Context (ADR-087)
+
+When a TP chat session is attached to a specific deliverable (via `deliverable_id` FK on `chat_sessions`), the working memory injected into the system prompt includes that deliverable's `deliverable_instructions` and `deliverable_memory`. This enables the user to converse with a specialist that knows its own domain — not just the user's general profile.
 
 ---
 
-## Data Flow
+## Execution Architecture
 
-### Happy Path: Create Report from Context
-
-```
-USER ACTION                    SYSTEM RESPONSE
-───────────────────────────────────────────────────────────
-
-1. Add context
-   "Upload quarterly_data.pdf"  → Parse PDF
-                                → Create blocks[]
-                                → Store in project
-
-2. Request work
-   "Create executive summary"   → Create work_ticket
-                                → Status: pending
-
-3. Execute agent
-   (automatic or triggered)     → Load context (blocks)
-                                → Call ReportingAgent
-                                → Generate PPTX
-                                → Status: completed
-
-4. Receive output
-   "Download report"            → work_output.file_url
-                                → Provenance: ticket → session → blocks
-```
-
-### API Surface (Minimal)
+### Scheduler → Dispatcher → Agent
 
 ```
-# Context
-POST   /api/projects/:id/blocks      # Add block
-POST   /api/projects/:id/documents   # Upload document
-GET    /api/projects/:id/context     # Get all context
-
-# Work
-POST   /api/projects/:id/tickets     # Create work request
-GET    /api/projects/:id/tickets     # List tickets
-GET    /api/tickets/:id              # Get ticket + outputs
-
-# Agents
-POST   /api/tickets/:id/execute      # Run agent (or auto-trigger)
-
-# Chat (Thinking Partner)
-POST   /api/projects/:id/chat        # Send message
-GET    /api/projects/:id/chat        # Get history
+Unified Scheduler (Render cron, every 5 min)
+  │
+  ├── recurring/goal deliverables:  next_run_at <= now
+  │     └── _dispatch_high() → generate_draft_inline()
+  │
+  ├── reactive deliverables:        event arrives
+  │     └── _dispatch_medium_reactive()
+  │           ├── below threshold → write observation to deliverable_memory
+  │           └── at threshold → _dispatch_high() → generate_draft_inline()
+  │
+  └── proactive/coordinator:        proactive_next_review_at <= now
+        └── run_proactive_review() or run_coordinator_review()
+              ├── action=observe → log to review_log, advance next_review_at
+              ├── action=sleep   → advance next_review_at by specified interval
+              └── action=generate → _dispatch_high() → generate_draft_inline()
+                        (coordinator also: CreateDeliverable, AdvanceDeliverableSchedule)
 ```
+
+### Generation Pipeline
+
+When generation is triggered (`_dispatch_high`), the pipeline runs:
+1. Strategy selection (deliverable type + sources → prompt strategy)
+2. Source assembly (fetch relevant platform_content)
+3. Headless agent execution (TP headless mode, max 3 tool rounds)
+4. Version creation (immutable `deliverable_versions` record)
+5. Retention marking (referenced platform_content marked retained)
+6. Delivery (email notification if preferences set)
+7. Activity logging
 
 ---
 
-## Learned Constraints
+## Infrastructure
 
-From building v4, these are non-negotiable:
+Four Render services (ADR-083 — worker + Redis removed):
 
-### 1. Schema Alignment
-**Problem**: Frontend sent `work_session_id`, backend expected `work_ticket_id`
-**Lesson**: Single source of truth for field names. No aliases.
+| Service | Type | Role |
+|---------|------|------|
+| yarnnn-api | Web Service | FastAPI — chat, deliverables, auth, admin |
+| yarnnn-unified-scheduler | Cron Job | Deliverable execution (all modes) |
+| yarnnn-platform-sync | Cron Job | Platform content sync (all platforms) |
+| yarnnn-mcp-server | Web Service | MCP protocol for Claude.ai / Claude Code |
 
-### 2. Recipe Parameters
-**Problem**: Frontend form values weren't passed to backend
-**Lesson**: Always pass full parameter objects, not just IDs.
+All execution is inline — no background worker, no Redis, no queue. Platform sync runs in crons; on-demand sync uses FastAPI BackgroundTasks.
 
-### 3. Progress Tracking
-**Problem**: Long-running agents gave no feedback
-**Lesson**: Emit progress events (SSE or websocket). Users need to see something happening.
+**Shared env vars** (must be set on API + both Schedulers):
+- `INTEGRATION_ENCRYPTION_KEY` — Fernet key for OAuth token decryption
+- `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET`
+- `NOTION_CLIENT_ID` / `NOTION_CLIENT_SECRET`
 
-### 4. Output Capture
-**Problem**: Agents ran but outputs weren't saved
-**Lesson**: Explicit `emit_work_output()` call, not implicit. Make it impossible to forget.
-
-### 5. Context Loading
-**Problem**: Agents had no context, produced generic outputs
-**Lesson**: Context must load BEFORE agent execution. Never optional.
-
-### 6. Auth Token Flow
-**Problem**: User JWT not passed through service-to-service calls
-**Lesson**: Extract token once, pass explicitly. Don't rely on request context.
-
-### 7. Error Visibility
-**Problem**: 500 errors with no details
-**Lesson**: Log full stack traces. Return structured error responses.
-
-### 8. Database Migrations
-**Problem**: Migration files existed but weren't applied
-**Lesson**: CI/CD must run migrations. Manual = forgotten.
-
-### 9. File Generation
-**Problem**: PPTX generation via Skills tool was fragile
-**Lesson**: Use proven libraries (python-pptx) directly. Don't abstract too early.
-
-### 10. Session Management
-**Problem**: Agent sessions weren't persisted for debugging
-**Lesson**: Always save agent_session with full message history.
+**Platform API clients** (ADR-076 — Direct API, no gateway):
+- `api/integrations/core/slack_client.py` (SlackAPIClient)
+- `api/integrations/core/google_client.py` (GoogleAPIClient — Gmail + Calendar)
+- `api/integrations/core/notion_client.py` (NotionAPIClient)
 
 ---
 
-## What NOT to Build (Yet)
+## Current State
 
-These add complexity without current user demand:
+### What's live and working
+- ✅ Four-platform sync (Slack, Gmail, Notion, Calendar) — paginated, TTL-based, retention-aware
+- ✅ Unified content layer (`platform_content`) with accumulation moat
+- ✅ TP agent — chat mode with full primitive set, streaming, scoped to user context
+- ✅ Headless agent — non-streaming generation with curated primitives
+- ✅ Deliverable execution pipeline — strategy → assembly → generation → version → delivery
+- ✅ Five deliverable modes — recurring, goal, reactive, proactive, coordinator
+- ✅ Per-deliverable instructions + memory (ADR-087)
+- ✅ Deliverable-scoped TP sessions (chat attached to specific deliverable)
+- ✅ Email notifications (Resend — deliverable_ready, deliverable_failed)
+- ✅ MCP server (ADR-075 — OAuth 2.1 for Claude.ai, bearer token for Claude Desktop)
+- ✅ Tier model (Free / Starter / Pro — source limits, sync frequency, deliverable counts)
+- ✅ Nightly memory extraction from TP conversations
 
-| Feature | Why Not Yet |
+### What's not yet built
+- ❌ Notifications preferences UI (infrastructure complete, settings page pending)
+- ❌ Deliverable type taxonomy revision (current 8 types predate mode system — scheduled)
+- ❌ `work_tickets` / `work_outputs` table drop (ADR-090 Phase 4 — post-migration period)
+- ❌ Session summaries writer (ADR-067 Phase 1 — currently `chat_sessions.summary` always empty)
+- ❌ Review-first supervision UX (ADR-021 — primary deliverable view → review queue → TP inline)
+
+---
+
+## Product Philosophy
+
+### Five architectural principles (from agent-model-comparison.md)
+
+1. **Deliverable is the unit of work AND intelligence.** Not a template, not a config — a sleeping specialist with its own memory, instructions, and execution character.
+
+2. **Sleep is a feature.** A deliverable that isn't running costs nothing, hallucinates nothing, and wastes nothing. Graduated response (observe → sleep → generate) is how intelligence should behave.
+
+3. **Accumulation is moat per deliverable.** Not per user profile, not per conversation — per specialist. The weekly client report gets better at being a weekly client report. The competitive watch brief gets better at watching competition.
+
+4. **Graduated response preserves the task foundation.** Reactive and proactive modes don't generate on every event — they observe, accumulate, and decide. This keeps output meaningful and cost-efficient.
+
+5. **Orchestration stays outside the agent.** The scheduler decides when to trigger. The pipeline handles source assembly, delivery, and retention. The agent generates text. These concerns don't mix.
+
+### What we're not building (current)
+
+| Feature | Why not yet |
 |---------|-------------|
-| **Agent Marketplace** | No users to buy/sell agents |
-| **Multi-workspace governance** | No enterprise customers |
-| **Complex checkpoint workflows** | Simple approve/reject is enough |
-| **Integration tokens** | Users aren't asking for API access |
-| **MCP server** | OpenAI Apps integration not priority |
-| **Subscription/billing** | Premature until product-market fit |
-| **Team collaboration** | Single-user is fine for MVP |
-| **Semantic relationship graphs** | Block list is sufficient |
-| **P0-P4 pipeline** | Single-pass extraction works |
-
-**Rule**: If no user has asked for it, don't build it.
+| Multi-workspace / team collaboration | Single-user is the ICP; team features add governance complexity without current demand |
+| Automated delivery (Slack send, email send without review) | Supervision model requires review before external delivery |
+| Billing / subscriptions | Pre-PMF |
+| Agent marketplace / shareable deliverables | No community yet |
+| Full A2A coordination | Coordinator mode is the first step; full agent-to-agent is the roadmap vision |
 
 ---
 
-## Tech Stack (Simplified)
+## Key File Locations
 
-### Backend
-```
-FastAPI (single app)
-├── /api/context     # Block/document CRUD
-├── /api/work        # Ticket lifecycle
-├── /api/agents      # Execution
-└── /api/chat        # Thinking Partner
-
-Supabase
-├── PostgreSQL (database)
-├── Auth (JWT)
-├── Storage (file uploads)
-└── RLS (row-level security)
-```
-
-### Frontend
-```
-Next.js 14
-├── /app
-│   ├── /dashboard          # Project list
-│   ├── /projects/[id]
-│   │   ├── /context        # View/add blocks
-│   │   ├── /work           # Tickets + outputs
-│   │   └── /chat           # Thinking Partner
-│   └── /auth               # Login/signup
-└── shadcn/ui components
-```
-
-### Infrastructure
-```
-Single Render service (or Vercel + Railway)
-Single Supabase project
-No service-to-service calls
-No separate BFF layer
-```
+| Concern | Location |
+|---------|----------|
+| TP Agent + system prompt | `api/agents/thinking_partner.py` |
+| Primitive registry | `api/services/primitives/registry.py` |
+| Coordinator primitives | `api/services/primitives/coordinator.py` |
+| Deliverable execution pipeline | `api/services/deliverable_execution.py` |
+| Unified scheduler (all modes) | `api/jobs/unified_scheduler.py` |
+| Proactive review | `api/services/proactive_review.py` |
+| Reactive dispatch | `api/services/trigger_dispatch.py` |
+| Platform sync worker | `api/workers/platform_worker.py` |
+| Platform sync scheduler | `api/jobs/platform_sync_scheduler.py` |
+| Working memory builder | `api/services/working_memory.py` |
+| Memory extraction (nightly) | `api/services/memory.py` |
+| Deliverable routes | `api/routes/deliverables.py` |
+| Frontend API client | `web/lib/api/client.ts` |
 
 ---
 
-## UI Scope (Review-First Supervision)
-
-**Reference:** [ADR-021: Review-First Supervision UX](adr/ADR-021-review-first-supervision-ux.md)
-
-The UI embodies two axioms from the supervision model:
-
-| Axiom | Entity | UI Implication |
-|-------|--------|----------------|
-| **Data first-class** | Deliverables | Content is always visible, not hidden behind navigation |
-| **Interaction first-class** | TP (Thinking Partner) | TP is present on every screen, not requiring navigation |
-
-### The Review-First Principle
-
-**When something needs attention, user lands directly on it.**
-
-This inverts the traditional dashboard-first pattern:
-- Traditional: Login → Dashboard → Find item → Click → Review
-- YARNNN: Login → Review (the thing that needs attention)
-
-### Primary View: Review (Supervision in Action)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│ Weekly Status Report - Review                    [1 of 2] → │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Hi Sarah,                                                  │
-│                                                             │
-│  Here's the weekly update for Project Alpha...              │
-│  [Full draft content - THE OBJECT BEING SUPERVISED]         │
-│                                                             │
-├─────────────────────────────────────────────────────────────┤
-│ Refine with TP:                      [TP ALWAYS PRESENT]    │
-│ [Shorter] [More detail] [More formal] [Custom...]           │
-├─────────────────────────────────────────────────────────────┤
-│ [Discard]                        [Skip] [Mark as Done]      │
-└─────────────────────────────────────────────────────────────┘
-```
-
-When no items need review → Dashboard view (secondary).
-
-### Secondary View: Dashboard (Nothing to Review)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│  All caught up! Next deliverable in 3 days.                 │
-├─────────────────────────────────────────────────────────────┤
-│                                                             │
-│  Upcoming:                                                  │
-│  • Weekly Status Report — Monday 9am                        │
-│  • Monthly Investor Update — Feb 15                         │
-│                                                             │
-│  ┌────────────────────────────────────────────────────────┐ │
-│  │ 💬 Ask TP: "Create a new deliverable" / "Run now"      │ │
-│  └────────────────────────────────────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### TP Presence Rule
-
-**TP must be visible and interactive on every screen.**
-
-| Screen | TP Manifestation |
-|--------|------------------|
-| Review | Inline refinement chips + custom instruction input |
-| Dashboard | Embedded input for questions/commands |
-| Detail | Contextual chat for this deliverable |
-| Browse | Global TP for cross-deliverable questions |
-
-No screen should require navigation to access TP interaction.
-
----
-
-## Migration Path
-
-### From v4 Codebase
-
-**Keep (extract and adapt):**
-- Supabase auth configuration
-- Agent SDK adapters (Claude, GPT)
-- File parsing logic (PDF → blocks)
-- PPTX generation code
-
-**Reference only:**
-- Schema patterns (not actual migrations)
-- Error handling patterns
-- SSE progress streaming
-
-**Abandon:**
-- Dual API architecture
-- 60+ unused tables
-- Scaffolded frontend routes
-- MCP infrastructure
-- Governance layer
-
----
-
-## Success Metrics
-
-### MVP is complete when:
-
-1. ✅ User connects at least one platform (Slack, Gmail, Notion, Calendar)
-2. ✅ Platform sync accumulates context continuously
-3. ✅ TP agent has real-time access to synced context via primitives
-4. ✅ User can create recurring deliverables (via wizard or TP)
-5. ✅ System produces deliverable versions on schedule, autonomously
-6. ✅ User can review, refine (via TP), and approve/reject versions
-7. ✅ User edits are captured as feedback → memory extraction
-8. ✅ Quality improves over time (edit distance decreases)
-9. ✅ Context accumulation is visible to user (retention badges, quality trends)
-
-### Core Quality Metrics:
-- **Edit distance**: Between AI draft and user-approved final — should decrease over successive versions. Target: <10% edits by version 4.
-- **Context depth**: Volume of retained platform_content records — should grow monotonically with tenure.
-- **Autonomy ratio**: Proportion of deliverables approved without edits — should increase over time.
-
-### Not MVP:
-- ❌ Automated delivery (email/Slack send)
-- ❌ Team collaboration
-- ❌ Multiple workspaces
-- ❌ Billing/subscriptions
-
----
-
-## Next Steps
-
-1. **Create new repository**: `yarnnn` (clean slate)
-2. **Copy this document** as `/docs/ESSENCE.md`
-3. **Create minimal schema**: 8 tables, one migration file
-4. **Scaffold FastAPI**: Single app, 4 route groups
-5. **Scaffold Next.js**: 3 tabs, shadcn/ui
-6. **Port auth**: Copy Supabase config directly
-7. **Port one agent**: Research agent, end-to-end
-8. **Iterate**: Add agents, polish UI
-
----
-
-*This document is the specification. The old codebase is reference material.*
+*This document is the current specification. For decision history, see `docs/adr/`. For GTM language and positioning, see `docs/GTM_POSITIONING.md`. For narrative sequencing, see `docs/NARRATIVE.md`.*
