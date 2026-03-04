@@ -7,15 +7,15 @@ import { GrainOverlay } from "@/components/landing/GrainOverlay";
 import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 
 export const metadata: Metadata = getMarketingMetadata({
-  title: "Meet TP — How Your AI Agent Works",
+  title: "How yarnnn works",
   description:
-    "TP is your autonomous AI agent. Not a chatbot. Not a prompt box. It connects to your platforms, accumulates context, and produces deliverables on schedule.",
+    "yarnnn turns connected work context into autonomous deliverables. Define a specialist, connect sources, review versions, and let quality compound over time.",
   path: "/how-it-works",
   keywords: [
-    "ai agent",
-    "autonomous ai agent",
-    "thinking partner",
     "how yarnnn works",
+    "autonomous ai workflow",
+    "deliverable automation",
+    "thinking partner",
     "context powered agent",
   ],
 });
@@ -24,25 +24,25 @@ export default function HowItWorksPage() {
   const howToSchema = {
     "@context": "https://schema.org",
     "@type": "HowTo",
-    name: "How your AI agent TP works",
+    name: "How yarnnn autonomous deliverables work",
     description: metadata.description,
     url: `${BRAND.url}/how-it-works`,
     step: [
       {
         "@type": "HowToStep",
-        name: "Brief your agent on what you need",
+        name: "Define your deliverable specialist (type + mode)",
       },
       {
         "@type": "HowToStep",
-        name: "Give TP access to your platforms",
+        name: "Connect sources from Slack, Gmail, Notion, and Calendar",
       },
       {
         "@type": "HowToStep",
-        name: "Review what TP produces",
+        name: "Review versioned output and approve",
       },
       {
         "@type": "HowToStep",
-        name: "Watch TP get smarter every cycle",
+        name: "Let memory and context compound each cycle",
       },
     ],
   };
@@ -52,91 +52,66 @@ export default function HowItWorksPage() {
       <GrainOverlay variant="dark" />
       <ShaderBackgroundDark />
 
-      {/* Content layer */}
       <div className="relative z-10 flex flex-col min-h-screen">
         <LandingHeader inverted />
 
         <main className="flex-1">
-          {/* Hero */}
           <section className="max-w-4xl mx-auto px-6 py-24 md:py-32">
             <p className="text-white/40 text-sm uppercase tracking-widest mb-4">How It Works</p>
             <h1 className="text-4xl md:text-5xl lg:text-6xl font-medium mb-10 tracking-tight leading-[1.1]">
-              TP is your autonomous
+              Configure once.
               <br />
-              <span className="text-white/50">AI agent.</span>
+              <span className="text-white/50">Supervise from there.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              Not a chatbot. Not a prompt box. TP is an agent that already knows your work —
-              connected to your platforms, accumulating context continuously,
-              and producing your deliverables on schedule.
+              yarnnn combines an interactive Thinking Partner with background specialists.
+              You define intent and constraints, yarnnn executes and learns through versioned runs.
             </p>
           </section>
 
-          {/* The Conversation Model */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">You talk. TP listens.</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">Define work in plain language</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                No wizards. No configuration screens. Just describe what you need in plain language,
-                and TP figures out the rest.
+                Use TP to define what you need, or use the deliverable UI directly.
+                You choose type, mode, sources, and constraints. yarnnn handles orchestration.
               </p>
 
-              {/* Chat Example */}
               <div className="border border-white/10 rounded-2xl p-6 bg-white/5 max-w-2xl">
                 <div className="space-y-6">
-                  {/* User message */}
                   <div className="flex justify-end">
                     <div className="bg-white/10 rounded-2xl rounded-br-sm px-4 py-3 max-w-[85%]">
-                      <p className="text-white/90 text-sm">I need to send a weekly update to Sarah</p>
+                      <p className="text-white/90 text-sm">
+                        Create a weekly status update for leadership from #engineering and Notion launch docs.
+                      </p>
                     </div>
                   </div>
 
-                  {/* TP response */}
                   <div className="flex justify-start">
                     <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
                       <p className="text-white/70 text-sm mb-2">
-                        Got it. I see you have #engineering and #product connected.
+                        Great. I&apos;ll configure a <span className="text-white">status</span> deliverable in
+                        <span className="text-white"> recurring</span> mode.
                       </p>
                       <p className="text-white/70 text-sm">
-                        Should I pull from both for your updates?
+                        Do you want Monday 9:00 AM delivery and a concise executive format?
                       </p>
                     </div>
                   </div>
 
-                  {/* User message */}
                   <div className="flex justify-end">
                     <div className="bg-white/10 rounded-2xl rounded-br-sm px-4 py-3 max-w-[85%]">
-                      <p className="text-white/90 text-sm">Just engineering for now</p>
+                      <p className="text-white/90 text-sm">Yes. Keep it short and include risks first.</p>
                     </div>
                   </div>
 
-                  {/* TP response */}
-                  <div className="flex justify-start">
-                    <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
-                      <p className="text-white/70 text-sm mb-2">
-                        Perfect. When does Sarah need this?
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* User message */}
-                  <div className="flex justify-end">
-                    <div className="bg-white/10 rounded-2xl rounded-br-sm px-4 py-3 max-w-[85%]">
-                      <p className="text-white/90 text-sm">Monday mornings</p>
-                    </div>
-                  </div>
-
-                  {/* TP final response */}
                   <div className="flex justify-start">
                     <div className="bg-white/5 border border-white/10 rounded-2xl rounded-bl-sm px-4 py-3 max-w-[85%]">
                       <p className="text-white/70 text-sm mb-3">
-                        I&apos;ll have your first draft ready Sunday evening.
-                      </p>
-                      <p className="text-white/70 text-sm">
-                        Based on this week&apos;s #engineering activity, here&apos;s what I&apos;d include...
+                        Done. First version will be ready on the next run.
                       </p>
                       <div className="mt-3 pt-3 border-t border-white/10">
-                        <p className="text-white/40 text-xs">Draft preview loading...</p>
+                        <p className="text-white/40 text-xs">Deliverable configured successfully.</p>
                       </div>
                     </div>
                   </div>
@@ -144,111 +119,98 @@ export default function HowItWorksPage() {
               </div>
 
               <p className="text-white/30 text-xs mt-6 max-w-xl">
-                That&apos;s it. No configuration screens. TP figures out what you need
-                and sets everything up through conversation.
+                You can start via conversation or direct UI controls. Both routes use the same execution model.
               </p>
             </div>
           </section>
 
-          {/* What TP Does */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">What makes TP different</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">Execution model</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Every other agent starts from zero. TP combines four things that make
-                it the only agent worth using long-term.
+                Types define intent. Modes define behavior. Together they form a specialist that improves over time.
               </p>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">Your agent interface</div>
+                  <div className="text-lg font-medium mb-3">Type = what is being built</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Talk to TP like a colleague. It understands your work context, sets up
-                    deliverables through conversation, and operates autonomously on your behalf.
+                    Use intent-first types such as digest, brief, status, watch, deep_research, coordinator, or custom.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">TP works on schedule</div>
+                  <div className="text-lg font-medium mb-3">Mode = when/how it acts</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Status reports, investor updates, client briefs — TP produces them on schedule
-                    without you lifting a finger. You review and approve.
+                    Choose recurring, goal, reactive, proactive, or coordinator behavior based on how work should run.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">TP already knows your world</div>
+                  <div className="text-lg font-medium mb-3">Versions = supervision loop</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Slack, Gmail, Notion, Calendar sync continuously. TP accumulates a deepening
-                    understanding of your work. The context compounds.
+                    Each run creates immutable output. You approve or refine. Feedback informs future generation.
                   </p>
                 </div>
 
                 <div className="border border-white/10 rounded-xl p-6">
-                  <div className="text-lg font-medium mb-3">TP learns from every interaction</div>
+                  <div className="text-lg font-medium mb-3">Context = performance moat</div>
                   <p className="text-white/50 text-sm leading-relaxed">
-                    Every approval, every edit, every sync cycle. After 90 days,
-                    no other agent comes close to TP&apos;s understanding of your work.
+                    Synced platform context plus deliverable memory lets specialists improve with tenure, not reset.
                   </p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* The Flow */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-5xl mx-auto">
               <h2 className="text-2xl md:text-3xl font-medium mb-4">The flow</h2>
               <p className="text-white/50 leading-relaxed mb-16 max-w-2xl">
-                From first conversation to full autonomy.
+                From definition to compounding output.
               </p>
 
               <div className="space-y-16">
-                {/* Step 1 */}
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">01</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Brief your agent</h3>
+                    <h3 className="text-xl font-medium mb-3">Define specialist intent</h3>
                     <p className="text-white/50 leading-relaxed">
-                      &ldquo;I need a weekly status report for my manager&rdquo; or
-                      &ldquo;Monthly investor update, first Tuesday&rdquo;.
-                      Just say it. TP asks clarifying questions and sets everything up.
+                      Pick a type and mode, then define structure, audience, and constraints.
+                      This is where you encode how good output should look.
                     </p>
                   </div>
                 </div>
 
-                {/* Step 2 */}
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">02</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Give TP access to your world</h3>
+                    <h3 className="text-xl font-medium mb-3">Connect context sources</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Connect Slack, Gmail, Notion, Calendar — wherever
-                      your work lives. One-time OAuth. TP starts accumulating context immediately.
+                      Select channels, labels, pages, and calendar context.
+                      yarnnn syncs selected sources and keeps them current based on tier cadence.
                     </p>
                   </div>
                 </div>
 
-                {/* Step 3 */}
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">03</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Review what TP produces</h3>
+                    <h3 className="text-xl font-medium mb-3">Run and review versions</h3>
                     <p className="text-white/50 leading-relaxed">
-                      On schedule, TP produces your deliverable autonomously.
-                      You review, tweak if needed, and approve. You supervise — TP operates.
+                      Deliverables execute in background mode and generate versions.
+                      You review, edit, approve, and maintain supervision control.
                     </p>
                   </div>
                 </div>
 
-                {/* Step 4 */}
                 <div className="grid grid-cols-1 md:grid-cols-[80px_1fr] gap-6">
                   <div className="text-4xl font-light text-white/20">04</div>
                   <div>
-                    <h3 className="text-xl font-medium mb-3">Watch TP get smarter</h3>
+                    <h3 className="text-xl font-medium mb-3">Compound quality</h3>
                     <p className="text-white/50 leading-relaxed">
-                      Every cycle deepens context, every approval teaches preferences.
-                      By week 8, you&apos;re approving with barely a glance. That&apos;s the moat.
+                      Repeated runs on the same specialist increase fidelity to your style and goals.
+                      The output improves because context and memory accumulate.
                     </p>
                   </div>
                 </div>
@@ -256,98 +218,80 @@ export default function HowItWorksPage() {
             </div>
           </section>
 
-          {/* Context Accumulation */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">Why TP outperforms every other agent</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">What accumulates</h2>
               <p className="text-white/50 leading-relaxed mb-12 max-w-2xl">
-                Other agents reset every session. TP accumulates a persistent,
-                deepening understanding of your work across every platform you connect.
+                yarnnn keeps only what matters for better future work.
               </p>
 
               <div className="border border-white/10 rounded-xl p-6 bg-white/5">
-                <div className="text-xs text-white/30 uppercase tracking-wider mb-6">What accumulates over time</div>
+                <div className="text-xs text-white/30 uppercase tracking-wider mb-6">Compounding signals</div>
                 <div className="space-y-4">
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">
-                      Conversations, decisions, and patterns from your Slack channels
-                    </p>
+                    <p className="text-white/70 text-sm">Preferred structure, tone, and prioritization patterns from approvals</p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">
-                      Your writing style, structure preferences, and tone for each audience
-                    </p>
+                    <p className="text-white/70 text-sm">Cross-platform relationships between messages, docs, meetings, and tasks</p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">
-                      Client relationships, project context, and team dynamics from email and docs
-                    </p>
+                    <p className="text-white/70 text-sm">Domain observations for watch/proactive/coordinator specialists</p>
                   </div>
                   <div className="flex items-start gap-4">
                     <div className="w-2 h-2 rounded-full bg-white/30 mt-2 shrink-0" />
-                    <p className="text-white/70 text-sm">
-                      What metrics matter, what wins to highlight, what context each stakeholder needs
-                    </p>
+                    <p className="text-white/70 text-sm">Execution history that improves future output quality and relevance</p>
                   </div>
                 </div>
               </div>
-
-              <p className="text-white/30 text-sm mt-6">
-                90 days of accumulated context is irreplaceable.
-                That&apos;s what separates TP from every other agent.
-              </p>
             </div>
           </section>
 
-          {/* Examples */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-4xl mx-auto">
-              <h2 className="text-2xl md:text-3xl font-medium mb-4">What you can say to TP</h2>
+              <h2 className="text-2xl md:text-3xl font-medium mb-4">Example prompts</h2>
               <p className="text-white/50 leading-relaxed mb-12">
-                No magic phrases. Just tell TP what you need.
+                Typical ways users configure specialists.
               </p>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;I need a weekly status report for Sarah&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Create a weekly digest from #engineering and #product.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Summarize my client emails from this week&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Make a status update every Friday for leadership.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Create a monthly investor update&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Watch customer-feedback threads and brief me when themes emerge.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;What happened in #engineering this week?&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Run deep research on this competitor set until complete.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Make this draft more concise&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Before my exec meetings, generate a prep brief from email + docs.&rdquo;</p>
                 </div>
                 <div className="border border-white/10 rounded-xl p-4 bg-white/5">
-                  <p className="text-white/70 text-sm italic">&ldquo;Add the metrics from our Notion dashboard&rdquo;</p>
+                  <p className="text-white/70 text-sm italic">&ldquo;Set up a coordinator to trigger follow-ups when client threads stall.&rdquo;</p>
                 </div>
               </div>
             </div>
           </section>
 
-          {/* CTA */}
           <section className="border-t border-white/10 px-6 py-24 md:py-32">
             <div className="max-w-3xl mx-auto text-center">
               <h2 className="text-2xl md:text-3xl font-medium mb-6">
-                Your agent is ready.
+                Ready to run autonomous work?
               </h2>
               <p className="text-white/50 mb-10 max-w-lg mx-auto">
-                Start a conversation. Connect your platforms.
-                Watch TP get smarter every cycle.
+                Start with one specialist. Then scale your system as context and confidence grow.
               </p>
               <Link
                 href="/auth/login"
                 className="inline-block px-8 py-4 bg-white text-black text-lg font-medium rounded-full hover:bg-white/90 transition-colors"
               >
-                Start talking to TP
+                Start with yarnnn
               </Link>
             </div>
           </section>

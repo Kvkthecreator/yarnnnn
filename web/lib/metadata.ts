@@ -12,9 +12,9 @@ import type { Metadata } from "next";
 
 export const BRAND = {
   name: "yarnnn",
-  tagline: "Your autonomous AI agent",
+  tagline: "Autonomous AI that knows your work",
   description:
-    "Meet TP — an AI agent that already knows your work. Connected to your Slack, Gmail, Notion, and Calendar. Producing your deliverables on schedule. Getting smarter every cycle.",
+    "yarnnn connects to Slack, Gmail, Notion, and Calendar, then runs autonomous deliverables that improve through supervised, versioned execution.",
   url: process.env.NEXT_PUBLIC_SITE_URL || "https://www.yarnnn.com",
   ogImage: "/assets/logos/yarn-logo-light.png",
 };

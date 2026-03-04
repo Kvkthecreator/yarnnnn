@@ -22,22 +22,22 @@ const faqSections: FaqSection[] = [
       {
         question: "What is yarnnn?",
         answer:
-          "yarnnn is an autonomous AI work platform. It connects to your existing work platforms—Slack, Gmail, Notion, Calendar—accumulates context from them, and produces recurring deliverables on your behalf. The longer you use it, the smarter it gets.",
+          "yarnnn is an autonomous AI work platform. It connects to Slack, Gmail, Notion, and Calendar, then runs deliverable specialists that produce real output for you in the background.",
       },
       {
         question: "What is TP (Thinking Partner)?",
         answer:
-          "TP is yarnnn's intelligent interface. It's not a chatbot—it's a partner you talk to in plain language to set up deliverables, ask questions about your work, and manage what yarnnn does autonomously. You describe what you need, and TP figures out the rest.",
+          "TP is yarnnn's interactive interface. You use TP to define deliverables, refine outputs, and supervise the system. TP and background execution share the same underlying context and intelligence.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",
         answer:
-          "ChatGPT and Claude are stateless—they forget everything between sessions. yarnnn accumulates context continuously from your connected platforms. It doesn't just answer questions; it produces work autonomously on a schedule. After 90 days, the accumulated context makes it irreplaceable.",
+          "Chat tools are primarily session-centric. yarnnn is system-centric: it maintains synced work context, runs scheduled or trigger-based deliverables, and improves those specialists over time through versioned supervision.",
       },
       {
-        question: "Is yarnnn an AI agent?",
+        question: "Is yarnnn an AI agent platform?",
         answer:
-          "yarnnn is autonomous AI, not a generic agent platform. The difference is context. Agent platforms execute tasks without understanding your world. yarnnn's autonomy is meaningful because it's powered by your actual work context—your Slack conversations, email threads, documents, and calendar.",
+          "yarnnn is focused on supervised autonomous work, not generic task automation. The core unit is the deliverable specialist with explicit type, mode, source scope, and version history.",
       },
     ],
   },
@@ -47,22 +47,22 @@ const faqSections: FaqSection[] = [
       {
         question: "Which platforms does yarnnn connect to?",
         answer:
-          "yarnnn connects to Slack, Gmail, Google Calendar, and Notion. You authorize access via OAuth—a standard, secure authorization flow. yarnnn reads from these platforms to build context. It never posts, sends, or modifies anything on your behalf.",
+          "Slack, Gmail, Google Calendar, and Notion. You authorize via OAuth and choose source scope where applicable (channels, labels, pages).",
       },
       {
         question: "Is my data safe?",
         answer:
-          "Yes. All data is encrypted in transit and at rest. OAuth tokens are encrypted with a dedicated key. yarnnn only reads the sources you explicitly select—specific Slack channels, Gmail labels, Notion pages. You control exactly what yarnnn can see, and you can disconnect any platform at any time.",
+          "Yes. Data is encrypted in transit and at rest. OAuth tokens are encrypted. Access is user-scoped. You can change source selections or disconnect any integration at any time.",
       },
       {
-        question: "What does yarnnn actually sync from my platforms?",
+        question: "What does yarnnn sync?",
         answer:
-          "From Slack: messages from channels you select. From Gmail: emails from labels you choose. From Notion: pages and databases you pick. From Calendar: your events from the past week through the next two weeks. Content is retained with time-based limits and refreshed on each sync cycle.",
+          "Only selected source content and metadata needed for context-aware generation. Sync behavior and cadence depend on your tier.",
       },
       {
-        question: "Do I need to connect platforms to use yarnnn?",
+        question: "Can yarnnn post or edit things in my tools?",
         answer:
-          "No. You can start talking to TP right away without connecting anything. But yarnnn gets dramatically more useful with platform connections—that's where your work context lives. You can also upload documents directly if you prefer.",
+          "No. Core integrations are read-oriented for context ingestion. You stay in control of approvals and delivery decisions.",
       },
     ],
   },
@@ -70,24 +70,24 @@ const faqSections: FaqSection[] = [
     category: "Deliverables",
     items: [
       {
-        question: "What are autonomous deliverables?",
+        question: "What are deliverables?",
         answer:
-          "Deliverables are recurring pieces of work that yarnnn produces on a schedule—weekly status reports, monthly investor updates, client briefs, meeting prep summaries. You define what you need through a conversation with TP, and yarnnn produces drafts autonomously.",
+          "Deliverables are autonomous specialists that generate versioned outputs for recurring or triggered work. Each has its own instructions, memory, and source scope.",
+      },
+      {
+        question: "Which deliverable types are supported?",
+        answer:
+          "Current intent-first types are: digest, brief, status, watch, deep_research, coordinator, and custom.",
+      },
+      {
+        question: "Which execution modes are supported?",
+        answer:
+          "Modes are recurring, goal, reactive, proactive, and coordinator. Mode controls how and when a deliverable decides to run.",
       },
       {
         question: "How do deliverables improve over time?",
         answer:
-          "Every time you edit a deliverable before approving it, yarnnn learns from your changes. It picks up your tone, your structure preferences, what you emphasize, what you cut. By the 10th version, the drafts closely match what you'd write yourself.",
-      },
-      {
-        question: "What kinds of deliverables can yarnnn produce?",
-        answer:
-          "Weekly status reports, client follow-up summaries, investor updates, meeting prep briefs, stakeholder updates, team digests—anything recurring that draws from your platform context. If you produce it regularly and it's based on information from your connected platforms, yarnnn can handle it.",
-      },
-      {
-        question: "Can I edit deliverables before they go out?",
-        answer:
-          "Absolutely—that's the model. yarnnn produces the draft, you review and refine it. You're the supervisor, not the operator. Every edit teaches yarnnn your preferences so future drafts need fewer changes.",
+          "Each approved/edit-reviewed version becomes signal for future runs. Specialists learn your preferred structure, emphasis, and tone as they execute.",
       },
     ],
   },
@@ -95,19 +95,24 @@ const faqSections: FaqSection[] = [
     category: "Pricing & Plans",
     items: [
       {
-        question: "Is yarnnn free to use?",
+        question: "What plans are available?",
         answer:
-          "Yes. The Free plan includes 1 autonomous deliverable, unlimited platform connections, context accumulation, and 10 TP conversations per month. It's fully functional—not a trial.",
+          "yarnnn has Free, Starter, and Pro plans. All plans include Slack, Gmail, Notion, and Calendar integration support.",
       },
       {
-        question: "What does the Pro plan include?",
+        question: "What are current deliverable limits?",
         answer:
-          "Pro is $19/month and includes unlimited autonomous deliverables, unlimited TP conversations, and priority support. Same price as ChatGPT Plus, but yarnnn actually accumulates your context and works autonomously.",
+          "Free supports 2 active deliverables, Starter supports 5, and Pro is unlimited.",
       },
       {
-        question: "Why are platform connections free for everyone?",
+        question: "How does sync frequency scale by tier?",
         answer:
-          "The more platforms you connect, the deeper yarnnn's context becomes. More context means better autonomy. We don't want pricing to get in the way of that. Connect everything—it's all included on every plan.",
+          "Free: 1x daily. Starter: 4x daily. Pro: hourly.",
+      },
+      {
+        question: "How does source capacity scale by tier?",
+        answer:
+          "Limits scale by provider. For example: Slack sources are 5 (Free), 15 (Starter), unlimited (Pro). Similar scaling applies to Gmail and Notion.",
       },
     ],
   },
@@ -117,17 +122,17 @@ const faqSections: FaqSection[] = [
       {
         question: "How do I get started?",
         answer:
-          "Sign up for free, then start a conversation with TP. Tell it what recurring work you need help with. TP will guide you through connecting your platforms and setting up your first deliverable. The whole process takes a few minutes.",
+          "Sign up, connect one platform, then define your first deliverable through TP or the deliverable UI. You can usually have a first run quickly.",
       },
       {
-        question: "Do I need to configure anything?",
+        question: "Do I need to configure everything up front?",
         answer:
-          "No. There are no configuration screens, templates, or setup wizards. You describe what you need to TP in plain language, and it handles the rest. If TP needs clarification, it asks.",
+          "No. Start with one specialist and one high-signal source. Expand type coverage and mode sophistication as you build confidence.",
       },
       {
-        question: "How quickly does yarnnn start working?",
+        question: "What is the best first deliverable?",
         answer:
-          "Immediately. Once you connect a platform and set up a deliverable, yarnnn syncs your context and can produce a first draft right away. The quality improves with each cycle as context accumulates and yarnnn learns from your edits.",
+          "Most teams start with a recurring digest or status update. These give fast value and create clean supervision signal for future improvements.",
       },
     ],
   },
@@ -138,12 +143,12 @@ const allFaqItems = faqSections.flatMap((s) => s.items);
 export const metadata = getMarketingMetadata({
   title: "FAQ",
   description:
-    "Frequently asked questions about yarnnn — what it is, how it works, which platforms it connects to, pricing, data safety, and how to get started with autonomous deliverables.",
+    "Frequently asked questions about yarnnn: product model, integrations, deliverable types and modes, pricing, and getting started.",
   path: "/faq",
   keywords: [
     "yarnnn faq",
-    "autonomous ai questions",
-    "yarnnn pricing faq",
+    "autonomous ai faq",
+    "deliverable modes",
     "thinking partner faq",
     "context powered ai",
   ],
@@ -177,29 +182,19 @@ export default function FaqPage() {
               Frequently asked questions
             </h1>
             <p className="text-white/50 mb-16 max-w-xl">
-              Everything you need to know about yarnnn, TP, and how autonomous
-              AI works for you.
+              Product model, integrations, pricing, and how to get meaningful autonomous output quickly.
             </p>
 
             <div className="space-y-16">
               {faqSections.map((section) => (
                 <div key={section.category}>
-                  <h2 className="text-xs text-white/30 uppercase tracking-widest mb-8">
-                    {section.category}
-                  </h2>
+                  <h2 className="text-xs text-white/30 uppercase tracking-widest mb-8">{section.category}</h2>
 
                   <div className="space-y-8">
                     {section.items.map((item) => (
-                      <div
-                        key={item.question}
-                        className="border-b border-white/5 pb-8 last:border-0"
-                      >
-                        <h3 className="text-lg font-medium mb-3">
-                          {item.question}
-                        </h3>
-                        <p className="text-white/50 leading-relaxed">
-                          {item.answer}
-                        </p>
+                      <div key={item.question} className="border-b border-white/5 pb-8 last:border-0">
+                        <h3 className="text-lg font-medium mb-3">{item.question}</h3>
+                        <p className="text-white/50 leading-relaxed">{item.answer}</p>
                       </div>
                     ))}
                   </div>
@@ -207,14 +202,9 @@ export default function FaqPage() {
               ))}
             </div>
 
-            {/* CTA */}
             <div className="mt-24 text-center">
-              <h2 className="text-2xl font-medium mb-4">
-                Still have questions?
-              </h2>
-              <p className="text-white/50 mb-8">
-                Talk to TP directly, or reach out to us.
-              </p>
+              <h2 className="text-2xl font-medium mb-4">Still have questions?</h2>
+              <p className="text-white/50 mb-8">Start with one deliverable, then expand from real usage signal.</p>
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <Link
                   href="/auth/login"

@@ -9,14 +9,14 @@ import { BRAND, getMarketingMetadata } from "@/lib/metadata";
 export const metadata = getMarketingMetadata({
   title: "Blog",
   description:
-    "Ideas on context-powered AI agents, autonomous work, and why your agent should get smarter the longer you use it.",
+    "Practical ideas on autonomous work systems, context accumulation, supervision design, and deliverable intelligence.",
   path: "/blog",
   keywords: [
     "ai agent blog",
-    "autonomous ai",
-    "context powered ai",
+    "autonomous work",
+    "context accumulation",
     "yarnnn blog",
-    "ai agent insights",
+    "deliverable intelligence",
   ],
 });
 
@@ -27,7 +27,7 @@ export default function BlogPage() {
     "@type": "Blog",
     name: `${BRAND.name} Blog`,
     description:
-      "Ideas on context-powered AI agents, autonomous work, and why your agent should get smarter the longer you use it.",
+      "Practical ideas on autonomous work systems, context accumulation, supervision design, and deliverable intelligence.",
     url: `${BRAND.url}/blog`,
     blogPost: posts.slice(0, 20).map((post) => ({
       "@type": "BlogPosting",
@@ -49,12 +49,10 @@ export default function BlogPage() {
 
         <main className="flex-1">
           <section className="max-w-2xl mx-auto px-6 py-24 md:py-32">
-            <h1 className="text-4xl md:text-5xl font-medium mb-4 tracking-tight leading-[1.1]">
-              Blog
-            </h1>
+            <h1 className="text-4xl md:text-5xl font-medium mb-4 tracking-tight leading-[1.1]">Blog</h1>
             <p className="text-muted-foreground mb-16 max-w-lg">
-              Ideas on context-powered AI agents, autonomous work, and why your
-              agent should get smarter the longer you use it.
+              Practical notes on how autonomous work systems improve over time when context, memory,
+              and supervision are designed as one loop.
             </p>
 
             <BlogPostList posts={posts} />
