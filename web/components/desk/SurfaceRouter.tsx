@@ -67,9 +67,13 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
       case 'deliverable-review':
         router.replace(`/deliverables/${surface.deliverableId}`);
         break;
-      // ADR-067: Create redirects to type picker route
+      // ADR-067: Create redirects to route with optional type param
       case 'deliverable-create':
-        router.replace('/deliverables/new');
+        if (surface.initialPlatform) {
+          router.replace(`/deliverables/new?platform=${surface.initialPlatform}`);
+        } else {
+          router.replace('/deliverables/new');
+        }
         break;
 
       // Context browser deprecated

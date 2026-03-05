@@ -11,7 +11,7 @@
 
 export type DeskSurface =
   // Deliverables
-  | { type: 'deliverable-create' }
+  | { type: 'deliverable-create'; initialPlatform?: 'slack' | 'gmail' | 'notion' | 'calendar' }
   | { type: 'deliverable-review'; deliverableId: string; versionId: string }
   | { type: 'deliverable-detail'; deliverableId: string }
   | { type: 'deliverable-list'; status?: 'active' | 'paused' | 'archived' }
@@ -169,7 +169,10 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
   switch (surface) {
     // Deliverables
     case 'deliverable-create':
-      return { type: 'deliverable-create' };
+      return {
+        type: 'deliverable-create',
+        initialPlatform: data.platform as 'slack' | 'gmail' | 'notion' | 'calendar' | undefined,
+      };
     case 'deliverable':
       return { type: 'deliverable-detail', deliverableId: data.deliverableId as string };
     case 'deliverable-review':
@@ -232,6 +235,7 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
 
   switch (surface.type) {
     case 'deliverable-create':
+      if (surface.initialPlatform) params.set('platform', surface.initialPlatform);
       break;
     case 'deliverable-review':
       params.set('did', surface.deliverableId);
@@ -268,8 +272,13 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
   const surfaceType = params.get('surface');
 
   switch (surfaceType) {
-    case 'deliverable-create':
-      return { type: 'deliverable-create' };
+    case 'deliverable-create': {
+      const platform = params.get('platform');
+      return {
+        type: 'deliverable-create',
+        initialPlatform: platform as 'slack' | 'gmail' | 'notion' | 'calendar' | undefined,
+      };
+    }
     case 'deliverable-review': {
       const did = params.get('did');
       const vid = params.get('vid');

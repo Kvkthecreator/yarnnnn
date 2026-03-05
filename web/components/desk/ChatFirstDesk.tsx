@@ -13,7 +13,6 @@
  */
 
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   MessageCircle,
@@ -39,8 +38,7 @@ import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
 import { WorkspaceLayout, WorkspacePanelTab } from './WorkspaceLayout';
 import { api } from '@/lib/api/client';
-import { DELIVERABLE_TYPE_LABELS } from '@/lib/constants/deliverables';
-import type { Deliverable, DeliverableType } from '@/types';
+import type { Deliverable } from '@/types';
 
 // =============================================================================
 // Panel: Deliverables (compact entry cards)
@@ -167,8 +165,6 @@ export function ChatFirstDesk() {
     tokenUsage,
   } = useTP();
   const { surface } = useDesk();
-  const searchParams = useSearchParams();
-  const router = useRouter();
 
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
@@ -187,18 +183,6 @@ export function ChatFirstDesk() {
   useEffect(() => {
     textareaRef.current?.focus();
   }, []);
-
-  // Handle ?create={type} URL param from type picker handoff
-  useEffect(() => {
-    const createType = searchParams?.get('create');
-    if (createType) {
-      const label = DELIVERABLE_TYPE_LABELS[createType as DeliverableType] || createType;
-      setInput(`I want to create a ${label} deliverable`);
-      textareaRef.current?.focus();
-      // Clean URL without adding history entry
-      router.replace('/dashboard', { scroll: false });
-    }
-  }, [searchParams, router]);
 
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {

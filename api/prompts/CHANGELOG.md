@@ -6,19 +6,6 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
-## [2026.03.05.7] - Deliverable create flow: type-specific TP guidance + coordinator skill
-
-### Changed
-- `api/agents/tp_prompts/behaviors.py`: Added "Type-Specific Creation Guidance" table after the deliverable creation section. TP now knows which 1-2 key questions to ask per type (digest→source, status→audience/subject, watch→domain/signals, brief→event/attendees, deep_research→topic/depth, coordinator→domain/triggers, custom→output/structure). Guidance to skip clarification when user provides enough context.
-- `api/services/skills.py`: Added coordinator skill (was missing — only 6 of 7 types had skills). Enhanced all type skills with `create a {type}` and `create {type} deliverable` trigger patterns to support type-picker → TP chat handoff flow.
-
-### Expected behavior
-- **Type-picker handoff**: When user selects a type from the create grid and lands in chat with "I want to create a {type} deliverable", TP detects the correct type skill via pattern matching and asks type-appropriate follow-up questions.
-- **Coordinator skill**: "create a coordinator" now triggers a structured skill flow (was previously unhandled, falling through to generic create).
-- **Smarter creation**: TP skips unnecessary clarification when user provides context upfront (e.g., "create a weekly digest of #engineering" → create directly).
-
----
-
 ## [2026.03.05.6] - Fix: working memory parallelization thread safety + skill detection resilience
 
 ### Changed

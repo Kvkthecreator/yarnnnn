@@ -52,7 +52,7 @@ Keep it simple - one question at a time.
     "status": {
         "name": "status",
         "description": "Create a recurring status update deliverable",
-        "trigger_patterns": ["status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update", "create a status", "create status deliverable", "create a status update"],
+        "trigger_patterns": ["status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update"],
         "deliverable_type": "status",
         "system_prompt_addition": """
 ---
@@ -75,7 +75,7 @@ Create a status update deliverable — a regular cross-platform summary for a pe
     "digest": {
         "name": "digest",
         "description": "Create a recurring digest deliverable",
-        "trigger_patterns": ["slack digest", "channel digest", "inbox brief", "email digest", "notion summary", "calendar preview", "weekly digest", "create a digest", "create digest deliverable"],
+        "trigger_patterns": ["slack digest", "channel digest", "inbox brief", "email digest", "notion summary", "calendar preview", "weekly digest"],
         "deliverable_type": "digest",
         "system_prompt_addition": """
 ---
@@ -98,7 +98,7 @@ Create a digest deliverable — a regular synthesis of what's happening in a spe
     "brief": {
         "name": "brief",
         "description": "Create a brief deliverable for a specific event or situation",
-        "trigger_patterns": ["meeting brief", "meeting prep", "event prep", "call prep", "1:1 prep", "one on one prep", "meeting summary", "one-on-one", "create a brief", "create brief deliverable"],
+        "trigger_patterns": ["meeting brief", "meeting prep", "event prep", "call prep", "1:1 prep", "one on one prep", "meeting summary", "one-on-one"],
         "deliverable_type": "brief",
         "system_prompt_addition": """
 ---
@@ -121,7 +121,7 @@ Create a brief deliverable — a situation-specific document before a key event 
     "deep-research": {
         "name": "deep-research",
         "description": "Create a deep research deliverable",
-        "trigger_patterns": ["research brief", "deep research", "competitive intel", "market research", "competitor analysis", "competitor brief", "create a deep research", "create deep research deliverable"],
+        "trigger_patterns": ["research brief", "deep research", "competitive intel", "market research", "competitor analysis", "competitor brief"],
         "deliverable_type": "deep_research",
         "system_prompt_addition": """
 ---
@@ -144,7 +144,7 @@ Create a deep research deliverable — a bounded investigation into a specific t
     "watch": {
         "name": "watch",
         "description": "Create a watch deliverable for ongoing domain monitoring",
-        "trigger_patterns": ["watch brief", "intel brief", "competitive watch", "monitor", "keep an eye on", "intelligence brief", "create a watch", "create watch deliverable"],
+        "trigger_patterns": ["watch brief", "intel brief", "competitive watch", "monitor", "keep an eye on", "intelligence brief"],
         "deliverable_type": "watch",
         "system_prompt_addition": """
 ---
@@ -167,7 +167,7 @@ Create a watch deliverable — standing-order intelligence on a domain you can't
     "custom": {
         "name": "custom",
         "description": "Create a custom deliverable with user-defined intent",
-        "trigger_patterns": ["newsletter", "changelog", "release notes", "client proposal", "custom deliverable", "create a custom", "create custom deliverable"],
+        "trigger_patterns": ["newsletter", "changelog", "release notes", "client proposal", "custom deliverable"],
         "deliverable_type": "custom",
         "system_prompt_addition": """
 ---
@@ -184,29 +184,6 @@ Create a custom deliverable — the user defines exactly what they want.
 5. Offer first draft
 
 **Defaults:** frequency=weekly, type=custom
-""",
-    },
-
-    "coordinator": {
-        "name": "coordinator",
-        "description": "Create a coordinator deliverable that manages other deliverables",
-        "trigger_patterns": ["coordinator", "create a coordinator", "create coordinator deliverable", "orchestrator", "auto-create deliverables"],
-        "deliverable_type": "coordinator",
-        "system_prompt_addition": """
----
-
-## Active Skill: Coordinator
-
-Create a coordinator deliverable — a meta-agent that watches a domain and creates or triggers other deliverables when conditions are met.
-
-**Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask domain: `Clarify(question="What domain should this coordinator watch?", options=["Meeting prep", "Project updates", "Customer signals", "Custom domain"])`
-3. Ask rules: "What should trigger it to create child deliverables?"
-4. Confirm: "I'll create a Coordinator for [domain]. Ready?"
-5. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "coordinator", mode: "coordinator"})`
-
-**Defaults:** mode=coordinator (proactive, no fixed schedule), type=coordinator
 """,
     },
 }
