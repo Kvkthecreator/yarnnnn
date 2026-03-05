@@ -1537,50 +1537,25 @@ def validate_type_config(deliverable_type: DeliverableType, config: dict) -> dic
     """
     Validate and normalize type_config for a given deliverable type.
     Returns the validated config dict.
+
+    ADR-093: Maps the 7 purpose-first types to their config classes.
     """
-    # Map types to their config classes
-    config_classes = {
-        # Tier 1 - Stable
-        "status_report": StatusReportConfig,
-        "stakeholder_update": StakeholderUpdateConfig,
-        "research_brief": ResearchBriefConfig,
-        "meeting_summary": MeetingSummaryConfig,
-        "custom": CustomConfig,
-        # Beta Tier
-        "client_proposal": ClientProposalConfig,
-        "performance_self_assessment": PerformanceSelfAssessmentConfig,
-        "newsletter_section": NewsletterSectionConfig,
-        "changelog": ChangelogConfig,
-        "one_on_one_prep": OneOnOnePrepConfig,
-        "board_update": BoardUpdateConfig,
-        # ADR-031 Phase 6: Cross-Platform Synthesizers
-        "weekly_status": WeeklyStatusConfig,
-        "project_brief": ProjectBriefConfig,
-        "cross_platform_digest": CrossPlatformDigestConfig,
-        "activity_summary": ActivitySummaryConfig,
-        # ADR-035: Platform-First Wave 1 Types
-        "slack_channel_digest": SlackChannelDigestConfig,
-        "slack_standup": SlackStandupConfig,
-        "gmail_inbox_brief": GmailInboxBriefConfig,
-        "notion_page_summary": NotionPageSummaryConfig,
-        # Phase 2: Strategic Intelligence Types
+    config_classes: dict[str, type[BaseModel]] = {
+        "digest": DigestConfig,
+        "brief": BriefConfig,
+        "status": StatusConfig,
+        "watch": WatchConfig,
         "deep_research": DeepResearchConfig,
-        "daily_strategy_reflection": DailyStrategyReflectionConfig,
-        "intelligence_brief": IntelligenceBriefConfig,
+        "coordinator": CoordinatorConfig,
+        "custom": CustomConfig,
     }
 
     try:
-        config_class = config_classes.get(deliverable_type)
-        if config_class:
-            validated = config_class(**config)
-        else:
-            # Unknown type, treat as custom
-            validated = CustomConfig(description=str(config.get("description", "")))
-
+        config_class = config_classes.get(deliverable_type, CustomConfig)
+        validated = config_class(**config)
         return validated.model_dump()
     except Exception as e:
         logger.warning(f"[DELIVERABLE] Invalid type_config for {deliverable_type}: {e}")
-        # Return a default config on validation failure
         return get_default_config(deliverable_type)
 
 
