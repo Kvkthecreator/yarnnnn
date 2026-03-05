@@ -1,24 +1,22 @@
 'use client';
 
 /**
- * ADR-067: Simplified Deliverable Creation
+ * Deliverable Creation — Intent-Based Type Selection
  *
  * Two-step creation flow:
- * 1. Type selection (Platform Monitors vs Synthesis Work)
+ * 1. Type selection by user intent ("Keep me informed" vs "Get something done")
  * 2. Minimal config form (title, sources, destination, schedule)
  *
- * Key changes from previous 928-line version:
- * - 6 visible types (3 platform + 3 synthesis) instead of 12+
- * - Lazy resource loading (only after type selection)
- * - No eager API calls on mount
- * - Clear Platform Monitor vs Synthesis categorization
+ * ADR-092: Mode is set implicitly from type — no manual mode picker.
+ * ADR-093: 7 purpose-first types + coordinator.
+ * ADR-066: Delivery-first, no governance gate.
  *
  * Delivery options (platform-agnostic):
  * - Email: Send to user's registered email (default)
  * - Slack DM: Send via Slack direct message
  * - Platform channel: Platform-specific delivery (Slack channel, etc.)
  *
- * Instant run: Creates and immediately runs the deliverable for quick feedback
+ * Instant run: Creates and immediately runs the deliverable for quick feedback.
  */
 
 import { useState, useEffect, useCallback } from 'react';
@@ -36,7 +34,10 @@ import {
   Calendar,
   Play,
   MessageSquare,
+  Bot,
+  Eye,
 } from 'lucide-react';
+import type { DeliverableMode } from '@/types';
 import { api } from '@/lib/api/client';
 import { createClient } from '@/lib/supabase/client';
 import { cn } from '@/lib/utils';
@@ -65,7 +66,8 @@ interface TypeDefinition {
   label: string;
   description: string;
   icon: React.ReactNode;
-  category: 'platform' | 'synthesis';
+  category: 'inform' | 'produce' | 'advanced';
+  implicitMode: DeliverableMode;
   primaryPlatform?: IntegrationProvider;
   classification: TypeClassification;
   defaultSchedule: Partial<ScheduleConfig>;
@@ -113,17 +115,18 @@ const DELIVERY_OPTIONS: DeliveryOption[] = [
 ];
 
 // =============================================================================
-// Type Definitions (ADR-093: 7 purpose-first types)
+// Type Definitions (ADR-093 types + ADR-092 implicit modes)
 // =============================================================================
 
 const DELIVERABLE_TYPES: TypeDefinition[] = [
-  // Platform-bound digests
+  // -- Keep me informed --
   {
     id: 'digest',
     label: 'Digest',
-    description: 'Regular synthesis of what\'s happening in a specific place',
+    description: 'Regular synthesis of activity in a specific place',
     icon: <Slack className="w-5 h-5" />,
-    category: 'platform',
+    category: 'inform',
+    implicitMode: 'recurring',
     classification: {
       binding: 'platform_bound',
       temporal_pattern: 'scheduled',
@@ -131,13 +134,42 @@ const DELIVERABLE_TYPES: TypeDefinition[] = [
     },
     defaultSchedule: { frequency: 'weekly', day: 'monday', time: '09:00' },
   },
-  // Situation briefs
+  {
+    id: 'status',
+    label: 'Status Update',
+    description: 'Periodic summary across your platforms',
+    icon: <BarChart3 className="w-5 h-5" />,
+    category: 'inform',
+    implicitMode: 'recurring',
+    classification: {
+      binding: 'cross_platform',
+      temporal_pattern: 'scheduled',
+      freshness_requirement_hours: 4,
+    },
+    defaultSchedule: { frequency: 'weekly', day: 'friday', time: '16:00' },
+  },
+  {
+    id: 'watch',
+    label: 'Watch',
+    description: 'Standing-order intelligence on a domain — surfaces things when they matter',
+    icon: <Eye className="w-5 h-5" />,
+    category: 'inform',
+    implicitMode: 'proactive',
+    classification: {
+      binding: 'cross_platform',
+      temporal_pattern: 'on_demand',
+      freshness_requirement_hours: 4,
+    },
+    defaultSchedule: {},
+  },
+  // -- Get something done --
   {
     id: 'brief',
     label: 'Brief',
     description: 'Situation-specific document before a key event or meeting',
     icon: <Users className="w-5 h-5" />,
-    category: 'synthesis',
+    category: 'produce',
+    implicitMode: 'recurring',
     classification: {
       binding: 'cross_platform',
       temporal_pattern: 'reactive',
@@ -145,41 +177,13 @@ const DELIVERABLE_TYPES: TypeDefinition[] = [
     },
     defaultSchedule: { frequency: 'weekly', day: 'monday', time: '08:00' },
   },
-  // Cross-platform status
-  {
-    id: 'status',
-    label: 'Status Update',
-    description: 'Regular cross-platform summary for a person or audience',
-    icon: <BarChart3 className="w-5 h-5" />,
-    category: 'synthesis',
-    classification: {
-      binding: 'cross_platform',
-      temporal_pattern: 'scheduled',
-      freshness_requirement_hours: 4,
-    },
-    defaultSchedule: { frequency: 'weekly', day: 'friday', time: '16:00' },
-  },
-  // Intelligence monitoring
-  {
-    id: 'watch',
-    label: 'Watch',
-    description: 'Standing-order intelligence on a domain you can\'t monitor full-time',
-    icon: <FileText className="w-5 h-5" />,
-    category: 'synthesis',
-    classification: {
-      binding: 'cross_platform',
-      temporal_pattern: 'on_demand',
-      freshness_requirement_hours: 4,
-    },
-    defaultSchedule: { frequency: 'weekly', day: 'monday', time: '09:00' },
-  },
-  // Deep research (goal mode)
   {
     id: 'deep_research',
     label: 'Deep Research',
     description: 'Bounded investigation into something specific, then done',
-    icon: <Mail className="w-5 h-5" />,
-    category: 'synthesis',
+    icon: <FileText className="w-5 h-5" />,
+    category: 'produce',
+    implicitMode: 'goal',
     classification: {
       binding: 'research',
       temporal_pattern: 'on_demand',
@@ -187,19 +191,34 @@ const DELIVERABLE_TYPES: TypeDefinition[] = [
     },
     defaultSchedule: { frequency: 'weekly', day: 'friday', time: '16:00' },
   },
-  // Custom
   {
     id: 'custom',
     label: 'Custom',
     description: 'Define your own recurring output',
     icon: <Sparkles className="w-5 h-5" />,
-    category: 'synthesis',
+    category: 'produce',
+    implicitMode: 'recurring',
     classification: {
       binding: 'hybrid',
       temporal_pattern: 'scheduled',
       freshness_requirement_hours: 4,
     },
     defaultSchedule: { frequency: 'weekly', day: 'friday', time: '16:00' },
+  },
+  // -- Advanced --
+  {
+    id: 'coordinator',
+    label: 'Coordinator',
+    description: 'Watches a domain and creates or triggers other deliverables',
+    icon: <Bot className="w-5 h-5" />,
+    category: 'advanced',
+    implicitMode: 'coordinator',
+    classification: {
+      binding: 'cross_platform',
+      temporal_pattern: 'on_demand',
+      freshness_requirement_hours: 4,
+    },
+    defaultSchedule: {},
   },
 ];
 
@@ -385,14 +404,19 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
     );
   };
 
+  const showSchedule = selectedType
+    ? !['proactive', 'coordinator'].includes(selectedType.implicitMode)
+    : true;
+
   const canCreate = useCallback(() => {
     if (!selectedType) return false;
     if (!title.trim()) return false;
-    if (!schedule.frequency) return false;
+    // Schedule required only for schedule-based modes
+    if (showSchedule && !schedule.frequency) return false;
     // Platform-bound types require at least one source selected
     if (selectedType.primaryPlatform && resources.length > 0 && selectedSources.length === 0) return false;
     return true;
-  }, [selectedType, title, schedule, resources, selectedSources]);
+  }, [selectedType, title, schedule, resources, selectedSources, showSchedule]);
 
   const handleCreate = async () => {
     if (!canCreate() || !selectedType) return;
@@ -442,10 +466,9 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
         deliverable_type: selectedType.id,
         destination: finalDestination,
         sources,
-        schedule,
+        schedule: showSchedule ? schedule : { frequency: 'custom' as ScheduleFrequency },
         type_classification: selectedType.classification,
-        // deep_research is goal mode (one-shot, on-demand) — all others default to recurring
-        mode: selectedType.id === 'deep_research' ? 'goal' : undefined,
+        mode: selectedType.implicitMode,
       };
 
       const deliverable = await api.deliverables.create(createData);
@@ -476,8 +499,23 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
   // =============================================================================
 
   if (!selectedType) {
-    const platformTypes = DELIVERABLE_TYPES.filter((t) => t.category === 'platform');
-    const synthesisTypes = DELIVERABLE_TYPES.filter((t) => t.category === 'synthesis');
+    const informTypes = DELIVERABLE_TYPES.filter((t) => t.category === 'inform');
+    const produceTypes = DELIVERABLE_TYPES.filter((t) => t.category === 'produce');
+    const advancedTypes = DELIVERABLE_TYPES.filter((t) => t.category === 'advanced');
+
+    const TypeCard = ({ type }: { type: TypeDefinition }) => (
+      <button
+        key={type.id}
+        onClick={() => handleTypeSelect(type)}
+        className="p-4 border border-border rounded-lg text-left hover:border-primary hover:bg-primary/5 transition-all"
+      >
+        <div className="text-primary mb-2">{type.icon}</div>
+        <div className="text-sm font-medium">{type.label}</div>
+        <div className="text-xs text-muted-foreground mt-1">
+          {type.description}
+        </div>
+      </button>
+    );
 
     return (
       <div className="h-full flex flex-col">
@@ -492,7 +530,7 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
           <div>
             <h1 className="text-lg font-semibold">Create Deliverable</h1>
             <p className="text-sm text-muted-foreground">
-              Choose what you want to create
+              What do you need?
             </p>
           </div>
         </div>
@@ -500,52 +538,47 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
         {/* Type Selection */}
         <div className="flex-1 overflow-y-auto px-6 py-6">
           <div className="max-w-2xl mx-auto space-y-8">
-            {/* Platform Monitors */}
+            {/* Keep me informed */}
             <section>
               <h2 className="text-sm font-medium text-muted-foreground mb-1">
-                Platform Monitors
+                Keep me informed
               </h2>
               <p className="text-xs text-muted-foreground mb-4">
-                Stay on top of a single platform
+                Ongoing monitoring and regular updates
               </p>
               <div className="grid grid-cols-3 gap-3">
-                {platformTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => handleTypeSelect(type)}
-                    className="p-4 border border-border rounded-lg text-left hover:border-primary hover:bg-primary/5 transition-all"
-                  >
-                    <div className="text-primary mb-2">{type.icon}</div>
-                    <div className="text-sm font-medium">{type.label}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {type.description}
-                    </div>
-                  </button>
+                {informTypes.map((type) => (
+                  <TypeCard key={type.id} type={type} />
                 ))}
               </div>
             </section>
 
-            {/* Synthesis Work */}
+            {/* Get something done */}
             <section>
               <h2 className="text-sm font-medium text-muted-foreground mb-1">
-                Synthesis Work
+                Get something done
               </h2>
               <p className="text-xs text-muted-foreground mb-4">
-                Combine context across platforms
+                Produce a specific output or complete a task
               </p>
               <div className="grid grid-cols-3 gap-3">
-                {synthesisTypes.map((type) => (
-                  <button
-                    key={type.id}
-                    onClick={() => handleTypeSelect(type)}
-                    className="p-4 border border-border rounded-lg text-left hover:border-primary hover:bg-primary/5 transition-all"
-                  >
-                    <div className="text-primary mb-2">{type.icon}</div>
-                    <div className="text-sm font-medium">{type.label}</div>
-                    <div className="text-xs text-muted-foreground mt-1">
-                      {type.description}
-                    </div>
-                  </button>
+                {produceTypes.map((type) => (
+                  <TypeCard key={type.id} type={type} />
+                ))}
+              </div>
+            </section>
+
+            {/* Advanced */}
+            <section>
+              <h2 className="text-sm font-medium text-muted-foreground mb-1">
+                Advanced
+              </h2>
+              <p className="text-xs text-muted-foreground mb-4">
+                Autonomous agents that manage other deliverables
+              </p>
+              <div className="grid grid-cols-3 gap-3">
+                {advancedTypes.map((type) => (
+                  <TypeCard key={type.id} type={type} />
                 ))}
               </div>
             </section>
@@ -735,61 +768,57 @@ export function DeliverableCreateSurface({ initialPlatform, onBack }: Deliverabl
             )}
           </div>
 
-          {/* Schedule */}
-          <div>
-            <label className="block text-sm font-medium mb-2">
-              <Calendar className="w-4 h-4 inline mr-1" />
-              Schedule
-            </label>
-            <div className="flex gap-3">
-              <select
-                value={schedule.frequency}
-                onChange={(e) =>
-                  setSchedule({ ...schedule, frequency: e.target.value as ScheduleFrequency })
-                }
-                className="flex-1 px-3 py-2 border border-border rounded-md text-sm"
-              >
-                {FREQUENCY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-
-              {showDaySelector && (
+          {/* Schedule (only for schedule-based modes) */}
+          {showSchedule && (
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                <Calendar className="w-4 h-4 inline mr-1" />
+                Schedule
+              </label>
+              <div className="flex gap-3">
                 <select
-                  value={schedule.day || 'monday'}
-                  onChange={(e) => setSchedule({ ...schedule, day: e.target.value })}
+                  value={schedule.frequency}
+                  onChange={(e) =>
+                    setSchedule({ ...schedule, frequency: e.target.value as ScheduleFrequency })
+                  }
                   className="flex-1 px-3 py-2 border border-border rounded-md text-sm"
                 >
-                  {DAY_OPTIONS.map((opt) => (
+                  {FREQUENCY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
                   ))}
                 </select>
-              )}
 
-              <input
-                type="time"
-                value={schedule.time || '09:00'}
-                onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
-                className="w-28 px-3 py-2 border border-border rounded-md text-sm"
-              />
-            </div>
-          </div>
+                {showDaySelector && (
+                  <select
+                    value={schedule.day || 'monday'}
+                    onChange={(e) => setSchedule({ ...schedule, day: e.target.value })}
+                    className="flex-1 px-3 py-2 border border-border rounded-md text-sm"
+                  >
+                    {DAY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
 
-          {/* Instant run + draft mode notice */}
-          <div className="p-3 bg-muted/50 rounded-md space-y-1">
-            <div className="text-sm text-muted-foreground">
-              <Play className="w-4 h-4 inline mr-1 text-primary" />
-              Runs immediately after creation for instant results
+                <input
+                  type="time"
+                  value={schedule.time || '09:00'}
+                  onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
+                  className="w-28 px-3 py-2 border border-border rounded-md text-sm"
+                />
+              </div>
             </div>
-            <div className="text-sm text-muted-foreground">
-              <Check className="w-4 h-4 inline mr-1 text-green-500" />
-              Draft mode: You'll review outputs before they're sent
-            </div>
-          </div>
+          )}
+
+          {/* Info notice */}
+          <p className="text-xs text-muted-foreground">
+            <Play className="w-3.5 h-3.5 inline mr-1 text-primary" />
+            Runs immediately after creation
+          </p>
         </div>
       </div>
     </div>
