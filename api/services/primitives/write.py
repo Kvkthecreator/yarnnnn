@@ -22,8 +22,6 @@ WRITE_TOOL = {
 Examples:
 - Write(ref="deliverable:new", content={title: "Weekly Update", deliverable_type: "status"})
 - Write(ref="memory:new", content={content: "User prefers bullet points", tags: ["preference"]})
-- Write(ref="work:new", content={task: "Research competitors", agent_type: "research"})
-
 Use ref ending in ':new' to create. Content schema depends on entity type.""",
     "input_schema": {
         "type": "object",
@@ -248,6 +246,14 @@ def _process_deliverable(data: dict) -> dict:
             destination["channel"] = data.pop("slack_channel")
     if destination:
         data["destination"] = destination
+
+    # Seed default instructions if not provided (ADR-087)
+    if not data.get("deliverable_instructions"):
+        from services.deliverable_pipeline import DEFAULT_INSTRUCTIONS
+        dtype = data.get("deliverable_type", "custom")
+        default = DEFAULT_INSTRUCTIONS.get(dtype, DEFAULT_INSTRUCTIONS.get("custom", ""))
+        if default:
+            data["deliverable_instructions"] = default
 
     # Calculate next_run_at based on schedule
     if "next_run_at" not in data:

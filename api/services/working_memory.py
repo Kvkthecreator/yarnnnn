@@ -215,6 +215,30 @@ async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
     if goal:
         scope["goal"] = goal
 
+    # Fetch latest version preview — so TP can see what was last generated
+    if deliverable_id:
+        try:
+            version_result = (
+                client.table("deliverable_versions")
+                .select("version_number, status, content, created_at, delivery_status")
+                .eq("deliverable_id", deliverable_id)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if version_result.data:
+                v = version_result.data[0]
+                content = v.get("content") or ""
+                scope["latest_version"] = {
+                    "version_number": v.get("version_number"),
+                    "status": v.get("status"),
+                    "created_at": (v.get("created_at") or "")[:10],
+                    "delivery_status": v.get("delivery_status"),
+                    "content_preview": content[:400] + "..." if len(content) > 400 else content,
+                }
+        except Exception as e:
+            logger.warning(f"[WORKING_MEMORY] Failed to fetch latest version: {e}")
+
     return scope
 
 
@@ -477,13 +501,13 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch platform sync freshness: {e}")
 
     try:
-        # 3. Pending reviews (deliverable versions with status=draft or suggested)
+        # 3. Pending reviews (deliverable versions with status=draft)
         # Use a direct query approach that works with the schema
         pending_result = (
             client.table("deliverable_versions")
             .select("id, deliverable_id, deliverables!inner(user_id)")
             .eq("deliverables.user_id", user_id)
-            .in_("status", ["draft", "suggested"])
+            .in_("status", ["draft"])
             .execute()
         )
 
@@ -507,7 +531,7 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
                     client.table("deliverable_versions")
                     .select("id", count="exact")
                     .in_("deliverable_id", deliverable_ids)
-                    .in_("status", ["draft", "suggested"])
+                    .in_("status", ["draft"])
                     .execute()
                 )
                 summary["pending_reviews_count"] = pending_result.count or 0
@@ -661,6 +685,18 @@ def format_for_prompt(working_memory: dict) -> str:
             milestones = goal.get("milestones", [])
             if milestones:
                 lines.append(f"Milestones: {', '.join(milestones)}")
+
+        latest_version = scoped.get("latest_version")
+        if latest_version:
+            v_num = latest_version.get("version_number", "?")
+            v_status = latest_version.get("status", "unknown")
+            v_date = latest_version.get("created_at", "unknown")
+            v_delivery = latest_version.get("delivery_status")
+            delivery_note = f" (delivery: {v_delivery})" if v_delivery else ""
+            lines.append(f"\n**Latest version:** v{v_num} ({v_status}{delivery_note}, {v_date})")
+            preview = latest_version.get("content_preview", "")
+            if preview:
+                lines.append(f"```\n{preview}\n```")
 
     # System Summary (ADR-072) — structured operational state
     system_summary = working_memory.get("system_summary", {})

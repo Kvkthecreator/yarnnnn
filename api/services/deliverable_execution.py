@@ -159,6 +159,7 @@ def _build_headless_system_prompt(
     trigger_context: Optional[dict] = None,
     research_directive: Optional[str] = None,
     deliverable: Optional[dict] = None,
+    user_context: Optional[list] = None,
 ) -> str:
     """
     Build system prompt for headless mode generation (ADR-080/081/087).
@@ -179,6 +180,7 @@ def _build_headless_system_prompt(
         trigger_context: Optional trigger info with signal reasoning
         research_directive: Optional research instruction for research/hybrid types
         deliverable: Optional deliverable dict with deliverable_instructions and deliverable_memory
+        user_context: Optional list of user_memory rows (profile + preferences)
 
     Returns:
         Complete system prompt string
@@ -193,6 +195,21 @@ def _build_headless_system_prompt(
 - Use plain markdown headers (##, ###) and bullet points for structure.
 - If the user's context mentions a preference for conciseness, prioritize brevity over completeness."""
 
+    # Inject user context (profile + preferences) for personalized output
+    if user_context:
+        context_lines = []
+        for row in user_context:
+            key = row.get("key", "")
+            value = row.get("value", "")
+            if key in ("name", "role", "company", "timezone"):
+                context_lines.append(f"- {key.title()}: {value}")
+            elif key.startswith("tone_") or key.startswith("verbosity_"):
+                context_lines.append(f"- {key.replace('_', ' ').title()}: {value}")
+            elif key.startswith("preference:"):
+                context_lines.append(f"- Prefers: {value}")
+        if context_lines:
+            prompt += "\n\n## User Context\n" + "\n".join(context_lines)
+
     # ADR-087: Inject deliverable-scoped instructions and memory
     if deliverable:
         instructions = (deliverable.get("deliverable_instructions") or "").strip()
@@ -206,11 +223,28 @@ The user has set these behavioral directives for this deliverable:
         memory = deliverable.get("deliverable_memory") or {}
         memory_parts = []
 
+        # Goal (for goal-mode deliverables)
+        goal = memory.get("goal")
+        if goal:
+            desc = goal.get("description", "")
+            status = goal.get("status", "")
+            if desc:
+                memory_parts.append(f"**Goal:** {desc}")
+                if status:
+                    memory_parts.append(f"Goal status: {status}")
+
         observations = memory.get("observations", [])
         if observations:
             memory_parts.append("**Recent observations:**")
             for obs in observations[-5:]:
                 memory_parts.append(f"- {obs.get('date', '')}: {obs.get('note', '')}")
+
+        # Review log (last 3 entries)
+        review_log = memory.get("review_log", [])
+        if review_log:
+            memory_parts.append("**Review history:**")
+            for entry in review_log[-3:]:
+                memory_parts.append(f"- {entry.get('date', '')}: {entry.get('note', '')}")
 
         if memory_parts:
             prompt += "\n\n## Deliverable Memory\n" + "\n".join(memory_parts)
@@ -328,10 +362,29 @@ async def generate_draft_inline(
         past_versions=past_versions,
     )
 
+    # Fetch lightweight user context for personalized headless output
+    user_context = None
+    try:
+        user_ctx_result = client.table("user_memory").select(
+            "key, value"
+        ).eq("user_id", user_id).in_(
+            "key", [
+                "name", "role", "company", "timezone",
+                "tone_slack", "tone_gmail", "verbosity_slack", "verbosity_gmail",
+            ]
+        ).limit(10).execute()
+        # Also get preference: entries
+        pref_result = client.table("user_memory").select(
+            "key, value"
+        ).eq("user_id", user_id).like("key", "preference:%").limit(5).execute()
+        user_context = (user_ctx_result.data or []) + (pref_result.data or [])
+    except Exception as e:
+        logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
+
     # ADR-080/081/087: Headless system prompt with tool usage, research directive,
-    # and deliverable-scoped instructions + memory
+    # deliverable-scoped instructions + memory, and user context
     system_prompt = _build_headless_system_prompt(
-        deliverable_type, trigger_context, research_directive, deliverable
+        deliverable_type, trigger_context, research_directive, deliverable, user_context
     )
 
     # ADR-081: Binding-aware tool round limit

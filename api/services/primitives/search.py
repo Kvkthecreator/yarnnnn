@@ -47,8 +47,8 @@ Scopes:
 - platform_content: Synced platform data (Slack, Gmail, Notion, Calendar). May be hours old — disclose age. Use RefreshPlatformContent to get latest.
 - document: Uploaded documents (PDF, DOCX, TXT, MD) - searches actual content, not just filenames
 - deliverable: Your recurring deliverables
-- work: Work tickets
-- all: Search everything (platform_content + document + deliverable + work)
+- version: Generated deliverable content (versions). Filter by deliverable_id to see versions for a specific deliverable.
+- all: Search everything (platform_content + document + deliverable)
 
 Note: Memory is NOT a search scope — it is already in your working memory context at session start.""",
     "input_schema": {
@@ -60,8 +60,12 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
             },
             "scope": {
                 "type": "string",
-                "enum": ["platform_content", "document", "deliverable", "all"],
+                "enum": ["platform_content", "document", "deliverable", "version", "all"],
                 "description": "What to search. Default: 'all'. Note: memory is not a scope — it is already in your working memory context."
+            },
+            "deliverable_id": {
+                "type": "string",
+                "description": "Filter versions by deliverable ID (only used with scope='version')"
             },
             "platform": {
                 "type": "string",
@@ -82,6 +86,7 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
 SEARCH_FIELDS = {
     "platform_content": ["content"],
     "deliverable": ["title", "description"],
+    "version": ["content"],  # Deliverable version content
     "document": ["filename"],  # documents table uses 'filename' not 'name'
     "memory": ["content"],  # ADR-038: User-stated facts only
 }
@@ -102,6 +107,7 @@ async def handle_search(auth: Any, input: dict) -> dict:
     query = input.get("query", "").strip()
     scope = input.get("scope", "all")
     platform_filter = input.get("platform")
+    deliverable_id = input.get("deliverable_id")
     limit = input.get("limit", 10)
 
     if not query:
@@ -146,6 +152,8 @@ async def handle_search(auth: Any, input: dict) -> dict:
             elif entity_scope == "document":
                 # Documents need special handling - search chunks for content
                 results = await _search_document_content(auth, query, limit)
+            elif entity_scope == "version":
+                results = await _search_versions(auth, query, deliverable_id, limit)
             else:
                 results = await _search_entity(auth, query, entity_scope, limit)
             all_results.extend(results)
@@ -377,13 +385,73 @@ async def _search_document_content(
         return await _search_entity(auth, query, "document", limit)
 
 
+async def _search_versions(
+    auth: Any,
+    query: str,
+    deliverable_id: Optional[str],
+    limit: int,
+) -> list[dict]:
+    """
+    Search deliverable_versions by content. Scoped through user's deliverables.
+    """
+    try:
+        # Get user's deliverable IDs for scoping
+        if deliverable_id:
+            check = auth.client.table("deliverables").select("id").eq(
+                "id", deliverable_id
+            ).eq("user_id", auth.user_id).execute()
+            if not check.data:
+                return []
+            del_ids = [deliverable_id]
+        else:
+            user_dels = auth.client.table("deliverables").select("id").eq(
+                "user_id", auth.user_id
+            ).execute()
+            del_ids = [d["id"] for d in (user_dels.data or [])]
+            if not del_ids:
+                return []
+
+        q = auth.client.table("deliverable_versions").select(
+            "id, deliverable_id, version_number, status, content, "
+            "created_at, delivery_status"
+        ).in_("deliverable_id", del_ids).ilike(
+            "content", f"%{query}%"
+        ).order("created_at", desc=True).limit(limit)
+
+        result = q.execute()
+        if not result.data:
+            return []
+
+        return [
+            {
+                "entity_type": "version",
+                "ref": f"version:{item['id']}",
+                "data": {
+                    "deliverable_id": item["deliverable_id"],
+                    "version_number": item["version_number"],
+                    "status": item["status"],
+                    "content": item["content"][:500] + "..." if len(item.get("content", "") or "") > 500 else (item.get("content") or ""),
+                    "created_at": item["created_at"],
+                    "delivery_status": item.get("delivery_status"),
+                },
+                "score": 0.5,
+            }
+            for item in result.data
+        ]
+
+    except Exception as e:
+        import logging
+        logging.warning(f"[SEARCH] Version search failed: {e}")
+        return []
+
+
 async def _search_entity(
     auth: Any,
     query: str,
     entity_type: str,
     limit: int,
 ) -> list[dict]:
-    """Search standard entity tables (deliverable, document, work)."""
+    """Search standard entity tables (deliverable, document)."""
     table = TABLE_MAP.get(entity_type)
     if not table:
         return []

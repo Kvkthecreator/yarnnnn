@@ -61,6 +61,18 @@ _PLATFORM_DIGEST_SIGNALS = {
 }
 
 
+# Default instructions seeded when a deliverable is created without explicit instructions.
+# These give the headless agent and TP a starting baseline that the user/TP can refine.
+DEFAULT_INSTRUCTIONS = {
+    "digest": "Summarize key activity and highlights. Prioritize actionable items and decisions. Keep it scannable with bullet points.",
+    "brief": "Provide a concise executive-level summary. Lead with the most important finding. Include 2-3 supporting details max.",
+    "status": "Report on progress, blockers, and next steps. Use a consistent structure each run. Flag anything that changed since last version.",
+    "watch": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
+    "deep_research": "Conduct thorough research using web search and available sources. Synthesize findings into a structured analysis with citations.",
+    "coordinator": "Orchestrate across multiple sources to produce a unified view. Cross-reference platform data for consistency.",
+    "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
+}
+
 TYPE_PROMPTS = {
 
     "digest": """You are producing a digest titled "{title}".
