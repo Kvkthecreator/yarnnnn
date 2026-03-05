@@ -9,7 +9,7 @@
  * ADR-037 Migration Status:
  * - Documents: migrated to /docs, /docs/[id]
  * - Integrations: migrated to /integrations, /integrations/[provider]
- * - Deliverables: migrated to /deliverables, /deliverables/[id], /deliverables/new
+ * - Deliverables: migrated to /deliverables, /deliverables/[id]
  * - Activity: migrated to /activity
  * - Context browser: deprecated (use chat)
  *
@@ -17,7 +17,7 @@
  * - DeliverableReviewSurface: DELETED — review happens inline on detail page
  *
  * ADR-067 Migration:
- * - DeliverableCreateSurface: Now route-based at /deliverables/new
+ * - DeliverableCreateSurface: DELETED — creation handled by TP chat (/dashboard?create)
  *
  * Remaining surfaces:
  * - ContextEditorSurface: Edit specific memory

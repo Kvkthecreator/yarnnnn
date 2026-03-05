@@ -332,7 +332,7 @@ export function IdleSurface() {
         <div className="grid grid-cols-2 gap-3">
           {/* Create Deliverable - Primary (ADR-035: Full-screen surface) */}
           <button
-            onClick={() => setSurface({ type: 'deliverable-create' })}
+            onClick={() => router.push('/dashboard?create')}
             className="p-4 border-2 border-dashed border-primary/30 rounded-lg hover:border-primary/50 hover:bg-primary/5 text-left"
           >
             <div className="flex items-center gap-2 mb-1">

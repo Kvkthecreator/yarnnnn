@@ -14,6 +14,7 @@
 
 import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   MessageCircle,
   CheckCircle2,
@@ -69,7 +70,7 @@ function DeliverablesPanel() {
         <FileText className="w-8 h-8 text-muted-foreground/30 mx-auto mb-2" />
         <p className="text-sm text-muted-foreground mb-3">No deliverables yet</p>
         <Link
-          href="/deliverables/new"
+          href="/dashboard?create"
           className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -111,7 +112,7 @@ function DeliverablesPanel() {
       </div>
       <div className="px-3 py-2 border-t border-border shrink-0">
         <Link
-          href="/deliverables/new"
+          href="/dashboard?create"
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <Plus className="w-3.5 h-3.5" />
@@ -166,6 +167,9 @@ export function ChatFirstDesk() {
   } = useTP();
   const { surface } = useDesk();
 
+  const searchParams = useSearchParams();
+  const router = useRouter();
+
   const [input, setInput] = useState('');
   const [attachments, setAttachments] = useState<File[]>([]);
   const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
@@ -173,6 +177,15 @@ export function ChatFirstDesk() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Handle ?create param — pre-fill input for deliverable creation handoff
+  useEffect(() => {
+    if (searchParams?.has('create')) {
+      setInput('I want to create a new deliverable');
+      textareaRef.current?.focus();
+      router.replace('/dashboard', { scroll: false });
+    }
+  }, [searchParams, router]);
 
   // Auto-scroll to bottom when messages change
   useEffect(() => {

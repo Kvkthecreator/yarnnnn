@@ -10,8 +10,7 @@
 // =============================================================================
 
 export type DeskSurface =
-  // Deliverables
-  | { type: 'deliverable-create'; initialPlatform?: 'slack' | 'gmail' | 'notion' | 'calendar' }
+  // Deliverables (create handled by TP chat — /dashboard?create)
   | { type: 'deliverable-review'; deliverableId: string; versionId: string }
   | { type: 'deliverable-detail'; deliverableId: string }
   | { type: 'deliverable-list'; status?: 'active' | 'paused' | 'archived' }
@@ -167,12 +166,7 @@ export function mapToolActionToSurface(action: TPUIAction): DeskSurface | null {
   const { surface, data } = action;
 
   switch (surface) {
-    // Deliverables
-    case 'deliverable-create':
-      return {
-        type: 'deliverable-create',
-        initialPlatform: data.platform as 'slack' | 'gmail' | 'notion' | 'calendar' | undefined,
-      };
+    // Deliverables (create handled by TP chat — /dashboard?create)
     case 'deliverable':
       return { type: 'deliverable-detail', deliverableId: data.deliverableId as string };
     case 'deliverable-review':
@@ -234,9 +228,6 @@ export function surfaceToParams(surface: DeskSurface): URLSearchParams {
   params.set('surface', surface.type);
 
   switch (surface.type) {
-    case 'deliverable-create':
-      if (surface.initialPlatform) params.set('platform', surface.initialPlatform);
-      break;
     case 'deliverable-review':
       params.set('did', surface.deliverableId);
       params.set('vid', surface.versionId);
@@ -272,13 +263,6 @@ export function paramsToSurface(params: URLSearchParams): DeskSurface {
   const surfaceType = params.get('surface');
 
   switch (surfaceType) {
-    case 'deliverable-create': {
-      const platform = params.get('platform');
-      return {
-        type: 'deliverable-create',
-        initialPlatform: platform as 'slack' | 'gmail' | 'notion' | 'calendar' | undefined,
-      };
-    }
     case 'deliverable-review': {
       const did = params.get('did');
       const vid = params.get('vid');

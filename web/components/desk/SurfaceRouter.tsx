@@ -16,7 +16,7 @@
  * - deliverable-review → /deliverables/[id] (inline review)
  *
  * ADR-067 Migration:
- * - deliverable-create → /deliverables/new (user-driven creation)
+ * - deliverable-create → DELETED (creation handled by TP chat — /dashboard?create)
  *
  * Remaining surfaces (TP-invoked only):
  * - context-editor: Edit specific memory
@@ -67,15 +67,6 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
       case 'deliverable-review':
         router.replace(`/deliverables/${surface.deliverableId}`);
         break;
-      // ADR-067: Create redirects to route with optional type param
-      case 'deliverable-create':
-        if (surface.initialPlatform) {
-          router.replace(`/deliverables/new?platform=${surface.initialPlatform}`);
-        } else {
-          router.replace('/deliverables/new');
-        }
-        break;
-
       // Context browser deprecated
       case 'context-browser':
         if (process.env.NODE_ENV === 'development') {
@@ -90,10 +81,6 @@ export function SurfaceRouter({ surface }: SurfaceRouterProps) {
     switch (surface.type) {
       // ADR-066: deliverable-review redirects via useEffect, show idle as fallback
       case 'deliverable-review':
-        return <IdleSurface />;
-
-      // ADR-067: deliverable-create redirects via useEffect, show idle as fallback
-      case 'deliverable-create':
         return <IdleSurface />;
 
       case 'context-editor':

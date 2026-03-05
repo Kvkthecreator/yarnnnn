@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.05.7] - Deliverable creation: TP chat handoff + coordinator skill
+
+### Changed
+- `api/services/skills.py`: Added coordinator skill (was missing — only 6 of 7 types had skills). Added `create a {type}` trigger patterns to all type skills so TP chat pre-fill messages match correctly.
+- `api/agents/tp_prompts/behaviors.py`: Added "Type-Specific Creation Guidance" table after deliverable creation section. TP now knows which 1-2 key questions to ask per type, default mode, and schedule.
+
+### Expected behavior
+- **Coordinator skill available**: `/coordinator` or "create a coordinator" triggers coordinator creation flow.
+- **Type-specific creation**: TP asks focused questions per type instead of generic form-like questions. If user provides enough context, skips clarification entirely.
+- **Frontend**: All "New Deliverable" buttons redirect to `/dashboard?create` which pre-fills TP chat with "I want to create a new deliverable". No separate create page.
+
+---
+
 ## [2026.03.05.6] - Fix: working memory parallelization thread safety + skill detection resilience
 
 ### Changed
