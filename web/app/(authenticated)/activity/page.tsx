@@ -30,6 +30,7 @@ import {
   XCircle,
   Clock,
   ArrowRight,
+  ChevronDown,
   Mail,
   MessageSquare,
   Calendar,
@@ -44,7 +45,7 @@ import {
   CalendarClock,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
-import { formatDistanceToNow } from 'date-fns';
+import { formatDistanceToNow, format, isToday, isYesterday, startOfDay } from 'date-fns';
 import { cn } from '@/lib/utils';
 import { HOME_ROUTE } from '@/lib/routes';
 
@@ -195,11 +196,84 @@ const CATEGORY_EVENT_TYPES: Record<string, string[]> = {
 };
 
 // =============================================================================
+// Constants
+// =============================================================================
+
+const PAGE_SIZE = 50;
+
+// =============================================================================
 // Helpers
 // =============================================================================
 
 function getConfig(eventType: string) {
   return EVENT_CONFIG[eventType] || DEFAULT_EVENT_CONFIG;
+}
+
+interface DateGroup {
+  label: string;
+  items: ActivityItem[];
+}
+
+function groupByDate(items: ActivityItem[]): DateGroup[] {
+  const groups: Map<string, DateGroup> = new Map();
+
+  for (const item of items) {
+    const itemDate = startOfDay(new Date(item.created_at));
+    const key = itemDate.toISOString();
+
+    if (!groups.has(key)) {
+      let label: string;
+      if (isToday(itemDate)) {
+        label = 'Today';
+      } else if (isYesterday(itemDate)) {
+        label = 'Yesterday';
+      } else {
+        label = format(itemDate, 'MMM d');
+      }
+      groups.set(key, { label, items: [] });
+    }
+
+    groups.get(key)!.items.push(item);
+  }
+
+  return Array.from(groups.values());
+}
+
+/** Build a navigation target from an activity item's event type and metadata. */
+function getNavigationTarget(
+  item: ActivityItem
+): { href: string; label: string } | null {
+  const metadata = item.metadata || {};
+  switch (item.event_type) {
+    case 'deliverable_run':
+    case 'deliverable_approved':
+    case 'deliverable_rejected':
+    case 'deliverable_generated':
+    case 'deliverable_scheduled':
+      if (metadata.deliverable_id) {
+        return { href: `/deliverables/${metadata.deliverable_id}`, label: 'View deliverable' };
+      }
+      return null;
+    case 'memory_written':
+    case 'session_summary_written':
+    case 'pattern_detected':
+    case 'conversation_analyzed':
+      return { href: '/memory?section=entries', label: 'View memory' };
+    case 'platform_synced':
+    case 'content_cleanup': {
+      const p = (metadata.provider || metadata.platform) as string | undefined;
+      if (p) return { href: `/context/${p}`, label: `View ${p} context` };
+      return { href: '/system', label: 'View system' };
+    }
+    case 'integration_connected':
+    case 'integration_disconnected':
+      if (metadata.provider) return { href: `/context/${metadata.provider}`, label: `View ${metadata.provider} context` };
+      return null;
+    case 'chat_session':
+      return { href: HOME_ROUTE, label: 'Open Thinking Partner' };
+    default:
+      return null;
+  }
 }
 
 // =============================================================================
@@ -213,10 +287,30 @@ export default function ActivityPage() {
   const [total, setTotal] = useState(0);
   const [filter, setFilter] = useState<FilterKey>('all');
   const [error, setError] = useState<string | null>(null);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     loadActivity();
-  }, [filter]);
+  }, []);
+
+  const handleFilterChange = (newFilter: FilterKey) => {
+    setFilter(newFilter);
+    setVisibleCount(PAGE_SIZE);
+    setExpandedIds(new Set());
+  };
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
 
   const loadActivity = async () => {
     setLoading(true);
@@ -238,10 +332,9 @@ export default function ActivityPage() {
     }
   };
 
-  // Client-side category filter
+  // Client-side category filter → visible slice → date groups
   const filteredActivities = filter === 'all'
     ? activities.filter((a) => {
-        // Hide scheduler_heartbeat and system events from "All" view
         const cfg = getConfig(a.event_type);
         return cfg.category !== 'system';
       })
@@ -249,6 +342,10 @@ export default function ActivityPage() {
         const eventTypes = CATEGORY_EVENT_TYPES[filter];
         return eventTypes?.includes(a.event_type);
       });
+
+  const visibleActivities = filteredActivities.slice(0, visibleCount);
+  const dateGroups = groupByDate(visibleActivities);
+  const hasMore = visibleCount < filteredActivities.length;
 
   const getStatusIcon = (item: ActivityItem) => {
     const metadata = item.metadata || {};
@@ -279,43 +376,125 @@ export default function ActivityPage() {
     }
   };
 
-  const handleActivityClick = (item: ActivityItem) => {
+  // =========================================================================
+  // Metadata detail renderer — shows rich info in the expanded section
+  // =========================================================================
+
+  const renderMetadataDetails = (item: ActivityItem) => {
     const metadata = item.metadata || {};
+
+    const DetailRow = ({ label, value }: { label: string; value: React.ReactNode }) => (
+      <div className="flex items-start gap-2 text-sm">
+        <span className="text-muted-foreground min-w-[100px] shrink-0">{label}</span>
+        <span className="text-foreground">{value}</span>
+      </div>
+    );
 
     switch (item.event_type) {
       case 'deliverable_run':
+        return (
+          <>
+            {metadata.strategy && <DetailRow label="Strategy" value={String(metadata.strategy)} />}
+            {metadata.deliverable_type && <DetailRow label="Type" value={String(metadata.deliverable_type)} />}
+            {metadata.version_number && <DetailRow label="Version" value={`v${metadata.version_number}`} />}
+            {metadata.final_status && <DetailRow label="Status" value={String(metadata.final_status)} />}
+            {metadata.delivery_error && (
+              <DetailRow label="Error" value={<span className="text-red-500">{String(metadata.delivery_error)}</span>} />
+            )}
+          </>
+        );
+
       case 'deliverable_approved':
       case 'deliverable_rejected':
+        return (
+          <>
+            {metadata.deliverable_type && <DetailRow label="Type" value={String(metadata.deliverable_type)} />}
+            {metadata.had_edits !== undefined && (
+              <DetailRow label="Edits" value={metadata.had_edits ? 'User edited before approving' : 'Approved as-is'} />
+            )}
+            {metadata.final_length && metadata.draft_length && (
+              <DetailRow label="Length" value={`${metadata.draft_length} → ${metadata.final_length} chars`} />
+            )}
+          </>
+        );
+
       case 'deliverable_generated':
+        return (
+          <>
+            {metadata.deliverable_type && <DetailRow label="Type" value={String(metadata.deliverable_type)} />}
+            {metadata.deliverable_title && <DetailRow label="Title" value={String(metadata.deliverable_title)} />}
+          </>
+        );
+
       case 'deliverable_scheduled':
-        if (metadata.deliverable_id) {
-          router.push(`/deliverables/${metadata.deliverable_id}`);
-        }
-        break;
+        return (
+          <>
+            {metadata.deliverable_type && <DetailRow label="Type" value={String(metadata.deliverable_type)} />}
+            {metadata.trigger_reason && <DetailRow label="Trigger" value={String(metadata.trigger_reason)} />}
+            {metadata.scheduled_for && (
+              <DetailRow label="Scheduled for" value={format(new Date(String(metadata.scheduled_for)), 'MMM d, h:mm a')} />
+            )}
+            {metadata.mode && <DetailRow label="Mode" value={String(metadata.mode)} />}
+          </>
+        );
+
+      case 'platform_synced':
+        return (
+          <>
+            {metadata.platform && <DetailRow label="Platform" value={String(metadata.platform)} />}
+            {metadata.items_synced !== undefined && <DetailRow label="Items synced" value={String(metadata.items_synced)} />}
+            {metadata.error && (
+              <DetailRow label="Error" value={<span className="text-red-500">{String(metadata.error)}</span>} />
+            )}
+          </>
+        );
+
+      case 'content_cleanup':
+        return metadata.items_deleted !== undefined
+          ? <DetailRow label="Items deleted" value={String(metadata.items_deleted)} />
+          : null;
+
       case 'memory_written':
+        return (
+          <>
+            {metadata.key && <DetailRow label="Key" value={String(metadata.key)} />}
+            {metadata.source && <DetailRow label="Source" value={String(metadata.source)} />}
+            {metadata.note && <DetailRow label="Note" value={String(metadata.note)} />}
+          </>
+        );
+
       case 'session_summary_written':
+        return (
+          <>
+            {metadata.summaries_written !== undefined && <DetailRow label="Summaries" value={String(metadata.summaries_written)} />}
+            {metadata.memories_extracted !== undefined && <DetailRow label="Memories" value={String(metadata.memories_extracted)} />}
+            {metadata.sessions_processed !== undefined && <DetailRow label="Sessions" value={String(metadata.sessions_processed)} />}
+          </>
+        );
+
       case 'pattern_detected':
       case 'conversation_analyzed':
-        router.push('/memory?section=entries');
-        break;
-      case 'platform_synced':
-      case 'content_cleanup':
-        if (metadata.provider || metadata.platform) {
-          const p = (metadata.provider || metadata.platform) as string;
-          router.push(`/context/${p}`);
-        } else {
-          router.push('/system');
-        }
-        break;
+        return metadata.note ? <DetailRow label="Note" value={String(metadata.note)} /> : null;
+
+      case 'chat_session':
+        return (metadata.tools_used as string[] | undefined)?.length
+          ? <DetailRow label="Tools used" value={(metadata.tools_used as string[]).join(', ')} />
+          : null;
+
       case 'integration_connected':
       case 'integration_disconnected':
-        if (metadata.provider) {
-          router.push(`/context/${metadata.provider}`);
-        }
-        break;
-      case 'chat_session':
-        router.push(HOME_ROUTE);
-        break;
+        return metadata.provider ? <DetailRow label="Platform" value={String(metadata.provider)} /> : null;
+
+      default: {
+        const entries = Object.entries(metadata);
+        return entries.length > 0 ? (
+          <>
+            {entries.map(([key, value]) => (
+              <DetailRow key={key} label={key} value={String(value)} />
+            ))}
+          </>
+        ) : null;
+      }
     }
   };
 
@@ -344,7 +523,7 @@ export default function ActivityPage() {
         <div className="flex items-center gap-2 mb-6 flex-wrap">
           <Filter className="w-4 h-4 text-muted-foreground" />
           <button
-            onClick={() => setFilter('all')}
+            onClick={() => handleFilterChange('all')}
             className={cn(
               "px-3 py-1.5 text-sm rounded-full transition-colors",
               filter === 'all'
@@ -357,7 +536,7 @@ export default function ActivityPage() {
           {FILTER_CATEGORIES.map((cat) => (
             <button
               key={cat.key}
-              onClick={() => setFilter(cat.key)}
+              onClick={() => handleFilterChange(cat.key)}
               className={cn(
                 "px-3 py-1.5 text-sm rounded-full transition-colors",
                 filter === cat.key
@@ -398,86 +577,130 @@ export default function ActivityPage() {
         ) : (
           <>
             <p className="text-sm text-muted-foreground mb-4">
-              Showing {filteredActivities.length} of {total} events (last 30 days)
+              Showing {visibleActivities.length} of {filteredActivities.length} events (last 30 days)
             </p>
-            <div className="space-y-1">
-              {filteredActivities.map((item) => {
-                const config = getConfig(item.event_type);
-                const metadata = item.metadata || {};
-                const provider = (metadata.provider || metadata.platform) as string | undefined;
-                const source = metadata.source as string | undefined;
-                const deliverableTitle = metadata.deliverable_title as string | undefined;
-                const versionNumber = metadata.version_number as number | undefined;
-                const origin = metadata.origin as string | undefined;
-                const itemCount = (metadata.item_count ?? metadata.items_synced) as number | undefined;
 
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => handleActivityClick(item)}
-                    className="w-full p-4 border border-border rounded-lg text-left hover:bg-muted transition-colors"
-                  >
-                    <div className="flex items-start gap-3">
-                      <div className="mt-0.5">{getStatusIcon(item)}</div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="text-sm font-medium truncate">{item.summary}</span>
-                          {provider && (
-                            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-                              {getPlatformIcon(provider)}
-                            </span>
-                          )}
-                          {/* Source badge for memory events */}
-                          {config.category === 'memory' && source && (
-                            <span className={cn(
-                              "text-xs px-1.5 py-0.5 rounded",
-                              source === 'conversation' && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-                              source === 'feedback' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-                              source === 'pattern' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-                            )}>
-                              {source}
-                            </span>
-                          )}
-                          {/* Origin badge for coordinator-created deliverables */}
-                          {config.category === 'deliverables' && origin === 'coordinator_created' && (
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                              coordinator
-                            </span>
+            {/* Date-grouped activity list */}
+            <div className="space-y-6">
+              {dateGroups.map((group) => (
+                <div key={group.label}>
+                  <div className="sticky top-0 bg-background/95 backdrop-blur-sm z-10 py-2 mb-2">
+                    <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      {group.label}
+                    </h3>
+                  </div>
+                  <div className="space-y-1">
+                    {group.items.map((item) => {
+                      const config = getConfig(item.event_type);
+                      const metadata = item.metadata || {};
+                      const provider = (metadata.provider || metadata.platform) as string | undefined;
+                      const source = metadata.source as string | undefined;
+                      const versionNumber = metadata.version_number as number | undefined;
+                      const origin = metadata.origin as string | undefined;
+                      const itemCount = (metadata.item_count ?? metadata.items_synced) as number | undefined;
+                      const isExpanded = expandedIds.has(item.id);
+                      const nav = getNavigationTarget(item);
+
+                      return (
+                        <div key={item.id} className="border border-border rounded-lg overflow-hidden">
+                          {/* Summary row — click to expand */}
+                          <button
+                            onClick={() => toggleExpanded(item.id)}
+                            className={cn(
+                              "w-full p-4 text-left hover:bg-muted transition-colors",
+                              isExpanded && "bg-muted/50"
+                            )}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="mt-0.5">{getStatusIcon(item)}</div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="text-sm font-medium truncate">{item.summary}</span>
+                                  {provider && (
+                                    <span className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      {getPlatformIcon(provider)}
+                                    </span>
+                                  )}
+                                  {config.category === 'memory' && source && (
+                                    <span className={cn(
+                                      "text-xs px-1.5 py-0.5 rounded",
+                                      source === 'conversation' && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+                                      source === 'feedback' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                                      source === 'pattern' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                                    )}>
+                                      {source}
+                                    </span>
+                                  )}
+                                  {config.category === 'deliverables' && origin === 'coordinator_created' && (
+                                    <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                                      coordinator
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
+                                  <span className={config.color}>{config.label}</span>
+                                  {versionNumber && (
+                                    <>
+                                      <span>&middot;</span>
+                                      <span>v{versionNumber}</span>
+                                    </>
+                                  )}
+                                  {item.event_type === 'platform_synced' && itemCount !== undefined && (
+                                    <>
+                                      <span>&middot;</span>
+                                      <span>{itemCount} items</span>
+                                    </>
+                                  )}
+                                  <span>&middot;</span>
+                                  <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
+                                </div>
+                              </div>
+                              <ChevronDown className={cn(
+                                "w-4 h-4 text-muted-foreground shrink-0 transition-transform",
+                                isExpanded && "rotate-180"
+                              )} />
+                            </div>
+                          </button>
+
+                          {/* Expanded detail panel */}
+                          {isExpanded && (
+                            <div className="px-4 pb-4 pt-2 border-t border-border bg-muted/30">
+                              <div className="space-y-1.5">
+                                {renderMetadataDetails(item)}
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-2">
+                                {format(new Date(item.created_at), 'MMM d, yyyy h:mm a')}
+                              </div>
+                              {nav && (
+                                <button
+                                  onClick={() => router.push(nav.href)}
+                                  className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-2"
+                                >
+                                  {nav.label}
+                                  <ArrowRight className="w-3 h-3" />
+                                </button>
+                              )}
+                            </div>
                           )}
                         </div>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 flex-wrap">
-                          <span className={config.color}>{config.label}</span>
-                          {/* Version number for deliverable events */}
-                          {versionNumber && (
-                            <>
-                              <span>&middot;</span>
-                              <span>v{versionNumber}</span>
-                            </>
-                          )}
-                          {/* Item count for sync/signal events */}
-                          {item.event_type === 'platform_synced' && itemCount !== undefined && (
-                            <>
-                              <span>&middot;</span>
-                              <span>{itemCount} items</span>
-                            </>
-                          )}
-                          {/* Deliverable title for generated events */}
-                          {deliverableTitle && item.event_type === 'deliverable_generated' && (
-                            <>
-                              <span>&middot;</span>
-                              <span className="truncate max-w-[200px]">{deliverableTitle}</span>
-                            </>
-                          )}
-                          <span>&middot;</span>
-                          <span>{formatDistanceToNow(new Date(item.created_at), { addSuffix: true })}</span>
-                        </div>
-                      </div>
-                      <ArrowRight className="w-4 h-4 text-muted-foreground shrink-0" />
-                    </div>
-                  </button>
-                );
-              })}
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
+
+            {/* Load more */}
+            {hasMore && (
+              <div className="flex justify-center py-6">
+                <button
+                  onClick={() => setVisibleCount((prev) => prev + PAGE_SIZE)}
+                  className="px-4 py-2 text-sm text-muted-foreground hover:text-foreground border border-border rounded-md hover:bg-muted transition-colors"
+                >
+                  Load more ({filteredActivities.length - visibleCount} remaining)
+                </button>
+              </div>
+            )}
           </>
         )}
       </div>
