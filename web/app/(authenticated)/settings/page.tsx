@@ -21,7 +21,6 @@ import {
   Shield,
   Package,
   Database,
-  Briefcase,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
@@ -63,7 +62,6 @@ type DangerAction =
   | "chat"
   | "memories"
   | "documents"
-  | "work"
   // Tier 2: Category reset
   | "content"
   | "context"
