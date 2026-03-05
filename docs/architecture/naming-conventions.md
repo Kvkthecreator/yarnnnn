@@ -1,7 +1,7 @@
 # YARNNN Naming Conventions
 
 **Status:** Canonical
-**Date:** 2026-03-03
+**Date:** 2026-03-06 (updated from 2026-03-03)
 **Related:**
 - [Agent Model Comparison](agent-model-comparison.md) — why YARNNN has its own model
 - [ADR-087: Deliverable Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — naming convention table
@@ -31,14 +31,14 @@ These names appear in the UI, in onboarding, in marketing, and in the codebase. 
 |---------|------------|---------|------------|
 | A recurring or one-time AI work product | **Deliverable** | DB, API, UI, docs, marketing | task, workflow, agent, automation, job |
 | A specific generated output | **Version** | DB (`deliverable_versions`), UI, API | draft, output, result, artifact, build |
-| The AI assistant in conversation | **Thinking Partner** (TP) | UI, marketing, docs | assistant, chatbot, copilot, agent |
+| The AI agent in conversation | **Agent** (internally TP) | UI, marketing, docs | assistant, chatbot, copilot, thinking partner |
 | Connected external platform | **Platform** | DB (`platform_connections`), UI, settings | integration, connector, app, service |
 | Synced content from platforms | **Context** | UI (Context page), marketing | data, content, signals, feed |
 | What YARNNN knows about the user | **Memory** | UI (Memory page), marketing | profile, preferences, knowledge, context |
 
 **Why "Deliverable":** It communicates that YARNNN produces tangible output — not just conversation. A deliverable is a standing commitment: "I will produce this for you, on this schedule, from these sources." No other term in the AI landscape carries this specificity. "Task" implies one-time. "Workflow" implies multi-step process. "Agent" implies autonomous entity. "Deliverable" implies recurring, specialized, improving output.
 
-**Why "Thinking Partner":** It communicates collaboration, not automation. The TP doesn't just execute — it thinks with you. This differentiates from "assistant" (subservient), "copilot" (secondary), and "agent" (autonomous).
+**Why "Agent":** The product has evolved from conversational assistant to autonomous execution. "Agent" is now the accurate description: it creates deliverables, manages work, executes on schedule, and learns from feedback. The prior name "Thinking Partner" undersold the execution capability. Internally still abbreviated as "TP" in code (no rename needed — the codebase uses TP as a system identifier, not a user-facing label).
 
 ### Tier 2 — Concepts a developer encounters
 
@@ -89,7 +89,7 @@ Deliverable          →      deliverable              →   deliverables (table
 
 Context (page)       →      platform_content         →   platform_content (table)
 Memory (page)        →      user_memory              →   user_memory (table)
-Thinking Partner     →      TP / chat mode           →   chat_sessions + session_messages
+Agent                →      TP / chat mode           →   chat_sessions + session_messages
 ```
 
 ---
@@ -117,21 +117,21 @@ The naming should carry through from code to product to market. Here's how each 
 |-------|---------------|
 | **DB** | `deliverables` table |
 | **API** | `GET /api/deliverables`, `POST /api/deliverables` |
-| **Frontend** | Deliverables page, deliverable cards, "Create Deliverable" button |
+| **Frontend** | "Work" in nav, deliverable cards, creation via Agent chat |
 | **Marketing** | "YARNNN deliverables get smarter with every run." |
 | **Onboarding** | "Set up your first deliverable — a recurring AI work product that improves over time." |
 
 **The pitch:** Deliverables aren't tasks you check off. They're standing commitments that compound in quality. Every time your Monday digest runs, it knows more about what matters to you. That's because each deliverable carries its own memory.
 
-### Thinking Partner
+### Agent
 
 | Layer | How it appears |
 |-------|---------------|
 | **DB** | `chat_sessions`, `session_messages` |
 | **API** | `POST /api/chat` |
-| **Frontend** | Chat interface, "Thinking Partner" in nav |
-| **Marketing** | "Your Thinking Partner understands your work across every platform." |
-| **Onboarding** | "Chat with your Thinking Partner — it knows your Slack, email, calendar, and docs." |
+| **Frontend** | Chat interface, "Agent" in nav (with Sparkles icon) |
+| **Marketing** | "Your agent understands your work across every platform." |
+| **Onboarding** | "Chat with your agent — it knows your Slack, email, calendar, and docs." |
 
 ### Memory
 
@@ -166,7 +166,7 @@ For future development:
 
 4. **Avoid overloaded terms.** "Context" is the most dangerous word in AI. In YARNNN: "Context" = the raw platform content page. "Memory" = accumulated knowledge. "Working memory" = assembled prompt input. "Instructions" = behavioral directives. Never use "context" to mean memory, instructions, or prompt input in code or docs.
 
-5. **Don't rename to follow trends.** If the market starts calling everything "agents," YARNNN still calls them deliverables. If the market calls everything "skills," YARNNN still calls them instructions. The naming reflects the product model, not the latest convention. Rename only when YARNNN's model itself changes.
+5. **Rename when the model changes, not for trends.** The shift from "Thinking Partner" to "Agent" reflects a real product evolution — YARNNN now executes autonomously, not just collaborates. "Deliverable" stays because no better term captures recurring AI work products. Rename when the product model changes, not when marketing buzzwords shift.
 
 6. **Primitives stay primitives.** This is the one intentionally non-market term. It signals that YARNNN's agent capabilities are built-in and curated, not a plug-in marketplace.
 

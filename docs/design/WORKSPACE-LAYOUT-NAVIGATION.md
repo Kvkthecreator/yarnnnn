@@ -23,7 +23,7 @@ The current navigation model has a structural mismatch with where the product ha
 | `/dashboard` is the singular chat entry point | Deliverables now have their own scoped chat sessions, memory, and instructions |
 | `/deliverables/[id]` is a content viewer + tabs | A deliverable with instructions, memory, and session history is functionally a sub-agent |
 | TP chat is "global" with implicit deliverable scoping | Scoping is invisible — user navigates from deliverable but can't see or act on it |
-| "Thinking Partner" as the only named chat context | Multiple chat contexts now exist (global TP, deliverable-scoped), no UI distinction |
+| "Agent" as the only named chat context | Multiple chat contexts now exist (global TP, deliverable-scoped), no UI distinction |
 
 ADR-087 Phase 3 (tabs) shipped the data surfaces for the sub-agent model. The missing piece is the **interaction surface**: the ability to talk to a deliverable directly, from its own page, with visible scoping.
 
@@ -92,7 +92,7 @@ Both `/dashboard` and `/deliverables/[id]` use the **same Cowork-style layout co
 **Global TP (`/dashboard`):**
 ```
 ┌─────────────────────────────────────────────────────┐
-│  ◎ Thinking Partner           [platform status]      │
+│  ✦ Agent                      [platform status]      │
 ├──────────────────────────────────────────┬──────────┤
 │  chat                                    │  panels  │
 ```
@@ -150,7 +150,7 @@ Drawer (overlay, triggered by [≡]):
 ### 4.2 `/dashboard` — Global TP
 
 **Header:**
-- Identity chip: `◎ Thinking Partner` (no back nav)
+- Identity chip: `✦ Agent` (no back nav)
 - Right: `[drawer trigger]`
 
 **Chat area:**
@@ -209,10 +209,10 @@ For chat on a deliverable page to be useful, TP must be able to:
 
 ## 6. Identity Chip & Context Distinguisher
 
-From the current screenshot, `/dashboard` shows "Thinking Partner" as a dropdown in the header. This needs to become a persistent, always-visible identity chip — not a dropdown.
+From the current screenshot, `/dashboard` shows "Agent" as a dropdown in the header. This needs to become a persistent, always-visible identity chip — not a dropdown.
 
 **Design rule:** The identity chip is always visible in the top-left of the header, shows:
-- For global TP: `◎ Thinking Partner`
+- For global TP: `✦ Agent`
 - For deliverable workspace: `[deliverable icon] [Deliverable Title]`
 
 This is the user's answer to "which agent am I talking to?" at all times.
@@ -228,7 +228,7 @@ The existing dropdown behavior (for switching skills or surfaces) moves to a dif
 ```
 ChatFirstDesk (current)
 └── Monolithic component with:
-    - Header with "Thinking Partner" title
+    - Header with "Agent" title
     - Surface panel toggle
     - Messages area
     - Input bar
