@@ -702,9 +702,11 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
     # ADR-077: Determine source types from landscape metadata
     landscape = integration.get("landscape", {}) or {}
     resource_types = {}
+    resource_names = {}
     for r in landscape.get("resources", []):
         if isinstance(r, dict) and r.get("id"):
             resource_types[r["id"]] = r.get("type", "page")
+            resource_names[r["id"]] = r.get("name", r["id"])
 
     async def _sync_one_page(page_id: str, parent_resource_id: Optional[str] = None) -> bool:
         """Sync a single Notion page. Returns True if content was stored."""
@@ -788,11 +790,22 @@ async def _sync_notion(client, user_id: str, integration: dict, selected_sources
                     )
                     logger.info(f"[PLATFORM_WORKER] Notion database {source_id}: {len(db_pages)} rows")
 
+                    db_items_synced = 0
                     for db_page in db_pages:
                         child_page_id = db_page.get("id")
                         if child_page_id:
                             await asyncio.sleep(0.35)  # Rate limit
-                            await _sync_one_page(child_page_id, parent_resource_id=source_id)
+                            synced = await _sync_one_page(child_page_id, parent_resource_id=source_id)
+                            if synced:
+                                db_items_synced += 1
+
+                    # Mark selected database source as synced even when no child rows changed.
+                    await update_sync_registry(
+                        client, user_id, "notion", source_id,
+                        resource_name=resource_names.get(source_id, source_id),
+                        platform_cursor=datetime.now(timezone.utc).isoformat(),
+                        item_count=db_items_synced,
+                    )
 
                 except Exception as e:
                     logger.warning(f"[PLATFORM_WORKER] Failed to query Notion database {source_id}: {e}")

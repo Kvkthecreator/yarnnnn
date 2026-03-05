@@ -86,13 +86,13 @@ export function ResourceList({
     const hasError = !!resource.last_error;
     const needsFirstSync = isSelected && !resource.last_extracted_at;
     const isStale = isSelected && resource.coverage_state === 'stale';
-    return hasError || needsFirstSync || isStale;
+    return isSelected && (hasError || needsFirstSync || isStale);
   };
 
   const selectedCount = selectedIds.size;
   const syncedCount = useMemo(
-    () => resources.filter((resource) => !!resource.last_extracted_at).length,
-    [resources]
+    () => resources.filter((resource) => selectedIds.has(resource.id) && !!resource.last_extracted_at).length,
+    [resources, selectedIds]
   );
   const recommendedCount = useMemo(
     () => resources.filter((resource) => resource.recommended).length,
@@ -108,11 +108,13 @@ export function ResourceList({
     let stale = 0;
     for (const resource of resources) {
       const isSelected = selectedIds.has(resource.id);
+      if (!isSelected) continue;
+
       if (resource.last_error) {
         errors += 1;
-      } else if (isSelected && !resource.last_extracted_at) {
+      } else if (!resource.last_extracted_at) {
         needsFirstSync += 1;
-      } else if (isSelected && resource.coverage_state === 'stale') {
+      } else if (resource.coverage_state === 'stale') {
         stale += 1;
       }
     }

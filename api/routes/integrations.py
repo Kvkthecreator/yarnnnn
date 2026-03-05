@@ -2586,6 +2586,18 @@ async def get_landscape(
 
     sync_by_id = {s["resource_id"]: s for s in (sync_result.data or [])}
 
+    def _sync_variants(resource_id: Optional[str]) -> list[str]:
+        """Return ID variants to tolerate legacy/normalized sync IDs."""
+        if not resource_id:
+            return []
+        variants = [resource_id]
+        if provider == "gmail":
+            if resource_id.startswith("label:"):
+                variants.append(resource_id.split(":", 1)[1])
+            else:
+                variants.append(f"label:{resource_id}")
+        return variants
+
     # Build resource list with sync status
     # The "gmail" DB row contains BOTH gmail labels and calendars in its landscape.
     # Filter to only the requested domain so each context page shows its own resources.
@@ -2600,7 +2612,11 @@ async def get_landscape(
                 continue
 
         resource_id = resource.get("id")
-        sync_data = sync_by_id.get(resource_id, {})
+        sync_data = {}
+        for candidate_id in _sync_variants(resource_id):
+            if candidate_id in sync_by_id:
+                sync_data = sync_by_id[candidate_id]
+                break
 
         # Determine coverage state from sync data
         coverage_state = "covered" if sync_data.get("last_synced_at") else "uncovered"

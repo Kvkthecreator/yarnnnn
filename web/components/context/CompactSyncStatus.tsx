@@ -73,7 +73,28 @@ interface CompactSyncStatusProps {
   lastSyncedAt?: string | null;
   errorCount?: number;
   liveQueryMode?: boolean;
+  selectedResourceIds?: string[];
   onSyncTriggered?: () => Promise<void> | void;
+}
+
+function toEpochMs(value?: string | null): number {
+  if (!value) return 0;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? 0 : parsed;
+}
+
+function matchesSelectedResource(resourceId: string | null | undefined, selectedIds: Set<string>): boolean {
+  if (!resourceId || selectedIds.size === 0) return true;
+  if (selectedIds.has(resourceId)) return true;
+
+  if (resourceId.startsWith('label:')) {
+    const plainId = resourceId.slice('label:'.length);
+    if (selectedIds.has(plainId)) return true;
+  } else if (selectedIds.has(`label:${resourceId}`)) {
+    return true;
+  }
+
+  return false;
 }
 
 export function CompactSyncStatus({
@@ -85,16 +106,16 @@ export function CompactSyncStatus({
   lastSyncedAt,
   errorCount = 0,
   liveQueryMode = false,
+  selectedResourceIds = [],
   onSyncTriggered,
 }: CompactSyncStatusProps) {
   const [runningSync, setRunningSync] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
-  const refreshTimersRef = useRef<number[]>([]);
+  const isMountedRef = useRef(true);
 
   useEffect(() => {
     return () => {
-      refreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
-      refreshTimersRef.current = [];
+      isMountedRef.current = false;
     };
   }, []);
 
@@ -110,29 +131,66 @@ export function CompactSyncStatus({
   const frequencyLabel = FREQUENCY_LABELS[syncFrequency] || syncFrequency;
 
   const handleRunSync = async () => {
+    const baselineSyncedAt = toEpochMs(lastSyncedAt);
+    const selectedIdSet = new Set(selectedResourceIds);
+
     setRunningSync(true);
     setActionMessage(null);
-
-    refreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
-    refreshTimersRef.current = [];
 
     try {
       const result = await api.integrations.syncPlatform(platform);
       setActionMessage(result.message || 'Sync started.');
 
+      if (!result.success) {
+        return;
+      }
+
+      const maxPolls = 30; // ~60 seconds
+      for (let attempt = 1; attempt <= maxPolls; attempt += 1) {
+        await new Promise((resolve) => window.setTimeout(resolve, 2000));
+        if (!isMountedRef.current) return;
+
+        const status = await api.integrations.getSyncStatus(platform);
+        const scopedResources = status.synced_resources.filter((entry) =>
+          matchesSelectedResource(entry.resource_id, selectedIdSet)
+        );
+        const syncedScopedCount = scopedResources.filter((entry) => !!entry.last_synced).length;
+        const newestSyncMs = scopedResources.reduce((latest, entry) => {
+          const entryTs = toEpochMs(entry.last_synced);
+          return entryTs > latest ? entryTs : latest;
+        }, 0);
+
+        setActionMessage(`Sync in progress… ${syncedScopedCount}/${selectedCount} sources acknowledged`);
+
+        const hasAdvancedSync = newestSyncMs > baselineSyncedAt;
+        const hasFirstSync = baselineSyncedAt === 0 && syncedScopedCount > 0;
+        if (hasAdvancedSync || hasFirstSync || status.error_count > 0) {
+          if (onSyncTriggered) {
+            await Promise.resolve(onSyncTriggered());
+          }
+          if (!isMountedRef.current) return;
+
+          if (status.error_count > 0) {
+            setActionMessage(`Sync finished with ${status.error_count} source error${status.error_count === 1 ? '' : 's'}.`);
+          } else {
+            setActionMessage('Sync complete. Status updated.');
+          }
+          return;
+        }
+      }
+
       if (onSyncTriggered) {
         await Promise.resolve(onSyncTriggered());
-        [3000, 8000, 15000].forEach((delayMs) => {
-          const timerId = window.setTimeout(() => {
-            void Promise.resolve(onSyncTriggered());
-          }, delayMs);
-          refreshTimersRef.current.push(timerId);
-        });
+      }
+      if (isMountedRef.current) {
+        setActionMessage('Sync is still running. Status will update shortly.');
       }
     } catch (err) {
       setActionMessage(err instanceof Error ? err.message : 'Failed to trigger sync.');
     } finally {
-      setRunningSync(false);
+      if (isMountedRef.current) {
+        setRunningSync(false);
+      }
     }
   };
 

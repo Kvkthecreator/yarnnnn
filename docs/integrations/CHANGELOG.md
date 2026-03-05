@@ -26,6 +26,14 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 - Updated tab semantics: second tab now surfaces as **Synced content** by default; calendar keeps platform-specific wording (`Calendar setup` / `Context`).
 - Tightened `Attention` logic: now includes selected-but-never-synced and selected-stale sources (not only explicit sync errors), with breakdown copy for triage.
 
+### Sync Feedback + Cross-Platform ID Alignment
+
+**Fixes**:
+- `Run sync` UX now uses explicit progress polling (`sync-status`) instead of fixed timed reload bursts, so users see "in progress" vs "complete/error" messaging without repeated full-page refresh behavior.
+- Sync metrics now scope to selected sources (synced/error/last-synced), preventing non-selected resources from distorting top-bar health state.
+- Gmail landscape coverage now matches both `label:ID` and plain `ID` sync registry keys, eliminating false "not synced" labels after successful Gmail label sync.
+- Notion database selections now write a database-level `sync_registry` marker after child-page sync, so selected databases no longer stay stuck at "not synced."
+
 ---
 
 ## 2026-02-28

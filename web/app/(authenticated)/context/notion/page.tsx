@@ -82,7 +82,7 @@ export default function NotionContextPage() {
     setOriginalIds: data.setOriginalIds,
     reload: data.reload,
   });
-  const syncMetrics = getSyncMetrics(data.resources);
+  const syncMetrics = getSyncMetrics(data.resources, data.selectedIds);
 
   if (data.loading) {
     return (
@@ -125,6 +125,7 @@ export default function NotionContextPage() {
             syncedCount={syncMetrics.syncedResourceCount}
             errorCount={syncMetrics.errorCount}
             lastSyncedAt={syncMetrics.lastSyncedAt}
+            selectedResourceIds={Array.from(data.selectedIds)}
             onSyncTriggered={data.reload}
           />
         )}

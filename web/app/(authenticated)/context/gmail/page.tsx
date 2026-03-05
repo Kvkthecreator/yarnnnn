@@ -68,7 +68,7 @@ export default function GmailContextPage() {
     setOriginalIds: data.setOriginalIds,
     reload: data.reload,
   });
-  const syncMetrics = getSyncMetrics(data.resources);
+  const syncMetrics = getSyncMetrics(data.resources, data.selectedIds);
   const selectedResourceIdsForContext = Array.from(data.selectedIds).flatMap((id) =>
     id.startsWith('label:') ? [id] : [id, `label:${id}`]
   );
@@ -114,6 +114,7 @@ export default function GmailContextPage() {
             syncedCount={syncMetrics.syncedResourceCount}
             errorCount={syncMetrics.errorCount}
             lastSyncedAt={syncMetrics.lastSyncedAt}
+            selectedResourceIds={Array.from(data.selectedIds)}
             onSyncTriggered={data.reload}
           />
         )}
