@@ -734,7 +734,12 @@ export default function SettingsPage() {
                       </div>
                       <button
                         onClick={() => initiateDangerAction("context")}
-                        disabled={dangerStats.memories === 0 && dangerStats.documents === 0 && dangerStats.chat_sessions === 0}
+                        disabled={
+                          dangerStats.memories === 0 &&
+                          dangerStats.documents === 0 &&
+                          dangerStats.chat_sessions === 0 &&
+                          dangerStats.platform_content === 0
+                        }
                         className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Clear All
@@ -751,12 +756,17 @@ export default function SettingsPage() {
                           Clear Integrations
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Disconnect {dangerStats.platform_connections} integrations, clear import/export history
+                          Disconnect {dangerStats.platform_connections} integrations, clear {dangerStats.integration_import_jobs} import jobs, {dangerStats.export_logs} export logs, and {dangerStats.platform_content} synced items
                         </div>
                       </div>
                       <button
                         onClick={() => initiateDangerAction("integrations")}
-                        disabled={dangerStats.platform_connections === 0}
+                        disabled={
+                          dangerStats.platform_connections === 0 &&
+                          dangerStats.integration_import_jobs === 0 &&
+                          dangerStats.export_logs === 0 &&
+                          dangerStats.platform_content === 0
+                        }
                         className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Disconnect
@@ -903,6 +913,7 @@ export default function SettingsPage() {
                     <li>Delete OAuth tokens (you&apos;ll need to reconnect)</li>
                     <li>Clear {dangerStats?.integration_import_jobs} import jobs</li>
                     <li>Clear {dangerStats?.export_logs} export logs</li>
+                    <li>Clear {dangerStats?.platform_content} synced items</li>
                   </ul>
                 </>
               )}
@@ -918,7 +929,7 @@ export default function SettingsPage() {
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
                     <li>{dangerStats?.memories} memories</li>
                     <li>{dangerStats?.documents} documents</li>
-                    <li>{dangerStats?.deliverables} deliverables</li>
+                    <li>{dangerStats?.platform_content} synced items</li>
                     <li>{dangerStats?.platform_connections} integrations</li>
                   </ul>
                   <p className="mt-2 text-sm">Your account will remain active with a fresh workspace.</p>

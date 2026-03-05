@@ -21,6 +21,51 @@ router = APIRouter()
 
 
 # =============================================================================
+# Purge Configuration
+# =============================================================================
+
+MEMORY_ENTRY_FILTER = "key.like.fact:%,key.like.instruction:%,key.like.preference:%"
+
+# Full reset = clear all user-scoped product data while keeping auth account active.
+# Workspaces are handled separately (deleted + default recreated).
+FULL_RESET_USER_TABLES: tuple[str, ...] = (
+    "activity_log",
+    "chat_sessions",
+    "deliverable_proposals",
+    "deliverables",  # Cascades deliverable_versions/export prefs/delivery logs
+    "destination_delivery_log",
+    "event_trigger_log",
+    "export_log",
+    "filesystem_documents",
+    "integration_import_jobs",
+    "integration_sync_config",
+    "notifications",
+    "platform_connections",
+    "platform_content",
+    "project_resources",
+    "slack_user_cache",
+    "sync_registry",
+    "synthesizer_context_log",
+    "user_interaction_patterns",
+    "user_memory",
+    "user_notification_preferences",
+    "user_platform_styles",
+)
+
+# Optional/rolling tables (not guaranteed to exist in all environments).
+OPTIONAL_USER_TABLES: tuple[str, ...] = (
+    "signal_history",
+    "trigger_event_log",
+)
+
+MCP_OAUTH_TABLES: tuple[str, ...] = (
+    "mcp_oauth_codes",
+    "mcp_oauth_access_tokens",
+    "mcp_oauth_refresh_tokens",
+)
+
+
+# =============================================================================
 # Response Models
 # =============================================================================
 
@@ -66,6 +111,104 @@ class NotificationPreferencesUpdate(BaseModel):
     email_deliverable_ready: Optional[bool] = None
     email_deliverable_failed: Optional[bool] = None
     email_suggestion_created: Optional[bool] = None
+
+
+# =============================================================================
+# Internal Helpers
+# =============================================================================
+
+def _is_missing_relation_error(error: Exception) -> bool:
+    message = str(error).lower()
+    return "relation" in message and "does not exist" in message
+
+
+def _count_rows_for_user(
+    client,
+    table: str,
+    user_id: str,
+    *,
+    user_column: str = "user_id",
+    or_filter: Optional[str] = None,
+    optional: bool = False,
+) -> int:
+    """Count rows in a user-scoped table (optionally filtered)."""
+    try:
+        query = client.table(table).select("*", count="exact").eq(user_column, user_id)
+        if or_filter:
+            query = query.or_(or_filter)
+        result = query.execute()
+        return result.count or 0
+    except Exception as error:
+        if optional and _is_missing_relation_error(error):
+            logger.info(f"[ACCOUNT] Optional table missing during count: {table}")
+            return 0
+        if optional:
+            logger.warning(f"[ACCOUNT] Optional count failed for {table}: {error}")
+            return 0
+        raise
+
+
+def _delete_rows_for_user(
+    client,
+    table: str,
+    user_id: str,
+    *,
+    user_column: str = "user_id",
+    or_filter: Optional[str] = None,
+    optional: bool = False,
+) -> int:
+    """Delete rows in a user-scoped table and return deleted count."""
+    try:
+        deleted_count = _count_rows_for_user(
+            client,
+            table,
+            user_id,
+            user_column=user_column,
+            or_filter=or_filter,
+            optional=optional,
+        )
+        if deleted_count == 0:
+            return 0
+
+        query = client.table(table).delete().eq(user_column, user_id)
+        if or_filter:
+            query = query.or_(or_filter)
+        query.execute()
+        return deleted_count
+    except Exception as error:
+        if optional and _is_missing_relation_error(error):
+            logger.info(f"[ACCOUNT] Optional table missing during delete: {table}")
+            return 0
+        if optional:
+            logger.warning(f"[ACCOUNT] Optional delete failed for {table}: {error}")
+            return 0
+        raise
+
+
+def _get_user_deliverable_ids(client, user_id: str) -> list[str]:
+    result = client.table("deliverables").select("id").eq("user_id", user_id).execute()
+    return [d["id"] for d in (result.data or [])]
+
+
+def _delete_export_preferences_for_user(client, user_id: str) -> int:
+    """
+    Delete deliverable_export_preferences for all deliverables owned by user.
+    Table has no user_id column, so we resolve via deliverable IDs.
+    """
+    deliverable_ids = _get_user_deliverable_ids(client, user_id)
+    if not deliverable_ids:
+        return 0
+
+    count_result = (
+        client.table("deliverable_export_preferences")
+        .select("*", count="exact")
+        .in_("deliverable_id", deliverable_ids)
+        .execute()
+    )
+    deleted_count = count_result.count or 0
+    if deleted_count > 0:
+        client.table("deliverable_export_preferences").delete().in_("deliverable_id", deliverable_ids).execute()
+    return deleted_count
 
 
 # =============================================================================
@@ -124,7 +267,7 @@ async def update_notification_preferences(
 
         if existing.data and len(existing.data) > 0:
             # Update existing row
-            result = auth.client.table("user_notification_preferences").update(
+            auth.client.table("user_notification_preferences").update(
                 {**update_data, "updated_at": "now()"}
             ).eq("user_id", user_id).execute()
         else:
@@ -136,7 +279,7 @@ async def update_notification_preferences(
                 "email_suggestion_created": True,
                 **update_data
             }
-            result = auth.client.table("user_notification_preferences").insert(insert_data).execute()
+            auth.client.table("user_notification_preferences").insert(insert_data).execute()
 
         logger.info(f"[ACCOUNT] User {user_id} updated notification preferences: {update_data}")
 
@@ -161,47 +304,67 @@ async def get_danger_zone_stats(auth: UserClient) -> DangerZoneStats:
     user_id = auth.user_id
 
     try:
+        # Use service role for consistent counts even when user RLS is read-limited.
+        client = get_service_client()
+
         # Count chat sessions
-        sessions = auth.client.table("chat_sessions").select("id", count="exact").eq("user_id", user_id).execute()
+        sessions = client.table("chat_sessions").select("*", count="exact").eq("user_id", user_id).execute()
         chat_sessions_count = sessions.count or 0
 
         # Count memories (ADR-059: user_memory, entry-type keys only)
-        memories = auth.client.table("user_memory").select("id", count="exact").eq("user_id", user_id).or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%").execute()
+        memories = (
+            client.table("user_memory")
+            .select("*", count="exact")
+            .eq("user_id", user_id)
+            .or_(MEMORY_ENTRY_FILTER)
+            .execute()
+        )
         memories_count = memories.count or 0
 
         # Count documents
-        documents = auth.client.table("filesystem_documents").select("id", count="exact").eq("user_id", user_id).execute()
+        documents = client.table("filesystem_documents").select("*", count="exact").eq("user_id", user_id).execute()
         documents_count = documents.count or 0
 
         # Count deliverables (exclude archived)
-        deliverables = auth.client.table("deliverables").select("id", count="exact").eq("user_id", user_id).neq("status", "archived").execute()
+        deliverables = (
+            client.table("deliverables")
+            .select("*", count="exact")
+            .eq("user_id", user_id)
+            .neq("status", "archived")
+            .execute()
+        )
         deliverables_count = deliverables.count or 0
 
-        # Count deliverable versions
-        deliverable_ids = auth.client.table("deliverables").select("id").eq("user_id", user_id).execute()
+        # Count deliverable versions (single query instead of N+1).
+        deliverable_ids = _get_user_deliverable_ids(client, user_id)
         versions_count = 0
-        for d in (deliverable_ids.data or []):
-            versions = auth.client.table("deliverable_versions").select("id", count="exact").eq("deliverable_id", d["id"]).execute()
-            versions_count += versions.count or 0
+        if deliverable_ids:
+            versions = (
+                client.table("deliverable_versions")
+                .select("*", count="exact")
+                .in_("deliverable_id", deliverable_ids)
+                .execute()
+            )
+            versions_count = versions.count or 0
 
         # Count integrations
-        integrations = auth.client.table("platform_connections").select("id", count="exact").eq("user_id", user_id).execute()
+        integrations = client.table("platform_connections").select("*", count="exact").eq("user_id", user_id).execute()
         integrations_count = integrations.count or 0
 
         # Count import jobs
-        import_jobs = auth.client.table("integration_import_jobs").select("id", count="exact").eq("user_id", user_id).execute()
+        import_jobs = client.table("integration_import_jobs").select("*", count="exact").eq("user_id", user_id).execute()
         import_jobs_count = import_jobs.count or 0
 
         # Count export logs
-        export_logs = auth.client.table("export_log").select("id", count="exact").eq("user_id", user_id).execute()
+        export_logs = client.table("export_log").select("*", count="exact").eq("user_id", user_id).execute()
         export_logs_count = export_logs.count or 0
 
         # Count platform content (ADR-072)
-        platform_content = auth.client.table("platform_content").select("id", count="exact").eq("user_id", user_id).execute()
+        platform_content = client.table("platform_content").select("*", count="exact").eq("user_id", user_id).execute()
         platform_content_count = platform_content.count or 0
 
         # Count workspaces
-        workspaces = auth.client.table("workspaces").select("id", count="exact").eq("owner_id", user_id).execute()
+        workspaces = client.table("workspaces").select("*", count="exact").eq("owner_id", user_id).execute()
         workspaces_count = workspaces.count or 0
 
         return DangerZoneStats(
@@ -235,8 +398,8 @@ async def clear_chat_history(auth: UserClient) -> OperationResult:
     user_id = auth.user_id
 
     try:
-        result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
-        deleted_count = len(result.data or [])
+        client = get_service_client()
+        deleted_count = _delete_rows_for_user(client, "chat_sessions", user_id)
 
         logger.info(f"[ACCOUNT] User {user_id} cleared chat history: {deleted_count} sessions")
 
@@ -259,9 +422,14 @@ async def clear_all_memories(auth: UserClient) -> OperationResult:
     user_id = auth.user_id
 
     try:
+        client = get_service_client()
         # ADR-059: Delete entry-type keys from user_memory (fact:/instruction:/preference:)
-        result = auth.client.table("user_memory").delete().eq("user_id", user_id).or_("key.like.fact:%,key.like.instruction:%,key.like.preference:%").execute()
-        deleted_count = len(result.data or [])
+        deleted_count = _delete_rows_for_user(
+            client,
+            "user_memory",
+            user_id,
+            or_filter=MEMORY_ENTRY_FILTER,
+        )
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all memories: {deleted_count}")
 
@@ -284,8 +452,8 @@ async def clear_all_documents(auth: UserClient) -> OperationResult:
     user_id = auth.user_id
 
     try:
-        result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
-        deleted_count = len(result.data or [])
+        client = get_service_client()
+        deleted_count = _delete_rows_for_user(client, "filesystem_documents", user_id)
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all documents: {deleted_count}")
 
@@ -306,32 +474,29 @@ async def clear_all_documents(auth: UserClient) -> OperationResult:
 @router.delete("/account/content")
 async def clear_all_content(auth: UserClient) -> OperationResult:
     """
-    Delete all content (deliverables and work history).
-    Returns user to cold-start state for content generation.
+    Delete content-generation artifacts and deliverables.
+    Keeps context sources and account-level settings intact.
     """
     user_id = auth.user_id
-    deleted = {}
+    deleted: dict[str, int] = {}
 
     try:
-        # Delete deliverable versions first (FK constraint)
-        deliverables = auth.client.table("deliverables").select("id").eq("user_id", user_id).execute()
-        deliverable_ids = [d["id"] for d in (deliverables.data or [])]
+        client = get_service_client()
 
-        versions_deleted = 0
-        for did in deliverable_ids:
-            result = auth.client.table("deliverable_versions").delete().eq("deliverable_id", did).execute()
-            versions_deleted += len(result.data or [])
-        deleted["deliverable_versions"] = versions_deleted
+        # Deliverable-related planning and execution traces.
+        deleted["deliverable_proposals"] = _delete_rows_for_user(client, "deliverable_proposals", user_id)
+        deleted["user_interaction_patterns"] = _delete_rows_for_user(client, "user_interaction_patterns", user_id)
+        deleted["event_trigger_log"] = _delete_rows_for_user(client, "event_trigger_log", user_id)
+        deleted["trigger_event_log"] = _delete_rows_for_user(client, "trigger_event_log", user_id, optional=True)
 
-        # Delete deliverables
-        result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
-        deleted["deliverables"] = len(result.data or [])
+        # Deliverables cascade to versions + export preferences + delivery logs.
+        deleted["deliverables"] = _delete_rows_for_user(client, "deliverables", user_id)
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all content: {deleted}")
 
         return OperationResult(
             success=True,
-            message=f"Cleared {deleted['deliverables']} deliverables",
+            message=f"Cleared {deleted['deliverables']} deliverables and related content history",
             deleted=deleted
         )
     except Exception as e:
@@ -342,34 +507,32 @@ async def clear_all_content(auth: UserClient) -> OperationResult:
 @router.delete("/account/context")
 async def clear_all_context(auth: UserClient) -> OperationResult:
     """
-    Delete all context data (memories, documents, chat history).
+    Delete all context data (memories, documents, chat history, synced content, sync state).
     Removes all learned context about the user.
     """
     user_id = auth.user_id
-    deleted = {}
+    deleted: dict[str, int] = {}
 
     try:
-        # Delete chat sessions (messages cascade)
-        result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
-        deleted["chat_sessions"] = len(result.data or [])
+        client = get_service_client()
 
-        # Delete all user_memory rows (ADR-059)
-        result = auth.client.table("user_memory").delete().eq("user_id", user_id).execute()
-        deleted["memories"] = len(result.data or [])
-
-        # Delete documents (chunks cascade)
-        result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
-        deleted["documents"] = len(result.data or [])
-
-        # Delete synced platform content (ADR-072)
-        result = auth.client.table("platform_content").delete().eq("user_id", user_id).execute()
-        deleted["platform_content"] = len(result.data or [])
+        deleted["chat_sessions"] = _delete_rows_for_user(client, "chat_sessions", user_id)
+        deleted["memories"] = _delete_rows_for_user(client, "user_memory", user_id)
+        deleted["documents"] = _delete_rows_for_user(client, "filesystem_documents", user_id)
+        deleted["platform_content"] = _delete_rows_for_user(client, "platform_content", user_id)
+        # Keep connection objects but reset sync-state metadata to avoid "still synced" mismatches.
+        deleted["sync_registry"] = _delete_rows_for_user(client, "sync_registry", user_id)
+        deleted["integration_sync_config"] = _delete_rows_for_user(client, "integration_sync_config", user_id)
+        deleted["slack_user_cache"] = _delete_rows_for_user(client, "slack_user_cache", user_id, optional=True)
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all context: {deleted}")
 
         return OperationResult(
             success=True,
-            message=f"Cleared {deleted['memories']} memories, {deleted['documents']} documents, {deleted['chat_sessions']} chats, {deleted['platform_content']} synced items",
+            message=(
+                f"Cleared {deleted['memories']} memories, {deleted['documents']} documents, "
+                f"{deleted['chat_sessions']} chats, and {deleted['platform_content']} synced items"
+            ),
             deleted=deleted
         )
     except Exception as e:
@@ -380,46 +543,32 @@ async def clear_all_context(auth: UserClient) -> OperationResult:
 @router.delete("/account/integrations")
 async def clear_all_integrations(auth: UserClient) -> OperationResult:
     """
-    Disconnect all integrations and clear import/export history.
-    OAuth tokens will be deleted - user must reconnect.
+    Disconnect all integrations and clear integration-related state/history.
+    This includes synced platform content and sync metadata.
     """
     user_id = auth.user_id
-    deleted = {}
+    deleted: dict[str, int] = {}
 
     try:
-        # Delete export logs
-        result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
-        deleted["export_logs"] = len(result.data or [])
+        client = get_service_client()
 
-        # Delete import jobs
-        result = auth.client.table("integration_import_jobs").delete().eq("user_id", user_id).execute()
-        deleted["integration_import_jobs"] = len(result.data or [])
-
-        # Delete sync registry records
-        result = auth.client.table("sync_registry").delete().eq("user_id", user_id).execute()
-        deleted["sync_registry"] = len(result.data or [])
-
-        # Delete sync configs
-        result = auth.client.table("integration_sync_config").delete().eq("user_id", user_id).execute()
-        deleted["integration_sync_config"] = len(result.data or [])
-
-        # Delete export preferences (through deliverables)
-        deliverables = auth.client.table("deliverables").select("id").eq("user_id", user_id).execute()
-        prefs_deleted = 0
-        for d in (deliverables.data or []):
-            result = auth.client.table("deliverable_export_preferences").delete().eq("deliverable_id", d["id"]).execute()
-            prefs_deleted += len(result.data or [])
-        deleted["export_preferences"] = prefs_deleted
-
-        # Delete user integrations (OAuth tokens)
-        result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
-        deleted["platform_connections"] = len(result.data or [])
+        deleted["export_logs"] = _delete_rows_for_user(client, "export_log", user_id)
+        deleted["integration_import_jobs"] = _delete_rows_for_user(client, "integration_import_jobs", user_id)
+        deleted["sync_registry"] = _delete_rows_for_user(client, "sync_registry", user_id)
+        deleted["integration_sync_config"] = _delete_rows_for_user(client, "integration_sync_config", user_id)
+        deleted["platform_content"] = _delete_rows_for_user(client, "platform_content", user_id)
+        deleted["slack_user_cache"] = _delete_rows_for_user(client, "slack_user_cache", user_id, optional=True)
+        deleted["export_preferences"] = _delete_export_preferences_for_user(client, user_id)
+        deleted["platform_connections"] = _delete_rows_for_user(client, "platform_connections", user_id)
 
         logger.info(f"[ACCOUNT] User {user_id} cleared all integrations: {deleted}")
 
         return OperationResult(
             success=True,
-            message=f"Disconnected {deleted['platform_connections']} integrations and cleared history",
+            message=(
+                f"Disconnected {deleted['platform_connections']} integrations and "
+                f"cleared integration sync/history data"
+            ),
             deleted=deleted
         )
     except Exception as e:
@@ -434,82 +583,27 @@ async def clear_all_integrations(auth: UserClient) -> OperationResult:
 @router.delete("/account/reset")
 async def full_account_reset(auth: UserClient) -> OperationResult:
     """
-    Full account reset - delete all user data but keep account active.
-    Deletes: deliverables, chat sessions, memories, documents, work, integrations.
-    Recreates a default workspace so user can continue.
+    Full account reset: delete all user-scoped product data, keep auth account active.
+    Recreates a default workspace so the user can continue immediately.
     """
     user_id = auth.user_id
-    deleted = {}
+    deleted: dict[str, int] = {}
 
     try:
-        # 1. Get workspace IDs
-        workspaces = auth.client.table("workspaces").select("id").eq("owner_id", user_id).execute()
-        workspace_ids = [w["id"] for w in (workspaces.data or [])]
+        client = get_service_client()
 
-        # 2. Delete deliverable versions and deliverables
-        deliverables = auth.client.table("deliverables").select("id").eq("user_id", user_id).execute()
-        deliverable_ids = [d["id"] for d in (deliverables.data or [])]
+        for table in FULL_RESET_USER_TABLES:
+            deleted[table] = _delete_rows_for_user(client, table, user_id)
+        for table in OPTIONAL_USER_TABLES:
+            deleted[table] = _delete_rows_for_user(client, table, user_id, optional=True)
+        for table in MCP_OAUTH_TABLES:
+            deleted[table] = _delete_rows_for_user(client, table, user_id, optional=True)
 
-        versions_deleted = 0
-        for did in deliverable_ids:
-            result = auth.client.table("deliverable_versions").delete().eq("deliverable_id", did).execute()
-            versions_deleted += len(result.data or [])
-        deleted["deliverable_versions"] = versions_deleted
-
-        result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
-        deleted["deliverables"] = len(result.data or [])
-
-        # 3. Delete chat sessions (messages cascade)
-        result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
-        deleted["chat_sessions"] = len(result.data or [])
-
-        # 4. Delete all user_memory rows (ADR-059)
-        result = auth.client.table("user_memory").delete().eq("user_id", user_id).execute()
-        deleted["memories"] = len(result.data or [])
-
-        # 5. Delete documents
-        result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
-        deleted["documents"] = len(result.data or [])
-
-        # 5b. Delete synced platform content (ADR-072)
-        result = auth.client.table("platform_content").delete().eq("user_id", user_id).execute()
-        deleted["platform_content"] = len(result.data or [])
-
-        # 6. Delete integration data
-        result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
-        deleted["export_logs"] = len(result.data or [])
-
-        result = auth.client.table("integration_import_jobs").delete().eq("user_id", user_id).execute()
-        deleted["integration_import_jobs"] = len(result.data or [])
-
-        result = auth.client.table("sync_registry").delete().eq("user_id", user_id).execute()
-        deleted["sync_registry"] = len(result.data or [])
-
-        result = auth.client.table("integration_sync_config").delete().eq("user_id", user_id).execute()
-        deleted["integration_sync_config"] = len(result.data or [])
-
-        prefs_deleted = 0
-        for did in deliverable_ids:
-            result = auth.client.table("deliverable_export_preferences").delete().eq("deliverable_id", did).execute()
-            prefs_deleted += len(result.data or [])
-        deleted["export_preferences"] = prefs_deleted
-
-        result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
-        deleted["platform_connections"] = len(result.data or [])
-
-        # 6b. Delete notification preferences
-        try:
-            auth.client.table("user_notification_preferences").delete().eq("user_id", user_id).execute()
-        except Exception:
-            pass  # Table may not exist yet for this user
-
-        # 8. Delete workspaces
-        for wid in workspace_ids:
-            auth.client.table("workspaces").delete().eq("id", wid).execute()
-        deleted["workspaces"] = len(workspace_ids)
-
-        # 9. Recreate default workspace so user can continue
-        auth.client.table("workspaces").insert({
+        # Workspaces are retained for account continuity, but reset to a single default.
+        deleted["workspaces"] = _delete_rows_for_user(
+            client, "workspaces", user_id, user_column="owner_id"
+        )
+        client.table("workspaces").insert({
             "name": "My Workspace",
             "owner_id": user_id,
         }).execute()
@@ -529,89 +623,28 @@ async def full_account_reset(auth: UserClient) -> OperationResult:
 @router.delete("/account/deactivate")
 async def deactivate_account(auth: UserClient) -> OperationResult:
     """
-    Permanently deactivate account and delete all data.
-    Uses service role to delete from auth.users.
+    Permanently deactivate account and delete auth identity.
+    Auth deletion cascades all FK-linked user data.
     """
     user_id = auth.user_id
-    deleted = {}
+    deleted: dict[str, int] = {}
 
     try:
-        # 1. Get workspace IDs
-        workspaces = auth.client.table("workspaces").select("id").eq("owner_id", user_id).execute()
-        workspace_ids = [w["id"] for w in (workspaces.data or [])]
+        service_client = get_service_client()
 
-        # 2. Delete deliverable versions and deliverables
-        deliverables = auth.client.table("deliverables").select("id").eq("user_id", user_id).execute()
-        deliverable_ids = [d["id"] for d in (deliverables.data or [])]
-
-        versions_deleted = 0
-        for did in deliverable_ids:
-            result = auth.client.table("deliverable_versions").delete().eq("deliverable_id", did).execute()
-            versions_deleted += len(result.data or [])
-        deleted["deliverable_versions"] = versions_deleted
-
-        result = auth.client.table("deliverables").delete().eq("user_id", user_id).execute()
-        deleted["deliverables"] = len(result.data or [])
-
-        # 3. Delete chat sessions
-        result = auth.client.table("chat_sessions").delete().eq("user_id", user_id).execute()
-        deleted["chat_sessions"] = len(result.data or [])
-
-        # 4. Delete all user_memory rows (ADR-059)
-        result = auth.client.table("user_memory").delete().eq("user_id", user_id).execute()
-        deleted["memories"] = len(result.data or [])
-
-        # 5. Delete documents
-        result = auth.client.table("filesystem_documents").delete().eq("user_id", user_id).execute()
-        deleted["documents"] = len(result.data or [])
-
-        # 5b. Delete synced platform content (ADR-072)
-        result = auth.client.table("platform_content").delete().eq("user_id", user_id).execute()
-        deleted["platform_content"] = len(result.data or [])
-
-        # 6. Delete integration data
-        result = auth.client.table("export_log").delete().eq("user_id", user_id).execute()
-        deleted["export_logs"] = len(result.data or [])
-
-        result = auth.client.table("integration_import_jobs").delete().eq("user_id", user_id).execute()
-        deleted["integration_import_jobs"] = len(result.data or [])
-
-        result = auth.client.table("sync_registry").delete().eq("user_id", user_id).execute()
-        deleted["sync_registry"] = len(result.data or [])
-
-        result = auth.client.table("integration_sync_config").delete().eq("user_id", user_id).execute()
-        deleted["integration_sync_config"] = len(result.data or [])
-
-        prefs_deleted = 0
-        for did in deliverable_ids:
-            result = auth.client.table("deliverable_export_preferences").delete().eq("deliverable_id", did).execute()
-            prefs_deleted += len(result.data or [])
-        deleted["export_preferences"] = prefs_deleted
-
-        result = auth.client.table("platform_connections").delete().eq("user_id", user_id).execute()
-        deleted["platform_connections"] = len(result.data or [])
-
-        # 6b. Delete notification preferences
+        # Delete auth identity first. This must succeed; otherwise deactivate fails.
         try:
-            auth.client.table("user_notification_preferences").delete().eq("user_id", user_id).execute()
-        except Exception:
-            pass  # Table may not exist yet for this user
-
-        # 7. Delete workspaces (don't recreate)
-        for wid in workspace_ids:
-            auth.client.table("workspaces").delete().eq("id", wid).execute()
-        deleted["workspaces"] = len(workspace_ids)
-
-        # 9. Delete from auth.users using service role
-        try:
-            service_client = get_service_client()
             service_client.auth.admin.delete_user(user_id)
             deleted["auth_user"] = 1
-            logger.info(f"[ACCOUNT] User {user_id} auth record deleted")
         except Exception as auth_error:
-            # Log but don't fail - user data is already deleted
-            logger.warning(f"[ACCOUNT] Failed to delete auth user {user_id}: {auth_error}")
-            deleted["auth_user"] = 0
+            logger.error(f"[ACCOUNT] Failed to delete auth user {user_id}: {auth_error}")
+            raise HTTPException(status_code=500, detail="Failed to deactivate account")
+
+        # Best-effort cleanup for token tables that don't FK to auth.users.
+        for table in MCP_OAUTH_TABLES:
+            deleted[table] = _delete_rows_for_user(
+                service_client, table, user_id, optional=True
+            )
 
         logger.info(f"[ACCOUNT] User {user_id} deactivated account: {deleted}")
 
@@ -620,6 +653,8 @@ async def deactivate_account(auth: UserClient) -> OperationResult:
             message="Account deactivated. All data has been deleted.",
             deleted=deleted
         )
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"[ACCOUNT] Failed to deactivate account for {user_id}: {e}")
         raise HTTPException(status_code=500, detail="Failed to deactivate account")

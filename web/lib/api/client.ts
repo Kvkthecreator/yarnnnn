@@ -553,13 +553,6 @@ export const api = {
         { method: "DELETE" }
       ),
 
-    // Legacy endpoint (backward compatibility)
-    deleteAllDeliverables: () =>
-      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
-        "/api/account/deliverables",
-        { method: "DELETE" }
-      ),
-
     // Tier 3: Full Actions (high impact)
     resetAccount: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
