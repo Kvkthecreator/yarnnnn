@@ -962,24 +962,18 @@ export default function DeliverableWorkspacePage() {
 
   const headerControls = (
     <div className="flex items-center gap-1.5">
-      {deliverable.status === 'paused' ? (
-        <span className="text-xs text-amber-600 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-full hidden sm:flex items-center gap-1">
-          <Pause className="w-3 h-3" /> Paused
-        </span>
-      ) : (
-        <span className="text-xs text-green-600 bg-green-50 dark:bg-green-900/20 px-2 py-1 rounded-full hidden sm:flex items-center gap-1">
-          <Play className="w-3 h-3" /> Active
-        </span>
-      )}
       <button
         onClick={handleTogglePause}
         className={cn(
-          'p-1.5 border border-border rounded-md hover:bg-muted transition-colors',
-          deliverable.status === 'paused' && 'text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20'
+          'inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-md transition-colors',
+          deliverable.status === 'paused'
+            ? 'text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+            : 'text-green-600 border-green-300 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
         )}
         title={deliverable.status === 'paused' ? 'Resume' : 'Pause'}
       >
-        {deliverable.status === 'paused' ? <Play className="w-3.5 h-3.5" /> : <Pause className="w-3.5 h-3.5" />}
+        {deliverable.status === 'paused' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+        {deliverable.status === 'paused' ? 'Paused' : 'Active'}
       </button>
       <button
         onClick={() => setSettingsOpen(true)}
