@@ -32,7 +32,7 @@ const BENEFITS = [
 
 function renderNotionMetadata(resource: LandscapeResource) {
   const parentType = resource.metadata?.parent_type as string | undefined;
-  if (!parentType && resource.items_extracted === 0) return null;
+  if (!parentType && resource.items_extracted === 0 && !resource.last_extracted_at) return null;
 
   return (
     <div className="text-xs text-muted-foreground">
@@ -43,10 +43,10 @@ function renderNotionMetadata(resource: LandscapeResource) {
           {parentType === 'database' && 'Database item'}
         </span>
       )}
-      {parentType && resource.items_extracted > 0 && <span> • </span>}
-      {resource.items_extracted > 0 && (
+      {parentType && (resource.items_extracted > 0 || !!resource.last_extracted_at) && <span> • </span>}
+      {(resource.items_extracted > 0 || !!resource.last_extracted_at) && (
         <span>
-          {resource.items_extracted} items
+          {resource.items_extracted > 0 ? `${resource.items_extracted} items` : '0 new items'}
           {resource.last_extracted_at && (
             <> synced {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
           )}

@@ -20,6 +20,8 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 - Added selected-source filtering in Context tab (default: selected sources only, with toggle to show all retained/synced platform context).
 - Added scheduled post-sync refresh polling after `Run sync` to reduce stale UI after background sync trigger.
 - Fixed Slack metadata key mismatch (`num_members` vs `member_count`) so channel metadata consistently renders.
+- Prioritized sync errors over "awaiting first sync" in compact status so failed first sync attempts are visible immediately.
+- Resource metadata now shows sync recency even when zero new items were extracted (`0 new items · synced X ago`), removing false "never synced" impressions.
 
 ---
 

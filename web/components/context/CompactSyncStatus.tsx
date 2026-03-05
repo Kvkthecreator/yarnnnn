@@ -34,9 +34,9 @@ function computeHealth(opts: {
   liveQueryMode?: boolean;
 }): { color: HealthColor; label: string } {
   if (opts.liveQueryMode) return { color: 'blue', label: 'Live calendar access' };
-  if (opts.selectedCount === 0 && opts.syncedCount === 0) return { color: 'gray', label: 'No sources selected' };
-  if (opts.selectedCount > 0 && opts.syncedCount === 0) return { color: 'gray', label: `${opts.selectedCount} selected — awaiting first sync` };
   if (opts.errorCount > 0) return { color: 'red', label: `${opts.errorCount} source${opts.errorCount !== 1 ? 's' : ''} with errors` };
+  if (opts.selectedCount === 0) return { color: 'gray', label: 'No sources selected' };
+  if (opts.syncedCount === 0) return { color: 'gray', label: `${opts.selectedCount} selected — awaiting first sync` };
 
   if (opts.lastSyncedAt) {
     const elapsedHours = (Date.now() - new Date(opts.lastSyncedAt).getTime()) / (1000 * 60 * 60);

@@ -127,9 +127,9 @@ export function ResourceRow({
               )}
             </div>
             {renderMetadata ? renderMetadata(resource) : (
-              resource.items_extracted > 0 && (
+              (resource.items_extracted > 0 || !!resource.last_extracted_at) && (
                 <div className="text-xs text-muted-foreground">
-                  {resource.items_extracted} items
+                  {resource.items_extracted > 0 ? `${resource.items_extracted} items` : '0 new items'}
                   {resource.last_extracted_at && (
                     <> synced {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
                   )}

@@ -30,11 +30,11 @@ const BENEFITS = [
 ];
 
 function renderGmailMetadata(resource: LandscapeResource) {
-  if (resource.items_extracted === 0) return null;
+  if (resource.items_extracted === 0 && !resource.last_extracted_at) return null;
 
   return (
     <div className="text-xs text-muted-foreground">
-      {resource.items_extracted} items
+      {resource.items_extracted > 0 ? `${resource.items_extracted} items` : '0 new items'}
       {resource.last_extracted_at && (
         <> synced {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
       )}

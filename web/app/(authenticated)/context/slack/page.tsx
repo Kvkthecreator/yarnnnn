@@ -33,15 +33,15 @@ function renderSlackMetadata(resource: LandscapeResource) {
   const memberCount =
     (resource.metadata?.member_count as number | undefined)
     ?? (resource.metadata?.num_members as number | undefined);
-  if (memberCount === undefined && resource.items_extracted === 0) return null;
+  if (memberCount === undefined && !resource.last_extracted_at && resource.items_extracted === 0) return null;
 
   return (
     <div className="text-xs text-muted-foreground">
       {memberCount !== undefined && <span>{memberCount.toLocaleString()} members</span>}
-      {memberCount !== undefined && resource.items_extracted > 0 && <span> • </span>}
-      {resource.items_extracted > 0 && (
+      {memberCount !== undefined && (resource.items_extracted > 0 || !!resource.last_extracted_at) && <span> • </span>}
+      {(resource.items_extracted > 0 || !!resource.last_extracted_at) && (
         <span>
-          {resource.items_extracted} items
+          {resource.items_extracted > 0 ? `${resource.items_extracted} items` : '0 new items'}
           {resource.last_extracted_at && (
             <> synced {formatDistanceToNow(new Date(resource.last_extracted_at), { addSuffix: true })}</>
           )}
