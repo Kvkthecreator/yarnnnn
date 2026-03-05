@@ -22,7 +22,6 @@ import {
   Package,
   Database,
   Briefcase,
-  Sparkles,
 } from "lucide-react";
 import { api } from "@/lib/api/client";
 import { SubscriptionCard } from "@/components/subscription/SubscriptionCard";
@@ -37,11 +36,9 @@ interface DangerZoneStats {
   chat_sessions: number;
   memories: number;
   documents: number;
-  work_tickets: number;
   // Content subtotals
   deliverables: number;
   deliverable_versions: number;
-  work_outputs: number;
   // Platform content (ADR-072)
   platform_content: number;
   // Integrations
@@ -57,7 +54,6 @@ interface NotificationPreferences {
   email_deliverable_failed: boolean;
   email_work_complete: boolean;
   email_weekly_digest: boolean;
-  email_suggestion_created: boolean; // ADR-060
 }
 
 // ADR-039: Removed "memory" tab - facts now live in unified Context page
@@ -244,10 +240,6 @@ export default function SettingsPage() {
           break;
         case "documents":
           result = await api.account.clearDocuments();
-          setPurgeSuccess(result.message);
-          break;
-        case "work":
-          result = await api.account.clearWork();
           setPurgeSuccess(result.message);
           break;
         // Tier 2: Category reset
@@ -612,33 +604,6 @@ export default function SettingsPage() {
                 </div>
               </div>
 
-              {/* ADR-060: Suggested Deliverables */}
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Sparkles className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium">Suggested Deliverables</div>
-                      <div className="text-sm text-muted-foreground">
-                        Get notified when new deliverables are suggested based on your conversations
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleNotificationToggle("email_suggestion_created", !notificationPrefs.email_suggestion_created)}
-                    disabled={isSavingNotifications}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_suggestion_created ? "bg-primary" : "bg-muted"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        notificationPrefs.email_suggestion_created ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
 
               {isSavingNotifications && (
                 <p className="text-sm text-muted-foreground flex items-center gap-2">
@@ -781,27 +746,6 @@ export default function SettingsPage() {
                     </div>
                   </div>
 
-                  {/* Clear Work History */}
-                  <div className="p-4 border border-border rounded-lg">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <div className="font-medium flex items-center gap-2">
-                          <Briefcase className="w-4 h-4" />
-                          Clear Work History
-                        </div>
-                        <div className="text-sm text-muted-foreground">
-                          Delete all {dangerStats.work_tickets} work tickets
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => initiateDangerAction("work")}
-                        disabled={dangerStats.work_tickets === 0}
-                        className="px-4 py-2 border border-border rounded-md text-sm font-medium hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed"
-                      >
-                        Clear
-                      </button>
-                    </div>
-                  </div>
                 </div>
               </div>
 
@@ -824,12 +768,12 @@ export default function SettingsPage() {
                           Clear All Content
                         </div>
                         <div className="text-sm text-muted-foreground">
-                          Delete {dangerStats.deliverables} deliverables + {dangerStats.work_tickets} work items
+                          Delete {dangerStats.deliverables} deliverables and {dangerStats.deliverable_versions} versions
                         </div>
                       </div>
                       <button
                         onClick={() => initiateDangerAction("content")}
-                        disabled={dangerStats.deliverables === 0 && dangerStats.work_tickets === 0}
+                        disabled={dangerStats.deliverables === 0}
                         className="px-4 py-2 bg-destructive/10 text-destructive border border-destructive/30 rounded-md text-sm font-medium hover:bg-destructive/20 disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         Clear All
@@ -984,13 +928,6 @@ export default function SettingsPage() {
                   All uploaded documents and their extracted content will be removed.
                 </p>
               )}
-              {dangerAction === "work" && (
-                <p>
-                  Are you sure you want to delete all <strong>{dangerStats?.work_tickets}</strong> work tickets?
-                  All scheduled work and execution history will be removed.
-                </p>
-              )}
-
               {/* Tier 2: Category resets */}
               {dangerAction === "content" && (
                 <>
@@ -999,7 +936,6 @@ export default function SettingsPage() {
                   </p>
                   <ul className="list-disc list-inside text-sm space-y-1">
                     <li>{dangerStats?.deliverables} deliverables and {dangerStats?.deliverable_versions} versions</li>
-                    <li>{dangerStats?.work_tickets} work tickets</li>
                   </ul>
                   <p className="mt-2 text-sm">You will return to the onboarding flow.</p>
                 </>
@@ -1043,7 +979,7 @@ export default function SettingsPage() {
                     <li>{dangerStats?.chat_sessions} chat sessions</li>
                     <li>{dangerStats?.memories} memories</li>
                     <li>{dangerStats?.documents} documents</li>
-                    <li>{dangerStats?.work_tickets} work tickets</li>
+                    <li>{dangerStats?.deliverables} deliverables</li>
                     <li>{dangerStats?.platform_connections} integrations</li>
                   </ul>
                   <p className="mt-2 text-sm">Your account will remain active with a fresh workspace.</p>

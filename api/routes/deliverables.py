@@ -430,11 +430,6 @@ class DeliverableUpdate(BaseModel):
     template_structure: Optional[TemplateStructure] = None
 
 
-class PromoteToRecurringRequest(BaseModel):
-    """ADR-068: Promote a signal-emergent one-time deliverable to a recurring schedule."""
-    schedule: ScheduleConfig
-
-
 class DeliverableResponse(BaseModel):
     """Deliverable response - includes ADR-019 type fields."""
     id: str
@@ -476,7 +471,7 @@ class DeliverableResponse(BaseModel):
     source_freshness: Optional[list[dict]] = None  # [{source_index, provider, last_fetched_at, is_stale}]
     # ADR-068: Deliverable origin (how it came to exist)
     # ADR-092: coordinator_created added
-    origin: str = "user_configured"  # user_configured | analyst_suggested | signal_emergent | coordinator_created
+    origin: str = "user_configured"  # user_configured | coordinator_created
     # ADR-087: Deliverable-scoped context
     deliverable_instructions: Optional[str] = None
     deliverable_memory: Optional[dict] = None
@@ -510,20 +505,13 @@ class SourceSnapshot(BaseModel):
     source_latest_at: Optional[str] = None
 
 
-class AnalystMetadata(BaseModel):
-    """ADR-060: Metadata from Conversation Analyst for suggested versions."""
-    confidence: float = 0.0  # 0.0 - 1.0
-    detected_pattern: Optional[str] = None  # e.g., "weekly_status_to_board"
-    source_sessions: Optional[list[str]] = None  # Session UUIDs that triggered detection
-    detection_reason: Optional[str] = None  # Human-readable explanation
-
 
 class VersionResponse(BaseModel):
     """Deliverable version response."""
     id: str
     deliverable_id: str
     version_number: int
-    status: str  # generating, staged, reviewing, approved, rejected, suggested
+    status: str  # generating, staged, reviewing, approved, rejected
     draft_content: Optional[str] = None
     final_content: Optional[str] = None
     edit_distance_score: Optional[float] = None
@@ -542,15 +530,10 @@ class VersionResponse(BaseModel):
     source_fetch_summary: Optional[SourceFetchSummary] = None
     # ADR-049: Source snapshots for freshness tracking
     source_snapshots: Optional[list[SourceSnapshot]] = None
-    # ADR-060: Analyst metadata for suggested versions
-    analyst_metadata: Optional[AnalystMetadata] = None
 
 
 class VersionUpdate(BaseModel):
-    """Update version request (for approval/rejection/editing).
-
-    ADR-060: 'staged' status can be set to promote a 'suggested' version.
-    """
+    """Update version request (for approval/rejection/editing)."""
     status: Optional[Literal["staged", "reviewing", "approved", "rejected"]] = None
     final_content: Optional[str] = None
     feedback_notes: Optional[str] = None
@@ -587,18 +570,6 @@ def _parse_source_snapshots(snapshots_list: Optional[list]) -> Optional[list[Sou
         for s in snapshots_list
         if isinstance(s, dict)
     ]
-
-
-def _parse_analyst_metadata(metadata_dict: Optional[dict]) -> Optional[AnalystMetadata]:
-    """Parse raw analyst_metadata dict from DB into typed response (ADR-060)."""
-    if not metadata_dict:
-        return None
-    return AnalystMetadata(
-        confidence=metadata_dict.get("confidence", 0.0),
-        detected_pattern=metadata_dict.get("detected_pattern"),
-        source_sessions=metadata_dict.get("source_sessions"),
-        detection_reason=metadata_dict.get("detection_reason"),
-    )
 
 
 # =============================================================================
@@ -845,55 +816,6 @@ async def list_deliverables(
     return responses
 
 
-# =============================================================================
-# ADR-060: Suggested Versions Routes
-# IMPORTANT: This route MUST be defined BEFORE /{deliverable_id} routes
-# to prevent "/suggested" from being matched as a UUID parameter
-# =============================================================================
-
-
-class SuggestedVersionResponse(BaseModel):
-    """Suggested version with parent deliverable info for list view."""
-    version_id: str
-    deliverable_id: str
-    deliverable_title: str
-    deliverable_type: Optional[str] = None
-    analyst_metadata: Optional[AnalystMetadata] = None
-    created_at: str
-
-
-@router.get("/suggested")
-async def list_suggested_versions(
-    auth: UserClient,
-    limit: int = 20,
-) -> list[SuggestedVersionResponse]:
-    """
-    List all suggested versions across all user's deliverables.
-
-    ADR-060: Returns versions created by the Background Conversation Analyst
-    that the user can enable, edit, or dismiss.
-    """
-    result = auth.client.rpc(
-        "get_suggested_deliverable_versions",
-        {"p_user_id": auth.user_id}
-    ).execute()
-
-    if not result.data:
-        return []
-
-    return [
-        SuggestedVersionResponse(
-            version_id=str(v["version_id"]),
-            deliverable_id=str(v["deliverable_id"]),
-            deliverable_title=v["deliverable_title"],
-            deliverable_type=v.get("deliverable_type"),
-            analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
-            created_at=str(v["created_at"]),
-        )
-        for v in result.data[:limit]
-    ]
-
-
 @router.get("/{deliverable_id}")
 async def get_deliverable(
     deliverable_id: UUID,
@@ -991,8 +913,6 @@ async def get_deliverable(
                 source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
                 # ADR-049: Source snapshots
                 source_snapshots=v.get("source_snapshots"),
-                # ADR-060: Analyst metadata
-                analyst_metadata=v.get("analyst_metadata"),
             )
             for v in versions
         ],
@@ -1346,8 +1266,6 @@ async def list_versions(
             source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
             # ADR-049: Source snapshots for freshness tracking
             source_snapshots=_parse_source_snapshots(v.get("source_snapshots")),
-            # ADR-060: Analyst metadata for suggested versions
-            analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
         )
         for v in versions
     ]
@@ -1410,8 +1328,6 @@ async def get_version(
         source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
         # ADR-049: Source snapshots for freshness tracking
         source_snapshots=_parse_source_snapshots(v.get("source_snapshots")),
-        # ADR-060: Analyst metadata for suggested versions
-        analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
     )
 
 
@@ -1550,147 +1466,7 @@ async def update_version(
         delivery_external_id=v.get("delivery_external_id"),
         delivery_external_url=v.get("delivery_external_url"),
         delivered_at=v.get("delivered_at"),
-        # ADR-060: Analyst metadata
-        analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
     )
-
-
-@router.post("/{deliverable_id}/versions/{version_id}/enable")
-async def enable_suggested_version(
-    deliverable_id: UUID,
-    version_id: UUID,
-    auth: UserClient,
-) -> VersionResponse:
-    """
-    Enable a suggested version by promoting it to 'staged' status
-    and activating the deliverable.
-
-    ADR-060: This is the primary action for accepting analyst suggestions.
-    Enabling a suggestion means the user wants it to run on schedule,
-    so we also set the deliverable status to 'active'.
-    """
-    # Verify ownership
-    check = (
-        auth.client.table("deliverables")
-        .select("id, status")
-        .eq("id", str(deliverable_id))
-        .eq("user_id", auth.user_id)
-        .single()
-        .execute()
-    )
-
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
-
-    # Get version and verify it's in 'suggested' status
-    version_result = (
-        auth.client.table("deliverable_versions")
-        .select("*")
-        .eq("id", str(version_id))
-        .eq("deliverable_id", str(deliverable_id))
-        .single()
-        .execute()
-    )
-
-    if not version_result.data:
-        raise HTTPException(status_code=404, detail="Version not found")
-
-    v = version_result.data
-
-    if v["status"] != "suggested":
-        raise HTTPException(
-            status_code=400,
-            detail=f"Version is in '{v['status']}' status, not 'suggested'"
-        )
-
-    from datetime import datetime, timezone
-
-    # Promote version to staged
-    update_result = (
-        auth.client.table("deliverable_versions")
-        .update({
-            "status": "staged",
-            "staged_at": datetime.now(timezone.utc).isoformat(),
-        })
-        .eq("id", str(version_id))
-        .execute()
-    )
-
-    if not update_result.data:
-        raise HTTPException(status_code=500, detail="Failed to enable version")
-
-    # Also activate the deliverable so it runs on schedule
-    # ADR-060: Enabling a suggestion should start the automation
-    if check.data.get("status") != "active":
-        auth.client.table("deliverables").update({
-            "status": "active",
-        }).eq("id", str(deliverable_id)).execute()
-
-    v = update_result.data[0]
-
-    return VersionResponse(
-        id=v["id"],
-        deliverable_id=v["deliverable_id"],
-        version_number=v["version_number"],
-        status=v["status"],
-        draft_content=v.get("draft_content"),
-        final_content=v.get("final_content"),
-        created_at=v["created_at"],
-        staged_at=v.get("staged_at"),
-        analyst_metadata=_parse_analyst_metadata(v.get("analyst_metadata")),
-    )
-
-
-@router.delete("/{deliverable_id}/versions/{version_id}/dismiss")
-async def dismiss_suggested_version(
-    deliverable_id: UUID,
-    version_id: UUID,
-    auth: UserClient,
-) -> dict:
-    """
-    Dismiss a suggested version (delete it).
-
-    ADR-060: User doesn't want this suggestion. We delete the version
-    and can optionally log this for future learning.
-    """
-    # Verify ownership
-    check = (
-        auth.client.table("deliverables")
-        .select("id")
-        .eq("id", str(deliverable_id))
-        .eq("user_id", auth.user_id)
-        .single()
-        .execute()
-    )
-
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
-
-    # Get version and verify it's in 'suggested' status
-    version_result = (
-        auth.client.table("deliverable_versions")
-        .select("id, status")
-        .eq("id", str(version_id))
-        .eq("deliverable_id", str(deliverable_id))
-        .single()
-        .execute()
-    )
-
-    if not version_result.data:
-        raise HTTPException(status_code=404, detail="Version not found")
-
-    if version_result.data["status"] != "suggested":
-        raise HTTPException(
-            status_code=400,
-            detail="Can only dismiss versions in 'suggested' status"
-        )
-
-    # Delete the suggested version
-    auth.client.table("deliverable_versions").delete().eq(
-        "id", str(version_id)
-    ).execute()
-
-    return {"success": True, "message": "Suggestion dismissed"}
 
 
 # =============================================================================
@@ -1751,91 +1527,6 @@ async def list_deliverable_sessions(
         })
 
     return response
-
-
-@router.post("/{deliverable_id}/promote-to-recurring")
-async def promote_to_recurring(
-    deliverable_id: UUID,
-    request: PromoteToRecurringRequest,
-    auth: UserClient,
-) -> DeliverableResponse:
-    """
-    Promote a signal-emergent one-time deliverable to a recurring schedule.
-
-    ADR-068: The deliverable's trigger_type changes from 'manual' to 'schedule'
-    and next_run_at is calculated from the provided schedule config.
-    The origin field is preserved — it records provenance, not current state.
-    """
-    # Verify ownership and that this is a signal-emergent deliverable
-    check = (
-        auth.client.table("deliverables")
-        .select("*")
-        .eq("id", str(deliverable_id))
-        .eq("user_id", auth.user_id)
-        .single()
-        .execute()
-    )
-
-    if not check.data:
-        raise HTTPException(status_code=404, detail="Deliverable not found")
-
-    deliverable = check.data
-    if deliverable.get("origin") != "signal_emergent":
-        raise HTTPException(
-            status_code=400,
-            detail="Only signal-emergent deliverables can be promoted to recurring"
-        )
-
-    if deliverable.get("trigger_type") == "schedule":
-        raise HTTPException(
-            status_code=400,
-            detail="Deliverable is already on a recurring schedule"
-        )
-
-    # Calculate next_run_at from the provided schedule
-    next_run_at = calculate_next_run(request.schedule)
-    schedule_dict = request.schedule.model_dump()
-    now = datetime.now(timezone.utc).isoformat()
-
-    update_result = (
-        auth.client.table("deliverables")
-        .update({
-            "trigger_type": "schedule",
-            "schedule": schedule_dict,
-            "next_run_at": next_run_at,
-            "updated_at": now,
-            # origin is intentionally NOT updated — provenance preserved
-        })
-        .eq("id", str(deliverable_id))
-        .execute()
-    )
-
-    if not update_result.data:
-        raise HTTPException(status_code=500, detail="Failed to promote deliverable")
-
-    d = update_result.data[0]
-    return DeliverableResponse(
-        id=d["id"],
-        title=d["title"],
-        deliverable_type=d.get("deliverable_type", "custom"),
-        type_config=d.get("type_config"),
-        type_classification=d.get("type_classification"),
-        trigger_type=d.get("trigger_type", "schedule"),
-        schedule=d.get("schedule"),
-        sources=d.get("sources") or [],
-        status=d.get("status", "active"),
-        created_at=d["created_at"],
-        updated_at=d["updated_at"],
-        next_run_at=d.get("next_run_at"),
-        destination=d.get("destination"),
-        destinations=d.get("destinations") or [],
-        origin=d.get("origin", "user_configured"),
-        # ADR-087: Deliverable-scoped context
-        deliverable_instructions=d.get("deliverable_instructions"),
-        deliverable_memory=d.get("deliverable_memory"),
-        mode=d.get("mode", "recurring"),
-        description=d.get("description"),
-    )
 
 
 # =============================================================================

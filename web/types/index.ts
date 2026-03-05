@@ -158,7 +158,7 @@ export interface PortalResponse {
 export type DeliverableStatus = "active" | "paused" | "archived";
 // ADR-066: Added "delivered" and "failed" for delivery-first model
 // Legacy statuses (staged, reviewing, approved, rejected) kept for backwards compatibility
-export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected" | "suggested" | "delivered" | "failed";
+export type VersionStatus = "generating" | "staged" | "reviewing" | "approved" | "rejected" | "delivered" | "failed";
 export type ScheduleFrequency = "daily" | "weekly" | "biweekly" | "monthly" | "custom";
 // ADR-029 Phase 2: Added integration_import for Gmail/Slack/Notion data sources
 export type DataSourceType = "url" | "document" | "description" | "integration_import";
@@ -397,7 +397,7 @@ export interface Deliverable {
   // ADR-028: Destination-first deliverables
   destination?: Destination;
   // ADR-068: Deliverable origin (ADR-092: coordinator_created added)
-  origin?: 'user_configured' | 'analyst_suggested' | 'signal_emergent' | 'coordinator_created';
+  origin?: 'user_configured' | 'coordinator_created';
   // ADR-087: Deliverable-scoped context
   deliverable_instructions?: string;
   deliverable_memory?: DeliverableMemory;
@@ -468,13 +468,6 @@ export interface SourceSnapshot {
   source_latest_at?: string;
 }
 
-// ADR-060: Analyst metadata for suggested versions
-export interface AnalystMetadata {
-  confidence: number;  // 0.0 - 1.0
-  detected_pattern?: string;
-  source_sessions?: string[];
-  detection_reason?: string;
-}
 
 export interface DeliverableVersion {
   id: string;
@@ -503,18 +496,6 @@ export interface DeliverableVersion {
   delivery_mode?: 'draft' | 'direct';
   // ADR-049: Source snapshots for freshness tracking
   source_snapshots?: SourceSnapshot[];
-  // ADR-060: Analyst metadata for suggested versions
-  analyst_metadata?: AnalystMetadata;
-}
-
-// ADR-060: Suggested version for list view
-export interface SuggestedVersion {
-  version_id: string;
-  deliverable_id: string;
-  deliverable_title: string;
-  deliverable_type?: string;
-  analyst_metadata?: AnalystMetadata;
-  created_at: string;
 }
 
 // ADR-018: Feedback summary for learned preferences

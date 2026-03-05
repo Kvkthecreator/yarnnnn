@@ -408,7 +408,7 @@ async def _get_scheduler_health(client: Any, user_id: str) -> Optional[Scheduler
 
 
 async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
-    """Count deliverable versions awaiting review (status=draft or status=suggested).
+    """Count deliverable versions awaiting review (status=draft).
 
     deliverable_versions has no user_id — must find user's deliverable IDs first,
     then count versions in review states for those deliverables.
@@ -431,7 +431,7 @@ async def _get_pending_reviews_count(client: Any, user_id: str) -> int:
             client.table("deliverable_versions")
             .select("id", count="exact")
             .in_("deliverable_id", del_ids)
-            .in_("status", ["draft", "suggested"])
+            .in_("status", ["draft"])
             .execute()
         )
 

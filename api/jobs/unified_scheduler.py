@@ -766,125 +766,6 @@ async def run_unified_scheduler():
         logger.warning(f"[IMPORT] Import jobs processing skipped: {e}")
 
     # -------------------------------------------------------------------------
-    # -------------------------------------------------------------------------
-    # ADR-060/061: Conversation Analysis Phase (daily)
-    # ADR-060 Amendment 001: Behavioral pattern detection with user stages
-    # Detects patterns in user conversations, creates suggested deliverables
-    # -------------------------------------------------------------------------
-    analysis_users = 0
-    analysis_suggestions = 0
-    analysis_cold_starts = 0
-    # Run once per day at 6 AM UTC (when hour == 6 and minute < 5)
-    if now.hour == 6 and now.minute < 5:
-        try:
-            from services.conversation_analysis import run_analysis_for_user
-            from services.notifications import notify_suggestion_created, notify_analyst_cold_start
-
-            # Get users with recent activity
-            active_users_result = supabase.rpc(
-                "get_active_users_for_analysis",
-                {"days_back": 7}
-            ).execute()
-
-            # Fallback if function doesn't exist
-            if not active_users_result.data:
-                # Query users with recent sessions directly
-                since = (now - timedelta(days=7)).isoformat()
-                active_users_result = (
-                    supabase.table("chat_sessions")
-                    .select("user_id")
-                    .gte("started_at", since)
-                    .execute()
-                )
-                # Deduplicate
-                user_ids = list(set(s["user_id"] for s in (active_users_result.data or [])))
-            else:
-                user_ids = [u["user_id"] for u in active_users_result.data]
-
-            logger.info(f"[ANALYSIS] Found {len(user_ids)} users with recent activity")
-
-            for user_id in user_ids:
-                try:
-                    # ADR-060 Amendment 001: run_analysis_for_user handles stage detection
-                    suggestions_created, user_stage = await run_analysis_for_user(
-                        supabase, user_id
-                    )
-
-                    if user_stage == "onboarding":
-                        # Skip onboarding users entirely
-                        continue
-
-                    analysis_users += 1
-                    analysis_suggestions += suggestions_created
-
-                    if suggestions_created > 0:
-                        # Get suggestion titles for notification
-                        # Query the recently created suggestions
-                        try:
-                            recent_suggestions = (
-                                supabase.table("deliverable_versions")
-                                .select("deliverable_id, deliverables(title)")
-                                .eq("status", "suggested")
-                                .order("created_at", desc=True)
-                                .limit(suggestions_created)
-                                .execute()
-                            )
-                            titles = [
-                                s.get("deliverables", {}).get("title", "Untitled")
-                                for s in (recent_suggestions.data or [])
-                            ]
-
-                            await notify_suggestion_created(
-                                db_client=supabase,
-                                user_id=user_id,
-                                suggestion_count=suggestions_created,
-                                titles=titles,
-                            )
-                        except Exception as notify_err:
-                            logger.warning(f"[ANALYSIS] Suggestion notification failed: {notify_err}")
-                    else:
-                        # ADR-060 Amendment 001: Send cold start if no suggestions
-                        try:
-                            cold_start_sent = await notify_analyst_cold_start(
-                                supabase, user_id
-                            )
-                            if cold_start_sent:
-                                analysis_cold_starts += 1
-                                logger.info(f"[ANALYSIS] Sent cold start to {user_id}")
-                        except Exception as cold_err:
-                            logger.warning(f"[ANALYSIS] Cold start failed for {user_id}: {cold_err}")
-
-                except Exception as e:
-                    logger.warning(f"[ANALYSIS] Error for user {user_id}: {e}")
-
-            if analysis_users > 0 or analysis_suggestions > 0 or analysis_cold_starts > 0:
-                logger.info(
-                    f"[ANALYSIS] Processed {analysis_users} users, "
-                    f"created {analysis_suggestions} suggestions, "
-                    f"sent {analysis_cold_starts} cold starts"
-                )
-                # Write per-user analysis events
-                try:
-                    from services.activity_log import write_activity as _aw
-                    for uid in user_ids:
-                        await _aw(
-                            client=supabase,
-                            user_id=uid,
-                            event_type="conversation_analyzed",
-                            summary=f"Conversation analysis: {analysis_suggestions} suggestion(s) created",
-                            metadata={
-                                "users_analyzed": analysis_users,
-                                "suggestions_created": analysis_suggestions,
-                                "cold_starts_sent": analysis_cold_starts,
-                            },
-                        )
-                except Exception:
-                    pass
-
-        except Exception as e:
-            logger.warning(f"[ANALYSIS] Analysis phase skipped: {e}")
-
-    # -------------------------------------------------------------------------
     # Memory Extraction + Session Summaries (ADR-064, ADR-067 Phase 1)
     # Process yesterday's sessions — only run at midnight UTC
     # -------------------------------------------------------------------------
@@ -1005,8 +886,6 @@ async def run_unified_scheduler():
         f"digests={digest_success}/{digest_count}",
         f"imports={import_success}/{import_count}",
     ]
-    if analysis_users > 0 or analysis_suggestions > 0:
-        summary_parts.append(f"analysis={analysis_suggestions} suggestions from {analysis_users} users")
     if memory_extracted > 0:
         summary_parts.append(f"memory={memory_extracted} from {memory_users} sessions")
     if proactive_reviewed > 0:
@@ -1039,7 +918,6 @@ async def run_unified_scheduler():
             "imports_triggered": import_success,
             "proactive_reviewed": proactive_reviewed,
             "memory_extracted": memory_extracted,
-            "analysis_suggestions": analysis_suggestions,
             "errors": errors_encountered if errors_encountered else None,
             "cycle_started_at": now.isoformat(),
             "cycle_completed_at": datetime.now(timezone.utc).isoformat(),

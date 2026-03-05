@@ -14,7 +14,6 @@ import { useRouter } from 'next/navigation';
 import {
   Loader2,
   RefreshCw,
-  Zap,
   Clock,
   CheckCircle2,
   XCircle,
@@ -171,18 +170,12 @@ const BACKGROUND_JOB_GROUPS = [
     types: ['Platform Sync'],
   },
   {
-    label: 'Signal Processing',
-    icon: <Zap className="w-4 h-4 text-amber-500" />,
-    types: ['Signal Processing'],
-  },
-  {
     label: 'Memory & Analysis',
     icon: <Brain className="w-4 h-4 text-purple-500" />,
     types: [
       'Memory Extraction',
       'Session Summaries',
       'Pattern Detection',
-      'Conversation Analysis',
       'Deliverable Generation',
       'Content Cleanup',
     ],

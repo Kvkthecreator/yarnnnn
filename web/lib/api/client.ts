@@ -26,7 +26,6 @@ import type {
   DeliverableVersion,
   VersionUpdate,
   DeliverableRunResponse,
-  SuggestedVersion,
   // ADR-034: Context Domains
   ContextDomainSummary,
   ContextDomainDetail,
@@ -454,24 +453,6 @@ export const api = {
         }
       ),
 
-    // ADR-060: Suggested versions from Conversation Analyst
-    listSuggested: () =>
-      request<SuggestedVersion[]>("/api/deliverables/suggested"),
-
-    // Enable a suggested version (promote to staged)
-    enableSuggested: (deliverableId: string, versionId: string) =>
-      request<DeliverableVersion>(
-        `/api/deliverables/${deliverableId}/versions/${versionId}/enable`,
-        { method: "POST" }
-      ),
-
-    // Dismiss a suggested version
-    dismissSuggested: (deliverableId: string, versionId: string) =>
-      request<{ success: boolean; message: string }>(
-        `/api/deliverables/${deliverableId}/versions/${versionId}/dismiss`,
-        { method: "DELETE" }
-      ),
-
     // ADR-087 Phase 3: Scoped sessions
     listSessions: (deliverableId: string, limit?: number) => {
       const params = limit ? `?limit=${limit}` : "";
@@ -550,12 +531,6 @@ export const api = {
     clearDocuments: () =>
       request<{ success: boolean; message: string; deleted: Record<string, number> }>(
         "/api/account/documents",
-        { method: "DELETE" }
-      ),
-
-    clearWork: () =>
-      request<{ success: boolean; message: string; deleted: Record<string, number> }>(
-        "/api/account/work",
         { method: "DELETE" }
       ),
 

@@ -102,11 +102,9 @@ class SystemStatusResponse(BaseModel):
 # Static schedule descriptions for background jobs
 JOB_SCHEDULE_DESCRIPTIONS = {
     "Platform Sync": "Per tier schedule",
-    "Signal Processing": "Daily at 06:00/08:00 UTC (Starter+)",
     "Memory Extraction": "Daily at 00:00 UTC",
     "Session Summaries": "Daily at 00:00 UTC",
     "Pattern Detection": "Daily at 00:00 UTC",
-    "Conversation Analysis": "Daily at 06:00 UTC",
     "Deliverable Generation": "When due (checked every 5 min)",
     "Content Cleanup": "Daily at 00:00 UTC",
     "Scheduler Heartbeat": "Every 5 min",
@@ -412,11 +410,9 @@ async def get_system_status(auth: UserClient):
 
     job_types = [
         ("platform_synced", "Platform Sync"),
-        ("signal_processed", "Signal Processing"),
         ("memory_written", "Memory Extraction"),
         ("session_summary_written", "Session Summaries"),
         ("pattern_detected", "Pattern Detection"),
-        ("conversation_analyzed", "Conversation Analysis"),
         ("deliverable_generated", "Deliverable Generation"),
         ("content_cleanup", "Content Cleanup"),
         ("scheduler_heartbeat", "Scheduler Heartbeat"),
