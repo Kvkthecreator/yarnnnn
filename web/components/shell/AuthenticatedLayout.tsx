@@ -10,7 +10,7 @@
  * - Settings is meta (not a layer)
  *
  * Navigation structure (ADR-063 aligned):
- * - Thinking Partner (home) | Deliverables (Work) | Memory | Context | Activity | Settings
+ * - Agent (home) | Work (Deliverables) | Memory | Context | Activity | Settings
  *
  * Four-Layer Model:
  * - Memory (/memory): What YARNNN knows about you (Profile, Styles, Entries)
@@ -22,7 +22,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import { MessageCircle, ChevronDown, Settings, Calendar, Activity, Layers, Brain, Zap } from 'lucide-react';
+import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, Brain, Zap } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
 import type { DeskSurface } from '@/types/desk';
@@ -107,14 +107,14 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 interface RouteItem {
   id: string;
   label: string;
-  icon: typeof MessageCircle;
+  icon: typeof Sparkles;
   path: string;
 }
 
 // ADR-063: Four-Layer Model Navigation + ADR-072: System (Operations)
-// Primary workspace: Thinking Partner + Deliverables (creation flows through TP chat)
+// Primary workspace: Agent + Work (creation flows through TP chat)
 // Supporting pages: Memory, Context, Activity, System, Settings
-const DELIVERABLES_ROUTE: RouteItem = { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' };
+const DELIVERABLES_ROUTE: RouteItem = { id: 'deliverables', label: 'Work', icon: Briefcase, path: '/deliverables' };
 
 const ROUTE_PAGES: RouteItem[] = [
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
@@ -232,9 +232,9 @@ function AuthenticatedLayoutInner({
         label: currentRoute.label,
       };
     }
-    // On home route = Thinking Partner
+    // On home route = Agent
     return {
-      icon: MessageCircle,
+      icon: Sparkles,
       label: HOME_LABEL,
     };
   };
@@ -292,7 +292,7 @@ function AuthenticatedLayoutInner({
                     isOnHome && 'bg-primary/5 text-primary'
                   )}
                 >
-                  <MessageCircle className="w-4 h-4" />
+                  <Sparkles className="w-4 h-4" />
                   {HOME_LABEL}
                 </button>
                 <button
@@ -306,7 +306,7 @@ function AuthenticatedLayoutInner({
                     currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
                   )}
                 >
-                  <Calendar className="w-4 h-4" />
+                  <Briefcase className="w-4 h-4" />
                   {DELIVERABLES_ROUTE.label}
                 </button>
 

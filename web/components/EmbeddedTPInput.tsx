@@ -152,7 +152,7 @@ export function EmbeddedTPInput({
           <div className="flex items-start justify-between gap-2 mb-2">
             <div className="flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-primary shrink-0" />
-              <span className="text-xs font-medium text-muted-foreground">Thinking Partner</span>
+              <span className="text-xs font-medium text-muted-foreground">Agent</span>
             </div>
             <button
               onClick={handleDismiss}

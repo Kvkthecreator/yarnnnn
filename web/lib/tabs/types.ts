@@ -43,7 +43,7 @@ export function createChatTab(): Tab {
   return {
     id: 'chat',
     type: 'chat',
-    title: 'Thinking Partner',
+    title: 'Agent',
     isClosable: false,
   };
 }

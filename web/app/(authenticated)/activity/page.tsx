@@ -270,7 +270,7 @@ function getNavigationTarget(
       if (metadata.provider) return { href: `/context/${metadata.provider}`, label: `View ${metadata.provider} context` };
       return null;
     case 'chat_session':
-      return { href: HOME_ROUTE, label: 'Open Thinking Partner' };
+      return { href: HOME_ROUTE, label: 'Open Agent' };
     default:
       return null;
   }

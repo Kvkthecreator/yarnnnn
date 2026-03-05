@@ -136,7 +136,7 @@ export function UserMemoryPanel({ isOpen, onClose, inline = false }: UserMemoryP
           <User className="w-8 h-8 mx-auto text-muted-foreground mb-2" />
           <p className="text-sm text-muted-foreground">Nothing learned yet</p>
           <p className="text-xs text-muted-foreground mt-1">
-            Chat with your Thinking Partner and I&apos;ll learn about you
+            Chat with your agent and I&apos;ll learn about you
           </p>
         </div>
       );

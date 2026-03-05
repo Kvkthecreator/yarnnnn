@@ -35,7 +35,7 @@ export function WelcomePrompt({
       {/* Header */}
       <div className="text-center mb-8">
         <h2 className="text-xl font-semibold mb-2">
-          Welcome! I&apos;m your Thinking Partner.
+          Welcome! I&apos;m your agent.
         </h2>
         <p className="text-muted-foreground">
           The more I know about you and your work, the better I can help you think.

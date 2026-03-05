@@ -25,9 +25,9 @@ const faqSections: FaqSection[] = [
           "yarnnn is an autonomous AI work platform. It connects to Slack, Gmail, Notion, and Calendar, then runs deliverable specialists that produce real output for you in the background.",
       },
       {
-        question: "What is TP (Thinking Partner)?",
+        question: "What is the Agent?",
         answer:
-          "TP is yarnnn's interactive interface. You use TP to define deliverables, refine outputs, and supervise the system. TP and background execution share the same underlying context and intelligence.",
+          "The Agent is yarnnn's interactive interface. You use it to define deliverables, refine outputs, and supervise the system. The agent and background execution share the same underlying context and intelligence.",
       },
       {
         question: "How is yarnnn different from ChatGPT or Claude?",

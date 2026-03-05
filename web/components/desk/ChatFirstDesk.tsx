@@ -4,7 +4,7 @@
  * ADR-037: Chat-First Surface Architecture
  * ADR-091: Workspace Layout & Navigation Architecture
  *
- * Global TP workspace — renders WorkspaceLayout with "Thinking Partner" identity.
+ * Global TP workspace — renders WorkspaceLayout with "Agent" identity.
  * No deliverable scope. Chat is the primary interface.
  *
  * Panel tabs:
@@ -16,7 +16,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  MessageCircle,
+  Sparkles,
   CheckCircle2,
   Circle,
   Loader2,
@@ -298,7 +298,7 @@ export function ChatFirstDesk() {
       .join(' ');
   };
 
-  const identityLabel = activeSkill ? formatSkillName(activeSkill) : 'Thinking Partner';
+  const identityLabel = activeSkill ? formatSkillName(activeSkill) : 'Agent';
 
   const panelTabs: WorkspacePanelTab[] = [
     {
@@ -316,7 +316,7 @@ export function ChatFirstDesk() {
   return (
     <WorkspaceLayout
       identity={{
-        icon: <MessageCircle className="w-5 h-5" />,
+        icon: <Sparkles className="w-5 h-5" />,
         label: identityLabel,
         badge: isLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : undefined,
       }}
@@ -344,10 +344,10 @@ export function ChatFirstDesk() {
         <div className="max-w-3xl mx-auto w-full space-y-4">
           {messages.length === 0 && !isLoading && (
             <div className="text-center py-8">
-              <MessageCircle className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+              <Sparkles className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
               <h2 className="text-lg font-medium mb-1">Welcome to yarnnn</h2>
               <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
-                I&apos;m your Thinking Partner. Connect a platform to give me context about your work.
+                I&apos;m your agent. Connect a platform to give me context about your work.
               </p>
               <div className="flex flex-wrap justify-center gap-2">
                 <button

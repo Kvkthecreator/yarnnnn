@@ -64,7 +64,7 @@ export default function HowItWorksPage() {
               <span className="text-white/50">Supervise from there.</span>
             </h1>
             <p className="max-w-2xl text-white/50 text-lg">
-              yarnnn combines an interactive Thinking Partner with background specialists.
+              yarnnn combines an interactive agent with background specialists.
               You define intent and constraints, yarnnn executes and learns through versioned runs.
             </p>
           </section>
