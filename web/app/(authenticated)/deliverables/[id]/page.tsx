@@ -33,11 +33,8 @@ import {
   Copy,
   Clock,
   Database,
-  Repeat,
   Target,
   Brain,
-  Zap,
-  Eye,
   Bot,
   PenLine,
   History,
@@ -55,6 +52,7 @@ import { SkillPicker } from '@/components/tp/SkillPicker';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { TPImageAttachment } from '@/types/desk';
+import { DeliverableModeBadge } from '@/components/deliverables/DeliverableModeBadge';
 import type { Deliverable, DeliverableVersion, DeliverableSession, SourceSnapshot } from '@/types';
 
 // =============================================================================
@@ -1011,45 +1009,7 @@ export default function DeliverableWorkspacePage() {
   // Header pieces
   // ==========================================================================
 
-  const modeBadge = (() => {
-    switch (deliverable.mode) {
-      case 'goal':
-        return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
-            <Target className="w-2.5 h-2.5" />
-            Goal
-          </span>
-        );
-      case 'reactive':
-        return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400">
-            <Zap className="w-2.5 h-2.5" />
-            Reactive
-          </span>
-        );
-      case 'proactive':
-        return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400">
-            <Eye className="w-2.5 h-2.5" />
-            Proactive
-          </span>
-        );
-      case 'coordinator':
-        return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-            <Bot className="w-2.5 h-2.5" />
-            Coordinator
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400">
-            <Repeat className="w-2.5 h-2.5" />
-            Rec
-          </span>
-        );
-    }
-  })();
+  const modeBadge = <DeliverableModeBadge mode={deliverable.mode} />;
 
   const headerControls = (
     <div className="flex items-center gap-1.5">
