@@ -2,7 +2,7 @@
 
 **Purpose**: Canonical written answers for VC/accelerator applications. VC-agnostic — adapt per application as needed.
 **Source**: IR Deck v16 + NARRATIVE.md v2 + ESSENCE.md
-**Date**: 2026-03-04 (v3 — updated ADR counts, deliverable language to reflect ADR-090/092/093)
+**Date**: 2026-03-05 (v3.1 — tightened Section 3 opening, added soft traction line, added hiring pipeline signal)
 
 **How to use**: Copy-paste the canonical version, then trim or expand to fit each application's word limits and tone. Field mappings for specific applications are noted in brackets.
 
@@ -36,7 +36,7 @@ The product is live at yarnnn.com with all four integrations syncing. TP works i
 
 ## 3. Unique Insight
 
-Context is what makes autonomy meaningful — and it's the application layer that cross-platform, interoperability will prevent existing companies be impossible to cross, but makes work more meaningful.
+Context is what makes autonomy meaningful — and cross-platform context accumulation is the application layer that no existing company is positioned to own.
 
 Every AI company is racing toward autonomy — agents that can act without human prompting. But autonomy without context is just random. An autonomous agent that doesn't know your clients, your projects, or your preferences produces generic work that still requires you to review, edit, and redo. That's not autonomy. That's delegation to an intern who never learns.
 
@@ -56,7 +56,7 @@ The technical foundation is unusually deep for a pre-seed company: 90+ Architect
 
 The strongest demand signal came from ClawdBot (also called OpenClaw), an open-source project by a separate team that went viral in January 2026: 17,830 GitHub stars in 24 hours — the fastest single-day growth in GitHub history. What drove that explosion wasn't a better chatbot — it was the promise of AI that's yours: personalized, persistent, and capable of operating in your context. But 95% of users couldn't actually use it — it required VPS provisioning, had 200+ security leaks flagged by GitGuardian, and offered no recurring workflows. yarnnn is the productized version of what ClawdBot proved people want.
 
-We're now testing two core hypotheses: (1) that TP already knows your work from Day 1 — eliminating the cold-start problem, and (2) that accumulated context produces measurably better output over time, with edit distance decreasing as tenure increases.
+Early beta users are actively testing with real integrations connected — Slack workspaces, Gmail inboxes, Notion databases, and Google Calendars syncing live. We're validating two core hypotheses: (1) that TP already knows your work from Day 1 — eliminating the cold-start problem, and (2) that accumulated context produces measurably better output over time, with edit distance decreasing as tenure increases.
 
 `[PearX: field 12 — "How far along are you?"]`
 
@@ -122,6 +122,8 @@ On the technical side: I shipped the entire MVP solo — full-stack application 
 
 The combination is rare: a systems thinker shaped by navigating between disconnected worlds, deep domain expertise in the exact problem space, and the technical ability to build the full stack solo. I don't just understand the context problem — I've been living it, across cultures and industries, for a decade.
 
+The $500K raise is purpose-built: a senior Tech Lead to accelerate the context engine and a GTM Lead to drive adoption in the solo consultant wedge. I have candidates identified in both roles from my enterprise consulting network — people who understand cross-platform systems and prosumer go-to-market.
+
 `[PearX: field 19 — "What makes you an outlier?"]`
 
 ---
@@ -150,6 +152,10 @@ The combination is rare: a systems thinker shaped by navigating between disconne
 | 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website |
 | 3 | Hustle Fund | Pre-seed | 2026-03-04 | Submitted | Typeform; ~2 week review cycle; deck upload skipped (optional) |
 | 4 | Outlander VC | Pre-seed | 2026-03-04 | Submitted | Typeform + video interview step (videoask.com/fxt7uhkqo) |
+| 5 | Precursor Ventures | Pre-seed | 2026-03-05 | Submitted | Web form; rolling applications, no warm intro needed |
+| 6 | Betaworks AI Camp | Pre-seed | — | Queued (Fall '26) | Spring '26 cohort in session; signed up for mailing list |
+| 7 | Forum Ventures | Pre-seed | 2026-03-05 | Submitted | Fillout form via forumvc.com/pitch-us; B2B AI focus, $100K accelerator or $250K venture studio |
+| 8 | 2048 Ventures | Pre-seed | 2026-03-05 | Submitted | Airtable form via 2048.vc/pitch-us; $500K-$3M checks, SMB Vertical AI, Pre-Seed Fast Track applied |
 
 **Raising**: $500K pre-seed at $5M post-money valuation
 **Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
