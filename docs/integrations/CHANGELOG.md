@@ -24,6 +24,7 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 - Resource metadata now shows sync recency even when zero new items were extracted (`0 new items · synced X ago`), removing false "never synced" impressions.
 - Reworked source selection information architecture for Slack/Gmail/Notion: workflow-first header, selected/synced/attention stat cards, source search, and explicit view filters (`Selected`, `Recommended`, `All`, `Issues`).
 - Updated tab semantics: second tab now surfaces as **Synced content** by default; calendar keeps platform-specific wording (`Calendar setup` / `Context`).
+- Tightened `Attention` logic: now includes selected-but-never-synced and selected-stale sources (not only explicit sync errors), with breakdown copy for triage.
 
 ---
 

@@ -81,6 +81,14 @@ export function ResourceList({
   const [query, setQuery] = useState('');
   const [view, setView] = useState<ListView>('selected');
 
+  const isAttentionResource = (resource: LandscapeResource): boolean => {
+    const isSelected = selectedIds.has(resource.id);
+    const hasError = !!resource.last_error;
+    const needsFirstSync = isSelected && !resource.last_extracted_at;
+    const isStale = isSelected && resource.coverage_state === 'stale';
+    return hasError || needsFirstSync || isStale;
+  };
+
   const selectedCount = selectedIds.size;
   const syncedCount = useMemo(
     () => resources.filter((resource) => !!resource.last_extracted_at).length,
@@ -91,9 +99,25 @@ export function ResourceList({
     [resources]
   );
   const attentionCount = useMemo(
-    () => resources.filter((resource) => !!resource.last_error).length,
-    [resources]
+    () => resources.filter(isAttentionResource).length,
+    [resources, selectedIds]
   );
+  const attentionBreakdown = useMemo(() => {
+    let errors = 0;
+    let needsFirstSync = 0;
+    let stale = 0;
+    for (const resource of resources) {
+      const isSelected = selectedIds.has(resource.id);
+      if (resource.last_error) {
+        errors += 1;
+      } else if (isSelected && !resource.last_extracted_at) {
+        needsFirstSync += 1;
+      } else if (isSelected && resource.coverage_state === 'stale') {
+        stale += 1;
+      }
+    }
+    return { errors, needsFirstSync, stale };
+  }, [resources, selectedIds]);
 
   useEffect(() => {
     // Keep the default view action-oriented: selected first, then recommended.
@@ -127,7 +151,7 @@ export function ResourceList({
       case 'recommended':
         return sortedResources.filter((resource) => resource.recommended);
       case 'attention':
-        return sortedResources.filter((resource) => !!resource.last_error);
+        return sortedResources.filter(isAttentionResource);
       case 'all':
       default:
         return sortedResources;
@@ -164,7 +188,7 @@ export function ResourceList({
     { key: 'selected', label: 'Selected', count: selectedCount },
     { key: 'recommended', label: 'Recommended', count: recommendedCount },
     { key: 'all', label: 'All', count: resources.length },
-    { key: 'attention', label: 'Issues', count: attentionCount },
+    { key: 'attention', label: 'Attention', count: attentionCount },
   ];
 
   return (
@@ -234,6 +258,18 @@ export function ResourceList({
             tone={attentionCount > 0 ? 'red' : 'default'}
           />
         </div>
+
+        {attentionCount > 0 && (
+          <p className="text-xs text-muted-foreground">
+            Attention includes selected sources with sync errors, first-sync pending, or stale coverage.
+            {' '}
+            {attentionBreakdown.errors > 0 && `${attentionBreakdown.errors} error${attentionBreakdown.errors === 1 ? '' : 's'}`}
+            {attentionBreakdown.errors > 0 && (attentionBreakdown.needsFirstSync > 0 || attentionBreakdown.stale > 0) && ' · '}
+            {attentionBreakdown.needsFirstSync > 0 && `${attentionBreakdown.needsFirstSync} pending first sync`}
+            {attentionBreakdown.needsFirstSync > 0 && attentionBreakdown.stale > 0 && ' · '}
+            {attentionBreakdown.stale > 0 && `${attentionBreakdown.stale} stale`}
+          </p>
+        )}
 
         <div className="h-2 rounded-full bg-muted overflow-hidden">
           <div
