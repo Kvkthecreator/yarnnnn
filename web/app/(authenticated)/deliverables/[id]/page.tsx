@@ -63,15 +63,6 @@ const PLATFORM_EMOJI: Record<string, string> = {
   synthesis: '\u{1F4CA}',
 };
 
-function getPlatformEmoji(deliverable: Deliverable): string {
-  const cls = deliverable.type_classification;
-  if (cls?.binding === 'cross_platform' || cls?.binding === 'hybrid' || cls?.binding === 'research') {
-    return '\u{1F4CA}';
-  }
-  const platform = cls?.primary_platform || deliverable.destination?.platform;
-  return PLATFORM_EMOJI[platform || ''] || '\u{1F4CA}';
-}
-
 function getStatusBadge(version: DeliverableVersion) {
   const status = version.delivery_status || version.status;
   if (status === 'delivered') {
@@ -1014,7 +1005,7 @@ export default function DeliverableWorkspacePage() {
     <>
       <WorkspaceLayout
         identity={{
-          icon: <span className="text-base leading-none">{getPlatformEmoji(deliverable)}</span>,
+          icon: <DeliverableModeBadge mode={deliverable.mode} variant="icon" />,
           label: deliverable.title,
           badge: (
             <div className="flex items-center gap-1.5">
