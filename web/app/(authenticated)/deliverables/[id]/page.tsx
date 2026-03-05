@@ -25,19 +25,14 @@ import {
   XCircle,
   ChevronLeft,
   MessageSquare,
-  Mail,
   FileText,
   ExternalLink,
-  RefreshCw,
   Sparkles,
   Copy,
   Clock,
   Database,
   Target,
-  Brain,
   Bot,
-  PenLine,
-  History,
   Send,
   Paperclip,
   X,
@@ -68,13 +63,6 @@ const PLATFORM_EMOJI: Record<string, string> = {
   synthesis: '\u{1F4CA}',
 };
 
-const PLATFORM_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
-  slack: MessageSquare,
-  gmail: Mail,
-  email: Mail,
-  notion: FileText,
-};
-
 function getPlatformEmoji(deliverable: Deliverable): string {
   const cls = deliverable.type_classification;
   if (cls?.binding === 'cross_platform' || cls?.binding === 'hybrid' || cls?.binding === 'research') {
@@ -82,36 +70,6 @@ function getPlatformEmoji(deliverable: Deliverable): string {
   }
   const platform = cls?.primary_platform || deliverable.destination?.platform;
   return PLATFORM_EMOJI[platform || ''] || '\u{1F4CA}';
-}
-
-function formatSchedule(deliverable: Deliverable): string {
-  if (deliverable.mode === 'goal') return 'Goal';
-  if (deliverable.mode === 'reactive') return 'Reactive';
-  if (deliverable.mode === 'proactive') return 'Proactive';
-  if (deliverable.mode === 'coordinator') return 'Coordinator';
-  const s = deliverable.schedule;
-  if (!s) return 'No schedule';
-  const time = s.time || '09:00';
-  const day = s.day
-    ? s.day.charAt(0).toUpperCase() + s.day.slice(1)
-    : s.frequency === 'monthly' ? '1st' : '';
-  switch (s.frequency) {
-    case 'daily': return `Daily at ${time}`;
-    case 'weekly': return `${day || 'Weekly'} at ${time}`;
-    case 'biweekly': return `Every 2 weeks, ${day} at ${time}`;
-    case 'monthly': return `Monthly on the ${day} at ${time}`;
-    default: return s.frequency || 'Custom';
-  }
-}
-
-function formatDestination(deliverable: Deliverable): string | null {
-  const dest = deliverable.destination;
-  if (!dest) return null;
-  const target = dest.target;
-  if (target?.includes('@')) return target;
-  if (target?.startsWith('#')) return target;
-  if (target === 'dm') return 'DM';
-  return null;
 }
 
 function getStatusBadge(version: DeliverableVersion) {
