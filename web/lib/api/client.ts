@@ -221,6 +221,14 @@ export const api = {
         method: "PATCH",
         body: JSON.stringify(data),
       }),
+    delete: (platform: string) =>
+      request<{
+        platform: string;
+        tone?: string;
+        verbosity?: string;
+      }>(`/api/memory/styles/${platform}`, {
+        method: "DELETE",
+      }),
   },
 
   // Onboarding state

@@ -8,7 +8,7 @@
 
 Memory is everything YARNNN knows *about the user* — their name, role, how they like to work, facts and standing instructions they've stated. **Memory is stable, explicit, and user-owned.**
 
-Memory formation is **implicit** — TP doesn't announce when it's remembering something. Extraction happens through conversation analysis (nightly cron). Users can also write memories directly via the Context page.
+Memory formation is **implicit** — TP doesn't announce when it's remembering something. Extraction happens through conversation analysis (nightly cron). Users can also write memories directly via the Memory page.
 
 **Analogy**: Memory is YARNNN's equivalent of Claude Code's auto-memory. The system learns from interaction and stores what's useful. Users can review and edit anytime.
 
@@ -112,14 +112,22 @@ This block is injected as part of the TP system prompt (~2,000 token budget tota
 
 ## User control
 
-Users have full control over Memory via the **Context page**:
+Users have full control over Memory via the **Memory page**:
 
-- **View**: See all memories, grouped by type
+- **View**: See all memories
 - **Edit**: Modify any value
 - **Delete**: Remove any memory
 - **Add**: Create new entries manually
 
 The system learns implicitly, but the user owns the data.
+
+### API behavior (user-facing)
+
+- `PATCH /api/memory/profile`: partial upsert. Omitted fields are untouched. Explicit `null` or empty string clears that field.
+- `GET /api/memory/styles`: list configured platform styles.
+- `GET /api/memory/styles/{platform}`: fetch one platform style state.
+- `PATCH /api/memory/styles/{platform}`: partial upsert. Omitted fields are untouched. Explicit `null` or empty string clears tone/verbosity for that platform.
+- `DELETE /api/memory/styles/{platform}`: clear tone + verbosity for that platform.
 
 ---
 
@@ -138,9 +146,9 @@ If the user asks "what do you know about me?", TP can describe the working memor
 
 ---
 
-## Frontend: Context page
+## Frontend: Memory page
 
-The Context page is the primary user interface for Memory. It surfaces:
+The Memory page is the primary user interface for Memory. It surfaces:
 - **Profile** — name, role, company, timezone, summary
 - **Styles** — tone and verbosity per platform
 - **Entries** — facts, instructions, preferences

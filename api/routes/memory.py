@@ -7,7 +7,9 @@ Endpoints:
   GET  /profile              - Get profile fields (name, role, company, timezone, summary)
   PATCH /profile             - Upsert profile fields
   GET  /styles               - Get tone/verbosity preferences per platform
+  GET  /styles/{platform}    - Get tone/verbosity for one platform
   PATCH /styles/{platform}   - Set tone/verbosity for a platform
+  DELETE /styles/{platform}  - Clear tone/verbosity for a platform
   GET  /user/memories        - List fact/instruction/preference entries
   POST /user/memories        - Create a knowledge entry
   POST /user/memories/import - Bulk import: extract from text
@@ -99,6 +101,8 @@ class OnboardingStateResponse(BaseModel):
 
 PROFILE_KEYS = {"name", "role", "company", "timezone", "summary"}
 ENTRY_PREFIXES = ("fact:", "instruction:", "preference:")
+STYLE_PLATFORM_ALIASES = {"email": "gmail"}
+ALLOWED_STYLE_PLATFORMS = {"slack", "gmail", "notion", "calendar"}
 
 
 def _upsert_context(client, user_id: str, key: str, value: str, source: str = "user_stated") -> None:
@@ -116,6 +120,16 @@ def _upsert_context(client, user_id: str, key: str, value: str, source: str = "u
 def _delete_context_key(client, user_id: str, key: str) -> None:
     """Delete a single key from user_memory (hard delete — no need for soft delete here)."""
     client.table("user_memory").delete().eq("user_id", user_id).eq("key", key).execute()
+
+
+def _normalize_style_platform(platform: str) -> str:
+    """Normalize style platform names and enforce allowed user-facing values."""
+    normalized = (platform or "").strip().lower()
+    normalized = STYLE_PLATFORM_ALIASES.get(normalized, normalized)
+    if normalized not in ALLOWED_STYLE_PLATFORMS:
+        allowed = ", ".join(sorted(ALLOWED_STYLE_PLATFORMS))
+        raise HTTPException(status_code=400, detail=f"Unsupported platform '{platform}'. Allowed: {allowed}")
+    return normalized
 
 
 # ─── Onboarding ───────────────────────────────────────────────────────────────
@@ -193,15 +207,19 @@ async def get_profile(auth: UserClient):
 async def update_profile(update: ProfileUpdate, auth: UserClient):
     """Upsert profile fields in user_memory."""
     try:
-        update_dict = update.model_dump(exclude_none=True)
+        # Support explicit null/empty clears while leaving omitted fields untouched.
+        for key in update.model_fields_set:
+            if key not in PROFILE_KEYS:
+                continue
 
-        for key, value in update_dict.items():
-            if key in PROFILE_KEYS:
-                if value:
-                    _upsert_context(auth.client, auth.user_id, key, value)
-                else:
-                    # Empty string = clear the field
-                    _delete_context_key(auth.client, auth.user_id, key)
+            value = getattr(update, key, None)
+            if isinstance(value, str):
+                value = value.strip()
+
+            if value:
+                _upsert_context(auth.client, auth.user_id, key, value)
+            else:
+                _delete_context_key(auth.client, auth.user_id, key)
 
         return await get_profile(auth)
 
@@ -247,15 +265,20 @@ async def get_styles(auth: UserClient):
 async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
     """Set tone/verbosity for a platform in user_memory."""
     try:
-        if update.tone is not None:
-            if update.tone:
-                _upsert_context(auth.client, auth.user_id, f"tone_{platform}", update.tone)
+        platform = _normalize_style_platform(platform)
+
+        # Support explicit null/empty clears while leaving omitted fields untouched.
+        if "tone" in update.model_fields_set:
+            tone = update.tone.strip() if isinstance(update.tone, str) else ""
+            if tone:
+                _upsert_context(auth.client, auth.user_id, f"tone_{platform}", tone)
             else:
                 _delete_context_key(auth.client, auth.user_id, f"tone_{platform}")
 
-        if update.verbosity is not None:
-            if update.verbosity:
-                _upsert_context(auth.client, auth.user_id, f"verbosity_{platform}", update.verbosity)
+        if "verbosity" in update.model_fields_set:
+            verbosity = update.verbosity.strip() if isinstance(update.verbosity, str) else ""
+            if verbosity:
+                _upsert_context(auth.client, auth.user_id, f"verbosity_{platform}", verbosity)
             else:
                 _delete_context_key(auth.client, auth.user_id, f"verbosity_{platform}")
 
@@ -276,6 +299,50 @@ async def update_style(platform: str, update: StyleUpdate, auth: UserClient):
 
         return StyleItem(platform=platform, tone=tone, verbosity=verbosity)
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/styles/{platform}", response_model=StyleItem)
+async def get_style(platform: str, auth: UserClient):
+    """Get tone/verbosity for a single platform."""
+    try:
+        platform = _normalize_style_platform(platform)
+        result = auth.client.table("user_memory")\
+            .select("key, value")\
+            .eq("user_id", auth.user_id)\
+            .in_("key", [f"tone_{platform}", f"verbosity_{platform}"])\
+            .execute()
+
+        tone = None
+        verbosity = None
+        for row in result.data or []:
+            if row["key"] == f"tone_{platform}":
+                tone = row["value"]
+            elif row["key"] == f"verbosity_{platform}":
+                verbosity = row["value"]
+
+        return StyleItem(platform=platform, tone=tone, verbosity=verbosity)
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.delete("/styles/{platform}", response_model=StyleItem)
+async def delete_style(platform: str, auth: UserClient):
+    """Clear tone/verbosity preferences for a single platform."""
+    try:
+        platform = _normalize_style_platform(platform)
+        _delete_context_key(auth.client, auth.user_id, f"tone_{platform}")
+        _delete_context_key(auth.client, auth.user_id, f"verbosity_{platform}")
+        return StyleItem(platform=platform, tone=None, verbosity=None)
+
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

@@ -21,6 +21,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Search,
   User,
   Palette,
   BookOpen,
@@ -461,6 +462,10 @@ interface EntriesSectionProps {
 
 function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionProps) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [query, setQuery] = useState('');
+  const [typeFilter, setTypeFilter] = useState<'all' | 'fact' | 'preference' | 'instruction'>('all');
+  const [sourceFilter, setSourceFilter] = useState<'all' | 'manual' | 'learned'>('all');
+  const [visibleCount, setVisibleCount] = useState(20);
 
   const handleDelete = async (id: string) => {
     setDeletingId(id);
@@ -521,6 +526,48 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
     return { label: 'low', color: 'text-muted-foreground' };
   };
 
+  const getEntryType = (entry: MemoryEntry) => entry.key.split(':')[0]?.toLowerCase() || 'fact';
+  const manualCount = entries.filter((entry) => entry.source === 'user_stated').length;
+  const learnedCount = entries.length - manualCount;
+
+  const typeCounts = entries.reduce<Record<string, number>>((acc, entry) => {
+    const type = getEntryType(entry);
+    if (type in acc) {
+      acc[type] += 1;
+    }
+    return acc;
+  }, { fact: 0, preference: 0, instruction: 0 });
+
+  const normalizedQuery = query.trim().toLowerCase();
+  const filteredEntries = entries.filter((entry) => {
+    const entryType = getEntryType(entry);
+    const isManual = entry.source === 'user_stated';
+    const sourceLabel = sourceConfig[entry.source]?.label || entry.source;
+
+    if (typeFilter !== 'all' && entryType !== typeFilter) {
+      return false;
+    }
+    if (sourceFilter === 'manual' && !isManual) {
+      return false;
+    }
+    if (sourceFilter === 'learned' && isManual) {
+      return false;
+    }
+    if (!normalizedQuery) {
+      return true;
+    }
+
+    const haystack = `${entry.value} ${entry.key} ${sourceLabel}`.toLowerCase();
+    return haystack.includes(normalizedQuery);
+  });
+
+  useEffect(() => {
+    setVisibleCount(20);
+  }, [query, typeFilter, sourceFilter]);
+
+  const visibleEntries = filteredEntries.slice(0, visibleCount);
+  const remainingCount = Math.max(0, filteredEntries.length - visibleEntries.length);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -553,70 +600,151 @@ function EntriesSection({ entries, loading, onAdd, onDelete }: EntriesSectionPro
           </button>
         </div>
       ) : (
-        <div className="space-y-2">
-          {entries.map((entry) => {
-            const prefix = entry.key.split(':')[0];
-            const label = typeLabel[prefix] || prefix;
-            const source = sourceConfig[entry.source] || {
-              label: entry.source,
-              bg: 'bg-muted',
-              text: 'text-muted-foreground',
-            };
-            const confidence = getConfidenceLabel(entry.confidence);
-            const showConfidence = entry.source !== 'user_stated' && entry.confidence < 1.0;
-
-            return (
-              <div
-                key={entry.id}
-                className="bg-card rounded-lg border border-border p-4 flex items-start gap-3"
-              >
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1 flex-wrap">
-                    <span className="text-xs font-medium text-muted-foreground">{label}</span>
-                    <span className={cn(
-                      "text-xs px-1.5 py-0.5 rounded",
-                      source.bg,
-                      source.text
-                    )}>
-                      {source.label}
-                    </span>
-                    {/* ADR-072: Show source_type provenance badge */}
-                    {entry.source_type && (
-                      <span className={cn(
-                        "text-xs px-1.5 py-0.5 rounded",
-                        entry.source_type === 'deliverable_feedback' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
-                        entry.source_type === 'conversation_extraction' && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
-                        entry.source_type === 'pattern_analysis' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
-                        !['deliverable_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && "bg-muted text-muted-foreground"
-                      )}>
-                        {entry.source_type === 'deliverable_feedback' && 'from feedback'}
-                        {entry.source_type === 'conversation_extraction' && 'from chat'}
-                        {entry.source_type === 'pattern_analysis' && 'from patterns'}
-                        {!['deliverable_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && entry.source_type}
-                      </span>
-                    )}
-                    {showConfidence && (
-                      <span className={cn("text-xs", confidence.color)}>
-                        · {confidence.label} confidence
-                      </span>
-                    )}
-                  </div>
-                  <p className="text-foreground">{entry.value}</p>
-                </div>
-                <button
-                  onClick={() => handleDelete(entry.id)}
-                  disabled={deletingId === entry.id}
-                  className="p-1 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                >
-                  {deletingId === entry.id ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    <Trash2 className="w-4 h-4" />
-                  )}
-                </button>
+        <div className="space-y-4">
+          <div className="bg-card rounded-lg border border-border p-4 space-y-3">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground flex-wrap">
+              <span><strong className="text-foreground">{entries.length}</strong> total</span>
+              <span>·</span>
+              <span><strong className="text-foreground">{manualCount}</strong> manual</span>
+              <span>·</span>
+              <span><strong className="text-foreground">{learnedCount}</strong> learned</span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="relative">
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  placeholder="Search entries..."
+                  className="w-full pl-9 pr-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
+                />
               </div>
-            );
-          })}
+              <select
+                value={typeFilter}
+                onChange={(e) => setTypeFilter(e.target.value as 'all' | 'fact' | 'preference' | 'instruction')}
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
+              >
+                <option value="all">All types ({entries.length})</option>
+                <option value="fact">Facts ({typeCounts.fact || 0})</option>
+                <option value="preference">Preferences ({typeCounts.preference || 0})</option>
+                <option value="instruction">Instructions ({typeCounts.instruction || 0})</option>
+              </select>
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value as 'all' | 'manual' | 'learned')}
+                className="w-full px-3 py-2 border border-border rounded-lg bg-background text-foreground text-sm"
+              >
+                <option value="all">All sources ({entries.length})</option>
+                <option value="manual">Manual ({manualCount})</option>
+                <option value="learned">Learned ({learnedCount})</option>
+              </select>
+            </div>
+            {(query || typeFilter !== 'all' || sourceFilter !== 'all') && (
+              <button
+                onClick={() => {
+                  setQuery('');
+                  setTypeFilter('all');
+                  setSourceFilter('all');
+                }}
+                className="text-sm text-muted-foreground hover:text-foreground"
+              >
+                Reset filters
+              </button>
+            )}
+          </div>
+
+          {filteredEntries.length === 0 ? (
+            <div className="bg-muted/50 rounded-lg p-6 text-center">
+              <p className="text-muted-foreground mb-2">No entries match your current filters.</p>
+              <button
+                onClick={() => {
+                  setQuery('');
+                  setTypeFilter('all');
+                  setSourceFilter('all');
+                }}
+                className="text-sm text-primary hover:text-primary/80"
+              >
+                Clear filters
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {visibleEntries.map((entry) => {
+                const prefix = getEntryType(entry);
+                const label = typeLabel[prefix] || prefix;
+                const source = sourceConfig[entry.source] || {
+                  label: entry.source,
+                  bg: 'bg-muted',
+                  text: 'text-muted-foreground',
+                };
+                const confidence = getConfidenceLabel(entry.confidence);
+                const showConfidence = entry.source !== 'user_stated' && entry.confidence < 1.0;
+
+                return (
+                  <div
+                    key={entry.id}
+                    className="bg-card rounded-lg border border-border p-4 flex items-start gap-3"
+                  >
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+                        <span className={cn(
+                          "text-xs px-1.5 py-0.5 rounded",
+                          source.bg,
+                          source.text
+                        )}>
+                          {source.label}
+                        </span>
+                        {/* ADR-072: Show source_type provenance badge */}
+                        {entry.source_type && (
+                          <span className={cn(
+                            "text-xs px-1.5 py-0.5 rounded",
+                            entry.source_type === 'deliverable_feedback' && "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400",
+                            entry.source_type === 'conversation_extraction' && "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400",
+                            entry.source_type === 'pattern_analysis' && "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400",
+                            !['deliverable_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && "bg-muted text-muted-foreground"
+                          )}>
+                            {entry.source_type === 'deliverable_feedback' && 'from feedback'}
+                            {entry.source_type === 'conversation_extraction' && 'from chat'}
+                            {entry.source_type === 'pattern_analysis' && 'from patterns'}
+                            {!['deliverable_feedback', 'conversation_extraction', 'pattern_analysis'].includes(entry.source_type) && entry.source_type}
+                          </span>
+                        )}
+                        {showConfidence && (
+                          <span className={cn("text-xs", confidence.color)}>
+                            · {confidence.label} confidence
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-foreground">{entry.value}</p>
+                    </div>
+                    <button
+                      onClick={() => handleDelete(entry.id)}
+                      disabled={deletingId === entry.id}
+                      className="p-1 text-muted-foreground hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                    >
+                      {deletingId === entry.id ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-4 h-4" />
+                      )}
+                    </button>
+                  </div>
+                );
+              })}
+              {remainingCount > 0 && (
+                <div className="pt-2">
+                  <button
+                    onClick={() => setVisibleCount((prev) => prev + 20)}
+                    className="w-full py-2 border border-border rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                  >
+                    Load 20 more ({remainingCount} remaining)
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
