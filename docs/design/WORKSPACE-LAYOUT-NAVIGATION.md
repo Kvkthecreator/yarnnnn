@@ -113,70 +113,74 @@ The identity chip is the user's primary signal for "which agent am I talking to.
 
 ### 4.1 Shared Cowork layout component
 
-Both pages use a single `<WorkspaceLayout>` component:
+Both pages use a single `<WorkspaceLayout>` component with a **drawer overlay** (not inline panel):
 
 ```
 ┌─────────────────────────────────────────────────────┐
-│  [HEADER — identity + breadcrumb + controls]         │
-├──────────────────────────────────────────┬──────────┤
-│  CHAT AREA (~65-70%)                     │ PANEL    │
-│                                          │ (~30%)   │
-│  [messages thread]                       │          │
-│                                          │ [tab bar]│
-│                                          │          │
-│  [input bar]                             │ [tab     │
-│                                          │  content]│
-└──────────────────────────────────────────┴──────────┘
+│  [HEADER — identity + breadcrumb + controls] [≡]    │
+├─────────────────────────────────────────────────────┤
+│  CHAT AREA (100% width)                             │
+│                                                     │
+│  [inline version card — deliverable page only]      │
+│  [messages thread]                                  │
+│                                                     │
+│  [input bar]                                        │
+└─────────────────────────────────────────────────────┘
+
+Drawer (overlay, triggered by [≡]):
+┌──────────────────────┐
+│ [tab bar]        [×] │
+│                      │
+│ [tab content]        │
+│ (480px / full mobile)│
+│                      │
+└──────────────────────┘
 ```
 
-- Panel is **collapsible** — toggle button in header. Collapsed by default on mobile.
-- Panel tabs differ per context (see §4.3).
+- Chat area is always **full width** — no inline panel stealing space.
+- Drawer slides from right, overlays content (CSS transforms, no library).
+- Drawer is `w-full sm:w-[480px]` — full width on mobile, 480px on desktop.
+- Drawer trigger visible on **all screen sizes** (fixes old `hidden md:flex` gap).
+- Backdrop + Escape key dismiss drawer.
+- Drawer tabs differ per context (see §4.3).
 - Input bar is identical in both contexts — same component, same UX.
+
+**Supersedes:** Previous inline panel (`w-80`, `hidden md:flex`) — too narrow for markdown content, invisible on mobile, created nested scroll contexts.
 
 ### 4.2 `/dashboard` — Global TP
 
 **Header:**
-- Identity chip: `◎ Thinking Partner` (pill, no back nav)
-- Right: platform sync status indicators (existing `PlatformSyncStatus`)
+- Identity chip: `◎ Thinking Partner` (no back nav)
+- Right: `[drawer trigger]`
 
 **Chat area:**
-- Global TP (no deliverable scope)
-- Idle/welcome state: deliverable cards as entry points + platform connect CTAs (existing `PlatformSyncStatus` idle content, refactored)
+- Global TP (no deliverable scope), full width
+- Idle/welcome state: suggestion chips ("Create a deliverable", "What can you do?")
 - On first message: transitions to chat thread
 
-**Right panel tabs:**
-- **Deliverables** — list of user's deliverables as entry cards (replaces current idle state inline cards)
-- **Context** — platform sync status detail (existing coverage view)
-
-**What changes from current dashboard:**
-- Layout shifts from full-width single column → left chat + right panel
-- Deliverable cards move from idle state inline → Deliverables panel tab
-- Platform sync cards move from idle state inline → Context panel tab
-- "Create a deliverable" and "What can you do?" CTAs move to input area suggestions
+**Drawer tabs:**
+- **Deliverables** — compact entry cards linking to `/deliverables/[id]`
+- **Context** — platform sync status (existing `PlatformSyncStatus`)
 
 ### 4.3 `/deliverables/[id]` — Deliverable Workspace
 
 **Header:**
 - Back nav: `← Deliverables` (links to `/deliverables`)
-- Identity chip: `[icon] [Deliverable Title]  [Mode badge: Rec | Goal]`
-- Right: `⏸ ▶ ⚙` (pause, run now, settings)
+- Identity chip: `[mode icon] [Deliverable Title]  [Mode badge]`
+- Right: `[Active ▶ / Paused ⏸]  [drawer trigger]`
 
-**Chat area:**
+**Chat area (inline):**
 - TP chat scoped to this deliverable (`deliverable_id` set on session)
+- **Inline version card** above messages — collapsible summary (version number, status, timestamp, word count, expand/copy/link). Older versions expandable below.
+- Schedule status + Run Now button inline beneath version card
 - Idle state: "You're talking to [Deliverable Title]. Ask me to generate, refine, or review."
-- Scoped session continuity — resumes from last scoped session or starts new
 
-**Right panel tabs:**
-- **Versions** — delivery history (versions list, click to preview content in an overlay)
+**Drawer tabs:**
+- **Settings** — destination, title, schedule, data sources, recipient context, archive (absorbed from former `DeliverableSettingsModal`)
+- **Versions** — compact version history list (browsing, not preview — preview is inline)
 - **Memory** — `deliverable_memory` JSONB, read-only (observations + goal)
 - **Instructions** — `deliverable_instructions`, editable textarea, auto-save
 - **Sessions** — scoped chat session list, read-only
-
-**What changes from current `/deliverables/[id]`:**
-- Current page: content hero (version preview) is dominant, tabs are below
-- New page: chat is dominant, version content accessible via Versions panel (click → overlay or panel expansion)
-- Execution Details and Schedule sections fold into: Mode badge (header) + Schedule shown in Versions panel header
-- Settings modal remains for destination, schedule, sources
 
 ---
 

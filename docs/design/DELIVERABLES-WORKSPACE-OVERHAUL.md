@@ -54,14 +54,19 @@ Extracted `DELIVERABLE_TYPE_LABELS` to `web/lib/constants/deliverables.ts`. Cons
 
 Merged separate status text badge and pause/resume icon button into a single clickable button-badge. Reduces two elements to one, always visible on all screen sizes, click target is obvious.
 
+### Settings modal → drawer tab
+
+`DeliverableSettingsModal` was absorbed into the workspace drawer as a tab (`DeliverableSettingsPanel`). Same form logic (destination, title, schedule, sources, recipient context, archive), modal wrapper stripped. Settings gear button removed from header — settings is now the first drawer tab. See [Workspace Drawer Refactor](WORKSPACE-DRAWER-REFACTOR.md).
+
 ---
 
 ## Files changed
 
 | File | Change |
 |------|--------|
-| `web/app/(authenticated)/deliverables/[id]/page.tsx` | Dead code removal, mode-first identity, header controls consolidation |
+| `web/app/(authenticated)/deliverables/[id]/page.tsx` | Dead code removal, mode-first identity, header controls consolidation, drawer refactor, inline version card |
 | `web/lib/constants/deliverables.ts` | Created — shared `DELIVERABLE_TYPE_LABELS` |
 | `web/app/(authenticated)/deliverables/page.tsx` | Import shared type labels |
-| `web/components/modals/DeliverableSettingsModal.tsx` | Mode badge in header, schedule gating, shared type labels, docstring fix |
+| `web/components/modals/DeliverableSettingsModal.tsx` | **Deleted** — replaced by `DeliverableSettingsPanel` |
+| `web/components/deliverables/DeliverableSettingsPanel.tsx` | Created — settings as drawer tab content |
 | `web/components/surfaces/IdleSurface.tsx` | Import shared type labels |
