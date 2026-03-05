@@ -3,10 +3,10 @@
 /**
  * ADR-091: Deliverable Workspace
  *
- * Cowork-style layout for a single deliverable:
- * - Left: scoped TP chat (dominant, full height)
- * - Right: collapsible panel — Versions | Memory | Instructions | Sessions tabs
- * - Header: breadcrumb + deliverable identity chip + mode badge + controls
+ * Chat-first layout with drawer overlay:
+ * - Main: scoped TP chat (full width) with inline version preview
+ * - Drawer: Settings | Versions | Memory | Instructions | Sessions tabs
+ * - Header: breadcrumb + identity chip + mode badge + active/paused toggle + drawer trigger
  *
  * Chat is scoped via surface_context { type: 'deliverable-detail', deliverableId }
  * which sets deliverable_id on the chat_sessions row (ADR-087).
@@ -20,7 +20,6 @@ import {
   Loader2,
   Play,
   Pause,
-  Settings,
   CheckCircle2,
   XCircle,
   ChevronLeft,
@@ -32,7 +31,6 @@ import {
   Clock,
   Database,
   Target,
-  Bot,
   Send,
   Paperclip,
   X,
@@ -40,7 +38,7 @@ import {
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow, format } from 'date-fns';
 import { cn } from '@/lib/utils';
-import { DeliverableSettingsModal } from '@/components/modals/DeliverableSettingsModal';
+import { DeliverableSettingsPanel } from '@/components/deliverables/DeliverableSettingsPanel';
 import { WorkspaceLayout, WorkspacePanelTab } from '@/components/desk/WorkspaceLayout';
 import { useTP } from '@/contexts/TPContext';
 import { SkillPicker } from '@/components/tp/SkillPicker';
@@ -958,7 +956,6 @@ export default function DeliverableWorkspacePage() {
   const [deliverable, setDeliverable] = useState<Deliverable | null>(null);
   const [versions, setVersions] = useState<DeliverableVersion[]>([]);
   const [sessions, setSessions] = useState<DeliverableSession[]>([]);
-  const [settingsOpen, setSettingsOpen] = useState(false);
 
   // UI
   const [selectedIdx, setSelectedIdx] = useState(0);
@@ -1079,6 +1076,20 @@ export default function DeliverableWorkspacePage() {
 
   const panelTabs: WorkspacePanelTab[] = [
     {
+      id: 'settings',
+      label: 'Settings',
+      content: (
+        <DeliverableSettingsPanel
+          deliverable={deliverable}
+          onSaved={(updated) => {
+            setDeliverable(updated);
+            setInstructions(updated.deliverable_instructions || '');
+          }}
+          onArchived={() => router.push('/deliverables')}
+        />
+      ),
+    },
+    {
       id: 'versions',
       label: `Versions${versions.length > 0 ? ` (${versions.length})` : ''}`,
       content: (
@@ -1121,28 +1132,19 @@ export default function DeliverableWorkspacePage() {
   const modeBadge = <DeliverableModeBadge mode={deliverable.mode} />;
 
   const headerControls = (
-    <div className="flex items-center gap-1.5">
-      <button
-        onClick={handleTogglePause}
-        className={cn(
-          'inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-md transition-colors',
-          deliverable.status === 'paused'
-            ? 'text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
-            : 'text-green-600 border-green-300 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
-        )}
-        title={deliverable.status === 'paused' ? 'Resume' : 'Pause'}
-      >
-        {deliverable.status === 'paused' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-        {deliverable.status === 'paused' ? 'Paused' : 'Active'}
-      </button>
-      <button
-        onClick={() => setSettingsOpen(true)}
-        className="p-1.5 border border-border rounded-md hover:bg-muted transition-colors"
-        title="Settings"
-      >
-        <Settings className="w-3.5 h-3.5" />
-      </button>
-    </div>
+    <button
+      onClick={handleTogglePause}
+      className={cn(
+        'inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-md transition-colors',
+        deliverable.status === 'paused'
+          ? 'text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
+          : 'text-green-600 border-green-300 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
+      )}
+      title={deliverable.status === 'paused' ? 'Resume' : 'Pause'}
+    >
+      {deliverable.status === 'paused' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
+      {deliverable.status === 'paused' ? 'Paused' : 'Active'}
+    </button>
   );
 
   const breadcrumb = (
@@ -1156,8 +1158,7 @@ export default function DeliverableWorkspacePage() {
   );
 
   return (
-    <>
-      <WorkspaceLayout
+    <WorkspaceLayout
         identity={{
           icon: <DeliverableModeBadge mode={deliverable.mode} variant="icon" />,
           label: deliverable.title,
@@ -1188,18 +1189,6 @@ export default function DeliverableWorkspacePage() {
           onRunNow={handleRunNow}
           running={running}
         />
-      </WorkspaceLayout>
-
-      <DeliverableSettingsModal
-        deliverable={deliverable}
-        open={settingsOpen}
-        onClose={() => setSettingsOpen(false)}
-        onSaved={(updated) => {
-          setDeliverable(updated);
-          setInstructions(updated.deliverable_instructions || '');
-        }}
-        onArchived={() => router.push('/deliverables')}
-      />
-    </>
+    </WorkspaceLayout>
   );
 }
