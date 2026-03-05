@@ -194,8 +194,9 @@ export default function CalendarContextPage() {
         <PlatformTabSwitcher
           activeTab={activeTab}
           onTabChange={setActiveTab}
-          sourcesLabel="Calendar"
+          sourcesLabel="Calendar setup"
           sourcesIcon={<CalendarDays className="w-4 h-4" />}
+          contextLabel="Context"
         />
 
         {activeTab === 'sources' && (

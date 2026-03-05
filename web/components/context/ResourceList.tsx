@@ -1,16 +1,20 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
   Check,
   CheckCircle2,
   Loader2,
+  Search,
   Sparkles,
 } from 'lucide-react';
 import type { LandscapeResource, TierLimits } from '@/types';
+import { cn } from '@/lib/utils';
 import { ResourceRow } from './ResourceRow';
+
+type ListView = 'selected' | 'recommended' | 'all' | 'attention';
 
 interface ResourceListProps {
   /** Platform-specific config */
@@ -74,12 +78,71 @@ export function ResourceList({
   justConnected,
   platformLabel,
 }: ResourceListProps) {
-  // Split resources into recommended and rest
-  const { recommended, rest, hasRecommended } = useMemo(() => {
-    const rec = resources.filter(r => r.recommended);
-    const other = resources.filter(r => !r.recommended);
-    return { recommended: rec, rest: other, hasRecommended: rec.length > 0 };
-  }, [resources]);
+  const [query, setQuery] = useState('');
+  const [view, setView] = useState<ListView>('selected');
+
+  const selectedCount = selectedIds.size;
+  const syncedCount = useMemo(
+    () => resources.filter((resource) => !!resource.last_extracted_at).length,
+    [resources]
+  );
+  const recommendedCount = useMemo(
+    () => resources.filter((resource) => resource.recommended).length,
+    [resources]
+  );
+  const attentionCount = useMemo(
+    () => resources.filter((resource) => !!resource.last_error).length,
+    [resources]
+  );
+
+  useEffect(() => {
+    // Keep the default view action-oriented: selected first, then recommended.
+    if (selectedCount === 0 && view === 'selected') {
+      setView(recommendedCount > 0 ? 'recommended' : 'all');
+    }
+  }, [selectedCount, recommendedCount, view]);
+
+  const sortedResources = useMemo(() => {
+    return [...resources].sort((a, b) => {
+      const aSelected = selectedIds.has(a.id) ? 1 : 0;
+      const bSelected = selectedIds.has(b.id) ? 1 : 0;
+      if (aSelected !== bSelected) return bSelected - aSelected;
+
+      const aError = a.last_error ? 1 : 0;
+      const bError = b.last_error ? 1 : 0;
+      if (aError !== bError) return bError - aError;
+
+      const aSynced = a.last_extracted_at ? 1 : 0;
+      const bSynced = b.last_extracted_at ? 1 : 0;
+      if (aSynced !== bSynced) return bSynced - aSynced;
+
+      return a.name.localeCompare(b.name);
+    });
+  }, [resources, selectedIds]);
+
+  const baseItems = useMemo(() => {
+    switch (view) {
+      case 'selected':
+        return sortedResources.filter((resource) => selectedIds.has(resource.id));
+      case 'recommended':
+        return sortedResources.filter((resource) => resource.recommended);
+      case 'attention':
+        return sortedResources.filter((resource) => !!resource.last_error);
+      case 'all':
+      default:
+        return sortedResources;
+    }
+  }, [view, sortedResources, selectedIds]);
+
+  const filteredItems = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return baseItems;
+    return baseItems.filter((resource) => {
+      const nameMatch = resource.name.toLowerCase().includes(q);
+      const typeMatch = resource.resource_type.toLowerCase().includes(q);
+      return nameMatch || typeMatch;
+    });
+  }, [baseItems, query]);
 
   const renderResourceRow = (resource: LandscapeResource) => (
     <ResourceRow
@@ -93,20 +156,21 @@ export function ResourceList({
     />
   );
 
-  const renderResourceGroup = (items: LandscapeResource[]) => (
-    <div className="space-y-2">
-      {items.map(renderResourceRow)}
-    </div>
-  );
-
-  // Tier-appropriate upgrade CTA
   const upgradeTarget = tierLimits?.tier === 'free' ? 'Starter' : tierLimits?.tier === 'starter' ? 'Pro' : null;
+  const normalizedLimit = Math.max(limit, 1);
+  const selectedRatio = Math.min(selectedCount / normalizedLimit, 1);
+
+  const viewOptions: Array<{ key: ListView; label: string; count: number }> = [
+    { key: 'selected', label: 'Selected', count: selectedCount },
+    { key: 'recommended', label: 'Recommended', count: recommendedCount },
+    { key: 'all', label: 'All', count: resources.length },
+    { key: 'attention', label: 'Issues', count: attentionCount },
+  ];
 
   return (
-    <section>
-      {/* First-connect welcome banner */}
+    <section className="space-y-4">
       {justConnected && (
-        <div className="mb-4 p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
+        <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
           <div className="flex items-start gap-3">
             <CheckCircle2 className="w-5 h-5 text-green-600 dark:text-green-400 mt-0.5 shrink-0" />
             <div>
@@ -114,52 +178,104 @@ export function ResourceList({
                 {platformLabel || resourceLabel} Connected
               </p>
               <p className="text-sm text-green-700 dark:text-green-400 mt-0.5">
-                Select sources below to start building context. Recommended sources are highlighted based on activity.
+                Choose high-signal sources first, then run sync to start usable context.
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <h2 className="text-base font-semibold">{resourceLabel}</h2>
-            {workspaceName && (
-              <span className="text-sm text-muted-foreground">in {workspaceName}</span>
-            )}
+      <div className="border border-border rounded-xl bg-card p-4 md:p-5 space-y-4">
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <div className="flex items-center gap-2">
+              <h2 className="text-base font-semibold">{resourceLabel}</h2>
+              {workspaceName && (
+                <span className="text-sm text-muted-foreground">in {workspaceName}</span>
+              )}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Step 1: select the {resourceLabel.toLowerCase()} that should feed context.
+            </p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Select which {resourceLabel.toLowerCase()} to include as context sources.
-            {' '}{selectedIds.size > limit
-              ? `${selectedIds.size} selected · ${limit} included on ${tierLimits?.tier || 'free'} plan`
-              : `${selectedIds.size} of ${limit} selected`}
-          </p>
-        </div>
-        {hasChanges && (
           <div className="flex items-center gap-2">
             <button
               onClick={onDiscard}
-              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground"
+              disabled={!hasChanges || saving}
+              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
             >
               Discard
             </button>
             <button
               onClick={onSave}
-              disabled={saving}
+              disabled={!hasChanges || saving}
               className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
             >
               {saving && <Loader2 className="w-3 h-3 animate-spin" />}
               Save changes
             </button>
           </div>
-        )}
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+          <StatCard
+            label="Selected"
+            value={`${selectedCount}/${limit}`}
+            tone={selectedCount >= limit ? 'amber' : 'default'}
+          />
+          <StatCard
+            label="Synced"
+            value={`${syncedCount}`}
+            tone={syncedCount > 0 ? 'green' : 'default'}
+          />
+          <StatCard
+            label="Needs Attention"
+            value={`${attentionCount}`}
+            tone={attentionCount > 0 ? 'red' : 'default'}
+          />
+        </div>
+
+        <div className="h-2 rounded-full bg-muted overflow-hidden">
+          <div
+            className={cn(
+              'h-full transition-all',
+              selectedCount >= limit ? 'bg-amber-500' : 'bg-primary'
+            )}
+            style={{ width: `${selectedRatio * 100}%` }}
+          />
+        </div>
+
+        <div className="flex flex-wrap gap-2 items-center">
+          <div className="relative flex-1 min-w-[220px]">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder={`Search ${resourceLabel.toLowerCase()}...`}
+              className="w-full h-9 pl-9 pr-3 text-sm bg-background border border-border rounded-md outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </div>
+          <div className="flex items-center gap-1 p-1 border border-border rounded-md bg-muted/20">
+            {viewOptions.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => setView(option.key)}
+                className={cn(
+                  'px-2.5 py-1 text-xs rounded-md transition-colors',
+                  view === option.key
+                    ? 'bg-primary text-primary-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
+                )}
+              >
+                {option.label} ({option.count})
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
 
-      {/* Import prompt */}
       {showImportPrompt && (
-        <div className="mb-4 p-4 bg-primary/5 border border-primary/20 rounded-lg">
+        <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
           {importing ? (
             <div className="space-y-3">
               <div className="flex items-center gap-2">
@@ -183,17 +299,10 @@ export function ResourceList({
                   <p className="text-sm font-medium">Sources saved successfully</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Import recent context from {newlySelectedIds.length === 1 ? 'this source' : `these ${newlySelectedIds.length} sources`}?
-                    This gives TP immediate context without waiting for the next scheduled sync.
                   </p>
-                  <ul className="mt-2 text-xs text-muted-foreground space-y-0.5">
-                    <li>• <strong>Import now</strong>: Get context immediately (last 7 days)</li>
-                    <li>• <strong>Skip</strong>: Wait for next scheduled sync ({
-                      tierLimits?.limits.sync_frequency === 'hourly' ? 'within 1 hour' :
-                      tierLimits?.limits.sync_frequency === '4x_daily' ? 'within 6 hours' :
-                      tierLimits?.limits.sync_frequency === '1x_daily' ? 'at 8am' :
-                      'at 8am or 6pm'
-                    })</li>
-                  </ul>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Import now gives immediate context. Skip waits for scheduled sync.
+                  </p>
                 </div>
               </div>
               <div className="flex justify-end gap-2 mt-4">
@@ -207,7 +316,7 @@ export function ResourceList({
                   onClick={onImport}
                   className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
                 >
-                  Import Now
+                  Import now
                 </button>
               </div>
             </>
@@ -215,9 +324,8 @@ export function ResourceList({
         </div>
       )}
 
-      {/* Error */}
       {error && (
-        <div className="mb-4 p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+        <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
           <div className="flex items-start gap-2">
             <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
             <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
@@ -225,9 +333,8 @@ export function ResourceList({
         </div>
       )}
 
-      {/* Limit warning */}
       {atLimit && !hasChanges && (
-        <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+        <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
           <div className="flex items-start gap-2">
             <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
             <div className="text-sm">
@@ -248,41 +355,47 @@ export function ResourceList({
         </div>
       )}
 
-      {/* Resource rows */}
       {resources.length === 0 ? (
         <div className="border border-dashed border-border rounded-lg p-8 text-center">
           <p className="text-sm text-muted-foreground">
             No {resourceLabel.toLowerCase()} found in this workspace.
           </p>
         </div>
-      ) : hasRecommended ? (
-        /* Grouped view: Recommended + All */
-        <div className="space-y-4">
-          {/* Recommended section */}
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-3.5 h-3.5 text-primary" />
-              <h3 className="text-xs font-medium text-primary uppercase tracking-wide">
-                Recommended based on activity
-              </h3>
-            </div>
-            {renderResourceGroup(recommended)}
-          </div>
-
-          {/* All others section */}
-          {rest.length > 0 && (
-            <div>
-              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">
-                All {resourceLabel.toLowerCase()}
-              </h3>
-              {renderResourceGroup(rest)}
-            </div>
-          )}
+      ) : filteredItems.length === 0 ? (
+        <div className="border border-dashed border-border rounded-lg p-8 text-center">
+          <p className="text-sm text-muted-foreground">
+            No {resourceLabel.toLowerCase()} match this view.
+          </p>
         </div>
       ) : (
-        /* Flat view: no recommendations available */
-        renderResourceGroup(resources)
+        <div className="space-y-2">
+          {filteredItems.map(renderResourceRow)}
+        </div>
       )}
     </section>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  tone = 'default',
+}: {
+  label: string;
+  value: string;
+  tone?: 'default' | 'green' | 'amber' | 'red';
+}) {
+  const toneClasses: Record<string, string> = {
+    default: 'border-border bg-muted/20 text-foreground',
+    green: 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300',
+    amber: 'border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300',
+    red: 'border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300',
+  };
+
+  return (
+    <div className={cn('rounded-md border px-3 py-2', toneClasses[tone])}>
+      <p className="text-[11px] uppercase tracking-wide opacity-80">{label}</p>
+      <p className="text-sm font-semibold mt-0.5">{value}</p>
+    </div>
   );
 }
