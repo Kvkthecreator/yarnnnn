@@ -39,6 +39,7 @@ import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 // ADR-066: Removed DestinationSelector - using email-first approach
+import { DELIVERABLE_TYPE_LABELS } from '@/lib/constants/deliverables';
 import type {
   Deliverable,
   DeliverableUpdate,
@@ -77,17 +78,6 @@ const DAY_OPTIONS = [
   { value: 'saturday', label: 'Saturday' },
   { value: 'sunday', label: 'Sunday' },
 ];
-
-// ADR-093: 7 purpose-first type labels
-const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
-  digest: 'Digest',
-  brief: 'Brief',
-  status: 'Status Update',
-  watch: 'Watch',
-  deep_research: 'Deep Research',
-  coordinator: 'Coordinator',
-  custom: 'Custom',
-};
 
 const PLATFORM_ICONS: Record<string, React.ReactNode> = {
   slack: <Slack className="w-4 h-4" />,

@@ -29,21 +29,12 @@ import {
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
 import { DeliverableModeBadge } from '@/components/deliverables/DeliverableModeBadge';
-import type { Deliverable, DeliverableStatus, DeliverableType } from '@/types';
+import { DELIVERABLE_TYPE_LABELS } from '@/lib/constants/deliverables';
+import type { Deliverable, DeliverableStatus } from '@/types';
 
 // =============================================================================
 // Helpers
 // =============================================================================
-
-const TYPE_LABELS: Record<DeliverableType, string> = {
-  digest: 'Digest',
-  brief: 'Brief',
-  status: 'Status',
-  watch: 'Watch',
-  deep_research: 'Research',
-  coordinator: 'Coordinator',
-  custom: 'Custom',
-};
 
 function getModeStatusLine(d: Deliverable): string {
   switch (d.mode) {
@@ -116,7 +107,7 @@ function DeliverableCard({
   deliverable: Deliverable;
   onClick: () => void;
 }) {
-  const typeLabel = TYPE_LABELS[deliverable.deliverable_type] || deliverable.deliverable_type;
+  const typeLabel = DELIVERABLE_TYPE_LABELS[deliverable.deliverable_type] || deliverable.deliverable_type;
   const statusLine = getModeStatusLine(deliverable);
   const destination = formatDestination(deliverable);
   const latestStatus = deliverable.latest_version_status;

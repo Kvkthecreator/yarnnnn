@@ -43,6 +43,7 @@ import {
 import { PlatformCardGrid } from '@/components/ui/PlatformCardGrid';
 import type { PlatformSummary } from '@/components/ui/PlatformCard';
 import { formatDistanceToNow } from 'date-fns';
+import { DELIVERABLE_TYPE_LABELS } from '@/lib/constants/deliverables';
 import type { Deliverable, ScheduleConfig, Document as DocType } from '@/types';
 
 // Format schedule to human readable string
@@ -56,17 +57,6 @@ function formatSchedule(schedule?: ScheduleConfig): string | null {
   if (frequency === 'custom') return 'Custom schedule';
   return frequency;
 }
-
-// ADR-093: 7 purpose-first type labels
-const DELIVERABLE_TYPE_LABELS: Record<string, string> = {
-  digest: 'Digest',
-  brief: 'Brief',
-  status: 'Status Update',
-  watch: 'Watch',
-  deep_research: 'Deep Research',
-  coordinator: 'Coordinator',
-  custom: 'Custom',
-};
 
 interface DashboardData {
   deliverables: Deliverable[];
