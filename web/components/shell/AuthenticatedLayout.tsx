@@ -112,9 +112,11 @@ interface RouteItem {
 }
 
 // ADR-063: Four-Layer Model Navigation + ADR-072: System (Operations)
-// Thinking Partner | Deliverables (Work) | Memory | Context | Activity | System | Settings
+// Primary workspace: Thinking Partner + Deliverables (creation flows through TP chat)
+// Supporting pages: Memory, Context, Activity, System, Settings
+const DELIVERABLES_ROUTE: RouteItem = { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' };
+
 const ROUTE_PAGES: RouteItem[] = [
-  { id: 'deliverables', label: 'Deliverables', icon: Calendar, path: '/deliverables' },
   { id: 'memory', label: 'Memory', icon: Brain, path: '/memory' },
   { id: 'context', label: 'Context', icon: Layers, path: '/context' },
   { id: 'activity', label: 'Activity', icon: Activity, path: '/activity' },
@@ -125,7 +127,11 @@ const ROUTE_PAGES: RouteItem[] = [
 
 // Get route info from pathname
 function getRouteFromPathname(pathname: string): RouteItem | null {
-  // Check if on a route page
+  // Check deliverables route first (primary workspace)
+  if (pathname === DELIVERABLES_ROUTE.path || pathname.startsWith(DELIVERABLES_ROUTE.path + '/')) {
+    return DELIVERABLES_ROUTE;
+  }
+  // Check supporting route pages
   for (const route of ROUTE_PAGES) {
     if (pathname === route.path || pathname.startsWith(route.path + '/')) {
       return route;
@@ -271,7 +277,7 @@ function AuthenticatedLayoutInner({
             {/* Dropdown: Navigation options */}
             {dropdownOpen && (
               <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                {/* ADR-037: Thinking Partner (home) - always first */}
+                {/* Primary workspace: TP + Deliverables */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
@@ -289,11 +295,25 @@ function AuthenticatedLayoutInner({
                   <MessageCircle className="w-4 h-4" />
                   {HOME_LABEL}
                 </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(DELIVERABLES_ROUTE.path);
+                    setDropdownOpen(false);
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                    currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
+                  )}
+                >
+                  <Calendar className="w-4 h-4" />
+                  {DELIVERABLES_ROUTE.label}
+                </button>
 
-                {/* Divider */}
+                {/* Divider — supporting pages below */}
                 <div className="border-t border-border my-1" />
 
-                {/* Route pages - all navigation items are routes now */}
+                {/* Supporting pages */}
                 {ROUTE_PAGES.map((route) => {
                   const Icon = route.icon;
                   const isActive = currentRoute?.id === route.id;
