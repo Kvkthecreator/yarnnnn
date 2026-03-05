@@ -9,7 +9,7 @@ ADR-087: Deliverable-scoped context (deliverable_id on sessions, scoped working 
 
 Session Philosophy (ADR-067):
 - In-session compaction at 80% of MAX_HISTORY_TOKENS (40k of 50k)
-- Cross-session continuity via chat_sessions.summary (written by nightly cron)
+- Cross-session continuity via chat_sessions.summary (inline at session close + nightly cron fallback)
 - Inactivity-based session boundary (4h, not UTC midnight)
 - Compaction format: assistant <summary> block prepended to remaining history
 
@@ -93,7 +93,8 @@ async def get_or_create_session(
     - daily: Reuses session active within last 4 hours (inactivity boundary)
 
     Returns:
-        Session dict with 'id' and 'is_new' (bool indicating if session was just created)
+        Session dict with 'id', 'is_new' (bool), and optionally
+        'previous_session_id' (str) when a new session replaces an old one.
     """
     try:
         result = client.rpc(
@@ -107,7 +108,6 @@ async def get_or_create_session(
         ).execute()
 
         if result.data:
-            # RPC may return is_new; if not, assume existing session
             session = result.data
             if "is_new" not in session:
                 session["is_new"] = False
@@ -132,6 +132,22 @@ async def get_or_create_session(
             if existing.data:
                 return {**existing.data[0], "is_new": False}
 
+        # Find the most recent session (will become previous_session_id)
+        previous_session_id = None
+        try:
+            prev = client.table("chat_sessions")\
+                .select("id")\
+                .eq("user_id", user_id)\
+                .eq("session_type", session_type)\
+                .is_("summary", "null")\
+                .order("updated_at", desc=True)\
+                .limit(1)\
+                .execute()
+            if prev.data:
+                previous_session_id = prev.data[0]["id"]
+        except Exception:
+            pass
+
         # Create new session
         data = {
             "user_id": user_id,
@@ -141,7 +157,11 @@ async def get_or_create_session(
 
         result = client.table("chat_sessions").insert(data).execute()
         if result.data:
-            return {**result.data[0], "is_new": True}
+            return {
+                **result.data[0],
+                "is_new": True,
+                "previous_session_id": previous_session_id,
+            }
         return None
 
 
@@ -200,6 +220,50 @@ async def get_session_messages(
         .limit(limit)\
         .execute()
     return result.data or []
+
+
+async def _summarize_previous_session(previous_session_id: str, client) -> None:
+    """
+    Generate summary for a closed session (runs as BackgroundTask).
+
+    Inline summary at session close eliminates the intraday context gap
+    where nightly cron hasn't run yet. Nightly cron remains as fallback.
+    """
+    try:
+        # Check if already summarized
+        session = client.table("chat_sessions")\
+            .select("id, summary, created_at")\
+            .eq("id", previous_session_id)\
+            .single()\
+            .execute()
+
+        if not session.data or session.data.get("summary"):
+            return  # Already summarized or not found
+
+        # Fetch messages
+        messages = client.table("session_messages")\
+            .select("role, content")\
+            .eq("session_id", previous_session_id)\
+            .order("sequence_number")\
+            .limit(50)\
+            .execute()
+
+        if not messages.data or len([m for m in messages.data if m.get("role") == "user"]) < 3:
+            return  # Too short to summarize
+
+        from services.session_continuity import generate_session_summary
+        session_date = (session.data.get("created_at") or "")[:10]
+        summary = await generate_session_summary(messages.data, session_date)
+
+        if summary:
+            client.table("chat_sessions")\
+                .update({"summary": summary})\
+                .eq("id", previous_session_id)\
+                .execute()
+            logger.info(f"[SESSION] Inline summary generated for session {previous_session_id[:8]}")
+
+    except Exception as e:
+        logger.warning(f"[SESSION] Failed to generate inline summary: {e}")
 
 
 # =============================================================================
@@ -683,6 +747,15 @@ async def global_chat(
     )
     session_id = session["id"]
 
+    # Generate summary for previous session if this is a new session
+    if session.get("is_new") and session.get("previous_session_id"):
+        import asyncio
+        from services.supabase import get_service_client
+        asyncio.create_task(_summarize_previous_session(
+            session["previous_session_id"],
+            get_service_client(),
+        ))
+
     # ADR-053: Check daily token budget before every message
     allowed, tokens_used, token_limit = check_daily_token_budget(auth.client, auth.user_id)
     if not allowed:
@@ -722,7 +795,7 @@ async def global_chat(
 
     history = build_history_for_claude(
         existing_messages,
-        use_structured_format=False,
+        use_structured_format=True,
         compaction_block=compaction_block,
     )
     logger.info(

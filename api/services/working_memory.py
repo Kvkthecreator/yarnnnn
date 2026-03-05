@@ -24,6 +24,7 @@ TP fetches it via Search when needed.
 TP can invoke GetSystemState primitive for detailed operational state.
 """
 
+import asyncio
 import json
 import logging
 from datetime import datetime, timedelta, timezone
@@ -62,18 +63,23 @@ async def build_working_memory(
         Dict structured for JSON serialization into the prompt.
         Designed to stay under ~2,000 tokens (+ ~500 for deliverable scope).
     """
-    # Load user_memory rows — the single source of truth for stated preferences
-    context_rows = await _get_user_memory(user_id, client)
+    # Parallelize independent DB queries via thread pool (sync supabase client)
+    context_rows, deliverables, platforms, sessions, system_summary = await asyncio.gather(
+        asyncio.to_thread(_get_user_memory_sync, user_id, client),
+        asyncio.to_thread(_get_active_deliverables_sync, user_id, client),
+        asyncio.to_thread(_get_connected_platforms_sync, user_id, client),
+        asyncio.to_thread(_get_recent_sessions_sync, user_id, client),
+        asyncio.to_thread(_get_system_summary_sync, user_id, client),
+    )
 
     working_memory = {
         "profile": _extract_profile(context_rows),
         "preferences": _extract_preferences(context_rows),
         "known": _extract_known(context_rows),
-        "deliverables": await _get_active_deliverables(user_id, client),
-        "platforms": await _get_connected_platforms(user_id, client),
-        "recent_sessions": await _get_recent_sessions(user_id, client),
-        # ADR-072: Replace raw activity dump with structured system summary
-        "system_summary": await _get_system_summary(user_id, client),
+        "deliverables": deliverables,
+        "platforms": platforms,
+        "recent_sessions": sessions,
+        "system_summary": system_summary,
     }
 
     # ADR-087: Inject deliverable-scoped context if session is scoped
@@ -83,22 +89,21 @@ async def build_working_memory(
     return working_memory
 
 
-async def _get_user_memory(user_id: str, client: Any) -> list[dict]:
-    """
-    Fetch all user_memory rows for the user.
-
-    ADR-059: Single SELECT replaces four separate table queries.
-    """
+def _get_user_memory_sync(user_id: str, client: Any) -> list[dict]:
+    """Fetch all user_memory rows (sync, for thread pool)."""
     try:
         result = client.table("user_memory").select(
             "key, value, source, confidence"
         ).eq("user_id", user_id).limit(MAX_CONTEXT_ENTRIES).execute()
-
         return result.data or []
-
     except Exception as e:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch user_memory: {e}")
         return []
+
+
+async def _get_user_memory(user_id: str, client: Any) -> list[dict]:
+    """Async wrapper for backward compatibility."""
+    return _get_user_memory_sync(user_id, client)
 
 
 def _extract_profile(rows: list[dict]) -> dict:
@@ -242,13 +247,8 @@ async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
     return scope
 
 
-async def _get_active_deliverables(user_id: str, client: Any) -> list:
-    """
-    Fetch active deliverables summary for working memory.
-
-    Returns condensed list: title, frequency, recipient, status.
-    Capped at MAX_DELIVERABLES, ordered by updated_at desc.
-    """
+def _get_active_deliverables_sync(user_id: str, client: Any) -> list:
+    """Fetch active deliverables summary (sync, for thread pool)."""
     deliverables = []
     total_count = 0
 
@@ -289,10 +289,13 @@ async def _get_active_deliverables(user_id: str, client: Any) -> list:
     return deliverables
 
 
-async def _get_connected_platforms(user_id: str, client: Any) -> list:
-    """
-    Fetch connected platform summary for working memory.
-    """
+async def _get_active_deliverables(user_id: str, client: Any) -> list:
+    """Async wrapper for backward compatibility."""
+    return _get_active_deliverables_sync(user_id, client)
+
+
+def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
+    """Fetch connected platform summary (sync, for thread pool)."""
     platforms = []
 
     try:
@@ -315,8 +318,6 @@ async def _get_connected_platforms(user_id: str, client: Any) -> list:
                     "freshness": freshness,
                 })
 
-                # Google OAuth stores one "gmail" row covering both Gmail and Calendar.
-                # Surface calendar as a separate connected platform for TP awareness.
                 if platform_name == "gmail":
                     platforms.append({
                         "platform": "calendar",
@@ -329,6 +330,11 @@ async def _get_connected_platforms(user_id: str, client: Any) -> list:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch platforms: {e}")
 
     return platforms
+
+
+async def _get_connected_platforms(user_id: str, client: Any) -> list:
+    """Async wrapper for backward compatibility."""
+    return _get_connected_platforms_sync(user_id, client)
 
 
 def _calculate_freshness(last_synced: Optional[str], now: datetime) -> str:
@@ -352,12 +358,8 @@ def _calculate_freshness(last_synced: Optional[str], now: datetime) -> str:
         return "unknown"
 
 
-async def _get_recent_sessions(user_id: str, client: Any) -> list:
-    """
-    Fetch recent session summaries for working memory.
-
-    Returns last N session summaries from last 7 days.
-    """
+def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
+    """Fetch recent session summaries (sync, for thread pool)."""
     sessions = []
 
     try:
@@ -386,19 +388,13 @@ async def _get_recent_sessions(user_id: str, client: Any) -> list:
     return sessions
 
 
-async def _get_system_summary(user_id: str, client: Any) -> dict:
-    """
-    Build structured system summary for working memory (ADR-072).
+async def _get_recent_sessions(user_id: str, client: Any) -> list:
+    """Async wrapper for backward compatibility."""
+    return _get_recent_sessions_sync(user_id, client)
 
-    Replaces raw activity_log dump with actionable system state:
-    - last_signal_pass: When, what triggered
-    - platform_sync_freshness: Per-platform structured freshness
-    - pending_reviews_count: Items awaiting user action
-    - failed_jobs_24h: Any failed jobs in last 24 hours
 
-    This gives TP ambient awareness of system state without requiring
-    explicit GetSystemState invocation.
-    """
+def _get_system_summary_sync(user_id: str, client: Any) -> dict:
+    """Build structured system summary (sync, for thread pool). ADR-072."""
     now = datetime.now(timezone.utc)
     summary: dict[str, Any] = {
         "last_signal_pass": None,
@@ -557,6 +553,11 @@ async def _get_system_summary(user_id: str, client: Any) -> dict:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch failed jobs count: {e}")
 
     return summary
+
+
+async def _get_system_summary(user_id: str, client: Any) -> dict:
+    """Async wrapper for backward compatibility."""
+    return _get_system_summary_sync(user_id, client)
 
 
 # --- Formatting ---

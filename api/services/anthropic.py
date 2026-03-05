@@ -44,6 +44,8 @@ def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int
 
     ADR-043: Keep tool results concise for conversation history.
     Large results (like List with 20+ items) can cause prompt overflow.
+    When truncation occurs, adds _truncated metadata so the model knows
+    results were clipped and can advise the user to narrow their query.
 
     Args:
         result: Tool result dict
@@ -57,6 +59,8 @@ def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int
     """
     import json
 
+    truncation_info = {}  # tracks {total: N, shown: M} for the first truncated list
+
     def truncate_value(v, depth=0):
         if depth > max_depth:
             return "..."
@@ -66,6 +70,9 @@ def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int
             return v
         elif isinstance(v, list):
             if len(v) > max_items:
+                if not truncation_info:
+                    truncation_info["total"] = len(v)
+                    truncation_info["shown"] = max_items
                 truncated = [truncate_value(item, depth + 1) for item in v[:max_items]]
                 truncated.append(f"... and {len(v) - max_items} more")
                 return truncated
@@ -76,6 +83,16 @@ def _truncate_tool_result(result: dict, max_items: int = 5, max_content_len: int
             return v
 
     truncated = truncate_value(result)
+
+    if truncation_info:
+        # Add structured truncation metadata so the model knows results were clipped
+        if isinstance(truncated, dict):
+            truncated["_truncated"] = True
+            truncated["_truncation_note"] = (
+                f"Showing {truncation_info['shown']} of {truncation_info['total']} results. "
+                f"Use a more specific query to narrow results."
+            )
+
     return json.dumps(truncated)
 
 

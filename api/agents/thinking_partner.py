@@ -533,7 +533,8 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
             return await execute_primitive(auth, tool_name, tool_input)
 
         # Use the streaming with tools function
-        # Force tool use with tool_choice=any - TP must use a tool for every response
+        # tool_choice=auto: model decides when to use tools vs respond directly
+        # Prompt guidance in base.py handles when tools are required vs optional
         # ADR-050: Uses combined tools (primitives + platform tools)
         async for event in chat_completion_stream_with_tools(
             messages=messages,
@@ -541,6 +542,6 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
             tools=tools,
             tool_executor=tool_executor,
             model=self.model,
-            tool_choice={"type": "any"},  # Force tool use on first round
+            tool_choice={"type": "auto"},
         ):
             yield event
