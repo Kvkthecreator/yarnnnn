@@ -2661,6 +2661,7 @@ async def get_landscape(
 async def get_platform_context(
     provider: str,
     limit: int = Query(20, ge=1, le=100, description="Max items to return"),
+    offset: int = Query(0, ge=0, description="Pagination offset"),
     resource_id: Optional[str] = Query(None, description="Filter by specific resource"),
     auth: UserClient = None
 ) -> PlatformContentResponse:
@@ -2686,7 +2687,7 @@ async def get_platform_context(
         .eq("platform", provider)
         .or_(f"retained.eq.true,expires_at.gt.{now}")
         .order("fetched_at", desc=True)
-        .limit(limit)
+        .range(offset, offset + limit - 1)
     )
 
     if resource_id:

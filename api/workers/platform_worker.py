@@ -278,6 +278,7 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
     slack_client = get_slack_client()
     items_synced = 0
     channels_synced = 0
+    channel_errors: list[str] = []
 
     try:
         for channel_id in selected_set:
@@ -308,6 +309,11 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
 
                 if error and not messages:
                     logger.warning(f"[PLATFORM_WORKER] Slack channel {channel_id} error: {error}")
+                    channel_errors.append(f"{channel_id}:{error}")
+                    await update_sync_registry(
+                        client, user_id, "slack", channel_id,
+                        last_error=f"Slack API error: {error}",
+                    )
                     continue
 
                 # ADR-077: Filter system messages, collect user IDs for resolution
@@ -424,16 +430,21 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
 
             except Exception as e:
                 logger.warning(f"[PLATFORM_WORKER] Slack channel {channel_id} sync error: {e}")
+                channel_errors.append(f"{channel_id}:{str(e)[:120]}")
                 await update_sync_registry(
                     client, user_id, "slack", channel_id,
                     last_error=str(e),
                 )
 
         logger.info(f"[PLATFORM_WORKER] Slack sync complete: {channels_synced} channels, {items_synced} items")
-        return {
+        response = {
             "items_synced": items_synced,
             "channels_synced": channels_synced,
         }
+        # If every selected channel failed, surface provider-level error.
+        if channels_synced == 0 and channel_errors:
+            response["error"] = "; ".join(channel_errors[:3])
+        return response
 
     except Exception as e:
         logger.warning(f"[PLATFORM_WORKER] Slack sync error: {e}")

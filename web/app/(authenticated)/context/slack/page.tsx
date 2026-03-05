@@ -21,6 +21,7 @@ import { PlatformTabSwitcher } from '@/components/context/PlatformTabSwitcher';
 import { PlatformContextFeed } from '@/components/context/PlatformContextFeed';
 import { ResourceList } from '@/components/context/ResourceList';
 import { ConnectionDetailsModal } from '@/components/context/ConnectionDetailsModal';
+import { getSyncMetrics } from '@/components/context/sync-metrics';
 
 const BENEFITS = [
   'Sync channels as context sources',
@@ -29,7 +30,9 @@ const BENEFITS = [
 ];
 
 function renderSlackMetadata(resource: LandscapeResource) {
-  const memberCount = resource.metadata?.member_count as number | undefined;
+  const memberCount =
+    (resource.metadata?.member_count as number | undefined)
+    ?? (resource.metadata?.num_members as number | undefined);
   if (memberCount === undefined && resource.items_extracted === 0) return null;
 
   return (
@@ -74,6 +77,7 @@ export default function SlackContextPage() {
     setOriginalIds: data.setOriginalIds,
     reload: data.reload,
   });
+  const syncMetrics = getSyncMetrics(data.resources);
 
   if (data.loading) {
     return (
@@ -112,14 +116,11 @@ export default function SlackContextPage() {
             platform="slack"
             tier={data.tierLimits.tier}
             syncFrequency={data.tierLimits.limits.sync_frequency}
-            nextSync={data.tierLimits.next_sync}
             selectedCount={data.selectedIds.size}
-            syncedCount={data.resources.filter(r => r.items_extracted > 0).length}
-            errorCount={data.resources.filter(r => r.last_error).length}
-            lastSyncedAt={data.resources.reduce((latest, r) => {
-              if (!r.last_extracted_at) return latest;
-              return !latest || r.last_extracted_at > latest ? r.last_extracted_at : latest;
-            }, null as string | null)}
+            syncedCount={syncMetrics.syncedResourceCount}
+            errorCount={syncMetrics.errorCount}
+            lastSyncedAt={syncMetrics.lastSyncedAt}
+            onSyncTriggered={data.reload}
           />
         )}
 
@@ -155,7 +156,11 @@ export default function SlackContextPage() {
         )}
 
         {activeTab === 'context' && (
-          <PlatformContextFeed platform="slack" />
+          <PlatformContextFeed
+            platform="slack"
+            selectedResourceIds={Array.from(data.selectedIds)}
+            sourceLabel="channels"
+          />
         )}
       </div>
 

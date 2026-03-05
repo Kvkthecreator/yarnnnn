@@ -4,6 +4,25 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 
 ---
 
+## 2026-03-05
+
+### Context Page Sync-State Alignment
+
+**Fixes**:
+- **Slack error visibility gap**: Slack channel API failures (`not_in_channel`, permission failures, etc.) now write `sync_registry.last_error` per channel instead of silently skipping rows as "not synced."
+- **False-success sync runs**: Slack worker now returns provider-level `error` when all selected channels fail, so activity/status no longer imply a healthy run with zero effective syncs.
+- **Context pagination contract mismatch**: `GET /api/integrations/{provider}/context` now honors `offset` (range-based pagination) to match frontend `Load more` calls.
+- **Sync status derivation**: Context page status now treats any `last_extracted_at` as synced (not just `items_extracted > 0`), avoiding "awaiting first sync" for sources that synced but had no new items.
+
+### Context UX Clarification (All Platform Pages)
+
+**Changes**:
+- Added selected-source filtering in Context tab (default: selected sources only, with toggle to show all retained/synced platform context).
+- Added scheduled post-sync refresh polling after `Run sync` to reduce stale UI after background sync trigger.
+- Fixed Slack metadata key mismatch (`num_members` vs `member_count`) so channel metadata consistently renders.
+
+---
+
 ## 2026-02-28
 
 ### RefreshPlatformContent Primitive (ADR-085)

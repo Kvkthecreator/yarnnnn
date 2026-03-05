@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Loader2, RotateCw, Sparkles, Zap } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { api } from '@/lib/api/client';
@@ -68,12 +68,12 @@ interface CompactSyncStatusProps {
   platform: 'slack' | 'gmail' | 'notion' | 'calendar';
   tier: string;
   syncFrequency: string;
-  nextSync?: string | null;
   selectedCount: number;
   syncedCount: number;
   lastSyncedAt?: string | null;
   errorCount?: number;
   liveQueryMode?: boolean;
+  onSyncTriggered?: () => Promise<void> | void;
 }
 
 export function CompactSyncStatus({
@@ -85,9 +85,18 @@ export function CompactSyncStatus({
   lastSyncedAt,
   errorCount = 0,
   liveQueryMode = false,
+  onSyncTriggered,
 }: CompactSyncStatusProps) {
   const [runningSync, setRunningSync] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+  const refreshTimersRef = useRef<number[]>([]);
+
+  useEffect(() => {
+    return () => {
+      refreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      refreshTimersRef.current = [];
+    };
+  }, []);
 
   const { color, label } = computeHealth({
     selectedCount,
@@ -103,9 +112,23 @@ export function CompactSyncStatus({
   const handleRunSync = async () => {
     setRunningSync(true);
     setActionMessage(null);
+
+    refreshTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+    refreshTimersRef.current = [];
+
     try {
       const result = await api.integrations.syncPlatform(platform);
       setActionMessage(result.message || 'Sync started.');
+
+      if (onSyncTriggered) {
+        await Promise.resolve(onSyncTriggered());
+        [3000, 8000, 15000].forEach((delayMs) => {
+          const timerId = window.setTimeout(() => {
+            void Promise.resolve(onSyncTriggered());
+          }, delayMs);
+          refreshTimersRef.current.push(timerId);
+        });
+      }
     } catch (err) {
       setActionMessage(err instanceof Error ? err.message : 'Failed to trigger sync.');
     } finally {

@@ -16,10 +16,12 @@ import type { LandscapeResource } from '@/types';
 export function CoverageBadge({
   state,
   itemsExtracted,
+  lastExtractedAt,
   hasError,
 }: {
   state: string;
   itemsExtracted?: number;
+  lastExtractedAt?: string | null;
   hasError?: boolean;
 }) {
   const stateConfig: Record<string, { color: string; bg: string; label: string }> = {
@@ -33,7 +35,7 @@ export function CoverageBadge({
 
   const effectiveState = hasError
     ? 'error'
-    : (state === 'uncovered' && itemsExtracted && itemsExtracted > 0) ? 'covered' : state;
+    : (state === 'uncovered' && ((itemsExtracted && itemsExtracted > 0) || !!lastExtractedAt)) ? 'covered' : state;
   const { color, bg, label } = stateConfig[effectiveState] || stateConfig.uncovered;
 
   return (
@@ -153,6 +155,7 @@ export function ResourceRow({
             <CoverageBadge
               state={resource.coverage_state}
               itemsExtracted={resource.items_extracted}
+              lastExtractedAt={resource.last_extracted_at}
               hasError={hasError}
             />
           )}

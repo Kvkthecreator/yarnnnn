@@ -11,14 +11,26 @@ type PlatformKey = 'slack' | 'gmail' | 'notion' | 'calendar';
 
 interface PlatformContextFeedProps {
   platform: PlatformKey;
+  selectedResourceIds?: string[];
+  sourceLabel?: string;
 }
 
-export function PlatformContextFeed({ platform }: PlatformContextFeedProps) {
+export function PlatformContextFeed({
+  platform,
+  selectedResourceIds = [],
+  sourceLabel = 'sources',
+}: PlatformContextFeedProps) {
   const [items, setItems] = useState<PlatformContentItem[]>([]);
   const [totalCount, setTotalCount] = useState(0);
   const [retainedCount, setRetainedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
+  const [showAllSources, setShowAllSources] = useState(false);
+  const selectedSet = useMemo(() => new Set(selectedResourceIds), [selectedResourceIds]);
+  const selectedIdsKey = useMemo(
+    () => Array.from(selectedSet).sort().join('|'),
+    [selectedSet]
+  );
 
   const loadItems = useCallback(async (offset = 0) => {
     if (offset === 0) setLoading(true);
@@ -48,9 +60,19 @@ export function PlatformContextFeed({ platform }: PlatformContextFeedProps) {
     loadItems(0);
   }, [loadItems]);
 
+  useEffect(() => {
+    setShowAllSources(false);
+  }, [platform, selectedIdsKey]);
+  const showingSelectedOnly = selectedSet.size > 0 && !showAllSources;
+
+  const visibleItems = useMemo(() => {
+    if (!showingSelectedOnly) return items;
+    return items.filter((item) => selectedSet.has(item.resource_id));
+  }, [items, showingSelectedOnly, selectedSet]);
+
   const grouped = useMemo(() => {
     const groups: Record<string, { name: string; items: PlatformContentItem[] }> = {};
-    for (const item of items) {
+    for (const item of visibleItems) {
       const key = item.resource_id;
       if (!groups[key]) {
         groups[key] = { name: item.resource_name || item.resource_id, items: [] };
@@ -63,7 +85,7 @@ export function PlatformContextFeed({ platform }: PlatformContextFeedProps) {
       const bTime = b.items[0]?.source_timestamp || b.items[0]?.fetched_at || '';
       return bTime.localeCompare(aTime);
     });
-  }, [items]);
+  }, [visibleItems]);
 
   if (loading) {
     return (
@@ -91,8 +113,26 @@ export function PlatformContextFeed({ platform }: PlatformContextFeedProps) {
         <p className="text-sm text-muted-foreground">
           {totalCount} item{totalCount !== 1 ? 's' : ''} synced
           {retainedCount > 0 && <> · {retainedCount} retained</>}
+          {showingSelectedOnly && <> · filtered to selected {sourceLabel}</>}
         </p>
+        {selectedSet.size > 0 && (
+          <button
+            onClick={() => setShowAllSources((value) => !value)}
+            className="text-xs text-primary hover:text-primary/80"
+          >
+            {showAllSources ? `Show selected ${sourceLabel}` : `Show all ${sourceLabel}`}
+          </button>
+        )}
       </div>
+
+      {showingSelectedOnly && visibleItems.length === 0 && (
+        <div className="border border-dashed border-border rounded-lg p-6 text-center">
+          <p className="text-sm font-medium text-muted-foreground">No context yet for selected {sourceLabel}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Try running sync, or switch to all {sourceLabel} to inspect previously retained context.
+          </p>
+        </div>
+      )}
 
       {grouped.map(([resourceId, group]) => (
         <div key={resourceId} className="rounded-lg border border-border overflow-hidden">
