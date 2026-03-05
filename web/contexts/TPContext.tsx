@@ -349,7 +349,19 @@ export function TPProvider({ children, onSurfaceChange }: TPProviderProps) {
         });
 
         if (!response.ok) {
-          throw new Error(`Chat request failed: ${response.status}`);
+          // Parse error detail from backend (e.g. daily token budget exceeded)
+          let errorDetail = `Chat request failed: ${response.status}`;
+          try {
+            const errorData = await response.json();
+            if (errorData?.detail?.message) {
+              errorDetail = errorData.detail.message;
+            } else if (typeof errorData?.detail === 'string') {
+              errorDetail = errorData.detail;
+            }
+          } catch {
+            // Response wasn't JSON, use generic message
+          }
+          throw new Error(errorDetail);
         }
 
         // Handle streaming response

@@ -55,10 +55,7 @@ class ExecutionStrategy(ABC):
 
 class PlatformBoundStrategy(ExecutionStrategy):
     """
-    Strategy for platform_bound deliverables.
-
-    Single platform focus (e.g., slack_channel_digest, gmail_inbox_brief,
-    meeting_prep, weekly_calendar_preview).
+    Strategy for platform_bound deliverables (e.g., digest).
     Fetches from one platform, uses platform-specific synthesis.
     """
 
@@ -145,10 +142,8 @@ class PlatformBoundStrategy(ExecutionStrategy):
 
 class CrossPlatformStrategy(ExecutionStrategy):
     """
-    Strategy for cross_platform deliverables.
-
+    Strategy for cross_platform deliverables (e.g., status, brief, watch).
     Fetches from multiple platforms in parallel, then synthesizes.
-    Used for status_report, weekly_status, project_brief, etc.
     """
 
     @property

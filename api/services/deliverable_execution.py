@@ -176,7 +176,7 @@ def _build_headless_system_prompt(
     to give the agent per-deliverable behavioral context and accumulated knowledge.
 
     Args:
-        deliverable_type: The deliverable type (status_report, etc.)
+        deliverable_type: The deliverable type (digest, brief, status, etc.)
         trigger_context: Optional trigger info with signal reasoning
         research_directive: Optional research instruction for research/hybrid types
         deliverable: Optional deliverable dict with deliverable_instructions and deliverable_memory

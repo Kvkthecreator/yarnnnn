@@ -375,7 +375,7 @@ class DeliverableCreate(BaseModel):
     deliverable_type: DeliverableType = "custom"
     type_config: Optional[dict] = None  # Type-specific config, validated per type
     # ADR-031: Platform-native variants
-    platform_variant: Optional[str] = None  # e.g., "slack_digest" for status_report
+    platform_variant: Optional[str] = None
     # ADR-044: Type classification (binding + temporal pattern)
     type_classification: Optional[dict] = None  # If provided, overrides auto-computed
     recipient_context: Optional[RecipientContext] = None
@@ -437,7 +437,7 @@ class DeliverableResponse(BaseModel):
     deliverable_type: str = "custom"
     type_config: Optional[dict] = None
     # ADR-031: Platform-native variants
-    platform_variant: Optional[str] = None  # e.g., "slack_digest" for status_report
+    platform_variant: Optional[str] = None
     # ADR-044: Type classification (binding + temporal pattern)
     type_classification: Optional[dict] = None
     project_id: Optional[str] = None
