@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.05.4] - Fix: deliverable ref visible in scoped working memory
+
+### Changed
+- `api/services/working_memory.py`: `format_for_prompt()` now renders `**Ref:** deliverable:{id}` in the scoped deliverable section. Previously the UUID was in the data dict but never shown in the prompt, forcing TP to List-resolve the ID before every Edit call.
+- `api/agents/tp_prompts/behaviors.py`: Added explicit instruction to use the Ref from working memory for Edit calls — "do NOT guess or fabricate the deliverable ID."
+
+### Expected behavior
+- TP can now Edit deliverable instructions/observations/goals on the first attempt without a List roundtrip.
+- Eliminates the `Edit→fail→List→Edit→success` pattern observed in qualitative testing.
+
+---
+
 ## [2026.03.05.3] - Active deliverable workspace management: behavioral triggers for TP
 
 ### Changed

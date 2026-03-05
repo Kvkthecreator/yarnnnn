@@ -658,7 +658,10 @@ def format_for_prompt(working_memory: dict) -> str:
     if scoped:
         title = scoped.get("title", "Untitled")
         dtype = scoped.get("type", "custom").replace("_", " ").title()
+        did = scoped.get("id", "")
         lines.append(f"\n### Current deliverable: {title} ({dtype})")
+        if did:
+            lines.append(f"**Ref:** `deliverable:{did}`")
 
         instructions = scoped.get("instructions")
         if instructions:

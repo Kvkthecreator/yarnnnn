@@ -292,6 +292,8 @@ async def phase_2_working_memory_version(auth: MockAuth) -> PhaseResult:
     prompt_text = format_for_prompt(mock_wm)
     assert_in(r, "prompt contains 'Latest version'", "Latest version", prompt_text)
     assert_in(r, "prompt contains version content", "structural overhaul", prompt_text)
+    assert_in(r, "prompt contains deliverable ref for Edit calls",
+              f"deliverable:{scope['id']}", prompt_text)
 
     # 2c: Deliverable without versions should NOT crash
     no_ver_del = {
@@ -510,6 +512,10 @@ async def phase_5_behavioral_triggers(auth: MockAuth) -> PhaseResult:
               "set_goal: {description:", BEHAVIORS_SECTION)
     assert_in(r, "deliverable_instructions syntax correct",
               "deliverable_instructions:", BEHAVIORS_SECTION)
+
+    # 5g2: Ref usage guidance in behaviors
+    assert_in(r, "Behaviors instructs TP to use Ref from working memory",
+              "do NOT guess", BEHAVIORS_SECTION)
 
     # 5h: tools.py cross-references behaviors
     assert_in(r, "tools.py references behaviors section",
@@ -748,6 +754,7 @@ async def phase_7_integration(auth: MockAuth) -> PhaseResult:
     # Verify all sections render
     assert_in(r, "Prompt has profile section", "Kevin", prompt_text)
     assert_in(r, "Prompt has deliverable scope", "Current deliverable", prompt_text)
+    assert_in(r, "Prompt has deliverable ref", f"deliverable:{scope['id']}", prompt_text)
     assert_true(r, "Prompt is reasonable length",
                 200 < len(prompt_text) < 10000,
                 f"Prompt length: {len(prompt_text)}")
