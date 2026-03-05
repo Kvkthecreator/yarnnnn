@@ -4,7 +4,6 @@ YARNNN v5 - Unified Scheduler
 Consolidates all scheduled job processing:
 - Recurring deliverables (ADR-018)
 - Proactive/coordinator deliverables (ADR-092)
-- Weekly digests
 - Import jobs
 - Nightly conversation analysis + memory extraction
 - Platform content cleanup (ADR-072)
@@ -25,10 +24,6 @@ from uuid import UUID
 
 from croniter import croniter
 
-from .email import (
-    send_email,
-)
-from .digest import generate_digest_content
 from .import_jobs import get_pending_import_jobs, process_import_job, recover_stale_processing_jobs
 
 logging.basicConfig(level=logging.INFO)
@@ -175,7 +170,7 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
     Args:
         supabase_client: Supabase client
         user_id: User ID
-        notification_type: 'deliverable_ready', 'deliverable_failed', 'work_complete', 'weekly_digest'
+        notification_type: 'deliverable_ready', 'deliverable_failed', 'suggestion_created'
 
     Returns:
         True if should send email (defaults to True if no preferences set)
@@ -184,8 +179,7 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
     column_map = {
         "deliverable_ready": "email_deliverable_ready",
         "deliverable_failed": "email_deliverable_failed",
-        "work_complete": "email_work_complete",
-        "weekly_digest": "email_weekly_digest",
+        "suggestion_created": "email_suggestion_created",
     }
 
     column = column_map.get(notification_type)
@@ -510,106 +504,6 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
 
 
 # =============================================================================
-# Digest Processing (Weekly Digests)
-# =============================================================================
-
-async def get_workspaces_due_for_digest(supabase_client) -> list[dict]:
-    """
-    Query workspaces that are due for their weekly digest.
-    Uses the get_workspaces_due_for_digest database function.
-    """
-    now = datetime.now(timezone.utc)
-
-    try:
-        result = supabase_client.rpc(
-            "get_workspaces_due_for_digest",
-            {"check_time": now.isoformat()}
-        ).execute()
-        return result.data or []
-    except Exception as e:
-        logger.warning(f"[DIGEST] Failed to query workspaces: {e}")
-        return []
-
-
-async def process_workspace_digest(
-    supabase_client,
-    workspace_id: str,
-    owner_email: str,
-    workspace_name: str,
-    owner_id: str,
-) -> bool:
-    """
-    Generate and send digest for a single workspace.
-    Returns True if successful.
-    """
-    from uuid import UUID
-
-    # Check if user wants digest emails
-    if not await should_send_email(supabase_client, owner_id, "weekly_digest"):
-        logger.info(f"[DIGEST] Skipping (user opted out): {workspace_name}")
-        return True
-
-    # Generate digest content
-    content = await generate_digest_content(
-        supabase_client,
-        UUID(workspace_id),
-        workspace_name,
-    )
-
-    # Skip if no activity
-    if content.is_empty:
-        logger.info(f"[DIGEST] Skipping (no activity): {workspace_name}")
-        return True
-
-    now = datetime.now(timezone.utc)
-
-    # Create tracking record
-    try:
-        result = supabase_client.table("scheduled_messages").insert({
-            "workspace_id": workspace_id,
-            "scheduled_for": now.isoformat(),
-            "message_type": "weekly_digest",
-            "subject": content.subject,
-            "content": content.to_dict(),
-            "recipient_email": owner_email,
-            "status": "pending",
-        }).execute()
-        message_id = result.data[0]["id"] if result.data else None
-    except Exception as e:
-        logger.warning(f"[DIGEST] Failed to create message record: {e}")
-        message_id = None
-
-    # Send email
-    email_result = await send_email(
-        to=owner_email,
-        subject=content.subject,
-        html=content.html,
-        text=content.text,
-    )
-
-    # Update status
-    if message_id:
-        try:
-            update_data = {
-                "status": "sent" if email_result.success else "failed",
-                "sent_at": now.isoformat() if email_result.success else None,
-                "failure_reason": email_result.error,
-            }
-            supabase_client.table("scheduled_messages").update(update_data).eq(
-                "id", message_id
-            ).execute()
-        except Exception:
-            pass
-
-    if email_result.success:
-        logger.info(f"[DIGEST] ✓ Sent to {owner_email} for {workspace_name}")
-    else:
-        logger.warning(f"[DIGEST] ✗ Failed for {workspace_name}: {email_result.error}")
-
-    return email_result.success
-
-
-# =============================================================================
 # Main Entry Point
 # =============================================================================
 
@@ -617,7 +511,7 @@ async def run_unified_scheduler():
     """
     Main scheduler entry point.
 
-    Processes deliverables (ADR-018), work tickets (ADR-017), and weekly digests.
+    Processes deliverables, proactive/coordinator reviews, imports, and memory extraction.
     Called by Render cron every 5 minutes.
     """
     from supabase import create_client
@@ -678,31 +572,6 @@ async def run_unified_scheduler():
                 proactive_reviewed += 1
         except Exception as e:
             logger.error(f"[PROACTIVE] Unexpected error: {e}")
-
-    # -------------------------------------------------------------------------
-    # Process Weekly Digests (runs hourly, but we check if due)
-    # Only check at the top of each hour to avoid duplicate sends
-    # -------------------------------------------------------------------------
-    digest_success = 0
-    digest_count = 0
-    if now.minute < 5:  # Only run digest check in first 5 minutes of each hour
-        workspaces = await get_workspaces_due_for_digest(supabase)
-        digest_count = len(workspaces)
-        logger.info(f"[DIGEST] Found {digest_count} workspace(s) due for digest")
-
-        for ws in workspaces:
-            try:
-                success = await process_workspace_digest(
-                    supabase,
-                    workspace_id=ws["workspace_id"],
-                    owner_email=ws["owner_email"],
-                    workspace_name=ws["workspace_name"],
-                    owner_id=ws.get("owner_id", ""),
-                )
-                if success:
-                    digest_success += 1
-            except Exception as e:
-                logger.error(f"[DIGEST] Unexpected error for {ws.get('workspace_name')}: {e}")
 
     # -------------------------------------------------------------------------
     # ADR-072: Cleanup Expired Platform Content (hourly)
@@ -882,7 +751,6 @@ async def run_unified_scheduler():
 
     summary_parts = [
         f"deliverables={deliverable_summary}",
-        f"digests={digest_success}/{digest_count}",
         f"imports={import_success}/{import_count}",
     ]
     if memory_extracted > 0:
@@ -900,8 +768,8 @@ async def run_unified_scheduler():
         from services.activity_log import write_activity
 
         # Build heartbeat summary
-        total_checked = len(deliverables) + digest_count + import_count
-        total_triggered = deliverable_success + digest_success + import_success
+        total_checked = len(deliverables) + import_count
+        total_triggered = deliverable_success + import_success
 
         heartbeat_summary = f"Scheduler cycle: {total_triggered}/{total_checked} items processed"
 
@@ -911,8 +779,6 @@ async def run_unified_scheduler():
             "deliverables_checked": len(deliverables),
             "deliverables_triggered": deliverable_success,
             "deliverables_skipped": deliverable_skipped,
-            "digests_checked": digest_count,
-            "digests_triggered": digest_success,
             "imports_checked": import_count,
             "imports_triggered": import_success,
             "proactive_reviewed": proactive_reviewed,

@@ -47,7 +47,7 @@ services:
 # Cron Jobs
 crons:
   # Unified Scheduler (ADR-017 + ADR-018)
-  # Processes: recurring work tickets, recurring deliverables, weekly digests, import jobs
+  # Processes: recurring deliverables, proactive reviews, import jobs, memory extraction
   # Runs every 5 minutes to catch due items
   - name: unified-scheduler
     schedule: "*/5 * * * *"

@@ -6,7 +6,6 @@ Delivers content to Gmail via Direct API (GoogleAPIClient).
 ADR-031 adds support for platform variants with HTML formatting:
 - email_summary: Inbox digest with sections
 - email_draft_reply: Reply drafts
-- email_weekly_digest: Weekly overview
 - email_triage: Email categorization
 
 Destination Schema:
@@ -120,7 +119,7 @@ class GmailExporter(DestinationExporter):
             platform_variant = metadata.get("platform_variant")
             use_html = fmt == "html" or platform_variant in (
                 "email_summary", "email_draft_reply", "email_follow_up",
-                "email_weekly_digest", "email_triage"
+                "email_triage"
             )
 
             email_body = content

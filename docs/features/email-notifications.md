@@ -1,13 +1,13 @@
 # Email Notifications
 
-> **Status**: Core infrastructure complete, user preferences UI pending
+> **Status**: Active
 > **ADRs**: ADR-018 (Deliverable Scheduling)
 
 ---
 
 ## Overview
 
-YARNNN sends email notifications when deliverables are ready for review, when generation fails, and for weekly activity digests. Emails are sent via Resend API.
+YARNNN sends email notifications when deliverables are ready and when generation/delivery fails. Suggestion-created notifications are also supported. Emails are sent via Resend API.
 
 ---
 
@@ -17,9 +17,10 @@ YARNNN sends email notifications when deliverables are ready for review, when ge
 
 | File | Purpose |
 |------|---------|
-| `api/jobs/email.py` | Resend API client, email templates |
-| `api/jobs/unified_scheduler.py` | Cron job that triggers emails on deliverable completion |
-| `api/jobs/digest.py` | Weekly digest content generation |
+| `api/jobs/email.py` | Resend API client |
+| `api/services/delivery.py` | Delivery orchestration and notification triggers |
+| `api/services/notifications.py` | Notification routing, preference checks, email send |
+| `api/jobs/unified_scheduler.py` | Cron entrypoint that triggers deliverable execution |
 | `supabase/migrations/022_user_notification_preferences.sql` | User preferences table |
 
 ### Email Flow
@@ -28,28 +29,17 @@ YARNNN sends email notifications when deliverables are ready for review, when ge
 Scheduler (every 5 min)
         │
         ▼
-┌─────────────────────────────┐
-│ Query due deliverables      │
-│ WHERE next_run_at <= now    │
-└─────────────────────────────┘
+deliverable execution (dispatch_trigger)
         │
         ▼
-┌─────────────────────────────┐
-│ Execute pipeline            │
-│ gather → synthesize → deliver │
-└─────────────────────────────┘
+delivery service (delivery.py)
         │
         ▼
-┌─────────────────────────────┐
-│ Check user preference       │
-│ should_send_email()         │
-└─────────────────────────────┘
+notification service (notifications.py)
         │
+        ├─ check user preferences (should_send_email)
         ▼
-┌─────────────────────────────┐
-│ Send email via Resend       │
-│ to user's auth email        │
-└─────────────────────────────┘
+send email via Resend to user's auth email
 ```
 
 ---
@@ -61,9 +51,9 @@ Scheduler (every 5 min)
 | Component | Status | Notes |
 |-----------|--------|-------|
 | Resend API client | ✅ Complete | Async, error handling, proper config |
-| Email templates | ✅ Complete | `deliverable_ready`, `deliverable_failed`, `work_complete`, `weekly_digest` |
-| Scheduler integration | ✅ Complete | Every 5 min via Render cron |
-| Preference checking | ✅ Complete | `should_send_email()` checks DB |
+| Email templates | ✅ Complete | `deliverable_ready`, `deliverable_failed` |
+| Scheduler integration | ✅ Complete | Every 5 min via Render cron, routed through delivery service |
+| Preference checking | ✅ Complete | `should_send_email()` checks DB per notification type |
 | Preferences DB table | ✅ Complete | With RLS and helper function |
 | Delivery logging | ✅ Complete | `email_delivery_log` table |
 
@@ -71,8 +61,8 @@ Scheduler (every 5 min)
 
 | Component | Status | Priority |
 |-----------|--------|----------|
-| Preferences API endpoints | ❌ Missing | P1 |
-| Settings UI (Notifications tab) | ❌ Missing | P1 |
+| Preferences API endpoints | ✅ Complete | GET/PATCH `/api/account/notification-preferences` |
+| Settings UI (Notifications tab) | ✅ Complete | `/settings?tab=notifications` |
 | Unsubscribe mechanism | ❌ Missing | P2 |
 | Resend webhook handling | ❌ Missing | P2 |
 | Email retry logic | ❌ Missing | P3 |
@@ -123,8 +113,7 @@ CREATE TABLE user_notification_preferences (
     -- Email toggles (all default to true)
     email_deliverable_ready BOOLEAN DEFAULT true,
     email_deliverable_failed BOOLEAN DEFAULT true,
-    email_work_complete BOOLEAN DEFAULT true,
-    email_weekly_digest BOOLEAN DEFAULT true,
+    email_suggestion_created BOOLEAN DEFAULT true,
 
     created_at TIMESTAMPTZ,
     updated_at TIMESTAMPTZ,
@@ -188,36 +177,7 @@ Body:
 - CTA: "View Deliverable" → /dashboard?surface=deliverable-detail&...
 ```
 
-### 3. Work Complete
-
-Sent when a work ticket finishes execution.
-
-```
-Subject: Work complete: [Task description]
-
-Body:
-- Project name
-- Agent type
-- Generated outputs list
-- CTA: "View Results" → /dashboard?project=...
-```
-
-### 4. Weekly Digest
-
-Sent once per week with activity summary.
-
-```
-Subject: Your weekly yarnnn digest
-
-Body:
-- Tickets completed
-- Outputs delivered
-- Active projects
-- Top outputs
-- CTA: "Open Dashboard"
-```
-
----
+Preference handling: this notification is controlled by `email_deliverable_failed` independently from `email_deliverable_ready`.
 
 ## Configuration
 
@@ -253,8 +213,8 @@ services:
 - [x] Resend client and templates
 - [x] Scheduler integration
 - [x] Preferences database
-- [ ] API endpoints for preferences (GET/PATCH)
-- [ ] Settings UI with Notifications tab
+- [x] API endpoints for preferences (GET/PATCH)
+- [x] Settings UI with Notifications tab
 
 **User experience**:
 - Emails enabled by default

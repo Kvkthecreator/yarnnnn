@@ -51,8 +51,6 @@ interface DangerZoneStats {
 interface NotificationPreferences {
   email_deliverable_ready: boolean;
   email_deliverable_failed: boolean;
-  email_work_complete: boolean;
-  email_weekly_digest: boolean;
 }
 
 // ADR-039: Removed "memory" tab - facts now live in unified Context page
@@ -545,63 +543,6 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </div>
-
-              {/* Work Complete */}
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Check className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium">Work Complete</div>
-                      <div className="text-sm text-muted-foreground">
-                        Get notified when a work ticket finishes execution
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleNotificationToggle("email_work_complete", !notificationPrefs.email_work_complete)}
-                    disabled={isSavingNotifications}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_work_complete ? "bg-primary" : "bg-muted"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        notificationPrefs.email_work_complete ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-
-              {/* Weekly Digest */}
-              <div className="p-4 border border-border rounded-lg">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <FileText className="w-5 h-5 text-muted-foreground" />
-                    <div>
-                      <div className="font-medium">Weekly Digest</div>
-                      <div className="text-sm text-muted-foreground">
-                        Receive a weekly summary of your activity
-                      </div>
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => handleNotificationToggle("email_weekly_digest", !notificationPrefs.email_weekly_digest)}
-                    disabled={isSavingNotifications}
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      notificationPrefs.email_weekly_digest ? "bg-primary" : "bg-muted"
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        notificationPrefs.email_weekly_digest ? "translate-x-6" : "translate-x-1"
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-
 
               {isSavingNotifications && (
                 <p className="text-sm text-muted-foreground flex items-center gap-2">

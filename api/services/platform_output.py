@@ -388,8 +388,6 @@ def generate_gmail_html(
 
     if variant == "email_draft_reply":
         return _generate_reply_html(content, metadata)
-    elif variant == "email_weekly_digest":
-        return _generate_digest_html(content, metadata)
     elif variant == "email_triage":
         return _generate_triage_html(content, metadata)
     else:
@@ -489,86 +487,6 @@ def _generate_reply_html(content: str, metadata: dict) -> str:
     html = f"""<div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; font-size: 14px; line-height: 1.6; color: #333;">
 {body_html}
 </div>"""
-    return html
-
-
-def _generate_digest_html(content: str, metadata: dict) -> str:
-    """Generate HTML for weekly digest with section styling."""
-    title = metadata.get("title", "Weekly Email Digest")
-    body_html = _markdown_to_email_html(content)
-    footer = _email_footer_html(metadata)
-
-    html = f"""<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <style>
-        body {{
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
-            font-size: 14px;
-            line-height: 1.6;
-            color: #333;
-            background: #f9f9f9;
-            padding: 20px;
-        }}
-        .container {{
-            max-width: 600px;
-            margin: 0 auto;
-            background: white;
-            border-radius: 8px;
-            padding: 30px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-        }}
-        .header {{
-            text-align: center;
-            margin-bottom: 30px;
-            padding-bottom: 20px;
-            border-bottom: 2px solid #eee;
-        }}
-        .header h1 {{
-            margin: 0;
-            font-size: 24px;
-            color: #1a1a1a;
-        }}
-        .header .date {{
-            color: #888;
-            font-size: 14px;
-            margin-top: 5px;
-        }}
-        h2 {{
-            font-size: 18px;
-            color: #333;
-            border-bottom: 1px solid #eee;
-            padding-bottom: 8px;
-            margin-top: 25px;
-        }}
-        .urgent {{ color: #dc3545; }}
-        .action {{ color: #fd7e14; }}
-        .info {{ color: #28a745; }}
-        ul {{ padding-left: 20px; }}
-        li {{ margin: 8px 0; }}
-        .email-item {{
-            padding: 10px;
-            margin: 8px 0;
-            background: #f8f9fa;
-            border-radius: 4px;
-        }}
-        .email-item .sender {{ font-weight: 600; color: #1a1a1a; }}
-        .email-item .subject {{ color: #666; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>{title}</h1>
-            <div class="date">{metadata.get('date', '')}</div>
-        </div>
-        {body_html}
-        {footer}
-    </div>
-</body>
-</html>"""
     return html
 
 

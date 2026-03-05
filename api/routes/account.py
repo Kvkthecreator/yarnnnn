@@ -58,16 +58,14 @@ class NotificationPreferences(BaseModel):
     """User notification preferences for email."""
     email_deliverable_ready: bool = True
     email_deliverable_failed: bool = True
-    email_work_complete: bool = True
-    email_weekly_digest: bool = True
+    email_suggestion_created: bool = True
 
 
 class NotificationPreferencesUpdate(BaseModel):
     """Partial update for notification preferences."""
     email_deliverable_ready: Optional[bool] = None
     email_deliverable_failed: Optional[bool] = None
-    email_work_complete: Optional[bool] = None
-    email_weekly_digest: Optional[bool] = None
+    email_suggestion_created: Optional[bool] = None
 
 
 # =============================================================================
@@ -90,8 +88,7 @@ async def get_notification_preferences(auth: UserClient) -> NotificationPreferen
             return NotificationPreferences(
                 email_deliverable_ready=prefs.get("email_deliverable_ready", True),
                 email_deliverable_failed=prefs.get("email_deliverable_failed", True),
-                email_work_complete=prefs.get("email_work_complete", True),
-                email_weekly_digest=prefs.get("email_weekly_digest", True),
+                email_suggestion_created=prefs.get("email_suggestion_created", True),
             )
 
         # Return defaults if no preferences set
@@ -136,8 +133,7 @@ async def update_notification_preferences(
                 "user_id": user_id,
                 "email_deliverable_ready": True,
                 "email_deliverable_failed": True,
-                "email_work_complete": True,
-                "email_weekly_digest": True,
+                "email_suggestion_created": True,
                 **update_data
             }
             result = auth.client.table("user_notification_preferences").insert(insert_data).execute()

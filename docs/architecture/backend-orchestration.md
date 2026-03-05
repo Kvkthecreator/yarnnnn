@@ -285,19 +285,7 @@ Writes `content_cleanup` events to `activity_log` per user.
 
 ---
 
-## F7: Weekly Digest
-
-**File**: `api/jobs/digest.py`
-**Entry point**: Unified scheduler (hourly check, weekly per user)
-
-1. `get_workspaces_due_for_digest()` — RPC checks day + hour + timezone match
-2. Gather: tickets completed, outputs delivered, memories added
-3. Send via Resend email
-4. Track in `scheduled_messages`
-
----
-
-## F8: Import Jobs
+## F7: Import Jobs
 
 **File**: `api/jobs/import_jobs.py`
 **Entry point**: Unified scheduler (every 5 min)
@@ -308,7 +296,7 @@ Writes `content_cleanup` events to `activity_log` per user.
 
 ---
 
-## F9: Embedding Generation (NOT IMPLEMENTED)
+## F8: Embedding Generation (NOT IMPLEMENTED)
 
 **Infrastructure exists but is not wired into the pipeline.**
 

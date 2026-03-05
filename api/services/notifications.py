@@ -39,6 +39,7 @@ async def send_notification(
     context: Optional[dict] = None,
     source_type: Literal["system", "monitor", "tp", "deliverable", "event_trigger", "suggestion"] = "system",
     source_id: Optional[str] = None,
+    preference_type: Optional[Literal["deliverable_ready", "deliverable_failed", "suggestion_created"]] = None,
 ) -> NotificationResult:
     """
     Send a notification to a user.
@@ -55,6 +56,7 @@ async def send_notification(
         context: Optional related context (deliverable_id, url, etc.)
         source_type: What triggered this notification
         source_id: ID of triggering entity
+        preference_type: Optional explicit notification preference key override
 
     Returns:
         NotificationResult with status
@@ -92,7 +94,7 @@ async def send_notification(
                 "monitor": "deliverable_ready",
                 "suggestion": "suggestion_created",  # ADR-060
             }
-            pref_type = pref_type_map.get(source_type, "deliverable_ready")
+            pref_type = preference_type or pref_type_map.get(source_type, "deliverable_ready")
 
             if not await should_send_email(db_client, user_id, pref_type):
                 logger.info(f"[NOTIFICATION] Skipped (user opted out): {message[:50]}...")
@@ -393,6 +395,7 @@ async def notify_deliverable_failed(
         context={"deliverable_id": deliverable_id, "error": error},
         source_type="deliverable",
         source_id=deliverable_id,
+        preference_type="deliverable_failed",
     )
 
 
@@ -415,4 +418,3 @@ async def notify_event_triggered(
         source_type="event_trigger",
         source_id=deliverable_id,
     )
-
