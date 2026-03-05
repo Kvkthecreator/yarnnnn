@@ -12,7 +12,7 @@
  * 4. Data Sources (what informs it?)
  *
  * Recipient Context collapsed as advanced option.
- * Governance fixed to "manual" (draft mode).
+ * Mode badge shown in header. Schedule section hidden for proactive/coordinator modes.
  */
 
 import { useState, useEffect } from 'react';
@@ -40,6 +40,7 @@ import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 // ADR-066: Removed DestinationSelector - using email-first approach
 import { DELIVERABLE_TYPE_LABELS } from '@/lib/constants/deliverables';
+import { DeliverableModeBadge } from '@/components/deliverables/DeliverableModeBadge';
 import type {
   Deliverable,
   DeliverableUpdate,
@@ -282,6 +283,7 @@ export function DeliverableSettingsModal({
 
   if (!open) return null;
 
+  const showSchedule = !['proactive', 'coordinator'].includes(deliverable.mode || 'recurring');
   const showDaySelector = schedule.frequency === 'weekly' || schedule.frequency === 'biweekly';
 
   return (
@@ -295,8 +297,10 @@ export function DeliverableSettingsModal({
         <div className="flex items-center justify-between px-6 py-4 border-b border-border">
           <div>
             <h2 className="text-lg font-semibold">Deliverable Settings</h2>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground flex items-center gap-1.5">
               {DELIVERABLE_TYPE_LABELS[deliverable.deliverable_type] || deliverable.deliverable_type}
+              <span className="text-border">·</span>
+              <DeliverableModeBadge mode={deliverable.mode} />
             </p>
           </div>
           <button
@@ -366,53 +370,55 @@ export function DeliverableSettingsModal({
           </div>
 
           {/* ============================================ */}
-          {/* STEP 3: SCHEDULE */}
+          {/* STEP 3: SCHEDULE (hidden for proactive/coordinator) */}
           {/* ============================================ */}
-          <div>
-            <label className="block text-sm font-medium mb-1.5 flex items-center gap-1.5">
-              <Clock className="w-4 h-4" />
-              Schedule
-            </label>
-            <div className="grid grid-cols-3 gap-3">
-              {/* Frequency */}
-              <select
-                value={schedule.frequency}
-                onChange={(e) =>
-                  setSchedule({ ...schedule, frequency: e.target.value as ScheduleFrequency })
-                }
-                className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              >
-                {FREQUENCY_OPTIONS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-
-              {/* Day (for weekly/biweekly) */}
-              {showDaySelector && (
+          {showSchedule && (
+            <div>
+              <label className="block text-sm font-medium mb-1.5 flex items-center gap-1.5">
+                <Clock className="w-4 h-4" />
+                Schedule
+              </label>
+              <div className="grid grid-cols-3 gap-3">
+                {/* Frequency */}
                 <select
-                  value={schedule.day || 'monday'}
-                  onChange={(e) => setSchedule({ ...schedule, day: e.target.value })}
+                  value={schedule.frequency}
+                  onChange={(e) =>
+                    setSchedule({ ...schedule, frequency: e.target.value as ScheduleFrequency })
+                  }
                   className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                 >
-                  {DAY_OPTIONS.map((opt) => (
+                  {FREQUENCY_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
                     </option>
                   ))}
                 </select>
-              )}
 
-              {/* Time */}
-              <input
-                type="time"
-                value={schedule.time || '09:00'}
-                onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
-                className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
+                {/* Day (for weekly/biweekly) */}
+                {showDaySelector && (
+                  <select
+                    value={schedule.day || 'monday'}
+                    onChange={(e) => setSchedule({ ...schedule, day: e.target.value })}
+                    className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  >
+                    {DAY_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Time */}
+                <input
+                  type="time"
+                  value={schedule.time || '09:00'}
+                  onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
+                  className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+                />
+              </div>
             </div>
-          </div>
+          )}
 
           {/* ============================================ */}
           {/* STEP 4: DATA SOURCES */}
