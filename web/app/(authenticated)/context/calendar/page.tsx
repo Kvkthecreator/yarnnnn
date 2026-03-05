@@ -165,15 +165,24 @@ export default function CalendarContextPage() {
         onConnectionDetails={() => setShowConnectionModal(true)}
       />
 
-      <div className="p-4 md:p-6 space-y-6 max-w-6xl">
-        <CompactSyncStatus
-          platform="calendar"
-          tier="free"
-          syncFrequency="1x_daily"
-          selectedCount={0}
-          syncedCount={0}
-          liveQueryMode
-        />
+      <div className="p-4 md:p-6 space-y-4 max-w-6xl">
+        <div className="space-y-2">
+          <PlatformTabSwitcher
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            sourcesLabel="Calendar setup"
+            sourcesIcon={<CalendarDays className="w-4 h-4" />}
+            contextLabel="Context"
+          />
+          <CompactSyncStatus
+            platform="calendar"
+            tier="free"
+            syncFrequency="1x_daily"
+            selectedCount={0}
+            syncedCount={0}
+            liveQueryMode
+          />
+        </div>
 
         {justConnected && (
           <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
@@ -190,14 +199,6 @@ export default function CalendarContextPage() {
             </div>
           </div>
         )}
-
-        <PlatformTabSwitcher
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          sourcesLabel="Calendar setup"
-          sourcesIcon={<CalendarDays className="w-4 h-4" />}
-          contextLabel="Context"
-        />
 
         {activeTab === 'sources' && (
           <div className="space-y-6">

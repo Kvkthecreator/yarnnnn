@@ -110,22 +110,23 @@ export default function SlackContextPage() {
         onConnectionDetails={() => setShowConnectionModal(true)}
       />
 
-      <div className="p-4 md:p-6 space-y-6 max-w-6xl">
-        {data.tierLimits && (
-          <CompactSyncStatus
-            platform="slack"
-            tier={data.tierLimits.tier}
-            syncFrequency={data.tierLimits.limits.sync_frequency}
-            selectedCount={data.selectedIds.size}
-            syncedCount={syncMetrics.syncedResourceCount}
-            errorCount={syncMetrics.errorCount}
-            lastSyncedAt={syncMetrics.lastSyncedAt}
-            selectedResourceIds={Array.from(data.selectedIds)}
-            onSyncTriggered={data.reload}
-          />
-        )}
-
-        <PlatformTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
+      <div className="p-4 md:p-6 space-y-4 max-w-6xl">
+        <div className="space-y-2">
+          <PlatformTabSwitcher activeTab={activeTab} onTabChange={setActiveTab} />
+          {data.tierLimits && (
+            <CompactSyncStatus
+              platform="slack"
+              tier={data.tierLimits.tier}
+              syncFrequency={data.tierLimits.limits.sync_frequency}
+              selectedCount={data.selectedIds.size}
+              syncedCount={syncMetrics.syncedResourceCount}
+              errorCount={syncMetrics.errorCount}
+              lastSyncedAt={syncMetrics.lastSyncedAt}
+              selectedResourceIds={Array.from(data.selectedIds)}
+              onSyncTriggered={data.reload}
+            />
+          )}
+        </div>
 
         {activeTab === 'sources' && (
           <ResourceList

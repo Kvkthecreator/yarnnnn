@@ -186,7 +186,7 @@ export function ResourceList({
   ];
 
   return (
-    <section className="space-y-4">
+    <section className="space-y-3">
       {justConnected && (
         <div className="p-4 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg">
           <div className="flex items-start gap-3">
@@ -300,6 +300,56 @@ export function ResourceList({
             ))}
           </div>
         </div>
+        {error && (
+          <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
+              <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
+            </div>
+          </div>
+        )}
+
+        {atLimit && !hasChanges && (
+          <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-amber-800 dark:text-amber-300">
+                  {resourceLabelSingular} limit reached
+                </p>
+                <p className="text-amber-700 dark:text-amber-400 mt-0.5">
+                  Your {tierLimits?.tier || 'free'} plan allows {limit} {resourceLabel.toLowerCase()}.
+                  {upgradeTarget && (
+                    <button className="ml-1 underline hover:no-underline inline-flex items-center gap-1">
+                      <Sparkles className="w-3 h-3" />
+                      Upgrade to {upgradeTarget}
+                    </button>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="pt-1">
+          {resources.length === 0 ? (
+            <div className="border border-dashed border-border rounded-lg p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                No {resourceLabel.toLowerCase()} found in this workspace.
+              </p>
+            </div>
+          ) : filteredItems.length === 0 ? (
+            <div className="border border-dashed border-border rounded-lg p-8 text-center">
+              <p className="text-sm text-muted-foreground">
+                No {resourceLabel.toLowerCase()} match this view.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {filteredItems.map(renderResourceRow)}
+            </div>
+          )}
+        </div>
       </div>
 
       {showImportPrompt && (
@@ -349,55 +399,6 @@ export function ResourceList({
               </div>
             </>
           )}
-        </div>
-      )}
-
-      {error && (
-        <div className="p-3 bg-red-50 dark:bg-red-950/30 border border-red-200 dark:border-red-800 rounded-lg">
-          <div className="flex items-start gap-2">
-            <AlertCircle className="w-4 h-4 text-red-600 dark:text-red-400 mt-0.5 shrink-0" />
-            <p className="text-sm text-red-700 dark:text-red-300">{error}</p>
-          </div>
-        </div>
-      )}
-
-      {atLimit && !hasChanges && (
-        <div className="p-3 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800 rounded-lg">
-          <div className="flex items-start gap-2">
-            <AlertTriangle className="w-4 h-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
-            <div className="text-sm">
-              <p className="font-medium text-amber-800 dark:text-amber-300">
-                {resourceLabelSingular} limit reached
-              </p>
-              <p className="text-amber-700 dark:text-amber-400 mt-0.5">
-                Your {tierLimits?.tier || 'free'} plan allows {limit} {resourceLabel.toLowerCase()}.
-                {upgradeTarget && (
-                  <button className="ml-1 underline hover:no-underline inline-flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" />
-                    Upgrade to {upgradeTarget}
-                  </button>
-                )}
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {resources.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            No {resourceLabel.toLowerCase()} found in this workspace.
-          </p>
-        </div>
-      ) : filteredItems.length === 0 ? (
-        <div className="border border-dashed border-border rounded-lg p-8 text-center">
-          <p className="text-sm text-muted-foreground">
-            No {resourceLabel.toLowerCase()} match this view.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          {filteredItems.map(renderResourceRow)}
         </div>
       )}
     </section>

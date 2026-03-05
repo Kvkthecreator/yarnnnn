@@ -44,6 +44,13 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 - Quieted row-level status surfacing: neutral “Synced/Not synced” badges by default, color reserved for stale/error states.
 - Unified tab switcher look across platform pages with a lower-contrast segmented control.
 
+### Context Layout Sequencing Pass
+
+**Changes**:
+- Reordered top controls across all context pages to follow one sequence: tab selection -> sync status -> active panel.
+- Reduced vertical fragmentation by tightening top-level spacing on Slack/Gmail/Notion/Calendar context pages.
+- Consolidated Sources layout into one contiguous card (summary, filters, alerts, and resource list together) to reduce scattered blocks.
+
 ---
 
 ## 2026-02-28

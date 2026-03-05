@@ -10,6 +10,7 @@ interface PlatformTabSwitcherProps {
   sourcesIcon?: React.ReactNode;
   contextLabel?: string;
   contextIcon?: React.ReactNode;
+  className?: string;
 }
 
 export function PlatformTabSwitcher({
@@ -19,9 +20,10 @@ export function PlatformTabSwitcher({
   sourcesIcon = <List className="w-4 h-4" />,
   contextLabel = 'Synced content',
   contextIcon = <FileText className="w-4 h-4" />,
+  className,
 }: PlatformTabSwitcherProps) {
   return (
-    <div className="inline-flex items-center border border-border rounded-lg p-1 bg-muted/20 w-fit mb-2">
+    <div className={cn('inline-flex items-center border border-border rounded-lg p-1 bg-muted/20 w-fit', className)}>
       <button
         onClick={() => onTabChange('sources')}
         className={cn(
