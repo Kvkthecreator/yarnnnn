@@ -186,7 +186,6 @@ async def should_send_email(supabase_client, user_id: str, notification_type: st
         "deliverable_failed": "email_deliverable_failed",
         "work_complete": "email_work_complete",
         "weekly_digest": "email_weekly_digest",
-        "suggestion_created": "email_suggestion_created",  # ADR-060
     }
 
     column = column_map.get(notification_type)
