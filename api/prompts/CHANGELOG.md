@@ -6,6 +6,65 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.05.3] - Active deliverable workspace management: behavioral triggers for TP
+
+### Changed
+- `api/agents/tp_prompts/behaviors.py`: Replaced stale "Work Boundary (ADR-061)" section with two new sections:
+  1. "Conversation vs Generation Boundary" — clarifies DO/DON'T without referencing obsolete ADR-061 Path A/B split. Adds "actively manage deliverable workspaces during scoped sessions" to the DO list.
+  2. "Deliverable Workspace Management (ADR-087 / ADR-091)" — defines the dual posture: passive for user memory (nightly cron), active for deliverable workspace (real-time TP-managed). Includes concrete behavioral triggers: when to update instructions, append observations, update goals. Distinguishes scoped sessions (proactive steward) from general sessions (hands-off).
+- `api/agents/tp_prompts/tools.py`: Fixed incorrect Edit syntax in Deliverable Workspace section — was using `action="append_observation", content="..."` (wrong), now uses `changes={append_observation: {note: "..."}}` and `changes={set_goal: {...}}` (matches actual Edit primitive). Added cross-reference to Behaviors for when-to-act guidance.
+
+### Expected behavior
+- **In deliverable-scoped sessions**: TP proactively updates instructions when user states output preferences ("make it shorter", "use bullet points"), appends observations when user shares relevant context or gives version feedback, and updates goals on milestone changes. This is analogous to Claude Code updating CLAUDE.md/memory for a project.
+- **In general sessions**: TP only touches deliverable workspaces when explicitly asked. No unsolicited browsing or updating.
+- **User memory unchanged**: Still handled by nightly cron extraction. TP acknowledges preferences naturally but does not call Write/Edit on user_memory.
+- **Stale reference removed**: "Work Boundary (ADR-061)" replaced — ADR-061 was superseded by ADR-080.
+
+---
+
+## [2026.03.05.2] - Remove Conversation Analyst (ADR-060 superseded)
+
+### Removed
+- `api/services/conversation_analysis.py`: Entire file deleted. Background conversation pattern detection and suggested deliverable creation.
+- `api/jobs/unified_scheduler.py`: Removed 6 AM UTC analysis phase (~90 lines) — no more daily behavioral pattern scanning.
+- `api/routes/deliverables.py`: Removed `GET /suggested`, `POST /{id}/versions/{vid}/enable`, `DELETE /{id}/versions/{vid}/dismiss` endpoints. Removed `AnalystMetadata` model, `SuggestedVersionResponse`, `_parse_analyst_metadata()`.
+- `api/routes/admin.py`: Removed `POST /trigger-analysis/{user_id}` and `POST /trigger-analysis-all` admin endpoints.
+- `api/services/notifications.py`: Removed `notify_suggestion_created()` and `notify_analyst_cold_start()`.
+- `api/scripts/test_conversation_analyst.py`: Deleted test script.
+- Frontend: Removed "Suggested for you" section, suggestion API calls, `SuggestedVersion`/`AnalystMetadata` types.
+
+### Expected behavior
+- No more background LLM calls to analyze chat sessions for patterns.
+- No more `status=suggested` versions or `status=paused` analyst-created deliverables.
+- Coordinator deliverables (ADR-092) are the sole system-initiated creation path.
+- Zero LLM cost from the daily analysis phase.
+
+---
+
+## [2026.03.05.1] - TP structural overhaul: deliverable context visibility & active management
+
+### Added
+- `api/services/primitives/refs.py`: Added `version` entity type to `ENTITY_TYPES` and `TABLE_MAP` (`"version": "deliverable_versions"`). Added `_resolve_version_ref()` for version-specific resolution including `version:latest?deliverable_id=X` pattern. TP can now read generated deliverable content.
+- `api/services/primitives/search.py`: Added `version` search scope and `_search_versions()` handler. Supports `deliverable_id` filter parameter. Versions scoped through user's deliverables for security.
+- `api/services/working_memory.py`: `_extract_deliverable_scope()` now queries `deliverable_versions` for latest version and includes `latest_version` dict (version_number, status, created_at, delivery_status, content_preview at 400 chars). `format_for_prompt()` renders this in the "Current deliverable" section.
+- `api/agents/tp_prompts/tools.py`: Added "Deliverable Workspace" section documenting instructions editing, observation appending, goal setting, and version reading patterns. Added `version` to Reference Syntax types.
+- `api/services/deliverable_pipeline.py`: Added `DEFAULT_INSTRUCTIONS` dict with per-type seed instructions for 7 deliverable types.
+- `api/services/primitives/write.py`: Deliverable creation now seeds `deliverable_instructions` from `DEFAULT_INSTRUCTIONS` when not explicitly provided.
+
+### Changed
+- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` now accepts and renders `user_context` (profile + preferences from `user_memory`). Full `deliverable_memory` injection: goal, review_log (last 3), observations. `generate_draft_inline()` fetches lightweight user context before building prompt.
+- `api/agents/tp_prompts/tools.py`: Replaced stale `"work"` references with `"deliverable"` in Reference Syntax types and Domain Terms. Removed "work = one-time agent task" domain term.
+- `api/services/primitives/search.py`: Cleaned stale `"work"` scope reference from scope list and docstring.
+- `api/services/primitives/write.py`: Removed stale `work:new` example from tool description.
+
+### Expected behavior
+- **Version visibility**: TP can now see generated content via `Read(ref="version:latest?deliverable_id=X")` or `Search(scope="version")`. In deliverable-scoped chat, latest version preview is auto-injected into working memory — no tool call needed.
+- **Active workspace management**: TP has prompt guidance for updating instructions (`Edit`), appending observations, setting goals, and reading versions. New deliverables start with type-appropriate seed instructions.
+- **Headless quality**: Draft generation now reflects user preferences (tone, verbosity) and full deliverable memory (goals, review history, observations). Adds ~300-500 tokens to headless prompt.
+- **Stale cleanup**: No more "work" entity references in tool docs or search scopes.
+
+---
+
 ## [2026.03.04.1] - ADR-091: Deliverable workspace primitives
 
 ### Changed
