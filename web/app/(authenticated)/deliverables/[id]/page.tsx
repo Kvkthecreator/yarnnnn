@@ -128,107 +128,53 @@ function VersionsPanel({
   versions,
   selectedIdx,
   onSelect,
-  onRunNow,
-  running,
-  deliverable,
 }: {
   versions: DeliverableVersion[];
   selectedIdx: number;
   onSelect: (idx: number) => void;
-  onRunNow: () => void;
-  running: boolean;
-  deliverable: Deliverable;
 }) {
-  const isGoalMode = deliverable.mode === 'goal';
-  const isPlatformBound = deliverable.type_classification?.binding === 'platform_bound';
-  const hasSources = (deliverable.sources?.length ?? 0) > 0;
-  const missingSourcesWarning = isPlatformBound && !hasSources;
-  const selectedVersion = versions[selectedIdx] || null;
+  if (versions.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <FileText className="w-8 h-8 text-muted-foreground/30 mb-3" />
+        <p className="text-sm text-muted-foreground">No deliveries yet</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="flex flex-col h-full">
-      {/* Schedule / run row */}
-      <div className="px-3 py-2.5 border-b border-border shrink-0 flex items-center justify-between gap-2">
-        <div className="text-xs text-muted-foreground">
-          {deliverable.mode !== 'recurring' ? (
-            <span className="capitalize">{deliverable.mode} mode</span>
-          ) : deliverable.next_run_at ? (
-            <>
-              Next: <span className="font-medium text-foreground">
-                {format(new Date(deliverable.next_run_at), 'EEE, MMM d')} at {format(new Date(deliverable.next_run_at), 'h:mm a')}
-              </span>
-              <span className="ml-1 text-muted-foreground/70">
-                ({formatDistanceToNow(new Date(deliverable.next_run_at), { addSuffix: true })})
-              </span>
-            </>
-          ) : 'No scheduled runs'}
-        </div>
+    <div className="divide-y divide-border">
+      {versions.slice(0, 10).map((version, idx) => (
         <button
-          onClick={onRunNow}
-          disabled={running || deliverable.status === 'archived' || missingSourcesWarning}
-          title={missingSourcesWarning ? 'Add sources in Settings before running' : undefined}
-          className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
-        >
-          {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
-          {isGoalMode ? 'Generate' : 'Run Now'}
-        </button>
-      </div>
-
-      {missingSourcesWarning && (
-        <div className="px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-1.5 shrink-0">
-          <span className="shrink-0">&#9888;</span>
-          No sources configured — open Settings to select platform content.
-        </div>
-      )}
-
-      {/* Version list */}
-      {versions.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center p-6 text-center">
-          <FileText className="w-8 h-8 text-muted-foreground/30 mb-3" />
-          <p className="text-sm text-muted-foreground">No deliveries yet</p>
-        </div>
-      ) : (
-        <div className="flex-1 overflow-y-auto">
-          {/* Preview of selected version */}
-          {selectedVersion && (
-            <VersionPreview version={selectedVersion} />
+          key={version.id}
+          onClick={() => onSelect(idx)}
+          className={cn(
+            'w-full px-3 py-2.5 flex items-center justify-between hover:bg-muted/50 transition-colors text-left',
+            idx === selectedIdx && 'bg-primary/5 border-l-2 border-l-primary'
           )}
-          {/* Version list */}
-          <div className="divide-y divide-border">
-            {versions.slice(0, 10).map((version, idx) => (
-              <button
-                key={version.id}
-                onClick={() => onSelect(idx)}
-                className={cn(
-                  'w-full px-3 py-2.5 flex items-center justify-between hover:bg-muted/50 transition-colors text-left',
-                  idx === selectedIdx && 'bg-primary/5 border-l-2 border-l-primary'
-                )}
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="text-xs text-muted-foreground shrink-0">v{version.version_number}</span>
-                  <span className="text-xs truncate">{getVersionTimestamp(version)}</span>
-                  {getStatusBadge(version)}
-                </div>
-                {version.delivery_external_url && (
-                  <a
-                    href={version.delivery_external_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-1 hover:bg-muted rounded transition-colors text-primary shrink-0"
-                    title="View in destination"
-                  >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                  </a>
-                )}
-              </button>
-            ))}
-            {versions.length > 10 && (
-              <div className="px-3 py-2 text-center">
-                <span className="text-xs text-muted-foreground">Showing 10 of {versions.length}</span>
-              </div>
-            )}
+        >
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs text-muted-foreground shrink-0">v{version.version_number}</span>
+            <span className="text-xs truncate">{getVersionTimestamp(version)}</span>
+            {getStatusBadge(version)}
           </div>
+          {version.delivery_external_url && (
+            <a
+              href={version.delivery_external_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="p-1 hover:bg-muted rounded transition-colors text-primary shrink-0"
+              title="View in destination"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
+        </button>
+      ))}
+      {versions.length > 10 && (
+        <div className="px-3 py-2 text-center">
+          <span className="text-xs text-muted-foreground">Showing 10 of {versions.length}</span>
         </div>
       )}
     </div>
@@ -462,15 +408,220 @@ function SessionsPanel({ sessions }: { sessions: DeliverableSession[] }) {
 }
 
 // =============================================================================
+// Inline Version Card (shown above chat messages, full chat width)
+// =============================================================================
+
+function InlineVersionCard({
+  versions,
+  selectedIdx,
+  onSelectIdx,
+  deliverable,
+  onRunNow,
+  running,
+}: {
+  versions: DeliverableVersion[];
+  selectedIdx: number;
+  onSelectIdx: (idx: number) => void;
+  deliverable: Deliverable;
+  onRunNow: () => void;
+  running: boolean;
+}) {
+  const [expanded, setExpanded] = useState(false);
+  const [showOlderVersions, setShowOlderVersions] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const isGoalMode = deliverable.mode === 'goal';
+  const isPlatformBound = deliverable.type_classification?.binding === 'platform_bound';
+  const hasSources = (deliverable.sources?.length ?? 0) > 0;
+  const missingSourcesWarning = isPlatformBound && !hasSources;
+  const selectedVersion = versions[selectedIdx] || null;
+  const content = selectedVersion?.final_content || selectedVersion?.draft_content || '';
+  const olderVersions = versions.slice(1);
+
+  const handleCopy = async () => {
+    if (!content) return;
+    await navigator.clipboard.writeText(content);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  if (versions.length === 0) return null;
+
+  return (
+    <div className="max-w-3xl mx-auto w-full mb-4">
+      {/* Collapsed summary line */}
+      <div className="border border-border rounded-lg bg-muted/20">
+        <div className="px-3 py-2 flex items-center gap-2 text-sm">
+          <FileText className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+          {selectedVersion && (
+            <>
+              <span className="text-xs font-medium">v{selectedVersion.version_number}</span>
+              <span className="text-border text-xs">&middot;</span>
+              {getStatusBadge(selectedVersion)}
+              <span className="text-border text-xs">&middot;</span>
+              <span className="text-xs text-muted-foreground">{getVersionTimestamp(selectedVersion)}</span>
+              {content && (
+                <>
+                  <span className="text-border text-xs">&middot;</span>
+                  <span className="text-xs text-muted-foreground">{wordCount(content).toLocaleString()} words</span>
+                </>
+              )}
+            </>
+          )}
+          <div className="ml-auto flex items-center gap-1.5">
+            {content && (
+              <button
+                onClick={handleCopy}
+                className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+                title={copied ? 'Copied!' : 'Copy content'}
+              >
+                {copied ? <CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+            )}
+            {selectedVersion?.delivery_external_url && (
+              <a
+                href={selectedVersion.delivery_external_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+                title="View in destination"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            )}
+            {content && (
+              <button
+                onClick={() => setExpanded(!expanded)}
+                className="p-1 text-muted-foreground hover:text-foreground rounded transition-colors"
+                title={expanded ? 'Collapse' : 'Expand preview'}
+              >
+                <ChevronLeft className={cn('w-3.5 h-3.5 transition-transform', expanded ? 'rotate-90' : '-rotate-90')} />
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* Expanded content */}
+        {expanded && content && (
+          <div className="border-t border-border">
+            {(selectedVersion?.status === 'generating') ? (
+              <div className="p-4 flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin text-blue-500" />
+                Generating content...
+              </div>
+            ) : (selectedVersion?.status === 'failed' || selectedVersion?.delivery_status === 'failed') ? (
+              <div className="p-3 flex items-center gap-2">
+                <XCircle className="w-3.5 h-3.5 text-red-600 dark:text-red-400 shrink-0" />
+                <span className="text-xs text-red-700 dark:text-red-400">
+                  {selectedVersion?.delivery_error || 'Delivery failed'}
+                </span>
+              </div>
+            ) : (
+              <div className="px-4 py-3 prose prose-sm dark:prose-invert max-w-none prose-headings:mt-3 prose-headings:mb-1 prose-p:my-1 prose-ul:my-1 prose-li:my-0 max-h-96 overflow-y-auto">
+                <ReactMarkdown>{content}</ReactMarkdown>
+              </div>
+            )}
+            {selectedVersion?.source_snapshots && selectedVersion.source_snapshots.length > 0 && (
+              <div className="px-3 py-1.5 border-t border-border">
+                <SourcePills snapshots={selectedVersion.source_snapshots} />
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Schedule status + Run Now */}
+        <div className="px-3 py-1.5 border-t border-border flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground">
+            {deliverable.mode !== 'recurring' ? (
+              <span className="capitalize">{deliverable.mode} mode</span>
+            ) : deliverable.next_run_at ? (
+              <>
+                Next: <span className="font-medium text-foreground">
+                  {format(new Date(deliverable.next_run_at), 'EEE, MMM d')} at {format(new Date(deliverable.next_run_at), 'h:mm a')}
+                </span>
+                <span className="ml-1 text-muted-foreground/70">
+                  ({formatDistanceToNow(new Date(deliverable.next_run_at), { addSuffix: true })})
+                </span>
+              </>
+            ) : 'No scheduled runs'}
+          </div>
+          <button
+            onClick={onRunNow}
+            disabled={running || deliverable.status === 'archived' || missingSourcesWarning}
+            title={missingSourcesWarning ? 'Add sources in Settings before running' : undefined}
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs border border-border rounded hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors shrink-0"
+          >
+            {running ? <Loader2 className="w-3 h-3 animate-spin" /> : <Play className="w-3 h-3" />}
+            {isGoalMode ? 'Generate' : 'Run Now'}
+          </button>
+        </div>
+
+        {missingSourcesWarning && (
+          <div className="px-3 py-2 bg-amber-50 dark:bg-amber-900/20 border-t border-amber-200 dark:border-amber-800 text-xs text-amber-800 dark:text-amber-300 flex items-center gap-1.5 rounded-b-lg">
+            <span className="shrink-0">&#9888;</span>
+            No sources configured — open Settings to select platform content.
+          </div>
+        )}
+
+        {/* Older versions toggle */}
+        {olderVersions.length > 0 && (
+          <>
+            <button
+              onClick={() => setShowOlderVersions(!showOlderVersions)}
+              className="w-full px-3 py-1.5 border-t border-border text-xs text-muted-foreground hover:text-foreground transition-colors text-left"
+            >
+              {showOlderVersions ? 'Hide' : `${olderVersions.length} older version${olderVersions.length !== 1 ? 's' : ''}`}
+              <ChevronLeft className={cn('w-3 h-3 inline ml-1 transition-transform', showOlderVersions ? 'rotate-90' : '-rotate-90')} />
+            </button>
+            {showOlderVersions && (
+              <div className="border-t border-border divide-y divide-border">
+                {olderVersions.slice(0, 9).map((version, idx) => (
+                  <button
+                    key={version.id}
+                    onClick={() => onSelectIdx(idx + 1)}
+                    className={cn(
+                      'w-full px-3 py-2 flex items-center justify-between hover:bg-muted/50 transition-colors text-left',
+                      idx + 1 === selectedIdx && 'bg-primary/5 border-l-2 border-l-primary'
+                    )}
+                  >
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs text-muted-foreground shrink-0">v{version.version_number}</span>
+                      <span className="text-xs truncate">{getVersionTimestamp(version)}</span>
+                      {getStatusBadge(version)}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// =============================================================================
 // Scoped Chat Area (reuses TP context, scoped to this deliverable)
 // =============================================================================
 
 function DeliverableChatArea({
   deliverableId,
   deliverableTitle,
+  versions,
+  selectedIdx,
+  onSelectIdx,
+  deliverable,
+  onRunNow,
+  running,
 }: {
   deliverableId: string;
   deliverableTitle: string;
+  versions: DeliverableVersion[];
+  selectedIdx: number;
+  onSelectIdx: (idx: number) => void;
+  deliverable: Deliverable;
+  onRunNow: () => void;
+  running: boolean;
 }) {
   const {
     messages,
@@ -589,6 +740,18 @@ function DeliverableChatArea({
     <>
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
+        {/* Inline version card — full chat width */}
+        {versions.length > 0 && (
+          <InlineVersionCard
+            versions={versions}
+            selectedIdx={selectedIdx}
+            onSelectIdx={onSelectIdx}
+            deliverable={deliverable}
+            onRunNow={onRunNow}
+            running={running}
+          />
+        )}
+
         <div className="max-w-3xl mx-auto w-full space-y-4">
           {messages.length === 0 && !isLoading && (
             <div className="text-center py-8">
@@ -923,9 +1086,6 @@ export default function DeliverableWorkspacePage() {
           versions={versions}
           selectedIdx={selectedIdx}
           onSelect={setSelectedIdx}
-          onRunNow={handleRunNow}
-          running={running}
-          deliverable={deliverable}
         />
       ),
     },
@@ -1016,11 +1176,17 @@ export default function DeliverableWorkspacePage() {
         breadcrumb={breadcrumb}
         headerControls={headerControls}
         panelTabs={panelTabs}
-        panelDefaultOpen={true}
+        panelDefaultOpen={false}
       >
         <DeliverableChatArea
           deliverableId={id}
           deliverableTitle={deliverable.title}
+          versions={versions}
+          selectedIdx={selectedIdx}
+          onSelectIdx={setSelectedIdx}
+          deliverable={deliverable}
+          onRunNow={handleRunNow}
+          running={running}
         />
       </WorkspaceLayout>
 
