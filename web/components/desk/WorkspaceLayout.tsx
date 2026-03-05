@@ -8,15 +8,15 @@
  * - /deliverables/[id] (deliverable workspace — scoped TP)
  *
  * Layout:
- * - Header: identity chip + breadcrumb + controls
- * - Left: chat area (dominant, full height)
- * - Right: collapsible panel with tabs (desktop only)
+ * - Header: identity chip + breadcrumb + controls + drawer trigger
+ * - Main: chat area (full width, full height)
+ * - Drawer: slides from right, overlays content, 480px on desktop / full width on mobile
  *
  * The identity chip is the user's primary signal for "which agent am I talking to."
  * It must always be visible and never ambiguous.
  */
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -44,9 +44,9 @@ interface WorkspaceLayoutProps {
   headerControls?: React.ReactNode;
   /** The chat area — messages + input bar */
   children: React.ReactNode;
-  /** Right panel tabs. If empty, panel toggle is hidden. */
+  /** Drawer tabs. If empty, drawer trigger is hidden. */
   panelTabs?: WorkspacePanelTab[];
-  /** Default open state for the right panel */
+  /** Default open state for the drawer */
   panelDefaultOpen?: boolean;
 }
 
@@ -58,11 +58,23 @@ export function WorkspaceLayout({
   panelTabs = [],
   panelDefaultOpen = false,
 }: WorkspaceLayoutProps) {
-  const [panelOpen, setPanelOpen] = useState(panelDefaultOpen);
+  const [drawerOpen, setDrawerOpen] = useState(panelDefaultOpen);
   const [activeTab, setActiveTab] = useState<string>(panelTabs[0]?.id ?? '');
 
-  const hasPanelTabs = panelTabs.length > 0;
-  const activePanelContent = panelTabs.find((t) => t.id === activeTab)?.content;
+  const hasDrawerTabs = panelTabs.length > 0;
+  const activeDrawerContent = panelTabs.find((t) => t.id === activeTab)?.content;
+
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeDrawer();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [drawerOpen, closeDrawer]);
 
   return (
     <div className="h-full flex flex-col">
@@ -85,14 +97,14 @@ export function WorkspaceLayout({
 
         <div className="flex items-center gap-2 shrink-0">
           {headerControls}
-          {hasPanelTabs && (
+          {hasDrawerTabs && (
             <button
-              onClick={() => setPanelOpen(!panelOpen)}
+              onClick={() => setDrawerOpen(!drawerOpen)}
               className={cn(
-                'hidden md:flex items-center gap-1.5 p-2 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted',
-                panelOpen && 'bg-muted text-foreground'
+                'flex items-center gap-1.5 p-2 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted',
+                drawerOpen && 'bg-muted text-foreground'
               )}
-              title={panelOpen ? 'Close panel' : 'Open panel'}
+              title={drawerOpen ? 'Close drawer' : 'Open drawer'}
             >
               <PanelRight className="w-4 h-4" />
             </button>
@@ -100,58 +112,65 @@ export function WorkspaceLayout({
         </div>
       </div>
 
-      {/* Body: chat + optional right panel */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Chat area */}
-        <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-          {children}
-        </div>
+      {/* Body: chat area (full width) */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+        {children}
+      </div>
 
-        {/* Right panel — desktop only */}
-        {hasPanelTabs && (
+      {/* Drawer overlay */}
+      {hasDrawerTabs && (
+        <>
+          {/* Backdrop */}
           <div
             className={cn(
-              'hidden md:flex flex-col border-l border-border bg-background transition-all duration-200',
-              panelOpen ? 'w-80' : 'w-0 overflow-hidden'
+              'fixed inset-0 z-40 bg-black/20 transition-opacity duration-300',
+              drawerOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
+            )}
+            onClick={closeDrawer}
+          />
+
+          {/* Drawer */}
+          <div
+            className={cn(
+              'fixed top-0 right-0 bottom-0 z-50 flex flex-col bg-background border-l border-border shadow-xl',
+              'w-full sm:w-[480px]',
+              'transition-transform duration-300 ease-out',
+              drawerOpen ? 'translate-x-0' : 'translate-x-full'
             )}
           >
-            {panelOpen && (
-              <>
-                {/* Panel tab bar */}
-                <div className="flex items-center border-b border-border shrink-0">
-                  <div className="flex-1 flex overflow-x-auto">
-                    {panelTabs.map((tab) => (
-                      <button
-                        key={tab.id}
-                        onClick={() => setActiveTab(tab.id)}
-                        className={cn(
-                          'px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2',
-                          activeTab === tab.id
-                            ? 'border-primary text-foreground'
-                            : 'border-transparent text-muted-foreground hover:text-foreground'
-                        )}
-                      >
-                        {tab.label}
-                      </button>
-                    ))}
-                  </div>
+            {/* Tab bar + close button */}
+            <div className="flex items-center border-b border-border shrink-0">
+              <div className="flex-1 flex overflow-x-auto">
+                {panelTabs.map((tab) => (
                   <button
-                    onClick={() => setPanelOpen(false)}
-                    className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md mx-1 shrink-0 transition-colors"
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={cn(
+                      'px-3 py-2.5 text-xs font-medium whitespace-nowrap transition-colors border-b-2',
+                      activeTab === tab.id
+                        ? 'border-primary text-foreground'
+                        : 'border-transparent text-muted-foreground hover:text-foreground'
+                    )}
                   >
-                    <X className="w-3.5 h-3.5" />
+                    {tab.label}
                   </button>
-                </div>
+                ))}
+              </div>
+              <button
+                onClick={closeDrawer}
+                className="p-2 text-muted-foreground hover:text-foreground hover:bg-muted rounded-md mx-1 shrink-0 transition-colors"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
 
-                {/* Panel tab content */}
-                <div className="flex-1 overflow-y-auto">
-                  {activePanelContent}
-                </div>
-              </>
-            )}
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto">
+              {activeDrawerContent}
+            </div>
           </div>
-        )}
-      </div>
+        </>
+      )}
     </div>
   );
 }
