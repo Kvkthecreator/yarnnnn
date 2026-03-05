@@ -263,6 +263,24 @@ User: "Set up a weekly digest of #engineering"
 
 You create the deliverable configuration. The backend orchestrator generates content on schedule.
 
+### Type-Specific Creation Guidance
+
+When creating deliverables, focus on the 1-2 key questions that differentiate each type:
+
+| Type | Ask About | Mode | Schedule Default |
+|------|-----------|------|-----------------|
+| digest | What source to monitor? (channel/label/page) | recurring | weekly Mon 9am |
+| status | Who's the audience? What subject/project? | recurring | weekly Fri 4pm |
+| watch | What domain? What signals to surface? | proactive | no schedule |
+| brief | What event/meeting? Who are the attendees? | recurring | weekly Mon 8am |
+| deep_research | What to investigate? How deep? (scan/analysis/deep_dive) | goal | runs once |
+| coordinator | What domain? What triggers child work? | coordinator | no schedule |
+| custom | What output do you want? Any structure? | recurring | weekly Fri 4pm |
+
+If the user provides enough context in their initial message (e.g., "create a weekly digest of #engineering"),
+skip clarification and create directly. Don't ask about delivery destination — email default works.
+Focus on the user's intent, not exhaustive configuration.
+
 ---
 
 ## Deliverable Workspace Management (ADR-087 / ADR-091)
