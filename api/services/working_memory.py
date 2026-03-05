@@ -220,7 +220,7 @@ async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
         try:
             version_result = (
                 client.table("deliverable_versions")
-                .select("version_number, status, content, created_at, delivery_status")
+                .select("version_number, status, draft_content, final_content, created_at, delivery_status")
                 .eq("deliverable_id", deliverable_id)
                 .order("created_at", desc=True)
                 .limit(1)
@@ -228,7 +228,7 @@ async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
             )
             if version_result.data:
                 v = version_result.data[0]
-                content = v.get("content") or ""
+                content = v.get("final_content") or v.get("draft_content") or ""
                 scope["latest_version"] = {
                     "version_number": v.get("version_number"),
                     "status": v.get("status"),

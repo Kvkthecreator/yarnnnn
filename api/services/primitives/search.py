@@ -411,33 +411,36 @@ async def _search_versions(
             if not del_ids:
                 return []
 
+        # Search both draft_content and final_content for matches
         q = auth.client.table("deliverable_versions").select(
-            "id, deliverable_id, version_number, status, content, "
+            "id, deliverable_id, version_number, status, "
+            "draft_content, final_content, "
             "created_at, delivery_status"
-        ).in_("deliverable_id", del_ids).ilike(
-            "content", f"%{query}%"
+        ).in_("deliverable_id", del_ids).or_(
+            f"draft_content.ilike.%{query}%,final_content.ilike.%{query}%"
         ).order("created_at", desc=True).limit(limit)
 
         result = q.execute()
         if not result.data:
             return []
 
-        return [
-            {
+        items = []
+        for item in result.data:
+            content = item.get("final_content") or item.get("draft_content") or ""
+            items.append({
                 "entity_type": "version",
                 "ref": f"version:{item['id']}",
                 "data": {
                     "deliverable_id": item["deliverable_id"],
                     "version_number": item["version_number"],
                     "status": item["status"],
-                    "content": item["content"][:500] + "..." if len(item.get("content", "") or "") > 500 else (item.get("content") or ""),
+                    "content": content[:500] + "..." if len(content) > 500 else content,
                     "created_at": item["created_at"],
                     "delivery_status": item.get("delivery_status"),
                 },
                 "score": 0.5,
-            }
-            for item in result.data
-        ]
+            })
+        return items
 
     except Exception as e:
         import logging

@@ -435,7 +435,8 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
             return [] if ref.identifier == "*" else None
 
     select_cols = (
-        "id, deliverable_id, version_number, status, content, "
+        "id, deliverable_id, version_number, status, "
+        "draft_content, final_content, "
         "created_at, delivery_status, delivery_error"
     )
 
@@ -447,10 +448,10 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
             q = q.in_("deliverable_id", user_deliverable_ids)
         limit = int(ref.query.get("limit", 20))
         result = q.order("created_at", desc=True).limit(limit).execute()
-        # Truncate content in list view
+        # Normalize content field + truncate in list view
         for item in (result.data or []):
-            if item.get("content") and len(item["content"]) > 500:
-                item["content"] = item["content"][:500] + "..."
+            content = item.pop("final_content", None) or item.pop("draft_content", None) or ""
+            item["content"] = content[:500] + "..." if len(content) > 500 else content
         return result.data or []
 
     elif ref.identifier == "latest":
@@ -460,14 +461,22 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
         else:
             q = q.in_("deliverable_id", user_deliverable_ids)
         result = q.order("created_at", desc=True).limit(1).execute()
-        return result.data[0] if result.data else None
+        if result.data:
+            item = result.data[0]
+            item["content"] = item.pop("final_content", None) or item.pop("draft_content", None) or ""
+            return item
+        return None
 
     else:
         # Specific version by ID
         result = client.table("deliverable_versions").select(select_cols).eq(
             "id", ref.identifier
         ).in_("deliverable_id", user_deliverable_ids).execute()
-        return result.data[0] if result.data else None
+        if result.data:
+            item = result.data[0]
+            item["content"] = item.pop("final_content", None) or item.pop("draft_content", None) or ""
+            return item
+        return None
 
 
 def _extract_subpath(entity: dict, subpath: str) -> Any:
