@@ -30,12 +30,14 @@ interface ConnectedIntegrationsSectionProps {
   title?: string;
   description?: string;
   className?: string;
+  children?: React.ReactNode;
 }
 
 export function ConnectedIntegrationsSection({
   title = "Connected Platforms",
   description = "Connect platforms to sync context. Manage sources in each platform's context page.",
   className,
+  children,
 }: ConnectedIntegrationsSectionProps) {
   const router = useRouter();
 
@@ -376,6 +378,8 @@ export function ConnectedIntegrationsSection({
               </div>
             );
           })()}
+
+          {children}
 
           <div className="p-4 bg-muted/30 rounded-lg text-sm text-muted-foreground">
             <p>

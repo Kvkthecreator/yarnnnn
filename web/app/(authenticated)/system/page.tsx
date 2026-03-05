@@ -412,37 +412,33 @@ export default function SystemPage() {
           </div>
         ) : (
           <div className="space-y-8">
-            {/* ── Section 1: Integrations ─────────────────────────────────── */}
+            {/* ── Section 1: Integrations + Sync Action ───────────────────── */}
             <ConnectedIntegrationsSection
               title="Connected Platforms"
               description="Connect platforms to sync context. Manage sources in each platform's context page."
-            />
-
-            {/* ── Section 2: Actions ───────────────────────────────────────── */}
-            {hasConnectedPlatforms && (
-              <section>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-lg font-semibold">Actions</h2>
-                </div>
-
-                <div className="border border-border rounded-lg p-4 space-y-4">
-                  {/* Primary action + secondary link */}
-                  <div className="flex items-center gap-4">
+            >
+              {/* Sync action — only shown when platforms are connected */}
+              {hasConnectedPlatforms && (
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center gap-3">
                     <button
                       onClick={handleRefreshData}
                       disabled={pipelineRunning}
-                      className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-muted-foreground border border-border rounded-md hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
                       {pipelineRunning ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
                       ) : (
-                        <RefreshCw className="w-4 h-4" />
+                        <RefreshCw className="w-3.5 h-3.5" />
                       )}
-                      Refresh Data
+                      Sync Now
                     </button>
+                    <span className="text-xs text-muted-foreground">
+                      Fetch latest data from all connected platforms
+                    </span>
                   </div>
 
-                  {/* Step indicator (shown during pipeline execution) */}
+                  {/* Step indicator (shown during sync) */}
                   {pipelineRunning && pipelineStep !== 'idle' && (
                     <div className="space-y-1.5 py-1">
                       <StepItem
@@ -510,13 +506,9 @@ export default function SystemPage() {
                       </div>
                     </div>
                   )}
-
-                  <p className="text-xs text-muted-foreground">
-                    Fetches latest data from all connected platforms, then scans for actionable signals. Signal processing has a 5-minute cooldown.
-                  </p>
                 </div>
-              </section>
-            )}
+              )}
+            </ConnectedIntegrationsSection>
 
             {/* ── Section 3: Background Activity ──────────────────────────── */}
             <section>
