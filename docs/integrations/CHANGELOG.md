@@ -34,6 +34,16 @@ Track changes to platform integrations, MCP servers, and discovered quirks.
 - Gmail landscape coverage now matches both `label:ID` and plain `ID` sync registry keys, eliminating false "not synced" labels after successful Gmail label sync.
 - Notion database selections now write a database-level `sync_registry` marker after child-page sync, so selected databases no longer stay stuck at "not synced."
 
+### Context Pages Visual Polish (All Platform Subpages)
+
+**Changes**:
+- Simplified sync header to neutral-by-default styling; warning/error colors now appear only for degraded states.
+- Reduced visual/action overload in source selection: removed stat cards + progress bar, replaced with one compact summary line.
+- Streamlined controls: `Save`/`Reset` surface only when there are unsaved source edits.
+- Reduced filter complexity to three views (`Selected`, `All`, `Attention`) and kept search as the single discovery input.
+- Quieted row-level status surfacing: neutral “Synced/Not synced” badges by default, color reserved for stale/error states.
+- Unified tab switcher look across platform pages with a lower-contrast segmented control.
+
 ---
 
 ## 2026-02-28

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Loader2, RotateCw, Sparkles, Zap } from 'lucide-react';
+import { Loader2, RotateCw } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -23,7 +23,7 @@ function getExpectedIntervalHours(syncFrequency: string): number {
   return intervals[syncFrequency] ?? 12;
 }
 
-type HealthColor = 'green' | 'amber' | 'red' | 'blue' | 'gray';
+type HealthTone = 'neutral' | 'amber' | 'red';
 
 function computeHealth(opts: {
   selectedCount: number;
@@ -32,36 +32,36 @@ function computeHealth(opts: {
   lastSyncedAt?: string | null;
   syncFrequency: string;
   liveQueryMode?: boolean;
-}): { color: HealthColor; label: string } {
-  if (opts.liveQueryMode) return { color: 'blue', label: 'Live calendar access' };
-  if (opts.errorCount > 0) return { color: 'red', label: `${opts.errorCount} source${opts.errorCount !== 1 ? 's' : ''} with errors` };
-  if (opts.selectedCount === 0) return { color: 'gray', label: 'No sources selected' };
-  if (opts.syncedCount === 0) return { color: 'gray', label: `${opts.selectedCount} selected — awaiting first sync` };
+}): { tone: HealthTone; label: string } {
+  if (opts.liveQueryMode) return { tone: 'neutral', label: 'Live calendar access' };
+  if (opts.errorCount > 0) return { tone: 'red', label: `${opts.errorCount} source${opts.errorCount !== 1 ? 's' : ''} with errors` };
+  if (opts.selectedCount === 0) return { tone: 'neutral', label: 'No sources selected' };
+  if (opts.syncedCount === 0) return { tone: 'neutral', label: `${opts.selectedCount} selected · awaiting first sync` };
 
   if (opts.lastSyncedAt) {
     const elapsedHours = (Date.now() - new Date(opts.lastSyncedAt).getTime()) / (1000 * 60 * 60);
     if (elapsedHours > getExpectedIntervalHours(opts.syncFrequency) * 2) {
-      return { color: 'amber', label: 'Sync behind schedule' };
+      return { tone: 'amber', label: 'Sync behind schedule' };
     }
   }
 
-  return { color: 'green', label: `Syncing ${opts.selectedCount} source${opts.selectedCount !== 1 ? 's' : ''}` };
+  if (opts.syncedCount < opts.selectedCount) {
+    return { tone: 'neutral', label: `${opts.syncedCount}/${opts.selectedCount} sources synced` };
+  }
+
+  return { tone: 'neutral', label: `${opts.selectedCount} source${opts.selectedCount !== 1 ? 's' : ''} synced` };
 }
 
-const DOT_CLASSES: Record<HealthColor, string> = {
-  green: 'bg-emerald-500',
+const DOT_CLASSES: Record<HealthTone, string> = {
+  neutral: 'bg-muted-foreground/45',
   amber: 'bg-amber-500',
   red: 'bg-red-500',
-  blue: 'bg-blue-500',
-  gray: 'bg-muted-foreground/40',
 };
 
-const BAR_CLASSES: Record<HealthColor, string> = {
-  green: 'bg-emerald-50 dark:bg-emerald-950/20 border-emerald-200 dark:border-emerald-900/60',
+const BAR_CLASSES: Record<HealthTone, string> = {
+  neutral: 'bg-card border-border',
   amber: 'bg-amber-50 dark:bg-amber-950/20 border-amber-200 dark:border-amber-900/60',
   red: 'bg-red-50 dark:bg-red-950/20 border-red-200 dark:border-red-900/60',
-  blue: 'bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900/60',
-  gray: 'bg-muted/50 border-border',
 };
 
 interface CompactSyncStatusProps {
@@ -99,7 +99,7 @@ function matchesSelectedResource(resourceId: string | null | undefined, selected
 
 export function CompactSyncStatus({
   platform,
-  tier,
+  tier: _tier,
   syncFrequency,
   selectedCount,
   syncedCount,
@@ -119,7 +119,7 @@ export function CompactSyncStatus({
     };
   }, []);
 
-  const { color, label } = computeHealth({
+  const { tone, label } = computeHealth({
     selectedCount,
     syncedCount,
     errorCount,
@@ -194,19 +194,13 @@ export function CompactSyncStatus({
     }
   };
 
-  const upgradeHint = tier === 'free'
-    ? <><Sparkles className="w-3 h-3 inline" /> Upgrade for faster sync</>
-    : tier === 'starter'
-      ? <><Zap className="w-3 h-3 inline" /> Pro: hourly sync</>
-      : null;
-
   return (
-    <div className={cn('rounded-lg border px-4 py-2.5 flex items-center gap-3 flex-wrap', BAR_CLASSES[color])}>
-      <span className={cn('w-2 h-2 rounded-full shrink-0', DOT_CLASSES[color])} />
+    <div className={cn('rounded-lg border px-4 py-2.5 flex items-center gap-3 flex-wrap', BAR_CLASSES[tone])}>
+      <span className={cn('w-2 h-2 rounded-full shrink-0', DOT_CLASSES[tone])} />
 
       <span className="text-sm font-medium">{label}</span>
 
-      {!liveQueryMode && color !== 'gray' && (
+      {!liveQueryMode && (
         <>
           <span className="text-sm text-muted-foreground">·</span>
           <span className="text-sm text-muted-foreground">{frequencyLabel}</span>
@@ -230,15 +224,11 @@ export function CompactSyncStatus({
       )}
 
       <div className="flex items-center gap-2 ml-auto">
-        {upgradeHint && (
-          <span className="text-xs text-muted-foreground hidden md:inline">{upgradeHint}</span>
-        )}
-
         {!liveQueryMode && (
           <button
             onClick={handleRunSync}
             disabled={runningSync}
-            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50"
+            className="inline-flex items-center gap-1.5 px-3 py-1 text-xs rounded-md border border-border bg-background text-foreground hover:bg-muted disabled:opacity-50"
           >
             {runningSync ? <Loader2 className="w-3 h-3 animate-spin" /> : <RotateCw className="w-3 h-3" />}
             Run sync

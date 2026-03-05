@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   AlertCircle,
   AlertTriangle,
+  BadgeAlert,
   Check,
   CheckCircle2,
   Loader2,
@@ -14,7 +15,7 @@ import type { LandscapeResource, TierLimits } from '@/types';
 import { cn } from '@/lib/utils';
 import { ResourceRow } from './ResourceRow';
 
-type ListView = 'selected' | 'recommended' | 'all' | 'attention';
+type ListView = 'selected' | 'all' | 'attention';
 
 interface ResourceListProps {
   /** Platform-specific config */
@@ -94,10 +95,6 @@ export function ResourceList({
     () => resources.filter((resource) => selectedIds.has(resource.id) && !!resource.last_extracted_at).length,
     [resources, selectedIds]
   );
-  const recommendedCount = useMemo(
-    () => resources.filter((resource) => resource.recommended).length,
-    [resources]
-  );
   const attentionCount = useMemo(
     () => resources.filter(isAttentionResource).length,
     [resources, selectedIds]
@@ -122,11 +119,11 @@ export function ResourceList({
   }, [resources, selectedIds]);
 
   useEffect(() => {
-    // Keep the default view action-oriented: selected first, then recommended.
+    // Keep the default view action-oriented: selected first.
     if (selectedCount === 0 && view === 'selected') {
-      setView(recommendedCount > 0 ? 'recommended' : 'all');
+      setView('all');
     }
-  }, [selectedCount, recommendedCount, view]);
+  }, [selectedCount, view]);
 
   const sortedResources = useMemo(() => {
     return [...resources].sort((a, b) => {
@@ -150,8 +147,6 @@ export function ResourceList({
     switch (view) {
       case 'selected':
         return sortedResources.filter((resource) => selectedIds.has(resource.id));
-      case 'recommended':
-        return sortedResources.filter((resource) => resource.recommended);
       case 'attention':
         return sortedResources.filter(isAttentionResource);
       case 'all':
@@ -183,12 +178,9 @@ export function ResourceList({
   );
 
   const upgradeTarget = tierLimits?.tier === 'free' ? 'Starter' : tierLimits?.tier === 'starter' ? 'Pro' : null;
-  const normalizedLimit = Math.max(limit, 1);
-  const selectedRatio = Math.min(selectedCount / normalizedLimit, 1);
 
   const viewOptions: Array<{ key: ListView; label: string; count: number }> = [
     { key: 'selected', label: 'Selected', count: selectedCount },
-    { key: 'recommended', label: 'Recommended', count: recommendedCount },
     { key: 'all', label: 'All', count: resources.length },
     { key: 'attention', label: 'Attention', count: attentionCount },
   ];
@@ -224,66 +216,64 @@ export function ResourceList({
               Step 1: select the {resourceLabel.toLowerCase()} that should feed context.
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onDiscard}
-              disabled={!hasChanges || saving}
-              className="px-3 py-1.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
-            >
-              Discard
-            </button>
-            <button
-              onClick={onSave}
-              disabled={!hasChanges || saving}
-              className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving && <Loader2 className="w-3 h-3 animate-spin" />}
-              Save changes
-            </button>
-          </div>
+          {hasChanges && (
+            <div className="flex items-center gap-3">
+              <button
+                onClick={onDiscard}
+                disabled={saving}
+                className="text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+              >
+                Reset
+              </button>
+              <button
+                onClick={onSave}
+                disabled={saving}
+                className="px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90 disabled:opacity-50 flex items-center gap-2"
+              >
+                {saving && <Loader2 className="w-3 h-3 animate-spin" />}
+                Save
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <StatCard
-            label="Selected"
-            value={`${selectedCount}/${limit}`}
-            tone={selectedCount >= limit ? 'amber' : 'default'}
-          />
-          <StatCard
-            label="Synced"
-            value={`${syncedCount}`}
-            tone={syncedCount > 0 ? 'green' : 'default'}
-          />
-          <StatCard
-            label="Needs Attention"
-            value={`${attentionCount}`}
-            tone={attentionCount > 0 ? 'red' : 'default'}
-          />
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 text-sm text-muted-foreground">
+          <span>
+            <span className="text-foreground font-medium">{selectedCount}/{limit}</span> selected
+          </span>
+          <span>·</span>
+          <span>
+            <span className="text-foreground font-medium">{syncedCount}</span> synced
+          </span>
+          <span>·</span>
+          <span>
+            <span className={cn('font-medium', attentionCount > 0 ? 'text-amber-700 dark:text-amber-300' : 'text-foreground')}>
+              {attentionCount}
+            </span>{' '}
+            attention
+          </span>
+          {hasChanges && (
+            <>
+              <span>·</span>
+              <span className="text-foreground">Unsaved source changes</span>
+            </>
+          )}
         </div>
 
         {attentionCount > 0 && (
-          <p className="text-xs text-muted-foreground">
-            Attention includes selected sources with sync errors, first-sync pending, or stale coverage.
-            {' '}
-            {attentionBreakdown.errors > 0 && `${attentionBreakdown.errors} error${attentionBreakdown.errors === 1 ? '' : 's'}`}
-            {attentionBreakdown.errors > 0 && (attentionBreakdown.needsFirstSync > 0 || attentionBreakdown.stale > 0) && ' · '}
-            {attentionBreakdown.needsFirstSync > 0 && `${attentionBreakdown.needsFirstSync} pending first sync`}
-            {attentionBreakdown.needsFirstSync > 0 && attentionBreakdown.stale > 0 && ' · '}
-            {attentionBreakdown.stale > 0 && `${attentionBreakdown.stale} stale`}
-          </p>
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <BadgeAlert className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span>
+              {attentionBreakdown.errors > 0 && `${attentionBreakdown.errors} error${attentionBreakdown.errors === 1 ? '' : 's'}`}
+              {attentionBreakdown.errors > 0 && (attentionBreakdown.needsFirstSync > 0 || attentionBreakdown.stale > 0) && ' · '}
+              {attentionBreakdown.needsFirstSync > 0 && `${attentionBreakdown.needsFirstSync} pending first sync`}
+              {attentionBreakdown.needsFirstSync > 0 && attentionBreakdown.stale > 0 && ' · '}
+              {attentionBreakdown.stale > 0 && `${attentionBreakdown.stale} stale`}
+            </span>
+          </div>
         )}
 
-        <div className="h-2 rounded-full bg-muted overflow-hidden">
-          <div
-            className={cn(
-              'h-full transition-all',
-              selectedCount >= limit ? 'bg-amber-500' : 'bg-primary'
-            )}
-            style={{ width: `${selectedRatio * 100}%` }}
-          />
-        </div>
-
-        <div className="flex flex-wrap gap-2 items-center">
+        <div className="flex flex-wrap gap-2 items-center pt-1">
           <div className="relative flex-1 min-w-[220px]">
             <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
             <input
@@ -299,7 +289,7 @@ export function ResourceList({
                 key={option.key}
                 onClick={() => setView(option.key)}
                 className={cn(
-                  'px-2.5 py-1 text-xs rounded-md transition-colors',
+                  'px-2.5 py-1 text-xs rounded-md transition-colors whitespace-nowrap',
                   view === option.key
                     ? 'bg-primary text-primary-foreground'
                     : 'text-muted-foreground hover:text-foreground'
@@ -411,29 +401,5 @@ export function ResourceList({
         </div>
       )}
     </section>
-  );
-}
-
-function StatCard({
-  label,
-  value,
-  tone = 'default',
-}: {
-  label: string;
-  value: string;
-  tone?: 'default' | 'green' | 'amber' | 'red';
-}) {
-  const toneClasses: Record<string, string> = {
-    default: 'border-border bg-muted/20 text-foreground',
-    green: 'border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-800 dark:text-emerald-300',
-    amber: 'border-amber-200 dark:border-amber-900/60 bg-amber-50 dark:bg-amber-950/20 text-amber-800 dark:text-amber-300',
-    red: 'border-red-200 dark:border-red-900/60 bg-red-50 dark:bg-red-950/20 text-red-800 dark:text-red-300',
-  };
-
-  return (
-    <div className={cn('rounded-md border px-3 py-2', toneClasses[tone])}>
-      <p className="text-[11px] uppercase tracking-wide opacity-80">{label}</p>
-      <p className="text-sm font-semibold mt-0.5">{value}</p>
-    </div>
   );
 }

@@ -21,13 +21,13 @@ export function PlatformTabSwitcher({
   contextIcon = <FileText className="w-4 h-4" />,
 }: PlatformTabSwitcherProps) {
   return (
-    <div className="flex items-center border border-border rounded-lg p-0.5 w-fit mb-4">
+    <div className="inline-flex items-center border border-border rounded-lg p-1 bg-muted/20 w-fit mb-2">
       <button
         onClick={() => onTabChange('sources')}
         className={cn(
           'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors',
           activeTab === 'sources'
-            ? 'bg-primary text-primary-foreground'
+            ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         )}
       >
@@ -39,7 +39,7 @@ export function PlatformTabSwitcher({
         className={cn(
           'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm transition-colors',
           activeTab === 'context'
-            ? 'bg-primary text-primary-foreground'
+            ? 'bg-background text-foreground shadow-sm'
             : 'text-muted-foreground hover:text-foreground'
         )}
       >

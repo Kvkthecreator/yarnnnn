@@ -25,10 +25,10 @@ export function CoverageBadge({
   hasError?: boolean;
 }) {
   const stateConfig: Record<string, { color: string; bg: string; label: string }> = {
-    covered: { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/30', label: 'On track' },
-    partial: { color: 'text-emerald-700 dark:text-emerald-300', bg: 'bg-emerald-50 dark:bg-emerald-950/30', label: 'On track' },
+    covered: { color: 'text-muted-foreground', bg: 'bg-muted/40', label: 'Synced' },
+    partial: { color: 'text-muted-foreground', bg: 'bg-muted/40', label: 'Synced' },
     stale: { color: 'text-amber-700 dark:text-amber-300', bg: 'bg-amber-50 dark:bg-amber-950/30', label: 'Needs sync' },
-    uncovered: { color: 'text-muted-foreground', bg: 'bg-muted', label: 'Not synced' },
+    uncovered: { color: 'text-muted-foreground', bg: 'bg-muted/40', label: 'Not synced' },
     excluded: { color: 'text-muted-foreground', bg: 'bg-muted/60', label: 'Excluded' },
     error: { color: 'text-red-700 dark:text-red-300', bg: 'bg-red-50 dark:bg-red-950/30', label: 'Issue' },
   };
@@ -79,7 +79,7 @@ export function ResourceRow({
   return (
     <div className={cn(
       'border border-border rounded-lg bg-card overflow-hidden transition-colors',
-      isSelected && 'border-primary/40 bg-primary/[0.04]',
+      isSelected && 'border-primary/35',
       !disabled && 'hover:bg-muted/[0.35]'
     )}>
       {/* Main row */}
@@ -113,12 +113,12 @@ export function ResourceRow({
             <div className="flex items-center gap-2">
               <span className="text-sm font-medium truncate">{resource.name}</span>
               {isPrimary && (
-                <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">
+                <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
                   Primary
                 </span>
               )}
               {isDatabase && (
-                <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400">
+                <span className="px-1.5 py-0.5 rounded text-xs font-medium bg-muted text-muted-foreground">
                   Database
                 </span>
               )}
