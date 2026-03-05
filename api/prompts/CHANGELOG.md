@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.05.6] - Fix: working memory parallelization thread safety + skill detection resilience
+
+### Changed
+- `api/services/working_memory.py`: Each parallel thread now gets its own Supabase client instance instead of sharing one. Fixes `[Errno 35] Resource temporarily unavailable` from httpx connection pool thread-safety issue. Removed dead async wrapper functions (`_get_user_memory`, `_get_active_deliverables`, etc.) per singular implementation discipline.
+- `api/services/skills.py`: `detect_skill_hybrid()` now catches general exceptions from semantic skill detection (not just `ImportError`). Missing `OPENAI_API_KEY` no longer crashes the chat flow — falls back to pattern matching gracefully.
+
+### Expected behavior
+- **Working memory parallelization works correctly**: 5 concurrent DB queries each with isolated httpx connection pool.
+- **Chat flow resilient to missing OPENAI_API_KEY**: Semantic skill detection is best-effort; pattern matching alone is sufficient for core functionality.
+
+---
+
 ## [2026.03.05.5] - TP qualitative experience: structural optimizations
 
 ### Changed
@@ -13,7 +25,7 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 - `api/agents/tp_prompts/base.py`: "How You Work" section expanded with explicit "When to use tools" vs "When to answer directly from working memory" guidance. Examples updated to show direct answers for profile/deliverable/platform questions.
 - `api/routes/chat.py`: History format switched from simplified text (`[Called ToolName]`) to structured `tool_use`/`tool_result` blocks. TP now sees proper tool call history across turns, reducing redundant tool calls.
 - `api/routes/chat.py`: Inline session summary generation on session close — when a new session is created, the previous session's summary is generated as a background task instead of waiting for nightly cron.
-- `api/services/working_memory.py`: Working memory queries parallelized via `asyncio.gather()` + `asyncio.to_thread()` (sync Supabase client). 5 independent DB queries now run concurrently instead of sequentially.
+- `api/services/working_memory.py`: Working memory queries parallelized via `asyncio.gather()` + `asyncio.to_thread()` (sync Supabase client). 5 independent DB queries now run concurrently instead of sequentially. Each thread gets its own client to avoid httpx pool thread-safety issues.
 - `api/services/anthropic.py`: Tool result truncation now adds `_truncated` and `_truncation_note` metadata when results are clipped, so TP can report "showing 5 of 12 results" instead of silently presenting partial data.
 
 ### Expected behavior

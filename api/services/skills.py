@@ -279,5 +279,9 @@ async def detect_skill_hybrid(user_message: str) -> Tuple[Optional[str], str, fl
     except ImportError:
         # Semantic matching not available
         pass
+    except Exception as e:
+        # Semantic matching failed (e.g., missing OPENAI_API_KEY) — non-fatal
+        logger.debug(f"Semantic skill detection failed: {e}")
+        pass
 
     return (None, "none", 0.0)

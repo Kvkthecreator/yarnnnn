@@ -27,8 +27,11 @@ TP can invoke GetSystemState primitive for detailed operational state.
 import asyncio
 import json
 import logging
+import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
+
+from supabase import create_client as _create_supabase_client
 
 logger = logging.getLogger(__name__)
 
@@ -63,13 +66,21 @@ async def build_working_memory(
         Dict structured for JSON serialization into the prompt.
         Designed to stay under ~2,000 tokens (+ ~500 for deliverable scope).
     """
-    # Parallelize independent DB queries via thread pool (sync supabase client)
+    # Parallelize independent DB queries via thread pool.
+    # Each thread gets its own Supabase client to avoid httpx connection pool
+    # thread-safety issues (sync supabase client shares non-threadsafe httpx pool).
+    url = os.environ.get("SUPABASE_URL", "")
+    key = os.environ.get("SUPABASE_SERVICE_KEY", "")
+
+    def _make_client():
+        return _create_supabase_client(url, key)
+
     context_rows, deliverables, platforms, sessions, system_summary = await asyncio.gather(
-        asyncio.to_thread(_get_user_memory_sync, user_id, client),
-        asyncio.to_thread(_get_active_deliverables_sync, user_id, client),
-        asyncio.to_thread(_get_connected_platforms_sync, user_id, client),
-        asyncio.to_thread(_get_recent_sessions_sync, user_id, client),
-        asyncio.to_thread(_get_system_summary_sync, user_id, client),
+        asyncio.to_thread(_get_user_memory_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_active_deliverables_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_connected_platforms_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_recent_sessions_sync, user_id, _make_client()),
+        asyncio.to_thread(_get_system_summary_sync, user_id, _make_client()),
     )
 
     working_memory = {
@@ -99,11 +110,6 @@ def _get_user_memory_sync(user_id: str, client: Any) -> list[dict]:
     except Exception as e:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch user_memory: {e}")
         return []
-
-
-async def _get_user_memory(user_id: str, client: Any) -> list[dict]:
-    """Async wrapper for backward compatibility."""
-    return _get_user_memory_sync(user_id, client)
 
 
 def _extract_profile(rows: list[dict]) -> dict:
@@ -289,11 +295,6 @@ def _get_active_deliverables_sync(user_id: str, client: Any) -> list:
     return deliverables
 
 
-async def _get_active_deliverables(user_id: str, client: Any) -> list:
-    """Async wrapper for backward compatibility."""
-    return _get_active_deliverables_sync(user_id, client)
-
-
 def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
     """Fetch connected platform summary (sync, for thread pool)."""
     platforms = []
@@ -330,11 +331,6 @@ def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch platforms: {e}")
 
     return platforms
-
-
-async def _get_connected_platforms(user_id: str, client: Any) -> list:
-    """Async wrapper for backward compatibility."""
-    return _get_connected_platforms_sync(user_id, client)
 
 
 def _calculate_freshness(last_synced: Optional[str], now: datetime) -> str:
@@ -386,11 +382,6 @@ def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch recent sessions: {e}")
 
     return sessions
-
-
-async def _get_recent_sessions(user_id: str, client: Any) -> list:
-    """Async wrapper for backward compatibility."""
-    return _get_recent_sessions_sync(user_id, client)
 
 
 def _get_system_summary_sync(user_id: str, client: Any) -> dict:
@@ -553,11 +544,6 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch failed jobs count: {e}")
 
     return summary
-
-
-async def _get_system_summary(user_id: str, client: Any) -> dict:
-    """Async wrapper for backward compatibility."""
-    return _get_system_summary_sync(user_id, client)
 
 
 # --- Formatting ---
