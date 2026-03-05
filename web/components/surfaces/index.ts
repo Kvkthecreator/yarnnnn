@@ -19,16 +19,10 @@
  * ADR-067 Migration:
  * - DeliverableCreateSurface: Now route-based at /deliverables/new
  *
- * Remaining surfaces (TP-invoked only):
- * - WorkOutputSurface: View work output details
- * - WorkListSurface: List work items
+ * Remaining surfaces:
  * - ContextEditorSurface: Edit specific memory
  * - IdleSurface: Default chat state
  */
-
-// Work surfaces (TP-invoked)
-export { WorkOutputSurface } from './WorkOutputSurface';
-export { WorkListSurface } from './WorkListSurface';
 
 // Context/Memory surfaces (editor only - browser deprecated)
 export { ContextEditorSurface } from './ContextEditorSurface';

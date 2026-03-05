@@ -500,11 +500,9 @@ export const api = {
         chat_sessions: number;
         memories: number;
         documents: number;
-        work_tickets: number;
         // Content subtotals
         deliverables: number;
         deliverable_versions: number;
-        work_outputs: number;
         // Platform content (ADR-072)
         platform_content: number;
         // Integrations
