@@ -67,9 +67,39 @@ Synthesizes activity across all connected platforms into a structured work summa
 
 ---
 
-## Digest
+## Recap (type: `digest`)
 
-**Validated:** Not yet
+**Validated:** 2026-03-06 (Pass 2 — in progress)
+**Prompt version:** v2 — tracked in `api/prompts/CHANGELOG.md`
+
+### What it does
+
+Catches the user up on everything across a single connected platform. Platform-wide — covers all synced sources (channels, labels, pages), not just one.
+
+### Output format: highlights + by-source breakdown
+
+**Highlights** — top 3-5 things that happened across the entire platform. Decisions, problems surfaced, progress on key work.
+
+**By Source** — subsection per source with `###` headers:
+- Slack: by channel (`### #engineering`, `### #daily-work`)
+- Gmail: by category or sender (`### Infrastructure Alerts`)
+- Notion: by page or database (`### Architecture Docs`)
+- Calendar: by timeframe (`### This Week`)
+
+**Design rule:** Every source with data gets a subsection. Low activity noted briefly.
+
+### Constraints
+
+- One recap per platform per user (enforced at creation time)
+- Title set dynamically: "Slack Recap", "Gmail Recap", etc.
+- Frequency: daily or weekly (user chooses)
+
+### Execution details
+
+- **Binding:** `platform_bound` (PlatformBoundStrategy)
+- **Default mode:** `recurring`
+- **Headless agent:** 3 tool rounds max
+- **Delivery:** Email via Resend (ADR-066)
 
 ---
 

@@ -64,7 +64,7 @@ _PLATFORM_DIGEST_SIGNALS = {
 # Default instructions seeded when a deliverable is created without explicit instructions.
 # These give the headless agent and TP a starting baseline that the user/TP can refine.
 DEFAULT_INSTRUCTIONS = {
-    "digest": "Summarize key activity and highlights. Prioritize actionable items and decisions. Keep it scannable with bullet points.",
+    "digest": "Recap all activity across the platform. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
     "brief": "Provide a concise executive-level summary. Lead with the most important finding. Include 2-3 supporting details max.",
     "status": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
     "watch": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
@@ -75,14 +75,17 @@ DEFAULT_INSTRUCTIONS = {
 
 # ADR-093: Purpose-first type prompts. Versions tracked in api/prompts/CHANGELOG.md
 # status: v4 (2026.03.06) — two-part format + cross-platform connections
+# digest: v2 (2026.03.06) — platform-wide recap with highlights + by-source breakdown
 TYPE_PROMPTS = {
 
-    "digest": """You are producing a digest titled "{title}".
+    "digest": """You are producing a platform recap titled "{title}".
+
+This is a platform-wide recap — covering ALL activity across the user's {source_platform} workspace, not just one channel, label, or page.
 
 FOCUS: {focus}
-SOURCE PLATFORM: {source_platform}
+PLATFORM: {source_platform}
 
-PLATFORM SIGNALS TO PRIORITIZE:
+SIGNALS TO PRIORITIZE:
 {platform_signals}
 
 GATHERED CONTEXT:
@@ -93,14 +96,30 @@ GATHERED CONTEXT:
 {past_versions}
 
 INSTRUCTIONS:
-- Synthesize what's happening in this specific place — signal over noise
-- Lead with the most important discussions, decisions, and open questions
-- Be specific: use names, thread starters, and key takeaways from context
-- Bold key decisions and action items; use bullet points for scannability
-- Skip casual/low-signal content
-- Keep total length appropriate for the platform (under 2000 chars for Slack)
+- Write in a clear, scannable style appropriate for catching someone up
+- Be specific: use names, numbers, dates, and direct references from the context
+- If information is missing or a source had no activity, note it briefly
 
-Write the digest now:""",
+STRUCTURE:
+
+## Highlights
+3-5 bullet points of the most important things that happened across the entire platform. Lead with what matters most — decisions made, problems surfaced, progress on key work.
+
+## By Source
+Write a subsection for each source (channel, label, page, calendar) that has content in the gathered context. Use `###` headers.
+
+For Slack: group by channel name (e.g., `### #engineering`, `### #daily-work`)
+For Gmail: group by category or sender (e.g., `### Infrastructure Alerts`, `### Client Communication`)
+For Notion: group by page or database (e.g., `### Architecture Docs`, `### Sprint Board`)
+For Calendar: group by timeframe (e.g., `### This Week`, `### Next Week`)
+
+Rules:
+- Every source with data gets a subsection — do not combine or skip
+- Low activity is still worth noting briefly (e.g., "Quiet week in #announcements")
+- Keep each subsection concise — key takeaways, not exhaustive logs
+- Bold action items and decisions for scannability
+
+Write the recap now:""",
 
     "brief": """You are producing a situation brief titled "{title}".
 

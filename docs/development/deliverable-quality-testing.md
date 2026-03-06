@@ -106,12 +106,40 @@ Status validated as wedge type. Two-part format (intelligence + evidence) confir
 
 ---
 
-## Pass 2: Brief
+## Pass 2: Recap (2026-03-06)
 
-*Not yet started.*
+### Changes from v1
+
+- Renamed Digest → Recap (clearer for non-native English speakers)
+- Platform-wide scope: all synced sources for a platform, not one channel/label/page
+- New prompt: Highlights (top 3-5 across platform) + By Source (subsection per channel/label/page)
+- Skill flow: asks platform + frequency, auto-populates sources, 1 recap per platform guard
+- Tests PlatformBoundStrategy path end-to-end (vs CrossPlatformStrategy tested in Pass 1)
+
+### Test setup
+
+- **User**: kvkthecreator@gmail.com
+- **Platform**: Slack (all synced channels)
+- **Deliverable**: `digest` type, `recurring` mode, `platform_bound` binding, primary_platform="slack"
+
+### Issues discovered
+
+*(To be filled during testing)*
+
+### Prompt evolution
+
+*(To be filled during testing)*
+
+### Output assessment
+
+*(To be filled during testing)*
+
+### Outcome
+
+*(To be filled after testing)*
 
 ---
 
-## Pass 3: Digest
+## Pass 3: Brief
 
 *Not yet started.*

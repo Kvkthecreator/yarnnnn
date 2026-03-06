@@ -75,24 +75,29 @@ Create a work summary deliverable — synthesizes activity across the user's con
 
     "digest": {
         "name": "digest",
-        "description": "Create a recurring digest deliverable",
-        "trigger_patterns": ["slack digest", "channel digest", "inbox brief", "email digest", "notion summary", "calendar preview", "weekly digest", "create a digest", "create digest deliverable"],
+        "description": "Create a platform recap — catch up on everything across a connected platform",
+        "trigger_patterns": ["recap", "platform recap", "slack recap", "gmail recap", "notion recap", "email recap", "slack digest", "email digest", "notion summary", "weekly digest", "daily recap", "catch up", "create a recap", "create recap deliverable", "create a digest", "create digest deliverable"],
         "deliverable_type": "digest",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Digest
+## Active Skill: Recap
 
-Create a digest deliverable — a regular synthesis of what's happening in a specific place (Slack channel, email inbox, Notion page, calendar).
+Create a recap deliverable — a platform-wide summary that catches the user up on everything across a connected platform. One recap per platform (not per channel/label/page).
 
 **Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask source: `Clarify(question="What should this digest cover?", options=["Slack channel", "Email inbox", "Notion page", "Calendar"])`
-3. Confirm: "I'll create a [frequency] Digest from [source]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "digest", frequency, sources})`
-5. Offer first draft
+1. Check for duplicates: `List(pattern="deliverable:*")` — if a recap already exists for the requested platform, offer to edit it instead
+2. Ask platform: `Clarify(question="Which platform do you want to recap?", options=["Slack", "Gmail", "Notion", "Calendar"])`
+3. Ask frequency: `Clarify(question="How often?", options=["Daily", "Weekly"])`
+4. Confirm: "I'll create a [frequency] [Platform] Recap. Ready?"
+5. On confirmation: `Write(ref="deliverable:new", content={title: "[Platform] Recap", deliverable_type: "digest", frequency, primary_platform})` — sources auto-populated with ALL synced sources for that platform
+6. Offer first draft
 
-**Defaults:** frequency=weekly, type=digest
+**Important:**
+- Title format: "[Platform] Recap" (e.g., "Slack Recap", "Gmail Recap")
+- Sources: ALL synced sources for the selected platform — do NOT ask the user to pick individual channels/labels/pages
+- One recap per platform per user — check duplicates before creating
+- Defaults: frequency=daily, type=digest
 """,
     },
 

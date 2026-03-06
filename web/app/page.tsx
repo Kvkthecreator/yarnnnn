@@ -203,10 +203,10 @@ export default function LandingPage() {
 
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Digest</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Weekly team digest</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Recap</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Platform catchup</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Summaries from selected Slack channels with decisions, blockers, and owners.
+                  Catch up on everything across a connected platform — daily or weekly.
                 </p>
               </div>
 

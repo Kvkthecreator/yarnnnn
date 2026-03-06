@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.06.3] - Digest → Recap: platform-wide synthesis + rename
+
+### Changed
+- `api/services/deliverable_pipeline.py`: Rewrote `digest` TYPE_PROMPT from single-source summary to platform-wide recap. New two-part structure: Highlights (top 3-5 across entire platform) + By Source (subsections per channel/label/page). Updated default instructions to match.
+- `api/services/skills.py`: Renamed skill to "Recap". Flow now asks which platform + frequency. Duplicate guard: 1 recap per platform per user. Sources auto-populated with all synced sources for selected platform.
+- Expected behavior: Recap covers entire platform (all Slack channels, all Gmail labels, etc.) instead of a single source. Output is richer and more useful as a catchup tool.
+
+---
+
 ## [2026.03.06.2] - Status prompt: stronger cross-platform connection language
 
 ### Changed

@@ -166,9 +166,9 @@ const STARTER_CARDS = [
   },
   {
     skill: 'digest',
-    label: 'Digest',
-    description: 'Summarize a Slack channel, inbox, or page',
-    prompt: 'I want to create a digest of a channel or inbox',
+    label: 'Recap',
+    description: 'Catch up on a connected platform — daily or weekly',
+    prompt: 'I want to set up a recap of one of my platforms',
   },
   {
     skill: 'brief',
