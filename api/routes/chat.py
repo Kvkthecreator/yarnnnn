@@ -419,25 +419,27 @@ def build_history_for_claude(
         tool_history = metadata.get("tool_history", [])
 
         if role == "assistant" and tool_history and use_structured_format:
-            # Build structured content with tool_use blocks
-            # This matches Claude Code's format for better model understanding
-            assistant_content = []
+            # Build structured content: separate tool_use and text blocks.
+            # Claude API requires tool_use blocks NOT be followed by text in
+            # the same assistant message. The correct structure is:
+            #   assistant: [tool_use blocks]
+            #   user: [tool_result blocks]
+            #   assistant: [text response]  (if any)
+            tool_use_blocks = []
             tool_results = []
+            text_blocks = []
 
             for item in tool_history:
                 if item.get("type") == "tool_call":
-                    # Use global index for unique tool IDs across entire conversation
                     tool_id = f"toolu_{global_tool_index:04d}"
 
-                    # Add tool_use block to assistant content
-                    assistant_content.append({
+                    tool_use_blocks.append({
                         "type": "tool_use",
                         "id": tool_id,
                         "name": item["name"],
                         "input": _parse_input_summary(item.get("input_summary", "{}"))
                     })
 
-                    # Add corresponding tool_result
                     tool_results.append({
                         "type": "tool_result",
                         "tool_use_id": tool_id,
@@ -446,29 +448,35 @@ def build_history_for_claude(
 
                     global_tool_index += 1
                 elif item.get("type") == "text" and item.get("content"):
-                    # Add text block
-                    assistant_content.append({
+                    text_blocks.append({
                         "type": "text",
                         "text": item["content"]
                     })
 
-            if tool_results:
-                # Add assistant message with tool_use blocks
+            if tool_use_blocks:
+                # Assistant message with ONLY tool_use blocks
                 history.append({
                     "role": "assistant",
-                    "content": assistant_content if assistant_content else [{"type": "text", "text": content}]
+                    "content": tool_use_blocks
                 })
 
-                # Add tool_result blocks as next "user" turn
+                # Tool results as user turn
                 history.append({
                     "role": "user",
                     "content": tool_results
                 })
-            elif assistant_content:
+
+                # Text response as separate assistant turn (if any)
+                if text_blocks:
+                    history.append({
+                        "role": "assistant",
+                        "content": text_blocks
+                    })
+            elif text_blocks:
                 # Just text content, no tools
                 history.append({
                     "role": "assistant",
-                    "content": assistant_content
+                    "content": text_blocks
                 })
             else:
                 # Fallback to simple text
