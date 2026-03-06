@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import logging
 from datetime import datetime, timezone
+from dateutil.parser import isoparse as _isoparse
 from typing import Any, Optional
 from uuid import UUID
 
@@ -106,7 +107,7 @@ async def check_deliverable_freshness(
 
         # Parse timestamp
         if isinstance(last_synced_at, str):
-            last_synced_at = datetime.fromisoformat(last_synced_at.replace("Z", "+00:00"))
+            last_synced_at = _isoparse(last_synced_at)
 
         synced_ts = last_synced_at.timestamp()
         hours_stale = (now.timestamp() - synced_ts) / 3600
@@ -453,7 +454,7 @@ async def compare_with_last_generation(
             last_synced = snapshot.get("synced_at")
             if last_synced:
                 if isinstance(last_synced, str):
-                    last_synced = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
+                    last_synced = _isoparse(last_synced)
                 hours_since = (now - last_synced).total_seconds() / 3600
             else:
                 hours_since = None

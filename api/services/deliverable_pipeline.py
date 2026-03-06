@@ -139,12 +139,39 @@ GATHERED CONTEXT:
 
 INSTRUCTIONS:
 - Write in {tone} tone appropriate for {audience}
-- Lead with a brief executive summary/TL;DR
-- Cover what was accomplished, what's in progress, and what's blocked
 - Be specific: use names, numbers, and dates from the context
-- Highlight blockers and risks clearly — don't bury them
-- Make next steps actionable with owners where known
 - If information is missing, note the gap rather than fabricating
+
+STRUCTURE (follow this two-part format):
+
+PART 1 — CROSS-PLATFORM SYNTHESIS (top of the document):
+- TL;DR: 2-3 sentence executive summary of the overall state
+- Key Accomplishments: what moved forward this period (draw from ALL platforms)
+- Blockers and Risks: anything impeding progress — don't bury these
+- Next Steps: actionable items with owners where known
+- Connect dots across platforms — if a Slack discussion relates to a Notion doc or an email thread, call out the connection explicitly
+
+PART 2 — PLATFORM ACTIVITY (below a horizontal rule):
+Write a SEPARATE "##" section for each platform. The gathered context contains headers like "## Slack: ...", "## Gmail: ...", "## Notion: ...". You MUST produce one section per platform.
+
+Expected output structure for Part 2:
+## Slack
+(channel-by-channel summary of discussions, decisions, and activity)
+
+## Gmail
+(notable emails, action items, important threads)
+
+## Notion
+(document updates, new content, changes)
+
+## Calendar
+(upcoming events, conflicts, prep needs — only if calendar data present)
+
+Rules:
+- Every platform with data in the gathered context gets its own section — do not combine or skip
+- No update is still news — if a platform had low activity, say so briefly (e.g., "Quiet week in #channel"). This confirms nothing was missed.
+- For Slack, group by channel name
+- Keep each section concise — supporting detail, not exhaustive logs
 
 Write the status update now:""",
 
@@ -262,11 +289,14 @@ SECTION_TEMPLATES = {
         "talking_points": "Talking Points - Suggested topics and questions to raise",
     },
     "status": {
-        "summary": "Summary/TL;DR - Brief overview of the current state",
-        "accomplishments": "Accomplishments - What was completed this period",
-        "blockers": "Blockers/Challenges - Issues impeding progress",
-        "next_steps": "Next Steps - Planned work for the upcoming period",
-        "metrics": "Key Metrics - Relevant numbers and measurements",
+        "summary": "TL;DR - Cross-platform executive summary",
+        "accomplishments": "Key Accomplishments - What moved forward this period",
+        "blockers": "Blockers and Risks - Issues impeding progress",
+        "next_steps": "Next Steps - Actionable items with owners",
+        "platform_slack": "Slack - Channel activity and key discussions",
+        "platform_gmail": "Gmail - Notable emails and action items",
+        "platform_notion": "Notion - Document updates and changes",
+        "platform_calendar": "Calendar - Upcoming events and prep needs",
     },
     "watch": {
         "signals": "Signals - Notable developments worth attention",
@@ -293,8 +323,8 @@ SECTION_TEMPLATES = {
 # Length guidance by detail level
 LENGTH_GUIDANCE = {
     "brief": "200-400 words - concise and to the point",
-    "standard": "400-800 words - balanced detail",
-    "detailed": "800-1500 words - comprehensive coverage",
+    "standard": "500-1000 words - balanced detail with platform breakdown",
+    "detailed": "1000-2000 words - comprehensive coverage with platform breakdown",
     "scan": "300-500 words - quick overview",
     "analysis": "500-1000 words - moderate depth",
     "deep_dive": "1000+ words - thorough exploration",

@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.06.1] - Status deliverable: two-part format (synthesis + platform breakdown)
+
+### Changed
+- `api/services/deliverable_pipeline.py`: Rewrote `status` TYPE_PROMPT to produce a two-part document: Part 1 is cross-platform synthesis (TL;DR, accomplishments, blockers, next steps with cross-platform connections); Part 2 is per-platform activity breakdown (Slack by channel, Gmail highlights, Notion updates, Calendar). Updated SECTION_TEMPLATES to include platform sections. Bumped LENGTH_GUIDANCE for standard/detailed to accommodate richer output.
+- Expected behavior: Status deliverables now produce a more comprehensive document — intelligence at the top, evidence per platform below. Users get both "what matters" and "what happened where."
+
+---
+
 ## [2026.03.05.7] - Deliverable creation: TP chat handoff + coordinator skill
 
 ### Changed
