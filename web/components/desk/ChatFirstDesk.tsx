@@ -150,6 +150,49 @@ function formatTokenCount(tokens: number): string {
 }
 
 // =============================================================================
+// Starter cards — map to skill types in api/services/skills.py
+// =============================================================================
+
+const STARTER_CARDS = [
+  {
+    skill: 'status',
+    label: 'Status Report',
+    description: 'Weekly update for your team or manager',
+    prompt: 'I want to set up a recurring status report',
+  },
+  {
+    skill: 'digest',
+    label: 'Digest',
+    description: 'Summarize a Slack channel, inbox, or page',
+    prompt: 'I want to create a digest of a channel or inbox',
+  },
+  {
+    skill: 'brief',
+    label: 'Meeting Brief',
+    description: 'Prep notes before recurring meetings',
+    prompt: 'I want to set up a meeting brief',
+  },
+  {
+    skill: 'watch',
+    label: 'Watch',
+    description: 'Monitor a domain for signals and changes',
+    prompt: 'I want to set up a watch brief to monitor a topic',
+  },
+  {
+    skill: 'deep-research',
+    label: 'Deep Research',
+    description: 'One-time investigation into a topic',
+    prompt: 'I want to run a deep research report',
+  },
+  {
+    skill: 'custom',
+    label: 'Custom',
+    description: 'Newsletter, changelog, or anything else',
+    prompt: 'I want to create a custom deliverable',
+  },
+];
+
+// =============================================================================
 // Main component
 // =============================================================================
 
@@ -343,24 +386,37 @@ export function ChatFirstDesk() {
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         <div className="max-w-3xl mx-auto w-full space-y-4">
           {messages.length === 0 && !isLoading && (
-            <div className="text-center py-8">
-              <Sparkles className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
-              <h2 className="text-lg font-medium mb-1">Welcome to yarnnn</h2>
-              <p className="text-sm text-muted-foreground max-w-sm mx-auto mb-6">
-                I&apos;m your agent. Connect a platform to give me context about your work.
-              </p>
-              <div className="flex flex-wrap justify-center gap-2">
+            <div className="py-8">
+              <div className="text-center mb-8">
+                <Sparkles className="w-10 h-10 text-muted-foreground/20 mx-auto mb-3" />
+                <h2 className="text-lg font-medium mb-1">What would you like to work on?</h2>
+                <p className="text-sm text-muted-foreground max-w-sm mx-auto">
+                  Pick a starting point, or just type anything below.
+                </p>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-w-2xl mx-auto">
+                {STARTER_CARDS.map((card) => (
+                  <button
+                    key={card.skill}
+                    onClick={() => {
+                      setInput(card.prompt);
+                      textareaRef.current?.focus();
+                    }}
+                    className="flex flex-col items-start gap-1 p-3 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                  >
+                    <span className="text-sm font-medium">{card.label}</span>
+                    <span className="text-xs text-muted-foreground leading-snug">{card.description}</span>
+                  </button>
+                ))}
                 <button
-                  onClick={() => setInput('/create ')}
-                  className="px-3 py-1.5 text-sm rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+                  onClick={() => {
+                    setInput('What can you help me with?');
+                    textareaRef.current?.focus();
+                  }}
+                  className="flex flex-col items-start gap-1 p-3 rounded-lg border border-dashed border-border hover:border-primary/30 hover:bg-muted/50 transition-colors text-left"
                 >
-                  Create a deliverable
-                </button>
-                <button
-                  onClick={() => setInput('What can you help me with?')}
-                  className="px-3 py-1.5 text-sm rounded-full bg-muted hover:bg-muted/80 transition-colors"
-                >
-                  What can you do?
+                  <span className="text-sm font-medium">Just chat</span>
+                  <span className="text-xs text-muted-foreground leading-snug">Ask me anything about your work</span>
                 </button>
               </div>
             </div>
