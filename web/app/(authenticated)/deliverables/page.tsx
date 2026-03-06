@@ -232,20 +232,11 @@ export default function DeliverablesPage() {
     <div className="h-full overflow-auto">
       <div className="max-w-3xl mx-auto px-4 md:px-6 py-6">
         {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-bold">Deliverables</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Recurring outputs your agent produces on schedule
-            </p>
-          </div>
-          <button
-            onClick={() => router.push('/dashboard?create')}
-            className="inline-flex items-center gap-1.5 px-3 py-2 text-sm bg-primary text-primary-foreground rounded-md hover:bg-primary/90"
-          >
-            <Plus className="w-4 h-4" />
-            New
-          </button>
+        <div className="mb-6">
+          <h1 className="text-2xl font-bold">Deliverables</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Recurring outputs your agent produces on schedule
+          </p>
         </div>
 
         {/* Filters */}
