@@ -130,29 +130,29 @@ export function DeliverableChatArea({
     }
   };
 
-  // Plus menu actions (replaces paperclip button)
+  // Plus menu actions — verb taxonomy (see docs/design/INLINE-PLUS-MENU.md)
   const plusMenuActions: PlusMenuAction[] = [
     {
       id: 'attach-image',
       label: 'Attach image',
       icon: ImagePlus,
+      verb: 'attach',
       onSelect: () => fileInputRef.current?.click(),
     },
     {
       id: 'generate-version',
       label: 'Generate new version',
       icon: Play,
-      onSelect: () => {
-        setInput('Generate a new version');
-        textareaRef.current?.focus();
-      },
+      verb: 'execute',
+      onSelect: () => onRunNow(),
     },
     {
       id: 'update-instructions',
       label: 'Update instructions',
       icon: Pencil,
+      verb: 'prompt',
       onSelect: () => {
-        setInput('I want to update the instructions');
+        setInput('I want to update the instructions for this deliverable');
         textareaRef.current?.focus();
       },
     },

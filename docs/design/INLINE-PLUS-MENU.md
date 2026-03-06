@@ -1,6 +1,6 @@
 # Inline Plus Menu — Contextual Actions in Chat Input
 
-## Status: Implemented
+## Status: Implemented (v2 — verb taxonomy)
 
 ## Problem
 
@@ -17,29 +17,41 @@ Replace the paperclip button with a `+` button in the same position (left side o
 - **No layout complexity** — no absolute/fixed positioning conflicts with messages or drop zone overlay
 - **Compact** — popover anchored to the button, not a floating panel
 
-## Per-surface action sets
+## Action verb taxonomy
 
-Actions differ by surface because scope is fundamentally different: dashboard = "what do I want to create/explore", deliverable page = "refine/generate/understand this thing".
+Each action has a **verb type** that determines what happens when selected. Actions must never default to "pre-fill text" — each must be explicitly mapped to the right verb.
+
+| Verb | Behavior | Example |
+|---|---|---|
+| **show** | Renders an inline UI component in the chat area | "Create deliverable" → show type selection cards |
+| **execute** | Fires a function immediately, no chat involved | "Generate new version" → calls `onRunNow` |
+| **prompt** | Pre-fills input for user to refine before sending | "Search platforms" → pre-fills "Search for ..." |
+| **attach** | Opens a system dialog (file picker, etc.) | "Attach image" → file picker |
+
+Rules:
+- Every action must declare its verb explicitly
+- **show** actions toggle a UI panel/cards in the chat area (not a modal)
+- **execute** actions fire-and-forget with no user input required
+- **prompt** is only appropriate when the user needs to add information (e.g., a search query)
+- Never use **prompt** as a lazy default — if the action can be done without user input, use **execute** or **show**
+
+## Per-surface action sets
 
 ### Dashboard (`ChatFirstDesk.tsx`)
 
-| Action | Icon | Behavior |
-|---|---|---|
-| Attach image | Image icon | Opens file picker (current paperclip behavior) |
-| Create deliverable | Sparkles | Pre-fills: "I want to create a new deliverable" |
-| Search platforms | Search | Pre-fills: "Search across my connected platforms for " |
-
-Kept intentionally small for v1. More actions can be added as patterns emerge.
+| Action | Verb | Icon | Behavior |
+|---|---|---|---|
+| Attach image | **attach** | ImagePlus | Opens file picker |
+| Create deliverable | **show** | Sparkles | Toggles deliverable type cards inline (same cards as empty state) |
+| Search platforms | **prompt** | Search | Pre-fills: "Search across my connected platforms for " |
 
 ### Deliverable workspace (`DeliverableChatArea.tsx`)
 
-| Action | Icon | Behavior |
-|---|---|---|
-| Attach image | Image icon | Opens file picker |
-| Generate new version | Play | Pre-fills: "Generate a new version" |
-| Update instructions | Pencil | Pre-fills: "I want to update the instructions" |
-
-Deliverable actions TBD beyond these — start minimal, expand based on usage.
+| Action | Verb | Icon | Behavior |
+|---|---|---|---|
+| Attach image | **attach** | ImagePlus | Opens file picker |
+| Generate new version | **execute** | Play | Calls `onRunNow` directly |
+| Update instructions | **prompt** | Pencil | Pre-fills: "I want to update the instructions for this deliverable" |
 
 ## Component architecture
 
@@ -52,48 +64,33 @@ interface PlusMenuAction {
   id: string;
   label: string;
   icon: LucideIcon;
-  onSelect: () => void;   // Pre-fill input, open file picker, etc.
-}
-
-interface PlusMenuProps {
-  actions: PlusMenuAction[];
+  verb: 'show' | 'execute' | 'prompt' | 'attach';
+  onSelect: () => void;
 }
 ```
 
-- Self-contained open/close state
-- Renders as popover anchored to the `+` button (opens upward from input bar)
-- Click outside or Escape closes
-- Selecting an action fires `onSelect` and closes the menu
+The `verb` field is for documentation/clarity in action definitions. The actual behavior lives in `onSelect` — the component doesn't branch on verb type.
 
 ### Integration
 
-Each surface defines its own action array and passes it to `<PlusMenu>`. The `onSelect` callbacks either:
-- Call `setInput(prompt)` to pre-fill the chat input
-- Call `fileInputRef.current?.click()` for image upload
-- Call a direct function (future: `onRunNow` for deliverables)
+Each surface defines its own action array. The `onSelect` callback implements the verb:
 
-### Visual layout
+- **attach**: `() => fileInputRef.current?.click()`
+- **show**: `() => setShowCreateCards(prev => !prev)` — toggles inline UI state
+- **execute**: `() => onRunNow()` — fires the function
+- **prompt**: `() => { setInput('...'); textareaRef.current?.focus(); }`
 
-```
-┌─ input bar ───────────────────────────────┐
-│         ┌────────────────────┐            │
-│         │ Attach image       │            │
-│         │ Create deliverable │            │
-│         │ Search platforms   │            │
-│         └────────────────────┘            │
-│  [+]  Ask anything...              [➤]   │
-└───────────────────────────────────────────┘
-```
+### "Create deliverable" show behavior
 
-Popover opens **upward** from the `+` button, left-aligned.
+When toggled, renders the `STARTER_CARDS` grid (same component as empty state) below the messages, above the input bar. Works whether messages exist or not. Clicking a card sends the message immediately (not pre-fill). Dismissed after selection or by toggling `+` → "Create deliverable" again.
 
-## Files to create/modify
+## Files
 
-| File | Change |
+| File | Role |
 |---|---|
-| **NEW** `web/components/tp/PlusMenu.tsx` | Reusable plus-menu component |
-| `web/components/desk/ChatFirstDesk.tsx` | Replace paperclip with `PlusMenu`, define dashboard actions |
-| `web/components/deliverables/DeliverableChatArea.tsx` | Replace paperclip with `PlusMenu`, define deliverable actions |
+| `web/components/tp/PlusMenu.tsx` | Reusable plus-menu component |
+| `web/components/desk/ChatFirstDesk.tsx` | Dashboard surface — attach, show (create), prompt (search) |
+| `web/components/deliverables/DeliverableChatArea.tsx` | Deliverable surface — attach, execute (generate), prompt (update) |
 
 ## Supersedes
 
@@ -103,9 +100,10 @@ Popover opens **upward** from the `+` button, left-aligned.
 ## Verification
 
 - [ ] `+` button visible in input bar on both surfaces
-- [ ] Click `+` opens popover with surface-specific actions
-- [ ] "Attach image" opens file picker, image appears as preview thumbnail
-- [ ] "Create deliverable" pre-fills input, user sends to start conversational flow
+- [ ] "Attach image" opens file picker
+- [ ] "Create deliverable" toggles inline type cards in chat area
+- [ ] Clicking a type card sends the message and dismisses the cards
+- [ ] "Generate new version" triggers execution immediately (no chat)
+- [ ] "Search platforms" pre-fills input with cursor at end
 - [ ] Click outside / Escape closes popover
 - [ ] Existing drag-and-drop and paste still work (unaffected)
-- [ ] Popover doesn't overflow viewport on small screens

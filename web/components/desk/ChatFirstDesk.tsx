@@ -219,6 +219,7 @@ export function ChatFirstDesk() {
 
   const [input, setInput] = useState('');
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
+  const [showCreateCards, setShowCreateCards] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -302,27 +303,27 @@ export function ChatFirstDesk() {
     }
   };
 
-  // Plus menu actions (replaces paperclip button)
+  // Plus menu actions — verb taxonomy (see docs/design/INLINE-PLUS-MENU.md)
   const plusMenuActions: PlusMenuAction[] = [
     {
       id: 'attach-image',
       label: 'Attach image',
       icon: ImagePlus,
+      verb: 'attach',
       onSelect: () => fileInputRef.current?.click(),
     },
     {
       id: 'create-deliverable',
       label: 'Create deliverable',
       icon: Sparkles,
-      onSelect: () => {
-        setInput('I want to create a new deliverable');
-        textareaRef.current?.focus();
-      },
+      verb: 'show',
+      onSelect: () => setShowCreateCards((prev) => !prev),
     },
     {
       id: 'search-platforms',
       label: 'Search my platforms',
       icon: Search,
+      verb: 'prompt',
       onSelect: () => {
         setInput('Search across my connected platforms for ');
         textareaRef.current?.focus();
@@ -523,6 +524,29 @@ export function ChatFirstDesk() {
               onClose={() => setSkillPickerOpen(false)}
               isOpen={skillPickerOpen}
             />
+
+            {/* Create deliverable cards — show verb */}
+            {showCreateCards && (
+              <div className="mb-2 p-3 rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-150">
+                <p className="text-xs font-medium text-muted-foreground mb-2">What type of deliverable?</p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {STARTER_CARDS.map((card) => (
+                    <button
+                      key={card.skill}
+                      onClick={() => {
+                        sendMessage(card.prompt, { surface });
+                        setShowCreateCards(false);
+                      }}
+                      className="flex flex-col items-start gap-0.5 p-2.5 rounded-lg border border-border hover:border-primary/30 hover:bg-primary/5 transition-colors text-left"
+                    >
+                      <span className="text-sm font-medium">{card.label}</span>
+                      <span className="text-[11px] text-muted-foreground leading-snug">{card.description}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmit}>
               {attachmentPreviews.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-2 p-2 rounded-t-lg border border-b-0 border-border bg-muted/30">

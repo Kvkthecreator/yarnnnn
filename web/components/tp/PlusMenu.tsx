@@ -18,6 +18,9 @@ export interface PlusMenuAction {
   id: string;
   label: string;
   icon: LucideIcon;
+  /** Action verb — documents intent, behavior lives in onSelect.
+   *  show: toggle inline UI, execute: fire immediately, prompt: pre-fill input, attach: system dialog */
+  verb: 'show' | 'execute' | 'prompt' | 'attach';
   onSelect: () => void;
 }
 
