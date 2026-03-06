@@ -217,13 +217,7 @@ function AuthenticatedLayoutInner({
     setSurface({ type: 'idle' });
   }, [isOnHome, router, setSurface]);
 
-  // Close dropdown when clicking outside
-  useEffect(() => {
-    if (dropdownOpen) {
-      document.addEventListener('click', closeNav);
-      return () => document.removeEventListener('click', closeNav);
-    }
-  }, [dropdownOpen, closeNav]);
+  // Dropdown close is handled by the backdrop overlay below (no document listener needed)
 
   // ADR-037: Get current display info based on context
   const getCurrentDisplay = () => {
@@ -245,61 +239,59 @@ function AuthenticatedLayoutInner({
   const CurrentIcon = display.icon;
 
   // Nav dropdown menu (shared between workspace and non-workspace center slots)
+  // Navigate to a route and close the nav dropdown
+  const navTo = useCallback((path: string) => {
+    router.push(path);
+    closeNav();
+  }, [router, closeNav]);
+
   const navDropdownMenu = dropdownOpen && (
-    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          navigateToHome();
-          closeNav();
-        }}
-        className={cn(
-          'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-          isOnHome && 'bg-primary/5 text-primary'
-        )}
-      >
-        <Sparkles className="w-4 h-4" />
-        {HOME_LABEL}
-      </button>
-      <button
-        onClick={(e) => {
-          e.stopPropagation();
-          router.push(DELIVERABLES_ROUTE.path);
-          closeNav();
-        }}
-        className={cn(
-          'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-          currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
-        )}
-      >
-        <Briefcase className="w-4 h-4" />
-        {DELIVERABLES_ROUTE.label}
-      </button>
+    <>
+      {/* Invisible backdrop to close on outside click */}
+      <div className="fixed inset-0 z-40" onClick={closeNav} />
+      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+        <button
+          onClick={() => { navigateToHome(); closeNav(); }}
+          className={cn(
+            'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+            isOnHome && 'bg-primary/5 text-primary'
+          )}
+        >
+          <Sparkles className="w-4 h-4" />
+          {HOME_LABEL}
+        </button>
+        <button
+          onClick={() => navTo(DELIVERABLES_ROUTE.path)}
+          className={cn(
+            'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+            currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
+          )}
+        >
+          <Briefcase className="w-4 h-4" />
+          {DELIVERABLES_ROUTE.label}
+        </button>
 
-      <div className="border-t border-border my-1" />
+        <div className="border-t border-border my-1" />
 
-      {ROUTE_PAGES.map((route) => {
-        const Icon = route.icon;
-        const isActive = currentRoute?.id === route.id;
-        return (
-          <button
-            key={route.id}
-            onClick={(e) => {
-              e.stopPropagation();
-              router.push(route.path);
-              closeNav();
-            }}
-            className={cn(
-              'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-              isActive && 'bg-primary/5 text-primary'
-            )}
-          >
-            <Icon className="w-4 h-4" />
-            {route.label}
-          </button>
-        );
-      })}
-    </div>
+        {ROUTE_PAGES.map((route) => {
+          const Icon = route.icon;
+          const isActive = currentRoute?.id === route.id;
+          return (
+            <button
+              key={route.id}
+              onClick={() => navTo(route.path)}
+              className={cn(
+                'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                isActive && 'bg-primary/5 text-primary'
+              )}
+            >
+              <Icon className="w-4 h-4" />
+              {route.label}
+            </button>
+          );
+        })}
+      </div>
+    </>
   );
 
   return (
