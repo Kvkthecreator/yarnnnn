@@ -103,27 +103,21 @@ Catches the user up on everything across a single connected platform. Platform-w
 
 ---
 
-## Watch
+## Deep Research (type: `deep_research`)
 
 **Validated:** Not yet
 
 ---
 
-## Deep Research
+## Hidden pre-launch (2026-03-06)
 
-**Validated:** Not yet
+The following types are implemented in the backend (type keys, strategies, prompts) but hidden from the creation UI. They can be restored when their prerequisites are met.
 
----
-
-## Coordinator
-
-**Validated:** Not yet
-
----
-
-## Custom
-
-**Validated:** Not yet
+| Type | Reason hidden | Restore when |
+|------|--------------|--------------|
+| **Watch** (`watch`) | Promises real-time monitoring but architecture is polling-based (1-24hr sync). Misleading UX. | Sub-5-minute sync or webhook infrastructure in place |
+| **Coordinator** (`coordinator`) | Power-user meta-feature. Not needed for initial adoption. | User base has power users creating 5+ deliverables |
+| **Custom** (`custom`) | Adds ambiguity. Users should choose from validated types pre-launch. | Post-launch, if users request flexibility beyond the 4 active types |
 
 ---
 
