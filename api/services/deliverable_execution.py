@@ -392,6 +392,10 @@ async def generate_draft_inline(
     binding = classification.get("binding", "cross_platform")
     max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(binding, 3)
 
+    # Brief (meeting prep) needs more rounds for per-attendee research + WebSearch
+    if deliverable_type == "brief":
+        max_tool_rounds = max(max_tool_rounds, 5)
+
     # ADR-080: Mode-gated tools and executor
     # ADR-092: Pass deliverable sources so headless RefreshPlatformContent can scope to them
     headless_tools = get_tools_for_mode("headless")

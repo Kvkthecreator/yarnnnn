@@ -121,7 +121,7 @@ Rules:
 
 Write the recap now:""",
 
-    # brief: v2 (2026.03.06) — auto meeting prep with meeting classification
+    # brief: v3 (2026.03.06) — auto meeting prep with deep classification + tool use
     "brief": """You are generating auto meeting prep titled "{title}".
 
 TODAY'S DATE: {today_date}
@@ -134,44 +134,69 @@ GATHERED CONTEXT:
 {past_versions}
 
 INSTRUCTIONS:
-This runs every morning. Scan the gathered context for calendar events happening TODAY and TOMORROW MORNING (before the next delivery). For each meeting, classify it and generate appropriate prep.
+This runs every morning. Scan the gathered context for calendar events happening TODAY and TOMORROW MORNING (before the next delivery). For each meeting, classify it and generate the most useful prep you can.
 
-MEETING CLASSIFICATION — adapt your prep based on the meeting type:
+YOUR JOB IS NOT TO REFORMAT THE CALENDAR. Your job is to prepare the user for conversations — surface what they'd otherwise have to dig for themselves. Be a diligent research assistant, not a calendar summarizer.
 
-1. RECURRING INTERNAL (weekly sync, 1:1, standup — same attendees as before)
-   → what changed since last time, open items from Slack/Notion, decisions needed
-   → brief — attendees know each other
+BEFORE WRITING: Use your tools aggressively.
+- Search platform content for each attendee's name or email — find recent Slack mentions, email threads, Notion references
+- For external/unfamiliar contacts: use WebSearch to look up the person and their company
+- For recurring meetings: search for what was discussed in past versions or related threads
+- If a search returns nothing useful, say so — "No prior interactions found" is more valuable than padding with the user's own activity
+
+MEETING CLASSIFICATION — the classification determines WHAT you research, not just how long you write:
+
+1. RECURRING INTERNAL (weekly sync, 1:1, standup — same attendees)
+   YOUR FOCUS: What does the OTHER person need to hear, and what might THEY raise?
+   - Open threads between you and this person (Slack DMs, email chains, shared Notion docs)
+   - Decisions pending from last meeting (check past versions if available)
+   - Blockers or updates relevant to THEIR work, not just yours
+   - Frame as conversation topics, not an activity log
+   BAD: "Here's what you did this week" (they already know)
+   GOOD: "승진님 asked about the sync architecture last time — update: we resolved the scheduler issue. Open item: memory extraction timeline still TBD."
 
 2. EXTERNAL / NEW CONTACT (unfamiliar attendees, intro, kickoff)
-   → research person/company, relevant email threads, prior Slack/Notion mentions
-   → thorough — user needs background
+   YOUR FOCUS: Who is this person and what should the user know before walking in?
+   - Use WebSearch to research the attendee and their company — role, background, what they invest in / work on
+   - Search platform content for any prior mentions of this person or company
+   - Surface relevant email threads (outreach, introductions)
+   - Suggest 2-3 questions the user should ask based on what you find
+   - If you find nothing, say explicitly: "I couldn't find background on [name]. Consider checking LinkedIn before the meeting."
+   BAD: "This is a meeting about potential investment. Here's what YOU'VE been doing." (irrelevant to prep)
+   GOOD: "Roger Kim, Partner at SB Partners — early-stage B2B SaaS focus, portfolio includes [X, Y]. They typically write $500K-$1M checks. No prior email threads found. Questions to ask: What's their thesis on AI infrastructure? Do they lead or follow?"
 
 3. LARGE GROUP / ALL-HANDS (many attendees, town hall, all-hands)
-   → agenda items, key decisions expected, what user might contribute
-   → structured — highlight user's role
+   YOUR FOCUS: What should the user contribute or watch for?
+   - Agenda items (from calendar description or related Slack/email)
+   - Key decisions expected — what's being decided and what's the user's stake?
+   - Context the user should have before speaking up
+   - Recent relevant developments from Slack/email that may come up
 
 4. LOW-STAKES / ROUTINE (casual catch-up, social, no agenda)
-   → "No specific prep needed. Quick context: [1-2 notes if any]"
+   YOUR FOCUS: Brief assurance with 1-2 helpful notes
+   - "No specific prep needed."
+   - If there IS something worth mentioning: "Quick context: [relevant note]"
 
 OUTPUT:
 Start with: "Your meetings for {date_range}"
 
-For each meeting (chronological):
+For each meeting (chronological order by start time):
 
 ### [Meeting Title] — [Time]
-**Attendees:** [list]
+**Attendees:** [who they are, not just emails — include role/context if found]
 **Type:** [classification]
 **Prep:**
-[adapted content per classification above]
+[classification-appropriate content as described above]
 
 ---
 
 Rules:
-- ALL meetings, chronological order
-- If no calendar events found, say so clearly and suggest checking calendar connection
-- Cross-platform context: surface attendee mentions from Slack, recent emails, Notion docs
-- For recurring meetings: note what was discussed last time if past versions available
-- Be specific: names, dates, numbers from actual context
+- Chronological order by meeting start time — no exceptions
+- Use tools (Search, WebSearch) for EVERY meeting that isn't low-stakes. Try hard.
+- If a tool search returns nothing, say "No results found" — don't fill the gap with generic content
+- If no calendar events found at all, say so clearly and suggest checking Google Calendar connection
+- Be specific: names, dates, numbers from actual context — never fabricate
+- Focus on what the user DOESN'T already know, not what they DO
 
 Write the meeting prep now:""",
 
