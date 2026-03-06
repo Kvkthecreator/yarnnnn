@@ -17,7 +17,7 @@
  * It must always be visible and never ambiguous.
  */
 
-import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspaceHeader } from '@/contexts/WorkspaceHeaderContext';
@@ -70,9 +70,8 @@ export function WorkspaceLayout({
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
   // Inject header content into the AuthenticatedLayout top bar.
-  // Uses useLayoutEffect to paint before the browser frame, avoiding flicker.
   // Runs every render (JSX props are new references each time) — this is intentional.
-  useLayoutEffect(() => {
+  useEffect(() => {
     setHeader(
       <div className="flex items-center justify-between w-full min-w-0">
         <div className="flex items-center gap-3 min-w-0">
@@ -107,13 +106,9 @@ export function WorkspaceLayout({
         </div>
       </div>
     );
-  });
 
-  // Clear header on unmount so nav dropdown returns
-  useEffect(() => {
     return () => setHeader(null);
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
 
   // Close drawer on Escape key
   useEffect(() => {
