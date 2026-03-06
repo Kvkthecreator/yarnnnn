@@ -142,7 +142,7 @@ But the insight goes deeper. Work itself is shifting from human-first to agent-f
 - **Agent startups**: Can execute autonomously, but generically. No persistent understanding of *your* work. Impressive demos, weak on repeat performance for the same user over time.
 - **Workspace AI (Notion AI, etc.)**: Trapped inside one platform. Can't synthesize across tools. Context is siloed by design.
 
-**Architecture as defensibility** (not as product description): One unified agent that works with you in conversation and works for you in the background. 80+ architecture decision records. Built from day one for multi-platform context accumulation and agent interoperability (MCP).
+**Architecture as defensibility** (not as product description): One unified agent that works with you in conversation and works for you in the background. 90+ architecture decision records. Built from day one for multi-platform context accumulation and agent interoperability (MCP).
 
 **Why this works**: Architecture appears here — not in the product introduction — because its role is to answer the defensibility question, not to describe the product experience.
 

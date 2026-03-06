@@ -2,7 +2,7 @@
 
 **Format**: Unlisted YouTube video. Founder on camera (talking head). ~60 seconds.
 **Tone**: Direct, confident, conversational. Honest, not hype-y. Talk like you're explaining a contrarian bet to a smart friend who knows the AI landscape.
-**Source**: v15 deck + NARRATIVE.md v2 (Beats 1 → 3 → 4 compressed, honest-bet/platform-cycle framing)
+**Source**: v16 deck + NARRATIVE.md v2 (Beats 1 → 3 → 4 compressed, honest-bet/platform-cycle framing)
 
 ---
 

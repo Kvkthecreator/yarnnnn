@@ -1,7 +1,7 @@
 # VC Application Status Tracker
 
 **Purpose**: Track all VC/accelerator outreach — submitted applications, queued targets, and researched-but-not-applied funds.
-**Last Updated**: 2026-03-05
+**Last Updated**: 2026-03-06
 **Raising**: $500K pre-seed at $5M post-money valuation ($4.5M pre-money)
 **Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
 
@@ -13,11 +13,12 @@
 |---|------|-------|-------------|--------|-------|
 | 1 | PearX (S26) | Accelerator | 2026-03-04 | Submitted | YC-style accelerator application |
 | 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website |
-| 3 | Hustle Fund | Pre-seed | 2026-03-04 | Submitted | Typeform; ~2 week review cycle; deck upload skipped (optional) |
-| 4 | Outlander VC | Pre-seed | 2026-03-04 | Submitted | Typeform + video interview step pending (videoask.com/fxt7uhkqo) |
+| 3 | Hustle Fund | Pre-seed | 2026-03-04 | **Rejected** | Typeform; rejected 2026-03-06 (~2 days). Auto-rejection likely — no deck uploaded (was optional), possibly filtered on solo founder or pre-revenue |
+| 4 | Outlander VC | Pre-seed | 2026-03-04 | Submitted | Typeform + video interview completed manually 2026-03-06 |
 | 5 | Precursor Ventures | Pre-seed | 2026-03-05 | Submitted | Web form; rolling applications, no warm intro needed |
 | 6 | Forum Ventures | Pre-seed | 2026-03-05 | Submitted | Fillout form via forumvc.com/pitch-us; B2B AI focus, $100K accelerator or $250K venture studio |
 | 7 | 2048 Ventures | Pre-seed | 2026-03-05 | Submitted | Airtable form via 2048.vc/pitch-us; $500K-$3M checks, SMB Vertical AI, Pre-Seed Fast Track applied |
+| 8 | P2S (Pre-Seed to Succeed) | Pre-seed | 2026-03-06 | Submitted | Edda Dealflow form via p2s.vc/apply; AI/B2B/SaaS focus, deck uploaded (IR Deck v16). Confirmation: "Looking forward to meet your project" |
 
 ---
 
@@ -48,10 +49,10 @@ These VCs were researched on 2026-03-05. They do not have public web application
 
 ## Pending Action Items
 
-- [ ] **Outlander VC**: Complete video interview at videoask.com/fxt7uhkqo
+- [x] **Outlander VC**: Video interview completed manually (2026-03-06)
 - [ ] **Betaworks**: Watch for Fall '26 cohort application opening
-- [ ] **Boost VC**: Consider cold email to info@boost.vc
-- [ ] **SUSA Ventures**: Decide on outreach strategy (LinkedIn / cold email / Substack engagement)
-- [ ] **Protagonist**: Consider cold email to founders@protagonist.co
-- [ ] **Bee Partners**: Retry web application form
+- [ ] **Boost VC**: Consider cold email to info@boost.vc (deferred)
+- [ ] **SUSA Ventures**: Decide on outreach strategy (deferred)
+- [ ] **Protagonist**: Consider cold email to founders@protagonist.co (deferred)
+- [ ] **Bee Partners**: Retry web application form (deferred)
 - [ ] **Betaworks reCAPTCHA**: User needs to manually complete CAPTCHA on mailing list signup
