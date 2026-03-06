@@ -177,22 +177,10 @@ const STARTER_CARDS = [
     prompt: 'I want to set up a meeting brief',
   },
   {
-    skill: 'watch',
-    label: 'Watch',
-    description: 'Monitor a domain for signals and changes',
-    prompt: 'I want to set up a watch brief to monitor a topic',
-  },
-  {
     skill: 'deep-research',
     label: 'Deep Research',
     description: 'One-time investigation into a topic',
     prompt: 'I want to run a deep research report',
-  },
-  {
-    skill: 'custom',
-    label: 'Custom',
-    description: 'Newsletter, changelog, or anything else',
-    prompt: 'I want to create a custom deliverable',
   },
 ];
 

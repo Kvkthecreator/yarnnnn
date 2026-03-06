@@ -147,74 +147,10 @@ Create a deep research deliverable — a bounded investigation into a specific t
 """,
     },
 
-    "watch": {
-        "name": "watch",
-        "description": "Create a watch deliverable for ongoing domain monitoring",
-        "trigger_patterns": ["watch brief", "intel brief", "competitive watch", "monitor", "keep an eye on", "intelligence brief", "create a watch", "create watch deliverable"],
-        "deliverable_type": "watch",
-        "system_prompt_addition": """
----
-
-## Active Skill: Watch
-
-Create a watch deliverable — standing-order intelligence on a domain you can't monitor full-time.
-
-**Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask domain: `Clarify(question="What domain should I watch?", options=["Competitors", "Industry news", "Customer signals", "Regulatory changes"])`
-3. Confirm: "I'll create a Watch brief for [domain]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "watch", mode: "proactive"})`
-5. Offer first draft
-
-**Defaults:** mode=proactive, type=watch
-""",
-    },
-
-    "custom": {
-        "name": "custom",
-        "description": "Create a custom deliverable with user-defined intent",
-        "trigger_patterns": ["newsletter", "changelog", "release notes", "client proposal", "custom deliverable", "create a custom", "create custom deliverable"],
-        "deliverable_type": "custom",
-        "system_prompt_addition": """
----
-
-## Active Skill: Custom
-
-Create a custom deliverable — the user defines exactly what they want.
-
-**Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask for description: `Clarify(question="Describe what this deliverable should produce", options=[])`
-3. Confirm: "I'll create a Custom deliverable: [description]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "custom", description})`
-5. Offer first draft
-
-**Defaults:** frequency=weekly, type=custom
-""",
-    },
-
-    "coordinator": {
-        "name": "coordinator",
-        "description": "Create a coordinator deliverable that manages other deliverables",
-        "trigger_patterns": ["coordinator", "create a coordinator", "create coordinator deliverable", "orchestrator", "auto-create deliverables"],
-        "deliverable_type": "coordinator",
-        "system_prompt_addition": """
----
-
-## Active Skill: Coordinator
-
-Create a coordinator deliverable — watches a domain and creates or triggers other deliverables automatically.
-
-**Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask domain: `Clarify(question="What domain should this coordinator watch?", options=["Engineering", "Sales", "Product", "Company-wide"])`
-3. Ask triggers: "What should trigger it to create child deliverables?"
-4. Confirm: "I'll create a Coordinator for [domain]. Ready?"
-5. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "coordinator", mode: "coordinator"})`
-
-**Defaults:** mode=coordinator, type=coordinator
-""",
-    },
+    # NOTE: watch, custom, coordinator skills hidden pre-launch (2026-03-06).
+    # Type keys and backend strategies remain — only UI creation paths removed.
+    # Restore when: watch needs real-time infra; custom needs product validation;
+    # coordinator needs power-user adoption.
 }
 
 
