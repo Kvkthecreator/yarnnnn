@@ -4,7 +4,7 @@ import type { DeliverableType } from '@/types';
 export const DELIVERABLE_TYPE_LABELS: Record<DeliverableType, string> = {
   digest: 'Digest',
   brief: 'Brief',
-  status: 'Status Update',
+  status: 'Work Summary',
   watch: 'Watch',
   deep_research: 'Deep Research',
   coordinator: 'Coordinator',

@@ -51,22 +51,23 @@ Keep it simple - one question at a time.
     # =========================================================================
     "status": {
         "name": "status",
-        "description": "Create a recurring status update deliverable",
-        "trigger_patterns": ["status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update", "create a status", "create status deliverable"],
+        "description": "Create a work summary deliverable — synthesize activity across platforms",
+        "trigger_patterns": ["work summary", "status report", "status update", "weekly report", "progress report", "board update", "stakeholder update", "investor update", "create a status", "create status deliverable", "summarize my work", "platform summary"],
         "deliverable_type": "status",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Status Update
+## Active Skill: Work Summary
 
-Create a status update deliverable — a regular cross-platform summary for a person or audience.
+Create a work summary deliverable — synthesizes activity across the user's connected platforms into a structured report for a specific audience.
 
 **Flow:**
 1. Check for duplicates: `List(pattern="deliverable:*")`
 2. If missing recipient, ask: `Clarify(question="Who receives this?", options=["Manager", "Team", "Stakeholders", "Board"])`
-3. Confirm: "I'll create a weekly Status Update for [recipient]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "status", frequency: "weekly", recipient_name})`
-5. Offer first draft
+3. Ask frequency preference: `Clarify(question="How often?", options=["Daily", "Weekly", "Biweekly", "Monthly"])`
+4. Confirm: "I'll create a [frequency] Work Summary for [recipient]. Ready?"
+5. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "status", frequency, recipient_name})`
+6. Offer first draft
 
 **Defaults:** frequency=weekly, type=status
 """,

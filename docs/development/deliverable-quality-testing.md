@@ -36,7 +36,7 @@ Do YARNNN's deliverable types represent jobs-to-be-done that people struggle wit
 |------|:-:|:-:|:-:|:-:|---|
 | Digest | No (single place) | Yes | No (self) | No | Table stakes, not wedge |
 | Brief | Yes | Narrow (needs calendar) | Yes | No (calendar-dependent) | Strong but dependent |
-| **Status** | **Yes** | **Yes** | **Yes** | **Yes** | **Best wedge candidate** |
+| **Work Summary** | **Yes** | **Yes** | **Yes** | **Yes** | **Best wedge candidate** |
 | Watch | Yes | Niche | No (self) | Yes | Retention play |
 | Deep Research | Partial | Niche | Sometimes | Yes | Commoditized by ChatGPT etc. |
 | Coordinator | Yes | Power-user | No | Yes | Advanced capability |
@@ -44,7 +44,7 @@ Do YARNNN's deliverable types represent jobs-to-be-done that people struggle wit
 
 ---
 
-## Pass 1: Status (2026-03-06)
+## Pass 1: Work Summary (2026-03-06)
 
 ### Test setup
 

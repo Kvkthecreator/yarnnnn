@@ -219,10 +219,10 @@ export default function LandingPage() {
               </div>
 
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Status</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Stakeholder updates</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Work Summary</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Cross-platform synthesis</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Cross-platform status updates tailored to audience, cadence, and format.
+                  Synthesize activity across your platforms — daily, weekly, or on your schedule.
                 </p>
               </div>
 

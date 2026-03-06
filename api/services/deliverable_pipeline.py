@@ -66,7 +66,7 @@ _PLATFORM_DIGEST_SIGNALS = {
 DEFAULT_INSTRUCTIONS = {
     "digest": "Summarize key activity and highlights. Prioritize actionable items and decisions. Keep it scannable with bullet points.",
     "brief": "Provide a concise executive-level summary. Lead with the most important finding. Include 2-3 supporting details max.",
-    "status": "Report on progress, blockers, and next steps. Use a consistent structure each run. Flag anything that changed since last version.",
+    "status": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
     "watch": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
     "deep_research": "Conduct thorough research using web search and available sources. Synthesize findings into a structured analysis with citations.",
     "coordinator": "Orchestrate across multiple sources to produce a unified view. Cross-reference platform data for consistency.",
@@ -125,7 +125,7 @@ INSTRUCTIONS:
 
 Write the brief now:""",
 
-    "status": """You are producing a status update titled "{title}".
+    "status": """You are producing a work summary titled "{title}".
 
 SUBJECT: {subject}
 AUDIENCE: {audience}
@@ -179,7 +179,7 @@ Rules:
 - For Slack, group by channel name
 - Keep each section concise — supporting detail, not exhaustive logs
 
-Write the status update now:""",
+Write the work summary now:""",
 
     "watch": """You are producing an intelligence watch report titled "{title}".
 

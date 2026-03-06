@@ -11,7 +11,7 @@ Each deliverable type maps to a job-to-be-done. This document captures the valid
 ## Sequencing model
 
 ```
-Acquisition wedge:     Status (cross-platform synthesis)
+Acquisition wedge:     Work Summary (cross-platform synthesis)
 Trust builder:         Brief (meeting/event prep)
 Retention foundation:  Digest (daily/weekly rhythm)
 Deepening hooks:       Watch, Deep Research, Coordinator
@@ -19,14 +19,14 @@ Deepening hooks:       Watch, Deep Research, Coordinator
 
 ---
 
-## Status
+## Work Summary (type: `status`)
 
 **Validated:** 2026-03-06 (Pass 1)
 **Prompt version:** v4 — tracked in `api/prompts/CHANGELOG.md`
 
 ### What it does
 
-Synthesizes activity across all connected platforms into a structured status update for a specific audience. The value scales with each platform connected — no single-platform tool can produce this.
+Synthesizes activity across all connected platforms into a structured work summary for a specific audience — daily, weekly, or on any schedule. The value scales with each platform connected — no single-platform tool can produce this.
 
 ### Output format: two-part structure
 

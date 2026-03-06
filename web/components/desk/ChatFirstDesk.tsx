@@ -160,9 +160,9 @@ function formatTokenCount(tokens: number): string {
 const STARTER_CARDS = [
   {
     skill: 'status',
-    label: 'Status Report',
-    description: 'Weekly update for your team or manager',
-    prompt: 'I want to set up a recurring status report',
+    label: 'Work Summary',
+    description: 'Synthesize activity across your platforms — daily, weekly, or on your schedule',
+    prompt: 'I want to set up a work summary across my platforms',
   },
   {
     skill: 'digest',
