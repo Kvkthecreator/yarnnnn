@@ -1,17 +1,21 @@
 ---
-title: "The 40-Hour Illusion: What AI Actually Changes About Work"
+title: "The AI Workplace Thesis, Part 1: The 40-Hour Illusion"
 slug: the-40-hour-illusion
 description: "The 40-hour work week was designed for factory floors. AI doesn't just challenge it — it exposes how little we've updated our assumptions about what productive work actually looks like."
 category: opinion
 format: reflection
 date: 2026-03-05
 author: kvk
-tags: [future-of-work, artificial-intelligence, productivity, white-collar, work-life-balance, voice-ai, performance-metrics, geo-tier-1]
+tags: [future-of-work, artificial-intelligence, productivity, white-collar, work-life-balance, voice-ai, performance-metrics, ai-workplace-thesis, geo-tier-1]
 concept: Future of AI Work
+series: The AI Workplace Thesis
+seriesPart: 1
 geoTier: 1
 canonicalUrl: https://www.yarnnn.com/blog/the-40-hour-illusion
-status: draft
+status: published
 ---
+
+*This is Part 1 of "The AI Workplace Thesis" — a five-part series examining how AI restructures the workplace, from time and flexibility to performance, operating costs, and the emergence of agent-native organizations.*
 
 In 1926, Henry Ford did something radical. He cut his factory workers to a five-day, 40-hour week — down from six days — and didn't cut pay. The business press thought he was crazy. His competitors called it a stunt.
 
@@ -84,3 +88,5 @@ A hundred years later, we're staring at the same insight. The question is whethe
 ---
 
 *Kevin Kim is the founder of YARNNN, a context-powered AI platform that believes the future of work isn't about AI replacing humans — it's about AI that understands work deeply enough to make human judgment more valuable, not less.*
+
+*Next in the series: [Part 2 — The Work-Life Blur](/blog/ai-workplace-thesis-the-work-life-blur)*
