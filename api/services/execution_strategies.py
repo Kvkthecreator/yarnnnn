@@ -84,19 +84,31 @@ class PlatformBoundStrategy(ExecutionStrategy):
         # so a source with provider="google" should match primary_platform="calendar" or "gmail"
         google_platforms = {"gmail", "calendar"}
 
-        platform_sources = [
-            s for s in sources
-            if s.get("type") == "integration_import"
-            and (
+        # Include sources with type="integration_import" or sources missing the type field
+        # (untyped sources are treated as integration_import with a warning)
+        def _is_integration(s):
+            return s.get("type") == "integration_import" or (not s.get("type") and s.get("provider"))
+
+        def _matches_platform(s):
+            return (
                 s.get("provider") == primary_platform
                 or (s.get("provider") == "google" and primary_platform in google_platforms)
             )
+
+        untyped = [s for s in sources if not s.get("type") and s.get("provider")]
+        if untyped:
+            logger.warning(
+                f"[PLATFORM_BOUND] {len(untyped)} sources missing 'type' field — "
+                f"treating as integration_import: {[s.get('provider') for s in untyped]}"
+            )
+
+        platform_sources = [
+            s for s in sources
+            if _is_integration(s) and _matches_platform(s)
         ]
 
         if not platform_sources and sources:
-            platform_sources = [
-                s for s in sources if s.get("type") == "integration_import"
-            ]
+            platform_sources = [s for s in sources if _is_integration(s)]
             logger.info(f"[PLATFORM_BOUND] No {primary_platform} sources, using all {len(platform_sources)} integration sources")
 
         # ADR-073: Read from platform_content instead of live API calls
@@ -165,6 +177,15 @@ class CrossPlatformStrategy(ExecutionStrategy):
 
         integration_sources = [s for s in sources if s.get("type") == "integration_import"]
         other_sources = [s for s in sources if s.get("type") != "integration_import"]
+
+        # Warn about sources missing the type field — these get silently dropped
+        untyped = [s for s in sources if not s.get("type") and s.get("provider")]
+        if untyped:
+            logger.warning(
+                f"[CROSS_PLATFORM] {len(untyped)} sources missing 'type' field — "
+                f"treating as integration_import: {[s.get('provider') for s in untyped]}"
+            )
+            integration_sources.extend(untyped)
 
         providers = list({s.get("provider", "unknown") for s in integration_sources})
 

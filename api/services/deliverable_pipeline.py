@@ -149,7 +149,11 @@ PART 1 — CROSS-PLATFORM SYNTHESIS (top of the document):
 - Key Accomplishments: what moved forward this period (draw from ALL platforms)
 - Blockers and Risks: anything impeding progress — don't bury these
 - Next Steps: actionable items with owners where known
-- Connect dots across platforms — if a Slack discussion relates to a Notion doc or an email thread, call out the connection explicitly
+- Cross-Platform Connections: explicitly call out threads that span platforms. Examples:
+  - "The Render deployment issues discussed in #dev-ops (Slack) align with the billing alerts in Gmail"
+  - "The architecture decisions captured in Notion were first debated in #engineering (Slack)"
+  - "The meeting prep email (Gmail) relates to the project timeline in Notion"
+  Look for: same topics across platforms, cause-and-effect chains (email alert → Slack discussion → Notion doc update), people mentioned in multiple places. This is the most valuable part — insights no single-platform tool can provide.
 
 PART 2 — PLATFORM ACTIVITY (below a horizontal rule):
 Write a SEPARATE "##" section for each platform. The gathered context contains headers like "## Slack: ...", "## Gmail: ...", "## Notion: ...". You MUST produce one section per platform.

@@ -689,7 +689,8 @@ async def get_content_for_deliverable(
 
     for source in deliverable_sources:
         provider = source.get("provider") or source.get("platform")
-        resource_id = source.get("resource_id")
+        # DataSource model uses "source" field; legacy/manual entries may use "resource_id"
+        resource_id = source.get("source") or source.get("resource_id")
 
         if not provider or not resource_id:
             continue
@@ -725,6 +726,54 @@ async def get_content_for_deliverable(
             resource_ids=[query_resource_id],
             limit=limit_per_source,
         )
+
+        # Fallback: if no items found by resource_id, try matching by resource_name
+        # This handles cases where sources use human-readable names instead of platform IDs
+        if not items:
+            resource_name = source.get("resource_name") or source.get("label", "")
+            if resource_name:
+                # Strip leading # from channel names for matching
+                clean_name = resource_name.lstrip("#")
+                name_query = (
+                    db_client.table("platform_content")
+                    .select("*")
+                    .eq("user_id", user_id)
+                    .eq("platform", platform)
+                    .ilike("resource_name", f"%{clean_name}%")
+                    .order("fetched_at", desc=True)
+                    .limit(limit_per_source)
+                )
+                now = datetime.now(timezone.utc).isoformat()
+                name_query = name_query.or_(f"retained.eq.true,expires_at.gt.{now}")
+                name_result = name_query.execute()
+                for row in name_result.data or []:
+                    items.append(PlatformContentItem(
+                        id=row["id"],
+                        platform=row["platform"],
+                        resource_id=row["resource_id"],
+                        resource_name=row.get("resource_name"),
+                        item_id=row["item_id"],
+                        content=row["content"],
+                        content_type=row.get("content_type"),
+                        content_hash=row.get("content_hash"),
+                        title=row.get("title"),
+                        author=row.get("author"),
+                        author_id=row.get("author_id"),
+                        is_user_authored=row.get("is_user_authored", False),
+                        metadata=row.get("metadata", {}),
+                        source_timestamp=_parse_datetime(row.get("source_timestamp")),
+                        fetched_at=_parse_datetime(row["fetched_at"]),
+                        retained=row.get("retained", False),
+                        retained_reason=row.get("retained_reason"),
+                        retained_ref=row.get("retained_ref"),
+                        retained_at=_parse_datetime(row.get("retained_at")),
+                        expires_at=_parse_datetime(row.get("expires_at")),
+                    ))
+                if items:
+                    logger.info(
+                        f"[CONTENT] Fallback: matched {len(items)} items by resource_name "
+                        f"'{resource_name}' for {platform}"
+                    )
 
         all_items.extend(items)
 

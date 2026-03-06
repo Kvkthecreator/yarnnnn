@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.06.2] - Status prompt: stronger cross-platform connection language
+
+### Changed
+- `api/services/deliverable_pipeline.py`: Expanded the cross-platform connection bullet in the status prompt from a single line to a detailed section with concrete examples (e.g., "The Render deployment issues in #dev-ops align with billing alerts in Gmail"). Instructs the agent to look for same-topic threads, cause-and-effect chains, and people mentioned across platforms.
+- Expected behavior: Part 1 synthesis now explicitly connects dots between platforms — the key differentiator that no single-platform tool can provide.
+
+---
+
 ## [2026.03.06.1] - Status deliverable: two-part format (synthesis + platform breakdown)
 
 ### Changed
