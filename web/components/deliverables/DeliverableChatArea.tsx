@@ -13,14 +13,15 @@ import {
   MessageSquare,
   Send,
   Paperclip,
+  Upload,
   X,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTP } from '@/contexts/TPContext';
+import { useFileAttachments } from '@/hooks/useFileAttachments';
 import { SkillPicker } from '@/components/tp/SkillPicker';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
-import { TPImageAttachment } from '@/types/desk';
 import { InlineVersionCard } from './DeliverableVersionDisplay';
 import type { Deliverable, DeliverableVersion } from '@/types';
 
@@ -54,12 +55,23 @@ export function DeliverableChatArea({
   } = useTP();
 
   const [input, setInput] = useState('');
-  const [attachments, setAttachments] = useState<File[]>([]);
-  const [attachmentPreviews, setAttachmentPreviews] = useState<string[]>([]);
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const {
+    attachments,
+    attachmentPreviews,
+    isDragging,
+    error: fileError,
+    dropZoneProps,
+    handleFileSelect,
+    handlePaste,
+    removeAttachment,
+    clearAttachments,
+    getImagesForAPI,
+    fileInputRef,
+  } = useFileAttachments();
 
   const surface = { type: 'deliverable-detail' as const, deliverableId };
 
@@ -92,61 +104,20 @@ export function DeliverableChatArea({
     }
   }, [skillQuery, input]);
 
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = () => {
-        const result = reader.result as string;
-        resolve(result.split(',')[1]);
-      };
-      reader.onerror = reject;
-      reader.readAsDataURL(file);
-    });
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if ((!input.trim() && attachments.length === 0) || isLoading) return;
 
-    const images: TPImageAttachment[] = [];
-    for (const file of attachments) {
-      const base64 = await fileToBase64(file);
-      const mediaType = file.type as TPImageAttachment['mediaType'];
-      if (['image/jpeg', 'image/png', 'image/gif', 'image/webp'].includes(mediaType)) {
-        images.push({ data: base64, mediaType });
-      }
-    }
-
+    const images = await getImagesForAPI();
     sendMessage(input, { surface, images: images.length > 0 ? images : undefined });
     setInput('');
-    setAttachments([]);
-    setAttachmentPreviews([]);
+    clearAttachments();
   };
 
   const handleSkillSelect = (command: string) => {
     setInput(command + ' ');
     setSkillPickerOpen(false);
     textareaRef.current?.focus();
-  };
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
-    if (imageFiles.length === 0) return;
-    imageFiles.forEach((file) => {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        setAttachmentPreviews((prev) => [...prev, e.target?.result as string]);
-      };
-      reader.readAsDataURL(file);
-    });
-    setAttachments((prev) => [...prev, ...imageFiles]);
-    if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  const removeAttachment = (index: number) => {
-    setAttachments((prev) => prev.filter((_, i) => i !== index));
-    setAttachmentPreviews((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -157,7 +128,24 @@ export function DeliverableChatArea({
   };
 
   return (
-    <>
+    <div className="relative flex flex-col flex-1 min-h-0" {...dropZoneProps}>
+      {/* Drop zone overlay */}
+      {isDragging && (
+        <div className="absolute inset-0 z-50 bg-primary/5 backdrop-blur-[1px] flex items-center justify-center">
+          <div className="border-2 border-dashed border-primary/40 rounded-xl p-8 flex flex-col items-center gap-2">
+            <Upload className="w-8 h-8 text-primary/60" />
+            <span className="text-sm font-medium text-primary/80">Drop images here</span>
+          </div>
+        </div>
+      )}
+
+      {/* File error toast */}
+      {fileError && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 z-50 px-3 py-1.5 rounded-lg bg-destructive text-destructive-foreground text-xs font-medium shadow-lg animate-in fade-in slide-in-from-top-2 duration-200">
+          {fileError}
+        </div>
+      )}
+
       {/* Messages */}
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-4">
         {/* Inline version card — full chat width */}
@@ -271,7 +259,7 @@ export function DeliverableChatArea({
       </div>
 
       {/* Input */}
-      <div className="p-4 border-t border-border shrink-0">
+      <div className="px-4 pb-4 pt-2 shrink-0">
         <div className="relative max-w-2xl mx-auto">
           <SkillPicker
             query={skillQuery ?? ''}
@@ -281,7 +269,7 @@ export function DeliverableChatArea({
           />
           <form onSubmit={handleSubmit}>
             {attachmentPreviews.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2 p-2 rounded-t-lg border border-b-0 border-border bg-muted/30">
+              <div className="flex flex-wrap gap-2 mb-2 p-2 rounded-t-xl border border-b-0 border-border bg-muted/30">
                 {attachmentPreviews.map((preview, index) => (
                   <div key={index} className="relative group">
                     <img
@@ -302,9 +290,9 @@ export function DeliverableChatArea({
             )}
             <div
               className={cn(
-                'flex items-end gap-2 border border-border bg-background transition-colors',
-                attachmentPreviews.length > 0 ? 'rounded-b-lg border-t-0' : 'rounded-lg',
-                'focus-within:ring-2 focus-within:ring-primary/50'
+                'flex items-end gap-2 border border-border bg-background shadow-sm transition-colors',
+                attachmentPreviews.length > 0 ? 'rounded-b-xl border-t-0' : 'rounded-xl',
+                'focus-within:ring-2 focus-within:ring-primary/50 focus-within:shadow-md'
               )}
             >
               <input
@@ -329,6 +317,7 @@ export function DeliverableChatArea({
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 disabled={isLoading}
                 placeholder={
                   status.type === 'clarify'
@@ -360,6 +349,6 @@ export function DeliverableChatArea({
           </form>
         </div>
       </div>
-    </>
+    </div>
   );
 }
