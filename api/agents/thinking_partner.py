@@ -417,6 +417,17 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
         else:
             messages.append({"role": "user", "content": user_content})
 
+        # DEBUG: Log message structure to diagnose tool_use/tool_result pairing
+        for i, m in enumerate(messages):
+            role = m.get("role")
+            content = m.get("content")
+            if isinstance(content, list):
+                types = [b.get("type", "?") for b in content if isinstance(b, dict)]
+                logger.info(f"[TP-DEBUG] messages[{i}] role={role} blocks={types}")
+            else:
+                preview = str(content)[:80] if content else "(empty)"
+                logger.info(f"[TP-DEBUG] messages[{i}] role={role} content={preview}")
+
         # Create tool executor that uses our auth context
         async def tool_executor(tool_name: str, tool_input: dict) -> dict:
             return await execute_primitive(auth, tool_name, tool_input)
