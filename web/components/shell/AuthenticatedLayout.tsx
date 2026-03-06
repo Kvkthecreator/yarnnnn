@@ -25,7 +25,6 @@ import { createClient } from '@/lib/supabase/client';
 import { Sparkles, ChevronDown, Settings, Briefcase, Activity, Layers, Brain, Zap } from 'lucide-react';
 import { DeskProvider, useDesk } from '@/contexts/DeskContext';
 import { TPProvider, useTP } from '@/contexts/TPContext';
-import { WorkspaceHeaderProvider, useWorkspaceHeader } from '@/contexts/WorkspaceHeaderContext';
 import type { DeskSurface } from '@/types/desk';
 import { UserMenu } from './UserMenu';
 import { cn } from '@/lib/utils';
@@ -89,11 +88,9 @@ export default function AuthenticatedLayout({ children }: AuthenticatedLayoutPro
 
   return (
     <DeskProvider>
-      <WorkspaceHeaderProvider>
-        <AuthenticatedLayoutInner userEmail={userEmail}>
-          {children}
-        </AuthenticatedLayoutInner>
-      </WorkspaceHeaderProvider>
+      <AuthenticatedLayoutInner userEmail={userEmail}>
+        {children}
+      </AuthenticatedLayoutInner>
     </DeskProvider>
   );
 }
@@ -154,7 +151,6 @@ function AuthenticatedLayoutInner({
   const router = useRouter();
   const pathname = usePathname();
   const { surface, setSurface, setSurfaceWithHandoff } = useDesk();
-  const { header: workspaceHeader } = useWorkspaceHeader();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
   // Determine navigation context
@@ -252,7 +248,7 @@ function AuthenticatedLayoutInner({
         {/* Top Bar - Single unified bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
           {/* Left: Logo - always navigates home */}
-          <div className="flex items-center gap-4 shrink-0">
+          <div className="flex items-center gap-4">
             <button
               onClick={navigateToHome}
               className="text-xl font-brand hover:opacity-80 transition-opacity"
@@ -261,98 +257,90 @@ function AuthenticatedLayoutInner({
             </button>
           </div>
 
-          {/* Center: workspace header (injected by WorkspaceLayout) or nav dropdown */}
-          {workspaceHeader ? (
-            <div className="flex-1 flex items-center justify-center min-w-0 mx-4">
-              {workspaceHeader}
-            </div>
-          ) : (
-            <div className="relative">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setDropdownOpen(!dropdownOpen);
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary/10 text-primary font-medium"
-              >
-                <CurrentIcon className="w-4 h-4" />
-                <span>{display.label}</span>
-                <ChevronDown className={cn(
-                  'w-3 h-3 opacity-50 transition-transform',
-                  dropdownOpen && 'rotate-180'
-                )} />
-              </button>
+          {/* Center: Current context with dropdown to navigate */}
+          <div className="relative">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setDropdownOpen(!dropdownOpen);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary/10 text-primary font-medium"
+            >
+              <CurrentIcon className="w-4 h-4" />
+              <span>{display.label}</span>
+              <ChevronDown className={cn(
+                'w-3 h-3 opacity-50 transition-transform',
+                dropdownOpen && 'rotate-180'
+              )} />
+            </button>
 
-              {/* Dropdown: Navigation options */}
-              {dropdownOpen && (
-                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                  {/* Primary workspace: TP + Deliverables */}
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      if (!isOnHome) {
-                        router.push(HOME_ROUTE);
-                      }
-                      setSurface({ type: 'idle' });
-                      setDropdownOpen(false);
-                    }}
-                    className={cn(
-                      'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                      isOnHome && 'bg-primary/5 text-primary'
-                    )}
-                  >
-                    <Sparkles className="w-4 h-4" />
-                    {HOME_LABEL}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      router.push(DELIVERABLES_ROUTE.path);
-                      setDropdownOpen(false);
-                    }}
-                    className={cn(
-                      'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                      currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
-                    )}
-                  >
-                    <Briefcase className="w-4 h-4" />
-                    {DELIVERABLES_ROUTE.label}
-                  </button>
+            {/* Dropdown: Navigation options */}
+            {dropdownOpen && (
+              <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+                {/* Primary workspace: TP + Deliverables */}
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    if (!isOnHome) {
+                      router.push(HOME_ROUTE);
+                    }
+                    setSurface({ type: 'idle' });
+                    setDropdownOpen(false);
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                    isOnHome && 'bg-primary/5 text-primary'
+                  )}
+                >
+                  <Sparkles className="w-4 h-4" />
+                  {HOME_LABEL}
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(DELIVERABLES_ROUTE.path);
+                    setDropdownOpen(false);
+                  }}
+                  className={cn(
+                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                    currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
+                  )}
+                >
+                  <Briefcase className="w-4 h-4" />
+                  {DELIVERABLES_ROUTE.label}
+                </button>
 
-                  {/* Divider — supporting pages below */}
-                  <div className="border-t border-border my-1" />
+                {/* Divider — supporting pages below */}
+                <div className="border-t border-border my-1" />
 
-                  {/* Supporting pages */}
-                  {ROUTE_PAGES.map((route) => {
-                    const Icon = route.icon;
-                    const isActive = currentRoute?.id === route.id;
-                    return (
-                      <button
-                        key={route.id}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          router.push(route.path);
-                          setDropdownOpen(false);
-                        }}
-                        className={cn(
-                          'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                          isActive && 'bg-primary/5 text-primary'
-                        )}
-                      >
-                        <Icon className="w-4 h-4" />
-                        {route.label}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          )}
+                {/* Supporting pages */}
+                {ROUTE_PAGES.map((route) => {
+                  const Icon = route.icon;
+                  const isActive = currentRoute?.id === route.id;
+                  return (
+                    <button
+                      key={route.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(route.path);
+                        setDropdownOpen(false);
+                      }}
+                      className={cn(
+                        'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                        isActive && 'bg-primary/5 text-primary'
+                      )}
+                    >
+                      <Icon className="w-4 h-4" />
+                      {route.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
 
           {/* Right: User menu only */}
-          <div className="shrink-0">
-            <UserMenu email={userEmail} />
-          </div>
+          <UserMenu email={userEmail} />
         </header>
 
         {/* Main content */}
