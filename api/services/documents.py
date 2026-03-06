@@ -6,8 +6,11 @@ Handles document upload, parsing, chunking, and memory extraction.
 """
 
 import io
+import logging
 from typing import Optional
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 from services.embeddings import get_embeddings_batch
 
@@ -35,7 +38,7 @@ async def extract_text_from_pdf(file_content: bytes) -> tuple[str, int]:
 
         return "\n\n".join(pages), len(reader.pages)
     except Exception as e:
-        print(f"PDF extraction failed: {e}")
+        logger.error(f"PDF extraction failed: {e}")
         return "", 0
 
 
@@ -54,7 +57,7 @@ async def extract_text_from_docx(file_content: bytes) -> tuple[str, int]:
 
         return "\n\n".join(paragraphs), len(paragraphs)
     except Exception as e:
-        print(f"DOCX extraction failed: {e}")
+        logger.error(f"DOCX extraction failed: {e}")
         return "", 0
 
 
@@ -70,7 +73,7 @@ async def extract_text_from_txt(file_content: bytes) -> tuple[str, int]:
         lines = text.split("\n")
         return text, len(lines)
     except Exception as e:
-        print(f"TXT extraction failed: {e}")
+        logger.error(f"TXT extraction failed: {e}")
         return "", 0
 
 
@@ -228,7 +231,7 @@ async def process_document(
         try:
             embeddings = await get_embeddings_batch(chunk_texts)
         except Exception as e:
-            print(f"Embedding generation failed: {e}")
+            logger.error(f"Embedding generation failed: {e}")
             embeddings = [None] * len(chunks)
 
         # 4. Store chunks
@@ -249,7 +252,7 @@ async def process_document(
                 db_client.table("filesystem_chunks").insert(chunk_record).execute()
                 chunks_inserted += 1
             except Exception as e:
-                print(f"Failed to insert chunk {i}: {e}")
+                logger.error(f"Failed to insert chunk {i}: {e}")
 
         # ADR-059: LLM memory extraction from documents removed.
         # Document content is available via filesystem_chunks for search.

@@ -54,7 +54,6 @@ FULL_RESET_USER_TABLES: tuple[str, ...] = (
 
 # Optional/rolling tables (not guaranteed to exist in all environments).
 OPTIONAL_USER_TABLES: tuple[str, ...] = (
-    "signal_history",
     "trigger_event_log",
 )
 

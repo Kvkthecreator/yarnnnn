@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 
 PlatformType = Literal["slack", "gmail", "notion", "calendar"]
-RetainedReason = Literal["deliverable_execution", "signal_processing", "tp_session"]
+RetainedReason = Literal["deliverable_execution", "tp_session"]
 
 
 @dataclass
@@ -477,7 +477,6 @@ async def mark_content_retained(
 
     Called by:
     - Deliverable execution after synthesis (reason='deliverable_execution')
-    - Signal processing when content is significant (reason='signal_processing')
     - TP session when content is accessed (reason='tp_session')
 
     Args:

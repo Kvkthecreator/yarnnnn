@@ -150,9 +150,7 @@ async def upload_document(
     except HTTPException:
         raise
     except Exception as e:
-        import traceback
-        print(f"Storage upload error: {e}")
-        print(traceback.format_exc())
+        logger.error(f"Storage upload error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Failed to upload file: {str(e)}")
 
     # Create document record
@@ -367,7 +365,7 @@ async def delete_document(auth: UserClient, document_id: str):
             service = get_service_client()
             service.storage.from_("documents").remove([storage_path])
         except Exception as e:
-            print(f"Warning: Failed to delete storage file: {e}")
+            logger.warning(f"Failed to delete storage file: {e}")
 
     # Delete document record (chunks cascade via FK)
     auth.client.table("filesystem_documents").delete().eq("id", document_id).execute()

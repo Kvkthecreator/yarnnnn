@@ -907,7 +907,6 @@ async def global_chat(
                     tools_used.append(event.content["name"])
                     current_tool_use = event.content
                     msg = f"[TP-STREAM] Tool use: {event.content['name']}"
-                    print(msg, flush=True)
                     logger.info(msg)
                     yield f"data: {json.dumps({'tool_use': event.content})}\n\n"
                 elif event.type == "tool_result":
@@ -915,7 +914,6 @@ async def global_chat(
                     ui_action = result.get("ui_action")
                     tool_name = event.content.get("name")
                     msg = f"[TP-STREAM] Tool result for {tool_name}: ui_action={ui_action}, success={result.get('success')}"
-                    print(msg, flush=True)
                     logger.info(msg)
 
                     # Extract Respond/Clarify message as text content
@@ -950,7 +948,6 @@ async def global_chat(
                     yield f"data: {json.dumps({'usage': event.content})}\n\n"
                 elif event.type == "done":
                     msg = f"[TP-STREAM] Stream done, tools_used={tools_used}"
-                    print(msg, flush=True)
                     logger.info(msg)
                     pass  # Will send done event after saving
 
@@ -1015,7 +1012,6 @@ async def global_chat(
         except Exception as e:
             import traceback
             error_msg = f"[TP-STREAM] Error: {type(e).__name__}: {str(e)}"
-            print(error_msg, flush=True)
             logger.error(error_msg)
             logger.error(f"[TP-STREAM] Traceback: {traceback.format_exc()}")
             yield f"data: {json.dumps({'error': str(e)})}\n\n"

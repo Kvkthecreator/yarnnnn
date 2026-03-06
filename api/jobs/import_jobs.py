@@ -25,16 +25,6 @@ from uuid import UUID
 logger = logging.getLogger(__name__)
 
 
-async def store_style_memory(
-    supabase_client,
-    user_id: str,
-    profile,
-    job_id: str,
-) -> bool:
-    # ADR-059: Style inference removed. TP learns style conversationally via user_memory.
-    return False
-
-
 async def get_pending_import_jobs(supabase_client) -> list[dict]:
     """
     Query import jobs that are pending and ready to process.

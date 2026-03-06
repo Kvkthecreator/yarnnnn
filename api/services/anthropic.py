@@ -347,7 +347,6 @@ async def chat_completion_stream_with_tools(
                 # Execute the tool
                 result = await tool_executor(tool_use.name, tool_use.input)
                 msg = f"[ANTHROPIC] Tool {tool_use.name} result: ui_action={result.get('ui_action')}, success={result.get('success')}"
-                print(msg, flush=True)
                 logger.info(msg)
 
                 # Signal tool result

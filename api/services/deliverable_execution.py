@@ -479,26 +479,6 @@ async def generate_draft_inline(
         raise
 
 
-async def update_version_staged(
-    client,
-    version_id: str,
-    draft_content: str,
-):
-    """
-    DEPRECATED: Use update_version_for_delivery instead.
-
-    Legacy function kept for backwards compatibility.
-    ADR-066 removed staged status in favor of direct delivery.
-    """
-    now = datetime.now(timezone.utc).isoformat()
-
-    client.table("deliverable_versions").update({
-        "status": "staged",
-        "draft_content": draft_content,
-        "staged_at": now,
-    }).eq("id", version_id).execute()
-
-
 async def update_version_for_delivery(
     client,
     version_id: str,
