@@ -236,7 +236,7 @@ export default function DeliverablesPage() {
           <div>
             <h1 className="text-2xl font-bold">Deliverables</h1>
             <p className="text-sm text-muted-foreground mt-1">
-              Specialist agents that generate and deliver content
+              Recurring outputs your agent produces on schedule
             </p>
           </div>
           <button
