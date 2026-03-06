@@ -6,6 +6,14 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.07.1] - Proactive Insights review pass hardening (from Pass 4 testing)
+
+### Changed
+- `api/services/proactive_review.py`: Bumped REVIEW_MAX_TOOL_ROUNDS 3→5 for broader platform scanning. Added forced final turn (tools=[]) when all rounds exhausted — ensures agent always produces JSON decision. Improved deep_research search guidance: short single-topic queries ("decision", "blocked", "investor") instead of long multi-keyword strings that match nothing. Added text-based action extraction fallback when JSON not found.
+- Expected behavior: Haiku review pass no longer exhausts tool rounds without producing a decision. Search queries now match actual platform_content. Graceful degradation: even if JSON parsing fails, action keyword is extracted from text.
+
+---
+
 ## [2026.03.06.6] - Deep Research → Proactive Insights: signal-driven autonomous intelligence
 
 ### Changed

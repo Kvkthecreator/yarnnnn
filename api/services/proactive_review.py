@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Review pass uses Haiku — lightweight, cost-efficient
 REVIEW_MODEL = "claude-haiku-4-5-20251001"
 REVIEW_MAX_TOKENS = 1024
-REVIEW_MAX_TOOL_ROUNDS = 3  # Allow a few lookups before deciding
+REVIEW_MAX_TOOL_ROUNDS = 5  # Enough for broad scan + focused lookups + final decision
 
 
 def _build_review_system_prompt(deliverable: dict) -> str:
@@ -98,12 +98,14 @@ The `until` field in sleep must be an ISO 8601 UTC timestamp. Default to 24 hour
 Your domain is the user's entire connected work context. Your job is to find **emerging themes** worth investigating externally.
 
 **How to scan:**
-Use **Search** to look across all connected platforms for:
-- HOT threads (high engagement, many replies) — what topics are getting attention?
-- DECISIONS being made or debated — what's the team deciding on?
-- New external contacts or companies appearing in email/calendar — who's new?
-- Recurring topics gaining momentum — what keeps coming up?
-- Stalled strategic work — what's blocked that matters?
+Use **Search** with SHORT, SPECIFIC queries (1-3 words each). Run multiple searches, one per topic:
+- Search("decision") or Search("blocked") — what's being decided or stalled?
+- Search("meeting") or Search("investor") — who's new, what's upcoming?
+- Search("launch") or Search("release") — what's shipping?
+- Search("competitor") or Search("market") — external awareness signals?
+- Search("") with no query to get recent items across all platforms
+
+DO NOT combine multiple topics into one long query — that returns nothing. One topic per Search call.
 
 Then use **WebSearch** on the most promising theme to check: is there relevant external context?
 
@@ -196,6 +198,12 @@ def _parse_review_response(text: str) -> dict:
     start = clean.find("{")
     end = clean.rfind("}")
     if start == -1 or end == -1:
+        # Fallback: extract action keyword from text
+        lower = clean.lower()
+        if "generate" in lower:
+            return {"action": "generate", "note": f"(extracted from text) {text[:200]}"}
+        elif "sleep" in lower:
+            return {"action": "sleep", "note": f"(extracted from text) {text[:200]}"}
         return {"action": "observe", "note": f"Could not parse review response: {text[:200]}"}
 
     try:
@@ -295,6 +303,19 @@ async def run_proactive_review(
                 })
             messages.append({"role": "assistant", "content": assistant_content})
             messages.append({"role": "user", "content": tool_results})
+
+        # If loop exhausted all rounds (agent still calling tools), give it one
+        # final turn WITHOUT tools to force a JSON decision
+        if rounds >= REVIEW_MAX_TOOL_ROUNDS and response.tool_uses:
+            response = await chat_completion_with_tools(
+                messages=messages,
+                system=system_prompt,
+                tools=[],  # No tools — force text-only response
+                model=REVIEW_MODEL,
+                max_tokens=REVIEW_MAX_TOKENS,
+            )
+            if response.text:
+                final_text = response.text
 
         decision = _parse_review_response(final_text)
         logger.info(f"[PROACTIVE_REVIEW] Decision for {title}: {decision.get('action')}")
