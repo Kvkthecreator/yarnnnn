@@ -245,11 +245,13 @@ function AuthenticatedLayoutInner({
     closeNav();
   }, [router, closeNav]);
 
+  // Nav dropdown rendered as fixed overlay (outside stacking contexts)
   const navDropdownMenu = dropdownOpen && (
     <>
       {/* Invisible backdrop to close on outside click */}
-      <div className="fixed inset-0 z-40" onClick={closeNav} />
-      <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+      <div className="fixed inset-0 z-[100]" onClick={closeNav} />
+      {/* Menu positioned below the top bar, centered */}
+      <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[101] w-48 bg-background border border-border rounded-md shadow-lg py-1">
         <button
           onClick={() => { navigateToHome(); closeNav(); }}
           className={cn(
@@ -309,8 +311,8 @@ function AuthenticatedLayoutInner({
             </button>
           </div>
 
-          {/* Center: workspace header or page label — with nav dropdown */}
-          <div className="relative flex-1 flex items-center justify-center min-w-0 mx-4">
+          {/* Center: workspace header or page label */}
+          <div className="flex-1 flex items-center justify-center min-w-0 mx-4">
             {workspaceHeader ? (
               workspaceHeader
             ) : (
@@ -329,7 +331,6 @@ function AuthenticatedLayoutInner({
                 )} />
               </button>
             )}
-            {navDropdownMenu}
           </div>
 
           {/* Right: User menu only */}
@@ -341,6 +342,9 @@ function AuthenticatedLayoutInner({
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
+
+      {/* Nav dropdown — rendered outside header to avoid stacking context issues */}
+      {navDropdownMenu}
 
       {/* Setup Confirmation Modal - rendered inside TPProvider */}
       <SetupConfirmModalWrapper />
