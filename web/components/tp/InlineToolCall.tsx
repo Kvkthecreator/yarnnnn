@@ -34,7 +34,7 @@ interface InlineToolCallProps {
 }
 
 const TOOL_ICONS: Record<string, React.ElementType> = {
-  // Legacy primitive tools
+  // Primitives (ADR-080)
   Read: Eye,
   Write: Plus,
   Edit: Pencil,
@@ -44,31 +44,14 @@ const TOOL_ICONS: Record<string, React.ElementType> = {
   Todo: ListTodo,
   Respond: FileText,
   Clarify: FileText,
-  // ADR-039: Platform operation tools
+  // Platform tools
   list_integrations: Eye,
   list_platform_resources: List,
   sync_platform_resource: Play,
   get_sync_status: Eye,
-  // Work tools
-  create_work: Plus,
-  list_work: List,
-  get_work: Eye,
-  update_work: Pencil,
-  delete_work: FileText,
-  // Memory tools
-  list_memories: List,
-  create_memory: Plus,
-  update_memory: Pencil,
-  delete_memory: FileText,
-  // Deliverable tools
-  list_deliverables: List,
-  get_deliverable: Eye,
-  create_deliverable: Plus,
-  update_deliverable: Pencil,
-  run_deliverable: Play,
-  // Notification tools (ADR-040)
+  RefreshPlatformContent: Play,
+  // Notification
   send_notification: Bell,
-  // Todo tracking
   todo_write: ListTodo,
 };
 
