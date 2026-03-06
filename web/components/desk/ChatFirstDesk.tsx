@@ -220,6 +220,7 @@ export function ChatFirstDesk() {
   const [input, setInput] = useState('');
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const [showCreateCards, setShowCreateCards] = useState(false);
+  const createCardsRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -256,6 +257,18 @@ export function ChatFirstDesk() {
     textareaRef.current?.focus();
   }, []);
 
+  // Dismiss create cards on click outside
+  useEffect(() => {
+    if (!showCreateCards) return;
+    function handleClick(e: MouseEvent) {
+      if (createCardsRef.current && !createCardsRef.current.contains(e.target as Node)) {
+        setShowCreateCards(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [showCreateCards]);
+
   // Auto-resize textarea
   const adjustTextareaHeight = useCallback(() => {
     const textarea = textareaRef.current;
@@ -288,6 +301,7 @@ export function ChatFirstDesk() {
     sendMessage(input, { surface, images: images.length > 0 ? images : undefined });
     setInput('');
     clearAttachments();
+    setShowCreateCards(false);
   };
 
   const handleSkillSelect = (command: string) => {
@@ -527,8 +541,20 @@ export function ChatFirstDesk() {
 
             {/* Create deliverable cards — show verb */}
             {showCreateCards && (
-              <div className="mb-2 p-3 rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-150">
-                <p className="text-xs font-medium text-muted-foreground mb-2">What type of deliverable?</p>
+              <div
+                ref={createCardsRef}
+                className="mb-2 p-3 rounded-xl border border-border bg-background shadow-sm animate-in fade-in slide-in-from-bottom-2 duration-150"
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-medium text-muted-foreground">What type of deliverable?</p>
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateCards(false)}
+                    className="text-muted-foreground hover:text-foreground transition-colors"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                   {STARTER_CARDS.map((card) => (
                     <button

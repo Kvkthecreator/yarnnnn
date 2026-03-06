@@ -35,6 +35,26 @@ Rules:
 - **prompt** is only appropriate when the user needs to add information (e.g., a search query)
 - Never use **prompt** as a lazy default — if the action can be done without user input, use **execute** or **show**
 
+### UX requirements per verb
+
+**show:**
+- Dismiss on click outside the shown panel
+- Dismiss after the user selects an option within the panel
+- Dismiss when any message is sent (manual or auto)
+- Include a close (X) button for explicit dismiss
+- Panel renders above the input bar, below messages
+
+**execute:**
+- No intermediate UI — action fires immediately on menu selection
+- Provide feedback via existing UI (e.g., loading state, toast)
+
+**prompt:**
+- Pre-fill should place cursor at the end of the text
+- Focus the input after pre-fill
+
+**attach:**
+- Opens native system dialog — no custom UI needed
+
 ## Per-surface action sets
 
 ### Dashboard (`ChatFirstDesk.tsx`)
