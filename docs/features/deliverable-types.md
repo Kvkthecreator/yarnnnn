@@ -12,9 +12,9 @@ Each deliverable type maps to a job-to-be-done. This document captures the valid
 
 ```
 Acquisition wedge:     Work Summary (cross-platform synthesis)
-Trust builder:         Brief (meeting/event prep)
-Retention foundation:  Digest (daily/weekly rhythm)
-Deepening hooks:       Watch, Deep Research, Coordinator
+Trust builder:         Auto Meeting Prep (daily calendar-driven prep)
+Retention foundation:  Recap (daily/weekly platform catchup)
+Deepening hooks:       Deep Research, Watch, Coordinator
 ```
 
 ---
@@ -61,9 +61,35 @@ Synthesizes activity across all connected platforms into a structured work summa
 
 ---
 
-## Brief
+## Auto Meeting Prep (type: `brief`)
 
-**Validated:** Not yet
+**Validated:** 2026-03-06 (Pass 3 — in progress)
+**Prompt version:** v2 — tracked in `api/prompts/CHANGELOG.md`
+**Full details:** [docs/features/meeting-prep.md](meeting-prep.md)
+
+### What it does
+
+Every morning, reads the user's Google Calendar and sends a prep briefing for the day's meetings — with context pulled from Slack, Gmail, and Notion for each meeting.
+
+### Key features
+
+- **Daily batch:** runs once per morning, covers today + tomorrow morning (no gap between deliveries)
+- **Meeting classification:** adapts prep depth per meeting type (recurring internal, external/new, large group, low-stakes)
+- **Cross-platform context:** surfaces attendee mentions from Slack, recent email threads, Notion docs
+- **Requires Google Calendar** — explicit dependency
+
+### Constraints
+
+- One per user
+- Daily frequency only
+- Google Calendar must be connected
+
+### Execution details
+
+- **Binding:** `cross_platform` (CrossPlatformStrategy)
+- **Default mode:** `recurring` (daily)
+- **Sources:** Calendar + all connected platforms
+- **Delivery:** Email via Resend (ADR-066)
 
 ---
 

@@ -65,7 +65,7 @@ _PLATFORM_DIGEST_SIGNALS = {
 # These give the headless agent and TP a starting baseline that the user/TP can refine.
 DEFAULT_INSTRUCTIONS = {
     "digest": "Recap all activity across the platform. Lead with highlights, then break down by source. Prioritize decisions and action items. Keep it scannable.",
-    "brief": "Provide a concise executive-level summary. Lead with the most important finding. Include 2-3 supporting details max.",
+    "brief": "Auto meeting prep: every morning, scan today's and tomorrow morning's calendar events. Classify each meeting and generate context-appropriate prep.",
     "status": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
     "watch": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
     "deep_research": "Conduct thorough research using web search and available sources. Synthesize findings into a structured analysis with citations.",
@@ -121,11 +121,10 @@ Rules:
 
 Write the recap now:""",
 
-    "brief": """You are producing a situation brief titled "{title}".
+    # brief: v2 (2026.03.06) — auto meeting prep with meeting classification
+    "brief": """You are generating auto meeting prep titled "{title}".
 
-EVENT/CONTEXT: {event_context}
-ATTENDEES/STAKEHOLDERS: {attendees}
-FOCUS AREAS: {focus_areas}
+TODAY'S DATE: {today_date}
 
 GATHERED CONTEXT:
 {gathered_context}
@@ -135,14 +134,46 @@ GATHERED CONTEXT:
 {past_versions}
 
 INSTRUCTIONS:
-- Focus on what the user needs to know BEFORE this event or situation
-- Summarize relevant recent activity and open items from the context
-- Highlight pending decisions or unresolved discussions
-- Suggest 2-3 key talking points or questions to raise
-- Keep it scannable — bullet points and clear headers
-- If this is a recurring event, note what was discussed previously if available
+This runs every morning. Scan the gathered context for calendar events happening TODAY and TOMORROW MORNING (before the next delivery). For each meeting, classify it and generate appropriate prep.
 
-Write the brief now:""",
+MEETING CLASSIFICATION — adapt your prep based on the meeting type:
+
+1. RECURRING INTERNAL (weekly sync, 1:1, standup — same attendees as before)
+   → what changed since last time, open items from Slack/Notion, decisions needed
+   → brief — attendees know each other
+
+2. EXTERNAL / NEW CONTACT (unfamiliar attendees, intro, kickoff)
+   → research person/company, relevant email threads, prior Slack/Notion mentions
+   → thorough — user needs background
+
+3. LARGE GROUP / ALL-HANDS (many attendees, town hall, all-hands)
+   → agenda items, key decisions expected, what user might contribute
+   → structured — highlight user's role
+
+4. LOW-STAKES / ROUTINE (casual catch-up, social, no agenda)
+   → "No specific prep needed. Quick context: [1-2 notes if any]"
+
+OUTPUT:
+Start with: "Your meetings for {date_range}"
+
+For each meeting (chronological):
+
+### [Meeting Title] — [Time]
+**Attendees:** [list]
+**Type:** [classification]
+**Prep:**
+[adapted content per classification above]
+
+---
+
+Rules:
+- ALL meetings, chronological order
+- If no calendar events found, say so clearly and suggest checking calendar connection
+- Cross-platform context: surface attendee mentions from Slack, recent emails, Notion docs
+- For recurring meetings: note what was discussed last time if past versions available
+- Be specific: names, dates, numbers from actual context
+
+Write the meeting prep now:""",
 
     "status": """You are producing a work summary titled "{title}".
 
@@ -308,10 +339,9 @@ SECTION_TEMPLATES = {
         "action_items": "Action Items - Tasks and follow-ups mentioned",
     },
     "brief": {
-        "context": "Context - What's happened leading up to this event",
-        "attendee_background": "Attendee Background - Recent interactions and relevant history",
-        "open_items": "Open Items - Unresolved discussions or decisions",
-        "talking_points": "Talking Points - Suggested topics and questions to raise",
+        "schedule": "Today's Meetings - Calendar events for today and tomorrow morning",
+        "prep": "Meeting Prep by Event - Context-appropriate prep per meeting classification",
+        "cross_platform": "Cross-Platform Context - Attendee mentions from Slack, Gmail, Notion",
     },
     "status": {
         "summary": "TL;DR - Cross-platform executive summary",
@@ -435,12 +465,21 @@ def build_type_prompt(
         })
 
     elif deliverable_type == "brief":
-        attendees = config.get("attendees", [])
-        focus_areas = config.get("focus_areas", [])
+        from datetime import datetime, timedelta
+        import pytz
+        # Compute today's date and date range for the prep window
+        tz_name = deliverable.get("schedule", {}).get("timezone", "UTC")
+        try:
+            tz = pytz.timezone(tz_name)
+        except Exception:
+            tz = pytz.UTC
+        now = datetime.now(tz)
+        tomorrow = now + timedelta(days=1)
+        today_str = now.strftime("%A, %B %-d, %Y")
+        date_range = f"{now.strftime('%a %b %-d')} – {tomorrow.strftime('%a %b %-d')} morning"
         fields.update({
-            "event_context": config.get("event_title", deliverable.get("title", "Upcoming Event")),
-            "attendees": ", ".join(attendees) if attendees else "Not specified",
-            "focus_areas": ", ".join(focus_areas) if focus_areas else "General context",
+            "today_date": today_str,
+            "date_range": date_range,
         })
 
     elif deliverable_type == "status":

@@ -211,10 +211,10 @@ export default function LandingPage() {
               </div>
 
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Brief</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Meeting prep briefs</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Auto Meeting Prep</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Auto-prep for every meeting</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Context packets from email, docs, and calendar before important conversations.
+                  Every morning, YARNNN reads your Google Calendar and sends you a prep briefing — context from Slack, Gmail, and Notion for each meeting ahead.
                 </p>
               </div>
 

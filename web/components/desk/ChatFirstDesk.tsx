@@ -172,9 +172,9 @@ const STARTER_CARDS = [
   },
   {
     skill: 'brief',
-    label: 'Meeting Brief',
-    description: 'Prep notes before recurring meetings',
-    prompt: 'I want to set up a meeting brief',
+    label: 'Auto Meeting Prep',
+    description: 'Reads your calendar every morning and preps you for the day\'s meetings',
+    prompt: 'I want to set up auto meeting prep',
   },
   {
     skill: 'deep-research',

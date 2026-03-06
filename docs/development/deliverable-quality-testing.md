@@ -140,6 +140,30 @@ Status validated as wedge type. Two-part format (intelligence + evidence) confir
 
 ---
 
-## Pass 3: Brief
+## Pass 3: Auto Meeting Prep (2026-03-06)
 
-*Not yet started.*
+### Test setup
+
+- **User**: kvkthecreator@gmail.com (real production account)
+- **Platforms**: Google Calendar (synced), Slack, Gmail, Notion (all connected)
+- **Deliverable**: `brief` type, `recurring` mode, `cross_platform` binding, daily frequency
+- **Sources**: All calendar sources + all connected platform sources
+
+### Prompt evolution
+
+| Version | Change | Result |
+|---------|--------|--------|
+| v1 | Original static situation brief (event_title, attendees, focus_areas) | Static — required manual config per meeting |
+| v2 | Full rewrite: daily batch, meeting classification (4 types), date range header | *(testing)* |
+
+### Issues discovered
+
+*(To be filled during testing)*
+
+### Output assessment
+
+*(To be filled during testing)*
+
+### Outcome
+
+*(To be filled after testing)*

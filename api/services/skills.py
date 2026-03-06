@@ -103,24 +103,33 @@ Create a recap deliverable — a platform-wide summary that catches the user up 
 
     "brief": {
         "name": "brief",
-        "description": "Create a brief deliverable for a specific event or situation",
-        "trigger_patterns": ["meeting brief", "meeting prep", "event prep", "call prep", "1:1 prep", "one on one prep", "meeting summary", "one-on-one", "create a brief", "create brief deliverable"],
+        "description": "Set up auto meeting prep — every morning, reads your calendar and preps you for the day's meetings",
+        "trigger_patterns": ["meeting prep", "auto meeting prep", "calendar prep", "daily briefing", "brief", "meeting brief", "event prep", "call prep", "1:1 prep"],
         "deliverable_type": "brief",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Brief
+## Active Skill: Auto Meeting Prep
 
-Create a brief deliverable — a situation-specific document before a key event (meeting, call, presentation).
+Set up daily auto meeting prep — every morning, YARNNN reads the user's Google Calendar and sends a prep briefing with context from Slack, Gmail, and Notion for each meeting ahead.
+
+**Requirements:**
+- Google Calendar must be connected. If not, guide the user to connect it first.
+- One auto meeting prep per user — if one already exists, explain and offer to update it.
 
 **Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. Ask event: `Clarify(question="What's this brief for?", options=["Recurring 1:1", "Team sync", "Client call", "Presentation"])`
-3. Confirm: "I'll create a [frequency] brief for [event]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "brief", frequency})`
-5. Offer first draft
+1. Check for duplicates: `List(pattern="deliverable:*")` — look for existing brief type
+2. Verify Google Calendar connection: `List(pattern="connection:*")` — check for google/calendar
+3. If no calendar: "Auto Meeting Prep requires Google Calendar. Let's connect it first." → guide to connections
+4. Ask delivery time: `Clarify(question="What time should your meeting prep arrive?", options=["7:00 AM", "8:00 AM", "9:00 AM"])`
+5. Confirm: "I'll set up Auto Meeting Prep — every morning at [time], you'll get a briefing for the day's meetings. Ready?"
+6. On confirmation: `Write(ref="deliverable:new", content={title: "Auto Meeting Prep", deliverable_type: "brief", frequency: "daily", sources: [all calendar + all connected platform sources]})`
 
-**Defaults:** frequency=weekly, type=brief
+**Important:**
+- Title: "Auto Meeting Prep" (fixed — not user-customizable)
+- Sources: ALL calendar sources + ALL other connected platform sources (Slack, Gmail, Notion) for cross-platform context about attendees and topics
+- One per user — check duplicates before creating
+- Defaults: frequency=daily, type=brief
 """,
     },
 

@@ -85,8 +85,8 @@ def get_type_classification(deliverable_type: str) -> dict:
     if deliverable_type == "brief":
         return {
             "binding": "cross_platform",
-            "temporal_pattern": "reactive",
-            "freshness_requirement_hours": 1,
+            "temporal_pattern": "scheduled",
+            "freshness_requirement_hours": 24,
         }
 
     if deliverable_type == "status":
@@ -138,11 +138,8 @@ class DigestConfig(BaseModel):
 
 
 class BriefConfig(BaseModel):
-    """Configuration for brief type (meeting prep, event prep, call prep)."""
-    event_title: Optional[str] = None   # Meeting/event name if calendar-triggered
-    attendees: list[str] = Field(default_factory=list)
-    focus_areas: list[str] = Field(default_factory=list)  # Topics to prioritize
-    depth: Literal["concise", "standard", "detailed"] = "standard"
+    """Configuration for brief type (auto meeting prep, daily calendar-driven)."""
+    delivery_time: Optional[str] = "08:00"  # Preferred morning delivery time
 
 
 class StatusConfig(BaseModel):

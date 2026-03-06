@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.06.4] - Brief → Auto Meeting Prep: daily calendar-driven prep with meeting classification
+
+### Changed
+- `api/services/deliverable_pipeline.py`: Deleted entire old brief prompt (static `{event_context}`, `{attendees}`, `{focus_areas}` fields). Replaced with v2 auto meeting prep prompt: scans calendar events for today + tomorrow morning, classifies each meeting (recurring internal / external / large group / low-stakes), adapts prep depth per classification. Updated section templates, default instructions, and build_type_prompt to compute `{today_date}` and `{date_range}` dynamically.
+- `api/services/skills.py`: Deleted old brief skill (event-specific flow). Replaced with auto meeting prep skill: one per user guard, Google Calendar connection check, delivery time preference, auto-populated sources (calendar + all connected platforms).
+- `api/routes/deliverables.py`: Replaced `BriefConfig` (was `event_title`, `attendees`, `focus_areas`, `depth`) with `delivery_time` only. Changed type classification from `reactive` to `scheduled` with 24hr freshness.
+- Expected behavior: Brief type is now a daily-batch auto meeting prep. Runs every morning, preps all meetings for today + tomorrow morning with classification-adapted depth. Cross-platform context (Slack/Gmail/Notion) surfaced for attendee research.
+
+---
+
 ## [2026.03.06.3] - Digest → Recap: platform-wide synthesis + rename
 
 ### Changed
