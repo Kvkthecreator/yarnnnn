@@ -404,9 +404,18 @@ Do NOT ask again. Do NOT call list_memories or other navigation tools. ACT on th
         if images:
             # Claude API format: array of content blocks (images before text for better perf)
             user_content = images + [{"type": "text", "text": task}]
-            messages.append({"role": "user", "content": user_content})
         else:
-            messages.append({"role": "user", "content": task})
+            user_content = [{"type": "text", "text": task}]
+
+        # Merge with last message if it's also a user message (e.g., tool_result blocks
+        # from the previous turn). Claude API requires strict role alternation.
+        if messages and messages[-1].get("role") == "user":
+            prev = messages[-1]["content"]
+            if isinstance(prev, str):
+                prev = [{"type": "text", "text": prev}]
+            messages[-1]["content"] = prev + user_content
+        else:
+            messages.append({"role": "user", "content": user_content})
 
         # Create tool executor that uses our auth context
         async def tool_executor(tool_name: str, tool_input: dict) -> dict:

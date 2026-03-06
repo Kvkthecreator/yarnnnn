@@ -502,7 +502,23 @@ def build_history_for_claude(
     if compaction_block:
         history = [compaction_block] + history
 
-    return history
+    # Merge consecutive same-role messages to satisfy Claude API alternation requirement.
+    # This happens when tool_result user messages are followed by the next real user message.
+    merged = []
+    for msg in history:
+        if merged and merged[-1]["role"] == msg["role"]:
+            prev_content = merged[-1]["content"]
+            curr_content = msg["content"]
+            # Normalize both to lists
+            if isinstance(prev_content, str):
+                prev_content = [{"type": "text", "text": prev_content}]
+            if isinstance(curr_content, str):
+                curr_content = [{"type": "text", "text": curr_content}]
+            merged[-1]["content"] = prev_content + curr_content
+        else:
+            merged.append(msg)
+
+    return merged
 
 
 def _parse_input_summary(input_summary: str) -> dict:
