@@ -103,6 +103,11 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
                 </Link>
               </li>
               <li>
+                <Link href="/invest" className={`${hoverClass} transition-colors`}>
+                  Investors
+                </Link>
+              </li>
+              <li>
                 <a
                   href="mailto:admin@yarnnn.com"
                   className={`${hoverClass} transition-colors`}

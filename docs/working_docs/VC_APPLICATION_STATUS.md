@@ -56,3 +56,4 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [ ] **Protagonist**: Consider cold email to founders@protagonist.co (deferred)
 - [ ] **Bee Partners**: Retry web application form (deferred)
 - [ ] **Betaworks reCAPTCHA**: User needs to manually complete CAPTCHA on mailing list signup
+- [x] **Paul Yacoubian (@PaulYacoubian)**: DM'd on X (2026-03-06). GP at Felicis, founder of Copy.ai (acq), angel investor. Responded to his open call for Korean startup founders. Followed + replied to tweet.
