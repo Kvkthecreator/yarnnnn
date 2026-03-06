@@ -64,7 +64,7 @@ Synthesizes activity across all connected platforms into a structured work summa
 ## Auto Meeting Prep (type: `brief`)
 
 **Validated:** 2026-03-06 (Pass 3)
-**Prompt version:** v2 — tracked in `api/prompts/CHANGELOG.md`
+**Prompt version:** v3 — tracked in `api/prompts/CHANGELOG.md`
 **Full details:** [docs/features/meeting-prep.md](meeting-prep.md)
 
 ### What it does

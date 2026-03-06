@@ -1,7 +1,7 @@
 # Auto Meeting Prep (type: `brief`)
 
 **Date:** 2026-03-06
-**Status:** Pass 3 validation in progress
+**Status:** Pass 3 validated (prompt v3)
 **Related:** [Deliverable Types](deliverable-types.md), [Quality Testing](../development/deliverable-quality-testing.md)
 
 ---
@@ -78,7 +78,7 @@ This is the differentiator — no calendar app alone can surface "what you discu
 
 | Component | File | Notes |
 |-----------|------|-------|
-| Prompt | `api/services/deliverable_pipeline.py` | TYPE_PROMPTS["brief"] v2, meeting classification |
+| Prompt | `api/services/deliverable_pipeline.py` | TYPE_PROMPTS["brief"] v3, meeting classification + tool use + BAD/GOOD examples |
 | Prompt builder | `api/services/deliverable_pipeline.py` | `build_type_prompt` brief branch — computes `today_date`, `date_range` |
 | Skill flow | `api/services/skills.py` | Auto meeting prep skill — calendar check, delivery time, auto-sources |
 | Config schema | `api/routes/deliverables.py` | `BriefConfig` — `delivery_time` only |

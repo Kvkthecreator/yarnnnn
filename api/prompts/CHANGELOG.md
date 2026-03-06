@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.06.5] - Auto Meeting Prep prompt v3: deeper research, anti-flat output
+
+### Changed
+- `api/services/deliverable_pipeline.py`: Rewrote brief prompt from v2 → v3. Added explicit "you are a research assistant, not a calendar formatter" framing. Per-classification BAD/GOOD examples. WebSearch instruction for external contacts. "Search for each attendee" directive. Honest gap acknowledgment ("no results found" instead of padding). Recurring meetings: focus on what the OTHER person needs.
+- `api/services/deliverable_execution.py`: Bumped brief type tool rounds from 3 → 5. Meeting prep benefits from per-attendee search + WebSearch more than other cross_platform types.
+- Expected behavior: v3 output is significantly richer — agent uses WebSearch for external contacts, acknowledges information gaps honestly, connects dots between meetings (e.g., mentioning investor meeting during 1:1 prep). Output reads as intelligence, not reformatted calendar.
+
+---
+
 ## [2026.03.06.4] - Brief → Auto Meeting Prep: daily calendar-driven prep with meeting classification
 
 ### Changed

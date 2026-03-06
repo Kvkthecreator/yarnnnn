@@ -154,7 +154,8 @@ Status validated as wedge type. Two-part format (intelligence + evidence) confir
 | Version | Change | Result |
 |---------|--------|--------|
 | v1 | Original static situation brief (event_title, attendees, focus_areas) | Static — required manual config per meeting, no calendar awareness |
-| v2 | Full rewrite: daily batch, meeting classification (4 types), date range header | All 3 test meetings classified correctly, cross-platform context surfaced, 1548 chars |
+| v2 | Full rewrite: daily batch, meeting classification (4 types), date range header | All 3 test meetings classified correctly, cross-platform context surfaced, 1548 chars. BUT output felt flat — reformatted calendar, not intelligence. |
+| v3 | Anti-flat: BAD/GOOD examples, WebSearch for externals, attendee-focused research, honest gaps, 5 tool rounds | Agent used WebSearch for SB Partners, acknowledged gaps honestly, connected dots between meetings. 1698 chars, significantly richer. |
 
 ### Issues discovered
 
@@ -164,21 +165,27 @@ Status validated as wedge type. Two-part format (intelligence + evidence) confir
 - Resolution: Inserted test events to simulate fresh sync. Production calendar sync keeps events current.
 - Lesson: Calendar's 2-day TTL means testing requires recent sync or synthetic events.
 
-### Output assessment
+**Issue 2: v2 output felt flat — calendar reformatter, not intelligence**
+- Symptom: External meeting prep listed user's own activity instead of researching the attendee. Recurring 1:1 was an activity log, not conversation prep.
+- Root cause: Prompt was too vague ("research person/company"), agent defaulted to summarizing available context. Only 3 tool rounds meant no room for WebSearch.
+- Fix (v3): Added explicit BAD/GOOD examples per classification. Added "you are a research assistant, not a calendar formatter" framing. Bumped tool rounds to 5 for brief type. Explicit WebSearch instruction for externals.
+- Result: v3 output used WebSearch (found SB Partners on PitchBook), acknowledged gaps ("I couldn't find specific background on Roger"), connected meetings ("mention SB Partners in your 1:1").
+
+### Output assessment (v3)
 
 **What works:**
 - Date range header correct: "Your meetings for Fri Mar 6 – Sat Mar 7 morning"
-- All 3 meeting types classified correctly:
-  - **External / New Contact** (Roger @ SB Partners): thorough prep — pulled SB Partners mention from Slack, suggested talking points about YARNNN status and recent progress
-  - **Recurring Internal** (원오원 / 승진님): brief with delta since last meeting (Feb 26) — code cleanup, mini-series, deliverables work
-  - **Low-Stakes / Routine** (Coffee Chat): minimal — "No specific prep needed. Quick context: Casual catch-up"
-- Cross-platform context real and specific — sourced from actual Slack #daily-work content
-- Output length appropriate: 1548 chars, scannable
+- All 3 meeting types classified correctly with adapted depth:
+  - **External / New Contact** (Roger @ SB Partners): WebSearch used, honest gap acknowledgment ("couldn't find background on Roger"), actionable recommendations (check LinkedIn, questions to ask about investment thesis)
+  - **Recurring Internal** (원오원 / 승진님): Cross-meeting awareness ("Tomorrow's investor meeting with SB Partners — may want their input"), honest "no prior specific discussion topics found"
+  - **Low-Stakes / Routine** (Coffee Chat): Contextual ("You have the SB Partners investor meeting today, so this could be good timing to debrief")
+- Cross-meeting intelligence — agent connects the VC meeting to the 1:1 prep and the coffee chat
+- Gap acknowledgment — "No prior email threads found" instead of padding with irrelevant content
 
 **What needs work (minor):**
-- Meeting chronological order: external (5 PM) listed before recurring (3 PM). Prompt says "chronological" but model prioritized by depth. Acceptable.
-- Attendee display names not available — calendar metadata only has emails. Would improve with richer calendar sync.
+- Meeting chronological order still not strict — external (5 PM) before recurring (3 PM). Persistent across v2 and v3.
+- WebSearch results were thin for SB Partners (only PitchBook mention). With more tool rounds or better search queries, could find more.
 
 ### Outcome
 
-Auto Meeting Prep validated. Meeting classification (4 types) confirmed working — agent correctly adapts prep depth from thorough (external) to minimal (routine). Cross-platform context surfaces naturally. Date range header and structure match design. Prompt at v2. Pipeline: scheduler → CrossPlatformStrategy → agent → email delivery.
+Auto Meeting Prep validated at v3. Key insight: prompt BAD/GOOD examples + explicit tool use instructions + bumped tool rounds transformed output from "flat calendar reformatter" to "diligent research assistant that acknowledges gaps." The cross-meeting awareness (connecting SB Partners across all 3 meetings) is the kind of intelligence no calendar app provides. Pipeline: scheduler → CrossPlatformStrategy → 5-round headless agent → email delivery.
