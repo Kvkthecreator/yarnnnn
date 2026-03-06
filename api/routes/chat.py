@@ -410,6 +410,7 @@ def build_history_for_claude(
     messages = truncate_history_by_tokens(messages, max_tokens)
 
     history = []
+    global_tool_index = 0  # Global counter for unique tool IDs across all messages
 
     for m in messages:
         role = m["role"]
@@ -422,12 +423,11 @@ def build_history_for_claude(
             # This matches Claude Code's format for better model understanding
             assistant_content = []
             tool_results = []
-            tool_call_index = 0
 
             for item in tool_history:
                 if item.get("type") == "tool_call":
-                    # Use consistent index for tool_use and tool_result matching
-                    tool_id = f"tool_{item['name']}_{tool_call_index}"
+                    # Use global index for unique tool IDs across entire conversation
+                    tool_id = f"toolu_{global_tool_index:04d}"
 
                     # Add tool_use block to assistant content
                     assistant_content.append({
@@ -444,7 +444,7 @@ def build_history_for_claude(
                         "content": item.get("result_summary", "Success")
                     })
 
-                    tool_call_index += 1
+                    global_tool_index += 1
                 elif item.get("type") == "text" and item.get("content"):
                     # Add text block
                     assistant_content.append({
