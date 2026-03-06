@@ -4,7 +4,8 @@
  * WorkspaceHeaderContext
  *
  * Allows workspace pages (dashboard, deliverable detail) to inject
- * header content into the AuthenticatedLayout top bar.
+ * header content into the AuthenticatedLayout top bar, replacing
+ * the nav dropdown with workspace-specific identity + controls.
  */
 
 import { createContext, useContext, useState, type ReactNode } from 'react';

@@ -156,8 +156,6 @@ function AuthenticatedLayoutInner({
   const { surface, setSurface, setSurfaceWithHandoff } = useDesk();
   const { header: workspaceHeader } = useWorkspaceHeader();
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const toggleNav = useCallback(() => setDropdownOpen((prev) => !prev), []);
-  const closeNav = useCallback(() => setDropdownOpen(false), []);
 
   // Determine navigation context
   const isOnHome = isHomeRoute(pathname);
@@ -220,7 +218,14 @@ function AuthenticatedLayoutInner({
     setSurface({ type: 'idle' });
   }, [isOnHome, router, setSurface]);
 
-  // Dropdown close is handled by the backdrop overlay below (no document listener needed)
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = () => setDropdownOpen(false);
+    if (dropdownOpen) {
+      document.addEventListener('click', handleClickOutside);
+      return () => document.removeEventListener('click', handleClickOutside);
+    }
+  }, [dropdownOpen]);
 
   // ADR-037: Get current display info based on context
   const getCurrentDisplay = () => {
@@ -241,97 +246,108 @@ function AuthenticatedLayoutInner({
   const display = getCurrentDisplay();
   const CurrentIcon = display.icon;
 
-  // Nav dropdown menu (shared between workspace and non-workspace center slots)
-  // Navigate to a route and close the nav dropdown
-  const navTo = useCallback((path: string) => {
-    router.push(path);
-    closeNav();
-  }, [router, closeNav]);
-
-  // Nav dropdown rendered as fixed overlay (outside stacking contexts)
-  const navDropdownMenu = dropdownOpen && (
-    <>
-      {/* Invisible backdrop to close on outside click */}
-      <div className="fixed inset-0 z-[100]" onClick={closeNav} />
-      {/* Menu positioned below the top bar, centered */}
-      <div className="fixed top-14 left-1/2 -translate-x-1/2 z-[101] w-48 bg-background border border-border rounded-md shadow-lg py-1">
-        <button
-          onClick={() => { navigateToHome(); closeNav(); }}
-          className={cn(
-            'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-            isOnHome && 'bg-primary/5 text-primary'
-          )}
-        >
-          <Sparkles className="w-4 h-4" />
-          {HOME_LABEL}
-        </button>
-        <button
-          onClick={() => navTo(DELIVERABLES_ROUTE.path)}
-          className={cn(
-            'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-            currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
-          )}
-        >
-          <Briefcase className="w-4 h-4" />
-          {DELIVERABLES_ROUTE.label}
-        </button>
-
-        <div className="border-t border-border my-1" />
-
-        {ROUTE_PAGES.map((route) => {
-          const Icon = route.icon;
-          const isActive = currentRoute?.id === route.id;
-          return (
-            <button
-              key={route.id}
-              onClick={() => navTo(route.path)}
-              className={cn(
-                'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                isActive && 'bg-primary/5 text-primary'
-              )}
-            >
-              <Icon className="w-4 h-4" />
-              {route.label}
-            </button>
-          );
-        })}
-      </div>
-    </>
-  );
-
   return (
     <TPProvider onSurfaceChange={handleSurfaceChange}>
       <div className="flex flex-col h-screen bg-background">
         {/* Top Bar - Single unified bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
-          {/* Left: Logo — plain home link */}
-          <div className="flex items-center shrink-0">
+          {/* Left: Logo - always navigates home */}
+          <div className="flex items-center gap-4 shrink-0">
             <button
               onClick={navigateToHome}
-              className="hover:opacity-80 transition-opacity"
+              className="text-xl font-brand hover:opacity-80 transition-opacity"
             >
-              <span className="text-xl font-brand">yarnnn</span>
+              yarnnn
             </button>
           </div>
 
-          {/* Center: workspace header or page label + nav chevron */}
-          <div className="flex-1 flex items-center justify-center min-w-0 mx-4">
-            {workspaceHeader ?? (
-              <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground font-medium">
+          {/* Center: workspace header (injected by WorkspaceLayout) or nav dropdown */}
+          {workspaceHeader ? (
+            <div className="flex-1 flex items-center justify-center min-w-0 mx-4">
+              {workspaceHeader}
+            </div>
+          ) : (
+            <div className="relative">
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setDropdownOpen(!dropdownOpen);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary/10 text-primary font-medium"
+              >
                 <CurrentIcon className="w-4 h-4" />
                 <span>{display.label}</span>
-              </div>
-            )}
-            <button
-              onClick={toggleNav}
-              className="p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0"
-            >
-              <ChevronDown className={cn(
-                'w-3.5 h-3.5 transition-transform',
-                dropdownOpen && 'rotate-180'
-              )} />
-            </button>
-          </div>
+                <ChevronDown className={cn(
+                  'w-3 h-3 opacity-50 transition-transform',
+                  dropdownOpen && 'rotate-180'
+                )} />
+              </button>
+
+              {/* Dropdown: Navigation options */}
+              {dropdownOpen && (
+                <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+                  {/* Primary workspace: TP + Deliverables */}
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isOnHome) {
+                        router.push(HOME_ROUTE);
+                      }
+                      setSurface({ type: 'idle' });
+                      setDropdownOpen(false);
+                    }}
+                    className={cn(
+                      'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                      isOnHome && 'bg-primary/5 text-primary'
+                    )}
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    {HOME_LABEL}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(DELIVERABLES_ROUTE.path);
+                      setDropdownOpen(false);
+                    }}
+                    className={cn(
+                      'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                      currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
+                    )}
+                  >
+                    <Briefcase className="w-4 h-4" />
+                    {DELIVERABLES_ROUTE.label}
+                  </button>
+
+                  {/* Divider — supporting pages below */}
+                  <div className="border-t border-border my-1" />
+
+                  {/* Supporting pages */}
+                  {ROUTE_PAGES.map((route) => {
+                    const Icon = route.icon;
+                    const isActive = currentRoute?.id === route.id;
+                    return (
+                      <button
+                        key={route.id}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          router.push(route.path);
+                          setDropdownOpen(false);
+                        }}
+                        className={cn(
+                          'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+                          isActive && 'bg-primary/5 text-primary'
+                        )}
+                      >
+                        <Icon className="w-4 h-4" />
+                        {route.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Right: User menu only */}
           <div className="shrink-0">
@@ -342,9 +358,6 @@ function AuthenticatedLayoutInner({
         {/* Main content */}
         <main className="flex-1 overflow-y-auto">{children}</main>
       </div>
-
-      {/* Nav dropdown — rendered outside header to avoid stacking context issues */}
-      {navDropdownMenu}
 
       {/* Setup Confirmation Modal - rendered inside TPProvider */}
       <SetupConfirmModalWrapper />
