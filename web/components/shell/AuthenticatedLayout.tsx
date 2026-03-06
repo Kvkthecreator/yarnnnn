@@ -154,7 +154,10 @@ function AuthenticatedLayoutInner({
   const router = useRouter();
   const pathname = usePathname();
   const { surface, setSurface, setSurfaceWithHandoff } = useDesk();
-  const { header: workspaceHeader, navOpen: dropdownOpen, toggleNav, closeNav } = useWorkspaceHeader();
+  const { header: workspaceHeader } = useWorkspaceHeader();
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const toggleNav = useCallback(() => setDropdownOpen((prev) => !prev), []);
+  const closeNav = useCallback(() => setDropdownOpen(false), []);
 
   // Determine navigation context
   const isOnHome = isHomeRoute(pathname);
@@ -311,26 +314,23 @@ function AuthenticatedLayoutInner({
             </button>
           </div>
 
-          {/* Center: workspace header or page label */}
+          {/* Center: workspace header or page label + nav chevron */}
           <div className="flex-1 flex items-center justify-center min-w-0 mx-4">
-            {workspaceHeader ? (
-              workspaceHeader
-            ) : (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleNav();
-                }}
-                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground font-medium hover:text-foreground transition-colors"
-              >
+            {workspaceHeader ?? (
+              <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground font-medium">
                 <CurrentIcon className="w-4 h-4" />
                 <span>{display.label}</span>
-                <ChevronDown className={cn(
-                  'w-3 h-3 transition-transform',
-                  dropdownOpen && 'rotate-180'
-                )} />
-              </button>
+              </div>
             )}
+            <button
+              onClick={toggleNav}
+              className="p-1 text-muted-foreground hover:text-foreground transition-colors shrink-0"
+            >
+              <ChevronDown className={cn(
+                'w-3.5 h-3.5 transition-transform',
+                dropdownOpen && 'rotate-180'
+              )} />
+            </button>
           </div>
 
           {/* Right: User menu only */}
