@@ -495,8 +495,8 @@ export function ChatFirstDesk() {
         </div>
       </div>
 
-      {/* Input */}
-      <div className="p-4 border-t border-border shrink-0">
+      {/* Input — floating */}
+      <div className="px-4 pb-4 pt-2 shrink-0">
         <div className="relative max-w-2xl mx-auto">
           <SkillPicker
             query={skillQuery ?? ''}
@@ -528,9 +528,9 @@ export function ChatFirstDesk() {
 
             <div
               className={cn(
-                'flex items-end gap-2 border border-border bg-background transition-colors',
-                attachmentPreviews.length > 0 ? 'rounded-b-lg border-t-0' : 'rounded-lg',
-                'focus-within:ring-2 focus-within:ring-primary/50'
+                'flex items-end gap-2 border border-border bg-background shadow-sm transition-colors',
+                attachmentPreviews.length > 0 ? 'rounded-b-xl border-t-0' : 'rounded-xl',
+                'focus-within:ring-2 focus-within:ring-primary/50 focus-within:shadow-md'
               )}
             >
               <input
