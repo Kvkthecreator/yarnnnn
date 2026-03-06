@@ -38,7 +38,7 @@ Do YARNNN's deliverable types represent jobs-to-be-done that people struggle wit
 | Brief | Yes | Narrow (needs calendar) | Yes | No (calendar-dependent) | Strong but dependent |
 | **Work Summary** | **Yes** | **Yes** | **Yes** | **Yes** | **Best wedge candidate** |
 | Watch | Yes | Niche | No (self) | Yes | Retention play |
-| Deep Research | Partial | Niche | Sometimes | Yes | Commoditized by ChatGPT etc. |
+| Proactive Insights | **Yes** | Moderate | Yes | **Yes** | Signal-driven intelligence — reframed from commoditized research (Pass 4) |
 | Coordinator | Yes | Power-user | No | Yes | Advanced capability |
 | Custom | Depends | Escape valve | Depends | Depends | Not a wedge |
 
@@ -189,3 +189,54 @@ Status validated as wedge type. Two-part format (intelligence + evidence) confir
 ### Outcome
 
 Auto Meeting Prep validated at v3. Key insight: prompt BAD/GOOD examples + explicit tool use instructions + bumped tool rounds transformed output from "flat calendar reformatter" to "diligent research assistant that acknowledges gaps." The cross-meeting awareness (connecting SB Partners across all 3 meetings) is the kind of intelligence no calendar app provides. Pipeline: scheduler → CrossPlatformStrategy → 5-round headless agent → email delivery.
+
+---
+
+## Pass 4: Proactive Insights (2026-03-06)
+
+### Reframe from first principles
+
+Deep research as "one-shot web research" was assessed as commoditized (ChatGPT Deep Research, Perplexity do it better). After thorough audit of YARNNN's lifecycle infrastructure (deliverable_memory, proactive review, scoped sessions), we reframed the type:
+
+**Old:** "User tells YARNNN what to research" → generic report → done.
+**New:** "YARNNN notices themes in the user's platforms → researches externally → delivers intelligence the user didn't ask for."
+
+The differentiator: topic selection is autonomous, driven by internal signals. No external tool can do this.
+
+### Architecture change
+
+- Mode: `goal` → `proactive` (two-phase: Haiku review → conditional Sonnet generation)
+- Binding: `research` → `hybrid` (platform context + web research)
+- Display: "Deep Research" → "Proactive Insights"
+- Config: simplified from focus_area/subjects/purpose/depth → pulse_frequency only
+
+### Test setup
+
+- **User**: kvkthecreator@gmail.com (real production account)
+- **Platforms**: Slack (synced), Gmail (synced), Notion (synced), Calendar (synced)
+- **Deliverable**: `deep_research` type, `proactive` mode, `hybrid` binding
+- **Sources**: All connected platforms
+- **Schedule**: `proactive_next_review_at` set to trigger review pass
+
+### Issues discovered
+
+*(To be filled during testing)*
+
+### Review pass behavior
+
+*(To be filled during testing — did Haiku scan platforms? Did it use WebSearch? What decision did it make?)*
+
+### Prompt evolution
+
+| Version | Change | Result |
+|---------|--------|--------|
+| v1 | Generic research report template with focus_area/subjects/purpose | Commoditized — same as ChatGPT, no internal grounding |
+| v2 | Proactive Insights: signal-driven, BAD/GOOD examples, platform grounding + WebSearch, "What I'm Watching" section | *(To be assessed after testing)* |
+
+### Output assessment
+
+*(To be filled after testing)*
+
+### Outcome
+
+*(To be filled after testing)*

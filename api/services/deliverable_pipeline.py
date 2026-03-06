@@ -68,7 +68,7 @@ DEFAULT_INSTRUCTIONS = {
     "brief": "Auto meeting prep: every morning, scan today's and tomorrow morning's calendar events. Classify each meeting and generate context-appropriate prep.",
     "status": "Synthesize activity across connected platforms. Use the two-part format: cross-platform synthesis first, then per-platform breakdown. Flag anything that changed since last version.",
     "watch": "Monitor for changes and surface what's new or notable. Compare against the previous version and highlight differences.",
-    "deep_research": "Conduct thorough research using web search and available sources. Synthesize findings into a structured analysis with citations.",
+    "deep_research": "Proactive insights: scan connected platforms for emerging themes, research them externally, deliver intelligence the user didn't ask for. Prioritize strategic signals over operational noise.",
     "coordinator": "Orchestrate across multiple sources to produce a unified view. Cross-reference platform data for consistency.",
     "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
 }
@@ -278,14 +278,12 @@ INSTRUCTIONS:
 
 Write the watch report now:""",
 
-    "deep_research": """You are producing a deep research report titled "{title}".
+    # deep_research: v2 (2026.03.06) — Proactive Insights: signal-driven intelligence
+    "deep_research": """You are producing Proactive Insights titled "{title}".
 
-FOCUS AREA: {focus_area}
-RESEARCH SUBJECTS:
-{subjects_list}
-PURPOSE: {purpose}
+TODAY'S DATE: {today_date}
 
-GATHERED CONTEXT (from web research and platform data):
+GATHERED CONTEXT (from your connected platforms + web research):
 {gathered_context}
 
 {recipient_context}
@@ -293,15 +291,54 @@ GATHERED CONTEXT (from web research and platform data):
 {past_versions}
 
 INSTRUCTIONS:
-- Write as an expert analyst synthesizing research findings
-- Lead with the most important actionable insights
-- Be specific: cite sources, companies, people, and data from context
-- Distinguish what is known from what is inferred
-- If researching competitors: note their positioning, moves, and gaps
-- Avoid vague generalities — every claim should be grounded in gathered context
-- Depth target: {depth}
+You produce autonomous intelligence — things the user should know but didn't think to ask about. Your advantage: you can see what's happening inside the user's organization AND research what's happening externally.
 
-Write the research report now:""",
+USE YOUR TOOLS:
+- **WebSearch**: For each internal signal, search for relevant external context (3-5 queries). Start broad, then narrow based on findings.
+- **Search**: Cross-reference web findings with the user's platform data. Surface specific internal discussions, email threads, or documents that connect to external developments.
+- You have 6 tool rounds — use them. Don't stop at 1-2 searches.
+
+OUTPUT FORMAT:
+
+## This Week's Signals
+[2-3 sentence summary: what's emerging across the user's platforms and why it matters]
+
+### [Signal 1 Title]
+**Internal signal:** [What you noticed — specific Slack threads, email patterns, Notion changes, with dates and participants]
+**External context:** [What WebSearch found that's relevant — with source URLs]
+**Why this matters:** [Connect the dots — how external development relates to internal activity]
+
+### [Signal 2 Title]
+[Same structure]
+
+### [Signal 3 Title — if warranted]
+[Same structure]
+
+## What I'm Watching
+[1-2 emerging patterns not yet strong enough to report on — shows the user what you're tracking for next time]
+
+---
+
+BAD output (generic news summary):
+"AI industry continues to evolve rapidly. Several companies announced new products this week. Market analysts predict continued growth in enterprise AI adoption..."
+→ User could get this from any news aggregator. Zero internal grounding. No specific sources.
+
+GOOD output (signal-driven intelligence):
+"### Your team's Anthropic evaluation is happening at an interesting time
+**Internal signal:** 3 threads in #engineering this week (Mar 4-6) discussing Claude API pricing and migration from OpenAI. @sarah posted a comparison doc in Notion on Mar 5.
+**External context:** Anthropic announced enterprise tier changes on Mar 3 (TechCrunch) — 40% price cut on Haiku, new batch API pricing. OpenAI responded with GPT-4 Turbo price drop (The Verge, Mar 5).
+**Why this matters:** Your team's evaluation timing aligns with a pricing war. Sarah's Notion doc may not reflect the Mar 5 OpenAI response yet."
+→ Web research + internal signal = something only YARNNN can produce.
+
+Rules:
+- EVERY signal must cite specific internal evidence (channel, date, person, doc)
+- EVERY external finding must cite its source (URL)
+- If no external context exists for an internal signal, say so — the internal signal alone may still be worth surfacing
+- If platform data is thin (few signals), be honest: "Your connected platforms were relatively quiet this period. Here's what I noticed: [1 thing]."
+- Never pad with generic insights to fill space
+- "What I'm Watching" section shows progressive learning — tracks what you'll look for next time
+
+Write the proactive insights now:""",
 
     "coordinator": """You are producing a coordinator review titled "{title}".
 
@@ -385,10 +422,8 @@ SECTION_TEMPLATES = {
         "quiet_front": "Quiet Front - Areas with no material developments",
     },
     "deep_research": {
-        "key_takeaways": "Key Takeaways - The most important actionable insights",
-        "findings": "Findings - Detailed research results by topic/subject",
-        "implications": "Implications - What these findings mean",
-        "recommendations": "Recommendations - Suggested actions based on the research",
+        "signals": "This Week's Signals - Emerging themes across your platforms",
+        "watching": "What I'm Watching - Patterns being tracked for next time",
     },
     "coordinator": {
         "domain_status": "Domain Status - Current state of the watched domain",
@@ -527,12 +562,16 @@ def build_type_prompt(
         })
 
     elif deliverable_type == "deep_research":
-        subjects = config.get("subjects", [])
+        from datetime import datetime
+        import pytz
+        tz_name = deliverable.get("schedule", {}).get("timezone", "UTC")
+        try:
+            tz = pytz.timezone(tz_name)
+        except Exception:
+            tz = pytz.UTC
+        today_str = datetime.now(tz).strftime("%A, %B %-d, %Y")
         fields.update({
-            "focus_area": config.get("focus_area", "general"),
-            "subjects_list": "\n".join(f"- {s}" for s in subjects) if subjects else "- General research",
-            "purpose": config.get("purpose", "Inform decision-making"),
-            "depth": config.get("depth", "analysis"),
+            "today_date": today_str,
         })
 
     elif deliverable_type == "coordinator":
@@ -601,12 +640,9 @@ def validate_output(deliverable_type: str, content: str, config: dict) -> dict:
             issues.append(f"Too short for {detail_level}: {word_count} words (expected {min_w}+)")
 
     elif deliverable_type == "deep_research":
-        depth = config.get("depth", "analysis")
-        min_words_map = {"scan": 200, "analysis": 400, "deep_dive": 800}
         word_count = len(content.split())
-        min_w = min_words_map.get(depth, 400)
-        if word_count < min_w * 0.7:
-            issues.append(f"Too shallow for {depth}: {word_count} words (expected {min_w}+)")
+        if word_count < 200:
+            issues.append(f"Too short for proactive insights: {word_count} words (expected 200+)")
         content_lower = content.lower()
         vague_phrases = ["it is important", "various factors", "many aspects", "in general"]
         vague_count = sum(1 for phrase in vague_phrases if phrase in content_lower)

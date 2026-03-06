@@ -6,7 +6,7 @@ export const DELIVERABLE_TYPE_LABELS: Record<DeliverableType, string> = {
   brief: 'Auto Meeting Prep',
   status: 'Work Summary',
   watch: 'Watch',
-  deep_research: 'Deep Research',
+  deep_research: 'Proactive Insights',
   coordinator: 'Coordinator',
   custom: 'Custom',
 };

@@ -6,6 +6,19 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.06.6] - Deep Research → Proactive Insights: signal-driven autonomous intelligence
+
+### Changed
+- `api/services/deliverable_pipeline.py`: Deleted entire old deep_research prompt (static `{focus_area}`, `{subjects_list}`, `{purpose}` fields). Replaced with v2 Proactive Insights prompt: autonomous signal detection from platform data, WebSearch for external context, BAD/GOOD examples showing generic news vs platform-grounded intelligence. New output format: "This Week's Signals" (internal signal + external context + why it matters) + "What I'm Watching" (progressive tracking). Updated section templates, default instructions, build_type_prompt (now just `{today_date}`). Simplified output validation (flat 200-word minimum, no depth tiers).
+- `api/services/proactive_review.py`: Added `deep_research` type-specific review prompt. Haiku agent scans platform_content for emerging themes (HOT threads, DECISIONS, new contacts, stalled work). Uses WebSearch to check for external relevance. Signal vs noise distinction (strategic vs operational). Generates only when themes have internal momentum AND external context.
+- `api/services/deliverable_execution.py`: Added proactive review trigger context forwarding — review decision note surfaced to generation agent as "Review Context" section.
+- `api/services/skills.py`: Deleted old deep-research skill (form-based focus area dropdown). Replaced with Proactive Insights skill: no topic selection (autonomous), one per user, asks frequency (daily/weekly), all connected platforms as sources, mode=proactive.
+- `api/routes/deliverables.py`: Replaced `DeepResearchConfig` (was `focus_area` enum, `subjects` list, `purpose`, `depth`) with `pulse_frequency` only. Changed type classification from `binding: research, temporal: on_demand` to `binding: hybrid, temporal: proactive`.
+- Frontend: Updated type label, starter card, and landing page across `deliverables.ts`, `ChatFirstDesk.tsx`, `page.tsx`.
+- Expected behavior: Deep research is now a persistent proactive deliverable that autonomously identifies interesting themes from the user's work platforms, researches them externally, and delivers intelligence the user didn't ask for. Two-phase execution: cheap Haiku review (most days sleep/observe) → full Sonnet generation only when warranted. Progressive learning via deliverable_memory observations and user refinement via scoped TP sessions.
+
+---
+
 ## [2026.03.06.5] - Auto Meeting Prep prompt v3: deeper research, anti-flat output
 
 ### Changed

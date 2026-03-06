@@ -272,8 +272,18 @@ You have read-only investigation tools available: Search, Read, List, WebSearch,
 - If you do use a tool, do so in the first turn, then generate in the next.
 - NEVER use tools to stall — if context is adequate, generate immediately."""
 
-    # Inject signal reasoning when available
+    # Inject trigger context when available
     if trigger_context:
+        trigger_type = trigger_context.get("type", "")
+
+        # Proactive review: forward the review decision note to generation
+        if trigger_type == "proactive_review":
+            review_decision = trigger_context.get("review_decision", {})
+            review_note = review_decision.get("note", "")
+            if review_note:
+                prompt += f"\n\n## Review Context\nThis deliverable was triggered by a proactive review pass that found:\n{review_note}\n\nUse this as your starting point — investigate these themes further with your tools."
+
+        # Signal processing: forward signal reasoning
         signal_reasoning = trigger_context.get("signal_reasoning", "")
         signal_ctx = trigger_context.get("signal_context", {})
         if signal_reasoning:

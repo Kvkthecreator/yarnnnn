@@ -105,8 +105,8 @@ def get_type_classification(deliverable_type: str) -> dict:
 
     if deliverable_type == "deep_research":
         return {
-            "binding": "research",
-            "temporal_pattern": "on_demand",
+            "binding": "hybrid",
+            "temporal_pattern": "proactive",
             "freshness_requirement_hours": 24,
         }
 
@@ -158,11 +158,8 @@ class WatchConfig(BaseModel):
 
 
 class DeepResearchConfig(BaseModel):
-    """Configuration for deep_research type (bounded investigation)."""
-    focus_area: Literal["competitive", "market", "technology", "industry", "general"] = "general"
-    subjects: list[str] = Field(default_factory=list)
-    purpose: Optional[str] = None
-    depth: Literal["scan", "analysis", "deep_dive"] = "analysis"
+    """Configuration for deep_research type (Proactive Insights — signal-driven intelligence)."""
+    pulse_frequency: Literal["daily", "weekly"] = "weekly"
 
 
 class CoordinatorConfig(BaseModel):

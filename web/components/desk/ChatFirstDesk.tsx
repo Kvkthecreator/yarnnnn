@@ -178,9 +178,9 @@ const STARTER_CARDS = [
   },
   {
     skill: 'deep-research',
-    label: 'Deep Research',
-    description: 'One-time investigation into a topic',
-    prompt: 'I want to run a deep research report',
+    label: 'Proactive Insights',
+    description: 'Spots emerging themes across your platforms and researches them',
+    prompt: 'I want to set up proactive insights',
   },
 ];
 

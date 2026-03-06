@@ -14,7 +14,7 @@ Each deliverable type maps to a job-to-be-done. This document captures the valid
 Acquisition wedge:     Work Summary (cross-platform synthesis)
 Trust builder:         Auto Meeting Prep (daily calendar-driven prep)
 Retention foundation:  Recap (daily/weekly platform catchup)
-Deepening hooks:       Deep Research, Watch, Coordinator
+Deepening hooks:       Proactive Insights, Watch, Coordinator
 ```
 
 ---
@@ -129,9 +129,48 @@ Catches the user up on everything across a single connected platform. Platform-w
 
 ---
 
-## Deep Research (type: `deep_research`)
+## Proactive Insights (type: `deep_research`)
 
-**Validated:** Not yet
+**Validated:** 2026-03-06 (Pass 4)
+**Prompt version:** v2 — tracked in `api/prompts/CHANGELOG.md`
+
+### What it does
+
+Autonomously spots emerging themes across the user's connected platforms and investigates them externally — delivering intelligence the user didn't know to ask for. Topic selection is driven by internal signals (HOT Slack threads, stalled decisions, new contacts in Gmail, strategic docs changing in Notion), not user-specified.
+
+### Why this is different from ChatGPT/Perplexity
+
+No external research tool can see what's happening inside the user's organization. Proactive Insights combines internal signal detection with external web research — the output is always grounded in what the user's team is actually working on.
+
+### Output format: signals + watching
+
+**This Week's Signals** — 2-4 emerging themes, each with:
+- Internal signal (specific Slack threads, emails, Notion changes — with dates, people)
+- External context (WebSearch findings with source URLs)
+- Why this matters (connects internal activity to external development)
+
+**What I'm Watching** — 1-2 patterns not yet strong enough to report on. Shows progressive learning.
+
+### Lifecycle (progressive autonomy)
+
+1. **Creation:** No topic selection needed. All connected platforms as sources.
+2. **First pulse:** Broad signal scan across platforms → external research on strongest themes.
+3. **User refinement:** Open workspace, chat with TP about what matters → instructions and observations updated.
+4. **Steady state:** Review agent reads accumulated memory → focuses on learned preferences, skips noise.
+
+### Execution details
+
+- **Binding:** `hybrid` (HybridStrategy — platform context + research directive)
+- **Mode:** `proactive` (two-phase: Haiku review → conditional Sonnet generation)
+- **Review pass:** Haiku scans platform_content for emerging themes, uses WebSearch to check external relevance, decides generate/observe/sleep
+- **Generation:** Full Sonnet with 6 tool rounds (WebSearch + Search)
+- **Delivery:** Email via Resend (ADR-066)
+
+### Constraints
+
+- One per user
+- Frequency: daily or weekly pulse (user chooses)
+- All connected platforms required as sources (cross-platform signal detection)
 
 ---
 

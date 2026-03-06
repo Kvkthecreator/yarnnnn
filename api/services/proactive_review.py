@@ -55,7 +55,7 @@ warrant generating one right now.
 
 ## How to Decide
 
-Use your available tools (Search, Read, List, RefreshPlatformContent) to check the current state
+Use your available tools (Search, Read, List, WebSearch, RefreshPlatformContent) to check the current state
 of your domain. Then return a JSON decision:
 
 **generate** — conditions warrant producing a new version now. Use this when:
@@ -88,6 +88,35 @@ Respond with ONLY a JSON object — no prose before or after:
 ```
 
 The `until` field in sleep must be an ISO 8601 UTC timestamp. Default to 24 hours from now if unsure."""
+
+    # Deep research (Proactive Insights): signal-driven review
+    if deliverable_type == "deep_research":
+        prompt += """
+
+## Proactive Insights — Signal Detection
+
+Your domain is the user's entire connected work context. Your job is to find **emerging themes** worth investigating externally.
+
+**How to scan:**
+Use **Search** to look across all connected platforms for:
+- HOT threads (high engagement, many replies) — what topics are getting attention?
+- DECISIONS being made or debated — what's the team deciding on?
+- New external contacts or companies appearing in email/calendar — who's new?
+- Recurring topics gaining momentum — what keeps coming up?
+- Stalled strategic work — what's blocked that matters?
+
+Then use **WebSearch** on the most promising theme to check: is there relevant external context?
+
+**Signal vs noise:**
+- STRATEGIC: competitor mentions, technology evaluations, market discussions, customer feedback patterns, hiring/org changes → worth investigating
+- OPERATIONAL: routine standup summaries, infrastructure alerts, deploy notifications, calendar scheduling → skip unless unusually significant
+
+**Decision criteria:**
+- **generate**: You found 2+ themes with internal momentum AND at least one has meaningful external context. Include the themes in your note.
+- **observe**: You see an interesting signal but it's too early (only 1 mention, no pattern yet). Note what you're tracking.
+- **sleep**: Platforms are quiet or only showing routine activity. No strategic signals detected.
+
+**Important:** Check your accumulated memory (review_log and observations below) to avoid re-reporting themes you already covered. Focus on what's NEW or CHANGED since your last review."""
 
     # Coordinator mode: mention write primitives
     if mode == "coordinator":

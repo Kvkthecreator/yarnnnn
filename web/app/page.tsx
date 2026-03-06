@@ -227,10 +227,10 @@ export default function LandingPage() {
               </div>
 
               <div className="glass-card-light p-6">
-                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Deep research</div>
-                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Bounded investigations</h3>
+                <div className="text-xs text-[#1a1a1a]/30 uppercase tracking-wider mb-3">Proactive Insights</div>
+                <h3 className="text-base font-medium mb-2 text-[#1a1a1a]">Intelligence you didn&apos;t ask for</h3>
                 <p className="text-[#1a1a1a]/50 text-sm leading-relaxed">
-                  Goal-driven research deliverables that run until the objective is complete.
+                  YARNNN watches your connected platforms for emerging themes — then researches them externally and connects the dots.
                 </p>
               </div>
             </div>

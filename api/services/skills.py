@@ -135,24 +135,26 @@ Set up daily auto meeting prep — every morning, YARNNN reads the user's Google
 
     "deep-research": {
         "name": "deep-research",
-        "description": "Create a deep research deliverable",
-        "trigger_patterns": ["research brief", "deep research", "competitive intel", "market research", "competitor analysis", "competitor brief", "create a deep research", "create deep research deliverable"],
+        "description": "Set up Proactive Insights — watches your platforms and surfaces what matters",
+        "trigger_patterns": ["proactive insights", "insights", "deep research", "watch my platforms", "surface insights", "what should I know", "investigate", "research this", "look into", "find out about"],
         "deliverable_type": "deep_research",
         "system_prompt_addition": """
 ---
 
-## Active Skill: Deep Research
+## Active Skill: Proactive Insights
 
-Create a deep research deliverable — a bounded investigation into a specific topic, then done.
+Set up Proactive Insights — YARNNN watches the user's connected platforms for emerging themes, researches them externally, and delivers intelligence the user didn't ask for.
 
 **Flow:**
-1. Check for duplicates: `List(pattern="deliverable:*")`
-2. If missing focus, ask: `Clarify(question="What should I research?", options=["Competitors", "Market trends", "Technology", "Industry"])`
-3. Confirm: "I'll create a Deep Research report on [focus]. Ready?"
-4. On confirmation: `Write(ref="deliverable:new", content={title, deliverable_type: "deep_research", mode: "goal"})`
-5. Offer first draft
-
-**Defaults:** mode=goal (runs once to completion), type=deep_research
+1. Check for duplicates: `List(pattern="deliverable:*")` — one per user
+2. If duplicate exists, tell the user they already have Proactive Insights set up and offer to open it
+3. Confirm: "I'll scan your connected platforms regularly and surface emerging themes with external context. Would you like a daily or weekly pulse?"
+4. Ask frequency: `Clarify(question="How often should I check for insights?", options=["Weekly (recommended)", "Daily"])`
+5. On confirmation: `Write(ref="deliverable:new", content={title: "Proactive Insights", deliverable_type: "deep_research", mode: "proactive"})`
+- Sources: ALL connected platform sources (Slack, Gmail, Notion, Calendar) — for cross-platform signal detection
+- One per user — check duplicates before creating
+- Defaults: mode=proactive, type=deep_research
+- Do NOT ask for a research topic — topic selection is autonomous from platform signals
 """,
     },
 
