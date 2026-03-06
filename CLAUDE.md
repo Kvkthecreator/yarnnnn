@@ -31,7 +31,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-080**: Unified Agent Modes - one agent (chat + headless), mode-gated primitives, supersedes ADR-061 two-path separation
 - **ADR-087**: Deliverable Scoped Context - per-deliverable instructions + memory, session routing via deliverable_id
 - **ADR-088**: Trigger Dispatch - `dispatch_trigger()` in `api/services/trigger_dispatch.py`, single decision point for schedule/event/signal triggers (Phase 1 implemented)
-- **ADR-092**: Deliverable Intelligence & Mode Taxonomy - five modes (`recurring`, `goal`, `reactive`, `proactive`, `coordinator`); signal processing dissolved from L3; `RefreshPlatformContent` extended to headless; coordinator deliverables replace `signal_emergent` origin (Proposed — no code changes yet)
+- **ADR-092**: Deliverable Intelligence & Mode Taxonomy - five modes (`recurring`, `goal`, `reactive`, `proactive`, `coordinator`); signal processing dissolved from L3; `RefreshPlatformContent` extended to headless; coordinator deliverables replace `signal_emergent` origin (Implemented — signal processing removed, modes active, coordinator pipeline in `proactive_review.py`)
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -157,11 +157,14 @@ You MUST:
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)
 
-**Removed files** (ADR-064 + ADR-090):
+**Removed files** (ADR-064 + ADR-090 + ADR-092):
 - `api/services/extraction.py` — replaced by `memory.py`
 - `api/services/work_execution.py` — replaced by `deliverable_execution.py`
 - `api/agents/factory.py`, `api/agents/deliverable.py` — replaced by `generate_draft_inline()`
 - `api/routes/work.py`, `api/routes/agents.py` — work_tickets endpoints removed
+- `api/services/signal_extraction.py`, `api/services/signal_processing.py` — dissolved in ADR-092
+- `api/routes/signal_processing.py` — dissolved in ADR-092
+- `api/integrations/readers/` — deprecated module, zero imports
 
 **Removed tables** (ADR-059 — do not reference in new code):
 - `knowledge_profile`, `knowledge_styles`, `knowledge_domains`, `knowledge_entries`

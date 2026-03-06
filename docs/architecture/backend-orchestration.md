@@ -1,7 +1,7 @@
 # Backend Orchestration Pipeline
 
-**Version**: 3.1
-**Last updated**: 2026-02-27 (ADR-083: removed worker + Redis, all execution inline)
+**Version**: 4.0
+**Last updated**: 2026-03-06 (ADR-090: work_tickets removed, ADR-092: signal processing dissolved)
 **Status**: Hardened — canonical reference for all background processing. Cross-validated against code.
 
 ---
@@ -13,7 +13,7 @@ YARNNN's backend runs 4 Render services sharing a single codebase (ADR-083: work
 | # | Service | Render ID | Type | Schedule | Role |
 |---|---------|-----------|------|----------|------|
 | 1 | `yarnnn-api` | `srv-d5sqotcr85hc73dpkqdg` | Web Service | Always-on | API endpoints, OAuth, manual triggers |
-| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Deliverables, signals, memory, cleanup |
+| 2 | `yarnnn-unified-scheduler` | `crn-d604uqili9vc73ankvag` | Cron Job | `*/5 * * * *` | Deliverables, memory, cleanup |
 | 3 | `yarnnn-platform-sync` | `crn-d6gdvi94tr6s73b6btm0` | Cron Job | `*/5 * * * *` | Platform sync scheduling |
 | 4 | `yarnnn-mcp-server` | `srv-d6f4vg1drdic739nli4g` | Web Service | Always-on | MCP server for Claude.ai/Desktop (ADR-075) |
 
@@ -22,51 +22,48 @@ All execution is inline — no background worker, no Redis. On-demand operations
 ### Pipeline Flow
 
 ```
-External APIs ──[F1: Sync]──→ platform_content ──[F2: Signals]──→ deliverables
-                                                                       │
-                                                              [F3: Execution]
-                                                                       │
-                                                                       ▼
-                                                              deliverable_versions
-                                                                       │
-                                                              [F3: Delivery]
-                                                                       ▼
-                                                              Email / Slack
-                                        ┌─────────────────────────────────┘
-                                        │ (content marked retained)
-chat_sessions ──[F4: Memory]──→ user_memory ──→ injected into TP + Signals
-                                        │
-activity_log ◄── ALL features ──────────┘
+External APIs ──[F1: Sync]──→ platform_content ──→ deliverables
+                                                        │
+                                               [F3: Execution]
+                                                        │
+                                                        ▼
+                                               deliverable_versions
+                                                        │
+                                               [F3: Delivery]
+                                                        ▼
+                                               Email / Slack
+                                 ┌──────────────────────┘
+                                 │ (content marked retained)
+chat_sessions ──[F4: Memory]──→ user_memory ──→ injected into TP
+                                 │
+activity_log ◄── ALL features ──┘
 ```
 
 ---
 
 ## Feature Map
 
-10 background features, each with a unique ID for cross-referencing.
+Background features, each with a unique ID for cross-referencing. F2 (Signal Processing), F5 (Conversation Analysis), and F10 (Work Tickets) have been removed.
 
 | ID | Feature | Frequency | LLM? | Cost Driver | Service |
 |----|---------|-----------|------|-------------|---------|
 | F1 | Platform Sync | Tier-gated (2x/4x/hourly) | No | Platform API reads | platform-sync cron |
-| F2 | Signal Processing | Hourly (Starter+) | Haiku | ~500 tokens/cycle | unified-scheduler |
+| ~~F2~~ | ~~Signal Processing~~ | ~~Removed (ADR-092)~~ | — | — | — |
 | F3 | Deliverable Execution | Every 5 min (due check) | Sonnet | ~2-5k tokens/run | unified-scheduler |
 | F4 | Memory Extraction | Daily 00:00 UTC | Sonnet | ~1-2k tokens/user | unified-scheduler |
-| F5 | Conversation Analysis | Daily 06:00 UTC | Sonnet | ~1-2k tokens/user | unified-scheduler |
+| ~~F5~~ | ~~Conversation Analysis~~ | ~~Removed~~ | — | — | — |
 | F6 | Content Cleanup | Hourly | No | DB deletes | unified-scheduler |
 | F7 | Weekly Digest | Weekly per user | No | Email send | unified-scheduler |
 | F8 | Import Jobs | Every 5 min | No | Platform API reads | unified-scheduler |
 | F9 | Embedding Generation | **NOT IMPLEMENTED** | No | OpenAI API (~$0.02/M tokens) | — |
-| F10 | Work Ticket Processing | Every 5 min | Sonnet | ~2-5k tokens/ticket | unified-scheduler |
+| ~~F10~~ | ~~Work Ticket Processing~~ | ~~Removed (ADR-090)~~ | — | — | — |
 
 ### Feature Dependencies
 
 ```
-F1 (Sync) ──writes──→ platform_content ──read by──→ F2 (Signals)
+F1 (Sync) ──writes──→ platform_content ──read by──→ F3 (Execution)
                                                       │
-                                           F2 creates → F3 (Execution)
-                                                      │
-F4 (Memory) ──writes──→ user_memory ──read by──→ F2, F3, F5
-F5 (Analysis) ──creates──→ deliverables ──read by──→ F3
+F4 (Memory) ──writes──→ user_memory ──read by──→ F3
 F6 (Cleanup) ──deletes──→ platform_content (expired, non-retained)
 F9 (Embeddings) ──would write──→ platform_content.content_embedding
 ```
@@ -135,47 +132,13 @@ Each item → `_store_platform_content()`:
 
 ---
 
-## F2: Signal Processing
+## ~~F2: Signal Processing~~ — Removed (ADR-092)
 
-**Files**: `api/services/signal_extraction.py`, `api/services/signal_processing.py`
-**Entry points**: Unified scheduler (hourly), `POST /signal-processing/trigger` (manual, 5-min rate limit)
-**ADRs**: ADR-068 (signal phases), ADR-069 (Layer 4 content)
-**LLM**: `claude-haiku-4-5-20251001`
-**Tier gate**: Starter+ only (Free tier skipped)
+Signal processing was dissolved in ADR-092. Its responsibilities were absorbed into:
+- **Coordinator deliverables** (mode=coordinator) — manage child deliverable lifecycles
+- **Trigger dispatch** (`api/services/trigger_dispatch.py`, ADR-088) — unified trigger routing
 
-### Phase 1: Signal Extraction (Deterministic — No LLM)
-
-`extract_signal_summary()` reads cached `platform_content`:
-
-| Platform | Window | Limit |
-|----------|--------|-------|
-| Calendar | Non-expired or retained | 50 |
-| Gmail | Last 7 days | 30 |
-| Slack | Last 2 days | 100 |
-| Notion | Non-expired or retained | 20 |
-
-### Phase 2: Signal Reasoning (Single LLM Call)
-
-- Skip if < 3 total content items
-- Input: content summaries + `user_memory` (memory) + recent `activity_log` + existing deliverables with Layer 4 content
-- Output: `SignalAction` objects filtered by confidence ≥ 0.60
-
-### Phase 3: Action Execution
-
-| Action | What happens |
-|--------|-------------|
-| `create_signal_emergent` | Dedup via `signal_history` → Create deliverable → Immediately execute |
-| `trigger_existing` | Set deliverable's `next_run_at` to now |
-| `no_action` | Below threshold or deduplicated |
-
-### Tables
-
-| Reads | Writes |
-|-------|--------|
-| `platform_content`, `platform_connections` | `deliverables` (signal-emergent) |
-| `user_memory`, `activity_log` | `signal_history` |
-| `deliverables` + `deliverable_versions` (Layer 4) | `activity_log` (signal_processed) |
-| `signal_history` (dedup) | `deliverable_versions` (via execution) |
+Files deleted: `signal_extraction.py`, `signal_processing.py`, routes, scheduler phases, `signal_history` table.
 
 ---
 
@@ -190,7 +153,7 @@ Each item → `_store_platform_content()`:
 ### Flow
 
 1. Freshness check — skip if no new content since `last_run_at` (ADR-049)
-2. Create `deliverable_versions` (generating) + `work_tickets` (running)
+2. Create `deliverable_versions` (generating)
 3. Select strategy by `type_classification.binding`:
 
 | Strategy | Content Source |
@@ -209,10 +172,9 @@ Each item → `_store_platform_content()`:
 
 | Reads | Writes |
 |-------|--------|
-| `deliverables`, `platform_content` | `deliverable_versions`, `work_tickets` |
-| `sync_registry` (freshness) | `work_execution_log` |
-| `deliverable_versions` (versioning) | `platform_content` (retained=true) |
-| | `source_snapshots`, `activity_log` |
+| `deliverables`, `platform_content` | `deliverable_versions` |
+| `sync_registry` (freshness) | `platform_content` (retained=true) |
+| `deliverable_versions` (versioning) | `source_snapshots`, `activity_log` |
 
 ---
 
@@ -245,31 +207,9 @@ Source priority for `user_memory`: `user_stated > conversation > feedback > patt
 
 ---
 
-## F5: Conversation Analysis
+## ~~F5: Conversation Analysis~~ — Removed
 
-**File**: `api/services/conversation_analysis.py`
-**Entry point**: Unified scheduler at 06:00 UTC
-**ADRs**: ADR-060 (analysis), ADR-061 (two-path architecture)
-**LLM**: `claude-sonnet-4-20250514`
-
-Detects patterns in conversation history and creates suggested deliverables.
-
-### Flow
-
-1. Get users with recent activity (last 7 days)
-2. Detect user stage — skip onboarding users (ADR-060 Amendment 001)
-3. Analyze conversation patterns → `AnalystSuggestion` objects
-4. Create suggested deliverables (origin=analyst)
-5. Dedup via `signal_history`
-6. Send notification emails
-
-### Tables
-
-| Reads | Writes |
-|-------|--------|
-| `chat_sessions`, `session_messages` | `deliverables` (suggested) |
-| `deliverables` (existing) | `deliverable_versions` |
-| | `signal_history`, `activity_log` |
+`api/services/conversation_analysis.py` was deleted. Deliverable suggestions are now handled through TP conversation (user-driven) and coordinator deliverables (automated).
 
 ---
 
@@ -320,15 +260,10 @@ Writes `content_cleanup` events to `activity_log` per user.
 
 ---
 
-## F10: Work Ticket Processing
+## ~~F10: Work Ticket Processing~~ — Removed (ADR-090)
 
-**Files**: `api/jobs/unified_scheduler.py` (scheduled), `api/services/work_execution.py` (inline execution)
-**Entry points**: Unified scheduler (every 5 min), API route (on-demand)
-**LLM**: `claude-sonnet-4-20250514`
-
-Single execution path (ADR-083: RQ worker removed):
-- **Scheduled**: `get_due_work()` → `execute_work_ticket()` (inline in scheduler)
-- **On-demand**: API routes call `create_and_execute_work()` → `execute_work_ticket()` inline
+Work ticket processing was removed in ADR-090 Phase 1. Deliverable execution (F3) is the only execution path.
+Files deleted: `work_execution.py`, `agents/factory.py`, `agents/deliverable.py`, `routes/work.py`, `routes/agents.py`.
 
 ---
 
@@ -340,14 +275,11 @@ Single execution path (ADR-083: RQ worker removed):
 | Phase | Frequency | Gate | Feature |
 |-------|-----------|------|---------|
 | Deliverables | Every 5 min | `next_run_at <= now` | F3 |
-| Work Tickets | Every 5 min | `get_due_work()` | F10 |
 | Import Jobs | Every 5 min | Pending jobs exist | F8 |
-| Signal Processing | Hourly (`minute < 5`) | Starter+ tier | F2 |
 | Content Cleanup | Hourly (`minute < 5`) | Always | F6 |
 | Weekly Digests | Hourly (`minute < 5`) | Day + hour + tz match | F7 |
 | Memory Extraction | Daily (`hour == 0, minute < 5`) | Always | F4 |
 | Activity Patterns | Daily (`hour == 0, minute < 5`) | Always | F4 |
-| Conversation Analysis | Daily (`hour == 6, minute < 5`) | Always | F5 |
 | Heartbeat | Every 5 min | Always | Observability |
 
 ---
@@ -359,14 +291,12 @@ Single execution path (ADR-083: RQ worker removed):
 | Event Type | Writer | Feature |
 |-----------|--------|---------|
 | `platform_synced` | `platform_worker.py` | F1 |
-| `signal_processed` | `signal_processing.py` | F2 |
 | `deliverable_run` | `deliverable_execution.py` | F3 |
 | `deliverable_approved` / `rejected` | `routes/deliverables.py` | User action |
 | `deliverable_scheduled` | `unified_scheduler.py` | F3 |
 | `memory_written` | `memory.py` | F4 |
 | `session_summary_written` | `memory.py` | F4 |
 | `pattern_detected` | `memory.py` | F4 |
-| `conversation_analyzed` | `conversation_analysis.py` | F5 |
 | `content_cleanup` | `platform_content.py` | F6 |
 | `integration_connected` / `disconnected` | `routes/integrations.py` | OAuth |
 | `chat_session` | `chat.py` | User action |
@@ -377,7 +307,6 @@ Single execution path (ADR-083: RQ worker removed):
 | Consumer | File | What it reads | Purpose |
 |----------|------|--------------|---------|
 | Working memory | `working_memory.py` | Last 10 events (7-day) | TP system prompt injection |
-| Signal processing | `signal_processing.py` | Recent events | LLM reasoning context |
 | System status | `routes/system.py` | Job status per type | Background activity page |
 | Pattern detection | `memory.py` | 30-day events | Behavioral analysis |
 | TP primitive | `primitives/system_state.py` | Current state | `GetSystemState` tool |
@@ -393,11 +322,9 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 
 | Model | Feature | Purpose | Cost/Call |
 |-------|---------|---------|-----------|
-| `claude-haiku-4-5-20251001` | F2 Signal Processing | Signal reasoning | ~500 tokens |
 | `claude-sonnet-4-20250514` | F3 Deliverable Execution | Agent headless mode (ADR-080/081) — draft generation + binding-aware tool rounds (2-6). Research types use WebSearch primitive (nested Sonnet call). | ~2-12k tokens |
 | `claude-sonnet-4-20250514` | F4 Memory Extraction | Fact extraction | ~1-2k tokens |
 | `claude-sonnet-4-20250514` | F4 Session Summaries | Cross-session continuity | ~1k tokens |
-| `claude-sonnet-4-20250514` | F5 Conversation Analysis | Suggested deliverables | ~1-2k tokens |
 | `text-embedding-3-small` | F9 Embeddings (not impl.) | Semantic search | ~$0.003/sync |
 
 ---
@@ -406,17 +333,15 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 
 | Table | Layer | Written by | Read by |
 |-------|-------|-----------|---------|
-| `platform_content` | Context | F1 Sync, F3 (retained flag), F6 (cleanup) | F2 Signals, F3 Execution, TP Search |
+| `platform_content` | Context | F1 Sync, F3 (retained flag), F6 (cleanup) | F3 Execution, TP Search |
 | `sync_registry` | Context | F1 Sync | F3 Freshness, System status |
-| `platform_connections` | Context | F1 Sync, OAuth | F1, F2, System status |
-| `deliverables` | Work | F2 Signals, F5 Analysis, User | F3 Execution, F2 (Layer 4) |
-| `deliverable_versions` | Work | F3 Execution | F2 (Layer 4), User review |
-| `user_memory` | Memory | F4 Memory, User edits | TP, F2 Signals, Working memory |
-| `activity_log` | Activity | ALL features | Working memory, F2, F4, System status |
-| `signal_history` | Work | F2 Signal Processing | F2 (dedup), F5 (dedup) |
-| `work_tickets` | Work | F3, F10 | Scheduler, F7 Digest |
-| `chat_sessions` | Activity | Chat endpoints, F4 (summary) | F4, F5 |
-| `session_messages` | Activity | Chat endpoints | F4, F5 |
+| `platform_connections` | Context | F1 Sync, OAuth | F1, System status |
+| `deliverables` | Work | F5 Analysis, User, Coordinator | F3 Execution |
+| `deliverable_versions` | Work | F3 Execution | User review |
+| `user_memory` | Memory | F4 Memory, User edits | TP, Working memory |
+| `activity_log` | Activity | ALL features | Working memory, F4, System status |
+| `chat_sessions` | Activity | Chat endpoints, F4 (summary) | F4 |
+| `session_messages` | Activity | Chat endpoints | F4 |
 
 ---
 
@@ -425,7 +350,6 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 | Endpoint | Feature | Notes |
 |----------|---------|-------|
 | `POST /integrations/{provider}/sync` | F1 | Runs via FastAPI BackgroundTasks |
-| `POST /signal-processing/trigger` | F2 | 5-min rate limit |
 | `POST /deliverables/{id}/run` | F3 | Direct execution |
 | `POST /admin/backfill-sources/{user_id}` | F1 (ADR-079) | Admin-only, backfill smart defaults |
 
@@ -456,7 +380,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 3. **Implicit memory** (ADR-064): No explicit memory tools for TP. F4 extracts nightly.
 4. **Delivery-first** (ADR-066): No approval gate. F3 delivers immediately after generation.
 5. **activity_log as nervous system**: Every feature writes events. Multiple consumers read for different purposes.
-6. **Tier-gated LLM spend**: Token budget checked per chat message (not per background job). Deliverable count and signal processing gated by tier.
+6. **Tier-gated LLM spend**: Token budget checked per chat message (not per background job). Deliverable count gated by tier.
 7. **Unified agent, separate orchestration** (ADR-080): F3 invokes the agent in headless mode for content generation. Orchestration (scheduling, strategy, delivery, retention) stays in the pipeline. One agent, two modes — shared primitives, no drift.
 
 ---
@@ -478,9 +402,9 @@ Notion's 3 req/sec rate limit (350ms/call) × up to 300 rows per database create
 
 Platforms sync sequentially within a user. Running Slack + Gmail + Notion + Calendar in parallel (asyncio.gather) would reduce wall clock by ~1.5-2x. Low risk since each platform uses independent API credentials.
 
-### GAP-4: Conversation Analysis Overlap with Signal Processing
+### ~~GAP-4: Conversation Analysis Overlap with Signal Processing~~ — Resolved (ADR-092)
 
-F5 (Conversation Analysis) and F2 (Signal Processing) both create deliverables from pattern detection. F5 runs daily from chat patterns; F2 runs hourly from platform content. They share `signal_history` for dedup but have independent detection logic. Consider whether F5 should be merged into F2 as a "conversation signals" pass.
+Signal processing (F2) was removed. Conversation analysis (F5) is now the only deliverable suggestion path.
 
 ### ~~GAP-5: Work Ticket Dual Path~~ — **Resolved** (ADR-083)
 

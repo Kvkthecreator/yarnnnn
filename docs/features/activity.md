@@ -49,7 +49,6 @@ Append-only. Written by service role only (no user-facing INSERT).
 | `session_summary_written` | `memory.py` | After session summary extraction | `"Session summary written"` |
 | `pattern_detected` | `memory.py` | After activity pattern detection | `"Pattern: prefers morning deliverables"` |
 | `platform_synced` | `platform_worker.py` | After a sync batch completes | `"Synced gmail: 12 items"` |
-| `signal_processed` | `signal_processing.py` | After signal processing cycle | `"Signal: 1 deliverable created"` |
 | `content_cleanup` | `platform_content.py` | After expired content removal | `"Cleaned up 45 expired items"` |
 | `chat_session` | `chat.py` | At end of each chat turn | `"Chat turn complete"` |
 | `integration_connected` | `routes/integrations.py` | After OAuth connection | `"Connected: gmail"` |
@@ -75,10 +74,6 @@ platform_worker.py
 memory.py (nightly extraction)
   → user_memory upsert succeeds
   → write_activity("memory_written", summary="Noted: prefers bullet points", ...)
-
-signal_processing.py
-  → signal cycle complete
-  → write_activity("signal_processed", summary="Signal: 1 deliverable created", ...)
 
 chat.py
   → done: True signal after assistant response
