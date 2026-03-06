@@ -8,7 +8,8 @@
  * - /deliverables/[id] (deliverable workspace — scoped TP)
  *
  * Layout:
- * - Header: identity chip + breadcrumb + controls + drawer trigger
+ * - Header content is injected into the AuthenticatedLayout top bar
+ *   via WorkspaceHeaderContext (replaces nav dropdown)
  * - Main: chat area (full width, full height)
  * - Drawer: slides from right, overlays content, 480px on desktop / full width on mobile
  *
@@ -16,9 +17,10 @@
  * It must always be visible and never ambiguous.
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback } from 'react';
 import { X, PanelRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useWorkspaceHeader } from '@/contexts/WorkspaceHeaderContext';
 
 export interface WorkspacePanelTab {
   id: string;
@@ -58,6 +60,7 @@ export function WorkspaceLayout({
   panelTabs = [],
   panelDefaultOpen = false,
 }: WorkspaceLayoutProps) {
+  const { setHeader } = useWorkspaceHeader();
   const [drawerOpen, setDrawerOpen] = useState(panelDefaultOpen);
   const [activeTab, setActiveTab] = useState<string>(panelTabs[0]?.id ?? '');
 
@@ -66,20 +69,12 @@ export function WorkspaceLayout({
 
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
 
-  // Close drawer on Escape key
-  useEffect(() => {
-    if (!drawerOpen) return;
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeDrawer();
-    };
-    document.addEventListener('keydown', handleKeyDown);
-    return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [drawerOpen, closeDrawer]);
-
-  return (
-    <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+  // Inject header content into the AuthenticatedLayout top bar.
+  // Uses useLayoutEffect to paint before the browser frame, avoiding flicker.
+  // Runs every render (JSX props are new references each time) — this is intentional.
+  useLayoutEffect(() => {
+    setHeader(
+      <div className="flex items-center justify-between w-full min-w-0">
         <div className="flex items-center gap-3 min-w-0">
           {breadcrumb && (
             <>
@@ -99,7 +94,7 @@ export function WorkspaceLayout({
           {headerControls}
           {hasDrawerTabs && (
             <button
-              onClick={() => setDrawerOpen(!drawerOpen)}
+              onClick={() => setDrawerOpen((prev) => !prev)}
               className={cn(
                 'flex items-center gap-1.5 p-2 rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-muted',
                 drawerOpen && 'bg-muted text-foreground'
@@ -111,8 +106,28 @@ export function WorkspaceLayout({
           )}
         </div>
       </div>
+    );
+  });
 
-      {/* Body: chat area (full width) */}
+  // Clear header on unmount so nav dropdown returns
+  useEffect(() => {
+    return () => setHeader(null);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Close drawer on Escape key
+  useEffect(() => {
+    if (!drawerOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeDrawer();
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [drawerOpen, closeDrawer]);
+
+  return (
+    <div className="h-full flex flex-col">
+      {/* Body: chat area (full width) — no header bar, it's in the top bar now */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {children}
       </div>
