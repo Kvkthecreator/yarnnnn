@@ -375,8 +375,8 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                             source_timestamp=msg_ts,
                         )
                         items_synced += 1
-                    except Exception:
-                        pass
+                    except Exception as e:
+                        logger.warning(f"[SLACK] Failed to insert message {msg_ts} in {channel_name}: {e}")
 
                     # ADR-077: Expand threads with 2+ replies (cap per channel)
                     reply_count = msg.get("reply_count", 0)

@@ -145,7 +145,7 @@ Files deleted: `signal_extraction.py`, `signal_processing.py`, routes, scheduler
 ## F3: Deliverable Execution
 
 **Files**: `api/services/deliverable_execution.py`, `api/services/deliverable_pipeline.py`
-**Entry points**: Unified scheduler (every 5 min), Signal Processing (emergent), `POST /deliverables/{id}/run`
+**Entry points**: Unified scheduler (every 5 min), `POST /deliverables/{id}/run`
 **ADRs**: ADR-042 (simplified), ADR-049 (freshness), ADR-066 (delivery-first), ADR-072 (retention), ADR-080 (headless mode), ADR-082 (8 active types)
 **LLM**: `claude-sonnet-4-20250514` (agent in headless mode)
 **Tier gate**: Active deliverable count limited (Free: 2, Starter: 5, Pro: unlimited)
@@ -336,7 +336,7 @@ Reads: `workspaces` (tier), `platform_connections`, `sync_registry` (incl. `last
 | `platform_content` | Context | F1 Sync, F3 (retained flag), F6 (cleanup) | F3 Execution, TP Search |
 | `sync_registry` | Context | F1 Sync | F3 Freshness, System status |
 | `platform_connections` | Context | F1 Sync, OAuth | F1, System status |
-| `deliverables` | Work | F5 Analysis, User, Coordinator | F3 Execution |
+| `deliverables` | Work | User, Coordinator | F3 Execution |
 | `deliverable_versions` | Work | F3 Execution | User review |
 | `user_memory` | Memory | F4 Memory, User edits | TP, Working memory |
 | `activity_log` | Activity | ALL features | Working memory, F4, System status |
@@ -404,7 +404,7 @@ Platforms sync sequentially within a user. Running Slack + Gmail + Notion + Cale
 
 ### ~~GAP-4: Conversation Analysis Overlap with Signal Processing~~ — Resolved (ADR-092)
 
-Signal processing (F2) was removed. Conversation analysis (F5) is now the only deliverable suggestion path.
+Signal processing (F2) and conversation analysis (F5) were both removed (ADR-092). Coordinator deliverables now handle proactive work creation.
 
 ### ~~GAP-5: Work Ticket Dual Path~~ — **Resolved** (ADR-083)
 

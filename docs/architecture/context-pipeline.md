@@ -25,7 +25,7 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  Recent events injected into every TP session               │
 └─────────────────────────────────────────────────────────────┘
          Written by: deliverable pipeline, platform sync,
-                     signal processing, memory service
+                     memory service
 
 ┌─────────────────────────────────────────────────────────────┐
 │  CONTEXT  (platform_content) — ADR-072                       │
@@ -33,7 +33,6 @@ Yarnnn operates on four distinct layers. The terminology is intentional and shou
 │  Versioned · Semantically indexed · Provenance-tracked      │
 └─────────────────────────────────────────────────────────────┘
          Written by: platform sync (ephemeral content)
-                     signal processing (retained content)
          Marked retained by: deliverable execution, TP sessions
 
 ┌─────────────────────────────────────────────────────────────┐
@@ -70,7 +69,7 @@ platform_content
 │   └── Written by platform sync, expires after TTL
 │
 └── Retained content (retained=true, expires_at NULL)
-    └── Marked significant by deliverable execution, signal processing, or TP sessions
+    └── Marked significant by deliverable execution or TP sessions
 ```
 
 ### Two writers
@@ -80,11 +79,6 @@ platform_content
 - Writes with `retained=false`, `expires_at=NOW()+TTL`
 - Knows nothing about significance — just syncs
 
-**Signal Processing** (`signal_extraction.py`):
-- Reads live APIs for time-sensitive signals
-- Writes significant content with `retained=true`
-- Sets `retained_reason='signal_processing'`
-
 ### Retention marking
 
 When content is consumed by a downstream system, it's marked retained:
@@ -93,7 +87,6 @@ When content is consumed by a downstream system, it's marked retained:
 |---|---|---|
 | Deliverable execution | After synthesis | `retained=true`, `retained_reason='deliverable_execution'`, `retained_ref=version_id` |
 | TP session | After semantic search hit | `retained=true`, `retained_reason='tp_session'`, `retained_ref=session_id` |
-| Signal processing | When identified as significant | `retained=true`, `retained_reason='signal_processing'` |
 
 ### The accumulation moat
 

@@ -114,7 +114,6 @@ Use Render MCP tools (`update_environment_variables`) to check/set env vars acro
 When modifying any prompt or tool definition in these files:
 - `api/agents/thinking_partner.py` (TP system prompt)
 - `api/services/primitives/*.py` (tool definitions)
-- `api/services/extraction.py` (extraction prompts)
 
 You MUST:
 1. Update `api/prompts/CHANGELOG.md` with the change

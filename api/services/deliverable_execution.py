@@ -734,8 +734,8 @@ async def execute_deliverable_generation(
                     "status": "failed",
                     "delivery_error": str(e),
                 }).eq("id", version["id"]).execute()
-            except Exception:
-                pass
+            except Exception as e2:
+                logger.error(f"Failed to mark version {version['id']} as failed: {e2}")
 
         return {
             "success": False,

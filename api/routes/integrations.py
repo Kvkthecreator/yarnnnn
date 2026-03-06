@@ -2868,8 +2868,8 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
         ).eq("user_id", auth.user_id).eq("key", "timezone").maybe_single().execute()
         if tz_result.data:
             user_tz = tz_result.data.get("value", "UTC")
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to fetch user timezone: {e}")
 
     summary = get_usage_summary(auth.client, auth.user_id, user_tz)
 

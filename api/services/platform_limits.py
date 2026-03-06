@@ -5,19 +5,21 @@ ADR-053: Platform sync as monetization base layer.
 ADR-077: Widened source limits to support richer content accumulation.
 
 Tier Structure (updated 2026-02-25):
-- Free: 5 slack/5 gmail/10 notion, all 4 platforms, 1x/day sync, 50k tokens/day, 2 deliverables, no signal processing
-- Starter ($9/mo): 15 slack/10 gmail/25 notion, all platforms, 4x/day sync, 250k tokens/day, 5 deliverables, signal processing on
+- Free: 5 slack/5 gmail/10 notion, all 4 platforms, 1x/day sync, 50k tokens/day, 2 deliverables
+- Starter ($9/mo): 15 slack/10 gmail/25 notion, all platforms, 4x/day sync, 250k tokens/day, 5 deliverables
 - Pro ($19/mo): unlimited sources, all platforms, hourly sync, 1M tokens/day, unlimited deliverables
 
 Key gates (by cost impact):
 1. Active deliverables — each is a recurring Sonnet call
 2. Daily token budget — direct proxy for Anthropic API spend
-3. Signal processing — Haiku + potential Sonnet for emergent deliverables
-4. Source count — controls platform_content volume
-5. Sync frequency — controls API call frequency (lowest cost impact)
+3. Source count — controls platform_content volume
+4. Sync frequency — controls API call frequency (lowest cost impact)
 """
 
+import logging
 from typing import Optional, Literal
+
+logger = logging.getLogger(__name__)
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import pytz
@@ -259,8 +261,8 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             {"p_user_id": user_id}
         ).execute()
         daily_tokens = result.data if isinstance(result.data, int) else 0
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to fetch daily token usage: {e}")
 
     return {
         "tier": tier,

@@ -467,8 +467,8 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
                         "version_id": result.get("version_id"),
                     },
                 )
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"[DELIVERABLE] Activity log write failed for {title}: {e}")
         else:
             logger.warning(f"[DELIVERABLE] ✗ Failed: {title} - {result.get('error')}")
 
@@ -483,8 +483,8 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
             supabase_client.table("deliverables").update({
                 "next_run_at": next_run.isoformat(),
             }).eq("id", deliverable_id).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"[DELIVERABLE] Failed to update next_run_at for {title}: {e}")
 
         # Notify failure via delivery service's single notification path
         try:
@@ -497,8 +497,8 @@ async def process_deliverable(supabase_client, deliverable: dict) -> bool:
                 deliverable_title=title,
                 error=str(e),
             )
-        except Exception:
-            pass
+        except Exception as e2:
+            logger.warning(f"[DELIVERABLE] Failed to send failure notification for {title}: {e2}")
 
         return False
 
@@ -597,8 +597,8 @@ async def run_unified_scheduler():
                             summary=f"Cleaned {content_cleaned} expired content items",
                             metadata={"items_deleted": content_cleaned},
                         )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[PLATFORM_CONTENT] Activity log write failed for cleanup: {e}")
         except Exception as e:
             logger.warning(f"[PLATFORM_CONTENT] Cleanup failed (non-fatal): {e}")
 
@@ -736,8 +736,8 @@ async def run_unified_scheduler():
                                 "sessions_processed": memory_users,
                             },
                         )
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"[MEMORY] Activity log write failed for session summaries: {e}")
 
         except Exception as e:
             logger.warning(f"[MEMORY] Memory extraction phase skipped: {e}")

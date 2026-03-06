@@ -1185,8 +1185,8 @@ async def get_source_freshness(
                     from dateutil import parser as dateparser
                     completed_dt = dateparser.parse(completed_at)
                     is_stale = completed_dt < stale_threshold
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.debug(f"Failed to parse completed_at '{completed_at}': {e}")
 
             result.append(SourceFreshnessItem(
                 source_index=idx,

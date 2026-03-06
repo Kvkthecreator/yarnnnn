@@ -189,7 +189,7 @@ Unreferenced content expires after TTL.
 | version_of | UUID | FK → platform_content (version chain) |
 | fetched_at | TIMESTAMPTZ | When fetched from platform |
 | retained | BOOLEAN | When true, content never expires |
-| retained_reason | TEXT | `deliverable_execution`, `signal_processing`, `tp_session` |
+| retained_reason | TEXT | `deliverable_execution`, `tp_session` |
 | retained_ref | UUID | FK to the record that marked this retained |
 | retained_at | TIMESTAMPTZ | When marked retained |
 | expires_at | TIMESTAMPTZ | NULL if retained=true, otherwise TTL |
@@ -208,7 +208,6 @@ Unreferenced content expires after TTL.
 |---|---|---|---|
 | Content never referenced | `false` | `NOW() + TTL` | Expires after TTL |
 | Referenced by deliverable_version | `true` | `NULL` | Retained indefinitely |
-| Referenced by signal_processing | `true` | `NULL` | Retained indefinitely |
 | Accessed during TP session | `true` | `NULL` | Retained indefinitely |
 
 **TTL by platform** (ADR-077, extended from original values):

@@ -10,10 +10,14 @@ Provides operational visibility into background orchestration:
 Mounted at /api/system
 """
 
+import logging
+
 from fastapi import APIRouter
 from pydantic import BaseModel
 from typing import Optional
 from datetime import datetime, timezone, timedelta
+
+logger = logging.getLogger(__name__)
 
 from services.supabase import UserClient
 from services.platform_limits import (
@@ -240,8 +244,8 @@ async def get_system_status(auth: UserClient):
         ).eq("user_id", user_id).eq("key", "timezone").maybe_single().execute()
         if tz_result.data:
             user_tz_str = tz_result.data.get("value", "UTC") or "UTC"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.debug(f"Failed to fetch user timezone: {e}")
 
     # ─── Platform Connections ──────────────────────────────────────────────────
     platforms_result = auth.client.table("platform_connections").select(
