@@ -15,6 +15,7 @@
  */
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
   Loader2,
@@ -235,7 +236,11 @@ export default function DeliverablesPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold">Deliverables</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Recurring outputs your agent produces on schedule
+            Recurring outputs your agent produces on schedule.{' '}
+            <Link href="/dashboard?create" className="text-primary hover:underline">
+              Ask your agent
+            </Link>{' '}
+            to create one.
           </p>
         </div>
 
