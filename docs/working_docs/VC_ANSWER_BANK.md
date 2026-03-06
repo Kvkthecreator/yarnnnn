@@ -144,18 +144,4 @@ The $500K raise is purpose-built: a senior Tech Lead to accelerate the context e
 
 ---
 
-## VC Applications Tracker
-
-| # | Fund | Stage | Date Applied | Status | Notes |
-|---|------|-------|-------------|--------|-------|
-| 1 | PearX (S26) | Accelerator | 2026-03-04 | Submitted | YC-style accelerator application |
-| 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website |
-| 3 | Hustle Fund | Pre-seed | 2026-03-04 | Submitted | Typeform; ~2 week review cycle; deck upload skipped (optional) |
-| 4 | Outlander VC | Pre-seed | 2026-03-04 | Submitted | Typeform + video interview step (videoask.com/fxt7uhkqo) |
-| 5 | Precursor Ventures | Pre-seed | 2026-03-05 | Submitted | Web form; rolling applications, no warm intro needed |
-| 6 | Betaworks AI Camp | Pre-seed | — | Queued (Fall '26) | Spring '26 cohort in session; signed up for mailing list |
-| 7 | Forum Ventures | Pre-seed | 2026-03-05 | Submitted | Fillout form via forumvc.com/pitch-us; B2B AI focus, $100K accelerator or $250K venture studio |
-| 8 | 2048 Ventures | Pre-seed | 2026-03-05 | Submitted | Airtable form via 2048.vc/pitch-us; $500K-$3M checks, SMB Vertical AI, Pre-Seed Fast Track applied |
-
-**Raising**: $500K pre-seed at $5M post-money valuation
-**Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
+> **Application tracking has moved to**: `docs/working_docs/VC_APPLICATION_STATUS.md`
