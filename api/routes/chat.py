@@ -145,8 +145,8 @@ async def get_or_create_session(
                 .execute()
             if prev.data:
                 previous_session_id = prev.data[0]["id"]
-        except Exception:
-            pass
+        except Exception as e:
+            logger.debug(f"[SESSION] Failed to find previous session: {e}")
 
         # Create new session
         data = {
@@ -781,8 +781,8 @@ async def global_chat(
             "compaction_summary"
         ).eq("id", session_id).single().execute()
         existing_compaction = (session_row.data or {}).get("compaction_summary")
-    except Exception:
-        pass  # Non-fatal: proceed without compaction
+    except Exception as e:
+        logger.debug(f"[TP-COMPACT] Failed to load existing compaction: {e}")
 
     # ADR-067 Phase 3: check compaction threshold; generate or reuse summary
     from services.supabase import get_service_client
@@ -839,8 +839,8 @@ async def global_chat(
             .limit(1)\
             .execute()
         is_onboarding = len(deliverables_result.data or []) == 0
-    except Exception:
-        pass  # Default to non-onboarding if check fails
+    except Exception as e:
+        logger.debug(f"[TP] Onboarding check failed, defaulting to non-onboarding: {e}")
 
     # ADR-023: Load surface content if user is viewing something specific
     surface_content = None
@@ -1004,8 +1004,8 @@ async def global_chat(
                     event_ref=session_id,
                     metadata={"session_id": session_id, "tools_used": tools_used},
                 )
-            except Exception:
-                pass  # Non-fatal
+            except Exception as e:
+                logger.debug(f"[TP] Activity log write failed: {e}")
 
             # ADR-059: Background extraction removed.
 
