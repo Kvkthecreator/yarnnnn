@@ -73,6 +73,8 @@ DEFAULT_INSTRUCTIONS = {
     "custom": "Follow any specific instructions provided. If none, produce a well-structured summary of available context.",
 }
 
+# ADR-093: Purpose-first type prompts. Versions tracked in api/prompts/CHANGELOG.md
+# status: v4 (2026.03.06) — two-part format + cross-platform connections
 TYPE_PROMPTS = {
 
     "digest": """You are producing a digest titled "{title}".
