@@ -73,23 +73,21 @@ export function WorkspaceLayout({
   // Runs every render (JSX props are new references each time) — this is intentional.
   useEffect(() => {
     setHeader(
-      <div className="flex items-center justify-between w-full min-w-0">
-        <div className="flex items-center gap-3 min-w-0">
-          {breadcrumb && (
-            <>
-              {breadcrumb}
-              <span className="text-border text-sm select-none">·</span>
-            </>
-          )}
-          {/* Identity chip */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-muted-foreground shrink-0">{identity.icon}</span>
-            <span className="font-medium truncate">{identity.label}</span>
-            {identity.badge && <span className="shrink-0">{identity.badge}</span>}
-          </div>
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center w-full min-w-0">
+        {/* Left: breadcrumb */}
+        <div className="flex items-center gap-2 min-w-0">
+          {breadcrumb}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Center: identity chip — always centered */}
+        <div className="flex items-center gap-2 min-w-0 px-3">
+          <span className="text-muted-foreground shrink-0">{identity.icon}</span>
+          <span className="font-medium truncate">{identity.label}</span>
+          {identity.badge && <span className="shrink-0">{identity.badge}</span>}
+        </div>
+
+        {/* Right: controls */}
+        <div className="flex items-center gap-2 justify-end shrink-0">
           {headerControls}
           {hasDrawerTabs && (
             <button
