@@ -18,7 +18,7 @@
  */
 
 import { useState, useEffect, useCallback } from 'react';
-import { X, PanelRight } from 'lucide-react';
+import { X, PanelRight, ChevronDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useWorkspaceHeader } from '@/contexts/WorkspaceHeaderContext';
 
@@ -60,7 +60,7 @@ export function WorkspaceLayout({
   panelTabs = [],
   panelDefaultOpen = false,
 }: WorkspaceLayoutProps) {
-  const { setHeader } = useWorkspaceHeader();
+  const { setHeader, navOpen, toggleNav } = useWorkspaceHeader();
   const [drawerOpen, setDrawerOpen] = useState(panelDefaultOpen);
   const [activeTab, setActiveTab] = useState<string>(panelTabs[0]?.id ?? '');
 
@@ -79,12 +79,22 @@ export function WorkspaceLayout({
           {breadcrumb}
         </div>
 
-        {/* Center: identity chip — always centered */}
-        <div className="flex items-center gap-2 min-w-0 px-3">
+        {/* Center: identity chip — always centered, clickable for nav */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            toggleNav();
+          }}
+          className="flex items-center gap-2 min-w-0 px-3 hover:opacity-80 transition-opacity"
+        >
           <span className="text-muted-foreground shrink-0">{identity.icon}</span>
           <span className="font-medium truncate">{identity.label}</span>
           {identity.badge && <span className="shrink-0">{identity.badge}</span>}
-        </div>
+          <ChevronDown className={cn(
+            'w-3 h-3 text-muted-foreground transition-transform shrink-0',
+            navOpen && 'rotate-180'
+          )} />
+        </button>
 
         {/* Right: controls */}
         <div className="flex items-center gap-2 justify-end shrink-0">

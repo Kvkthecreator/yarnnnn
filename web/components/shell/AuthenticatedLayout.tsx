@@ -154,8 +154,7 @@ function AuthenticatedLayoutInner({
   const router = useRouter();
   const pathname = usePathname();
   const { surface, setSurface, setSurfaceWithHandoff } = useDesk();
-  const { header: workspaceHeader } = useWorkspaceHeader();
-  const [dropdownOpen, setDropdownOpen] = useState(false);
+  const { header: workspaceHeader, navOpen: dropdownOpen, toggleNav, closeNav } = useWorkspaceHeader();
 
   // Determine navigation context
   const isOnHome = isHomeRoute(pathname);
@@ -220,12 +219,11 @@ function AuthenticatedLayoutInner({
 
   // Close dropdown when clicking outside
   useEffect(() => {
-    const handleClickOutside = () => setDropdownOpen(false);
     if (dropdownOpen) {
-      document.addEventListener('click', handleClickOutside);
-      return () => document.removeEventListener('click', handleClickOutside);
+      document.addEventListener('click', closeNav);
+      return () => document.removeEventListener('click', closeNav);
     }
-  }, [dropdownOpen]);
+  }, [dropdownOpen, closeNav]);
 
   // ADR-037: Get current display info based on context
   const getCurrentDisplay = () => {
@@ -246,99 +244,101 @@ function AuthenticatedLayoutInner({
   const display = getCurrentDisplay();
   const CurrentIcon = display.icon;
 
+  // Nav dropdown menu (shared between workspace and non-workspace center slots)
+  const navDropdownMenu = dropdownOpen && (
+    <div className="absolute top-full left-1/2 -translate-x-1/2 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          navigateToHome();
+          closeNav();
+        }}
+        className={cn(
+          'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+          isOnHome && 'bg-primary/5 text-primary'
+        )}
+      >
+        <Sparkles className="w-4 h-4" />
+        {HOME_LABEL}
+      </button>
+      <button
+        onClick={(e) => {
+          e.stopPropagation();
+          router.push(DELIVERABLES_ROUTE.path);
+          closeNav();
+        }}
+        className={cn(
+          'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+          currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
+        )}
+      >
+        <Briefcase className="w-4 h-4" />
+        {DELIVERABLES_ROUTE.label}
+      </button>
+
+      <div className="border-t border-border my-1" />
+
+      {ROUTE_PAGES.map((route) => {
+        const Icon = route.icon;
+        const isActive = currentRoute?.id === route.id;
+        return (
+          <button
+            key={route.id}
+            onClick={(e) => {
+              e.stopPropagation();
+              router.push(route.path);
+              closeNav();
+            }}
+            className={cn(
+              'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
+              isActive && 'bg-primary/5 text-primary'
+            )}
+          >
+            <Icon className="w-4 h-4" />
+            {route.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+
   return (
     <TPProvider onSurfaceChange={handleSurfaceChange}>
       <div className="flex flex-col h-screen bg-background">
         {/* Top Bar - Single unified bar */}
         <header className="h-14 border-b border-border bg-background flex items-center justify-between px-4 shrink-0">
-          {/* Left: Logo with nav dropdown — always accessible */}
-          <div className="relative flex items-center shrink-0">
+          {/* Left: Logo — plain home link */}
+          <div className="flex items-center shrink-0">
             <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setDropdownOpen(!dropdownOpen);
-              }}
-              className="flex items-center gap-1 hover:opacity-80 transition-opacity"
+              onClick={navigateToHome}
+              className="hover:opacity-80 transition-opacity"
             >
               <span className="text-xl font-brand">yarnnn</span>
-              <ChevronDown className={cn(
-                'w-3 h-3 text-muted-foreground transition-transform mt-0.5',
-                dropdownOpen && 'rotate-180'
-              )} />
             </button>
-
-            {/* Nav dropdown */}
-            {dropdownOpen && (
-              <div className="absolute top-full left-0 mt-1 w-48 bg-background border border-border rounded-md shadow-lg py-1 z-50">
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navigateToHome();
-                    setDropdownOpen(false);
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    isOnHome && 'bg-primary/5 text-primary'
-                  )}
-                >
-                  <Sparkles className="w-4 h-4" />
-                  {HOME_LABEL}
-                </button>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    router.push(DELIVERABLES_ROUTE.path);
-                    setDropdownOpen(false);
-                  }}
-                  className={cn(
-                    'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                    currentRoute?.id === DELIVERABLES_ROUTE.id && 'bg-primary/5 text-primary'
-                  )}
-                >
-                  <Briefcase className="w-4 h-4" />
-                  {DELIVERABLES_ROUTE.label}
-                </button>
-
-                <div className="border-t border-border my-1" />
-
-                {ROUTE_PAGES.map((route) => {
-                  const Icon = route.icon;
-                  const isActive = currentRoute?.id === route.id;
-                  return (
-                    <button
-                      key={route.id}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        router.push(route.path);
-                        setDropdownOpen(false);
-                      }}
-                      className={cn(
-                        'w-full px-3 py-2 text-sm text-left hover:bg-muted transition-colors flex items-center gap-2',
-                        isActive && 'bg-primary/5 text-primary'
-                      )}
-                    >
-                      <Icon className="w-4 h-4" />
-                      {route.label}
-                    </button>
-                  );
-                })}
-              </div>
-            )}
           </div>
 
-          {/* Center: workspace header (injected by WorkspaceLayout) or current page label */}
-          {workspaceHeader ? (
-            <div className="flex-1 flex items-center justify-center min-w-0 mx-4">
-              {workspaceHeader}
-            </div>
-          ) : (
-            <div className="flex-1 flex items-center justify-center min-w-0 mx-4">
-              <div className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground font-medium">
+          {/* Center: workspace header or page label — with nav dropdown */}
+          <div className="relative flex-1 flex items-center justify-center min-w-0 mx-4">
+            {workspaceHeader ? (
+              workspaceHeader
+            ) : (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleNav();
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-muted-foreground font-medium hover:text-foreground transition-colors"
+              >
                 <CurrentIcon className="w-4 h-4" />
                 <span>{display.label}</span>
-              </div>
-            </div>
-          )}
+                <ChevronDown className={cn(
+                  'w-3 h-3 transition-transform',
+                  dropdownOpen && 'rotate-180'
+                )} />
+              </button>
+            )}
+            {navDropdownMenu}
+          </div>
 
           {/* Right: User menu only */}
           <div className="shrink-0">
