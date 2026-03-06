@@ -78,24 +78,20 @@ export function WorkspaceLayout({
 
   return (
     <div className="h-full flex flex-col">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0">
+      {/* Header — CSS grid: left (breadcrumb) | center (identity) | right (controls) */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-center px-4 py-3 border-b border-border shrink-0">
         <div className="flex items-center gap-3 min-w-0">
-          {breadcrumb && (
-            <>
-              {breadcrumb}
-              <span className="text-border text-sm select-none">·</span>
-            </>
-          )}
-          {/* Identity chip */}
-          <div className="flex items-center gap-2 min-w-0">
-            <span className="text-muted-foreground shrink-0">{identity.icon}</span>
-            <span className="font-medium truncate">{identity.label}</span>
-            {identity.badge && <span className="shrink-0">{identity.badge}</span>}
-          </div>
+          {breadcrumb}
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        {/* Center: identity chip */}
+        <div className="flex items-center gap-2 min-w-0">
+          <span className="text-muted-foreground shrink-0">{identity.icon}</span>
+          <span className="font-medium truncate">{identity.label}</span>
+          {identity.badge && <span className="shrink-0">{identity.badge}</span>}
+        </div>
+
+        <div className="flex items-center gap-2 shrink-0 justify-end">
           {headerControls}
           {hasDrawerTabs && (
             <button

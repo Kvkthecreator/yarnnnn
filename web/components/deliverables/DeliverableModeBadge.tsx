@@ -14,7 +14,7 @@ import type { DeliverableMode } from '@/types';
 
 interface DeliverableModeBadgeProps {
   mode?: DeliverableMode;
-  variant?: 'pill' | 'icon';
+  variant?: 'pill' | 'icon' | 'inline';
 }
 
 const MODE_CONFIG: Record<string, {
@@ -25,7 +25,7 @@ const MODE_CONFIG: Record<string, {
 }> = {
   recurring: {
     icon: Repeat,
-    label: 'Rec',
+    label: 'Recurring',
     colors: 'bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400',
     iconColor: 'text-gray-500 dark:text-gray-400',
   },
@@ -61,6 +61,15 @@ export function DeliverableModeBadge({ mode, variant = 'pill' }: DeliverableMode
 
   if (variant === 'icon') {
     return <Icon className={`w-4 h-4 ${config.iconColor}`} />;
+  }
+
+  if (variant === 'inline') {
+    return (
+      <span className="inline-flex items-center gap-1 text-muted-foreground">
+        <Icon className="w-3 h-3" />
+        {config.label}
+      </span>
+    );
   }
 
   return (

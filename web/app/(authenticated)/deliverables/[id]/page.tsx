@@ -26,7 +26,6 @@ import {
   Pause,
   ChevronLeft,
   FileText,
-  Sparkles,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -224,22 +223,24 @@ export default function DeliverableWorkspacePage() {
   // Header pieces
   // ==========================================================================
 
-  const modeBadge = <DeliverableModeBadge mode={deliverable.mode} />;
-
-  const headerControls = (
-    <button
-      onClick={handleTogglePause}
-      className={cn(
-        'inline-flex items-center gap-1 px-2 py-1 text-xs border rounded-md transition-colors',
-        deliverable.status === 'paused'
-          ? 'text-amber-600 border-amber-300 bg-amber-50 dark:bg-amber-900/20 hover:bg-amber-100 dark:hover:bg-amber-900/30'
-          : 'text-green-600 border-green-300 bg-green-50 dark:bg-green-900/20 hover:bg-green-100 dark:hover:bg-green-900/30'
-      )}
-      title={deliverable.status === 'paused' ? 'Resume' : 'Pause'}
-    >
-      {deliverable.status === 'paused' ? <Play className="w-3 h-3" /> : <Pause className="w-3 h-3" />}
-      {deliverable.status === 'paused' ? 'Paused' : 'Active'}
-    </button>
+  const inlineMeta = (
+    <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <DeliverableModeBadge mode={deliverable.mode} variant="inline" />
+      <span className="select-none">·</span>
+      <button
+        onClick={handleTogglePause}
+        className={cn(
+          'inline-flex items-center gap-1 hover:underline transition-colors',
+          deliverable.status === 'paused'
+            ? 'text-amber-600 dark:text-amber-400'
+            : 'text-green-600 dark:text-green-400'
+        )}
+        title={deliverable.status === 'paused' ? 'Resume' : 'Pause'}
+      >
+        {deliverable.status === 'paused' ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+        {deliverable.status === 'paused' ? 'Paused' : 'Active'}
+      </button>
+    </span>
   );
 
   const breadcrumb = (
@@ -257,20 +258,9 @@ export default function DeliverableWorkspacePage() {
         identity={{
           icon: <DeliverableModeBadge mode={deliverable.mode} variant="icon" />,
           label: deliverable.title,
-          badge: (
-            <div className="flex items-center gap-1.5">
-              {modeBadge}
-              {deliverable.origin === 'coordinator_created' && (
-                <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
-                  <Sparkles className="w-2.5 h-2.5" />
-                  Coordinator
-                </span>
-              )}
-            </div>
-          ),
+          badge: inlineMeta,
         }}
         breadcrumb={breadcrumb}
-        headerControls={headerControls}
         panelTabs={panelTabs}
         panelDefaultOpen={false}
       >
