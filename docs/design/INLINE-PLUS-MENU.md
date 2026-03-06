@@ -1,6 +1,6 @@
 # Inline Plus Menu — Contextual Actions in Chat Input
 
-## Status: Design
+## Status: Implemented
 
 ## Problem
 

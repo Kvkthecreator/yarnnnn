@@ -12,14 +12,17 @@ import {
   Loader2,
   MessageSquare,
   Send,
-  Paperclip,
+  ImagePlus,
   Upload,
   X,
+  Play,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useTP } from '@/contexts/TPContext';
 import { useFileAttachments } from '@/hooks/useFileAttachments';
 import { SkillPicker } from '@/components/tp/SkillPicker';
+import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { InlineVersionCard } from './DeliverableVersionDisplay';
@@ -126,6 +129,34 @@ export function DeliverableChatArea({
       handleSubmit(e as unknown as React.FormEvent);
     }
   };
+
+  // Plus menu actions (replaces paperclip button)
+  const plusMenuActions: PlusMenuAction[] = [
+    {
+      id: 'attach-image',
+      label: 'Attach image',
+      icon: ImagePlus,
+      onSelect: () => fileInputRef.current?.click(),
+    },
+    {
+      id: 'generate-version',
+      label: 'Generate new version',
+      icon: Play,
+      onSelect: () => {
+        setInput('Generate a new version');
+        textareaRef.current?.focus();
+      },
+    },
+    {
+      id: 'update-instructions',
+      label: 'Update instructions',
+      icon: Pencil,
+      onSelect: () => {
+        setInput('I want to update the instructions');
+        textareaRef.current?.focus();
+      },
+    },
+  ];
 
   return (
     <div className="relative flex flex-col flex-1 min-h-0" {...dropZoneProps}>
@@ -303,15 +334,7 @@ export function DeliverableChatArea({
                 onChange={handleFileSelect}
                 className="hidden"
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isLoading}
-                className="shrink-0 p-3 text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-                title="Attach images"
-              >
-                <Paperclip className="w-5 h-5" />
-              </button>
+              <PlusMenu actions={plusMenuActions} disabled={isLoading} />
               <textarea
                 ref={textareaRef}
                 value={input}

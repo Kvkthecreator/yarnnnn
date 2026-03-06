@@ -22,13 +22,14 @@ import {
   Loader2,
   Send,
   X,
-  Paperclip,
+  ImagePlus,
   Play,
   Pause,
   Plus,
   FileText,
   ArrowRight,
   Upload,
+  Search,
 } from 'lucide-react';
 import { useTP } from '@/contexts/TPContext';
 import { useDesk } from '@/contexts/DeskContext';
@@ -36,6 +37,7 @@ import { useFileAttachments } from '@/hooks/useFileAttachments';
 import { Todo } from '@/types/desk';
 import { cn } from '@/lib/utils';
 import { SkillPicker } from '@/components/tp/SkillPicker';
+import { PlusMenu, type PlusMenuAction } from '@/components/tp/PlusMenu';
 import { ToolResultList } from '@/components/tp/ToolResultCard';
 import { MessageBlocks } from '@/components/tp/InlineToolCall';
 import { PlatformSyncStatus } from './PlatformSyncStatus';
@@ -300,6 +302,34 @@ export function ChatFirstDesk() {
     }
   };
 
+  // Plus menu actions (replaces paperclip button)
+  const plusMenuActions: PlusMenuAction[] = [
+    {
+      id: 'attach-image',
+      label: 'Attach image',
+      icon: ImagePlus,
+      onSelect: () => fileInputRef.current?.click(),
+    },
+    {
+      id: 'create-deliverable',
+      label: 'Create deliverable',
+      icon: Sparkles,
+      onSelect: () => {
+        setInput('I want to create a new deliverable');
+        textareaRef.current?.focus();
+      },
+    },
+    {
+      id: 'search-platforms',
+      label: 'Search my platforms',
+      icon: Search,
+      onSelect: () => {
+        setInput('Search across my connected platforms for ');
+        textareaRef.current?.focus();
+      },
+    },
+  ];
+
   const handleOptionClick = (option: string) => {
     respondToClarification(option);
   };
@@ -530,15 +560,7 @@ export function ChatFirstDesk() {
                   onChange={handleFileSelect}
                   className="hidden"
                 />
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  disabled={isLoading}
-                  className="shrink-0 p-3 text-muted-foreground hover:text-foreground disabled:opacity-50 transition-colors"
-                  title="Attach images"
-                >
-                  <Paperclip className="w-5 h-5" />
-                </button>
+                <PlusMenu actions={plusMenuActions} disabled={isLoading} />
 
                 <textarea
                   ref={textareaRef}
