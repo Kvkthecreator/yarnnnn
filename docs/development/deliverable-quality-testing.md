@@ -218,25 +218,83 @@ The differentiator: topic selection is autonomous, driven by internal signals. N
 - **Sources**: All connected platforms
 - **Schedule**: `proactive_next_review_at` set to trigger review pass
 
-### Issues discovered
+### Issues discovered (and fixed)
 
-*(To be filled during testing)*
+**Issue 1: Haiku exhausted tool rounds without producing JSON decision**
+- Symptom: Review returned "Could not parse review response: Let me try broader searches..."
+- Root cause: `REVIEW_MAX_TOOL_ROUNDS = 3` — Haiku used all 3 rounds for Search calls and the loop exited before the model could produce its JSON decision. The `while rounds < 3` condition exits after round 3 tool execution, never giving the model a final text-only turn.
+- Fix: Bumped to `REVIEW_MAX_TOOL_ROUNDS = 5`. Added forced final turn with `tools=[]` when all rounds exhausted — forces text-only JSON response.
+- Impact: Without this, every review cycle defaults to `observe` with an unparsed note instead of a real decision.
+
+**Issue 2: Search queries too broad — matched nothing**
+- Symptom: Haiku searched for `"competitor technology market trends industry news"` as a single ilike query — returns 0 results.
+- Root cause: Prompt said "look for HOT threads, DECISIONS, new contacts" but didn't specify query format. Haiku concatenated multiple topics into one long search string.
+- Fix: Added explicit search guidance with examples: `Search("decision")`, `Search("blocked")`, `Search("investor")` — short, single-topic queries.
+- Impact: After fix, Haiku issued 8+ targeted queries: "decision", "blocked", "competitor", "market", "launch", "investor", "agentic AI", "product roadmap next" — all returning useful results.
+
+**Issue 3: Text fallback for action extraction**
+- Symptom: When JSON not found, fallback always returned "observe" regardless of text content.
+- Fix: Added keyword extraction — if text contains "generate"/"sleep", extract that action. Graceful degradation instead of silent loss.
 
 ### Review pass behavior
 
-*(To be filled during testing — did Haiku scan platforms? Did it use WebSearch? What decision did it make?)*
+**Test 1 (pre-fix, v2 prompt, 3 tool rounds):**
+- Haiku called Search 3 times with broad multi-keyword queries → all returned 0 results
+- Loop exited at round 3 with no JSON in response
+- Fallback: `observe` with parse error note
+- Duration: ~4 seconds
+
+**Test 2 (post-fix, v2 prompt, 5 tool rounds):**
+- Round 1: List tool — checked activity_log, platform_connections, sync_registry for Slack/Notion/Gmail (landscape overview)
+- Round 2: 7 parallel Search calls — "decision", "blocked", "competitor", "market", "launch", "investor", "technology evaluation" — several returned real results
+- Round 3: 4 targeted Search calls — "agentic AI", "architecture platform evolution", "KPI metrics signals", "product roadmap next" — plus List for existing deliverables
+- Round 4: Final analysis turn (no tools) → produced clean JSON
+- Decision: `observe` with substantive 3-theme note
+- Duration: ~25 seconds
+- 4 Anthropic API calls (Haiku), ~15 Supabase queries
+
+**Review note (verbatim):**
+> "Three sustained themes: (1) Episode Zero post-launch GTM & KPI optimization with viral strategy in play, (2) YARNNN platform architecture consolidation to production-grade Context OS v2.0 with ongoing ADR refinements, (3) Industry shift toward agentic AI with enterprise demand for continuous market monitoring. Content freshness is 1-5 days old. Insufficient convergence yet to trigger generation — themes are present but not at inflection point. Monitor for: Episode Zero metrics inflection, agentic AI mentions in your architecture discussions, competitive response to market research findings."
+
+**Assessment:**
+- All 3 themes are real — grounded in actual platform data (Slack discussions, Notion docs, email patterns)
+- Decision logic sound — "themes present but not at inflection point" is a reasonable `observe`
+- Forward-looking tracking — "Monitor for: Episode Zero metrics inflection" shows progressive intelligence
+- `deliverable_memory.review_log` accumulates correctly across cycles (2 entries after 2 runs)
 
 ### Prompt evolution
 
 | Version | Change | Result |
 |---------|--------|--------|
 | v1 | Generic research report template with focus_area/subjects/purpose | Commoditized — same as ChatGPT, no internal grounding |
-| v2 | Proactive Insights: signal-driven, BAD/GOOD examples, platform grounding + WebSearch, "What I'm Watching" section | *(To be assessed after testing)* |
+| v2 | Proactive Insights: signal-driven, BAD/GOOD examples, platform grounding + WebSearch, "What I'm Watching" section | Review pass works: Haiku identifies 3 real themes from platform data, makes smart observe/generate decision, accumulates forward-looking tracking notes. Generation output TBD (requires generate decision). |
+| v2.1 | Review hardening: tool rounds 3→5, forced final turn, search query guidance, text fallback | Clean JSON decisions, targeted single-topic Search queries, graceful degradation |
 
 ### Output assessment
 
-*(To be filled after testing)*
+**Review pass (tested):**
+- Haiku successfully scans platform_content with targeted queries
+- Identifies real themes from actual user data (not hallucinated)
+- Makes reasonable observe/generate decisions based on signal strength
+- Accumulates observations in deliverable_memory.review_log
+- Forward-looking "Monitor for:" notes demonstrate progressive intelligence
+
+**Generation output (not yet tested):**
+- Requires a `generate` decision from the review pass, which happens when themes reach inflection point
+- With current thin data (solo developer, limited platform activity), `observe` is the correct decision
+- To fully test generation, could manually trigger with `proactive_next_review_at = NOW()` after adding more platform content, or force-trigger via `dispatch_trigger()` directly
 
 ### Outcome
 
-*(To be filled after testing)*
+Proactive Insights review pipeline validated at v2.1. The two-phase execution model works:
+- **Haiku review** (cheap): scans platforms with targeted queries, makes smart observe/generate decisions, accumulates observations
+- **Sonnet generation** (expensive): only triggered when themes reach inflection — not yet triggered (correct behavior with current data volume)
+
+Key architectural validations:
+1. `proactive_next_review_at` scheduling works correctly
+2. `deliverable_memory.review_log` accumulates across cycles
+3. Search primitive responds well to short, specific queries
+4. Forced final turn ensures JSON decision even when all tool rounds used
+5. Trigger context forwarding path ready (review decision → dispatch_trigger → headless agent)
+
+The `observe` decision with forward-looking notes is exactly the progressive intelligence behavior the reframe was designed for. The pipeline is ready for production — it will naturally transition to `generate` as platform activity increases and themes converge.
