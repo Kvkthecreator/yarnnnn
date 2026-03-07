@@ -279,22 +279,56 @@ The differentiator: topic selection is autonomous, driven by internal signals. N
 - Accumulates observations in deliverable_memory.review_log
 - Forward-looking "Monitor for:" notes demonstrate progressive intelligence
 
-**Generation output (not yet tested):**
-- Requires a `generate` decision from the review pass, which happens when themes reach inflection point
-- With current thin data (solo developer, limited platform activity), `observe` is the correct decision
-- To fully test generation, could manually trigger with `proactive_next_review_at = NOW()` after adding more platform content, or force-trigger via `dispatch_trigger()` directly
+**Generation output (tested via admin trigger, 2026-03-07):**
+
+Triggered full Sonnet generation via `POST /api/admin/trigger-deliverable/{id}`. Version 1 generated and delivered to kvkthecreator@gmail.com.
+
+**Output: 3,945 chars, 3 signals + "What I'm Watching" section.**
+
+| Aspect | Assessment |
+|--------|-----------|
+| Format compliance | Exact match: "This Week's Signals" header, per-signal Internal/External/Why structure, "What I'm Watching" footer |
+| Internal grounding | Every signal cites specific Slack messages (dates, quotes), Notion docs, email data |
+| External research | WebSearch used — MVerse, Constellation Research, CIO Magazine, FinancialContent, Zendesk (all with URLs) |
+| Dot-connecting | "Your code cleanup timing aligns with industry-wide infrastructure optimization" — connects internal activity to external trend |
+| Honest gaps | "What I'm Watching" section acknowledges items not yet strong enough to report |
+| BAD pattern avoided | No generic news summaries — every insight grounded in specific internal evidence |
+
+**Three signals produced:**
+1. **Infrastructure cost pressures** — Render build minutes + Slack dead code cleanup → enterprise infra optimization trend
+2. **Context OS architecture + agentic era** — Notion V2.0 + Slack deliverables focus → "Agentic Era" inflection from financial sources
+3. **IR deck + funding activity** — Slack IR deck mentions + VC follow-up → AI Infrastructure Supercycle narrative
+
+**"What I'm Watching" section:**
+- Anthropic API costs ($110 receipt — real number from Gmail)
+- AI mini-series engagement as market validation
+
+**Email delivery confirmed:** Status `delivered`, destination `kvkthecreator@gmail.com`, delivered at 2026-03-07T10:34:13Z.
+
+### Issues discovered during end-to-end test
+
+**Issue 4: Timing bug — apply_review_decision after dispatch_trigger**
+- Symptom: If generation takes 2+ minutes and scheduler runs every 5 minutes, `proactive_next_review_at` hasn't been updated yet — same deliverable could be picked up and reviewed/generated twice.
+- Root cause: `apply_review_decision()` was called AFTER `dispatch_trigger()` in `process_proactive_deliverable()`.
+- Fix: Moved `apply_review_decision()` BEFORE `dispatch_trigger()` so `proactive_next_review_at` is set before generation begins.
 
 ### Outcome
 
-Proactive Insights review pipeline validated at v2.1. The two-phase execution model works:
-- **Haiku review** (cheap): scans platforms with targeted queries, makes smart observe/generate decisions, accumulates observations
-- **Sonnet generation** (expensive): only triggered when themes reach inflection — not yet triggered (correct behavior with current data volume)
+Proactive Insights fully validated at v2.1. Both phases of the two-phase execution model tested end-to-end:
+
+- **Phase 1 — Haiku review** (~$0.002/cycle, 25 seconds): Scans platforms with targeted queries, identifies real themes, makes smart observe/generate decisions, accumulates forward-looking tracking notes in `deliverable_memory.review_log`
+- **Decision gate**: generate/observe/sleep routing works correctly. Observations accumulate across cycles.
+- **Phase 2 — Sonnet generation** (~$0.05/generation, 6 tool rounds): Full generation with WebSearch. Internal signals + external context woven into intelligence brief. "What I'm Watching" shows progressive learning.
+- **Email delivery**: Version delivered to user's email successfully.
 
 Key architectural validations:
 1. `proactive_next_review_at` scheduling works correctly
-2. `deliverable_memory.review_log` accumulates across cycles
+2. `deliverable_memory.review_log` accumulates across cycles (2 reviews + 1 generation tested)
 3. Search primitive responds well to short, specific queries
 4. Forced final turn ensures JSON decision even when all tool rounds used
-5. Trigger context forwarding path ready (review decision → dispatch_trigger → headless agent)
+5. Trigger context forwarding: review decision → dispatch_trigger → headless agent (verified in code, ready for natural generate trigger)
+6. HybridStrategy correctly gathers platform context + injects research_directive
+7. Email-first delivery works end-to-end
+8. Timing fix: apply_review_decision before dispatch prevents double-trigger
 
-The `observe` decision with forward-looking notes is exactly the progressive intelligence behavior the reframe was designed for. The pipeline is ready for production — it will naturally transition to `generate` as platform activity increases and themes converge.
+The output quality matches the BAD/GOOD examples in the prompt — every signal cites specific internal evidence AND external research with URLs. This is intelligence no external tool (ChatGPT, Perplexity) can produce because topic selection is driven by the user's own platform signals.
