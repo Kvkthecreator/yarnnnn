@@ -8,8 +8,9 @@ interface LandingFooterProps {
 }
 
 export default function LandingFooter({ inverted }: LandingFooterProps) {
-  const mutedClass = inverted ? "text-background/50" : "text-muted-foreground";
-  const hoverClass = inverted ? "hover:text-background" : "hover:text-foreground";
+  const mutedClass = inverted ? "text-white/50" : "text-muted-foreground";
+  const hoverClass = inverted ? "hover:text-white" : "hover:text-foreground";
+  const headingClass = inverted ? "text-white/40" : "opacity-40";
 
   // Load Tally embed script
   useEffect(() => {
@@ -26,7 +27,7 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
   return (
     <footer
       className={`border-t py-12 px-6 ${
-        inverted ? "border-background/10" : "border-border"
+        inverted ? "border-white/10" : "border-border"
       }`}
     >
       <div className="max-w-6xl mx-auto">
@@ -34,7 +35,7 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 md:gap-8 mb-10">
           {/* Product */}
           <div>
-            <div className="text-xs uppercase tracking-widest mb-4 opacity-40">
+            <div className={`text-xs uppercase tracking-widest mb-4 ${headingClass}`}>
               Product
             </div>
             <ul className={`space-y-2.5 text-sm ${mutedClass}`}>
@@ -58,7 +59,7 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
 
           {/* Resources */}
           <div>
-            <div className="text-xs uppercase tracking-widest mb-4 opacity-40">
+            <div className={`text-xs uppercase tracking-widest mb-4 ${headingClass}`}>
               Resources
             </div>
             <ul className={`space-y-2.5 text-sm ${mutedClass}`}>
@@ -93,7 +94,7 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
 
           {/* Company */}
           <div>
-            <div className="text-xs uppercase tracking-widest mb-4 opacity-40">
+            <div className={`text-xs uppercase tracking-widest mb-4 ${headingClass}`}>
               Company
             </div>
             <ul className={`space-y-2.5 text-sm ${mutedClass}`}>
@@ -120,7 +121,7 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
 
           {/* Legal */}
           <div>
-            <div className="text-xs uppercase tracking-widest mb-4 opacity-40">
+            <div className={`text-xs uppercase tracking-widest mb-4 ${headingClass}`}>
               Legal
             </div>
             <ul className={`space-y-2.5 text-sm ${mutedClass}`}>
@@ -141,10 +142,10 @@ export default function LandingFooter({ inverted }: LandingFooterProps) {
         {/* Bottom bar */}
         <div
           className={`border-t pt-6 flex flex-col md:flex-row items-center justify-between gap-4 ${
-            inverted ? "border-background/10" : "border-border"
+            inverted ? "border-white/10" : "border-border"
           }`}
         >
-          <Link href="/" className="font-brand text-lg hover:opacity-80 transition-opacity">
+          <Link href="/" className={`font-brand text-lg hover:opacity-80 transition-opacity ${inverted ? "text-white" : ""}`}>
             yarnnn
           </Link>
           <div className={`text-xs ${mutedClass}`}>

@@ -27,7 +27,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
   return (
     <header
       className={`relative w-full py-4 px-6 flex justify-between items-center border-b ${
-        inverted ? "border-background/10" : "border-border"
+        inverted ? "border-white/10" : "border-border"
       }`}
     >
       <Link href="/" className="flex items-center gap-2">
@@ -56,7 +56,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
           href="/auth/login"
           className={`px-4 py-2 rounded-full transition-colors ${
             inverted
-              ? "bg-background text-foreground hover:bg-background/90"
+              ? "bg-white text-black hover:bg-white/90"
               : "bg-primary text-primary-foreground hover:bg-primary/90"
           }`}
         >
@@ -78,7 +78,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
         <div
           className={`absolute top-full left-0 right-0 z-50 border-b ${
             inverted
-              ? "bg-[#0f1419] border-background/10"
+              ? "bg-[#0f1419] border-white/10"
               : "bg-[#faf8f5] border-border"
           }`}
         >
@@ -97,7 +97,7 @@ export default function LandingHeader({ inverted }: LandingHeaderProps) {
               href="/auth/login"
               className={`mt-2 px-4 py-3 rounded-full text-center transition-colors ${
                 inverted
-                  ? "bg-background text-foreground hover:bg-background/90"
+                  ? "bg-white text-black hover:bg-white/90"
                   : "bg-primary text-primary-foreground hover:bg-primary/90"
               }`}
               onClick={() => setMobileMenuOpen(false)}
