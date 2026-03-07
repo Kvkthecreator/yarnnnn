@@ -285,6 +285,10 @@ async def process_proactive_deliverable(supabase_client, deliverable: dict) -> b
         action = decision.get("action", "observe")
 
         if action == "generate":
+            # Update memory + proactive_next_review_at BEFORE generation
+            # so scheduler doesn't re-pick this deliverable while generation runs
+            apply_review_decision(supabase_client, deliverable, decision)
+
             # Full generation path — reuse existing dispatch
             from services.trigger_dispatch import dispatch_trigger
             result = await dispatch_trigger(
@@ -294,8 +298,6 @@ async def process_proactive_deliverable(supabase_client, deliverable: dict) -> b
                 trigger_context={"type": "proactive_review", "review_decision": decision},
                 signal_strength="high",
             )
-            # apply_review_decision updates memory + proactive_next_review_at
-            apply_review_decision(supabase_client, deliverable, decision)
 
             try:
                 await write_activity(
