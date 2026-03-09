@@ -193,8 +193,11 @@ async def get_subscription_status(auth: UserClient):
         return SubscriptionStatus(status="free")
 
     ws = result.data
+    # ADR-100: Normalize legacy "starter" → "pro"
+    raw_status = ws.get("subscription_status") or "free"
+    status = "pro" if raw_status == "starter" else raw_status
     return SubscriptionStatus(
-        status=ws.get("subscription_status") or "free",
+        status=status,
         expires_at=ws.get("subscription_expires_at"),
         customer_id=ws.get("lemonsqueezy_customer_id"),
         subscription_id=ws.get("lemonsqueezy_subscription_id"),
