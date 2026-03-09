@@ -243,13 +243,10 @@ export default function LandingPage() {
               Put autonomous work on your calendar.
             </h2>
             <p className="text-[#1a1a1a]/50 mb-4">
-              Free: 2 active deliverables
-            </p>
-            <p className="text-[#1a1a1a]/50 mb-4">
-              Starter: 5 active deliverables and 4x/day sync
+              Free: 50 messages/month, 2 deliverables, daily sync
             </p>
             <p className="text-[#1a1a1a]/50 mb-10">
-              Pro: unlimited deliverables and hourly sync — $19/mo
+              Pro: unlimited messages, 10 deliverables, hourly sync — $19/mo
             </p>
             <Link
               href="/auth/login"

@@ -97,22 +97,22 @@ const faqSections: FaqSection[] = [
       {
         question: "What plans are available?",
         answer:
-          "yarnnn has Free, Starter, and Pro plans. All plans include Slack, Gmail, Notion, and Calendar integration support.",
+          "yarnnn has Free and Pro plans. Both include Slack, Gmail, Notion, and Calendar integration. Pro adds unlimited messages, more deliverables, faster sync, and unlimited sources.",
       },
       {
         question: "What are current deliverable limits?",
         answer:
-          "Free supports 2 active deliverables, Starter supports 5, and Pro is unlimited.",
+          "Free supports 2 active deliverables. Pro supports 10.",
       },
       {
-        question: "How does sync frequency scale by tier?",
+        question: "How does sync frequency differ by plan?",
         answer:
-          "Free: 1x daily. Starter: 4x daily. Pro: hourly.",
+          "Free: 1x daily. Pro: hourly.",
       },
       {
-        question: "How does source capacity scale by tier?",
+        question: "How does source capacity differ by plan?",
         answer:
-          "Limits scale by provider. For example: Slack sources are 5 (Free), 15 (Starter), unlimited (Pro). Similar scaling applies to Gmail and Notion.",
+          "Free: 5 Slack channels, 5 Gmail labels, 10 Notion pages. Pro: unlimited across all platforms.",
       },
     ],
   },
