@@ -1,5 +1,9 @@
 "use client";
 
+/**
+ * ADR-100: Upgrade prompt component — always targets Pro tier.
+ */
+
 import { useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { Button } from "@/components/ui/button";
@@ -8,7 +12,7 @@ import { SUBSCRIPTION_LIMITS, formatLimit } from "@/lib/subscription/limits";
 
 interface UpgradePromptProps {
   /** What triggered the prompt */
-  feature: "memories" | "sessions" | "agents" | "documents";
+  feature: "messages" | "agents" | "documents";
   /** Current usage count */
   currentUsage?: number;
   /** Whether to show as modal or inline banner */
@@ -22,25 +26,17 @@ interface UpgradePromptProps {
 }
 
 const FEATURE_COPY = {
-  memories: {
-    title: "Store more memories",
-    description: "You've reached the memory limit for this project. Upgrade to Pro for unlimited memories.",
-    icon: "brain",
-  },
-  sessions: {
-    title: "More chat sessions",
-    description: "You've used all your chat sessions this month. Upgrade to Pro for unlimited conversations.",
-    icon: "message",
+  messages: {
+    title: "Need more messages?",
+    description: "You've used all your free messages this month. Upgrade to Pro for unlimited conversations.",
   },
   agents: {
-    title: "Unlock scheduled agents",
-    description: "Scheduled agents are a Pro feature. Automate recurring work like reports and research.",
-    icon: "calendar",
+    title: "Unlock more deliverables",
+    description: "You've reached the deliverable limit. Upgrade to Pro for up to 10 active deliverables.",
   },
   documents: {
     title: "Upload more documents",
     description: "You've reached the document limit. Upgrade to Pro for unlimited document uploads.",
-    icon: "file",
   },
 };
 
@@ -57,24 +53,22 @@ export function UpgradePrompt({
 
   const copy = FEATURE_COPY[feature];
   const limit = SUBSCRIPTION_LIMITS.free[
-    feature === "sessions" ? "dailyTokenBudget" :
+    feature === "messages" ? "monthlyMessages" :
     feature === "agents" ? "activeDeliverables" :
-    feature === "memories" ? "documents" : // memories no longer have a dedicated limit
     feature
   ];
 
   const handleUpgrade = async () => {
     setUpgrading(true);
-    // ADR-053: Default to Starter tier for upgrade prompts
-    await upgrade("starter", "monthly");
+    await upgrade("monthly");
   };
 
   const proFeatures = [
+    "Unlimited messages",
+    "10 active deliverables",
     "Unlimited sources",
     "Hourly sync",
-    "Unlimited tokens",
-    "Unlimited deliverables",
-    "Signal processing",
+    "Priority support",
   ];
 
   if (variant === "banner") {

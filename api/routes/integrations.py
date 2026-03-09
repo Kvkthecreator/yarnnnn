@@ -2847,13 +2847,13 @@ async def get_user_limits(auth: UserClient) -> UserLimitsResponse:
     """
     Get user's tier limits and current usage.
 
-    ADR-053: Returns platform resource limits based on user tier,
+    ADR-100: Returns platform resource limits based on user tier,
     current usage counts, and next scheduled sync time.
 
     Response includes:
-    - tier: "free" | "starter" | "pro"
+    - tier: "free" | "pro"
     - limits: slack_channels, gmail_labels, notion_pages, calendars,
-              total_platforms, sync_frequency, daily_token_budget,
+              total_platforms, sync_frequency, monthly_messages,
               active_deliverables
     - usage: Current usage counts for each resource
     - next_sync: ISO timestamp of next scheduled platform sync

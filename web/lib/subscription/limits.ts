@@ -1,29 +1,23 @@
 /**
  * Subscription tier limits and feature flags
  *
- * ADR-053: Primary monetization gates are daily token budget + active deliverables.
+ * ADR-100: Simplified 2-tier monetization (Free + Pro).
  * Platform resource limits (Slack channels, Gmail labels, etc.) are defined in
  * api/services/platform_limits.py and fetched via API.
  *
- * Tier structure (ADR-053, widened ADR-077):
- * - Free: 5 sources/platform, 1x/day sync, 50k tokens/day, 2 deliverables
- * - Starter ($9/mo): 15 sources, 4x/day, 250k tokens, 5 deliverables
- * - Pro ($19/mo): unlimited everything
+ * Tier structure (ADR-100, 2026-03-09):
+ * - Free: 5/5/10 sources, 1x/day sync, 50 messages/month, 2 deliverables
+ * - Pro ($19/mo, Early Bird $9/mo): unlimited sources, hourly sync, unlimited messages, 10 deliverables
  */
 
 export const SUBSCRIPTION_LIMITS = {
   free: {
-    dailyTokenBudget: 50_000,    // ADR-053: Daily token budget
-    activeDeliverables: 2,       // ADR-053: Active deliverable limit
+    monthlyMessages: 50,          // ADR-100: Monthly message limit
+    activeDeliverables: 2,        // ADR-100: Active deliverable limit
     documents: 10,
   },
-  starter: {
-    dailyTokenBudget: 250_000,
-    activeDeliverables: 5,
-    documents: 50,
-  },
   pro: {
-    dailyTokenBudget: Infinity,  // Unlimited
+    monthlyMessages: Infinity,    // Unlimited
     activeDeliverables: Infinity,
     documents: Infinity,
   },
@@ -32,7 +26,7 @@ export const SUBSCRIPTION_LIMITS = {
 export type SubscriptionTier = keyof typeof SUBSCRIPTION_LIMITS;
 
 export interface UsageData {
-  dailyTokensUsed: number;
+  monthlyMessagesUsed: number;
   documentCount: number;
   activeDeliverables: number;
 }
@@ -69,15 +63,12 @@ export function formatLimit(limit: number): string {
   return limit === -1 || limit === Infinity ? "Unlimited" : limit.toString();
 }
 
-export function formatTokens(tokens: number): string {
-  if (tokens >= 1_000_000) return `${(tokens / 1_000_000).toFixed(1)}M`;
-  if (tokens >= 1_000) return `${(tokens / 1_000).toFixed(0)}k`;
-  return tokens.toString();
+export function formatMessages(count: number): string {
+  return count.toString();
 }
 
 // Feature flags for Pro-only features
 export const PRO_FEATURES = {
-  signalProcessing: true,        // ADR-053: Signal processing requires Starter+
   bulkImport: false,             // available on free
   documentUpload: false,         // available on free with limits
   advancedAnalytics: true,

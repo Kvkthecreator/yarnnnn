@@ -1,25 +1,24 @@
 "use client";
 
 /**
- * ADR-053: Billing surface with tier details, live limits usage, and billing actions.
+ * ADR-100: Billing surface with 2-tier display (Free/Pro), live usage, and billing actions.
  */
 
 import { useEffect, useMemo, useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
 import { api } from "@/lib/api/client";
-import type { TierLimits } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { CreditCard, Loader2, Sparkles, Zap } from "lucide-react";
+import { CreditCard, Loader2, Sparkles } from "lucide-react";
 
-type PlanTier = "free" | "starter" | "pro";
+type PlanTier = "free" | "pro";
 type BillingPeriod = "monthly" | "yearly";
 
-const PLAN_ORDER: PlanTier[] = ["free", "starter", "pro"];
+const PLAN_ORDER: PlanTier[] = ["free", "pro"];
 
 const PLAN_META: Record<PlanTier, {
   label: string;
-  icon: "none" | "zap" | "sparkles";
+  icon: "none" | "sparkles";
   monthlyPrice: string;
   yearlyPrice: string;
   style: string;
@@ -31,13 +30,6 @@ const PLAN_META: Record<PlanTier, {
     yearlyPrice: "$0/yr",
     style: "bg-muted text-muted-foreground",
   },
-  starter: {
-    label: "Starter",
-    icon: "zap",
-    monthlyPrice: "$9/mo",
-    yearlyPrice: "$90/yr",
-    style: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300",
-  },
   pro: {
     label: "Pro",
     icon: "sparkles",
@@ -48,22 +40,22 @@ const PLAN_META: Record<PlanTier, {
 };
 
 const FEATURE_ROWS: Array<{ label: string; values: Record<PlanTier, string> }> = [
-  { label: "Platforms", values: { free: "4", starter: "4", pro: "4" } },
-  { label: "Slack sources", values: { free: "5", starter: "15", pro: "Unlimited" } },
-  { label: "Gmail labels", values: { free: "5", starter: "10", pro: "Unlimited" } },
-  { label: "Notion pages", values: { free: "10", starter: "25", pro: "Unlimited" } },
-  { label: "Calendars", values: { free: "Unlimited", starter: "Unlimited", pro: "Unlimited" } },
-  { label: "Sync frequency", values: { free: "1x daily", starter: "4x daily", pro: "Hourly" } },
-  { label: "Daily token budget", values: { free: "50k", starter: "250k", pro: "Unlimited" } },
-  { label: "Active deliverables", values: { free: "2", starter: "5", pro: "Unlimited" } },
-  { label: "Signal processing", values: { free: "No", starter: "Yes", pro: "Yes" } },
+  { label: "Platforms", values: { free: "4", pro: "4" } },
+  { label: "Slack sources", values: { free: "5", pro: "Unlimited" } },
+  { label: "Gmail labels", values: { free: "5", pro: "Unlimited" } },
+  { label: "Notion pages", values: { free: "10", pro: "Unlimited" } },
+  { label: "Calendars", values: { free: "Unlimited", pro: "Unlimited" } },
+  { label: "Sync frequency", values: { free: "1x daily", pro: "Hourly" } },
+  { label: "Monthly messages", values: { free: "50", pro: "Unlimited" } },
+  { label: "Active deliverables", values: { free: "2", pro: "10" } },
+  { label: "Priority support", values: { free: "No", pro: "Yes" } },
 ];
 
 export function SubscriptionCard() {
   const { status, tier, isPaid, isLoading, error, upgrade, manageSubscription } = useSubscription();
 
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
-  const [limits, setLimits] = useState<TierLimits | null>(null);
+  const [limits, setLimits] = useState<Awaited<ReturnType<typeof api.integrations.getLimits>> | null>(null);
   const [limitsLoading, setLimitsLoading] = useState(true);
   const [limitsError, setLimitsError] = useState<string | null>(null);
 
@@ -126,9 +118,9 @@ export function SubscriptionCard() {
         limit: limits.limits.notion_pages,
       },
       {
-        label: "Daily tokens",
-        used: limits.usage.daily_tokens_used,
-        limit: limits.limits.daily_token_budget,
+        label: "Monthly messages",
+        used: limits.usage.monthly_messages_used,
+        limit: limits.limits.monthly_messages,
       },
       {
         label: "Active deliverables",
@@ -161,7 +153,7 @@ export function SubscriptionCard() {
   }
 
   const currentTier = (tier as PlanTier) || "free";
-  const nextTier: PlanTier | null = currentTier === "free" ? "starter" : currentTier === "starter" ? "pro" : null;
+  const canUpgrade = currentTier === "free";
 
   return (
     <Card>
@@ -186,7 +178,6 @@ export function SubscriptionCard() {
               <div className="flex items-center gap-2">
                 <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium ${PLAN_META[currentTier].style}`}>
                   {PLAN_META[currentTier].icon === "sparkles" && <Sparkles className="w-4 h-4" />}
-                  {PLAN_META[currentTier].icon === "zap" && <Zap className="w-4 h-4" />}
                   {PLAN_META[currentTier].label}
                 </span>
                 <span className="text-sm text-muted-foreground">
@@ -202,50 +193,48 @@ export function SubscriptionCard() {
             </p>
           )}
 
-          <div className="inline-flex rounded-md border border-border p-1">
-            <button
-              onClick={() => setBillingPeriod("monthly")}
-              className={`px-3 py-1.5 text-sm rounded ${
-                billingPeriod === "monthly" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Monthly
-            </button>
-            <button
-              onClick={() => setBillingPeriod("yearly")}
-              className={`px-3 py-1.5 text-sm rounded ${
-                billingPeriod === "yearly" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              Yearly
-            </button>
-          </div>
-
-          {nextTier && (
-            <div className="p-3 bg-muted/30 rounded-lg flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <p className="text-sm font-medium">Upgrade path</p>
-                <p className="text-sm text-muted-foreground">
-                  {currentTier === "free"
-                    ? "Starter unlocks broader sync and higher daily limits."
-                    : "Pro unlocks unlimited sources and deliverables."}
-                </p>
+          {canUpgrade && (
+            <>
+              <div className="inline-flex rounded-md border border-border p-1">
+                <button
+                  onClick={() => setBillingPeriod("monthly")}
+                  className={`px-3 py-1.5 text-sm rounded ${
+                    billingPeriod === "monthly" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Monthly
+                </button>
+                <button
+                  onClick={() => setBillingPeriod("yearly")}
+                  className={`px-3 py-1.5 text-sm rounded ${
+                    billingPeriod === "yearly" ? "bg-muted text-foreground" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  Yearly
+                </button>
               </div>
-              <Button
-                size="sm"
-                onClick={() => upgrade(nextTier, billingPeriod)}
-                disabled={isLoading}
-              >
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <>
-                    {nextTier === "pro" ? <Sparkles className="w-4 h-4 mr-2" /> : <Zap className="w-4 h-4 mr-2" />}
-                  </>
-                )}
-                Upgrade to {PLAN_META[nextTier].label} ({PLAN_META[nextTier][billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]})
-              </Button>
-            </div>
+
+              <div className="p-3 bg-muted/30 rounded-lg flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Upgrade to Pro</p>
+                  <p className="text-sm text-muted-foreground">
+                    Unlimited messages, 10 deliverables, hourly sync, unlimited sources.
+                  </p>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => upgrade(billingPeriod)}
+                  disabled={isLoading}
+                >
+                  {isLoading ? (
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  ) : (
+                    <Sparkles className="w-4 h-4 mr-2" />
+                  )}
+                  Upgrade to Pro ({PLAN_META.pro[billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]})
+                </Button>
+              </div>
+            </>
           )}
         </section>
 

@@ -1,17 +1,16 @@
 """
 Platform Limits Service
 
-ADR-053: Platform sync as monetization base layer.
+ADR-100: Simplified 2-tier monetization (Free + Pro).
 ADR-077: Widened source limits to support richer content accumulation.
 
-Tier Structure (updated 2026-02-25):
-- Free: 5 slack/5 gmail/10 notion, all 4 platforms, 1x/day sync, 50k tokens/day, 2 deliverables
-- Starter ($9/mo): 15 slack/10 gmail/25 notion, all platforms, 4x/day sync, 250k tokens/day, 5 deliverables
-- Pro ($19/mo): unlimited sources, all platforms, hourly sync, 1M tokens/day, unlimited deliverables
+Tier Structure (ADR-100, 2026-03-09):
+- Free: 5 slack/5 gmail/10 notion, all 4 platforms, 1x/day sync, 50 messages/month, 2 deliverables
+- Pro ($19/mo, Early Bird $9/mo): unlimited sources, all platforms, hourly sync, unlimited messages, 10 deliverables
 
 Key gates (by cost impact):
-1. Active deliverables — each is a recurring Sonnet call
-2. Daily token budget — direct proxy for Anthropic API spend
+1. Monthly messages — user-understandable proxy for Anthropic API spend
+2. Active deliverables — each is a recurring Sonnet call
 3. Source count — controls platform_content volume
 4. Sync frequency — controls API call frequency (lowest cost impact)
 """
@@ -30,18 +29,18 @@ SyncFrequency = Literal["1x_daily", "2x_daily", "4x_daily", "hourly"]
 
 @dataclass
 class PlatformLimits:
-    """Resource limits for a user tier (ADR-053)."""
+    """Resource limits for a user tier (ADR-100)."""
     slack_channels: int       # -1 for unlimited
     gmail_labels: int         # -1 for unlimited
     notion_pages: int         # -1 for unlimited
     calendars: int            # -1 for unlimited (no source selection for calendar)
     total_platforms: int
     sync_frequency: SyncFrequency
-    daily_token_budget: int   # -1 for unlimited
+    monthly_messages: int     # -1 for unlimited (ADR-100: replaces daily_token_budget)
     active_deliverables: int  # -1 for unlimited
 
 
-# Tier definitions (ADR-053, widened ADR-077 2026-02-25)
+# Tier definitions (ADR-100: 2-tier model, 2026-03-09)
 TIER_LIMITS = {
     "free": PlatformLimits(
         slack_channels=5,
@@ -50,18 +49,8 @@ TIER_LIMITS = {
         calendars=-1,            # No source selection for calendar
         total_platforms=4,       # All platforms open
         sync_frequency="1x_daily",
-        daily_token_budget=50_000,
+        monthly_messages=50,
         active_deliverables=2,
-    ),
-    "starter": PlatformLimits(
-        slack_channels=15,
-        gmail_labels=10,
-        notion_pages=25,
-        calendars=-1,
-        total_platforms=4,
-        sync_frequency="4x_daily",
-        daily_token_budget=250_000,
-        active_deliverables=5,
     ),
     "pro": PlatformLimits(
         slack_channels=-1,       # Unlimited
@@ -70,8 +59,8 @@ TIER_LIMITS = {
         calendars=-1,
         total_platforms=4,
         sync_frequency="hourly",
-        daily_token_budget=-1,   # Unlimited
-        active_deliverables=-1,
+        monthly_messages=-1,     # Unlimited
+        active_deliverables=10,
     ),
 }
 
@@ -137,8 +126,7 @@ def get_user_tier(client, user_id: str) -> str:
     """
     Get user's subscription tier from workspace.
 
-    ADR-053: Looks up subscription_status from workspaces table.
-    Returns 'free', 'starter', or 'pro'.
+    ADR-100: 2-tier model (free/pro). Legacy "starter" mapped to "pro".
     """
     try:
         result = client.table("workspaces")\
@@ -149,8 +137,11 @@ def get_user_tier(client, user_id: str) -> str:
 
         if result.data:
             status = result.data.get("subscription_status", "free")
-            if status in ("free", "starter", "pro"):
-                return status
+            # ADR-100: Legacy "starter" subscribers treated as "pro"
+            if status in ("starter", "pro"):
+                return "pro"
+            if status == "free":
+                return "free"
             return "free"
 
         return "free"
@@ -246,23 +237,23 @@ def check_source_limit(
 
 def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
     """
-    Get full usage summary for a user (ADR-053).
+    Get full usage summary for a user (ADR-100).
 
     Returns dict with tier, limits, current usage, and next sync time.
     """
     tier = get_user_tier(client, user_id)
     limits = TIER_LIMITS.get(tier, TIER_LIMITS["free"])
 
-    # Get daily token usage via RPC (returns 0 if function not yet deployed)
-    daily_tokens = 0
+    # Get monthly message count via RPC (ADR-100)
+    monthly_messages_used = 0
     try:
         result = client.rpc(
-            "get_daily_token_usage",
+            "get_monthly_message_count",
             {"p_user_id": user_id}
         ).execute()
-        daily_tokens = result.data if isinstance(result.data, int) else 0
+        monthly_messages_used = result.data if isinstance(result.data, int) else 0
     except Exception as e:
-        logger.debug(f"Failed to fetch daily token usage: {e}")
+        logger.debug(f"Failed to fetch monthly message count: {e}")
 
     return {
         "tier": tier,
@@ -273,7 +264,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "calendars": limits.calendars,
             "total_platforms": limits.total_platforms,
             "sync_frequency": limits.sync_frequency,
-            "daily_token_budget": limits.daily_token_budget,
+            "monthly_messages": limits.monthly_messages,
             "active_deliverables": limits.active_deliverables,
         },
         "usage": {
@@ -282,7 +273,7 @@ def get_usage_summary(client, user_id: str, user_timezone: str = "UTC") -> dict:
             "notion_pages": get_source_count(client, user_id, "notion"),
             "calendars": get_source_count(client, user_id, "calendar"),
             "platforms_connected": get_platform_count(client, user_id),
-            "daily_tokens_used": daily_tokens,
+            "monthly_messages_used": monthly_messages_used,
             "active_deliverables": get_active_deliverable_count(client, user_id),
         },
         "next_sync": get_next_sync_time(limits.sync_frequency, user_timezone),
@@ -374,20 +365,19 @@ def check_deliverable_limit(client, user_id: str) -> tuple[bool, str]:
 
 
 # =============================================================================
-# Daily Token Budget (ADR-053, replaces conversation count)
+# Monthly Message Limit (ADR-100, replaces daily token budget)
 # =============================================================================
 
 
-def get_daily_token_usage(client, user_id: str) -> int:
+def get_monthly_message_count(client, user_id: str) -> int:
     """
-    Get total tokens consumed today via SQL function.
+    Get total user messages sent this month via SQL function.
 
-    Calls get_daily_token_usage() RPC which sums input_tokens + output_tokens
-    from session_messages.metadata for today's assistant messages.
+    ADR-100: Counts session_messages where role='user' for current month.
     """
     try:
         result = client.rpc(
-            "get_daily_token_usage",
+            "get_monthly_message_count",
             {"p_user_id": user_id}
         ).execute()
         return result.data if isinstance(result.data, int) else 0
@@ -395,25 +385,27 @@ def get_daily_token_usage(client, user_id: str) -> int:
         return 0
 
 
-def check_daily_token_budget(client, user_id: str) -> tuple[bool, int, int]:
+def check_monthly_message_limit(client, user_id: str) -> tuple[bool, int, int]:
     """
-    Check if user is within daily token budget.
+    Check if user is within monthly message limit.
+
+    ADR-100: Replaces daily token budget with user-understandable monthly messages.
 
     Returns:
-        Tuple of (allowed: bool, tokens_used: int, token_limit: int)
+        Tuple of (allowed: bool, messages_used: int, message_limit: int)
     """
     limits = get_limits_for_user(client, user_id)
 
     # -1 means unlimited
-    if limits.daily_token_budget == -1:
+    if limits.monthly_messages == -1:
         return True, 0, -1
 
-    tokens_used = get_daily_token_usage(client, user_id)
+    messages_used = get_monthly_message_count(client, user_id)
 
-    if tokens_used >= limits.daily_token_budget:
-        return False, tokens_used, limits.daily_token_budget
+    if messages_used >= limits.monthly_messages:
+        return False, messages_used, limits.monthly_messages
 
-    return True, tokens_used, limits.daily_token_budget
+    return True, messages_used, limits.monthly_messages
 
 
 # =============================================================================

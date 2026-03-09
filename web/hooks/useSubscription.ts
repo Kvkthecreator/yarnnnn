@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * ADR-053: Subscription hook with 3-tier support (Free/Starter/Pro)
+ * ADR-100: Subscription hook with 2-tier support (Free/Pro)
  */
 
 import { useState, useEffect, useCallback } from "react";
 import { api, APIError } from "@/lib/api/client";
 import type { SubscriptionStatus } from "@/types";
 
-export type SubscriptionTier = "free" | "starter" | "pro";
+export type SubscriptionTier = "free" | "pro";
 
 export function useSubscription() {
   const [status, setStatus] = useState<SubscriptionStatus | null>(null);
@@ -32,11 +32,10 @@ export function useSubscription() {
     fetchStatus();
   }, [fetchStatus]);
 
-  // ADR-053: Tier detection
+  // ADR-100: 2-tier detection
   const tier: SubscriptionTier = (status?.status as SubscriptionTier) || "free";
   const isPro = tier === "pro";
-  const isStarter = tier === "starter";
-  const isPaid = tier === "pro" || tier === "starter";
+  const isPaid = tier === "pro";
 
   const toUserError = (err: unknown, fallback: string) => {
     if (err instanceof APIError) {
@@ -50,17 +49,17 @@ export function useSubscription() {
   };
 
   /**
-   * Upgrade to a specific tier and billing period.
-   * ADR-053: Supports both Starter ($9/mo) and Pro ($19/mo) tiers.
+   * Upgrade to Pro.
+   * ADR-100: Single tier (Pro), optional Early Bird pricing.
    */
   const upgrade = async (
-    tier: "starter" | "pro" = "starter",
-    billingPeriod: "monthly" | "yearly" = "monthly"
+    billingPeriod: "monthly" | "yearly" = "monthly",
+    earlyBird: boolean = false
   ) => {
     try {
       setIsLoading(true);
       setError(null);
-      const { checkout_url } = await api.subscription.createCheckout(tier, billingPeriod);
+      const { checkout_url } = await api.subscription.createCheckout(billingPeriod, earlyBird);
       // Redirect to Lemon Squeezy checkout
       window.location.href = checkout_url;
     } catch (err) {
@@ -87,7 +86,6 @@ export function useSubscription() {
     status,
     tier,
     isPro,
-    isStarter,
     isPaid,
     isLoading,
     error,

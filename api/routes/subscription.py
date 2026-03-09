@@ -34,11 +34,10 @@ LEMONSQUEEZY_API_KEY = os.getenv("LEMONSQUEEZY_API_KEY")
 LEMONSQUEEZY_STORE_ID = os.getenv("LEMONSQUEEZY_STORE_ID")
 LEMONSQUEEZY_WEBHOOK_SECRET = os.getenv("LEMONSQUEEZY_WEBHOOK_SECRET")
 
-# ADR-053: Product variant IDs for 3-tier pricing
-LEMONSQUEEZY_STARTER_MONTHLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_STARTER_MONTHLY_VARIANT_ID")
-LEMONSQUEEZY_STARTER_YEARLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_STARTER_YEARLY_VARIANT_ID")
+# ADR-100: Product variant IDs for 2-tier pricing (Free + Pro)
 LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID")
 LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID")
+LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID = os.getenv("LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID")
 
 CHECKOUT_SUCCESS_URL = os.getenv("CHECKOUT_SUCCESS_URL", "https://yarnnn.com/settings?subscription=success")
 
@@ -135,35 +134,29 @@ async def _lookup_customer_by_email(http: httpx.AsyncClient, email: Optional[str
 
 def get_tier_from_variant_id(variant_id: str) -> str:
     """
-    ADR-053: Determine subscription tier from Lemon Squeezy variant ID.
+    ADR-100: Determine subscription tier from Lemon Squeezy variant ID.
 
-    Returns 'pro', 'starter', or 'free'.
+    All paid variants map to 'pro' (2-tier model).
     """
     pro_variants = {
         LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID,
         LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID,
-    }
-    starter_variants = {
-        LEMONSQUEEZY_STARTER_MONTHLY_VARIANT_ID,
-        LEMONSQUEEZY_STARTER_YEARLY_VARIANT_ID,
+        LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID,
     }
 
     if variant_id in pro_variants:
         return "pro"
-    elif variant_id in starter_variants:
-        return "starter"
     else:
-        # Unknown variant - log and default to starter for safety
-        log.warning(f"Unknown variant_id: {variant_id}, defaulting to starter")
-        return "starter"
+        log.warning(f"Unknown variant_id: {variant_id}, defaulting to pro")
+        return "pro"
 
 
 # ============== Pydantic Models ==============
 
 class CheckoutRequest(BaseModel):
     """Request to create a checkout session."""
-    tier: Optional[str] = "starter"  # ADR-053: 'starter' or 'pro'
     billing_period: Optional[str] = "monthly"  # 'monthly' or 'yearly'
+    early_bird: Optional[bool] = False  # ADR-100: Early Bird pricing ($9/mo)
 
 
 class CheckoutResponse(BaseModel):
@@ -173,7 +166,7 @@ class CheckoutResponse(BaseModel):
 
 class SubscriptionStatus(BaseModel):
     """Current subscription status."""
-    status: str  # ADR-053: 'free', 'starter', 'pro'
+    status: str  # ADR-100: 'free' or 'pro'
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
@@ -215,7 +208,7 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
     """
     Create a Lemon Squeezy checkout session for the current user.
 
-    ADR-053: Supports both Starter and Pro tiers.
+    ADR-100: 2-tier model — all checkouts are Pro. Early Bird variant for beta pricing.
     """
     if not LEMONSQUEEZY_API_KEY:
         raise HTTPException(
@@ -223,23 +216,20 @@ async def create_checkout(request: CheckoutRequest, auth: UserClient):
             detail="Payment service not configured",
         )
 
-    # ADR-053: Select variant based on tier + billing period
-    tier = request.tier or "starter"
+    # ADR-100: Select variant — Early Bird or standard Pro
     billing = request.billing_period or "monthly"
 
-    variant_map = {
-        ("starter", "monthly"): LEMONSQUEEZY_STARTER_MONTHLY_VARIANT_ID,
-        ("starter", "yearly"): LEMONSQUEEZY_STARTER_YEARLY_VARIANT_ID,
-        ("pro", "monthly"): LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID,
-        ("pro", "yearly"): LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID,
-    }
-
-    variant_id = variant_map.get((tier, billing))
+    if request.early_bird and billing == "monthly":
+        variant_id = LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID
+    elif billing == "yearly":
+        variant_id = LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID
+    else:
+        variant_id = LEMONSQUEEZY_PRO_MONTHLY_VARIANT_ID
 
     if not variant_id:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Product variant not configured for {tier}/{billing}",
+            detail=f"Product variant not configured for pro/{billing}",
         )
 
     # Get workspace ID for this user

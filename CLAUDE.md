@@ -180,7 +180,7 @@ You MUST:
 - **Worker**: `platform_worker.py` — `_sync_slack()`, `_sync_gmail()`, `_sync_notion()`, `_sync_calendar()` — all fully paginated with platform-specific hardening
 - **Clients**: Direct API via `api/integrations/core/{slack,google,notion}_client.py` — no MCP, no gateway (ADR-076)
 - **Content**: Stored in `platform_content` with TTL-based retention (Slack 14d, Gmail 30d, Notion 90d, Calendar 2d)
-- **Tier limits**: Free=5/5/10, Starter=15/10/25, Pro=unlimited (slack/gmail/notion sources)
+- **Tier limits**: Free=5/5/10, Pro=unlimited (slack/gmail/notion sources) — ADR-100 2-tier model
 - **Google split**: Single `platform="google"` connection provides both Gmail and Calendar. Worker splits `selected_sources` by `metadata.platform` from landscape resources.
 
 ### ADR-057: Streamlined Onboarding

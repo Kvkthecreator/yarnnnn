@@ -177,7 +177,7 @@ export function ResourceList({
     />
   );
 
-  const upgradeTarget = tierLimits?.tier === 'free' ? 'Starter' : tierLimits?.tier === 'starter' ? 'Pro' : null;
+  const upgradeTarget = tierLimits?.tier === 'free' ? 'Pro' : null;
 
   const viewOptions: Array<{ key: ListView; label: string; count: number }> = [
     { key: 'selected', label: 'Selected', count: selectedCount },

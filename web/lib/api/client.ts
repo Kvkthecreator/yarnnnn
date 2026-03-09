@@ -314,17 +314,17 @@ export const api = {
   },
 
   // Subscription endpoints (Lemon Squeezy)
-  // ADR-053: Updated for 3-tier pricing (Free/Starter/Pro)
+  // ADR-100: 2-tier pricing (Free/Pro) with Early Bird option
   subscription: {
     getStatus: () => request<SubscriptionStatus>("/api/subscription/status"),
 
     createCheckout: (
-      tier: "starter" | "pro" = "starter",
-      billingPeriod: "monthly" | "yearly" = "monthly"
+      billingPeriod: "monthly" | "yearly" = "monthly",
+      earlyBird: boolean = false
     ) =>
       request<CheckoutResponse>("/api/subscription/checkout", {
         method: "POST",
-        body: JSON.stringify({ tier, billing_period: billingPeriod }),
+        body: JSON.stringify({ billing_period: billingPeriod, early_bird: earlyBird }),
       }),
 
     getPortal: () => request<PortalResponse>("/api/subscription/portal"),
@@ -857,11 +857,11 @@ export const api = {
         total_deliverables: number;
       }>("/api/integrations/summary"),
 
-    // ADR-053: Platform Sync Monetization - Source Selection & Limits
+    // ADR-100: 2-tier monetization — Source Selection & Limits
     // Get user's tier limits, current usage, and next sync time
     getLimits: () =>
       request<{
-        tier: "free" | "starter" | "pro";
+        tier: "free" | "pro";
         limits: {
           slack_channels: number;
           gmail_labels: number;
@@ -869,7 +869,7 @@ export const api = {
           calendars: number;
           total_platforms: number;
           sync_frequency: "1x_daily" | "2x_daily" | "4x_daily" | "hourly";
-          daily_token_budget: number; // -1 for unlimited
+          monthly_messages: number; // -1 for unlimited
           active_deliverables: number; // -1 for unlimited
         };
         usage: {
@@ -878,7 +878,7 @@ export const api = {
           notion_pages: number;
           calendars: number;
           platforms_connected: number;
-          daily_tokens_used: number;
+          monthly_messages_used: number;
           active_deliverables: number;
         };
         next_sync: string | null; // ISO timestamp

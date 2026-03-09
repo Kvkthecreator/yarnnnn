@@ -132,8 +132,8 @@ export interface DeleteResponse {
   id: string;
 }
 
-// Subscription (Lemon Squeezy)
-export type SubscriptionTier = "free" | "starter" | "pro";
+// Subscription (Lemon Squeezy) — ADR-100: 2-tier model
+export type SubscriptionTier = "free" | "pro";
 
 export interface SubscriptionStatus {
   status: SubscriptionTier;
@@ -720,7 +720,7 @@ export interface SelectedSource {
 export type NumericLimitField = 'slack_channels' | 'gmail_labels' | 'notion_pages' | 'calendars' | 'total_platforms';
 
 export interface TierLimits {
-  tier: 'free' | 'starter' | 'pro';
+  tier: 'free' | 'pro';
   limits: {
     slack_channels: number;
     gmail_labels: number;
@@ -728,7 +728,7 @@ export interface TierLimits {
     calendars: number;
     total_platforms: number;
     sync_frequency: '1x_daily' | '2x_daily' | '4x_daily' | 'hourly';
-    daily_token_budget: number; // -1 for unlimited
+    monthly_messages: number; // -1 for unlimited (ADR-100)
     active_deliverables: number;
   };
   usage: {
@@ -737,7 +737,7 @@ export interface TierLimits {
     notion_pages: number;
     calendars: number;
     platforms_connected: number;
-    daily_tokens_used: number;
+    monthly_messages_used: number; // ADR-100
     active_deliverables: number;
   };
   next_sync?: string | null;

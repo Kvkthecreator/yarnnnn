@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ADR-053: Subscription gate hook with 3-tier support.
+ * ADR-100: Subscription gate hook with 2-tier support.
  */
 
 import { useMemo } from "react";
@@ -16,12 +16,11 @@ export interface SubscriptionGate {
   // Tier info
   tier: SubscriptionTier;
   isPro: boolean;
-  isStarter: boolean;
   isPaid: boolean;
   isLoading: boolean;
 
-  // Actions - ADR-053: Updated signature for 3-tier pricing
-  upgrade: (tier?: "starter" | "pro", billingPeriod?: "monthly" | "yearly") => Promise<void>;
+  // Actions — ADR-100: Always upgrades to Pro
+  upgrade: (billingPeriod?: "monthly" | "yearly", earlyBird?: boolean) => Promise<void>;
 
   // Helper to check any feature
   checkFeatureLimit: (
@@ -35,7 +34,7 @@ export interface SubscriptionGate {
  * Combines subscription status with current usage data.
  */
 export function useSubscriptionGate(): SubscriptionGate {
-  const { tier, isPro, isStarter, isPaid, isLoading, upgrade } = useSubscription();
+  const { tier, isPro, isPaid, isLoading, upgrade } = useSubscription();
 
   // Generic limit checker
   const checkFeatureLimit = useMemo(
@@ -52,7 +51,6 @@ export function useSubscriptionGate(): SubscriptionGate {
   return {
     tier,
     isPro,
-    isStarter,
     isPaid,
     isLoading,
     upgrade,
@@ -61,24 +59,24 @@ export function useSubscriptionGate(): SubscriptionGate {
 }
 
 /**
- * Hook for checking daily token budget (ADR-053).
+ * Hook for checking monthly message limit (ADR-100).
  */
-export function useTokenBudgetGate(dailyTokensUsed: number) {
+export function useMessageLimitGate(monthlyMessagesUsed: number) {
   const { tier, isPro, checkFeatureLimit } = useSubscriptionGate();
 
-  const tokenLimit = useMemo(
-    () => checkFeatureLimit("dailyTokenBudget", dailyTokensUsed),
-    [checkFeatureLimit, dailyTokensUsed]
+  const messageLimit = useMemo(
+    () => checkFeatureLimit("monthlyMessages", monthlyMessagesUsed),
+    [checkFeatureLimit, monthlyMessagesUsed]
   );
 
   return {
     tier,
     isPro,
-    limit: tokenLimit,
-    canChat: !tokenLimit.isAtLimit,
-    isNearLimit: tokenLimit.isNearLimit,
-    tokensRemaining: tokenLimit.limit === -1
+    limit: messageLimit,
+    canChat: !messageLimit.isAtLimit,
+    isNearLimit: messageLimit.isNearLimit,
+    messagesRemaining: messageLimit.limit === -1
       ? Infinity
-      : Math.max(0, tokenLimit.limit - dailyTokensUsed),
+      : Math.max(0, messageLimit.limit - monthlyMessagesUsed),
   };
 }

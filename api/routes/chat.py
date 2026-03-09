@@ -759,9 +759,9 @@ async def global_chat(
     Uses user memories only. Session is reused daily.
     Supports tool use with streaming (ADR-007).
 
-    ADR-053: Enforces daily token budget based on user tier.
+    ADR-100: Enforces monthly message limit based on user tier.
     """
-    from services.platform_limits import check_daily_token_budget
+    from services.platform_limits import check_monthly_message_limit
 
     # Get or create session (daily scope for global chat)
     session = await get_or_create_session(
@@ -780,16 +780,16 @@ async def global_chat(
             get_service_client(),
         ))
 
-    # ADR-053: Check daily token budget before every message
-    allowed, tokens_used, token_limit = check_daily_token_budget(auth.client, auth.user_id)
+    # ADR-100: Check monthly message limit before every message
+    allowed, messages_used, message_limit = check_monthly_message_limit(auth.client, auth.user_id)
     if not allowed:
         raise HTTPException(
             status_code=429,
             detail={
-                "error": "daily_token_budget_exceeded",
-                "message": f"Daily token budget reached ({tokens_used:,}/{token_limit:,}). Resets at midnight UTC.",
-                "tokens_used": tokens_used,
-                "token_limit": token_limit,
+                "error": "monthly_message_limit_exceeded",
+                "message": f"You've used all {message_limit} free messages this month ({messages_used}/{message_limit}). Upgrade to Pro for unlimited messages.",
+                "messages_used": messages_used,
+                "message_limit": message_limit,
                 "upgrade_url": "/settings?tab=billing",
             }
         )
