@@ -414,16 +414,40 @@ def _email_footer_html(metadata: dict) -> str:
 
 def _generate_default_email_html(content: str, metadata: dict) -> str:
     """Generate standard email HTML with header context + content + footer."""
-    body_html = _markdown_to_email_html(content)
     title = metadata.get("title", "")
+
+    # Strip duplicate H1 from markdown if it matches the header title
+    if title:
+        lines = content.split('\n')
+        if lines and lines[0].strip().lstrip('#').strip().lower() == title.lower():
+            content = '\n'.join(lines[1:]).lstrip('\n')
+
+    body_html = _markdown_to_email_html(content)
     footer = _email_footer_html(metadata)
 
-    # Brief header: deliverable title so the user knows what this is
+    # Header: title + optional metadata subtitle
     header_html = ""
     if title:
+        # Build subtitle parts: version, mode, timestamp
+        from datetime import datetime
+        subtitle_parts = []
+        version_number = metadata.get("version_number")
+        if version_number:
+            subtitle_parts.append(f"v{version_number}")
+        mode = metadata.get("mode")
+        if mode:
+            subtitle_parts.append(mode)
+        subtitle_parts.append(datetime.now().strftime("%b %-d, %-I:%M %p"))
+
+        subtitle_html = ""
+        if subtitle_parts:
+            subtitle = " &middot; ".join(subtitle_parts)
+            subtitle_html = f"""
+        <p style="margin: 6px 0 0; font-size: 12px; color: #999;">{subtitle}</p>"""
+
         header_html = f"""
     <div style="margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid #eee;">
-        <h1 style="margin: 0; font-size: 22px; color: #1a1a1a;">{title}</h1>
+        <h1 style="margin: 0; font-size: 22px; color: #1a1a1a;">{title}</h1>{subtitle_html}
     </div>"""
 
     html = f"""<!DOCTYPE html>

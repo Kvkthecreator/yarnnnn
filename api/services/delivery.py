@@ -127,7 +127,7 @@ class DeliveryService:
         try:
             # 1. Get version and deliverable
             version = self.client.table("deliverable_versions").select(
-                "id, deliverable_id, final_content, status, delivery_status"
+                "id, deliverable_id, final_content, status, delivery_status, version_number"
             ).eq("id", version_id).single().execute()
 
             if not version.data:
@@ -138,7 +138,7 @@ class DeliveryService:
 
             # 2. Get deliverable with destination
             deliverable = self.client.table("deliverables").select(
-                "id, title, destination, user_id"
+                "id, title, destination, user_id, deliverable_type, mode"
             ).eq("id", version.data["deliverable_id"]).single().execute()
 
             if not deliverable.data:
@@ -192,7 +192,10 @@ class DeliveryService:
                 metadata={
                     "deliverable_id": deliverable.data["id"],
                     "version_id": version_id,
-                    "retry_count": retry_count
+                    "version_number": version.data.get("version_number"),
+                    "deliverable_type": deliverable.data.get("deliverable_type"),
+                    "mode": deliverable.data.get("mode"),
+                    "retry_count": retry_count,
                 },
                 context=context
             )
@@ -461,7 +464,7 @@ class DeliveryService:
 
         # Get deliverable title
         deliverable = self.client.table("deliverables").select(
-            "id, title, platform_variant"
+            "id, title, platform_variant, deliverable_type, mode"
         ).eq("id", version.data["deliverable_id"]).single().execute()
 
         content = version.data.get("final_content") or version.data.get("draft_content", "")
@@ -517,6 +520,9 @@ class DeliveryService:
                     metadata={
                         "deliverable_id": version.data["deliverable_id"],
                         "version_id": version_id,
+                        "version_number": version.data.get("version_number"),
+                        "deliverable_type": deliverable.data.get("deliverable_type") if deliverable.data else None,
+                        "mode": deliverable.data.get("mode") if deliverable.data else None,
                         "destination_index": idx,
                         "platform_variant": platform_variant,
                     },

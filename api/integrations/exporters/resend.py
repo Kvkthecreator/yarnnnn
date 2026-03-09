@@ -83,7 +83,10 @@ class ResendExporter(DestinationExporter):
             )
 
         options = destination.get("options", {})
-        subject = options.get("subject", title)
+        # Date-stamped subject for inbox scannability
+        from datetime import datetime
+        date_str = datetime.now().strftime("%b %-d")
+        subject = options.get("subject", f"{title} — {date_str}")
 
         # Generate HTML from markdown content
         platform_variant = metadata.get("platform_variant")
@@ -93,9 +96,11 @@ class ResendExporter(DestinationExporter):
                 content=content,
                 variant=platform_variant or "default",
                 metadata={
-                    "title": subject,
+                    "title": title,
                     "recipient": target,
                     "deliverable_id": deliverable_id,
+                    "version_number": metadata.get("version_number"),
+                    "mode": metadata.get("mode"),
                     "date": options.get("date", ""),
                     "email_count": options.get("email_count", ""),
                     "is_draft": False,
