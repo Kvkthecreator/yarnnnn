@@ -305,8 +305,11 @@ export interface IntegrationSourceScope {
 
 export interface DataSource {
   type: DataSourceType;
-  value: string;
+  value?: string;
   label?: string;
+  // DB schema fields (from deliverables.sources JSONB)
+  resource_id?: string;
+  resource_name?: string;
   // ADR-029 Phase 2: Integration import configuration
   provider?: IntegrationProvider;  // Required when type = "integration_import"
   source?: string;                 // "inbox", "thread:<id>", "query:<query>", channel ID, page ID

@@ -354,10 +354,14 @@ export function DeliverableSettingsPanel({
                   {source.type === 'url' ? (
                     <LinkIcon className="w-4 h-4 text-muted-foreground shrink-0" />
                   ) : source.type === 'integration_import' ? (
-                    source.provider === 'gmail' ? (
-                      <Mail className="w-4 h-4 text-red-500 shrink-0" />
-                    ) : source.provider === 'slack' ? (
+                    source.provider === 'slack' ? (
                       <Slack className="w-4 h-4 text-purple-500 shrink-0" />
+                    ) : source.provider === 'gmail' ? (
+                      <Mail className="w-4 h-4 text-red-500 shrink-0" />
+                    ) : source.provider === 'notion' ? (
+                      <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                    ) : source.provider === 'calendar' || source.provider === 'google' ? (
+                      <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
                     ) : (
                       <FileCode className="w-4 h-4 text-gray-500 shrink-0" />
                     )
@@ -365,13 +369,7 @@ export function DeliverableSettingsPanel({
                     <FileText className="w-4 h-4 text-muted-foreground shrink-0" />
                   )}
                   <span className="flex-1 truncate">
-                    {source.label || source.value}
-                    {source.type === 'integration_import' && (
-                      <span className="text-xs text-muted-foreground ml-1">
-                        {source.scope?.mode === 'delta' ? '(delta)' : source.scope?.mode === 'fixed_window' ? `(${source.scope.recency_days || 7}d)` : ''}
-                        {source.filters && Object.keys(source.filters).length > 0 ? ' filtered' : ''}
-                      </span>
-                    )}
+                    {source.resource_name || source.label || source.value || source.resource_id || 'Unknown source'}
                   </span>
                   <button
                     onClick={() => removeSource(index)}
