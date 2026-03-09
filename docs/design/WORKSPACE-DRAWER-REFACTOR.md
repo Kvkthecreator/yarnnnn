@@ -35,7 +35,7 @@ Latest version shown as a collapsible card pinned above chat messages at full ch
 
 ### Settings modal absorbed into drawer
 
-`DeliverableSettingsModal` stripped of modal wrapper, moved to `DeliverableSettingsPanel`. Same form state and save logic. Now the first drawer tab. Header simplifies to `[Active/Paused toggle] [drawer trigger]`.
+`DeliverableSettingsModal` stripped of modal wrapper, moved to `DeliverableSettingsPanel`. Same form state and save logic. Now the first drawer tab. Header simplifies to `[Active/Paused toggle] [drawer trigger]`. Recipient Context moved from Settings to Instructions panel (2026-03-09).
 
 ---
 
@@ -49,6 +49,9 @@ Latest version shown as a collapsible card pinned above chat messages at full ch
 
 ### DRAWER (slides from right, overlays)
 **Deliverable page:** Settings | Versions | Memory | Instructions | Sessions
+- **Settings**: Title, Schedule, Data Sources, Destination, Archive
+- **Instructions**: Structured editor — Behavior (`deliverable_instructions`), Audience (`recipient_context`), Output Format (custom type only, `template_structure.format_notes`), Prompt Preview (read-only, what the agent sees)
+
 **Dashboard:** Deliverables | Context
 
 ### HEADER

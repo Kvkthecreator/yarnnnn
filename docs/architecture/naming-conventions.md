@@ -101,7 +101,7 @@ Existing names that don't follow these conventions. Each has a migration plan.
 | Current name | Should become | Scope of change | When |
 |-------------|---------------|-----------------|------|
 | `user_context` (table) | `user_memory` | DB rename + all backend references + frontend API calls | **ADR-087 migration window** (bundled as separate commit before Phase 1 columns) |
-| `template_structure` + `type_config` + `recipient_context` (deliverable columns) | Consider consolidating under instructions layer | Backend fields + frontend forms | After ADR-087 Phase 1 validates; these are structural instructions vs. behavioral instructions — may stay separate with clearer naming |
+| `template_structure` + `type_config` + `recipient_context` (deliverable columns) | Partially consolidated (2026-03-09): `recipient_context` and `template_structure.format_notes` surfaced in Instructions panel alongside `deliverable_instructions`. `type_config` remains in Settings (type-specific execution parameters). | Backend fields unchanged; frontend Instructions panel now owns `recipient_context` + `template_structure` | Done (UI consolidation). Full schema merge deferred — fields stay separate, UI unifies them. |
 | `filesystem_items` references in code | Should all be `platform_content` | Grep + replace (table already renamed per ADR-072) | Immediate cleanup |
 | `surface_context` (frontend → backend) | `chat_context` or rename to match `deliverable_id` routing | Frontend API call + backend handler | ADR-087 Phase 1 (when we wire `deliverable_id`) |
 

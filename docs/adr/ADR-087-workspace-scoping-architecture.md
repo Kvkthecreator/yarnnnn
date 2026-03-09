@@ -97,7 +97,7 @@ The audience is the executive team — assume business context, not technical.
 
 This is separate from `template_structure` (output format) and `type_config` (type-specific settings) which are structural, not behavioral. `deliverable_instructions` captures the behavioral "how should the agent think about this work" layer.
 
-**Future consideration:** `template_structure`, `type_config`, `recipient_context`, and `deliverable_instructions` are all part of the instructions layer. A future consolidation could merge them into a single structured instructions field. Not in scope for this ADR.
+**Partial consolidation (2026-03-09):** `recipient_context` is now surfaced alongside `deliverable_instructions` in the structured Instructions panel (moved from Settings). `template_structure.format_notes` is surfaced for `custom` type deliverables. The panel includes a live prompt preview showing the composed agent context. `type_config` remains in Settings as it controls type-specific execution parameters.
 
 ### deliverable_memory structure
 
@@ -184,14 +184,15 @@ Architectural reassessment during Phase 2 planning led to significant simplifica
 
 **Validation:** Backend processing has clean domain boundaries. Dead code removed per Discipline 2 (singular implementation). Session continuity separated from memory extraction.
 
-### Phase 3: Frontend + Goal Mode — IMPLEMENTED (2026-03-04, ADR-091)
+### Phase 3: Frontend + Goal Mode — IMPLEMENTED (2026-03-04, ADR-091; Instructions panel upgraded 2026-03-09)
 
 - Deliverable workspace page (`/deliverables/[id]`): scoped TP chat dominant left, collapsible right panel
-- Panel tabs: Versions, Memory (observations + goal viewer), Instructions (editable TEXT field), Sessions
+- Panel tabs: Versions, Memory (observations + goal viewer), Instructions (structured editor), Sessions
+- Instructions panel consolidates: Behavior directives (`deliverable_instructions`), Audience (`recipient_context`, moved from Settings), Output Format (`template_structure.format_notes`, custom type only), and a live Prompt Preview showing the composed agent context
 - Mode field present on deliverable and visible in UI header badge
 - Workspace chat entry point from dashboard Deliverables panel tab
 
-**Validation:** Users can view and edit deliverable instructions, read accumulated memory, and chat in scoped TP sessions that inject `deliverable_instructions` + `deliverable_memory` into working memory.
+**Validation:** Users can view and edit deliverable instructions across structured sections, see exactly what the agent receives via prompt preview, read accumulated memory, and chat in scoped TP sessions that inject `deliverable_instructions` + `deliverable_memory` into working memory.
 
 **Deferred (not blocking):** Goal-mode behavioral differentiation — `mode='goal'` deliverables currently behave identically to `mode='recurring'` (same schedule fields, same generation pipeline). Distinct goal-mode lifecycle (schedule-less, milestone progression, completion state) is a future product decision. The `mode` field, schema, and UI label are in place; only the behavioral branching remains.
 

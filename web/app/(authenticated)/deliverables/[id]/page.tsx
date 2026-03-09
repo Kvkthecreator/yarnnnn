@@ -35,7 +35,7 @@ import { DeliverableModeBadge } from '@/components/deliverables/DeliverableModeB
 import { VersionsPanel } from '@/components/deliverables/DeliverableVersionDisplay';
 import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/deliverables/DeliverableDrawerPanels';
 import { DeliverableChatArea } from '@/components/deliverables/DeliverableChatArea';
-import type { Deliverable, DeliverableVersion, DeliverableSession } from '@/types';
+import type { Deliverable, DeliverableVersion, DeliverableSession, RecipientContext, TemplateStructure } from '@/types';
 
 // =============================================================================
 // Main Component
@@ -56,11 +56,20 @@ export default function DeliverableWorkspacePage() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [running, setRunning] = useState(false);
 
-  // Instructions editor
+  // Instructions panel fields (unified save: instructions + recipient + template)
   const [instructions, setInstructions] = useState('');
+  const [recipientContext, setRecipientContext] = useState<RecipientContext>({});
+  const [templateStructure, setTemplateStructure] = useState<TemplateStructure | undefined>(undefined);
   const [instructionsSaving, setInstructionsSaving] = useState(false);
   const [instructionsSaved, setInstructionsSaved] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Refs for latest values to avoid stale closures in debounced save
+  const instructionsRef = useRef(instructions);
+  const recipientRef = useRef(recipientContext);
+  const templateRef = useRef(templateStructure);
+  instructionsRef.current = instructions;
+  recipientRef.current = recipientContext;
+  templateRef.current = templateStructure;
 
   const loadDeliverable = useCallback(async () => {
     try {
@@ -71,6 +80,8 @@ export default function DeliverableWorkspacePage() {
       setDeliverable(detail.deliverable);
       setVersions(detail.versions);
       setInstructions(detail.deliverable.deliverable_instructions || '');
+      setRecipientContext(detail.deliverable.recipient_context || {});
+      setTemplateStructure(detail.deliverable.template_structure);
       setSessions(sessionData);
     } catch (err) {
       console.error('Failed to load deliverable:', err);
@@ -108,32 +119,56 @@ export default function DeliverableWorkspacePage() {
     }
   };
 
-  const handleInstructionsChange = (value: string) => {
-    setInstructions(value);
-    setInstructionsSaved(false);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => saveInstructions(value), 2000);
-  };
-
-  const saveInstructions = async (value: string) => {
+  // Unified save for all instruction panel fields
+  const saveInstructionFields = useCallback(async () => {
     if (!deliverable) return;
     setInstructionsSaving(true);
     try {
-      await api.deliverables.update(id, { deliverable_instructions: value });
-      setDeliverable({ ...deliverable, deliverable_instructions: value });
+      const update = {
+        deliverable_instructions: instructionsRef.current,
+        recipient_context: recipientRef.current,
+        template_structure: templateRef.current,
+      };
+      await api.deliverables.update(id, update);
+      setDeliverable((prev) => prev ? { ...prev, ...update } : prev);
       setInstructionsSaved(true);
       setTimeout(() => setInstructionsSaved(false), 3000);
     } catch (err) {
-      console.error('Failed to save instructions:', err);
+      console.error('Failed to save instruction fields:', err);
     } finally {
       setInstructionsSaving(false);
     }
+  }, [deliverable, id]);
+
+  const scheduleSave = useCallback(() => {
+    setInstructionsSaved(false);
+    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+    saveTimerRef.current = setTimeout(() => saveInstructionFields(), 2000);
+  }, [saveInstructionFields]);
+
+  const handleInstructionsChange = (value: string) => {
+    setInstructions(value);
+    scheduleSave();
   };
 
-  const handleInstructionsBlur = () => {
+  const handleRecipientChange = (value: RecipientContext) => {
+    setRecipientContext(value);
+    scheduleSave();
+  };
+
+  const handleTemplateChange = (value: TemplateStructure) => {
+    setTemplateStructure(value);
+    scheduleSave();
+  };
+
+  const handleInstructionFieldsBlur = () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    if (instructions !== (deliverable?.deliverable_instructions || '')) {
-      saveInstructions(instructions);
+    // Save if any field has changed
+    const instrChanged = instructionsRef.current !== (deliverable?.deliverable_instructions || '');
+    const recipientChanged = JSON.stringify(recipientRef.current) !== JSON.stringify(deliverable?.recipient_context || {});
+    const templateChanged = JSON.stringify(templateRef.current) !== JSON.stringify(deliverable?.template_structure);
+    if (instrChanged || recipientChanged || templateChanged) {
+      saveInstructionFields();
     }
   };
 
@@ -176,8 +211,13 @@ export default function DeliverableWorkspacePage() {
         <DeliverableSettingsPanel
           deliverable={deliverable}
           onSaved={(updated) => {
-            setDeliverable(updated);
-            setInstructions(updated.deliverable_instructions || '');
+            // Preserve instruction panel fields — Settings no longer manages them
+            setDeliverable({
+              ...updated,
+              deliverable_instructions: instructionsRef.current,
+              recipient_context: recipientRef.current,
+              template_structure: templateRef.current,
+            });
           }}
           onArchived={() => router.push('/deliverables')}
         />
@@ -205,8 +245,14 @@ export default function DeliverableWorkspacePage() {
       content: (
         <InstructionsPanel
           instructions={instructions}
-          onChange={handleInstructionsChange}
-          onBlur={handleInstructionsBlur}
+          onInstructionsChange={handleInstructionsChange}
+          onBlur={handleInstructionFieldsBlur}
+          recipientContext={recipientContext}
+          onRecipientChange={handleRecipientChange}
+          templateStructure={templateStructure}
+          onTemplateChange={handleTemplateChange}
+          deliverableType={deliverable.deliverable_type}
+          deliverableMemory={deliverable.deliverable_memory}
           saving={instructionsSaving}
           saved={instructionsSaved}
         />

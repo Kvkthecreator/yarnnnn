@@ -24,7 +24,6 @@ import {
   Plus,
   Trash2,
   Clock,
-  User,
   AlertTriangle,
   Mail,
   Send,
@@ -42,7 +41,6 @@ import type {
   DataSourceType,
   IntegrationProvider,
   ScheduleConfig,
-  RecipientContext,
   ScheduleFrequency,
   Destination,
   IntegrationSourceScope,
@@ -90,9 +88,7 @@ export function DeliverableSettingsPanel({
     deliverable.schedule || { frequency: 'weekly', day: 'monday', time: '09:00' }
   );
   const [sources, setSources] = useState<DataSource[]>(deliverable.sources || []);
-  const [recipient, setRecipient] = useState<RecipientContext>(
-    deliverable.recipient_context || {}
-  );
+  // recipient_context moved to Instructions panel (ADR-087 Phase 3)
   const [destination, setDestination] = useState<Destination | undefined>(
     deliverable.destination
   );
@@ -134,7 +130,6 @@ export function DeliverableSettingsPanel({
     setTitle(deliverable.title);
     setSchedule(deliverable.schedule || { frequency: 'weekly', day: 'monday', time: '09:00' });
     setSources(deliverable.sources || []);
-    setRecipient(deliverable.recipient_context || {});
     const dest = deliverable.destination;
     if (!dest || !dest.target) {
       if (userEmail) {
@@ -175,7 +170,6 @@ export function DeliverableSettingsPanel({
         title,
         schedule,
         sources,
-        recipient_context: recipient,
         destination: finalDestination,
       };
 
@@ -641,40 +635,7 @@ export function DeliverableSettingsPanel({
           </div>
         </div>
 
-        {/* RECIPIENT CONTEXT */}
-        <details className="group">
-          <summary className="cursor-pointer text-sm font-medium flex items-center gap-1.5 py-2 list-none">
-            <User className="w-4 h-4" />
-            Recipient Context
-            <span className="text-xs text-muted-foreground ml-2">(optional)</span>
-          </summary>
-          <div className="pt-3 space-y-3">
-            <p className="text-xs text-muted-foreground">
-              This personalizes the content for your audience
-            </p>
-            <input
-              type="text"
-              value={recipient.name || ''}
-              onChange={(e) => setRecipient({ ...recipient, name: e.target.value })}
-              placeholder="Name (e.g., Sarah, Board)"
-              className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <input
-              type="text"
-              value={recipient.role || ''}
-              onChange={(e) => setRecipient({ ...recipient, role: e.target.value })}
-              placeholder="Role (e.g., Manager, Investor)"
-              className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
-            <textarea
-              value={recipient.notes || ''}
-              onChange={(e) => setRecipient({ ...recipient, notes: e.target.value })}
-              placeholder="Notes (e.g., prefers bullet points, wants metrics upfront)"
-              rows={2}
-              className="w-full px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
-            />
-          </div>
-        </details>
+        {/* Recipient Context moved to Instructions panel (ADR-087 Phase 3) */}
 
         {/* ARCHIVE */}
         <div className="pt-4 mt-4 border-t border-border">

@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.09.1] - Structured Instructions panel with prompt preview (frontend only)
+
+### Changed
+- `web/components/deliverables/DeliverableDrawerPanels.tsx`: Replaced single textarea InstructionsPanel with structured editor — Behavior Directives (deliverable_instructions), Audience (recipient_context, moved from Settings), Output Format (template_structure.format_notes, custom type only), and a live Prompt Preview showing composed agent context. Client-side `composePromptPreview()` mirrors `_build_headless_system_prompt()` logic.
+- `web/components/deliverables/DeliverableSettingsPanel.tsx`: Removed Recipient Context section (moved to Instructions panel).
+- No backend prompt changes — this is purely UI visibility. The agent receives exactly the same composed prompt as before.
+- Expected behavior: Users can now see exactly what the agent receives from their instruction inputs, improving inspectability and confidence in deliverable configuration.
+
+---
+
 ## [2026.03.07.1] - Proactive Insights review pass hardening (from Pass 4 testing)
 
 ### Changed

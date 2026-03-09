@@ -56,7 +56,9 @@ Merged separate status text badge and pause/resume icon button into a single cli
 
 ### Settings modal → drawer tab
 
-`DeliverableSettingsModal` was absorbed into the workspace drawer as a tab (`DeliverableSettingsPanel`). Same form logic (destination, title, schedule, sources, recipient context, archive), modal wrapper stripped. Settings gear button removed from header — settings is now the first drawer tab. See [Workspace Drawer Refactor](WORKSPACE-DRAWER-REFACTOR.md).
+`DeliverableSettingsModal` was absorbed into the workspace drawer as a tab (`DeliverableSettingsPanel`). Same form logic (destination, title, schedule, sources, archive), modal wrapper stripped. Settings gear button removed from header — settings is now the first drawer tab. See [Workspace Drawer Refactor](WORKSPACE-DRAWER-REFACTOR.md).
+
+**Update (2026-03-09):** Recipient Context moved from Settings to the Instructions panel as the "Audience" section. Settings panel now covers: destination, title, schedule, data sources, archive.
 
 ---
 
