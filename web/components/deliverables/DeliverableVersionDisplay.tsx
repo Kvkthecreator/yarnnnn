@@ -7,7 +7,7 @@
  * Includes: InlineVersionCard, VersionsPanel, VersionPreview, SourcePills, helpers
  */
 
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
   Loader2,
@@ -20,9 +20,12 @@ import {
   Copy,
   Clock,
   Database,
+  MessageSquare,
+  Send,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
+import { api } from '@/lib/api/client';
 import type { Deliverable, DeliverableVersion, SourceSnapshot } from '@/types';
 
 // =============================================================================
@@ -267,6 +270,90 @@ export function VersionPreview({ version }: { version: DeliverableVersion }) {
 }
 
 // =============================================================================
+// VersionFeedbackStrip — lightweight feedback on delivered versions
+// =============================================================================
+
+function VersionFeedbackStrip({
+  deliverableId,
+  version,
+}: {
+  deliverableId: string;
+  version: DeliverableVersion;
+}) {
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState(version.feedback_notes || '');
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(!!version.feedback_notes);
+
+  const handleSubmit = useCallback(async () => {
+    const trimmed = note.trim();
+    if (!trimmed || saving) return;
+    setSaving(true);
+    try {
+      await api.deliverables.updateVersion(deliverableId, version.id, {
+        feedback_notes: trimmed,
+      });
+      setSaved(true);
+      setOpen(false);
+    } catch {
+      // Silently fail — user can retry
+    } finally {
+      setSaving(false);
+    }
+  }, [note, saving, deliverableId, version.id]);
+
+  // Only show for delivered/approved versions with content
+  const hasContent = !!(version.final_content || version.draft_content);
+  const isDelivered = version.delivery_status === 'delivered' || version.status === 'approved';
+  if (!hasContent || !isDelivered) return null;
+
+  if (!open) {
+    return (
+      <button
+        onClick={() => setOpen(true)}
+        className="w-full px-3 py-1.5 border-t border-border text-xs text-muted-foreground hover:text-foreground transition-colors text-left flex items-center gap-1.5"
+      >
+        <MessageSquare className="w-3 h-3" />
+        {saved ? 'Feedback saved' : 'Leave feedback for future versions'}
+      </button>
+    );
+  }
+
+  return (
+    <div className="border-t border-border px-3 py-2">
+      <div className="flex items-center gap-2">
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && handleSubmit()}
+          placeholder="e.g. &quot;Less about competitors, more customer signals&quot;"
+          className="flex-1 text-xs bg-transparent border border-border rounded px-2 py-1 placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary"
+          autoFocus
+        />
+        <button
+          onClick={handleSubmit}
+          disabled={!note.trim() || saving}
+          className="p-1 text-primary hover:text-primary/80 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          title="Save feedback"
+        >
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
+        </button>
+        <button
+          onClick={() => setOpen(false)}
+          className="p-1 text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <XCircle className="w-3.5 h-3.5" />
+        </button>
+      </div>
+      <p className="text-[10px] text-muted-foreground mt-1">
+        This shapes future autonomous runs — the agent learns from your feedback.
+      </p>
+    </div>
+  );
+}
+
+// =============================================================================
 // InlineVersionCard (shown above chat messages, full chat width)
 // =============================================================================
 
@@ -406,6 +493,11 @@ export function InlineVersionCard({
               </div>
             )}
           </div>
+        )}
+
+        {/* Feedback strip for delivered versions */}
+        {selectedVersion && (
+          <VersionFeedbackStrip deliverableId={deliverable.id} version={selectedVersion} />
         )}
 
         {missingSourcesWarning && (

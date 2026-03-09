@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.09.6] - Deliverable feedback loop: chat auto-persist + version feedback strip
+
+### Changed
+- `api/agents/tp_prompts/behaviors.py`: Strengthened "Deliverable Workspace Management" section with explicit guidance for TP to auto-persist user feedback from chat as observations. Added "IMPORTANT" block explaining that headless generation does NOT see chat history — feedback must be written to deliverable_memory or deliverable_instructions to influence autonomous runs. Added patterns for direct feedback, implicit feedback, and corrections. Changed "don't update for one-off requests" to "still append observation even for one-offs".
+- `web/components/deliverables/DeliverableVersionDisplay.tsx`: Added `VersionFeedbackStrip` component — compact inline feedback UI on delivered version cards. Calls existing `updateVersion` API with `feedback_notes`. Shows on delivered/approved versions with content. Includes helper text explaining feedback shapes future runs.
+- Expected behavior: Two complementary feedback paths now active. (1) Chat path: TP recognizes feedback in deliverable-scoped chat and proactively persists it via `Edit(append_observation)`, flowing into headless generation via `deliverable_memory.observations`. (2) Direct path: Users can leave `feedback_notes` on versions via the UI strip, flowing into headless generation via `get_past_versions_context()` → "Learned Preferences" in system prompt.
+
+---
+
 ## [2026.03.09.5] - yarnnn as internal content platform (ADR-102)
 
 ### Changed

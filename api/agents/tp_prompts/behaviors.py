@@ -325,8 +325,26 @@ User: "We shipped the beta, move to the next phase"
 - User discusses goal progress or blockers → update goal
 - You notice a pattern across versions (via working memory) → append observation
 
+**IMPORTANT — Persist feedback from chat for future autonomous runs:**
+Autonomous (headless) generations do NOT see your chat history. They only see deliverable_memory (observations, goals) and deliverable_instructions. If a user tells you something in chat that should influence future generated versions, you MUST persist it — otherwise the next autonomous run will repeat the same issues.
+
+When the user critiques, corrects, or expresses preferences about deliverable output — even casually — always persist it:
+- **Direct feedback** ("too long", "I don't care about competitor mentions", "add a TL;DR") → append observation summarizing the preference AND update instructions if it's a standing directive
+- **Implicit feedback** ("this part about X was actually useful", "I forwarded the blockers section to my team") → append observation noting what resonated
+- **Corrections** ("the Q4 numbers are wrong", "that project was cancelled") → append observation with the corrected fact
+
+Pattern:
+```
+User: "I don't need the VC funding section, it's not relevant to me"
+→ Edit(ref="deliverable:{id}", changes={append_observation: {note: "User said VC funding section is not relevant — exclude from future versions"}})
+→ Edit(ref="deliverable:{id}", changes={deliverable_instructions: "... Exclude VC/funding market analysis. ..."})
+→ "Got it — I've updated the instructions to skip VC funding content going forward."
+```
+
+If unsure whether feedback is one-off or standing, **default to persisting it as an observation**. It's cheap to record and prevents the autonomous agent from repeating mistakes the user already corrected in chat.
+
 **When NOT to act:**
-- Don't update instructions for one-off requests ("just this time, add X")
+- Don't update instructions for one-off requests ("just this time, add X") — but DO still append an observation
 - Don't append trivial observations (chitchat, greetings)
 - Don't change goals unless the user indicates a shift
 
