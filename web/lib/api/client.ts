@@ -791,9 +791,9 @@ export const api = {
         };
       }>(`/api/integrations/${provider}/landscape${refresh ? "?refresh=true" : ""}`),
 
-    // ADR-072: Get synced platform content from platform_content
+    // ADR-072: Get synced platform content from platform_content (+ yarnnn deliverable outputs, ADR-102)
     getPlatformContext: (
-      provider: "slack" | "notion" | "gmail" | "calendar",
+      provider: "slack" | "notion" | "gmail" | "calendar" | "yarnnn",
       options?: { limit?: number; resourceId?: string; offset?: number }
     ) =>
       request<{

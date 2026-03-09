@@ -52,6 +52,9 @@ export function usePlatformData(
       setError(null);
 
       const apiProvider = getApiProvider(platform);
+      // yarnnn is internal — no OAuth, no landscape, no sources
+      const isExternalPlatform = platform !== 'yarnnn';
+      const externalProvider = apiProvider as "slack" | "notion" | "gmail" | "calendar";
 
       const [
         integrationResult,
@@ -61,18 +64,18 @@ export function usePlatformData(
         platformContextResult,
         calendarsResult,
       ] = await Promise.all([
-        api.integrations.get(apiProvider).catch(() => null),
-        options?.skipResources
+        isExternalPlatform ? api.integrations.get(externalProvider).catch(() => null) : Promise.resolve(null),
+        options?.skipResources || !isExternalPlatform
           ? Promise.resolve({ resources: [] })
-          : api.integrations.getLandscape(apiProvider).catch(() => ({ resources: [] })),
-        options?.skipResources
+          : api.integrations.getLandscape(externalProvider).catch(() => ({ resources: [] })),
+        options?.skipResources || !isExternalPlatform
           ? Promise.resolve({ sources: [] })
-          : api.integrations.getSources(apiProvider).catch(() => ({ sources: [] })),
+          : api.integrations.getSources(externalProvider).catch(() => ({ sources: [] })),
         api.integrations.getLimits().catch(() => null),
         options?.skipContext
           ? Promise.resolve({ items: [], total_count: 0, freshest_at: null, platform })
           : api.integrations.getPlatformContext(
-              platform as "slack" | "notion" | "gmail" | "calendar",
+              platform as "slack" | "notion" | "gmail" | "calendar" | "yarnnn",
               { limit: 10 }
             ).catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
         // Load available calendars for Calendar platform

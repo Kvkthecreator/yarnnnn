@@ -2689,7 +2689,7 @@ async def get_platform_context(
 
     Returns recent synced content, ordered by source_timestamp descending.
     """
-    if provider not in ["gmail", "slack", "notion", "calendar"]:
+    if provider not in ["gmail", "slack", "notion", "calendar", "yarnnn"]:
         raise HTTPException(status_code=400, detail=f"Unknown provider: {provider}")
 
     user_id = auth.user_id

@@ -65,7 +65,7 @@ const BAR_CLASSES: Record<HealthTone, string> = {
 };
 
 interface CompactSyncStatusProps {
-  platform: 'slack' | 'gmail' | 'notion' | 'calendar';
+  platform: 'slack' | 'gmail' | 'notion' | 'calendar' | 'yarnnn';
   tier: string;
   syncFrequency: string;
   selectedCount: number;

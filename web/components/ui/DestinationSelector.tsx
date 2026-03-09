@@ -26,7 +26,7 @@ import {
 import Link from 'next/link';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
-import type { Destination, IntegrationProvider } from '@/types';
+import type { Destination, DestinationPlatform, IntegrationProvider } from '@/types';
 
 interface Integration {
   id: string;
@@ -166,7 +166,7 @@ export function DestinationSelector({
   useEffect(() => {
     if (selectedPlatform && selectedFormat) {
       const destination: Destination = {
-        platform: selectedPlatform as IntegrationProvider | 'download',
+        platform: selectedPlatform as DestinationPlatform,
         format: selectedFormat,
         target: target || undefined,
       };

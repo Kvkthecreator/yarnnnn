@@ -31,6 +31,7 @@ import {
   FileCode,
   Calendar,
   CheckCircle2,
+  Globe,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
@@ -360,8 +361,10 @@ export function DeliverableSettingsPanel({
                       <Mail className="w-4 h-4 text-red-500 shrink-0" />
                     ) : source.provider === 'notion' ? (
                       <FileText className="w-4 h-4 text-amber-600 shrink-0" />
-                    ) : source.provider === 'calendar' || source.provider === 'google' ? (
+                    ) : source.provider === 'calendar' || (source.provider as string) === 'google' ? (
                       <Calendar className="w-4 h-4 text-blue-500 shrink-0" />
+                    ) : source.provider === 'yarnnn' ? (
+                      <Globe className="w-4 h-4 text-indigo-500 shrink-0" />
                     ) : (
                       <FileCode className="w-4 h-4 text-gray-500 shrink-0" />
                     )

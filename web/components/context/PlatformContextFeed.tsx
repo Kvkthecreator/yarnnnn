@@ -7,7 +7,7 @@ import { api } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import type { PlatformContentItem } from '@/types';
 
-type PlatformKey = 'slack' | 'gmail' | 'notion' | 'calendar';
+type PlatformKey = 'slack' | 'gmail' | 'notion' | 'calendar' | 'yarnnn';
 
 interface PlatformContextFeedProps {
   platform: PlatformKey;
