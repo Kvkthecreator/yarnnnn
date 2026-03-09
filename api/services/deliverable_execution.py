@@ -752,6 +752,40 @@ async def execute_deliverable_generation(
             }).eq("id", version_id).execute()
             logger.info(f"[EXEC] No destination - content ready (version={version_id})")
 
+        # ADR-102: Write deliverable output as yarnnn platform_content
+        # Closes the accumulation loop — deliverable outputs become searchable context
+        if final_status == "delivered" and draft:
+            try:
+                from services.platform_content import store_platform_content
+                from services.supabase import get_service_client as _get_svc3
+                await store_platform_content(
+                    db_client=_get_svc3(),
+                    user_id=user_id,
+                    platform="yarnnn",
+                    resource_id=str(deliverable_id),
+                    item_id=str(version_id),
+                    content=draft,
+                    content_type=deliverable_type,
+                    resource_name=title,
+                    title=f"{title} v{next_version}",
+                    author="yarnnn",
+                    is_user_authored=False,
+                    metadata={
+                        "deliverable_type": deliverable_type,
+                        "mode": deliverable.get("mode"),
+                        "version_number": next_version,
+                        "strategy": strategy.strategy_name,
+                    },
+                    source_timestamp=datetime.now(timezone.utc),
+                    retained=True,
+                    retained_reason="yarnnn_output",
+                    retained_ref=str(version_id),
+                )
+                logger.info(f"[EXEC] ADR-102: Stored yarnnn_content for {title} v{next_version}")
+            except Exception as e:
+                logger.warning(f"[EXEC] ADR-102: Failed to store yarnnn_content: {e}")
+                # Non-fatal — don't block delivery
+
         logger.info(
             f"[EXEC] Complete: {title}, version={next_version}, "
             f"status={final_status}, strategy={strategy.strategy_name}"

@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.09.5] - yarnnn as internal content platform (ADR-102)
+
+### Changed
+- `api/services/platform_content.py`: Added `"yarnnn"` to `PlatformType` literal and `"yarnnn_output"` to `RetainedReason`. Added TTL entry (unused — yarnnn content is always retained).
+- `api/services/deliverable_execution.py`: After successful delivery, writes the version draft as a `platform_content` row with `platform="yarnnn"`, `retained=True`, `retained_reason="yarnnn_output"`. Closes the accumulation loop — deliverable outputs become searchable context for TP and other deliverables.
+- `api/services/primitives/search.py`: Search tool enum now includes `"yarnnn"` — agents can search deliverable outputs alongside platform content.
+- `api/routes/system.py`: `content_platforms` includes `"yarnnn"` for system status content counts.
+- `api/routes/admin.py`: Admin dashboard includes `"yarnnn"` in platform content counts and `"yarnnn_output"` in retention reason breakdown.
+- Expected behavior: Each successful deliverable delivery now writes the generated content to `platform_content`. TP and headless agents can search across deliverable outputs via `platform="yarnnn"`. Cross-deliverable context sharing is now possible — a coordinator can reference outputs from deliverables it orchestrates.
+
+---
+
 ## [2026.03.09.4] - JSONB type alignment + per-deliverable token tracking (ADR-101)
 
 ### Changed

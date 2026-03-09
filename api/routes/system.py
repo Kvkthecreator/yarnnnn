@@ -267,7 +267,7 @@ async def get_system_status(auth: UserClient):
     # ─── Platform Content Counts (per platform) ───────────────────────────────
     # Map platform_connections.platform → platform_content.platform
     # Note: "google" connection provides both "gmail" and "calendar" content platforms
-    content_platforms = ["slack", "gmail", "notion", "calendar"]
+    content_platforms = ["slack", "gmail", "notion", "calendar", "yarnnn"]
     content_counts: dict[str, PlatformContentSummary] = {}
 
     for cp in content_platforms:

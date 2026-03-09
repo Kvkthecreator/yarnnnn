@@ -33,6 +33,7 @@ Key ADRs that define YARNNN's philosophy (not just implementation):
 - **ADR-088**: Trigger Dispatch - `dispatch_trigger()` in `api/services/trigger_dispatch.py`, single decision point for schedule/event/signal triggers (Phase 1 implemented)
 - **ADR-092**: Deliverable Intelligence & Mode Taxonomy - five modes (`recurring`, `goal`, `reactive`, `proactive`, `coordinator`); signal processing dissolved from L3; `RefreshPlatformContent` extended to headless; coordinator deliverables replace `signal_emergent` origin (Implemented — signal processing removed, modes active, coordinator pipeline in `proactive_review.py`)
 - **ADR-101**: Deliverable Intelligence Model - four-layer knowledge model (Skills / Directives / Memory / Feedback); learned preferences from edit history injected into headless system prompt; `get_past_versions_context()` includes delivered versions
+- **ADR-102**: yarnnn Content Platform - deliverable outputs written as `platform_content` rows with `platform="yarnnn"`, closing the accumulation loop; always retained; searchable by TP and headless agents; no OAuth, no sync
 
 If an external system (Claude Code, ChatGPT, etc.) does something differently, check if YARNNN has an ADR explaining why we chose a different approach.
 
@@ -152,7 +153,7 @@ You MUST:
 
 **Tables** (use these names, not legacy):
 - `platform_connections` (not `user_integrations`)
-- `platform_content` — unified content layer with retention (ADR-072, replaces `filesystem_items`)
+- `platform_content` — unified content layer with retention (ADR-072, replaces `filesystem_items`); includes `platform="yarnnn"` for deliverable outputs (ADR-102)
 - `filesystem_documents` / `filesystem_chunks` — uploaded documents only
 - `user_memory` — single Memory store (replaces knowledge_profile, knowledge_styles, knowledge_domains, knowledge_entries)
 - `mcp_oauth_clients` / `mcp_oauth_codes` / `mcp_oauth_access_tokens` / `mcp_oauth_refresh_tokens` — MCP OAuth 2.1 storage (ADR-075, service key only)

@@ -1,7 +1,7 @@
 # Architecture: Deliverables
 
 **Status:** Canonical
-**Date:** 2026-02-26 (updated 2026-03-04 for ADR-092: mode taxonomy, coordinator type, signal processing dissolution)
+**Date:** 2026-02-26 (updated 2026-03-09 for ADR-102: yarnnn content platform)
 **Related:**
 - [ADR-018: Recurring Deliverables](../adr/ADR-018-recurring-deliverables.md)
 - [ADR-044: Deliverable Type Reconceptualization](../adr/ADR-044-deliverable-type-reconceptualization.md)
@@ -13,6 +13,7 @@
 - [ADR-082: Deliverable Type Consolidation](../adr/ADR-082-deliverable-type-consolidation.md) — 27→8 active types
 - [ADR-092: Deliverable Intelligence & Mode Taxonomy](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
 - [ADR-101: Deliverable Intelligence Model](../adr/ADR-101-deliverable-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
+- [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — deliverable outputs as searchable platform_content
 - [Agent Execution Model](agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Deliverables are Layer 4 (Work)
 
@@ -224,13 +225,15 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — system prompt includes directives, memory, and learned preferences (ADR-101); read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware round limits (ADR-081). Research/hybrid types receive a research directive and use WebSearch for web investigation.
 9. `mark_content_retained()` on consumed `platform_content` records (ADR-072)
 10. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
-11. `activity_log` event written (non-fatal)
+11. `store_platform_content(platform="yarnnn")` — deliverable output written as searchable content (ADR-102)
+12. `activity_log` event written (non-fatal)
 
 ### Content source
 
 All content comes from `platform_content` (the unified content layer, ADR-073):
 - Retained content (significant, never expires) — accumulated intelligence
 - Recent ephemeral content (TTL-bounded) — fresh platform state
+- yarnnn-generated content (`platform="yarnnn"`) — deliverable outputs from other deliverables (ADR-102)
 - Strategy-gathered content provides the baseline; headless mode primitives provide supplementary investigation
 
 `platform_content` is the single source, populated by platform sync (ephemeral) and marked retained by deliverable execution and signal processing.
