@@ -33,8 +33,8 @@ export function useSubscription() {
   }, [fetchStatus]);
 
   // ADR-100: 2-tier detection — normalize legacy "starter" → "pro"
-  const rawTier = status?.status || "free";
-  const tier: SubscriptionTier = rawTier === "starter" ? "pro" : (rawTier === "pro" ? "pro" : "free");
+  const rawTier = (status?.status as string) || "free";
+  const tier: SubscriptionTier = rawTier === "pro" || rawTier === "starter" ? "pro" : "free";
   const isPro = tier === "pro";
   const isPaid = tier === "pro";
 
