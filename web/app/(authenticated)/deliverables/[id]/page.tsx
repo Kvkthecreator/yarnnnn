@@ -108,12 +108,27 @@ export default function DeliverableWorkspacePage() {
   const handleRunNow = async () => {
     if (!deliverable) return;
     setRunning(true);
+
+    // Optimistic: show a "generating" placeholder immediately
+    const nextVersion = (versions[0]?.version_number ?? 0) + 1;
+    const placeholder: DeliverableVersion = {
+      id: `generating-${Date.now()}`,
+      deliverable_id: id,
+      version_number: nextVersion,
+      status: 'generating',
+      created_at: new Date().toISOString(),
+    };
+    setVersions((prev) => [placeholder, ...prev]);
+    setSelectedIdx(0);
+
     try {
       await api.deliverables.run(id);
       await loadDeliverable();
       setSelectedIdx(0);
     } catch (err) {
       console.error('Failed to run deliverable:', err);
+      // Remove optimistic placeholder on failure
+      setVersions((prev) => prev.filter((v) => v.id !== placeholder.id));
     } finally {
       setRunning(false);
     }
