@@ -144,7 +144,9 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 - Writes with `retained=false`, `expires_at=NOW()+TTL`
 - Knows nothing about significance — just syncs. L3 does not reason.
 
-**Deliverable Execution** and **TP Sessions** mark existing records as `retained=true` after consuming them.
+**Deliverable Execution** marks existing records as `retained=true` after consuming them, and writes deliverable outputs as new `platform_content` rows with `platform="yarnnn"`, `retained=true` (ADR-102). This closes the accumulation loop — L4 outputs flow back into L3 as searchable context.
+
+**TP Sessions** mark existing records as `retained=true` after consuming them.
 
 > **ADR-092:** Signal processing no longer writes to `platform_content`. It was an L3-level reasoning subsystem that violated the layer boundary. That capability moves into L4 coordinator deliverables.
 
@@ -161,6 +163,7 @@ The four-layer structure maps cleanly onto analogies from adjacent tools:
 - Gmail: 30 days
 - Notion: 90 days
 - Calendar: 2 days
+- yarnnn: Always retained (ADR-102 — deliverable outputs never expire)
 
 ### How content is accessed
 
@@ -181,10 +184,11 @@ Over time, `platform_content` accumulates retained records that represent the us
 - Slack threads that informed weekly digests
 - Email exchanges that became client briefs
 - Calendar events that triggered meeting prep
+- Deliverable outputs that become context for future work (`platform="yarnnn"`, ADR-102)
 
-This is the content that proved its value through downstream consumption. It compounds intelligence. It is the moat.
+This is the content that proved its value through downstream consumption — plus generated content that feeds back into the intelligence loop. It compounds. It is the moat.
 
-**Key insight**: Don't accumulate everything. Don't expire everything. **Accumulate what proved significant.**
+**Key insight**: Don't accumulate everything. Don't expire everything. **Accumulate what proved significant** — and what YARNNN itself produces.
 
 ---
 
@@ -388,9 +392,9 @@ The more deliverables a user runs, the more the system learns what they value. T
 | How does Layer 4 content influence future work? | Recent deliverable version content (400-char preview) is included in signal reasoning prompts (ADR-069). This enables quality-aware orchestration decisions. |
 | What are the three memory extraction sources? | 1) Conversation (nightly batch), 2) Deliverable feedback (on approval), 3) Activity patterns (daily detection). See ADR-064. |
 | Is signal processing real-time? | No. Signals are extracted on cron schedule (hourly). Near-real-time via webhooks is future work. |
-| Does anything write to `platform_content` beyond platform sync? | No. Platform sync is the only writer. Downstream consumers (deliverable execution, TP sessions, coordinator deliverables) mark existing records `retained=true` after consuming them. L3 does not reason. (ADR-092) |
+| Does anything write to `platform_content` beyond platform sync? | Yes — deliverable execution writes outputs as `platform="yarnnn"` rows after successful delivery (ADR-102). Platform sync writes external content; deliverable execution also marks consumed records `retained=true`. L3 does not reason. (ADR-092) |
 | Can coordinator-created deliverables become recurring? | Yes. Deliverables with `origin=coordinator_created` can be promoted to recurring (add schedule). Origin field preserves provenance. |
-| What is the "accumulation moat"? | Retained `platform_content` accumulates over time — the content that proved significant through downstream consumption. This is the compounding intelligence layer that makes YARNNN's outputs improve with tenure. |
+| What is the "accumulation moat"? | Retained `platform_content` accumulates over time — both external content that proved significant through downstream consumption, and deliverable outputs written back as `platform="yarnnn"` (ADR-102). This creates a compounding intelligence loop: outputs become inputs for future work. |
 
 ---
 

@@ -137,7 +137,7 @@ Each entity type has a defined schema. Key fields are shown for display purposes
 | Field | Type | Description | Display |
 |-------|------|-------------|---------|
 | `id` | UUID | Primary key | — |
-| `platform` | string | Source platform (slack, gmail, notion) | ✓ Badge |
+| `platform` | string | Source platform (slack, gmail, notion, calendar, yarnnn) | ✓ Badge |
 | `resource_name` | string | Channel/folder/page name | ✓ Primary |
 | `content` | string | The imported content | ✓ Truncated |
 | `content_type` | string | Type (message, email, page, etc.) | — |
@@ -437,10 +437,10 @@ Find entities by content using text search.
 
 **Scopes**: `platform_content`, `document`, `deliverable`, `work`, `all`
 
-**Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`, `calendar`
+**Platform Filter** (optional, for `platform_content` scope): `slack`, `gmail`, `notion`, `calendar`, `yarnnn`
 
 > **Scope clarification**:
-> - `platform_content` searches synced platform data (Slack/Gmail/Notion/Calendar). If stale/empty, use `RefreshPlatformContent` to sync latest (ADR-085).
+> - `platform_content` searches synced platform data (Slack/Gmail/Notion/Calendar) and deliverable outputs (`yarnnn`, ADR-102). If external content is stale/empty, use `RefreshPlatformContent` to sync latest (ADR-085).
 > - `document` searches uploaded files (PDF, DOCX, TXT, MD)
 > - `memory` is **not a valid scope** (ADR-065) — memory is already injected into working memory at session start. Passing `scope="memory"` returns an error.
 
@@ -526,7 +526,7 @@ Synchronous write-through cache refresh. Calls the same `_sync_platform_async()`
 }
 ```
 
-**Supported platforms**: `slack`, `gmail`, `notion`, `calendar`
+**Supported platforms**: `slack`, `gmail`, `notion`, `calendar` (not `yarnnn` — deliverable outputs are written internally, not synced)
 
 **Mode**: Chat only (`["chat"]`). Headless mode uses `freshness.sync_stale_sources()` instead.
 

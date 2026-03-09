@@ -181,6 +181,9 @@ All platforms use Direct API clients from `api/integrations/core/` — no MCP, n
 | Gmail | 30 days |
 | Notion | 90 days |
 | Calendar | 2 days |
+| yarnnn | Always retained (ADR-102) |
+
+> **ADR-102**: Deliverable outputs are written to `platform_content` with `platform="yarnnn"` after successful delivery. These are always retained (`retained=true`, `retained_reason="yarnnn_output"`) — generated artifacts don't expire. This closes the accumulation loop: deliverable outputs become searchable context for TP and other deliverables.
 
 ---
 
