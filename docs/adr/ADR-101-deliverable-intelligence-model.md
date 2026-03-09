@@ -70,7 +70,7 @@ This ADR does **not** introduce:
 - A sub-agent framework — deliverables remain execution targets, not autonomous agents
 - Self-modifying instructions — the agent cannot change its own directives
 - Adaptive scheduling — review cadence remains fixed per proactive review decision
-- Per-deliverable token budgets
+- Per-deliverable token budgets (enforcement) — tokens are tracked but not gated per deliverable
 
 These are scoped out for separate consideration if needed.
 
@@ -82,8 +82,34 @@ These are scoped out for separate consideration if needed.
 |------|--------|
 | `api/services/deliverable_pipeline.py` | Fix `get_past_versions_context()` status filter: `approved` → `approved, delivered` |
 | `api/services/deliverable_execution.py` | Inject learned preferences into `_build_headless_system_prompt()` instead of only type prompt |
+| `api/services/deliverable_execution.py` | Token accumulation across headless agentic loop; return `(draft, usage)` tuple |
+| `api/services/deliverable_execution.py` | `update_version_for_delivery()` accepts `metadata` param; stores tokens on version |
+| `api/services/anthropic.py` | `ChatResponse.usage` field; `_parse_response()` extracts `response.usage` |
 | `api/services/feedback_engine.py` | Delete dead `create_feedback_memory()` function |
+| `supabase/migrations/096_version_metadata.sql` | Add `metadata` JSONB column to `deliverable_versions` |
+| `web/types/index.ts` | Complete `DeliverableMemory` type (add `review_log`, `created_deliverables`); add `metadata` to `DeliverableVersion` |
+| `web/components/deliverables/DeliverableDrawerPanels.tsx` | MemoryPanel: display `review_log`; prompt preview: include review history |
+| `web/components/deliverables/DeliverableVersionDisplay.tsx` | Token count display on version cards |
 | `docs/adr/ADR-101-deliverable-intelligence-model.md` | This document |
+
+---
+
+## Per-Deliverable Token Tracking
+
+Token usage is accumulated across all tool rounds in the headless agentic loop (`generate_draft_inline`) and stored as execution metadata on each version:
+
+```json
+// deliverable_versions.metadata
+{
+  "input_tokens": 12345,
+  "output_tokens": 2345,
+  "model": "claude-sonnet-4-20250514"
+}
+```
+
+Token counts are also written to `activity_log.metadata` for each `deliverable_run` event, enabling aggregate cost analysis across deliverables.
+
+The frontend displays total tokens on version cards (hover for input/output breakdown). This provides cost visibility without enforcement — per-deliverable token budgets are a separate future consideration.
 
 ---
 

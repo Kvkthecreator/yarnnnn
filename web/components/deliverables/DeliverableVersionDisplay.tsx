@@ -76,6 +76,11 @@ export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
 
+function formatTokens(n: number): string {
+  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
+  return String(n);
+}
+
 export function SourcePills({ snapshots }: { snapshots: SourceSnapshot[] }) {
   if (!snapshots || snapshots.length === 0) return null;
   return (
@@ -222,6 +227,14 @@ export function VersionPreview({ version }: { version: DeliverableVersion }) {
                 <span className="text-xs text-muted-foreground">{wordCount(content).toLocaleString()} words</span>
               </>
             )}
+            {version.metadata && (version.metadata.input_tokens || version.metadata.output_tokens) && (
+              <>
+                <span className="text-border text-xs">&middot;</span>
+                <span className="text-xs text-muted-foreground" title={`${(version.metadata.input_tokens || 0).toLocaleString()} in / ${(version.metadata.output_tokens || 0).toLocaleString()} out`}>
+                  {formatTokens((version.metadata.input_tokens || 0) + (version.metadata.output_tokens || 0))} tokens
+                </span>
+              </>
+            )}
             {version.source_snapshots && version.source_snapshots.length > 0 && (
               <>
                 <span className="text-border text-xs">&middot;</span>
@@ -312,6 +325,14 @@ export function InlineVersionCard({
               {getStatusBadge(selectedVersion)}
               <span className="text-border text-xs">&middot;</span>
               <span className="text-xs text-muted-foreground">{getVersionTimestamp(selectedVersion)}</span>
+              {selectedVersion.metadata && (selectedVersion.metadata.input_tokens || selectedVersion.metadata.output_tokens) && (
+                <>
+                  <span className="text-border text-xs hidden sm:inline">&middot;</span>
+                  <span className="text-xs text-muted-foreground hidden sm:inline" title={`${(selectedVersion.metadata.input_tokens || 0).toLocaleString()} in / ${(selectedVersion.metadata.output_tokens || 0).toLocaleString()} out`}>
+                    {formatTokens((selectedVersion.metadata.input_tokens || 0) + (selectedVersion.metadata.output_tokens || 0))} tok
+                  </span>
+                </>
+              )}
             </>
           )}
           <span className="text-border text-xs hidden sm:inline">&middot;</span>

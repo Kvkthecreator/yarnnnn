@@ -39,9 +39,10 @@ import type {
 export function MemoryPanel({ deliverable }: { deliverable: Deliverable }) {
   const memory = deliverable.deliverable_memory;
   const observations = memory?.observations || [];
+  const reviewLog = memory?.review_log || [];
   const goal = memory?.goal;
 
-  if (observations.length === 0 && !goal) {
+  if (observations.length === 0 && reviewLog.length === 0 && !goal) {
     return (
       <div className="p-4 text-center">
         <p className="text-sm text-muted-foreground py-4">
@@ -50,6 +51,12 @@ export function MemoryPanel({ deliverable }: { deliverable: Deliverable }) {
       </div>
     );
   }
+
+  const actionColors: Record<string, string> = {
+    generate: 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400',
+    observe: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+    sleep: 'bg-gray-100 text-gray-600 dark:bg-gray-800/50 dark:text-gray-400',
+  };
 
   return (
     <div className="p-3 space-y-2.5">
@@ -87,6 +94,24 @@ export function MemoryPanel({ deliverable }: { deliverable: Deliverable }) {
           <p className="text-sm">{obs.note}</p>
         </div>
       ))}
+      {reviewLog.length > 0 && (
+        <>
+          <div className="flex items-center gap-1.5 pt-1">
+            <span className="text-xs font-medium text-muted-foreground">Review History</span>
+          </div>
+          {reviewLog.slice(-5).map((entry, i) => (
+            <div key={`review-${i}`} className="p-2.5 bg-muted/30 border border-border rounded-md">
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-1">
+                <span>{entry.date}</span>
+                <span className={cn('px-1.5 py-0.5 rounded text-[10px] font-medium', actionColors[entry.action] || actionColors.observe)}>
+                  {entry.action}
+                </span>
+              </div>
+              <p className="text-sm">{entry.note}</p>
+            </div>
+          ))}
+        </>
+      )}
     </div>
   );
 }
@@ -122,6 +147,12 @@ function composePromptPreview(
       memParts.push('**Recent observations:**');
       memory.observations.slice(-5).forEach(obs => {
         memParts.push(`- ${obs.date}: ${obs.note}`);
+      });
+    }
+    if (memory.review_log?.length) {
+      memParts.push('**Review history:**');
+      memory.review_log.slice(-3).forEach(entry => {
+        memParts.push(`- ${entry.date}: ${entry.note}`);
       });
     }
     if (memParts.length) {

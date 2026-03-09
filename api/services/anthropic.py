@@ -28,6 +28,7 @@ class ChatResponse:
     stop_reason: str  # "end_turn", "tool_use", "max_tokens"
     text: str  # Concatenated text content
     tool_uses: list[ToolUseBlock]  # Extracted tool use blocks
+    usage: Optional[dict] = None  # ADR-101: {input_tokens, output_tokens}
 
 
 def get_anthropic_client() -> AsyncAnthropic:
@@ -111,11 +112,20 @@ def _parse_response(response) -> ChatResponse:
                 input=block.input
             ))
 
+    # ADR-101: Extract token usage from response
+    usage = None
+    if hasattr(response, 'usage') and response.usage:
+        usage = {
+            "input_tokens": response.usage.input_tokens,
+            "output_tokens": response.usage.output_tokens,
+        }
+
     return ChatResponse(
         content=response.content,
         stop_reason=response.stop_reason,
         text="".join(text_parts),
         tool_uses=tool_uses,
+        usage=usage,
     )
 
 

@@ -198,6 +198,8 @@ export default function DeliverableWorkspacePage() {
 
   const memory = deliverable.deliverable_memory;
   const observations = memory?.observations || [];
+  const reviewLog = memory?.review_log || [];
+  const memoryCount = observations.length + reviewLog.length;
 
   // ==========================================================================
   // Panel tabs
@@ -236,7 +238,7 @@ export default function DeliverableWorkspacePage() {
     },
     {
       id: 'memory',
-      label: `Memory${observations.length > 0 ? ` (${observations.length})` : ''}`,
+      label: `Memory${memoryCount > 0 ? ` (${memoryCount})` : ''}`,
       content: <MemoryPanel deliverable={deliverable} />,
     },
     {

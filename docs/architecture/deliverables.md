@@ -523,6 +523,7 @@ Every deliverable execution captures metadata across multiple storage layers, en
 |------|-----------------|------------|
 | Generated content | `deliverable_versions.draft_content` / `final_content` | Yes |
 | Strategy used | `activity_log.metadata.strategy` | Yes |
+| Token usage (input/output/model) | `deliverable_versions.metadata` + `activity_log.metadata` | Yes (ADR-101) |
 | Source snapshots (immutable) | `deliverable_versions.source_snapshots` | Yes |
 | Execution stages (started/completed/failed) | `work_execution_log` | Yes |
 | Content length, sources list | `work_execution_log.metadata` | Yes |
@@ -558,7 +559,7 @@ SELECT source_snapshots FROM deliverable_versions WHERE id = '<version_id>';
 
 The `/deliverables/[id]` detail page now surfaces per-version execution metadata:
 - **Content**: Rendered markdown (ReactMarkdown + Tailwind typography) as the hero element
-- **Per-version**: Delivery status badge, timestamp, version number, word count, source snapshot pills
+- **Per-version**: Delivery status badge, timestamp, version number, word count, token count (ADR-101), source snapshot pills
 - **Delivery history**: Click version rows to switch the content area (replaces accordion)
 - **Failed versions**: Error banner with `delivery_error` message and Retry button
 

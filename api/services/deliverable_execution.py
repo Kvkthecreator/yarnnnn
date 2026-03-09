@@ -285,7 +285,7 @@ You have read-only investigation tools available: Search, Read, List, WebSearch,
             review_decision = trigger_context.get("review_decision", {})
             review_note = review_decision.get("note", "")
             if review_note:
-                prompt += f"\n\n## Review Context\nThis deliverable was triggered by a proactive review pass that found:\n{review_note}\n\nUse this as your starting point — investigate these themes further with your tools."
+                prompt += f"\n\n## Review Context\nThis deliverable was triggered by a proactive review pass that found:\n{review_note}\n\nUse this as your starting point. The review pass already identified these themes — focus on synthesizing insights from the gathered context above rather than re-investigating."
 
         # Signal processing: forward signal reasoning
         signal_reasoning = trigger_context.get("signal_reasoning", "")
@@ -424,6 +424,10 @@ async def generate_draft_inline(
         messages = [{"role": "user", "content": prompt}]
         tools_used = []  # Track tool names for observability
 
+        # ADR-101: Accumulate token usage across all tool rounds
+        total_input_tokens = 0
+        total_output_tokens = 0
+
         for round_num in range(max_tool_rounds + 1):
             response = await chat_completion_with_tools(
                 messages=messages,
@@ -432,6 +436,11 @@ async def generate_draft_inline(
                 model=SONNET_MODEL,
                 max_tokens=4000,
             )
+
+            # ADR-101: Track tokens from each round
+            if response.usage:
+                total_input_tokens += response.usage.get("input_tokens", 0)
+                total_output_tokens += response.usage.get("output_tokens", 0)
 
             # Agent finished or hit token limit — take whatever text exists
             if response.stop_reason in ("end_turn", "max_tokens") or not response.tool_uses:
@@ -451,7 +460,27 @@ async def generate_draft_inline(
                     f"[GENERATE] Headless agent hit max tool rounds ({max_tool_rounds}), "
                     f"tools used: {', '.join(tools_used)}"
                 )
-                draft = response.text.strip() if response.text else ""
+                # If agent has text alongside tool calls, use it
+                if response.text and response.text.strip():
+                    draft = response.text.strip()
+                    break
+
+                # Force a final synthesis call with no tools available
+                logger.info("[GENERATE] Forcing final synthesis call (no tools)")
+                messages.append({"role": "assistant", "content": response.text or ""})
+                messages.append({"role": "user", "content": "You have reached the tool limit. Please synthesize all the information gathered so far and produce the final deliverable now. Do not request any more tools."})
+                final_response = await chat_completion_with_tools(
+                    messages=messages,
+                    system=system_prompt,
+                    tools=[],  # No tools — force text output
+                    model=SONNET_MODEL,
+                    max_tokens=4000,
+                )
+                # ADR-101: Track tokens from synthesis call
+                if final_response.usage:
+                    total_input_tokens += final_response.usage.get("input_tokens", 0)
+                    total_output_tokens += final_response.usage.get("output_tokens", 0)
+                draft = final_response.text.strip() if final_response.text else ""
                 break
 
             # Build assistant message with tool use blocks
@@ -492,7 +521,13 @@ async def generate_draft_inline(
         if not validation.get("valid"):
             logger.warning(f"[GENERATE] Validation warnings: {validation.get('issues', [])}")
 
-        return draft
+        # ADR-101: Return draft + token usage for per-deliverable cost tracking
+        usage = {
+            "input_tokens": total_input_tokens,
+            "output_tokens": total_output_tokens,
+        }
+        logger.info(f"[GENERATE] Token usage: {total_input_tokens} in / {total_output_tokens} out")
+        return draft, usage
 
     except Exception as e:
         logger.error(f"[GENERATE] LLM call failed: {e}")
@@ -503,17 +538,22 @@ async def update_version_for_delivery(
     client,
     version_id: str,
     draft_content: str,
+    metadata: Optional[dict] = None,
 ):
     """
     Prepare version for delivery by storing content.
 
     ADR-066: Versions go directly to delivery, no staged status.
     Status remains 'generating' until delivery completes.
+    ADR-101: Optional metadata (tokens, model) stored for cost tracking.
     """
-    client.table("deliverable_versions").update({
+    update = {
         "draft_content": draft_content,
         "final_content": draft_content,  # ADR-066: No editing step, content is final
-    }).eq("id", version_id).execute()
+    }
+    if metadata:
+        update["metadata"] = metadata
+    client.table("deliverable_versions").update(update).eq("id", version_id).execute()
 
 
 # =============================================================================
@@ -601,13 +641,19 @@ async def execute_deliverable_generation(
 
         # 4. Generate draft inline (ADR-080/081: pass trigger_context + research_directive)
         research_directive = context_summary.get("research_directive")
-        draft = await generate_draft_inline(
+        draft, usage = await generate_draft_inline(
             client, user_id, deliverable, gathered_context,
             trigger_context, research_directive,
         )
 
         # 5. ADR-066: Prepare version for delivery (no staged status)
-        await update_version_for_delivery(client, version_id, draft)
+        # ADR-101: Store execution metadata (tokens, model) on version
+        version_metadata = {
+            "input_tokens": usage.get("input_tokens", 0),
+            "output_tokens": usage.get("output_tokens", 0),
+            "model": SONNET_MODEL,
+        }
+        await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
 
         # ADR-073: Mark consumed platform content as retained
         if gathered_result.platform_content_ids:
@@ -729,6 +775,8 @@ async def execute_deliverable_generation(
                     "strategy": strategy.strategy_name,
                     "final_status": final_status,
                     "delivery_error": delivery_error,
+                    "input_tokens": usage.get("input_tokens", 0),  # ADR-101
+                    "output_tokens": usage.get("output_tokens", 0),  # ADR-101
                 },
             )
         except Exception:

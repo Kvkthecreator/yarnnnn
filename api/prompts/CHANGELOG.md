@@ -6,6 +6,28 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.09.4] - JSONB type alignment + per-deliverable token tracking (ADR-101)
+
+### Changed
+- `api/services/anthropic.py`: `ChatResponse` dataclass now includes `usage: Optional[dict]`. `_parse_response()` extracts `response.usage.input_tokens` and `output_tokens` from Anthropic API responses. This was already done for the streaming path — now the non-streaming path (`chat_completion_with_tools`) also captures usage.
+- `api/services/deliverable_execution.py`: `generate_draft_inline()` accumulates token usage across all tool rounds in the agentic loop and returns `(draft, usage)` tuple. `update_version_for_delivery()` accepts optional `metadata` dict stored on the version row. `execute_deliverable_generation()` passes token metadata to both `deliverable_versions.metadata` and `activity_log.metadata`.
+- `supabase/migrations/096_version_metadata.sql`: Adds `metadata JSONB` column to `deliverable_versions`.
+- `web/types/index.ts`: `DeliverableMemory` type completed with `review_log`, `created_deliverables`, `last_generated_at`. `DeliverableVersion` extended with `metadata` field.
+- `web/components/deliverables/DeliverableDrawerPanels.tsx`: MemoryPanel displays `review_log` entries with color-coded action pills. Prompt preview includes review history section.
+- `web/components/deliverables/DeliverableVersionDisplay.tsx`: Token count displayed on version cards (hover for input/output breakdown).
+- Expected behavior: Each deliverable generation now records token usage. Version cards show total tokens used. MemoryPanel displays proactive review history. DeliverableMemory TypeScript type matches backend JSONB structure.
+
+---
+
+## [2026.03.09.3] - Fix empty draft on proactive deliverables hitting tool round limit
+
+### Changed
+- `api/services/deliverable_execution.py`: Reworded proactive review trigger prompt — no longer tells agent to "investigate themes further with your tools" (which caused tool-looping). Now says "focus on synthesizing insights from the gathered context."
+- `api/services/deliverable_execution.py`: Added fallback synthesis call when agent hits max tool rounds with no text. Instead of failing with empty draft, makes one final API call with no tools available, forcing the agent to synthesize all gathered information into a response.
+- Expected behavior: Proactive deliverables that previously failed with "Agent produced empty draft" when the agent exhausted tool rounds without producing text will now produce a draft via the forced synthesis fallback.
+
+---
+
 ## [2026.03.09.2] - Deliverable intelligence model: close feedback loop (ADR-101)
 
 ### Changed

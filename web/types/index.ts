@@ -357,10 +357,26 @@ export interface DeliverableGoal {
   milestones?: string[];
 }
 
-// ADR-087: Deliverable memory structure
+// ADR-092: Review log entry (proactive/coordinator modes)
+export interface DeliverableReviewLogEntry {
+  date: string;
+  action: string;  // 'generate' | 'observe' | 'sleep'
+  note: string;
+  next_review_at?: string;
+}
+
+// ADR-087/092/101: Deliverable memory structure
 export interface DeliverableMemory {
   observations?: DeliverableObservation[];
   goal?: DeliverableGoal;
+  review_log?: DeliverableReviewLogEntry[];
+  created_deliverables?: Array<{
+    date: string;
+    title: string;
+    deliverable_id?: string;
+    dedup_key?: string;
+  }>;
+  last_generated_at?: string;
 }
 
 // ADR-087: Deliverable mode (ADR-092: extended with reactive, proactive, coordinator)
@@ -497,6 +513,12 @@ export interface DeliverableVersion {
   delivery_mode?: 'draft' | 'direct';
   // ADR-049: Source snapshots for freshness tracking
   source_snapshots?: SourceSnapshot[];
+  // ADR-101: Execution metadata (tokens, model)
+  metadata?: {
+    input_tokens?: number;
+    output_tokens?: number;
+    model?: string;
+  };
 }
 
 // ADR-018: Feedback summary for learned preferences
