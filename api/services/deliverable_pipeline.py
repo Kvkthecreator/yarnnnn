@@ -668,12 +668,12 @@ async def get_past_versions_context(client, deliverable_id: str) -> str:
 
     Returns a formatted string with learned preferences from edit history.
     """
-    # Get recent approved versions with edits
+    # Get recent versions with edits (ADR-101: include 'delivered' for delivery-first model)
     versions_result = (
         client.table("deliverable_versions")
         .select("version_number, edit_categories, edit_distance_score, feedback_notes")
         .eq("deliverable_id", deliverable_id)
-        .eq("status", "approved")
+        .in_("status", ["approved", "delivered"])
         .order("version_number", desc=True)
         .limit(5)
         .execute()

@@ -10,6 +10,7 @@
 - [ADR-067: Session Compaction](ADR-067-session-compaction-architecture.md) — session boundaries and summaries; this ADR routes them per deliverable
 - [ADR-038: Filesystem as Context](ADR-038-filesystem-as-context.md) — platform sync as "automated git pull"
 - [ADR-088: Trigger Dispatch](ADR-088-input-gateway-work-serialization.md) — `dispatch_trigger()` routes background triggers to generation vs memory update (Step 2, follows this ADR)
+- [ADR-101: Deliverable Intelligence Model](ADR-101-deliverable-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback), built on top of the scoped context introduced here
 - [Pre-ADR Analysis](../analysis/workspace-architecture-analysis-2026-03-02.md) — v1-v5 analysis, OpenClaw comparison, ghost entity discovery
 - [Development Landscape](../analysis/workspace-architecture-landscape.md) — sequencing and track dependencies
 

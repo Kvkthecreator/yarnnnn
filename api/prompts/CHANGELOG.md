@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.09.2] - Deliverable intelligence model: close feedback loop (ADR-101)
+
+### Changed
+- `api/services/deliverable_execution.py`: `_build_headless_system_prompt()` now accepts `learned_preferences` parameter. Feedback from past version edits is injected as a "## Learned Preferences" section in the system prompt (after Memory, before Tool Usage). Previously this data was only in the type prompt (user message). `generate_draft_inline()` passes learned preferences to system prompt and empty string to type prompt to avoid duplication.
+- `api/services/deliverable_pipeline.py`: `get_past_versions_context()` status filter changed from `eq("status", "approved")` to `in_("status", ["approved", "delivered"])`. This unbreaks the feedback loop for delivery-first (ADR-066) versions that skip the approval gate.
+- `api/services/feedback_engine.py`: Deleted dead `create_feedback_memory()` function (never called). Updated module docstring to reference ADR-101.
+- Expected behavior: Headless agent now sees learned preferences from user edits in its system prompt. For delivery-first deliverables, edit history from delivered versions is now included (previously only approved versions were queried, which excluded most versions under ADR-066).
+
+---
+
 ## [2026.03.09.1] - Structured Instructions panel with prompt preview (frontend only)
 
 ### Changed

@@ -118,15 +118,20 @@ This is YARNNN doing work on your behalf that you didn't explicitly configure. Y
 
 ## What all modes share
 
-Regardless of mode, every deliverable:
+Regardless of mode, every deliverable carries four layers of knowledge (ADR-101):
 
-- Has its own **instructions** — how it should behave, what it prioritizes, what it should include or avoid. Set these via TP or the deliverable settings.
-- Has its own **memory** — what it has learned about doing its job well. Structured differently per mode (see ADR-092), but always accumulating per specialist.
+- **Skills** — type-specific format and structure (e.g., a digest always leads with highlights, a status report always has cross-platform synthesis). Built into the type system.
+- **Directives** — your behavioral instructions and audience context. "Use formal tone." "The audience is the exec team." Set via the Instructions panel or TP chat.
+- **Memory** — what the deliverable has observed and decided. Structured differently per mode (observations, goals, review log — see ADR-092), but always accumulating per specialist.
+- **Feedback** — what it learned from your edits. When you modify a delivered version, the edit patterns feed into future generations as "learned preferences."
+
+Every deliverable also:
+
 - Produces **versioned, immutable output** — every generation is a permanent record you can review.
 - **Sleeps** between executions — zero resource cost when not running.
 - Runs the same **headless agent** under the hood — same intelligence as TP, same primitive access, scoped to background execution.
 
-The mode shapes how the agent decides *when* to act. The instructions and memory shape *how* it acts.
+The mode shapes how the agent decides *when* to act. The four knowledge layers shape *how* it acts.
 
 ---
 

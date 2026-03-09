@@ -160,20 +160,19 @@ def _build_headless_system_prompt(
     research_directive: Optional[str] = None,
     deliverable: Optional[dict] = None,
     user_context: Optional[list] = None,
+    learned_preferences: Optional[str] = None,
 ) -> str:
     """
-    Build system prompt for headless mode generation (ADR-080/081/087).
+    Build system prompt for headless mode generation (ADR-080/081/087/101).
 
-    The headless agent has read-only tools (Search, Read, List, WebSearch,
-    GetSystemState) available for investigating when gathered context is
-    insufficient. The system prompt instructs the agent on when and how
-    to use them.
-
-    ADR-081: For research/hybrid bindings, a research_directive is injected
-    that instructs the agent to actively use WebSearch for web research.
-
-    ADR-087: Deliverable instructions and memory are injected into the prompt
-    to give the agent per-deliverable behavioral context and accumulated knowledge.
+    ADR-101 prompt composition order:
+      1. Output Rules
+      2. User Context (profile + preferences from user_memory)
+      3. Directives (deliverable_instructions)
+      4. Memory (observations, goal, review_log)
+      5. Feedback (learned preferences from past version edits)
+      6. Tool Usage guidance
+      7. Trigger Context (signal/proactive)
 
     Args:
         deliverable_type: The deliverable type (digest, brief, status, etc.)
@@ -181,6 +180,7 @@ def _build_headless_system_prompt(
         research_directive: Optional research instruction for research/hybrid types
         deliverable: Optional deliverable dict with deliverable_instructions and deliverable_memory
         user_context: Optional list of user_memory rows (profile + preferences)
+        learned_preferences: Optional formatted string from get_past_versions_context()
 
     Returns:
         Complete system prompt string
@@ -248,6 +248,10 @@ The user has set these behavioral directives for this deliverable:
 
         if memory_parts:
             prompt += "\n\n## Deliverable Memory\n" + "\n".join(memory_parts)
+
+    # ADR-101: Inject learned preferences (feedback from past version edits)
+    if learned_preferences:
+        prompt += f"\n\n## Learned Preferences\n{learned_preferences}"
 
     # ADR-081: Research directive overrides default tool guidance
     if research_directive:
@@ -363,13 +367,14 @@ async def generate_draft_inline(
     past_versions = await get_past_versions_context(client, deliverable_id) if deliverable_id else ""
 
     # Build type-specific prompt (user message)
+    # ADR-101: past_versions moved to system prompt as learned_preferences
     prompt = build_type_prompt(
         deliverable_type=deliverable_type,
         config=type_config,
         deliverable=deliverable,
         gathered_context=gathered_context,
         recipient_text=recipient_str,
-        past_versions=past_versions,
+        past_versions="",
     )
 
     # Fetch lightweight user context for personalized headless output
@@ -391,10 +396,11 @@ async def generate_draft_inline(
     except Exception as e:
         logger.warning(f"[GENERATE] Failed to fetch user context: {e}")
 
-    # ADR-080/081/087: Headless system prompt with tool usage, research directive,
-    # deliverable-scoped instructions + memory, and user context
+    # ADR-080/081/087/101: Headless system prompt with tool usage, research directive,
+    # deliverable-scoped instructions + memory, learned preferences, and user context
     system_prompt = _build_headless_system_prompt(
-        deliverable_type, trigger_context, research_directive, deliverable, user_context
+        deliverable_type, trigger_context, research_directive, deliverable, user_context,
+        learned_preferences=past_versions,
     )
 
     # ADR-081: Binding-aware tool round limit

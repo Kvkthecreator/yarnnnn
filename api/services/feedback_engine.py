@@ -1,14 +1,14 @@
 """
-Feedback Engine Service
-
-ADR-018: Recurring Deliverables Product Pivot
+Feedback Engine Service — ADR-101 Feedback Layer
 
 Computes edit metrics between draft and final content:
 - Edit distance score (0.0 = no edits, 1.0 = complete rewrite)
 - Edit categories (additions, deletions, restructures, rewrites)
 - Structured diff for review
 
-The feedback engine is core to the product's learning loop.
+These metrics feed the Feedback layer of the deliverable intelligence model
+(ADR-101). get_past_versions_context() in deliverable_pipeline.py aggregates
+them into "learned preferences" injected into the headless system prompt.
 """
 
 import re
@@ -268,44 +268,3 @@ def detect_restructures(draft_sections: list[str], final_sections: list[str]) ->
                 })
 
     return restructures
-
-
-def create_feedback_memory(
-    categories: dict,
-    distance_score: float,
-    feedback_notes: Optional[str] = None,
-) -> str:
-    """
-    Create a memory-formatted string from feedback data.
-
-    This is what gets stored as a memory for future synthesis context.
-    """
-    lines = ["[DELIVERABLE FEEDBACK]"]
-
-    if distance_score < 0.1:
-        lines.append("User approved with minimal edits - current approach is working well.")
-    elif distance_score < 0.3:
-        lines.append("User made moderate edits. Key patterns:")
-    else:
-        lines.append("User made significant edits. Important feedback:")
-
-    if categories.get("additions"):
-        lines.append(f"  - Added: {', '.join(categories['additions'][:3])}")
-        lines.append("    → Include similar content in future versions")
-
-    if categories.get("deletions"):
-        lines.append(f"  - Removed: {', '.join(categories['deletions'][:3])}")
-        lines.append("    → Avoid including similar content")
-
-    if categories.get("rewrites"):
-        for rewrite in categories["rewrites"][:2]:
-            lines.append(f"  - Rephrased: '{rewrite['original']}' → '{rewrite['revised']}'")
-
-    if categories.get("restructures"):
-        for restructure in categories["restructures"][:2]:
-            lines.append(f"  - Moved '{restructure['section']}' to position {restructure['moved_to']}")
-
-    if feedback_notes:
-        lines.append(f"  - User note: {feedback_notes}")
-
-    return "\n".join(lines)

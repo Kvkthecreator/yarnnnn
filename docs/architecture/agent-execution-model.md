@@ -64,7 +64,7 @@ Orchestration → Agent (mode="headless") → Text → Orchestration continues
 | Streaming | No |
 | Primitives | Curated subset: Search, Read, List, WebSearch, GetSystemState |
 | Max tool rounds | Binding-aware: platform_bound=2, cross_platform=3, research=6, hybrid=6 (ADR-081) |
-| System prompt | Type-specific structured output + optional research directive (ADR-081) |
+| System prompt | Directives + memory + learned preferences + optional research directive (ADR-081/087/101) |
 | Entry point | `generate_draft_inline()` in deliverable pipeline |
 | LLM function | `chat_completion_with_tools()` |
 
@@ -134,7 +134,7 @@ Backend Orchestration
 ├── 3. Freshness check + strategy selection + context gathering (ADR-045)
 ├── 4. Version creation
 ├── 5. Agent (mode="headless")           ← agent invocation
-│   ├── Receives: gathered context + type prompt + deliverable_instructions + deliverable_memory
+│   ├── Receives: gathered context + type prompt + directives + memory + learned preferences (ADR-101)
 │   ├── Can use: Search, Read, List, WebSearch, GetSystemState, RefreshPlatformContent
 │   ├── Cannot use: Write, Edit, Execute, Clarify, CreateDeliverable, AdvanceDeliverableSchedule
 │   ├── Max tool rounds: binding-aware (2-6, ADR-081)

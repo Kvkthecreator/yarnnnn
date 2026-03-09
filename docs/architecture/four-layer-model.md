@@ -216,12 +216,14 @@ Deliverable execution uses the **unified agent in headless mode** — the same a
 
 **Status progression**: `generating` → `delivered` (ADR-066 simplified flow)
 
+**Deliverable intelligence model (ADR-101)**: Each deliverable carries four layers of knowledge — Skills (type-specific format), Directives (user instructions + audience), Memory (observations, goals, review log), and Feedback (edit patterns from user corrections). These compose into the headless agent's system prompt. See [ADR-101](../adr/ADR-101-deliverable-intelligence-model.md).
+
 **Key properties**:
 1. **Provenance closure**: `source_snapshots` now includes `platform_content_ids[]` — specific record IDs that were synthesized. This answers "what content informed this deliverable?"
 
 2. **Content as learning signal** (ADR-069): Recent deliverable version content (400-char preview) is included in signal reasoning prompts. This enables the LLM to assess whether existing deliverables are stale or still current.
 
-3. **Feedback extraction** (ADR-064): When users approve edited versions, the system extracts learning patterns (length preferences, format preferences) to Memory layer.
+3. **Feedback loop** (ADR-101): When users edit delivered versions, `feedback_engine.py` computes edit metrics (distance score, categories). `get_past_versions_context()` aggregates these into "learned preferences" injected into the headless system prompt. The status filter includes both `approved` and `delivered` versions.
 
 4. **Retention marking**: After generation, source `platform_content` records are marked `retained=true`, `retained_reason='deliverable_execution'`, `retained_ref=version_id`. This is how significant content accumulates.
 

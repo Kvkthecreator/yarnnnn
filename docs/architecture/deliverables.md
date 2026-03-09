@@ -12,6 +12,7 @@
 - [ADR-080: Unified Agent Modes](../adr/ADR-080-unified-agent-modes.md) — agent operates in headless mode for generation
 - [ADR-082: Deliverable Type Consolidation](../adr/ADR-082-deliverable-type-consolidation.md) — 27→8 active types
 - [ADR-092: Deliverable Intelligence & Mode Taxonomy](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
+- [ADR-101: Deliverable Intelligence Model](../adr/ADR-101-deliverable-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
 - [Agent Execution Model](agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Deliverables are Layer 4 (Work)
 
@@ -218,9 +219,9 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 
 4. Strategy calls `get_content_summary_for_generation()` — chronological content dump with signal markers (`[UNANSWERED]`, `[STALLED]`, `[URGENT]`, `[DECISION]`), capped at 20 items/source, 500 chars/item
 5. User memories appended from `user_memory` (fact/instruction/preference keys)
-6. Past version feedback appended (if any)
+6. Learned preferences fetched from past version edit history (ADR-101: `get_past_versions_context()`)
 7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context
-8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware round limits (ADR-081). Research/hybrid types receive a research directive and use WebSearch for web investigation.
+8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — system prompt includes directives, memory, and learned preferences (ADR-101); read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware round limits (ADR-081). Research/hybrid types receive a research directive and use WebSearch for web investigation.
 9. `mark_content_retained()` on consumed `platform_content` records (ADR-072)
 10. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
 11. `activity_log` event written (non-fatal)
@@ -447,16 +448,20 @@ Destination config (ADR-028):
 
 ---
 
-## Quality Metrics (ADR-018) — NOT IMPLEMENTED
+## Deliverable Intelligence Model (ADR-101)
 
-The schema supports quality tracking but the computation is not wired:
+Every deliverable carries four layers of knowledge:
 
-| Metric | Schema | Status |
+| Layer | What it is | Schema field(s) |
 |---|---|---|
-| `quality_score` | Edit distance between `draft_content` and `final_content` | **Not computed** |
-| `quality_trend` | Trend over last 5 versions | **Not computed** |
+| **Skills** | Type-specific format, structure, tool budget | `type_config` JSONB + type prompt templates in `deliverable_pipeline.py` |
+| **Directives** | User's behavioral constraints — tone, priorities, audience | `deliverable_instructions` TEXT + `recipient_context` JSONB |
+| **Memory** | What happened — observations, review decisions, goals | `deliverable_memory` JSONB |
+| **Feedback** | How well it's doing — edit patterns from user corrections | `edit_distance_score`, `edit_categories`, `feedback_notes` on `deliverable_versions` |
 
-Quality signal currently flows through: (1) user feedback on deliverable edits → memory extraction (ADR-064), and (2) past version context appended to generation prompts.
+Feedback is computed by `feedback_engine.py` when users approve versions with edits, and aggregated by `get_past_versions_context()` into "learned preferences" injected into the headless system prompt. The status filter includes both `approved` and `delivered` versions (delivery-first model, ADR-066).
+
+See [ADR-101](../adr/ADR-101-deliverable-intelligence-model.md) for the full model and prompt composition order.
 
 ---
 
