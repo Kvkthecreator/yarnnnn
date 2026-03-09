@@ -1,12 +1,12 @@
 "use client";
 
 /**
- * ADR-100: Billing surface with 2-tier display (Free/Pro), live usage, and billing actions.
+ * ADR-100: Billing surface with 2-tier display (Free/Pro), Early Bird option, and billing actions.
+ * Usage/limits moved to the Usage tab in settings.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useState } from "react";
 import { useSubscription } from "@/hooks/useSubscription";
-import { api } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { CreditCard, Loader2, Sparkles } from "lucide-react";
@@ -34,7 +34,7 @@ const PLAN_META: Record<PlanTier, {
     label: "Pro",
     icon: "sparkles",
     monthlyPrice: "$19/mo",
-    yearlyPrice: "$190/yr",
+    yearlyPrice: "$180/yr",
     style: "bg-primary text-primary-foreground",
   },
 };
@@ -55,9 +55,6 @@ export function SubscriptionCard() {
   const { status, tier, isPaid, isLoading, error, upgrade, manageSubscription } = useSubscription();
 
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
-  const [limits, setLimits] = useState<Awaited<ReturnType<typeof api.integrations.getLimits>> | null>(null);
-  const [limitsLoading, setLimitsLoading] = useState(true);
-  const [limitsError, setLimitsError] = useState<string | null>(null);
 
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return null;
@@ -67,68 +64,6 @@ export function SubscriptionCard() {
       year: "numeric",
     });
   };
-
-  const formatUsage = (used: number, limit: number) =>
-    limit === -1 ? `${used} / Unlimited` : `${used} / ${limit}`;
-
-  const formatSyncFrequency = (value: string) => {
-    const labels: Record<string, string> = {
-      "1x_daily": "1x daily",
-      "2x_daily": "2x daily",
-      "4x_daily": "4x daily",
-      "hourly": "Hourly",
-    };
-    return labels[value] || value;
-  };
-
-  useEffect(() => {
-    const loadLimits = async () => {
-      setLimitsLoading(true);
-      setLimitsError(null);
-      try {
-        const data = await api.integrations.getLimits();
-        setLimits(data);
-      } catch (err) {
-        setLimitsError(err instanceof Error ? err.message : "Failed to load limits");
-      } finally {
-        setLimitsLoading(false);
-      }
-    };
-
-    loadLimits();
-  }, []);
-
-  const usageRows = useMemo(() => {
-    if (!limits) return [];
-
-    return [
-      {
-        label: "Slack sources",
-        used: limits.usage.slack_channels,
-        limit: limits.limits.slack_channels,
-      },
-      {
-        label: "Gmail labels",
-        used: limits.usage.gmail_labels,
-        limit: limits.limits.gmail_labels,
-      },
-      {
-        label: "Notion pages",
-        used: limits.usage.notion_pages,
-        limit: limits.limits.notion_pages,
-      },
-      {
-        label: "Monthly messages",
-        used: limits.usage.monthly_messages_used,
-        limit: limits.limits.monthly_messages,
-      },
-      {
-        label: "Active deliverables",
-        used: limits.usage.active_deliverables,
-        limit: limits.limits.active_deliverables,
-      },
-    ];
-  }, [limits]);
 
   if (isLoading && !status) {
     return (
@@ -171,6 +106,7 @@ export function SubscriptionCard() {
           </div>
         )}
 
+        {/* Current Plan */}
         <section className="p-4 border border-border rounded-lg space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="space-y-2">
@@ -180,9 +116,11 @@ export function SubscriptionCard() {
                   {PLAN_META[currentTier].icon === "sparkles" && <Sparkles className="w-4 h-4" />}
                   {PLAN_META[currentTier].label}
                 </span>
-                <span className="text-sm text-muted-foreground">
-                  {PLAN_META[currentTier][billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]}
-                </span>
+                {isPaid && (
+                  <span className="text-sm text-muted-foreground">
+                    {PLAN_META[currentTier][billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]}
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -214,6 +152,7 @@ export function SubscriptionCard() {
                 </button>
               </div>
 
+              {/* Standard Pro */}
               <div className="p-3 bg-muted/30 rounded-lg flex flex-wrap items-center justify-between gap-3">
                 <div>
                   <p className="text-sm font-medium">Upgrade to Pro</p>
@@ -234,54 +173,39 @@ export function SubscriptionCard() {
                   Upgrade to Pro ({PLAN_META.pro[billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]})
                 </Button>
               </div>
+
+              {/* Early Bird — monthly only */}
+              {billingPeriod === "monthly" && (
+                <div className="p-3 border border-primary/20 bg-primary/5 rounded-lg flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium flex items-center gap-2">
+                      Early Bird Beta Pricing
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary font-medium">Limited</span>
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Same Pro features, $9/mo — locked in while available.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => upgrade("monthly", true)}
+                    disabled={isLoading}
+                  >
+                    {isLoading ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Sparkles className="w-4 h-4 mr-2" />
+                    )}
+                    Get Early Bird ($9/mo)
+                  </Button>
+                </div>
+              )}
             </>
           )}
         </section>
 
-        <section className="p-4 border border-border rounded-lg space-y-4">
-          <div className="flex items-center justify-between gap-2">
-            <h3 className="font-medium">Current usage and limits</h3>
-            {!limitsLoading && limits && (
-              <span className="text-xs text-muted-foreground">
-                Sync: {formatSyncFrequency(limits.limits.sync_frequency)}
-              </span>
-            )}
-          </div>
-
-          {limitsLoading ? (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="w-4 h-4 animate-spin" />
-              Loading limits...
-            </div>
-          ) : limits ? (
-            <div className="space-y-3">
-              {usageRows.map((row) => {
-                const percent = row.limit === -1 ? 0 : Math.min(100, Math.round((row.used / Math.max(1, row.limit)) * 100));
-                return (
-                  <div key={row.label} className="space-y-1">
-                    <div className="flex items-center justify-between text-sm">
-                      <span>{row.label}</span>
-                      <span className="text-muted-foreground">{formatUsage(row.used, row.limit)}</span>
-                    </div>
-                    {row.limit !== -1 && (
-                      <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                        <div
-                          className="h-full bg-primary rounded-full transition-all"
-                          style={{ width: `${percent}%` }}
-                        />
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Unable to load usage summary{limitsError ? `: ${limitsError}` : "."}
-            </p>
-          )}
-        </section>
-
+        {/* Plan Feature Matrix */}
         <section className="p-4 border border-border rounded-lg space-y-4">
           <h3 className="font-medium">Plan feature matrix</h3>
           <div className="overflow-x-auto">
@@ -320,6 +244,7 @@ export function SubscriptionCard() {
           </div>
         </section>
 
+        {/* Billing Operations */}
         <section className="p-4 border border-border rounded-lg space-y-3">
           <h3 className="font-medium">Billing operations</h3>
           <p className="text-sm text-muted-foreground">

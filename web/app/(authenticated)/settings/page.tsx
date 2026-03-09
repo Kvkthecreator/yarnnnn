@@ -106,12 +106,17 @@ export default function SettingsPage() {
   } | null>(null);
   const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
-  // Fetch usage metrics when usage tab is active
+  // Usage limits state (moved from SubscriptionCard — ADR-100)
+  const [limits, setLimits] = useState<Awaited<ReturnType<typeof api.integrations.getLimits>> | null>(null);
+  const [limitsLoading, setLimitsLoading] = useState(false);
+
+  // Fetch usage metrics + limits when usage tab is active
   useEffect(() => {
-    if (activeTab === "usage" && !usageMetrics) {
-      loadUsageMetrics();
+    if (activeTab === "usage") {
+      if (!usageMetrics) loadUsageMetrics();
+      if (!limits) loadLimits();
     }
-  }, [activeTab, usageMetrics]);
+  }, [activeTab, usageMetrics, limits]);
 
   // Fetch danger zone stats when account tab is active
   useEffect(() => {
@@ -167,6 +172,18 @@ export default function SettingsPage() {
       console.error("Failed to fetch usage metrics:", err);
     } finally {
       setIsLoadingUsage(false);
+    }
+  };
+
+  const loadLimits = async () => {
+    setLimitsLoading(true);
+    try {
+      const data = await api.integrations.getLimits();
+      setLimits(data);
+    } catch (err) {
+      console.error("Failed to fetch limits:", err);
+    } finally {
+      setLimitsLoading(false);
     }
   };
 
@@ -391,22 +408,77 @@ export default function SettingsPage() {
 
       {/* Usage Tab */}
       {activeTab === "usage" && (
-        <section className="mb-8">
-          <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-            <BarChart3 className="w-5 h-5" />
-            Usage Overview
-          </h2>
-          <p className="text-sm text-muted-foreground mb-6">
-            Your current usage across yarnnn.
-          </p>
+        <section className="mb-8 space-y-6">
+          <div>
+            <h2 className="text-lg font-semibold mb-1 flex items-center gap-2">
+              <BarChart3 className="w-5 h-5" />
+              Usage & Limits
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              Your current usage against plan limits.
+            </p>
+          </div>
 
+          {/* Usage vs Limits bars */}
+          <div className="p-4 border border-border rounded-lg space-y-4">
+            <div className="flex items-center justify-between gap-2">
+              <h3 className="font-medium">Plan limits</h3>
+              {!limitsLoading && limits && (
+                <span className="text-xs text-muted-foreground">
+                  Sync: {
+                    ({ "1x_daily": "1x daily", "2x_daily": "2x daily", "4x_daily": "4x daily", "hourly": "Hourly" } as Record<string, string>)[limits.limits.sync_frequency] || limits.limits.sync_frequency
+                  }
+                </span>
+              )}
+            </div>
+
+            {limitsLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                Loading limits...
+              </div>
+            ) : limits ? (
+              <div className="space-y-3">
+                {[
+                  { label: "Slack sources", used: limits.usage.slack_channels, limit: limits.limits.slack_channels },
+                  { label: "Gmail labels", used: limits.usage.gmail_labels, limit: limits.limits.gmail_labels },
+                  { label: "Notion pages", used: limits.usage.notion_pages, limit: limits.limits.notion_pages },
+                  { label: "Monthly messages", used: limits.usage.monthly_messages_used, limit: limits.limits.monthly_messages },
+                  { label: "Active deliverables", used: limits.usage.active_deliverables, limit: limits.limits.active_deliverables },
+                ].map((row) => {
+                  const percent = row.limit === -1 ? 0 : Math.min(100, Math.round((row.used / Math.max(1, row.limit)) * 100));
+                  const formatUsage = (used: number, limit: number) =>
+                    limit === -1 ? `${used} / Unlimited` : `${used} / ${limit}`;
+                  return (
+                    <div key={row.label} className="space-y-1">
+                      <div className="flex items-center justify-between text-sm">
+                        <span>{row.label}</span>
+                        <span className="text-muted-foreground">{formatUsage(row.used, row.limit)}</span>
+                      </div>
+                      {row.limit !== -1 && (
+                        <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${percent >= 90 ? "bg-destructive" : percent >= 70 ? "bg-yellow-500" : "bg-primary"}`}
+                            style={{ width: `${percent}%` }}
+                          />
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-muted-foreground">Unable to load usage limits.</p>
+            )}
+          </div>
+
+          {/* Summary cards */}
           {isLoadingUsage ? (
-            <div className="flex items-center justify-center py-12">
+            <div className="flex items-center justify-center py-8">
               <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
             </div>
           ) : usageMetrics ? (
             <div className="grid grid-cols-2 gap-4">
-              {/* Deliverables */}
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <Package className="w-4 h-4 text-primary" />
@@ -418,7 +490,6 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              {/* Platforms */}
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <Link2 className="w-4 h-4 text-primary" />
@@ -433,7 +504,6 @@ export default function SettingsPage() {
                 <p className="text-xs text-muted-foreground mt-1">Connected platforms</p>
               </div>
 
-              {/* Documents */}
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <FileText className="w-4 h-4 text-primary" />
@@ -445,7 +515,6 @@ export default function SettingsPage() {
                 </p>
               </div>
 
-              {/* Facts */}
               <div className="p-4 border border-border rounded-lg">
                 <div className="flex items-center gap-2 mb-2">
                   <Brain className="w-4 h-4 text-primary" />
@@ -462,7 +531,7 @@ export default function SettingsPage() {
           )}
 
           {/* Link to Context page */}
-          <div className="mt-6 p-4 bg-muted/30 rounded-lg">
+          <div className="p-4 bg-muted/30 rounded-lg">
             <p className="text-sm text-muted-foreground">
               Manage your context sources in the{" "}
               <a href="/context" className="text-primary hover:underline">Context page</a>.
