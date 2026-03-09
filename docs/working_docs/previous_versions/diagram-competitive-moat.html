@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; font-family: Arial, sans-serif; display: flex; justify-content: center; padding: 40px 20px; }
+  .slide { width: 960px; height: 540px; background: #fff; position: relative; padding: 44px 56px; }
+  .section-label { font-size: 13px; font-weight: 700; color: #E8985E; letter-spacing: 0.5px; /* lowercase labels */ margin-bottom: 6px; }
+  .title { font-size: 26px; font-weight: 700; color: #111; line-height: 1.25; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 28px; }
+
+  .matrix {
+    width: 100%;
+    position: relative;
+  }
+
+  /* Axes */
+  .axis-y {
+    position: absolute;
+    left: 0;
+    top: 20px;
+    bottom: 40px;
+    width: 1px;
+    background: #ddd;
+  }
+  .axis-x {
+    position: absolute;
+    left: 0;
+    bottom: 40px;
+    right: 0;
+    height: 1px;
+    background: #ddd;
+  }
+  .axis-label-y {
+    position: absolute;
+    left: -4px;
+    top: 50%;
+    transform: rotate(-90deg) translateX(50%);
+    transform-origin: left center;
+    font-size: 10px;
+    color: #999;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    /* lowercase labels */
+    white-space: nowrap;
+  }
+  .axis-label-x {
+    position: absolute;
+    bottom: 22px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 10px;
+    color: #999;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    /* lowercase labels */
+    white-space: nowrap;
+  }
+
+  .quadrant-grid {
+    margin-left: 20px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    gap: 6px;
+    height: 340px;
+    margin-bottom: 44px;
+  }
+  .quadrant {
+    border-radius: 8px;
+    padding: 16px 18px;
+    position: relative;
+  }
+  .q-tl { background: #F8F8F8; } /* high autonomy, low context */
+  .q-tr { background: #111; }    /* high autonomy, high context &mdash; YARNNN */
+  .q-bl { background: #FAFAFA; } /* low autonomy, low context */
+  .q-br { background: #F8F8F8; } /* low autonomy, high context */
+
+  .q-label { font-size: 10px; font-weight: 700; /* lowercase labels */ letter-spacing: 0.3px; margin-bottom: 8px; }
+  .q-tl .q-label { color: #999; }
+  .q-tr .q-label { color: #E8985E; }
+  .q-bl .q-label { color: #ccc; }
+  .q-br .q-label { color: #999; }
+
+  .player {
+    margin-bottom: 10px;
+  }
+  .player-name { font-size: 13px; font-weight: 700; margin-bottom: 2px; }
+  .q-tl .player-name { color: #444; }
+  .q-tr .player-name { color: #fff; }
+  .q-bl .player-name { color: #888; }
+  .q-br .player-name { color: #444; }
+
+  .player-desc { font-size: 10px; line-height: 1.4; }
+  .q-tl .player-desc { color: #888; }
+  .q-tr .player-desc { color: #bbb; }
+  .q-bl .player-desc { color: #bbb; }
+  .q-br .player-desc { color: #888; }
+
+  .yarnnn-badge {
+    display: inline-block;
+    background: #E8985E;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 7px;
+    border-radius: 3px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+
+  .feature-list {
+    margin-top: 6px;
+  }
+  .feature {
+    font-size: 10px;
+    color: #E8985E;
+    margin-bottom: 2px;
+  }
+
+  .insight-bar {
+    position: absolute;
+    bottom: 34px;
+    left: 56px;
+    right: 56px;
+    font-size: 11px;
+    color: #666;
+    text-align: center;
+    border-top: 1px solid #eee;
+    padding-top: 10px;
+  }
+  .insight-bar strong { color: #111; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="section-label">Positioning</div>
+  <div class="title">The only player with both accumulated context and autonomous output.</div>
+  <div class="subtitle">Everyone else optimizes for one axis. YARNNN is built for the intersection.</div>
+
+  <div class="matrix">
+    <div class="quadrant-grid">
+      <!-- Top-Left: High Autonomy, Low Context -->
+      <div class="quadrant q-tl">
+        <div class="q-label">Autonomous but generic</div>
+        <div class="player">
+          <div class="player-name">Agent Startups</div>
+          <div class="player-desc">Devin, Replit Agent, AutoGPT. Execute tasks but start from zero every session. No accumulated context.</div>
+        </div>
+      </div>
+
+      <!-- Top-Right: High Autonomy, High Context &mdash; YARNNN -->
+      <div class="quadrant q-tr">
+        <div class="q-label">Autonomous + contextual</div>
+        <div class="player">
+          <div class="player-name">yarnnn <span class="yarnnn-badge">YOU ARE HERE</span></div>
+          <div class="player-desc">Cross-platform accumulated context powers 4 autonomous deliverable types. Gets better with tenure.</div>
+        </div>
+        <div class="feature-list">
+          <div class="feature">&rarr; Work Summary · Meeting Prep · Recap · Proactive Insights</div>
+          <div class="feature">&rarr; 3 execution strategies · 5 modes · feedback loops</div>
+        </div>
+      </div>
+
+      <!-- Bottom-Left: Low Autonomy, Low Context -->
+      <div class="quadrant q-bl">
+        <div class="q-label">Chat-first, session-based</div>
+        <div class="player">
+          <div class="player-name">ChatGPT / Claude</div>
+          <div class="player-desc">Extraordinary LLMs. Deep Research is one-shot, user-directed. No persistent cross-platform context. Each session restarts.</div>
+        </div>
+      </div>
+
+      <!-- Bottom-Right: Low Autonomy, High Context -->
+      <div class="quadrant q-br">
+        <div class="q-label">Context but passive</div>
+        <div class="player">
+          <div class="player-name">Mem.ai / Granola / Glean</div>
+          <div class="player-desc">Memory or search layer. No autonomous output. User must prompt every interaction. Single-platform or enterprise-only.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="insight-bar">
+    <strong>ChatGPT has Deep Research. Perplexity has web search.</strong> Neither can see what's happening inside your organization &mdash; or decide what to research for you.
+  </div>
+</div>
+</body>
+</html>

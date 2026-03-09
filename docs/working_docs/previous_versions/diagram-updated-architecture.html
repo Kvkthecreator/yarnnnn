@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; font-family: Arial, sans-serif; display: flex; justify-content: center; padding: 40px 20px; }
+  .slide { width: 960px; height: 540px; background: #fff; position: relative; padding: 44px 56px; }
+  .section-label { font-size: 13px; font-weight: 700; color: #E8985E; letter-spacing: 0.5px; /* lowercase labels */ margin-bottom: 6px; }
+  .title { font-size: 26px; font-weight: 700; color: #111; line-height: 1.25; margin-bottom: 4px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 24px; }
+
+  .arch-row {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 8px;
+    align-items: stretch;
+  }
+
+  .layer-label {
+    width: 100px;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    padding-right: 12px;
+    font-size: 10px;
+    font-weight: 700;
+    color: #999;
+    /* lowercase labels */
+    letter-spacing: 0.3px;
+  }
+
+  .layer-content {
+    flex: 1;
+    display: flex;
+    gap: 6px;
+  }
+
+  .box {
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+  .box-dark { background: #111; }
+  .box-light { background: #F8F8F8; }
+  .box-accent { background: #E8985E; }
+
+  .box-title { font-size: 12px; font-weight: 700; margin-bottom: 2px; }
+  .box-dark .box-title { color: #fff; }
+  .box-light .box-title { color: #111; }
+  .box-accent .box-title { color: #fff; }
+
+  .box-sub { font-size: 9.5px; line-height: 1.4; }
+  .box-dark .box-sub { color: #999; }
+  .box-light .box-sub { color: #888; }
+  .box-accent .box-sub { color: rgba(255,255,255,0.85); }
+
+  .platform-box { flex: 1; }
+  .wide-box { flex: 2; }
+  .full-box { flex: 1; }
+  .third-box { flex: 1; }
+
+  .feedback-bar {
+    margin-top: 10px;
+    margin-left: 108px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 0;
+  }
+  .feedback-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, #E8985E, #E8985E 60%, transparent);
+  }
+  .feedback-text {
+    font-size: 10px;
+    color: #E8985E;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .bottom-row {
+    position: absolute;
+    bottom: 36px;
+    left: 56px;
+    right: 56px;
+    display: flex;
+    gap: 20px;
+    border-top: 1px solid #eee;
+    padding-top: 14px;
+  }
+  .bottom-col { flex: 1; }
+  .bottom-label { font-size: 10px; font-weight: 700; color: #E8985E; /* lowercase labels */ letter-spacing: 0.3px; margin-bottom: 5px; }
+  .bottom-text { font-size: 11px; color: #444; line-height: 1.45; }
+
+  .type-tag {
+    display: inline-block;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 1px 5px;
+    border-radius: 2px;
+    margin-right: 3px;
+    vertical-align: middle;
+  }
+  .tag-status { background: #E8985E; color: #fff; }
+  .tag-brief { background: #7B9E6B; color: #fff; }
+  .tag-digest { background: #6B8F9E; color: #fff; }
+  .tag-research { background: #8B6B9E; color: #fff; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="section-label">Architecture</div>
+  <div class="title">Five layers. Each designed so context compounds.</div>
+  <div class="subtitle">Platform sync &rarr; unified content &rarr; memory extraction &rarr; agent execution &rarr; autonomous deliverables. Every layer feeds back.</div>
+
+  <!-- Layer 1: Platform Sync -->
+  <div class="arch-row">
+    <div class="layer-label">Sync</div>
+    <div class="layer-content">
+      <div class="box box-dark platform-box">
+        <div class="box-title">Slack</div>
+        <div class="box-sub">Channels &middot; threads &middot; DMs</div>
+      </div>
+      <div class="box box-dark platform-box">
+        <div class="box-title">Gmail</div>
+        <div class="box-sub">Inbox &middot; labels &middot; threads</div>
+      </div>
+      <div class="box box-dark platform-box">
+        <div class="box-title">Notion</div>
+        <div class="box-sub">Pages &middot; databases</div>
+      </div>
+      <div class="box box-dark platform-box">
+        <div class="box-title">Calendar</div>
+        <div class="box-sub">Events &middot; attendees</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Layer 2: Content + Memory -->
+  <div class="arch-row">
+    <div class="layer-label">Intelligence</div>
+    <div class="layer-content">
+      <div class="box box-light wide-box">
+        <div class="box-title">Unified Content Layer</div>
+        <div class="box-sub">platform_content with TTL retention &middot; Slack 14d &middot; Gmail 30d &middot; Notion 90d &middot; Calendar 2d</div>
+      </div>
+      <div class="box box-light full-box">
+        <div class="box-title">Memory</div>
+        <div class="box-sub">Working memory &middot; user memory &middot; nightly extraction &middot; deliverable_memory</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Layer 3: Execution Strategies -->
+  <div class="arch-row">
+    <div class="layer-label">Execution</div>
+    <div class="layer-content">
+      <div class="box box-light third-box">
+        <div class="box-title">CrossPlatformStrategy</div>
+        <div class="box-sub"><span class="type-tag tag-status">STATUS</span><span class="type-tag tag-brief">BRIEF</span>All platforms &rarr; synthesis</div>
+      </div>
+      <div class="box box-light third-box">
+        <div class="box-title">PlatformBoundStrategy</div>
+        <div class="box-sub"><span class="type-tag tag-digest">DIGEST</span>Single platform &rarr; deep drill-down</div>
+      </div>
+      <div class="box box-light third-box">
+        <div class="box-title">HybridStrategy</div>
+        <div class="box-sub"><span class="type-tag tag-research">PROACTIVE</span>Internal signals + external research</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Layer 4: Deliverables -->
+  <div class="arch-row">
+    <div class="layer-label">Output</div>
+    <div class="layer-content">
+      <div class="box box-accent platform-box">
+        <div class="box-title">Work Summary</div>
+        <div class="box-sub">Cross-platform report for any audience</div>
+      </div>
+      <div class="box box-accent platform-box">
+        <div class="box-title">Meeting Prep</div>
+        <div class="box-sub">Daily briefing with attendee research</div>
+      </div>
+      <div class="box box-accent platform-box">
+        <div class="box-title">Recap</div>
+        <div class="box-sub">Platform-wide catch-up</div>
+      </div>
+      <div class="box box-accent platform-box">
+        <div class="box-title">Proactive Insights</div>
+        <div class="box-sub">Signal-driven intelligence</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Feedback loop -->
+  <div class="feedback-bar">
+    <div class="feedback-text">← Feedback loop: edits &rarr; memory extraction &rarr; improved future output &rarr;</div>
+    <div class="feedback-line"></div>
+  </div>
+
+  <!-- Bottom comparison -->
+  <div class="bottom-row">
+    <div class="bottom-col">
+      <div class="bottom-label">What competitors miss</div>
+      <div class="bottom-text">ChatGPT/Claude: no cross-platform sync, no persistent memory, no autonomous delivery. Agent startups: no accumulated context. Workspace AI: single-platform only.</div>
+    </div>
+    <div class="bottom-col">
+      <div class="bottom-label">90+ architecture decisions</div>
+      <div class="bottom-text">Every layer purpose-built for accumulation. 3 execution strategies validated. Two-phase proactive mode (Haiku review &rarr; Sonnet generation). 4 deliverable types tested against real data.</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

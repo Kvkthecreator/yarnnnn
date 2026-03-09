@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; font-family: Arial, sans-serif; display: flex; justify-content: center; padding: 40px 20px; }
+  .slide { width: 960px; height: 540px; background: #fff; position: relative; padding: 48px 56px; }
+  .section-label { font-size: 13px; font-weight: 700; color: #E8985E; letter-spacing: 0.5px; /* lowercase labels */ margin-bottom: 8px; }
+  .title { font-size: 28px; font-weight: 700; color: #111; line-height: 1.25; margin-bottom: 6px; }
+  .subtitle { font-size: 14px; color: #666; margin-bottom: 36px; }
+
+  .funnel { display: flex; gap: 16px; align-items: flex-start; }
+  .stage { flex: 1; position: relative; }
+  .stage-header {
+    background: #F8F8F8;
+    border-radius: 8px 8px 0 0;
+    padding: 12px 16px 10px;
+    border-bottom: 2px solid #E8985E;
+  }
+  .stage-phase { font-size: 10px; color: #E8985E; font-weight: 700; letter-spacing: 0.5px; /* lowercase labels */ margin-bottom: 4px; }
+  .stage-name { font-size: 17px; font-weight: 700; color: #111; }
+  .stage-type { font-size: 11px; color: #999; font-style: italic; margin-top: 2px; }
+
+  .stage-body {
+    background: #FAFAFA;
+    border-radius: 0 0 8px 8px;
+    padding: 14px 16px;
+  }
+  .stage-desc { font-size: 12px; color: #444; line-height: 1.5; margin-bottom: 10px; }
+  .stage-metric { font-size: 10px; color: #E8985E; font-weight: 700; /* lowercase labels */ letter-spacing: 0.3px; margin-bottom: 3px; }
+  .stage-metric-val { font-size: 11px; color: #111; font-weight: 600; }
+
+  .validated {
+    display: inline-block;
+    background: #E8985E;
+    color: #fff;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.3px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .pending {
+    display: inline-block;
+    background: #ddd;
+    color: #888;
+    font-size: 9px;
+    font-weight: 700;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.3px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+
+  .arrow {
+    position: absolute;
+    right: -14px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #ccc;
+    font-size: 18px;
+    z-index: 2;
+  }
+  .stage:last-child .arrow { display: none; }
+
+  .bottom-line {
+    position: absolute;
+    bottom: 40px;
+    left: 56px;
+    right: 56px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-top: 1px solid #eee;
+    padding-top: 14px;
+  }
+  .bottom-left { font-size: 11px; color: #666; }
+  .bottom-right { font-size: 11px; color: #E8985E; font-weight: 600; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="section-label">Product</div>
+  <div class="title">Four validated deliverable types. Sequenced for adoption.</div>
+  <div class="subtitle">Each type maps to a job-to-be-done. Tested against real platform data. Prompts iterated to production quality.</div>
+
+  <div class="funnel">
+    <div class="stage">
+      <div class="stage-header">
+        <div class="stage-phase">Acquisition Wedge</div>
+        <div class="stage-name">Work Summary <span class="validated">VALIDATED</span></div>
+        <div class="stage-type">type: status &middot; cross_platform</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-desc">Cross-platform synthesis for any audience. The one deliverable no single-platform tool can produce.</div>
+        <div class="stage-metric">Prompt iterations</div>
+        <div class="stage-metric-val">4 versions &rarr; 465-word output</div>
+      </div>
+      <div class="arrow">&rarr;</div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-header">
+        <div class="stage-phase">Trust Builder</div>
+        <div class="stage-name">Meeting Prep <span class="validated">VALIDATED</span></div>
+        <div class="stage-type">type: brief &middot; cross_platform</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-desc">Daily morning briefing. Classifies meetings, researches externals, connects dots across your day.</div>
+        <div class="stage-metric">Key breakthrough</div>
+        <div class="stage-metric-val">v3: research assistant, not calendar reformatter</div>
+      </div>
+      <div class="arrow">&rarr;</div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-header">
+        <div class="stage-phase">Retention</div>
+        <div class="stage-name">Recap <span class="pending">TESTING</span></div>
+        <div class="stage-type">type: digest &middot; platform_bound</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-desc">Platform-wide catch-up. Highlights + by-source breakdown. One per platform, daily or weekly.</div>
+        <div class="stage-metric">Strategy</div>
+        <div class="stage-metric-val">PlatformBoundStrategy path</div>
+      </div>
+      <div class="arrow">&rarr;</div>
+    </div>
+
+    <div class="stage">
+      <div class="stage-header">
+        <div class="stage-phase">Deepening</div>
+        <div class="stage-name">Proactive Insights <span class="validated">VALIDATED</span></div>
+        <div class="stage-type">type: deep_research &middot; hybrid</div>
+      </div>
+      <div class="stage-body">
+        <div class="stage-desc">Signal-driven intelligence. Topics chosen autonomously from your platforms. No external tool can do this.</div>
+        <div class="stage-metric">Architecture</div>
+        <div class="stage-metric-val">Haiku review &rarr; Sonnet generation</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="bottom-line">
+    <div class="bottom-left">4 validation passes &middot; 12+ prompt iterations &middot; 7 pipeline bugs found and fixed &middot; All in one day</div>
+    <div class="bottom-right">Connect &rarr; Accumulate &rarr; Automate &rarr; Supervise</div>
+  </div>
+</div>
+</body>
+</html>

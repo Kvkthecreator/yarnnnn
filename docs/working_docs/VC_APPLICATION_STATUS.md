@@ -1,7 +1,7 @@
 # VC Application Status Tracker
 
 **Purpose**: Track all VC/accelerator outreach — submitted applications, queued targets, and researched-but-not-applied funds.
-**Last Updated**: 2026-03-06
+**Last Updated**: 2026-03-07
 **Raising**: $500K pre-seed at $5M post-money valuation ($4.5M pre-money)
 **Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
 
@@ -15,7 +15,7 @@
 | 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website |
 | 3 | Hustle Fund | Pre-seed | 2026-03-04 | **Rejected** | Typeform; rejected 2026-03-06 (~2 days). Auto-rejection likely — no deck uploaded (was optional), possibly filtered on solo founder or pre-revenue |
 | 4 | Outlander VC | Pre-seed | 2026-03-04 | Submitted | Typeform + video interview completed manually 2026-03-06 |
-| 5 | Precursor Ventures | Pre-seed | 2026-03-05 | Submitted | Web form; rolling applications, no warm intro needed |
+| 5 | Precursor Ventures | Pre-seed | 2026-03-05 | **Rejected** | Web form; rejected 2026-03-07 (~2 days). Charles Hudson pass — likely volume-based filter at intake stage given fast turnaround |
 | 6 | Forum Ventures | Pre-seed | 2026-03-05 | Submitted | Fillout form via forumvc.com/pitch-us; B2B AI focus, $100K accelerator or $250K venture studio |
 | 7 | 2048 Ventures | Pre-seed | 2026-03-05 | Submitted | Airtable form via 2048.vc/pitch-us; $500K-$3M checks, SMB Vertical AI, Pre-Seed Fast Track applied |
 | 8 | P2S (Pre-Seed to Succeed) | Pre-seed | 2026-03-06 | Submitted | Edda Dealflow form via p2s.vc/apply; AI/B2B/SaaS focus, deck uploaded (IR Deck v16). Confirmation: "Looking forward to meet your project" |
@@ -44,6 +44,15 @@ These VCs were researched on 2026-03-05. They do not have public web application
 | SUSA Ventures | $1M–$2M (Fund V: $175M) | Strong — data moats, network effects, seed-stage, 10% unicorn rate. Portfolio: Robinhood, Flexport | No public application form; intro/outbound model | GPs: Leo Polovets, Chad Byers, Seth Burman. Options: (1) LinkedIn connection request with 300-char pitch, (2) cold email, (3) engage via Substack (susaventures.substack.com) or X (@SusaVentures) first |
 | General Catalyst | Varies (seed program exists) | Moderate — large fund with seed program, but may be too large-stage | Has contact page at generalcatalyst.com/contact; researched but unclear if pre-seed fits | Check seed program eligibility; may not be right stage fit |
 | Bee Partners | $500K–$1.5M | Moderate — pre-seed, AI/ML focus (HMI, M2ML vectors) | Has form at apply.beepartners.vc but form failed to load during session | Retry application at apply.beepartners.vc/forms/ |
+
+---
+
+## Researched — Decided Not to Apply
+
+| Fund | Type | Why Skipped |
+|------|------|-------------|
+| Alchemist Accelerator | B2B Accelerator | ~$25K for 5-6% equity — implies ~$400-500K valuation, massive discount to our $5M target. Network is strong but dilution not justified at this stage |
+| HF0 Residency | Residency / Pre-seed | Requires repeat founders (previously launched a startup). Kevin is first-time founder — not eligible. Also requires 12-week SF relocation |
 
 ---
 

@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #fff; font-family: Arial, sans-serif; display: flex; justify-content: center; padding: 40px 20px; }
+  .slide { width: 960px; height: 540px; background: #fff; position: relative; padding: 48px 56px; }
+  .section-label { font-size: 13px; font-weight: 700; color: #E8985E; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .title { font-size: 26px; font-weight: 700; color: #111; line-height: 1.25; margin-bottom: 6px; }
+  .subtitle { font-size: 13px; color: #666; margin-bottom: 32px; line-height: 1.4; }
+
+  .pipeline { display: flex; gap: 0; align-items: stretch; margin-bottom: 28px; }
+
+  .phase {
+    flex: 1;
+    position: relative;
+  }
+  .phase-box {
+    border-radius: 8px;
+    padding: 16px 18px;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+  .phase-1 .phase-box { background: #F8F8F8; margin-right: 8px; }
+  .phase-2 .phase-box { background: #111; margin-left: 8px; margin-right: 8px; }
+  .phase-3 .phase-box { background: #F8F8F8; margin-left: 8px; }
+
+  .phase-label { font-size: 10px; font-weight: 700; letter-spacing: 0.5px; margin-bottom: 6px; }
+  .phase-1 .phase-label { color: #E8985E; }
+  .phase-2 .phase-label { color: #E8985E; }
+  .phase-3 .phase-label { color: #E8985E; }
+
+  .phase-title { font-size: 16px; font-weight: 700; margin-bottom: 8px; }
+  .phase-1 .phase-title { color: #111; }
+  .phase-2 .phase-title { color: #fff; }
+  .phase-3 .phase-title { color: #111; }
+
+  .phase-detail { font-size: 11px; line-height: 1.55; flex: 1; }
+  .phase-1 .phase-detail { color: #444; }
+  .phase-2 .phase-detail { color: #bbb; }
+  .phase-3 .phase-detail { color: #444; }
+
+  .phase-cost { font-size: 10px; font-weight: 600; margin-top: 10px; padding-top: 8px; border-top: 1px solid rgba(0,0,0,0.08); }
+  .phase-1 .phase-cost { color: #888; }
+  .phase-2 .phase-cost { color: #888; border-top-color: rgba(255,255,255,0.15); }
+  .phase-3 .phase-cost { color: #888; }
+
+  .connector {
+    position: absolute;
+    right: -6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 20px;
+    text-align: center;
+    color: #ccc;
+    font-size: 16px;
+    z-index: 2;
+  }
+
+  .comparison {
+    display: flex;
+    gap: 24px;
+    border-top: 1px solid #eee;
+    padding-top: 20px;
+  }
+  .comp-col { flex: 1; }
+  .comp-label { font-size: 10px; font-weight: 700; color: #E8985E; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .comp-item { font-size: 11px; color: #444; line-height: 1.5; margin-bottom: 4px; }
+  .comp-item strong { color: #111; }
+  .comp-bad { color: #999; }
+  .comp-good { color: #111; }
+
+  .decision-diamond {
+    display: inline-block;
+    width: 8px; height: 8px;
+    background: #E8985E;
+    transform: rotate(45deg);
+    margin-right: 6px;
+    vertical-align: middle;
+  }
+</style>
+</head>
+<body>
+<div class="slide">
+  <div class="section-label">Architecture</div>
+  <div class="title">Two-phase execution: cheap review, expensive generation.</div>
+  <div class="subtitle">Proactive Insights uses a Haiku review pass to decide whether themes warrant a full Sonnet generation. Cost-efficient by design &mdash; most cycles observe, few generate.</div>
+
+  <div class="pipeline">
+    <div class="phase phase-1">
+      <div class="phase-box">
+        <div class="phase-label">Phase 1 &mdash; Review</div>
+        <div class="phase-title">Haiku scans platforms</div>
+        <div class="phase-detail">
+          8+ targeted searches across Slack, Gmail, Notion, Calendar. Identifies emerging themes. Makes a decision: <strong>generate</strong>, <strong>observe</strong>, or <strong>sleep</strong>.
+        </div>
+        <div class="phase-cost">~$0.002/cycle &middot; 4 API calls &middot; 25 sec</div>
+      </div>
+      <div class="connector">&rarr;</div>
+    </div>
+
+    <div class="phase phase-2">
+      <div class="phase-box">
+        <div class="phase-label">Decision Gate</div>
+        <div class="phase-title">Generate or accumulate?</div>
+        <div class="phase-detail">
+          <span class="decision-diamond"></span> <strong>Generate:</strong> Themes at inflection &rarr; trigger Sonnet<br><br>
+          <span class="decision-diamond"></span> <strong>Observe:</strong> Themes present, not ripe &rarr; log forward-looking notes<br><br>
+          <span class="decision-diamond"></span> <strong>Sleep:</strong> Nothing notable &rarr; check again next cycle
+        </div>
+        <div class="phase-cost">Observations accumulate in deliverable_memory</div>
+      </div>
+      <div class="connector">&rarr;</div>
+    </div>
+
+    <div class="phase phase-3">
+      <div class="phase-box">
+        <div class="phase-label">Phase 2 &mdash; Generation</div>
+        <div class="phase-title">Sonnet researches + writes</div>
+        <div class="phase-detail">
+          Full generation with WebSearch. Internal signals + external context woven into intelligence brief. "What I'm Watching" shows progressive learning.
+        </div>
+        <div class="phase-cost">~$0.05/generation &middot; 6 tool rounds &middot; only when warranted</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="comparison">
+    <div class="comp-col">
+      <div class="comp-label">Why this can't be replicated</div>
+      <div class="comp-item"><strong>ChatGPT Deep Research:</strong> user picks topic &rarr; one-shot report &rarr; done</div>
+      <div class="comp-item"><strong>Perplexity:</strong> web-only search &rarr; no internal signals</div>
+      <div class="comp-item"><strong>YARNNN:</strong> autonomous topic selection from your platforms &rarr; progressive accumulation &rarr; generates only when themes converge</div>
+    </div>
+    <div class="comp-col">
+      <div class="comp-label">Validated behavior</div>
+      <div class="comp-item"><span class="decision-diamond"></span> Haiku identified 3 real themes from platform data</div>
+      <div class="comp-item"><span class="decision-diamond"></span> Correctly chose "observe" (themes present, not at inflection)</div>
+      <div class="comp-item"><span class="decision-diamond"></span> Forward-looking notes: "Monitor for Episode Zero metrics inflection"</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>
