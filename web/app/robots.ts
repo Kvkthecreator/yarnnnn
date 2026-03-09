@@ -20,6 +20,10 @@ export default function robots(): MetadataRoute.Robots {
           "/deliverables/",
           "/docs/",
           "/integrations/",
+          // Legacy routes (removed — prevent crawl attempts)
+          "/baskets/",
+          "/blocks/",
+          "/projects/",
         ],
       },
     ],
