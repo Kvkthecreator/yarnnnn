@@ -52,7 +52,7 @@ const FEATURE_ROWS: Array<{ label: string; values: Record<PlanTier, string> }> =
 ];
 
 export function SubscriptionCard() {
-  const { status, tier, isPaid, isLoading, error, upgrade, manageSubscription } = useSubscription();
+  const { status, tier, isPaid, isEarlyBird, isLoading, error, upgrade, manageSubscription } = useSubscription();
 
   const [billingPeriod, setBillingPeriod] = useState<BillingPeriod>("monthly");
 
@@ -116,9 +116,14 @@ export function SubscriptionCard() {
                   {PLAN_META[currentTier].icon === "sparkles" && <Sparkles className="w-4 h-4" />}
                   {PLAN_META[currentTier].label}
                 </span>
+                {isPaid && isEarlyBird && (
+                  <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-primary/10 text-primary">
+                    Early Bird
+                  </span>
+                )}
                 {isPaid && (
                   <span className="text-sm text-muted-foreground">
-                    {PLAN_META[currentTier][billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]}
+                    {isEarlyBird ? "$9/mo" : PLAN_META[currentTier][billingPeriod === "monthly" ? "monthlyPrice" : "yearlyPrice"]}
                   </span>
                 )}
               </div>

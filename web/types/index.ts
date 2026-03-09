@@ -137,6 +137,7 @@ export type SubscriptionTier = "free" | "pro";
 
 export interface SubscriptionStatus {
   status: SubscriptionTier;
+  plan: string | null;  // ADR-100: 'pro', 'pro_early_bird', 'pro_yearly'
   expires_at: string | null;
   customer_id: string | null;
   subscription_id: string | null;

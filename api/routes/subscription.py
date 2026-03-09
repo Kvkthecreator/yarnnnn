@@ -151,6 +151,16 @@ def get_tier_from_variant_id(variant_id: str) -> str:
         return "pro"
 
 
+def get_plan_from_variant_id(variant_id: str) -> str:
+    """ADR-100: Determine subscription plan variant for display."""
+    if variant_id == LEMONSQUEEZY_PRO_EARLYBIRD_VARIANT_ID:
+        return "pro_early_bird"
+    elif variant_id == LEMONSQUEEZY_PRO_YEARLY_VARIANT_ID:
+        return "pro_yearly"
+    else:
+        return "pro"
+
+
 # ============== Pydantic Models ==============
 
 class CheckoutRequest(BaseModel):
@@ -167,6 +177,7 @@ class CheckoutResponse(BaseModel):
 class SubscriptionStatus(BaseModel):
     """Current subscription status."""
     status: str  # ADR-100: 'free' or 'pro'
+    plan: Optional[str] = None  # ADR-100: 'pro', 'pro_early_bird', 'pro_yearly'
     expires_at: Optional[str] = None
     customer_id: Optional[str] = None
     subscription_id: Optional[str] = None
@@ -184,7 +195,7 @@ async def get_subscription_status(auth: UserClient):
     """Get current user's subscription status."""
     # Get workspace for this user
     result = auth.client.table("workspaces")\
-        .select("subscription_status, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
+        .select("subscription_status, subscription_plan, subscription_expires_at, lemonsqueezy_customer_id, lemonsqueezy_subscription_id")\
         .eq("owner_id", auth.user_id)\
         .single()\
         .execute()
@@ -198,6 +209,7 @@ async def get_subscription_status(auth: UserClient):
     status = "pro" if raw_status == "starter" else raw_status
     return SubscriptionStatus(
         status=status,
+        plan=ws.get("subscription_plan"),
         expires_at=ws.get("subscription_expires_at"),
         customer_id=ws.get("lemonsqueezy_customer_id"),
         subscription_id=ws.get("lemonsqueezy_subscription_id"),
@@ -476,34 +488,40 @@ async def handle_lemonsqueezy_webhook(request: Request):
         status_value = attrs.get("status", "active")
         variant_id = str(attrs.get("variant_id", ""))
 
-        # ADR-053: Determine tier from variant ID
+        # ADR-100: Determine tier and plan variant from variant ID
         if status_value in ("active", "on_trial"):
             sub_status = get_tier_from_variant_id(variant_id)
+            sub_plan = get_plan_from_variant_id(variant_id)
         else:
             sub_status = "free"
+            sub_plan = None
 
         client.table("workspaces").update({
             "subscription_status": sub_status,
+            "subscription_plan": sub_plan,
             "subscription_expires_at": renews_at,
             "lemonsqueezy_customer_id": customer_id,
             "lemonsqueezy_subscription_id": subscription_id,
         }).eq("id", workspace_id).execute()
 
-        log.info(f"Activated {sub_status} subscription for workspace {workspace_id}")
+        log.info(f"Activated {sub_status} ({sub_plan}) subscription for workspace {workspace_id}")
 
     elif event_name == "subscription_updated":
         renews_at = parse_iso_date(attrs.get("renews_at"))
         status_value = attrs.get("status", "active")
         variant_id = str(attrs.get("variant_id", ""))
 
-        # ADR-053: Determine tier from variant ID
+        # ADR-100: Determine tier and plan variant from variant ID
         if status_value in ("active", "on_trial", "past_due"):
             sub_status = get_tier_from_variant_id(variant_id)
+            sub_plan = get_plan_from_variant_id(variant_id)
         else:
             sub_status = "free"
+            sub_plan = None
 
         update_data = {
             "subscription_status": sub_status,
+            "subscription_plan": sub_plan,
             "subscription_expires_at": renews_at,
             "lemonsqueezy_subscription_id": subscription_id,
         }
@@ -512,11 +530,12 @@ async def handle_lemonsqueezy_webhook(request: Request):
 
         client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
 
-        log.info(f"Updated subscription for workspace {workspace_id}: {sub_status}")
+        log.info(f"Updated subscription for workspace {workspace_id}: {sub_status} ({sub_plan})")
 
     elif event_name in ("subscription_cancelled", "subscription_expired"):
         client.table("workspaces").update({
             "subscription_status": "free",
+            "subscription_plan": None,
             "subscription_expires_at": None,
         }).eq("id", workspace_id).execute()
 
@@ -526,11 +545,13 @@ async def handle_lemonsqueezy_webhook(request: Request):
         renews_at = parse_iso_date(attrs.get("renews_at"))
         variant_id = str(attrs.get("variant_id", ""))
 
-        # ADR-053: Determine tier from variant ID
+        # ADR-100: Determine tier and plan variant from variant ID
         sub_status = get_tier_from_variant_id(variant_id)
+        sub_plan = get_plan_from_variant_id(variant_id)
 
         update_data = {
             "subscription_status": sub_status,
+            "subscription_plan": sub_plan,
             "subscription_expires_at": renews_at,
             "lemonsqueezy_subscription_id": subscription_id,
         }
@@ -539,7 +560,7 @@ async def handle_lemonsqueezy_webhook(request: Request):
 
         client.table("workspaces").update(update_data).eq("id", workspace_id).execute()
 
-        log.info(f"Resumed {sub_status} subscription for workspace {workspace_id}")
+        log.info(f"Resumed {sub_status} ({sub_plan}) subscription for workspace {workspace_id}")
 
     elif event_name == "subscription_payment_failed":
         log.warning(f"Payment failed for workspace {workspace_id}")

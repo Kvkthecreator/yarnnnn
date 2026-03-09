@@ -37,6 +37,7 @@ export function useSubscription() {
   const tier: SubscriptionTier = rawTier === "pro" || rawTier === "starter" ? "pro" : "free";
   const isPro = tier === "pro";
   const isPaid = tier === "pro";
+  const isEarlyBird = status?.plan === "pro_early_bird";
 
   const toUserError = (err: unknown, fallback: string) => {
     if (err instanceof APIError) {
@@ -88,6 +89,7 @@ export function useSubscription() {
     tier,
     isPro,
     isPaid,
+    isEarlyBird,
     isLoading,
     error,
     upgrade,
