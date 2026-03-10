@@ -1,7 +1,7 @@
 # VC Application Status Tracker
 
 **Purpose**: Track all VC/accelerator outreach — submitted applications, queued targets, and researched-but-not-applied funds.
-**Last Updated**: 2026-03-07
+**Last Updated**: 2026-03-10
 **Raising**: $500K pre-seed at $5M post-money valuation ($4.5M pre-money)
 **Contact**: Kevin Kim · kvkthecreator@gmail.com · 626-703-7862
 
@@ -14,7 +14,7 @@
 | 1 | PearX (S26) | Accelerator | 2026-03-04 | Submitted | YC-style accelerator application |
 | 2 | Redbud VC | Pre-seed | 2026-03-04 | Submitted | Intake form on website |
 | 3 | Hustle Fund | Pre-seed | 2026-03-04 | **Rejected** | Typeform; rejected 2026-03-06 (~2 days). Auto-rejection likely — no deck uploaded (was optional), possibly filtered on solo founder or pre-revenue |
-| 4 | Outlander VC | Pre-seed | 2026-03-04 | Submitted | Typeform + video interview completed manually 2026-03-06 |
+| 4 | Outlander VC | Pre-seed | 2026-03-04 | **Rejected** | Typeform + video interview completed 2026-03-06; rejected 2026-03-10 by Deepika — "not the right fit for our investment thesis at this time." Offered to stay on email updates |
 | 5 | Precursor Ventures | Pre-seed | 2026-03-05 | **Rejected** | Web form; rejected 2026-03-07 (~2 days). Charles Hudson pass — likely volume-based filter at intake stage given fast turnaround |
 | 6 | Forum Ventures | Pre-seed | 2026-03-05 | Submitted | Fillout form via forumvc.com/pitch-us; B2B AI focus, $100K accelerator or $250K venture studio |
 | 7 | 2048 Ventures | Pre-seed | 2026-03-05 | Submitted | Airtable form via 2048.vc/pitch-us; $500K-$3M checks, SMB Vertical AI, Pre-Seed Fast Track applied |
@@ -27,6 +27,9 @@
 | Fund | Stage | Target Date | Notes |
 |------|-------|-------------|-------|
 | Betaworks AI Camp | Pre-seed | Fall 2026 | Spring '26 cohort in session; signed up for mailing list. Check back for Fall '26 cohort application opening |
+| Techstars (Fall '26) | Accelerator | May–June 2026 | $220K ($20K for 5% + $200K uncapped MFN SAFE). Applications typically open May–June for Sept start. Target: Anywhere (remote) or NYC program. Apply after traction sprint |
+| HF0 Residency | Residency | Fall 2026 | $500K–$1M for 5%. Requires repeat founders — may be hard filter, applying anyway. 12-week SF residency |
+| Sazze Partners | Pre-seed | **NOW — priority** | $500K–$3M checks. Seoul + San Jose. Thesis: Korean-American founders, AI/SaaS. Perfect thesis match. Direct outreach via sazze.vc/contact |
 
 ---
 
@@ -52,7 +55,7 @@ These VCs were researched on 2026-03-05. They do not have public web application
 | Fund | Type | Why Skipped |
 |------|------|-------------|
 | Alchemist Accelerator | B2B Accelerator | ~$25K for 5-6% equity — implies ~$400-500K valuation, massive discount to our $5M target. Network is strong but dilution not justified at this stage |
-| HF0 Residency | Residency / Pre-seed | Requires repeat founders (previously launched a startup). Kevin is first-time founder — not eligible. Also requires 12-week SF relocation |
+| HF0 Residency | Residency / Pre-seed | Requires repeat founders — applying anyway for Fall '26 (moved to Queued). Also requires 12-week SF relocation |
 
 ---
 
@@ -66,3 +69,6 @@ These VCs were researched on 2026-03-05. They do not have public web application
 - [ ] **Bee Partners**: Retry web application form (deferred)
 - [ ] **Betaworks reCAPTCHA**: User needs to manually complete CAPTCHA on mailing list signup
 - [x] **Paul Yacoubian (@PaulYacoubian)**: DM'd on X (2026-03-06). GP at Felicis, founder of Copy.ai (acq), angel investor. Responded to his open call for Korean startup founders. Followed + replied to tweet.
+- [ ] **Sazze Partners**: Draft and send outreach email via sazze.vc/contact — priority, thesis-aligned (Korean-American founder + AI/SaaS)
+- [ ] **Techstars Fall '26**: Watch for application opening (May–June 2026). Apply after traction sprint with updated metrics
+- [ ] **HF0 Fall '26**: Watch for application opening. Apply despite repeat-founder requirement
