@@ -42,16 +42,20 @@ async def get_users_due_for_sync(supabase_client) -> list[dict]:
     Query users who are due for platform sync based on their tier.
 
     Returns users with their tier, timezone, and connected platforms.
+
+    Freshness is derived from sync_registry (per-resource truth),
+    not platform_connections.last_synced_at.
     """
     from services.platform_limits import (
         TIER_LIMITS,
         normalize_timezone_name,
         should_sync_now,
     )
+    from services.freshness import get_platform_freshness_from_registry
 
     # Get all users with connected platforms
     result = supabase_client.table("platform_connections").select(
-        "user_id, platform, settings, last_synced_at"
+        "user_id, platform, settings"
     ).in_("status", ["connected", "active"]).execute()
 
     if not result.data:
@@ -85,8 +89,13 @@ async def get_users_due_for_sync(supabase_client) -> list[dict]:
             # Filter to platforms that haven't been synced recently
             platforms_to_sync = []
             for platform in platforms:
-                if _needs_sync(platform, sync_frequency):
-                    platforms_to_sync.append(platform["platform"])
+                platform_name = platform["platform"]
+                # Derive last_synced_at from sync_registry (source of truth)
+                last_synced = await get_platform_freshness_from_registry(
+                    supabase_client, user_id, platform_name
+                )
+                if _needs_sync(last_synced, sync_frequency):
+                    platforms_to_sync.append(platform_name)
 
             if platforms_to_sync:
                 users_due.append({
@@ -129,25 +138,22 @@ async def _get_user_sync_info(supabase_client, user_id: str) -> Optional[dict]:
     return {"tier": tier, "timezone": timezone}
 
 
-def _needs_sync(platform: dict, sync_frequency: str) -> bool:
+def _needs_sync(last_synced: Optional[str], sync_frequency: str) -> bool:
     """
     Check if a platform needs to be synced based on last sync time.
 
+    Uses the most recent last_synced_at from sync_registry (per-resource truth).
     Prevents running sync too frequently if scheduler runs often.
     """
     from datetime import timedelta
 
-    last_synced = platform.get("last_synced_at")
     if not last_synced:
         return True  # Never synced
 
     try:
-        if isinstance(last_synced, str):
-            if last_synced.endswith("Z"):
-                last_synced = last_synced[:-1] + "+00:00"
-            last_synced_dt = datetime.fromisoformat(last_synced)
-        else:
-            last_synced_dt = last_synced
+        if last_synced.endswith("Z"):
+            last_synced = last_synced[:-1] + "+00:00"
+        last_synced_dt = datetime.fromisoformat(last_synced)
     except (ValueError, TypeError):
         return True
 

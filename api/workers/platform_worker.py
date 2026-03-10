@@ -183,11 +183,9 @@ async def _sync_platform_async(
         has_error = "error" in sync_result and sync_result.get("items_synced", 0) == 0
         sync_success = not has_error
 
-        # Only update last_synced_at if sync actually produced data
-        if sync_success:
-            client.table("platform_connections").update({
-                "last_synced_at": datetime.now(timezone.utc).isoformat(),
-            }).eq("id", integration["id"]).execute()
+        # Note: platform_connections.last_synced_at is no longer updated here.
+        # sync_registry.last_synced_at (per-resource) is the single source of truth,
+        # updated by update_sync_registry() within each provider sync function.
 
         # Refresh landscape alongside content sync (keeps resource list current)
         try:

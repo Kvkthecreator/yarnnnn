@@ -19,6 +19,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Optional
 import logging
 
+from services.freshness import calculate_freshness
+
 logger = logging.getLogger(__name__)
 
 
@@ -249,15 +251,21 @@ async def _get_platform_sync_status(
     user_id: str,
     platform_filter: Optional[str] = None,
 ) -> list[PlatformSyncStatus]:
-    """Fetch per-platform sync status with resource-level detail."""
+    """Fetch per-platform sync status with resource-level detail.
+
+    Derives platform-level freshness from sync_registry (per-resource truth),
+    not platform_connections.last_synced_at.
+    """
+    from services.freshness import calculate_freshness
+
     statuses = []
     now = datetime.now(timezone.utc)
 
     try:
-        # Get platform connections
+        # Get platform connections (for status and landscape only)
         query = (
             client.table("platform_connections")
-            .select("platform, status, last_synced_at, landscape")
+            .select("platform, status, landscape")
             .eq("user_id", user_id)
         )
         if platform_filter:
@@ -267,13 +275,16 @@ async def _get_platform_sync_status(
 
         for conn in (connections_result.data or []):
             platform = conn.get("platform", "unknown")
-            last_synced = conn.get("last_synced_at")
-
-            # Calculate freshness
-            freshness = _calculate_freshness(last_synced, now)
 
             # Get per-resource sync state from sync_registry
             resources = await _get_resource_sync_state(client, user_id, platform)
+
+            # Derive platform-level last_synced_at from resources (max)
+            resource_times = [r["last_synced_at"] for r in resources if r.get("last_synced_at")]
+            last_synced = max(resource_times) if resource_times else None
+
+            # Calculate freshness from sync_registry truth
+            freshness = calculate_freshness(last_synced, now)
 
             # Parse landscape (available resources)
             landscape_raw = conn.get("landscape", {}) or {}
@@ -321,7 +332,7 @@ async def _get_resource_sync_state(
                 "resource_id": row.get("resource_id"),
                 "resource_name": row.get("resource_name"),
                 "last_synced_at": last_synced,
-                "freshness": _calculate_freshness(last_synced, now),
+                "freshness": calculate_freshness(last_synced, now),
                 "item_count": row.get("item_count", 0),
             })
 
@@ -479,30 +490,6 @@ async def _get_failed_jobs(client: Any, user_id: str) -> list[FailedJob]:
         return []
 
 
-# --- Helpers ---
-
-def _calculate_freshness(last_synced: Optional[str], now: datetime) -> str:
-    """Calculate human-readable freshness indicator."""
-    if not last_synced:
-        return "never synced"
-
-    try:
-        synced_dt = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
-        delta = now - synced_dt
-
-        if delta < timedelta(hours=1):
-            return "fresh"
-        elif delta < timedelta(hours=24):
-            hours = int(delta.total_seconds() // 3600)
-            return f"{hours} hour{'s' if hours != 1 else ''} ago"
-        elif delta < timedelta(days=7):
-            return f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
-        else:
-            return f"stale ({delta.days} days)"
-    except Exception:
-        return "unknown"
-
-
 def _format_state_message(snapshot: SystemStateSnapshot) -> str:
     """Generate human-readable summary of system state."""
     parts = []
@@ -511,7 +498,7 @@ def _format_state_message(snapshot: SystemStateSnapshot) -> str:
     if snapshot.last_signal_pass:
         sp = snapshot.last_signal_pass
         if sp.last_run_at:
-            freshness = _calculate_freshness(sp.last_run_at, datetime.now(timezone.utc))
+            freshness = calculate_freshness(sp.last_run_at, datetime.now(timezone.utc))
             action_count = len(sp.actions_taken)
             parts.append(f"Last signal pass: {freshness} ({action_count} actions)")
         else:
@@ -528,7 +515,7 @@ def _format_state_message(snapshot: SystemStateSnapshot) -> str:
     if snapshot.scheduler_health:
         sh = snapshot.scheduler_health
         if sh.last_heartbeat_at:
-            freshness = _calculate_freshness(sh.last_heartbeat_at, datetime.now(timezone.utc))
+            freshness = calculate_freshness(sh.last_heartbeat_at, datetime.now(timezone.utc))
             parts.append(f"Scheduler: {freshness}")
         else:
             parts.append("Scheduler: no heartbeat")

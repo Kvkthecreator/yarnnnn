@@ -6,6 +6,16 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.10.2] - Sync freshness consolidation: sync_registry as single source of truth
+
+### Changed
+- `api/services/freshness.py`: Added shared `calculate_freshness()` and `get_platform_freshness_from_registry()` — single source of truth for freshness calculations, eliminating duplicate implementations across working_memory.py and system_state.py.
+- `api/services/working_memory.py`: Both platform freshness injection points (chat context + headless system state) now derive freshness from `sync_registry` instead of `platform_connections.last_synced_at`. Deleted local `_calculate_freshness()`.
+- `api/services/primitives/system_state.py`: Platform-level freshness derived from `sync_registry` (max per-resource `last_synced_at`). Deleted local `_calculate_freshness()`, imports shared one from freshness.py.
+- Expected behavior: TP and system status now reflect per-resource sync truth. A platform with some stale resources no longer appears "fresh" just because the sync process ran. Scheduler decisions use resource-level freshness, so partially-failed syncs get retried sooner.
+
+---
+
 ## [2026.03.10.1] - Context provenance for deliverable versions (ADR-049 evolution)
 
 ### Changed

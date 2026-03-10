@@ -498,18 +498,30 @@ async def list_integrations(auth: UserClient) -> IntegrationListResponse:
 
     try:
         result = auth.client.table("platform_connections").select(
-            "id, platform, status, metadata, last_synced_at, created_at"
+            "id, platform, status, metadata, created_at"
         ).eq("user_id", user_id).execute()
+
+        # Derive last_used_at from sync_registry (source of truth)
+        registry_result = auth.client.table("sync_registry").select(
+            "platform, last_synced_at"
+        ).eq("user_id", user_id).execute()
+        max_synced: dict[str, str] = {}
+        for reg in (registry_result.data or []):
+            p = reg.get("platform", "")
+            ts = reg.get("last_synced_at")
+            if ts and (p not in max_synced or ts > max_synced[p]):
+                max_synced[p] = ts
 
         integrations = []
         for row in result.data or []:
             metadata = row.get("metadata", {}) or {}
+            platform = row["platform"]
             integrations.append(IntegrationResponse(
                 id=row["id"],
-                provider=row["platform"],  # ADR-058: DB column is 'platform'
+                provider=platform,  # ADR-058: DB column is 'platform'
                 status=row["status"],
                 workspace_name=metadata.get("workspace_name"),
-                last_used_at=row.get("last_synced_at"),  # ADR-058: column renamed
+                last_used_at=max_synced.get(platform),
                 created_at=row["created_at"]
             ))
 
@@ -848,7 +860,7 @@ async def get_integration(
         row = None
         for p in providers_to_try:
             result = auth.client.table("platform_connections").select(
-                "id, platform, status, metadata, last_synced_at, created_at"
+                "id, platform, status, metadata, created_at"
             ).eq("user_id", user_id).eq("platform", p).execute()
             if result.data:
                 row = result.data[0]
@@ -858,13 +870,20 @@ async def get_integration(
             raise HTTPException(status_code=404, detail=f"Integration not found: {provider}")
 
         metadata = row.get("metadata", {}) or {}
+        platform = row["platform"]
+
+        # Derive last_used_at from sync_registry (source of truth)
+        from services.freshness import get_platform_freshness_from_registry
+        last_synced = await get_platform_freshness_from_registry(
+            auth.client, user_id, platform
+        )
 
         return IntegrationResponse(
             id=row["id"],
-            provider=row["platform"],  # ADR-058: DB column is 'platform'
+            provider=platform,  # ADR-058: DB column is 'platform'
             status=row["status"],
             workspace_name=metadata.get("workspace_name"),
-            last_used_at=row.get("last_synced_at"),  # ADR-058: column renamed
+            last_used_at=last_synced,
             created_at=row["created_at"]
         )
 

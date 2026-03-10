@@ -33,6 +33,64 @@ logger = logging.getLogger(__name__)
 
 
 # =============================================================================
+# Shared Freshness Utilities
+# =============================================================================
+
+def calculate_freshness(last_synced: Optional[str], now: Optional[datetime] = None) -> str:
+    """Calculate human-readable freshness indicator.
+
+    Single source of truth — imported by working_memory.py, system_state.py, etc.
+    """
+    if not last_synced:
+        return "never synced"
+
+    if now is None:
+        now = datetime.now(timezone.utc)
+
+    try:
+        from datetime import timedelta
+        synced_dt = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
+        delta = now - synced_dt
+
+        if delta < timedelta(hours=1):
+            return "fresh"
+        elif delta < timedelta(hours=24):
+            hours = int(delta.total_seconds() // 3600)
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        elif delta < timedelta(days=7):
+            return f"{delta.days} day{'s' if delta.days != 1 else ''} ago"
+        else:
+            return f"stale ({delta.days} days)"
+    except Exception:
+        return "unknown"
+
+
+async def get_platform_freshness_from_registry(
+    client,
+    user_id: str,
+    platform: str,
+) -> Optional[str]:
+    """Get the most recent last_synced_at for a platform from sync_registry.
+
+    Returns the max last_synced_at across all resources for this platform,
+    which is the single source of truth for "when was this platform last synced".
+    """
+    try:
+        result = client.table("sync_registry").select(
+            "last_synced_at"
+        ).eq("user_id", user_id).eq("platform", platform).order(
+            "last_synced_at", desc=True
+        ).limit(1).execute()
+
+        if result.data and result.data[0].get("last_synced_at"):
+            return result.data[0]["last_synced_at"]
+        return None
+    except Exception as e:
+        logger.warning(f"[FRESHNESS] Failed to get platform freshness for {platform}: {e}")
+        return None
+
+
+# =============================================================================
 # Freshness Check (ADR-049)
 # =============================================================================
 

@@ -313,62 +313,65 @@ def _get_active_deliverables_sync(user_id: str, client: Any) -> list:
 
 
 def _get_connected_platforms_sync(user_id: str, client: Any) -> list:
-    """Fetch connected platform summary (sync, for thread pool)."""
+    """Fetch connected platform summary (sync, for thread pool).
+
+    Derives freshness from sync_registry (per-resource truth),
+    not platform_connections.last_synced_at.
+    """
+    from services.freshness import calculate_freshness
+
     platforms = []
 
     try:
-        result = client.table("platform_connections").select(
-            "id, platform, status, last_synced_at, settings"
+        # Get connections for status
+        conn_result = client.table("platform_connections").select(
+            "platform, status"
         ).eq("user_id", user_id).order("platform").limit(MAX_PLATFORMS).execute()
 
-        if result.data:
-            now = datetime.now(timezone.utc)
+        if not conn_result.data:
+            return platforms
 
-            for p in result.data:
-                last_synced = p.get("last_synced_at")
-                freshness = _calculate_freshness(last_synced, now)
-                platform_name = p.get("platform", "unknown")
+        # Get max last_synced_at per platform from sync_registry (single query)
+        registry_result = client.table("sync_registry").select(
+            "platform, last_synced_at"
+        ).eq("user_id", user_id).execute()
 
+        # Build max last_synced_at per platform
+        max_synced: dict[str, str] = {}
+        for row in (registry_result.data or []):
+            p = row.get("platform", "")
+            ts = row.get("last_synced_at")
+            if ts and (p not in max_synced or ts > max_synced[p]):
+                max_synced[p] = ts
+
+        now = datetime.now(timezone.utc)
+
+        for p in conn_result.data:
+            platform_name = p.get("platform", "unknown")
+            status = p.get("status", "unknown")
+            last_synced = max_synced.get(platform_name)
+
+            platforms.append({
+                "platform": platform_name,
+                "status": status,
+                "last_synced": last_synced,
+                "freshness": calculate_freshness(last_synced, now),
+            })
+
+            # Google OAuth stores one "gmail" row covering both Gmail and Calendar
+            if platform_name == "gmail":
+                cal_synced = max_synced.get("calendar")
                 platforms.append({
-                    "platform": platform_name,
-                    "status": p.get("status", "unknown"),
-                    "last_synced": last_synced,
-                    "freshness": freshness,
+                    "platform": "calendar",
+                    "status": status,
+                    "last_synced": cal_synced,
+                    "freshness": calculate_freshness(cal_synced, now),
                 })
-
-                if platform_name == "gmail":
-                    platforms.append({
-                        "platform": "calendar",
-                        "status": p.get("status", "unknown"),
-                        "last_synced": last_synced,
-                        "freshness": freshness,
-                    })
 
     except Exception as e:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch platforms: {e}")
 
     return platforms
-
-
-def _calculate_freshness(last_synced: Optional[str], now: datetime) -> str:
-    """Calculate human-readable freshness indicator."""
-    if not last_synced:
-        return "never synced"
-
-    try:
-        synced_dt = datetime.fromisoformat(last_synced.replace("Z", "+00:00"))
-        delta = now - synced_dt
-
-        if delta < timedelta(hours=1):
-            return "fresh"
-        elif delta < timedelta(hours=24):
-            return f"{int(delta.total_seconds() // 3600)} hours ago"
-        elif delta < timedelta(days=7):
-            return f"{delta.days} days ago"
-        else:
-            return f"stale ({delta.days} days)"
-    except Exception:
-        return "unknown"
 
 
 def _get_recent_sessions_sync(user_id: str, client: Any) -> list:
@@ -424,16 +427,17 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
         )
 
         if signal_result.data:
+            from services.freshness import calculate_freshness
+
             row = signal_result.data[0]
             metadata = row.get("metadata", {}) or {}
             created_at = row.get("created_at")
-            freshness = _calculate_freshness(created_at, now)
 
             actions_taken = metadata.get("actions_taken", [])
             deliverables_triggered = metadata.get("deliverables_triggered", [])
 
             summary["last_signal_pass"] = {
-                "when": freshness,
+                "when": calculate_freshness(created_at, now),
                 "actions_count": len(actions_taken),
                 "deliverables_triggered": len(deliverables_triggered),
             }
@@ -442,61 +446,56 @@ def _get_system_summary_sync(user_id: str, client: Any) -> dict:
         logger.warning(f"[WORKING_MEMORY] Failed to fetch last signal pass: {e}")
 
     try:
-        # 2. Per-platform sync freshness (from platform_connections + sync_registry)
-        platforms_result = (
+        # 2. Per-platform sync freshness (from sync_registry — single source of truth)
+        from services.freshness import calculate_freshness
+
+        # Connections for status only
+        conn_result = (
             client.table("platform_connections")
-            .select("platform, status, last_synced_at")
+            .select("platform, status")
             .eq("user_id", user_id)
             .execute()
         )
 
-        platform_freshness = []
-        for p in (platforms_result.data or []):
-            platform = p.get("platform", "unknown")
-            last_synced = p.get("last_synced_at")
-            status = p.get("status", "unknown")
+        # sync_registry for freshness + resource counts (single query)
+        registry_result = (
+            client.table("sync_registry")
+            .select("platform, last_synced_at")
+            .eq("user_id", user_id)
+            .execute()
+        )
 
-            # Get resource count from sync_registry
-            try:
-                resource_result = (
-                    client.table("sync_registry")
-                    .select("resource_id", count="exact")
-                    .eq("user_id", user_id)
-                    .eq("platform", platform)
-                    .execute()
-                )
-                resource_count = resource_result.count or 0
-            except Exception as e:
-                logger.warning(f"[WORKING_MEMORY] Failed to fetch sync_registry count for {platform}: {e}")
-                resource_count = 0
+        # Build max last_synced_at and resource count per platform
+        max_synced: dict[str, str] = {}
+        resource_counts: dict[str, int] = {}
+        for row in (registry_result.data or []):
+            p = row.get("platform", "")
+            ts = row.get("last_synced_at")
+            resource_counts[p] = resource_counts.get(p, 0) + 1
+            if ts and (p not in max_synced or ts > max_synced[p]):
+                max_synced[p] = ts
+
+        platform_freshness = []
+        for p in (conn_result.data or []):
+            platform = p.get("platform", "unknown")
+            status = p.get("status", "unknown")
+            last_synced = max_synced.get(platform)
 
             platform_freshness.append({
                 "platform": platform,
                 "status": status,
-                "freshness": _calculate_freshness(last_synced, now),
-                "resources_synced": resource_count,
+                "freshness": calculate_freshness(last_synced, now),
+                "resources_synced": resource_counts.get(platform, 0),
             })
 
-            # Google OAuth stores one "gmail" row covering both Gmail and Calendar.
-            # Surface calendar separately with its own sync_registry count.
+            # Google OAuth stores one "gmail" row covering both Gmail and Calendar
             if platform == "gmail":
-                try:
-                    cal_result = (
-                        client.table("sync_registry")
-                        .select("resource_id", count="exact")
-                        .eq("user_id", user_id)
-                        .eq("platform", "calendar")
-                        .execute()
-                    )
-                    cal_count = cal_result.count or 0
-                except Exception:
-                    cal_count = 0
-
+                cal_synced = max_synced.get("calendar")
                 platform_freshness.append({
                     "platform": "calendar",
                     "status": status,
-                    "freshness": _calculate_freshness(last_synced, now),
-                    "resources_synced": cal_count,
+                    "freshness": calculate_freshness(cal_synced, now),
+                    "resources_synced": resource_counts.get("calendar", 0),
                 })
 
         summary["platform_sync_freshness"] = platform_freshness

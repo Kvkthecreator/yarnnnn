@@ -247,9 +247,9 @@ async def get_system_status(auth: UserClient):
     except Exception as e:
         logger.debug(f"Failed to fetch user timezone: {e}")
 
-    # ─── Platform Connections ──────────────────────────────────────────────────
+    # ─── Platform Connections (status + landscape only; freshness from sync_registry) ──
     platforms_result = auth.client.table("platform_connections").select(
-        "platform, status, last_synced_at, landscape"
+        "platform, status, landscape"
     ).eq("user_id", user_id).execute()
     connection_rows = platforms_result.data or []
 
@@ -372,24 +372,12 @@ async def get_system_status(auth: UserClient):
                 else:
                     platform_status = "healthy"
             else:
-                # No sync_registry entries — fall back to platform_connections
+                # No sync_registry entries — platform connected but never synced
                 platform_status = "pending"
-                fallback_synced = p_data.get("last_synced_at")
-                if fallback_synced:
-                    try:
-                        fb_dt = datetime.fromisoformat(fallback_synced.replace("Z", "+00:00"))
-                        hours_since = (now - fb_dt).total_seconds() / 3600
-                        if hours_since > hours_between * 2:
-                            platform_status = "stale"
-                        else:
-                            platform_status = "healthy"
-                        latest_sync_dt = fb_dt
-                    except (ValueError, TypeError):
-                        pass
 
             # Compute last_synced_at and next_sync_at
             # ADR-084: Use schedule-aware calculation instead of last_sync + hours
-            last_synced_str = latest_sync_dt.isoformat() if latest_sync_dt else p_data.get("last_synced_at")
+            last_synced_str = latest_sync_dt.isoformat() if latest_sync_dt else None
             next_sync = get_next_sync_time(sync_frequency, user_tz_str)
 
             platform_sync.append(PlatformSyncStatus(
