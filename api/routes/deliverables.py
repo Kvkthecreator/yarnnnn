@@ -497,6 +497,7 @@ class SourceSnapshot(BaseModel):
     platform_cursor: Optional[str] = None
     item_count: Optional[int] = None
     source_latest_at: Optional[str] = None
+    items_used: Optional[int] = None  # ADR-049 evolution: actual items consumed
 
 
 
@@ -524,6 +525,8 @@ class VersionResponse(BaseModel):
     source_fetch_summary: Optional[SourceFetchSummary] = None
     # ADR-049: Source snapshots for freshness tracking
     source_snapshots: Optional[list[SourceSnapshot]] = None
+    # ADR-101: Execution metadata (tokens, model, provenance)
+    metadata: Optional[dict] = None
 
 
 class VersionUpdate(BaseModel):
@@ -907,6 +910,8 @@ async def get_deliverable(
                 source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
                 # ADR-049: Source snapshots
                 source_snapshots=v.get("source_snapshots"),
+                # ADR-101: Execution metadata
+                metadata=v.get("metadata"),
             )
             for v in versions
         ],
@@ -1260,6 +1265,8 @@ async def list_versions(
             source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
             # ADR-049: Source snapshots for freshness tracking
             source_snapshots=_parse_source_snapshots(v.get("source_snapshots")),
+            # ADR-101: Execution metadata
+            metadata=v.get("metadata"),
         )
         for v in versions
     ]
@@ -1322,6 +1329,8 @@ async def get_version(
         source_fetch_summary=_parse_source_fetch_summary(v.get("source_fetch_summary")),
         # ADR-049: Source snapshots for freshness tracking
         source_snapshots=_parse_source_snapshots(v.get("source_snapshots")),
+        # ADR-101: Execution metadata
+        metadata=v.get("metadata"),
     )
 
 

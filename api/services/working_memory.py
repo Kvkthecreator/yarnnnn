@@ -226,12 +226,12 @@ async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
     if goal:
         scope["goal"] = goal
 
-    # Fetch latest version preview — so TP can see what was last generated
+    # Fetch latest version preview + provenance — so TP can see what was last generated
     if deliverable_id:
         try:
             version_result = (
                 client.table("deliverable_versions")
-                .select("version_number, status, draft_content, final_content, created_at, delivery_status")
+                .select("version_number, status, draft_content, final_content, created_at, delivery_status, source_snapshots, metadata")
                 .eq("deliverable_id", deliverable_id)
                 .order("created_at", desc=True)
                 .limit(1)
@@ -247,6 +247,23 @@ async def _extract_deliverable_scope(deliverable: dict, client: Any) -> dict:
                     "delivery_status": v.get("delivery_status"),
                     "content_preview": content[:400] + "..." if len(content) > 400 else content,
                 }
+                # ADR-049 evolution: inject source provenance so TP can explain
+                # what context was used without needing tool calls
+                snapshots = v.get("source_snapshots") or []
+                if snapshots:
+                    scope["latest_version"]["sources"] = [
+                        {
+                            "platform": s.get("platform"),
+                            "name": s.get("resource_name") or s.get("resource_id"),
+                            "items_used": s.get("items_used", s.get("item_count", 0)),
+                        }
+                        for s in snapshots
+                    ]
+                meta = v.get("metadata") or {}
+                if meta.get("items_fetched"):
+                    scope["latest_version"]["total_items_fetched"] = meta["items_fetched"]
+                if meta.get("strategy"):
+                    scope["latest_version"]["strategy"] = meta["strategy"]
         except Exception as e:
             logger.warning(f"[WORKING_MEMORY] Failed to fetch latest version: {e}")
 

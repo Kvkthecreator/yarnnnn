@@ -1,7 +1,7 @@
 # Architecture: Deliverables
 
 **Status:** Canonical
-**Date:** 2026-02-26 (updated 2026-03-09 for ADR-102: yarnnn content platform)
+**Date:** 2026-02-26 (updated 2026-03-10 for ADR-049 evolution: context provenance)
 **Related:**
 - [ADR-018: Recurring Deliverables](../adr/ADR-018-recurring-deliverables.md)
 - [ADR-044: Deliverable Type Reconceptualization](../adr/ADR-044-deliverable-type-reconceptualization.md)
@@ -75,8 +75,8 @@ When a deliverable executes, it produces a **deliverable version** — an immuta
 | `status` | text | `delivered`, `failed`, or `suggested` (ADR-060) |
 | `draft_content` | text | LLM-generated content (markdown) |
 | `final_content` | text | User-edited content (if modified before delivery) |
-| `source_snapshots` | jsonb | ADR-049: Platform state at generation time |
-| `metadata` | jsonb | Execution metadata (strategy, tokens, timing) |
+| `source_snapshots` | jsonb | ADR-049: Platform state + per-source `items_used` at generation time |
+| `metadata` | jsonb | Execution metadata: `{input_tokens, output_tokens, model, platform_content_ids, items_fetched, sources_used, strategy}` |
 | `analyst_metadata` | jsonb | ADR-060: Confidence, detected pattern, source sessions |
 | `delivery_metadata` | jsonb | Delivery details (message ID, URL, delivery timestamp) |
 | `created_at` | timestamptz | Generation timestamp |
@@ -527,15 +527,17 @@ Every deliverable execution captures metadata across multiple storage layers, en
 | Generated content | `deliverable_versions.draft_content` / `final_content` | Yes |
 | Strategy used | `activity_log.metadata.strategy` | Yes |
 | Token usage (input/output/model) | `deliverable_versions.metadata` + `activity_log.metadata` | Yes (ADR-101) |
-| Source snapshots (immutable) | `deliverable_versions.source_snapshots` | Yes |
+| Source snapshots (immutable) + `items_used` | `deliverable_versions.source_snapshots` | Yes (items_used added for provenance) |
+| Platform content IDs consumed | `deliverable_versions.metadata.platform_content_ids` | Yes (forward link: version→content) |
+| Items fetched, sources used, strategy | `deliverable_versions.metadata` | Yes |
 | Execution stages (started/completed/failed) | `work_execution_log` | Yes |
 | Content length, sources list | `work_execution_log.metadata` | Yes |
 | Delivery status/error | `deliverable_versions.delivery_status` / `delivery_error` | Yes |
 | Delivery timestamp | `deliverable_versions.delivered_at` | Yes |
 | Analyst confidence (suggested only) | `deliverable_versions.analyst_metadata` | Yes (ADR-060) |
-| Platform content IDs retained | `platform_content.retained_reason` / `retained_ref` | Yes |
+| Platform content IDs retained (backward) | `platform_content.retained_reason` / `retained_ref` | Yes (backward link: content→version) |
 | `source_fetch_summary` | `deliverable_versions` column | **Not populated** (schema exists) |
-| `context_snapshot_id` | `deliverable_versions` column | **Not implemented** |
+| `context_snapshot_id` | `deliverable_versions` column | **Superseded** by `metadata.platform_content_ids` |
 | `pipeline_run_id` | `deliverable_versions` column | **Not used** (ADR-042) |
 
 ### Querying Execution History

@@ -94,8 +94,8 @@ export function SourcePills({ snapshots }: { snapshots: SourceSnapshot[] }) {
           {i > 0 && <span className="text-border">&middot;</span>}
           <span>{PLATFORM_EMOJI[s.platform] || '\u{1F4C4}'}</span>
           <span>{s.resource_name || s.resource_id}</span>
-          {s.item_count != null && (
-            <span className="text-muted-foreground/60">({s.item_count})</span>
+          {(s.items_used != null || s.item_count != null) && (
+            <span className="text-muted-foreground/60">({s.items_used ?? s.item_count})</span>
           )}
         </span>
       ))}

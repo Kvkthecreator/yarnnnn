@@ -648,10 +648,15 @@ async def execute_deliverable_generation(
 
         # 5. ADR-066: Prepare version for delivery (no staged status)
         # ADR-101: Store execution metadata (tokens, model) on version
+        # ADR-049 evolution: Include context provenance for traceability
         version_metadata = {
             "input_tokens": usage.get("input_tokens", 0),
             "output_tokens": usage.get("output_tokens", 0),
             "model": SONNET_MODEL,
+            "platform_content_ids": gathered_result.platform_content_ids,
+            "items_fetched": gathered_result.items_fetched,
+            "sources_used": gathered_result.sources_used,
+            "strategy": context_summary.get("strategy", "unknown"),
         }
         await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
 
@@ -680,7 +685,10 @@ async def execute_deliverable_generation(
                     "resource_name": source.get("resource_name"),
                     "user_id": user_id,
                 })
-        await record_source_snapshots(client, version_id, sources_for_snapshot)
+        await record_source_snapshots(
+            client, version_id, sources_for_snapshot,
+            content_ids=gathered_result.platform_content_ids,
+        )
 
         # 6. Update deliverable last_run_at
         client.table("deliverables").update({

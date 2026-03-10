@@ -437,6 +437,7 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
     select_cols = (
         "id, deliverable_id, version_number, status, "
         "draft_content, final_content, "
+        "source_snapshots, metadata, "
         "created_at, delivery_status, delivery_error"
     )
 
@@ -452,6 +453,12 @@ async def _resolve_version_ref(ref: EntityRef, auth: Any) -> Union[Dict, List[Di
         for item in (result.data or []):
             content = item.pop("final_content", None) or item.pop("draft_content", None) or ""
             item["content"] = content[:500] + "..." if len(content) > 500 else content
+            # Strip verbose content IDs from list view (available on single reads)
+            if item.get("metadata") and "platform_content_ids" in item["metadata"]:
+                item["metadata"] = {
+                    k: v for k, v in item["metadata"].items()
+                    if k != "platform_content_ids"
+                }
         return result.data or []
 
     elif ref.identifier == "latest":

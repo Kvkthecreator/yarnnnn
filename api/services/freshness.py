@@ -244,16 +244,20 @@ async def record_source_snapshots(
     client,
     version_id: str,
     sources_used: list[dict],
+    content_ids: list[str] | None = None,
 ) -> bool:
     """
     Record source snapshots on deliverable_version after generation.
 
-    This creates an immutable audit trail of what sources were used.
+    This creates an immutable audit trail of what sources were used,
+    including how many content items from each source were actually
+    consumed during generation (ADR-049 provenance evolution).
 
     Args:
         client: Supabase client
         version_id: UUID of the deliverable_version
         sources_used: List of source configs that were used
+        content_ids: Optional list of platform_content IDs consumed during generation
 
     Returns:
         True on success, False on failure
@@ -261,6 +265,22 @@ async def record_source_snapshots(
     try:
         snapshots = []
         now = datetime.now(timezone.utc)
+
+        # Build per-resource content usage counts from consumed IDs
+        items_used_by_resource: dict[str, int] = {}
+        if content_ids:
+            try:
+                usage_result = (
+                    client.table("platform_content")
+                    .select("resource_id")
+                    .in_("id", content_ids)
+                    .execute()
+                )
+                for row in (usage_result.data or []):
+                    rid = row.get("resource_id", "")
+                    items_used_by_resource[rid] = items_used_by_resource.get(rid, 0) + 1
+            except Exception as e:
+                logger.warning(f"[FRESHNESS] Failed to count content usage per source: {e}")
 
         for source in sources_used:
             platform = source.get("provider") or source.get("platform")
@@ -288,6 +308,9 @@ async def record_source_snapshots(
                 snapshot["platform_cursor"] = sync_state.get("platform_cursor")
                 snapshot["item_count"] = sync_state.get("item_count", 0)
                 snapshot["source_latest_at"] = sync_state.get("source_latest_at")
+
+            # ADR-049 evolution: actual items consumed from this source
+            snapshot["items_used"] = items_used_by_resource.get(resource_id, 0)
 
             snapshots.append(snapshot)
 

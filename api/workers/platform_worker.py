@@ -346,6 +346,7 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                 # Track latest message ts for cursor update
                 latest_ts = oldest
                 thread_expansions = 0
+                channel_items = 0  # Per-channel item count for sync_registry
 
                 for msg in filtered_messages:
                     msg_ts = msg.get("ts", "")
@@ -375,6 +376,7 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                             source_timestamp=msg_ts,
                         )
                         items_synced += 1
+                        channel_items += 1
                     except Exception as e:
                         logger.warning(f"[SLACK] Failed to insert message {msg_ts} in {channel_name}: {e}")
 
@@ -411,6 +413,7 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                                     source_timestamp=reply_ts,
                                 )
                                 items_synced += 1
+                                channel_items += 1
                         except Exception as e:
                             logger.warning(f"[PLATFORM_WORKER] Thread expansion failed for {msg_ts}: {e}")
 
@@ -419,7 +422,7 @@ async def _sync_slack(client, user_id: str, integration: dict, selected_sources:
                     client, user_id, "slack", channel_id,
                     resource_name=channel_name,
                     platform_cursor=latest_ts,
-                    item_count=len(filtered_messages),
+                    item_count=channel_items,
                 )
                 channels_synced += 1
 

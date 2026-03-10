@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.10.1] - Context provenance for deliverable versions (ADR-049 evolution)
+
+### Changed
+- `api/services/working_memory.py`: Deliverable-scoped TP sessions now receive source provenance in working memory injection. The `latest_version` scope includes `sources` (per-source platform/name/items_used), `total_items_fetched`, and `strategy`. TP can answer "what context was used?" from working memory without needing tool calls.
+- `api/services/primitives/refs.py`: Read primitive now includes `source_snapshots` and `metadata` columns when reading version refs. TP can inspect full provenance details including `platform_content_ids`.
+- Expected behavior: When a user opens deliverable-scoped chat and asks "what context was used for the latest version?", TP immediately sees the source list, per-source item counts, strategy used, and total items fetched. For deeper inspection, TP can read the version to get individual `platform_content_ids`.
+
+---
+
 ## [2026.03.09.6] - Deliverable feedback loop: chat auto-persist + version feedback strip + email CTA
 
 ### Changed

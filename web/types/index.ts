@@ -486,6 +486,8 @@ export interface SourceSnapshot {
   platform_cursor?: string;
   item_count?: number;
   source_latest_at?: string;
+  // ADR-049 evolution: actual items consumed from this source during generation
+  items_used?: number;
 }
 
 
@@ -516,11 +518,16 @@ export interface DeliverableVersion {
   delivery_mode?: 'draft' | 'direct';
   // ADR-049: Source snapshots for freshness tracking
   source_snapshots?: SourceSnapshot[];
-  // ADR-101: Execution metadata (tokens, model)
+  // ADR-101: Execution metadata (tokens, model, provenance)
   metadata?: {
     input_tokens?: number;
     output_tokens?: number;
     model?: string;
+    // ADR-049 evolution: context provenance
+    platform_content_ids?: string[];
+    items_fetched?: number;
+    sources_used?: string[];
+    strategy?: string;
   };
 }
 
