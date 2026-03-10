@@ -1,0 +1,174 @@
+# ADR-105: Instructions to Chat Surface Migration
+
+**Date:** 2026-03-10
+**Status:** Proposed
+**Supersedes:** None
+**Related:**
+- [ADR-104: Deliverable Instructions Unified Targeting](ADR-104-deliverable-instructions-unified-targeting.md) — instructions as the single targeting layer
+- [ADR-087: Deliverable Scoped Context](ADR-087-deliverable-scoped-context.md) — per-deliverable instructions + memory
+- [ADR-080: Unified Agent Modes](ADR-080-unified-agent-modes.md) — one agent, two modes
+- [Surface-Action Mapping](../design/SURFACE-ACTION-MAPPING.md) — design principle
+
+---
+
+## Context
+
+ADR-104 established `deliverable_instructions` as the unified targeting layer — user intent for "what this deliverable should focus on" flows through a single text field, dual-injected into the headless system prompt (behavioral constraints) and the type prompt user message (priority lens).
+
+The current UI surface for editing instructions is the **Instructions drawer tab**: a textarea for behavior directives, collapsible audience fields (name, role, notes), and a prompt preview. This works but creates a design inconsistency:
+
+1. **Instructions are directives, not configuration.** They change how the agent behaves — closer to "telling TP what to do" than "configuring a setting." The [Surface-Action Mapping](../design/SURFACE-ACTION-MAPPING.md) principle says directives should flow through chat.
+
+2. **TP can't acknowledge or refine.** When the user types instructions in a drawer textarea, there's no feedback loop. TP doesn't see the edit until the next execution run. In chat, TP can acknowledge ("Got it — I'll focus on action items"), suggest refinements ("Do you want me to also track blockers?"), and persist immediately.
+
+3. **Recipient context is conversational by nature.** "This report is for my CTO Sarah who cares about velocity metrics" is a natural chat utterance that TP can parse into structured fields. A form with name/role/notes fields is the less natural interface.
+
+4. **The dashboard chat already shows TP can't explain generation context** (screenshot 2 from the discussion). When a user asks "what context was used for v3?", TP can't answer because it lacks provenance. Moving instructions to chat creates a natural place for the user to ask "what are my current instructions?" and get an answer.
+
+---
+
+## Decision
+
+Migrate instruction editing from the drawer to the chat surface. The drawer Instructions tab becomes a **read-only reference view** showing current instructions and audience context.
+
+### Phase 1: Chat-mediated instruction editing
+
+**What changes:**
+
+1. **+ menu action**: Add "Update instructions" as a `prompt` verb action in the deliverable chat + menu (already exists — pre-fills "I want to update the instructions for this deliverable").
+
+2. **TP instruction write primitive**: New `Edit` primitive action for `deliverable_instructions` and `recipient_context`. When the user says "focus on action items" or "this is for my CTO Sarah", TP:
+   - Parses the intent
+   - Calls `Edit(ref="deliverable:<id>", field="instructions", value="...")` or `Edit(ref="deliverable:<id>", field="recipient_context", value={...})`
+   - Acknowledges: "Updated — I'll focus on action items in future versions."
+
+3. **Instructions tab → read-only**: The drawer Instructions tab shows:
+   - Current `deliverable_instructions` text (read-only, monospace)
+   - Current `recipient_context` summary (read-only)
+   - Prompt preview (unchanged — shows what the agent sees)
+   - "Edit in chat" affordance (button that focuses chat input with pre-filled prompt)
+
+4. **Working memory injection**: TP already gets instructions via `_extract_deliverable_scope()` in working memory. No change needed — TP can answer "what are my current instructions?" from existing context.
+
+**What doesn't change:**
+- `deliverable_instructions` field and dual-injection (ADR-104)
+- Headless system prompt composition
+- Settings tab (schedule, sources, destination, title) — these are configuration, not directives
+- Memory tab — remains read-only
+- Sessions tab — remains navigation
+
+### Phase 2: Audience context via chat (deferred)
+
+Recipient context (name, role, priorities, notes) could also be set conversationally: "this deliverable is for the engineering leadership team, they care about velocity and blockers." TP would parse this into the structured `recipient_context` JSONB.
+
+This is deferred because:
+- The current audience fields work adequately for the small number of users who set them
+- Parsing natural language to structured recipient fields requires prompt engineering
+- Instructions are the higher-impact migration (used by every deliverable, audience is optional)
+
+### Phase 3: Prompt preview enhancement (deferred)
+
+The prompt preview currently uses a client-side `composePromptPreview()` that approximates what the agent sees. This could be replaced with an actual backend endpoint that returns the composed prompt, making the preview authoritative rather than approximate.
+
+---
+
+## Implementation
+
+### Backend
+
+**File: `api/services/primitives/refs.py`**
+
+Add `deliverable_instructions` and `recipient_context` as editable fields on the deliverable entity:
+
+```python
+# In _resolve_edit_ref() or equivalent
+if ref_type == "deliverable" and field == "instructions":
+    await client.table("deliverables").update({
+        "deliverable_instructions": value,
+        "updated_at": now_iso(),
+    }).eq("id", ref_id).execute()
+    return f"Updated instructions for deliverable {ref_id}"
+
+if ref_type == "deliverable" and field == "recipient_context":
+    await client.table("deliverables").update({
+        "recipient_context": value,
+        "updated_at": now_iso(),
+    }).eq("id", ref_id).execute()
+    return f"Updated audience context for deliverable {ref_id}"
+```
+
+Tag as `["chat"]` mode only — headless agents should not self-modify instructions.
+
+**File: `api/agents/thinking_partner.py`**
+
+Add guidance to the system prompt for instruction editing in deliverable-scoped sessions:
+
+```
+When the user wants to change how this deliverable works (tone, focus, audience, priorities),
+use the Edit primitive to update deliverable_instructions or recipient_context.
+Acknowledge the change and explain how it will affect future versions.
+```
+
+### Frontend
+
+**File: `web/components/deliverables/DeliverableDrawerPanels.tsx`**
+
+Convert `InstructionsPanel` from an editable form to a read-only reference view:
+- Replace textarea with read-only monospace display of current instructions
+- Replace audience form fields with read-only summary
+- Keep prompt preview (collapsible)
+- Add "Edit in chat" button that focuses chat input with pre-filled prompt
+
+**File: `web/app/(authenticated)/deliverables/[id]/page.tsx`**
+
+- Remove `instructions`, `recipientContext` state management (no longer edited inline)
+- Remove `saveInstructionFields`, `scheduleSave`, debounce logic
+- Instructions state refreshed from deliverable data (read from API, not managed locally)
+- Listen for deliverable updates from chat (TP edits trigger re-fetch)
+
+**File: `web/components/deliverables/DeliverableChatArea.tsx`**
+
+- No structural changes — the + menu already has "Update instructions" as a prompt verb
+- May need to trigger deliverable re-fetch after TP edits instructions (via callback or polling)
+
+---
+
+## Files modified
+
+| File | Change |
+|------|--------|
+| `api/services/primitives/refs.py` | Add deliverable instructions/recipient_context edit actions |
+| `api/agents/thinking_partner.py` | Add instruction-editing guidance to system prompt |
+| `web/components/deliverables/DeliverableDrawerPanels.tsx` | InstructionsPanel → read-only reference view |
+| `web/app/(authenticated)/deliverables/[id]/page.tsx` | Remove instruction editing state, simplify to read-only |
+| `docs/design/SURFACE-ACTION-MAPPING.md` | Design principle (written) |
+| `api/prompts/CHANGELOG.md` | Log prompt changes |
+
+---
+
+## What this does NOT change
+
+- `deliverable_instructions` as the unified targeting field (ADR-104)
+- Dual injection into system prompt + user message
+- Settings tab (schedule, sources, destination) — configuration stays in drawer
+- Memory tab — remains read-only reference
+- Headless execution pipeline — unchanged
+- Dashboard chat — no deliverable editing there (no deliverable context)
+
+---
+
+## Risks
+
+1. **Friction increase for quick edits** — Typing "change tone to formal" in chat is more keystrokes than editing a textarea. Mitigated by the "Edit in chat" affordance and the + menu prompt verb.
+
+2. **TP parsing reliability** — TP must correctly parse "focus on blockers" into an instruction update, not just respond conversationally. Mitigated by explicit system prompt guidance and the Edit primitive providing a clear action path.
+
+3. **State sync** — After TP edits instructions via the Edit primitive, the drawer's read-only view must refresh. Requires either a re-fetch trigger or optimistic UI update from the chat stream.
+
+---
+
+## Changelog
+
+| Date | Change |
+|------|--------|
+| 2026-03-10 | Initial proposal |

@@ -1,5 +1,7 @@
 # Inline Plus Menu — Contextual Actions in Chat Input
 
+**Related:** [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — design principle that references the verb taxonomy defined here
+
 ## Status: Implemented (v2 — verb taxonomy)
 
 ## Problem

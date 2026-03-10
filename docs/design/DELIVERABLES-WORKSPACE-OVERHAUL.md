@@ -7,6 +7,7 @@
 - [ADR-093: Type Taxonomy](../adr/ADR-093-deliverable-types-overhaul.md)
 - [List & Create Overhaul](DELIVERABLES-LIST-CREATE-OVERHAUL.md)
 - [Workspace Layout](WORKSPACE-LAYOUT-NAVIGATION.md)
+- [Surface-Action Mapping](SURFACE-ACTION-MAPPING.md) — design principle for what goes where
 
 ---
 
