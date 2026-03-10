@@ -6,20 +6,22 @@
  * Extracted from deliverables/[id]/page.tsx for maintainability.
  * Includes: MemoryPanel, InstructionsPanel, SessionsPanel
  *
- * InstructionsPanel consolidates instruction-related fields into a
- * structured editor with live prompt preview (ADR-087 Phase 3):
- * - Behavior Directives (deliverable_instructions)
- * - Audience (recipient_context — moved from Settings)
+ * InstructionsPanel is a read-only reference view (ADR-105):
+ * - Behavior Directives (deliverable_instructions) — read-only display
+ * - Audience (recipient_context) — read-only summary
  * - Prompt Preview (client-side composition of what the agent sees)
+ * - "Edit in chat" affordance to direct users to the chat surface
+ *
+ * Instruction editing flows through chat (TP uses Edit primitive).
+ * See docs/design/SURFACE-ACTION-MAPPING.md for the design principle.
  */
 
 import { useState } from 'react';
 import {
-  Loader2,
-  CheckCircle2,
   Target,
   ChevronDown,
   Eye,
+  MessageSquare,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -175,116 +177,84 @@ function composePromptPreview(
 }
 
 // =============================================================================
-// InstructionsPanel — Structured editor with prompt preview (ADR-087 Phase 3)
+// InstructionsPanel — Read-only reference view (ADR-105)
+//
+// Directives flow through chat (TP uses Edit primitive to persist).
+// This panel shows current state for reference + "Edit in chat" affordance.
 // =============================================================================
 
 export function InstructionsPanel({
-  instructions,
-  onInstructionsChange,
-  onBlur,
-  recipientContext,
-  onRecipientChange,
-  deliverableMemory,
-  saving,
-  saved,
+  deliverable,
+  onEditInChat,
 }: {
-  instructions: string;
-  onInstructionsChange: (v: string) => void;
-  onBlur: () => void;
-  recipientContext: RecipientContext;
-  onRecipientChange: (v: RecipientContext) => void;
-  deliverableType: string;
-  deliverableMemory?: DeliverableMemory;
-  saving: boolean;
-  saved: boolean;
+  deliverable: Deliverable;
+  onEditInChat?: () => void;
 }) {
-  const [audienceOpen, setAudienceOpen] = useState(
-    !!(recipientContext.name || recipientContext.role || recipientContext.notes)
-  );
+  const instructions = deliverable.deliverable_instructions || '';
+  const recipient = deliverable.recipient_context || {};
+  const memory = deliverable.deliverable_memory;
   const [previewOpen, setPreviewOpen] = useState(false);
 
   const hasAnyContent = !!(
     instructions.trim() ||
-    recipientContext.name ||
-    recipientContext.role
+    recipient.name ||
+    recipient.role
   );
 
-  const preview = composePromptPreview(
-    instructions,
-    recipientContext,
-    deliverableMemory,
-  );
+  const preview = composePromptPreview(instructions, recipient, memory);
+
+  const hasAudience = !!(recipient.name || recipient.role || recipient.notes);
 
   return (
     <div className="p-3 space-y-4">
-      {/* Section A: Behavior Directives */}
-      <div>
-        <label className="block text-xs font-medium mb-1">Behavior</label>
-        <p className="text-[10px] text-muted-foreground mb-1.5">
-          How should the agent approach this deliverable?
-        </p>
-        <textarea
-          value={instructions}
-          onChange={(e) => onInstructionsChange(e.target.value)}
-          onBlur={onBlur}
-          placeholder={
-            'Examples:\n' +
-            'Use formal tone for this board report.\n' +
-            'Always include an executive summary section.\n' +
-            'Focus on trend analysis rather than raw numbers.\n' +
-            'The audience is the executive team.'
-          }
-          className="w-full min-h-[120px] px-3 py-2 text-sm font-mono bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 resize-y placeholder:text-muted-foreground/60"
-        />
-      </div>
-
-      {/* Section B: Audience (recipient_context) */}
-      <div className="border border-border rounded-md overflow-hidden">
+      {/* Edit in chat affordance */}
+      {onEditInChat && (
         <button
           type="button"
-          onClick={() => setAudienceOpen(!audienceOpen)}
-          className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium hover:bg-muted/50 transition-colors"
+          onClick={onEditInChat}
+          className="w-full flex items-center justify-center gap-2 px-3 py-2 text-xs font-medium text-primary border border-primary/30 rounded-md hover:bg-primary/5 transition-colors"
         >
-          <span>Audience</span>
-          <ChevronDown className={cn(
-            'w-3.5 h-3.5 text-muted-foreground transition-transform',
-            audienceOpen && 'rotate-180'
-          )} />
+          <MessageSquare className="w-3.5 h-3.5" />
+          Edit in chat
         </button>
-        {audienceOpen && (
-          <div className="px-3 pb-3 space-y-2 border-t border-border">
-            <p className="text-[10px] text-muted-foreground pt-2">
-              Personalizes output for your audience
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="text"
-                value={recipientContext.name || ''}
-                onChange={(e) => onRecipientChange({ ...recipientContext, name: e.target.value || undefined })}
-                onBlur={onBlur}
-                placeholder="Name"
-                className="px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-              <input
-                type="text"
-                value={recipientContext.role || ''}
-                onChange={(e) => onRecipientChange({ ...recipientContext, role: e.target.value || undefined })}
-                onBlur={onBlur}
-                placeholder="Role"
-                className="px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-              />
-            </div>
-            <textarea
-              value={recipientContext.notes || ''}
-              onChange={(e) => onRecipientChange({ ...recipientContext, notes: e.target.value || undefined })}
-              onBlur={onBlur}
-              placeholder="Notes (e.g., prefers bullet points, wants metrics upfront)"
-              rows={2}
-              className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20 resize-none"
-            />
+      )}
+
+      {/* Section A: Behavior Directives (read-only) */}
+      <div>
+        <label className="block text-xs font-medium mb-1">Behavior</label>
+        {instructions.trim() ? (
+          <div className="px-3 py-2 text-sm font-mono bg-muted/30 border border-border rounded-md whitespace-pre-wrap">
+            {instructions}
           </div>
+        ) : (
+          <p className="px-3 py-2 text-sm text-muted-foreground italic border border-border rounded-md bg-muted/10">
+            No instructions set — tell the agent in chat what this deliverable should focus on.
+          </p>
         )}
       </div>
+
+      {/* Section B: Audience (read-only) */}
+      {hasAudience && (
+        <div>
+          <label className="block text-xs font-medium mb-1">Audience</label>
+          <div className="px-3 py-2 border border-border rounded-md bg-muted/30 space-y-1">
+            {(recipient.name || recipient.role) && (
+              <p className="text-sm">
+                {recipient.name || '(unnamed)'}
+                {recipient.role && <span className="text-muted-foreground"> — {recipient.role}</span>}
+              </p>
+            )}
+            {recipient.priorities && recipient.priorities.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Priorities: {recipient.priorities.join(', ')}
+              </p>
+            )}
+            {recipient.notes && (
+              <p className="text-xs text-muted-foreground">{recipient.notes}</p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Section C: Prompt Preview */}
       <div className="border border-border rounded-md overflow-hidden">
@@ -304,7 +274,7 @@ export function InstructionsPanel({
         </button>
         {previewOpen && (
           <div className="border-t border-border bg-muted/20">
-            {hasAnyContent || deliverableMemory ? (
+            {hasAnyContent || memory ? (
               <pre className="px-3 py-2 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap overflow-x-auto max-h-[300px] overflow-y-auto">
                 {preview}
               </pre>
@@ -314,20 +284,6 @@ export function InstructionsPanel({
               </p>
             )}
           </div>
-        )}
-      </div>
-
-      {/* Save indicator */}
-      <div className="flex items-center justify-end h-5">
-        {saving && (
-          <span className="text-xs text-muted-foreground flex items-center gap-1">
-            <Loader2 className="w-3 h-3 animate-spin" /> Saving...
-          </span>
-        )}
-        {saved && !saving && (
-          <span className="text-xs text-green-600 flex items-center gap-1">
-            <CheckCircle2 className="w-3 h-3" /> Saved
-          </span>
         )}
       </div>
     </div>

@@ -35,7 +35,7 @@ import { DeliverableModeBadge } from '@/components/deliverables/DeliverableModeB
 import { VersionsPanel } from '@/components/deliverables/DeliverableVersionDisplay';
 import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/deliverables/DeliverableDrawerPanels';
 import { DeliverableChatArea } from '@/components/deliverables/DeliverableChatArea';
-import type { Deliverable, DeliverableVersion, DeliverableSession, RecipientContext } from '@/types';
+import type { Deliverable, DeliverableVersion, DeliverableSession } from '@/types';
 
 // =============================================================================
 // Main Component
@@ -56,17 +56,8 @@ export default function DeliverableWorkspacePage() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [running, setRunning] = useState(false);
 
-  // Instructions panel fields (unified save: instructions + recipient)
-  const [instructions, setInstructions] = useState('');
-  const [recipientContext, setRecipientContext] = useState<RecipientContext>({});
-  const [instructionsSaving, setInstructionsSaving] = useState(false);
-  const [instructionsSaved, setInstructionsSaved] = useState(false);
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  // Refs for latest values to avoid stale closures in debounced save
-  const instructionsRef = useRef(instructions);
-  const recipientRef = useRef(recipientContext);
-  instructionsRef.current = instructions;
-  recipientRef.current = recipientContext;
+  // Ref for prefilling chat input from drawer (e.g. "Edit in chat" button)
+  const prefillChatRef = useRef<((text: string) => void) | null>(null);
 
   const loadDeliverable = useCallback(async () => {
     try {
@@ -76,8 +67,6 @@ export default function DeliverableWorkspacePage() {
       ]);
       setDeliverable(detail.deliverable);
       setVersions(detail.versions);
-      setInstructions(detail.deliverable.deliverable_instructions || '');
-      setRecipientContext(detail.deliverable.recipient_context || {});
       setSessions(sessionData);
     } catch (err) {
       console.error('Failed to load deliverable:', err);
@@ -130,52 +119,6 @@ export default function DeliverableWorkspacePage() {
     }
   };
 
-  // Unified save for all instruction panel fields
-  const saveInstructionFields = useCallback(async () => {
-    if (!deliverable) return;
-    setInstructionsSaving(true);
-    try {
-      const update = {
-        deliverable_instructions: instructionsRef.current,
-        recipient_context: recipientRef.current,
-      };
-      await api.deliverables.update(id, update);
-      setDeliverable((prev) => prev ? { ...prev, ...update } : prev);
-      setInstructionsSaved(true);
-      setTimeout(() => setInstructionsSaved(false), 3000);
-    } catch (err) {
-      console.error('Failed to save instruction fields:', err);
-    } finally {
-      setInstructionsSaving(false);
-    }
-  }, [deliverable, id]);
-
-  const scheduleSave = useCallback(() => {
-    setInstructionsSaved(false);
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => saveInstructionFields(), 2000);
-  }, [saveInstructionFields]);
-
-  const handleInstructionsChange = (value: string) => {
-    setInstructions(value);
-    scheduleSave();
-  };
-
-  const handleRecipientChange = (value: RecipientContext) => {
-    setRecipientContext(value);
-    scheduleSave();
-  };
-
-  const handleInstructionFieldsBlur = () => {
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    // Save if any field has changed
-    const instrChanged = instructionsRef.current !== (deliverable?.deliverable_instructions || '');
-    const recipientChanged = JSON.stringify(recipientRef.current) !== JSON.stringify(deliverable?.recipient_context || {});
-    if (instrChanged || recipientChanged) {
-      saveInstructionFields();
-    }
-  };
-
   // ==========================================================================
   // Loading / Not found
   // ==========================================================================
@@ -216,14 +159,7 @@ export default function DeliverableWorkspacePage() {
       content: (
         <DeliverableSettingsPanel
           deliverable={deliverable}
-          onSaved={(updated) => {
-            // Preserve instruction panel fields — Settings no longer manages them
-            setDeliverable({
-              ...updated,
-              deliverable_instructions: instructionsRef.current,
-              recipient_context: recipientRef.current,
-            });
-          }}
+          onSaved={(updated) => setDeliverable(updated)}
           onArchived={() => router.push('/deliverables')}
         />
       ),
@@ -249,15 +185,8 @@ export default function DeliverableWorkspacePage() {
       label: 'Instructions',
       content: (
         <InstructionsPanel
-          instructions={instructions}
-          onInstructionsChange={handleInstructionsChange}
-          onBlur={handleInstructionFieldsBlur}
-          recipientContext={recipientContext}
-          onRecipientChange={handleRecipientChange}
-          deliverableType={deliverable.deliverable_type}
-          deliverableMemory={deliverable.deliverable_memory}
-          saving={instructionsSaving}
-          saved={instructionsSaved}
+          deliverable={deliverable}
+          onEditInChat={() => prefillChatRef.current?.('I want to update the instructions for this deliverable')}
         />
       ),
     },
@@ -322,6 +251,7 @@ export default function DeliverableWorkspacePage() {
           deliverable={deliverable}
           onRunNow={handleRunNow}
           running={running}
+          prefillChatRef={prefillChatRef}
         />
     </WorkspaceLayout>
   );

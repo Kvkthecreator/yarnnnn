@@ -37,6 +37,7 @@ export function DeliverableChatArea({
   deliverable,
   onRunNow,
   running,
+  prefillChatRef,
 }: {
   deliverableId: string;
   deliverableTitle: string;
@@ -46,6 +47,7 @@ export function DeliverableChatArea({
   deliverable: Deliverable;
   onRunNow: () => void;
   running: boolean;
+  prefillChatRef?: React.MutableRefObject<((text: string) => void) | null>;
 }) {
   const {
     messages,
@@ -61,6 +63,17 @@ export function DeliverableChatArea({
   const [skillPickerOpen, setSkillPickerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // Register prefill callback for external callers (e.g. "Edit in chat" button)
+  useEffect(() => {
+    if (prefillChatRef) {
+      prefillChatRef.current = (text: string) => {
+        setInput(text);
+        textareaRef.current?.focus();
+      };
+      return () => { prefillChatRef.current = null; };
+    }
+  }, [prefillChatRef]);
 
   const {
     attachments,

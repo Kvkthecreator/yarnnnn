@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.10.4] - ADR-105: Instructions to chat surface migration (prompt guidance)
+
+### Changed
+- `api/agents/tp_prompts/behaviors.py`: Added "Update audience" guidance to Deliverable Workspace Management section. TP now has an explicit example for persisting recipient_context via the Edit primitive when users describe who a deliverable is for.
+- `api/agents/tp_prompts/tools.py`: Added "Audience" field documentation to Deliverable Workspace section between "Instructions" and "Observations", with Edit primitive example for setting recipient_context.
+- Expected behavior: When a user says "this report is for my CTO Sarah, she cares about velocity", TP will use `Edit(ref="deliverable:{id}", changes={recipient_context: {...}})` to persist the audience context. Previously TP had examples for instructions and observations but not audience — it would append an observation instead of setting the structured recipient_context field.
+
+---
+
 ## [2026.03.10.3] - ADR-104: Deliverable instructions as unified targeting layer
 
 ### Changed

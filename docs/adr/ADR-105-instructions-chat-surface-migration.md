@@ -1,7 +1,7 @@
 # ADR-105: Instructions to Chat Surface Migration
 
 **Date:** 2026-03-10
-**Status:** Proposed
+**Status:** Implemented (Phase 1)
 **Supersedes:** None
 **Related:**
 - [ADR-104: Deliverable Instructions Unified Targeting](ADR-104-deliverable-instructions-unified-targeting.md) — instructions as the single targeting layer
@@ -74,62 +74,39 @@ The prompt preview currently uses a client-side `composePromptPreview()` that ap
 
 ## Implementation
 
-### Backend
+### Backend (already supported)
 
-**File: `api/services/primitives/refs.py`**
+The Edit primitive in `api/services/primitives/edit.py` already handles `deliverable_instructions` and `recipient_context` as direct field updates on the deliverable entity. The primitive is mode-gated to `["chat"]` only — headless agents cannot self-modify instructions.
 
-Add `deliverable_instructions` and `recipient_context` as editable fields on the deliverable entity:
+**File: `api/agents/tp_prompts/behaviors.py`** (updated)
 
-```python
-# In _resolve_edit_ref() or equivalent
-if ref_type == "deliverable" and field == "instructions":
-    await client.table("deliverables").update({
-        "deliverable_instructions": value,
-        "updated_at": now_iso(),
-    }).eq("id", ref_id).execute()
-    return f"Updated instructions for deliverable {ref_id}"
+Added "Update audience" guidance to the Deliverable Workspace Management section, with an explicit `Edit` example for persisting `recipient_context` when users describe who a deliverable is for. The existing guidance already covered instructions and observations.
 
-if ref_type == "deliverable" and field == "recipient_context":
-    await client.table("deliverables").update({
-        "recipient_context": value,
-        "updated_at": now_iso(),
-    }).eq("id", ref_id).execute()
-    return f"Updated audience context for deliverable {ref_id}"
-```
+**File: `api/agents/tp_prompts/tools.py`** (updated)
 
-Tag as `["chat"]` mode only — headless agents should not self-modify instructions.
+Added "Audience" field documentation to the Deliverable Workspace section, with an `Edit` primitive example for `recipient_context`.
 
-**File: `api/agents/thinking_partner.py`**
-
-Add guidance to the system prompt for instruction editing in deliverable-scoped sessions:
-
-```
-When the user wants to change how this deliverable works (tone, focus, audience, priorities),
-use the Edit primitive to update deliverable_instructions or recipient_context.
-Acknowledge the change and explain how it will affect future versions.
-```
-
-### Frontend
+### Frontend (implemented)
 
 **File: `web/components/deliverables/DeliverableDrawerPanels.tsx`**
 
-Convert `InstructionsPanel` from an editable form to a read-only reference view:
-- Replace textarea with read-only monospace display of current instructions
-- Replace audience form fields with read-only summary
-- Keep prompt preview (collapsible)
-- Add "Edit in chat" button that focuses chat input with pre-filled prompt
+Converted `InstructionsPanel` from an editable form to a read-only reference view:
+- Replaced textarea with read-only monospace display of current instructions
+- Replaced audience form fields with read-only summary
+- Kept prompt preview (collapsible)
+- Added "Edit in chat" button that pre-fills the chat input with an instruction update prompt
 
 **File: `web/app/(authenticated)/deliverables/[id]/page.tsx`**
 
-- Remove `instructions`, `recipientContext` state management (no longer edited inline)
-- Remove `saveInstructionFields`, `scheduleSave`, debounce logic
-- Instructions state refreshed from deliverable data (read from API, not managed locally)
-- Listen for deliverable updates from chat (TP edits trigger re-fetch)
+- Removed `instructions`, `recipientContext` state management (no longer edited inline)
+- Removed `saveInstructionFields`, `scheduleSave`, debounce logic, refs
+- Instructions state read from deliverable data (refreshed from API)
+- Added `prefillChatRef` to wire "Edit in chat" button to the chat input
 
 **File: `web/components/deliverables/DeliverableChatArea.tsx`**
 
+- Added `prefillChatRef` prop to allow external callers (drawer "Edit in chat" button) to pre-fill and focus the chat input
 - No structural changes — the + menu already has "Update instructions" as a prompt verb
-- May need to trigger deliverable re-fetch after TP edits instructions (via callback or polling)
 
 ---
 
@@ -137,10 +114,12 @@ Convert `InstructionsPanel` from an editable form to a read-only reference view:
 
 | File | Change |
 |------|--------|
-| `api/services/primitives/refs.py` | Add deliverable instructions/recipient_context edit actions |
-| `api/agents/thinking_partner.py` | Add instruction-editing guidance to system prompt |
+| `api/services/primitives/edit.py` | Already supported — no changes needed |
+| `api/agents/tp_prompts/behaviors.py` | Added recipient_context editing guidance |
+| `api/agents/tp_prompts/tools.py` | Added Audience field documentation |
 | `web/components/deliverables/DeliverableDrawerPanels.tsx` | InstructionsPanel → read-only reference view |
-| `web/app/(authenticated)/deliverables/[id]/page.tsx` | Remove instruction editing state, simplify to read-only |
+| `web/app/(authenticated)/deliverables/[id]/page.tsx` | Removed instruction editing state, simplified to read-only |
+| `web/components/deliverables/DeliverableChatArea.tsx` | Added prefillChatRef for "Edit in chat" wiring |
 | `docs/design/SURFACE-ACTION-MAPPING.md` | Design principle (written) |
 | `api/prompts/CHANGELOG.md` | Log prompt changes |
 
@@ -172,3 +151,4 @@ Convert `InstructionsPanel` from an editable form to a read-only reference view:
 | Date | Change |
 |------|--------|
 | 2026-03-10 | Initial proposal |
+| 2026-03-10 | Phase 1 implemented — backend Edit primitive already supported; prompt guidance added; frontend InstructionsPanel converted to read-only; instruction editing state removed from page.tsx |

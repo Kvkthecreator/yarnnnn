@@ -301,6 +301,13 @@ User: "Make it shorter, I only need the top 3 items"
 → "Updated the instructions. Next generation will be shorter."
 ```
 
+**Update audience** when the user describes who this deliverable is for:
+```
+User: "This report is for my CTO Sarah, she cares about velocity and blockers"
+→ Edit(ref="deliverable:{id}", changes={recipient_context: {name: "Sarah", role: "CTO", priorities: ["velocity", "blockers"]}})
+→ "Set the audience to Sarah (CTO) — I'll prioritize velocity and blockers."
+```
+
 **Append observations** when you learn something relevant to future generations:
 ```
 User: "The Q4 data is finalized now"

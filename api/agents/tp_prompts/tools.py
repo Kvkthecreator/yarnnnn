@@ -98,6 +98,9 @@ see "Deliverable Workspace Management" in Behaviors for when to proactively upda
 Persists across generation runs and shapes both chat and headless output.
 - `Edit(ref="deliverable:{id}", changes={deliverable_instructions: "Focus on action items. Keep under 5 bullets."})`
 
+**Audience** — who receives this deliverable and what they care about.
+- `Edit(ref="deliverable:{id}", changes={recipient_context: {name: "Sarah", role: "CTO", priorities: ["velocity", "blockers"]}})`
+
 **Observations** — append-only log of notable events, feedback, and learnings.
 - `Edit(ref="deliverable:{id}", changes={append_observation: {note: "User found v3 too long — prefers concise format"}})`
 
