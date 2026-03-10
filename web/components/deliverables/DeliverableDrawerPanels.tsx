@@ -299,7 +299,7 @@ export function SessionsPanel({ sessions }: { sessions: DeliverableSession[] }) 
     return (
       <div className="p-4 text-center">
         <p className="text-sm text-muted-foreground py-4">
-          No scoped conversations yet. Chat with this deliverable open to build session history.
+          Past sessions will appear here. Your current conversation is saved automatically.
         </p>
       </div>
     );

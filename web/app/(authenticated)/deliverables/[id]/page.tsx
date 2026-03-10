@@ -154,17 +154,6 @@ export default function DeliverableWorkspacePage() {
 
   const panelTabs: WorkspacePanelTab[] = [
     {
-      id: 'settings',
-      label: 'Settings',
-      content: (
-        <DeliverableSettingsPanel
-          deliverable={deliverable}
-          onSaved={(updated) => setDeliverable(updated)}
-          onArchived={() => router.push('/deliverables')}
-        />
-      ),
-    },
-    {
       id: 'versions',
       label: `Versions${versions.length > 0 ? ` (${versions.length})` : ''}`,
       content: (
@@ -174,11 +163,6 @@ export default function DeliverableWorkspacePage() {
           onSelect={setSelectedIdx}
         />
       ),
-    },
-    {
-      id: 'memory',
-      label: `Memory${memoryCount > 0 ? ` (${memoryCount})` : ''}`,
-      content: <MemoryPanel deliverable={deliverable} />,
     },
     {
       id: 'instructions',
@@ -191,9 +175,25 @@ export default function DeliverableWorkspacePage() {
       ),
     },
     {
+      id: 'memory',
+      label: `Memory${memoryCount > 0 ? ` (${memoryCount})` : ''}`,
+      content: <MemoryPanel deliverable={deliverable} />,
+    },
+    {
       id: 'sessions',
       label: 'Sessions',
       content: <SessionsPanel sessions={sessions} />,
+    },
+    {
+      id: 'settings',
+      label: 'Settings',
+      content: (
+        <DeliverableSettingsPanel
+          deliverable={deliverable}
+          onSaved={(updated) => setDeliverable(updated)}
+          onArchived={() => router.push('/deliverables')}
+        />
+      ),
     },
   ];
 
