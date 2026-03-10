@@ -195,12 +195,14 @@ When a deliverable runs (scheduled, event-triggered, or manual):
 
 1. `unified_scheduler.py` fetches deliverable configuration
 2. TP invoked in **execution mode** (headless, no streaming, no clarification)
-3. TP uses primitives (`Search`, `FetchPlatformContent`) to gather content from `platform_content`
-4. LLM synthesis produces output
-5. `deliverable_version` created with `platform_content_ids` in `source_snapshots`
-6. Source content marked `retained=true`, `retained_reason='deliverable_execution'`
-7. Content delivered to configured destination(s)
-8. `activity_log` event written
+3. Strategy gathers content from `platform_content` filtered by deliverable sources
+4. `build_type_prompt()` assembles type-specific user message with `deliverable_instructions` as priority lens (ADR-104: dual injection)
+5. Headless system prompt includes instructions as behavioral constraints + user memories + learned preferences
+6. LLM synthesis produces output
+7. `deliverable_version` created with `platform_content_ids` in `source_snapshots`
+8. Source content marked `retained=true`, `retained_reason='deliverable_execution'`
+9. Content delivered to configured destination(s)
+10. `activity_log` event written
 
 **Why unified execution?** Improvements to TP primitives automatically improve deliverable quality. One codebase, not two.
 

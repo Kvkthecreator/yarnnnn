@@ -6,6 +6,15 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.10.3] - ADR-104: Deliverable instructions as unified targeting layer
+
+### Changed
+- `api/services/deliverable_pipeline.py`: Added `{user_instructions}` slot to all 7 TYPE_PROMPTS templates. `build_type_prompt()` now injects `deliverable_instructions` into the user message as "USER INSTRUCTIONS (priority lens for this deliverable)". This is **dual injection** — instructions appear in both the headless system prompt (behavioral constraints, step 3 of ADR-101 composition) and the user message (priority lens for interpreting gathered context). Deleted dead code: `SECTION_TEMPLATES`, `normalize_sections()`, `build_sections_list()`, unused `LENGTH_GUIDANCE` entries (`scan`, `analysis`, `deep_dive`).
+- `web/types/index.ts`: Removed dead `type_config` fields never consumed by `build_type_prompt()`: `DigestConfig.max_items`, all `BriefConfig` fields, `WatchConfig.threshold_notes`, all `DeepResearchConfig` fields, `CustomConfig.example_content`. Removed `TypeClassification.platform_grounding` and `freshness_requirement_hours` (stored, never consumed by any strategy).
+- Expected behavior: Deliverable outputs should be more targeted. Previously, `deliverable_instructions` only influenced the system prompt — the agent saw instructions and gathered content in separate contexts. Now the agent sees instructions *alongside* the content it needs to interpret, providing a priority lens. Users who customize instructions should see noticeably more focused output.
+
+---
+
 ## [2026.03.10.2] - Sync freshness consolidation: sync_registry as single source of truth
 
 ### Changed

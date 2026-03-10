@@ -200,31 +200,25 @@ export interface TypeClassification {
   binding: ContextBinding;
   temporal_pattern: TemporalPattern;
   primary_platform?: "slack" | "gmail" | "notion" | "calendar";
-  platform_grounding?: Array<{
-    platform: "slack" | "gmail" | "notion" | "calendar";
-    sources: string[];
-    instruction?: string;
-  }>;
-  freshness_requirement_hours?: number;
 }
 
 // =============================================================================
 // ADR-093: Type Configurations (7 purpose-first types)
 // =============================================================================
 
+// ADR-104: Only fields consumed by build_type_prompt() are defined here.
+// Dead fields removed: DigestConfig.max_items, all BriefConfig, WatchConfig.threshold_notes,
+// all DeepResearchConfig, CustomConfig.example_content.
+
 export interface DigestConfig {
   focus?: string;
   reply_threshold?: number;
   reaction_threshold?: number;
-  max_items?: number;
 }
 
-export interface BriefConfig {
-  event_title?: string;
-  attendees?: string[];
-  focus_areas?: string[];
-  depth?: "concise" | "standard" | "detailed";
-}
+// BriefConfig — no type_config fields consumed by build_type_prompt().
+// Brief type uses schedule.timezone for date computation only.
+export type BriefConfig = Record<string, unknown>;
 
 export interface StatusConfig {
   subject?: string;
@@ -236,15 +230,11 @@ export interface StatusConfig {
 export interface WatchConfig {
   domain?: string;
   signals?: string[];
-  threshold_notes?: string;
 }
 
-export interface DeepResearchConfig {
-  focus_area?: "competitive" | "market" | "technology" | "industry" | "general";
-  subjects?: string[];
-  purpose?: string;
-  depth?: "scan" | "analysis" | "deep_dive";
-}
+// DeepResearchConfig — no type_config fields consumed by build_type_prompt().
+// Deep research uses schedule.timezone for date computation only.
+export type DeepResearchConfig = Record<string, unknown>;
 
 export interface CoordinatorConfig {
   domain?: string;
@@ -254,7 +244,6 @@ export interface CoordinatorConfig {
 export interface CustomConfig {
   description?: string;
   structure_notes?: string;
-  example_content?: string;
 }
 
 // ADR-093: Union type for type_config (7 types + fallback)
@@ -272,7 +261,7 @@ export interface RecipientContext {
   name?: string;
   role?: string;
   priorities?: string[];
-  notes?: string;
+  notes?: string;  // ADR-104: not consumed by backend, frontend cleanup deferred
 }
 
 export interface TemplateStructure {

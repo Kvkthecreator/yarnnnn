@@ -88,6 +88,8 @@ PLATFORM: {source_platform}
 SIGNALS TO PRIORITIZE:
 {platform_signals}
 
+{user_instructions}
+
 GATHERED CONTEXT:
 {gathered_context}
 
@@ -125,6 +127,8 @@ Write the recap now:""",
     "brief": """You are generating auto meeting prep titled "{title}".
 
 TODAY'S DATE: {today_date}
+
+{user_instructions}
 
 GATHERED CONTEXT:
 {gathered_context}
@@ -207,6 +211,8 @@ AUDIENCE: {audience}
 DETAIL LEVEL: {detail_level} ({length_guidance})
 TONE: {tone}
 
+{user_instructions}
+
 GATHERED CONTEXT:
 {gathered_context}
 
@@ -261,6 +267,8 @@ Write the work summary now:""",
 DOMAIN BEING WATCHED: {domain}
 SIGNALS TO TRACK: {signals}
 
+{user_instructions}
+
 GATHERED CONTEXT:
 {gathered_context}
 
@@ -282,6 +290,8 @@ Write the watch report now:""",
     "deep_research": """You are producing Proactive Insights titled "{title}".
 
 TODAY'S DATE: {today_date}
+
+{user_instructions}
 
 GATHERED CONTEXT (from your connected platforms + web research):
 {gathered_context}
@@ -346,6 +356,8 @@ DOMAIN BEING COORDINATED: {domain}
 DISPATCH RULES:
 {dispatch_rules}
 
+{user_instructions}
+
 GATHERED CONTEXT:
 {gathered_context}
 
@@ -366,6 +378,8 @@ Write the coordinator review now:""",
 {description}
 
 {structure_notes}
+
+{user_instructions}
 
 GATHERED CONTEXT:
 {gathered_context}
@@ -392,89 +406,12 @@ Write the deliverable now:""",
 
 
 
-# Section templates for each type (ADR-093: 7 purpose-first types)
-SECTION_TEMPLATES = {
-    "digest": {
-        "highlights": "Highlights - Key discussions and notable content",
-        "decisions": "Decisions - What was decided or agreed",
-        "open_questions": "Open Questions - Unanswered items needing attention",
-        "action_items": "Action Items - Tasks and follow-ups mentioned",
-    },
-    "brief": {
-        "schedule": "Today's Meetings - Calendar events for today and tomorrow morning",
-        "prep": "Meeting Prep by Event - Context-appropriate prep per meeting classification",
-        "cross_platform": "Cross-Platform Context - Attendee mentions from Slack, Gmail, Notion",
-    },
-    "status": {
-        "summary": "TL;DR - Cross-platform executive summary",
-        "accomplishments": "Key Accomplishments - What moved forward this period",
-        "blockers": "Blockers and Risks - Issues impeding progress",
-        "next_steps": "Next Steps - Actionable items with owners",
-        "platform_slack": "Slack - Channel activity and key discussions",
-        "platform_gmail": "Gmail - Notable emails and action items",
-        "platform_notion": "Notion - Document updates and changes",
-        "platform_calendar": "Calendar - Upcoming events and prep needs",
-    },
-    "watch": {
-        "signals": "Signals - Notable developments worth attention",
-        "patterns": "Patterns - Emerging trends or recurring themes",
-        "action_needed": "Action Needed - Items that warrant a response or decision",
-        "quiet_front": "Quiet Front - Areas with no material developments",
-    },
-    "deep_research": {
-        "signals": "This Week's Signals - Emerging themes across your platforms",
-        "watching": "What I'm Watching - Patterns being tracked for next time",
-    },
-    "coordinator": {
-        "domain_status": "Domain Status - Current state of the watched domain",
-        "dispatched": "Dispatched - Work triggered or advanced in this cycle",
-        "pending": "Pending - Work waiting on conditions or schedule",
-        "gaps": "Gaps - Situations requiring new deliverables or escalation",
-    },
-    "custom": {},  # No predefined sections — fully user-defined
-}
-
-
-# Length guidance by detail level
+# Length guidance by detail level (used by status type)
 LENGTH_GUIDANCE = {
     "brief": "200-400 words - concise and to the point",
     "standard": "500-1000 words - balanced detail with platform breakdown",
     "detailed": "1000-2000 words - comprehensive coverage with platform breakdown",
-    "scan": "300-500 words - quick overview",
-    "analysis": "500-1000 words - moderate depth",
-    "deep_dive": "1000+ words - thorough exploration",
 }
-
-
-def normalize_sections(sections) -> dict:
-    """Normalize sections to dict format.
-
-    Handles both:
-    - List format: ['summary', 'accomplishments'] -> {'summary': True, 'accomplishments': True}
-    - Dict format: {'summary': True, 'accomplishments': False} -> unchanged
-    """
-    if sections is None:
-        return {}
-    if isinstance(sections, list):
-        return {s: True for s in sections}
-    return sections
-
-
-def build_sections_list(deliverable_type: str, config: dict) -> str:
-    """Build formatted sections list based on enabled sections in config."""
-    sections = normalize_sections(config.get("sections", {}))
-    templates = SECTION_TEMPLATES.get(deliverable_type, {})
-
-    enabled = []
-    for section_key, is_enabled in sections.items():
-        if is_enabled and section_key in templates:
-            enabled.append(f"- {templates[section_key]}")
-
-    if not enabled:
-        # Default to all sections if none specified
-        enabled = [f"- {desc}" for desc in templates.values()]
-
-    return "\n".join(enabled)
 
 
 
@@ -503,11 +440,19 @@ def build_type_prompt(
     template = TYPE_PROMPTS.get(deliverable_type, TYPE_PROMPTS["custom"])
 
     # Common fields present in all templates
+    # ADR-104: Inject deliverable_instructions into user message (dual injection —
+    # also present in system prompt via _build_headless_system_prompt)
+    instructions = (deliverable.get("deliverable_instructions") or "").strip()
+    user_instructions = ""
+    if instructions:
+        user_instructions = f"USER INSTRUCTIONS (priority lens for this deliverable):\n{instructions}"
+
     fields = {
         "gathered_context": gathered_context,
         "recipient_context": recipient_text,
         "past_versions": past_versions,
         "title": deliverable.get("title", "Deliverable"),
+        "user_instructions": user_instructions,
     }
 
     if deliverable_type == "digest":
@@ -597,6 +542,7 @@ def build_type_prompt(
             "title": deliverable.get("title", "Deliverable"),
             "description": config.get("description", ""),
             "structure_notes": "",
+            "user_instructions": user_instructions,
             "gathered_context": gathered_context,
             "recipient_context": recipient_text,
             "past_versions": past_versions,

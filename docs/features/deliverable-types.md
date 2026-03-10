@@ -6,6 +6,8 @@
 
 Each deliverable type maps to a job-to-be-done. This document captures the validated output format, execution details, and design decisions per type. Types are added here as they go through quality validation (see testing framework).
 
+**Targeting (ADR-104):** All user intent for "what this deliverable should focus on" flows through `deliverable_instructions`. Instructions are dual-injected: into the headless system prompt (behavioral constraints) and into the type prompt user message (priority lens for the gathered context). There are no per-source filters or structured scope fields — instructions are the unified targeting layer.
+
 ---
 
 ## Sequencing model
@@ -191,7 +193,9 @@ The following types are implemented in the backend (type keys, strategies, promp
 | Concern | Location |
 |---------|----------|
 | Type prompts | `api/services/deliverable_pipeline.py` (TYPE_PROMPTS) |
+| Default instructions | `api/services/deliverable_pipeline.py` (DEFAULT_INSTRUCTIONS) |
 | Execution strategies | `api/services/execution_strategies.py` |
 | Content fetching | `api/services/platform_content.py` |
 | Generation pipeline | `api/services/deliverable_execution.py` |
+| Targeting architecture | [ADR-104](../adr/ADR-104-deliverable-instructions-unified-targeting.md) |
 | Quality testing | `docs/development/deliverable-quality-testing.md` |

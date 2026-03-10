@@ -14,6 +14,7 @@
 - [ADR-092: Deliverable Intelligence & Mode Taxonomy](../adr/ADR-092-deliverable-intelligence-mode-taxonomy.md) — full mode taxonomy, coordinator type, signal processing dissolution
 - [ADR-101: Deliverable Intelligence Model](../adr/ADR-101-deliverable-intelligence-model.md) — four-layer knowledge model (Skills / Directives / Memory / Feedback)
 - [ADR-102: yarnnn Content Platform](../adr/ADR-102-yarnnn-content-platform.md) — deliverable outputs as searchable platform_content
+- [ADR-104: Deliverable Instructions as Unified Targeting](../adr/ADR-104-deliverable-instructions-unified-targeting.md) — instructions as single targeting layer, dead scope/filters deleted
 - [Agent Execution Model](agent-execution-model.md)
 - [Four-Layer Model](four-layer-model.md) — Deliverables are Layer 4 (Work)
 
@@ -221,7 +222,7 @@ When a deliverable is due to run (scheduled, event-triggered, or manual), `execu
 4. Strategy calls `get_content_summary_for_generation()` — chronological content dump with signal markers (`[UNANSWERED]`, `[STALLED]`, `[URGENT]`, `[DECISION]`), capped at 20 items/source, 500 chars/item
 5. User memories appended from `user_memory` (fact/instruction/preference keys)
 6. Learned preferences fetched from past version edit history (ADR-101: `get_past_versions_context()`)
-7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context
+7. `build_type_prompt()` assembles type-specific prompt from template + config + gathered context + `deliverable_instructions` (ADR-104: dual injection — instructions appear in both system prompt and user message)
 8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — system prompt includes directives, memory, and learned preferences (ADR-101); read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware round limits (ADR-081). Research/hybrid types receive a research directive and use WebSearch for web investigation.
 9. `mark_content_retained()` on consumed `platform_content` records (ADR-072)
 10. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
@@ -419,17 +420,14 @@ Each deliverable has a `sources` array:
   {
     "platform": "slack",
     "resource_id": "C01234567",
-    "resource_name": "#engineering",
-    "scope_config": {
-      "mode": "delta",
-      "fallback_days": 7,
-      "max_items": 200
-    }
+    "resource_name": "#engineering"
   }
 ]
 ```
 
-**Source scope**: Content is fetched from `platform_content` filtered by `(platform, resource_id)` per source, ordered by `source_timestamp DESC`, limited per source. The `scope_config` field exists in the schema but scope modes (`delta`, `fixed_window`) are not implemented — all fetches use chronological recency.
+**Source scope**: Content is fetched from `platform_content` filtered by `(platform, resource_id)` per source, ordered by `source_timestamp DESC`, limited per source. All fetches use chronological recency.
+
+**Targeting** (ADR-104): What the deliverable should *focus on* within its sources is controlled by `deliverable_instructions` — the single unified targeting layer. Instructions flow into both the headless system prompt (behavioral constraints) and the type prompt user message (priority lens). There are no per-source scope modes, filters, or structured targeting fields — all user intent flows through instructions.
 
 ### Destinations
 
@@ -458,7 +456,7 @@ Every deliverable carries four layers of knowledge:
 | Layer | What it is | Schema field(s) |
 |---|---|---|
 | **Skills** | Type-specific format, structure, tool budget | `type_config` JSONB + type prompt templates in `deliverable_pipeline.py` |
-| **Directives** | User's behavioral constraints — tone, priorities, audience | `deliverable_instructions` TEXT + `recipient_context` JSONB |
+| **Directives** | User's behavioral constraints and targeting — tone, priorities, audience, focus | `deliverable_instructions` TEXT + `recipient_context` JSONB (ADR-104: instructions are the unified targeting layer — dual-injected into system prompt and user message) |
 | **Memory** | What happened — observations, review decisions, goals | `deliverable_memory` JSONB |
 | **Feedback** | How well it's doing — edit patterns from user corrections | `edit_distance_score`, `edit_categories`, `feedback_notes` on `deliverable_versions` |
 
