@@ -383,13 +383,13 @@ These jobs are completely independent. None calls another. They share the data l
 
 - [x] `platform_content` table created with retention policy
 - [x] Platform sync writes to new table with TTL
-- [ ] Signal processing writes significant content with `retained=true`
-- [ ] TP primitives read from `platform_content` with semantic search
-- [ ] Deliverable execution uses TP in headless mode
-- [ ] `source_snapshots` includes `platform_content_ids`
+- [x] Signal processing dissolved (ADR-092 — coordinator deliverables replace signals)
+- [x] TP primitives read from `platform_content` (Search, FetchPlatformContent)
+- [x] Deliverable execution uses TP in headless mode (ADR-080)
+- [x] `source_snapshots` includes `platform_content_ids` + `items_used` per source
 - [x] `user_context.source_ref` populated by all extraction paths
-- [ ] `filesystem_items` dropped
-- [ ] ADR-049 and ADR-062 marked superseded
+- [x] `filesystem_items` dropped (migration 077)
+- [x] ADR-049 and ADR-062 marked superseded
 - [x] Architecture docs updated
 - [x] Frontend surfacing completed (see below)
 
