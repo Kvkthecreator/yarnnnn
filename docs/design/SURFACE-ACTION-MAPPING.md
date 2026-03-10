@@ -4,7 +4,7 @@
 **Status:** Active
 **Related:**
 - [Workspace Layout & Navigation](WORKSPACE-LAYOUT-NAVIGATION.md) — layout structure
-- [Workspace Drawer Refactor](WORKSPACE-DRAWER-REFACTOR.md) — drawer vs inline decision
+- [Workspace Drawer Refactor](archive/WORKSPACE-DRAWER-REFACTOR.md) — drawer vs inline decision
 - [Inline Plus Menu](INLINE-PLUS-MENU.md) — action verb taxonomy
 - [ADR-105: Instructions to Chat Surface](../adr/ADR-105-instructions-chat-surface-migration.md) — implementation plan
 

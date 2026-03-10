@@ -10,7 +10,7 @@
 - [ADR-087: Deliverable Scoped Context](../adr/ADR-087-workspace-scoping-architecture.md) — per-deliverable instructions + memory
 - [ADR-088: Unified Input Processing](../adr/ADR-088-input-gateway-work-serialization.md) — parked, builds on this
 - [ADR-089: Agent Autonomy](../adr/ADR-089-agent-autonomy-context-aware-triggers.md) — parked, builds on this
-- [Phase 3 Surface Layout (history)](SURFACE-LAYOUT-PHASE3-HISTORY.md) — tabbed detail page, superseded by this
+- [Phase 3 Surface Layout (history)](archive/SURFACE-LAYOUT-PHASE3-HISTORY.md) — tabbed detail page, superseded by this
 
 ---
 

@@ -117,7 +117,7 @@ When toggled, renders the `STARTER_CARDS` grid (same component as empty state) b
 ## Supersedes
 
 - Replaces the earlier FAB/speed-dial concept (plan file `rosy-roaming-crystal.md`)
-- The file upload design doc (`CHAT-FILE-UPLOAD-IMPROVEMENTS.md`) remains valid — drag-and-drop/paste are independent of this change
+- The file upload design doc (`archive/CHAT-FILE-UPLOAD-IMPROVEMENTS.md`) remains valid — drag-and-drop/paste are independent of this change
 
 ## Verification
 
