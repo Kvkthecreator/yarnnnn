@@ -10,7 +10,6 @@
  * structured editor with live prompt preview (ADR-087 Phase 3):
  * - Behavior Directives (deliverable_instructions)
  * - Audience (recipient_context — moved from Settings)
- * - Output Format (template_structure.format_notes — custom type only)
  * - Prompt Preview (client-side composition of what the agent sees)
  */
 
@@ -28,7 +27,6 @@ import type {
   Deliverable,
   DeliverableSession,
   RecipientContext,
-  TemplateStructure,
   DeliverableMemory,
 } from '@/types';
 
@@ -123,8 +121,6 @@ export function MemoryPanel({ deliverable }: { deliverable: Deliverable }) {
 function composePromptPreview(
   instructions: string,
   recipient: RecipientContext,
-  templateStructure: TemplateStructure | undefined,
-  deliverableType: string,
   memory?: DeliverableMemory,
 ): string {
   const parts: string[] = [];
@@ -175,13 +171,6 @@ function composePromptPreview(
     }
   }
 
-  // Custom type: structure notes
-  if (deliverableType === 'custom' && templateStructure?.format_notes) {
-    parts.push('');
-    parts.push('STRUCTURE NOTES:');
-    parts.push(templateStructure.format_notes);
-  }
-
   return parts.join('\n');
 }
 
@@ -195,9 +184,6 @@ export function InstructionsPanel({
   onBlur,
   recipientContext,
   onRecipientChange,
-  templateStructure,
-  onTemplateChange,
-  deliverableType,
   deliverableMemory,
   saving,
   saved,
@@ -207,8 +193,6 @@ export function InstructionsPanel({
   onBlur: () => void;
   recipientContext: RecipientContext;
   onRecipientChange: (v: RecipientContext) => void;
-  templateStructure?: TemplateStructure;
-  onTemplateChange?: (v: TemplateStructure) => void;
   deliverableType: string;
   deliverableMemory?: DeliverableMemory;
   saving: boolean;
@@ -222,15 +206,12 @@ export function InstructionsPanel({
   const hasAnyContent = !!(
     instructions.trim() ||
     recipientContext.name ||
-    recipientContext.role ||
-    (deliverableType === 'custom' && templateStructure?.format_notes)
+    recipientContext.role
   );
 
   const preview = composePromptPreview(
     instructions,
     recipientContext,
-    templateStructure,
-    deliverableType,
     deliverableMemory,
   );
 
@@ -305,28 +286,7 @@ export function InstructionsPanel({
         )}
       </div>
 
-      {/* Section C: Output Format (custom type only) */}
-      {deliverableType === 'custom' && onTemplateChange && (
-        <div>
-          <label className="block text-xs font-medium mb-1">Output Format</label>
-          <p className="text-[10px] text-muted-foreground mb-1.5">
-            Structure and formatting guidance
-          </p>
-          <textarea
-            value={templateStructure?.format_notes || ''}
-            onChange={(e) => onTemplateChange({
-              ...templateStructure,
-              format_notes: e.target.value || undefined,
-            })}
-            onBlur={onBlur}
-            placeholder="e.g., Start with executive summary. Use bullet points. Max 500 words."
-            rows={3}
-            className="w-full px-3 py-2 text-sm font-mono bg-background border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/20 resize-y placeholder:text-muted-foreground/60"
-          />
-        </div>
-      )}
-
-      {/* Section D: Prompt Preview */}
+      {/* Section C: Prompt Preview */}
       <div className="border border-border rounded-md overflow-hidden">
         <button
           type="button"

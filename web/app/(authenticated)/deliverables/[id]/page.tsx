@@ -35,7 +35,7 @@ import { DeliverableModeBadge } from '@/components/deliverables/DeliverableModeB
 import { VersionsPanel } from '@/components/deliverables/DeliverableVersionDisplay';
 import { MemoryPanel, InstructionsPanel, SessionsPanel } from '@/components/deliverables/DeliverableDrawerPanels';
 import { DeliverableChatArea } from '@/components/deliverables/DeliverableChatArea';
-import type { Deliverable, DeliverableVersion, DeliverableSession, RecipientContext, TemplateStructure } from '@/types';
+import type { Deliverable, DeliverableVersion, DeliverableSession, RecipientContext } from '@/types';
 
 // =============================================================================
 // Main Component
@@ -56,20 +56,17 @@ export default function DeliverableWorkspacePage() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [running, setRunning] = useState(false);
 
-  // Instructions panel fields (unified save: instructions + recipient + template)
+  // Instructions panel fields (unified save: instructions + recipient)
   const [instructions, setInstructions] = useState('');
   const [recipientContext, setRecipientContext] = useState<RecipientContext>({});
-  const [templateStructure, setTemplateStructure] = useState<TemplateStructure | undefined>(undefined);
   const [instructionsSaving, setInstructionsSaving] = useState(false);
   const [instructionsSaved, setInstructionsSaved] = useState(false);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Refs for latest values to avoid stale closures in debounced save
   const instructionsRef = useRef(instructions);
   const recipientRef = useRef(recipientContext);
-  const templateRef = useRef(templateStructure);
   instructionsRef.current = instructions;
   recipientRef.current = recipientContext;
-  templateRef.current = templateStructure;
 
   const loadDeliverable = useCallback(async () => {
     try {
@@ -81,7 +78,6 @@ export default function DeliverableWorkspacePage() {
       setVersions(detail.versions);
       setInstructions(detail.deliverable.deliverable_instructions || '');
       setRecipientContext(detail.deliverable.recipient_context || {});
-      setTemplateStructure(detail.deliverable.template_structure);
       setSessions(sessionData);
     } catch (err) {
       console.error('Failed to load deliverable:', err);
@@ -142,7 +138,6 @@ export default function DeliverableWorkspacePage() {
       const update = {
         deliverable_instructions: instructionsRef.current,
         recipient_context: recipientRef.current,
-        template_structure: templateRef.current,
       };
       await api.deliverables.update(id, update);
       setDeliverable((prev) => prev ? { ...prev, ...update } : prev);
@@ -171,18 +166,12 @@ export default function DeliverableWorkspacePage() {
     scheduleSave();
   };
 
-  const handleTemplateChange = (value: TemplateStructure) => {
-    setTemplateStructure(value);
-    scheduleSave();
-  };
-
   const handleInstructionFieldsBlur = () => {
     if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
     // Save if any field has changed
     const instrChanged = instructionsRef.current !== (deliverable?.deliverable_instructions || '');
     const recipientChanged = JSON.stringify(recipientRef.current) !== JSON.stringify(deliverable?.recipient_context || {});
-    const templateChanged = JSON.stringify(templateRef.current) !== JSON.stringify(deliverable?.template_structure);
-    if (instrChanged || recipientChanged || templateChanged) {
+    if (instrChanged || recipientChanged) {
       saveInstructionFields();
     }
   };
@@ -233,7 +222,6 @@ export default function DeliverableWorkspacePage() {
               ...updated,
               deliverable_instructions: instructionsRef.current,
               recipient_context: recipientRef.current,
-              template_structure: templateRef.current,
             });
           }}
           onArchived={() => router.push('/deliverables')}
@@ -266,8 +254,6 @@ export default function DeliverableWorkspacePage() {
           onBlur={handleInstructionFieldsBlur}
           recipientContext={recipientContext}
           onRecipientChange={handleRecipientChange}
-          templateStructure={templateStructure}
-          onTemplateChange={handleTemplateChange}
           deliverableType={deliverable.deliverable_type}
           deliverableMemory={deliverable.deliverable_memory}
           saving={instructionsSaving}

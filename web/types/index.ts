@@ -167,15 +167,6 @@ export type DataSourceType = "url" | "document" | "description" | "integration_i
 // Integration import source provider
 export type IntegrationProvider = "slack" | "notion" | "gmail" | "calendar" | "yarnnn";
 
-// Integration import filter configuration
-export interface IntegrationImportFilters {
-  from?: string;           // Email sender filter
-  subject_contains?: string; // Subject line filter
-  after?: string;          // Time filter: "7d", "30d", or ISO date
-  channel_id?: string;     // Slack channel filter
-  page_id?: string;        // Notion page filter
-}
-
 // ADR-093: Deliverable Types (7 purpose-first types)
 export type DeliverableType =
   | "digest"        // Regular synthesis of what's happening in a specific place
@@ -264,32 +255,12 @@ export interface RecipientContext {
   notes?: string;  // ADR-104: not consumed by backend, frontend cleanup deferred
 }
 
-export interface TemplateStructure {
-  sections?: string[];
-  typical_length?: string;
-  tone?: string;
-  format_notes?: string;
-}
-
 export interface ScheduleConfig {
   frequency: ScheduleFrequency;
   day?: string;
   time?: string;
   timezone?: string;
   cron?: string;
-}
-
-// ADR-030: Scope configuration for integration sources
-export type ScopeMode = "delta" | "fixed_window";
-
-export interface IntegrationSourceScope {
-  mode: ScopeMode;
-  fallback_days?: number;  // If no last_run_at, go back this many days
-  recency_days?: number;   // For fixed_window mode
-  max_items?: number;      // Safety limit
-  include_threads?: boolean;  // Slack
-  include_sent?: boolean;     // Gmail
-  max_depth?: number;         // Notion
 }
 
 export interface DataSource {
@@ -302,9 +273,6 @@ export interface DataSource {
   // ADR-029 Phase 2: Integration import configuration
   provider?: IntegrationProvider;  // Required when type = "integration_import"
   source?: string;                 // "inbox", "thread:<id>", "query:<query>", channel ID, page ID
-  filters?: IntegrationImportFilters;
-  // ADR-030: Scope configuration for delta extraction
-  scope?: IntegrationSourceScope;
 }
 
 // Quality trend for feedback loop tracking (ADR-018)
@@ -417,9 +385,8 @@ export interface Deliverable {
   quality_score?: number;  // Latest edit_distance_score (0=no edits, 1=full rewrite)
   quality_trend?: QualityTrend;  // "improving" | "stable" | "declining"
   avg_edit_distance?: number;  // Average over last 5 versions
-  // Legacy fields (for backwards compatibility)
+  // Legacy: description still consumed by Research/Hybrid strategies
   description?: string;
-  template_structure?: TemplateStructure;
 }
 
 export interface DeliverableCreate {
@@ -438,9 +405,8 @@ export interface DeliverableCreate {
   destination?: Destination;
   // ADR-092: Mode taxonomy
   mode?: DeliverableMode;
-  // Legacy fields
+  // Legacy: description still consumed by Research/Hybrid strategies
   description?: string;
-  template_structure?: TemplateStructure;
 }
 
 export interface DeliverableUpdate {
@@ -461,9 +427,8 @@ export interface DeliverableUpdate {
   mode?: DeliverableMode;
   proactive_next_review_at?: string;
   trigger_config?: Record<string, unknown>;
-  // Legacy fields
+  // Legacy: description still consumed by Research/Hybrid strategies
   description?: string;
-  template_structure?: TemplateStructure;
 }
 
 // ADR-049: Source snapshot for tracking what data was used at generation time

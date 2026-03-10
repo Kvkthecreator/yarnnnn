@@ -170,11 +170,6 @@ export function SourcePicker({ value, onChange, suggestedPlatform }: SourcePicke
         label: `${PLATFORM_CONFIG[resource.provider]?.label || resource.provider} - ${resource.name}`,
         provider: resource.provider,
         source: resource.id,
-        scope: {
-          mode: 'delta',
-          fallback_days: 7,
-          max_items: 200,
-        },
       };
       onChange([...value, newSource]);
     }

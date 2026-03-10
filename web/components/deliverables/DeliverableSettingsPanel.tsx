@@ -44,7 +44,6 @@ import type {
   ScheduleConfig,
   ScheduleFrequency,
   Destination,
-  IntegrationSourceScope,
 } from '@/types';
 
 interface DeliverableSettingsPanelProps {
@@ -98,16 +97,6 @@ export function DeliverableSettingsPanel({
   const [newSourceValue, setNewSourceValue] = useState('');
   const [newSourceProvider, setNewSourceProvider] = useState<IntegrationProvider>('gmail');
   const [newSourceQuery, setNewSourceQuery] = useState('inbox');
-  const [newSourceFilters, setNewSourceFilters] = useState<{
-    from?: string;
-    subject_contains?: string;
-    after?: string;
-  }>({});
-  const [newSourceScope, setNewSourceScope] = useState<IntegrationSourceScope>({
-    mode: 'delta',
-    fallback_days: 7,
-    max_items: 200,
-  });
 
   // Load user email for email-first default
   useEffect(() => {
@@ -212,13 +201,9 @@ export function DeliverableSettingsPanel({
         label: `${newSourceProvider.charAt(0).toUpperCase() + newSourceProvider.slice(1)} - ${newSourceQuery}`,
         provider: newSourceProvider,
         source: newSourceQuery,
-        filters: Object.keys(newSourceFilters).length > 0 ? newSourceFilters : undefined,
-        scope: newSourceScope,
       };
       setSources([...sources, newSource]);
       setNewSourceQuery('inbox');
-      setNewSourceFilters({});
-      setNewSourceScope({ mode: 'delta', fallback_days: 7, max_items: 200 });
       return;
     }
 
@@ -452,42 +437,6 @@ export function DeliverableSettingsPanel({
                         <option value="query:in:sent">Sent messages</option>
                       </select>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-xs font-medium mb-1">From (optional)</label>
-                        <input
-                          type="text"
-                          value={newSourceFilters.from || ''}
-                          onChange={(e) => setNewSourceFilters({ ...newSourceFilters, from: e.target.value || undefined })}
-                          placeholder="sender@example.com"
-                          className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-xs font-medium mb-1">Subject contains</label>
-                        <input
-                          type="text"
-                          value={newSourceFilters.subject_contains || ''}
-                          onChange={(e) => setNewSourceFilters({ ...newSourceFilters, subject_contains: e.target.value || undefined })}
-                          placeholder="keyword"
-                          className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                        />
-                      </div>
-                    </div>
-                    <div>
-                      <label className="block text-xs font-medium mb-1">Time range</label>
-                      <select
-                        value={newSourceFilters.after || ''}
-                        onChange={(e) => setNewSourceFilters({ ...newSourceFilters, after: e.target.value || undefined })}
-                        className="w-full px-2 py-1.5 border border-border rounded-md text-xs focus:outline-none focus:ring-2 focus:ring-primary/20"
-                      >
-                        <option value="">All time</option>
-                        <option value="1d">Last 24 hours</option>
-                        <option value="7d">Last 7 days</option>
-                        <option value="14d">Last 14 days</option>
-                        <option value="30d">Last 30 days</option>
-                      </select>
-                    </div>
                   </>
                 )}
 
@@ -522,107 +471,6 @@ export function DeliverableSettingsPanel({
                     </p>
                   </div>
                 )}
-
-                {/* Scope configuration */}
-                <div className="pt-3 border-t border-border">
-                  <label className="block text-xs font-medium mb-2">
-                    Extraction Mode
-                  </label>
-                  <div className="grid grid-cols-2 gap-2 mb-3">
-                    <button
-                      type="button"
-                      onClick={() => setNewSourceScope({ ...newSourceScope, mode: 'delta' })}
-                      className={cn(
-                        "p-2 rounded-md border text-left transition-colors",
-                        newSourceScope.mode === 'delta'
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground/50"
-                      )}
-                    >
-                      <div className="text-xs font-medium">Delta</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        Since last run
-                      </div>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setNewSourceScope({ ...newSourceScope, mode: 'fixed_window' })}
-                      className={cn(
-                        "p-2 rounded-md border text-left transition-colors",
-                        newSourceScope.mode === 'fixed_window'
-                          ? "border-primary bg-primary/5"
-                          : "border-border hover:border-muted-foreground/50"
-                      )}
-                    >
-                      <div className="text-xs font-medium">Fixed Window</div>
-                      <div className="text-[10px] text-muted-foreground">
-                        Always last N days
-                      </div>
-                    </button>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    {newSourceScope.mode === 'delta' ? (
-                      <div>
-                        <label className="block text-[10px] font-medium text-muted-foreground mb-1">
-                          Fallback (first run)
-                        </label>
-                        <select
-                          value={newSourceScope.fallback_days || 7}
-                          onChange={(e) => setNewSourceScope({
-                            ...newSourceScope,
-                            fallback_days: parseInt(e.target.value)
-                          })}
-                          className="w-full px-2 py-1.5 border border-border rounded-md text-xs"
-                        >
-                          <option value={1}>1 day</option>
-                          <option value={3}>3 days</option>
-                          <option value={7}>7 days</option>
-                          <option value={14}>14 days</option>
-                          <option value={30}>30 days</option>
-                        </select>
-                      </div>
-                    ) : (
-                      <div>
-                        <label className="block text-[10px] font-medium text-muted-foreground mb-1">
-                          Window size
-                        </label>
-                        <select
-                          value={newSourceScope.recency_days || 7}
-                          onChange={(e) => setNewSourceScope({
-                            ...newSourceScope,
-                            recency_days: parseInt(e.target.value)
-                          })}
-                          className="w-full px-2 py-1.5 border border-border rounded-md text-xs"
-                        >
-                          <option value={1}>1 day</option>
-                          <option value={3}>3 days</option>
-                          <option value={7}>7 days</option>
-                          <option value={14}>14 days</option>
-                          <option value={30}>30 days</option>
-                        </select>
-                      </div>
-                    )}
-                    <div>
-                      <label className="block text-[10px] font-medium text-muted-foreground mb-1">
-                        Max items
-                      </label>
-                      <select
-                        value={newSourceScope.max_items || 200}
-                        onChange={(e) => setNewSourceScope({
-                          ...newSourceScope,
-                          max_items: parseInt(e.target.value)
-                        })}
-                        className="w-full px-2 py-1.5 border border-border rounded-md text-xs"
-                      >
-                        <option value={50}>50</option>
-                        <option value={100}>100</option>
-                        <option value={200}>200</option>
-                        <option value={500}>500</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
 
                 <button
                   onClick={addSource}

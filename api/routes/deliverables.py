@@ -79,49 +79,42 @@ def get_type_classification(deliverable_type: str) -> dict:
         return {
             "binding": "platform_bound",
             "temporal_pattern": "scheduled",
-            "freshness_requirement_hours": 1,
         }
 
     if deliverable_type == "brief":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "scheduled",
-            "freshness_requirement_hours": 24,
         }
 
     if deliverable_type == "status":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "scheduled",
-            "freshness_requirement_hours": 4,
         }
 
     if deliverable_type == "watch":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "on_demand",
-            "freshness_requirement_hours": 4,
         }
 
     if deliverable_type == "deep_research":
         return {
             "binding": "hybrid",
             "temporal_pattern": "proactive",
-            "freshness_requirement_hours": 24,
         }
 
     if deliverable_type == "coordinator":
         return {
             "binding": "cross_platform",
             "temporal_pattern": "on_demand",
-            "freshness_requirement_hours": 4,
         }
 
     # custom and unknown types
     return {
         "binding": "hybrid",
         "temporal_pattern": "on_demand",
-        "freshness_requirement_hours": 4,
     }
 
 
@@ -134,7 +127,6 @@ class DigestConfig(BaseModel):
     focus: str = "key discussions and decisions"
     reply_threshold: int = 3    # Min replies to flag as hot thread (Slack)
     reaction_threshold: int = 2  # Min reactions to surface a message (Slack)
-    max_items: int = 15
 
 
 class BriefConfig(BaseModel):
@@ -154,7 +146,6 @@ class WatchConfig(BaseModel):
     """Configuration for watch type (standing-order intelligence monitoring)."""
     domain: str = ""  # "competitive landscape", "AI regulation", "customer feedback"
     signals: list[str] = Field(default_factory=list)  # What to look for
-    threshold_notes: Optional[str] = None  # When to surface (guidance for proactive mode)
 
 
 class DeepResearchConfig(BaseModel):
@@ -172,7 +163,6 @@ class CustomConfig(BaseModel):
     """Configuration for custom/freeform deliverable type."""
     description: str = ""
     structure_notes: Optional[str] = None
-    example_content: Optional[str] = None
 
 
 # ADR-093: Union type for type_config (7 types)
@@ -291,14 +281,6 @@ class RecipientContext(BaseModel):
     notes: Optional[str] = None
 
 
-class TemplateStructure(BaseModel):
-    """Extracted or defined template for the deliverable (legacy, use type_config)."""
-    sections: list[str] = Field(default_factory=list)
-    typical_length: Optional[str] = None  # e.g., "500-800 words"
-    tone: Optional[str] = None  # e.g., "professional", "casual"
-    format_notes: Optional[str] = None
-
-
 class ScheduleConfig(BaseModel):
     """Schedule configuration for recurring execution."""
     frequency: Literal["daily", "weekly", "biweekly", "monthly", "custom"]
@@ -336,31 +318,18 @@ class EventTriggerConfig(BaseModel):
     keyword_filter: Optional[list[str]] = None  # Only trigger if content contains keywords
 
 
-class IntegrationSourceScope(BaseModel):
-    """ADR-030: Scope configuration for integration sources."""
-    mode: Literal["delta", "fixed_window"] = "delta"
-    # Delta mode: fetch since last_run_at (or fallback_days if first run)
-    fallback_days: int = 7  # If no last_run_at, go back this many days
-    # Fixed window mode: always fetch last N days
-    recency_days: Optional[int] = None
-    # Safety limits
-    max_items: int = 200
-    # Provider-specific options
-    include_threads: bool = True  # Slack
-    include_sent: bool = True  # Gmail
-    max_depth: int = 2  # Notion
-
-
 class DataSource(BaseModel):
-    """A source of information for the deliverable."""
+    """A source of information for the deliverable.
+
+    ADR-104: scope and filters fields removed — never consumed by execution pipeline.
+    Targeting is handled entirely by deliverable_instructions.
+    """
     type: Literal["url", "document", "description", "integration_import"]
     value: str  # URL, document_id, or description text
     label: Optional[str] = None
-    # ADR-030: Integration source fields
+    # Integration source fields
     provider: Optional[Literal["gmail", "slack", "notion"]] = None
     source: Optional[str] = None  # inbox, query:..., channel_id, page_id
-    filters: Optional[dict] = None  # Provider-specific filters
-    scope: Optional[IntegrationSourceScope] = None
 
 
 class DeliverableCreate(BaseModel):
@@ -388,9 +357,8 @@ class DeliverableCreate(BaseModel):
     mode: Literal["recurring", "goal", "reactive", "proactive", "coordinator"] = "recurring"
     # ADR-087: Deliverable-scoped context
     deliverable_instructions: Optional[str] = None
-    # Legacy fields (deprecated, use type_config)
+    # Legacy: description still consumed by Research/Hybrid strategies
     description: Optional[str] = None
-    template_structure: Optional[TemplateStructure] = None
 
 
 class DeliverableUpdate(BaseModel):
@@ -419,9 +387,8 @@ class DeliverableUpdate(BaseModel):
     mode: Optional[Literal["recurring", "goal", "reactive", "proactive", "coordinator"]] = None
     # ADR-092: Proactive/coordinator review scheduling
     proactive_next_review_at: Optional[str] = None
-    # Legacy fields (deprecated)
+    # Legacy: description still consumed by Research/Hybrid strategies
     description: Optional[str] = None
-    template_structure: Optional[TemplateStructure] = None
 
 
 class DeliverableResponse(BaseModel):
@@ -473,9 +440,8 @@ class DeliverableResponse(BaseModel):
     mode: str = "recurring"  # recurring | goal | reactive | proactive | coordinator
     # ADR-092: Proactive/coordinator review scheduling
     proactive_next_review_at: Optional[str] = None
-    # Legacy fields (for backwards compatibility)
+    # Legacy: description still consumed by Research/Hybrid strategies
     description: Optional[str] = None
-    template_structure: Optional[dict] = None
 
 
 class SourceFetchSummary(BaseModel):
@@ -604,10 +570,9 @@ async def create_deliverable(
     type_config = request.type_config
     if type_config is None:
         # For custom type with legacy fields, migrate them
-        if request.deliverable_type == "custom" and (request.description or request.template_structure):
+        if request.deliverable_type == "custom" and request.description:
             type_config = {
                 "description": request.description or "",
-                "structure_notes": request.template_structure.format_notes if request.template_structure else None,
             }
         else:
             type_config = get_default_config(request.deliverable_type)
@@ -631,7 +596,6 @@ async def create_deliverable(
         "platform_variant": request.platform_variant,
         "description": request.description,  # Legacy, kept for backwards compat
         "recipient_context": request.recipient_context.model_dump() if request.recipient_context else {},
-        "template_structure": request.template_structure.model_dump() if request.template_structure else {},
         "schedule": request.schedule.model_dump(),
         "sources": [s.model_dump() for s in request.sources],
         "status": "active",
@@ -681,9 +645,8 @@ async def create_deliverable(
         deliverable_instructions=deliverable.get("deliverable_instructions"),
         deliverable_memory=deliverable.get("deliverable_memory"),
         mode=deliverable.get("mode", "recurring"),
-        # Legacy fields
+        # Legacy: description still consumed by Research/Hybrid strategies
         description=deliverable.get("description"),
-        template_structure=deliverable.get("template_structure"),
     )
 
 
@@ -805,9 +768,8 @@ async def list_deliverables(
             deliverable_instructions=d.get("deliverable_instructions"),
             deliverable_memory=d.get("deliverable_memory"),
             mode=d.get("mode", "recurring"),
-            # Legacy
+            # Legacy: description still consumed by Research/Hybrid strategies
             description=d.get("description"),
-            template_structure=d.get("template_structure"),
         ))
 
     return responses
@@ -882,9 +844,8 @@ async def get_deliverable(
             deliverable_instructions=deliverable.get("deliverable_instructions"),
             deliverable_memory=deliverable.get("deliverable_memory"),
             mode=deliverable.get("mode", "recurring"),
-            # Legacy
+            # Legacy: description still consumed by Research/Hybrid strategies
             description=deliverable.get("description"),
-            template_structure=deliverable.get("template_structure"),
         ),
         "versions": [
             VersionResponse(
@@ -980,8 +941,6 @@ async def update_deliverable(
     # Legacy fields
     if request.description is not None:
         update_data["description"] = request.description
-    if request.template_structure is not None:
-        update_data["template_structure"] = request.template_structure.model_dump()
 
     result = (
         auth.client.table("deliverables")
@@ -1019,9 +978,8 @@ async def update_deliverable(
         deliverable_instructions=d.get("deliverable_instructions"),
         deliverable_memory=d.get("deliverable_memory"),
         mode=d.get("mode", "recurring"),
-        # Legacy
+        # Legacy: description still consumed by Research/Hybrid strategies
         description=d.get("description"),
-        template_structure=d.get("template_structure"),
     )
 
 
