@@ -78,6 +78,16 @@ export function getRunTimestamp(version: AgentRun): string {
   return format(new Date(ts), 'MMM d, h:mm a');
 }
 
+function getTriggerLabel(version: AgentRun): string | null {
+  const triggerType = version.metadata?.trigger_type;
+  if (!triggerType) return null;
+  if (triggerType === 'manual') return 'Manual';
+  if (triggerType === 'schedule') return 'Scheduled';
+  if (triggerType === 'event') return 'Event';
+  if (triggerType === 'proactive_review') return 'Proactive Review';
+  return triggerType.replace(/_/g, ' ');
+}
+
 export function wordCount(text: string): number {
   return text.trim().split(/\s+/).filter(Boolean).length;
 }
@@ -209,6 +219,7 @@ function VersionPreviewFull({
 }) {
   const [copied, setCopied] = useState(false);
   const content = version.final_content || version.draft_content || '';
+  const triggerLabel = getTriggerLabel(version);
 
   const handleCopy = async () => {
     if (!content) return;
@@ -231,6 +242,11 @@ function VersionPreviewFull({
         <span className="text-xs font-medium">v{version.version_number}</span>
         {getStatusBadge(version)}
         <span className="text-xs text-muted-foreground">{getRunTimestamp(version)}</span>
+        {triggerLabel && (
+          <span className="text-xs text-muted-foreground bg-muted px-1.5 py-0.5 rounded">
+            {triggerLabel}
+          </span>
+        )}
 
         <div className="ml-auto flex items-center gap-1">
           <button

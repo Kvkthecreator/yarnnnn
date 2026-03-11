@@ -137,6 +137,13 @@ SELECT version_number, status, delivery_status, delivery_error,
 FROM agent_runs
 WHERE agent_id = '{DELIVERABLE_ID}'
 ORDER BY version_number DESC LIMIT 1;
+
+-- Check provider acceptance + observed outcome events
+SELECT provider, status, external_id, outcome, outcome_observed_at, completed_at
+FROM export_log
+WHERE agent_run_id = '{RUN_ID}'
+ORDER BY created_at DESC
+LIMIT 1;
 ```
 
 ### Expected behavior
@@ -144,6 +151,8 @@ ORDER BY version_number DESC LIMIT 1;
 - Email arrives with: title header → rendered markdown content → "View in Yarn" button → "Manage notifications" link
 - **No separate notification email** (skipped for email-platform agents)
 - Cron log shows: `"Skipped notification — content delivered via email"`
+- After Resend webhook delivery event, `export_log.outcome.latest_event.event_type = 'email.delivered'`
+- If webhook event is `email.bounced` or `email.complained`, run transitions to `delivery_status = 'failed'`
 
 ### Test results (2026-02-24)
 

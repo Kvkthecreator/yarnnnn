@@ -83,10 +83,16 @@ class ResendExporter(DestinationExporter):
             )
 
         options = destination.get("options", {})
-        # Date-stamped subject for inbox scannability
-        from datetime import datetime
-        date_str = datetime.now().strftime("%b %-d")
-        subject = options.get("subject", f"{title} — {date_str}")
+        # Include version/timestamp by default so each run is visibly distinct in inbox threads.
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        timestamp_str = now_utc.strftime("%b %-d %H:%M UTC")
+        version_number = metadata.get("version_number")
+        if version_number:
+            default_subject = f"{title} v{version_number} — {timestamp_str}"
+        else:
+            default_subject = f"{title} — {timestamp_str}"
+        subject = options.get("subject", default_subject)
 
         # Generate HTML from markdown content
         platform_variant = metadata.get("platform_variant")

@@ -20,6 +20,7 @@ YARNNN sends email notifications when agents are ready and when generation/deliv
 | `api/jobs/email.py` | Resend API client |
 | `api/services/delivery.py` | Delivery orchestration and notification triggers |
 | `api/services/notifications.py` | Notification routing, preference checks, email send |
+| `api/routes/webhooks.py` | Resend webhook ingestion (`/webhooks/resend/events`) for post-send outcomes |
 | `api/jobs/unified_scheduler.py` | Cron entrypoint that triggers agent execution |
 | `supabase/migrations/022_user_notification_preferences.sql` | User preferences table |
 
@@ -40,6 +41,9 @@ notification service (notifications.py)
         ├─ check user preferences (should_send_email)
         ▼
 send email via Resend to user's auth email
+        │
+        ▼
+Resend webhook (`/webhooks/resend/events`) updates export outcome status
 ```
 
 ---
@@ -56,6 +60,7 @@ send email via Resend to user's auth email
 | Preference checking | ✅ Complete | `should_send_email()` checks DB per notification type |
 | Preferences DB table | ✅ Complete | With RLS and helper function |
 | Delivery logging | ✅ Complete | `email_delivery_log` table |
+| Resend webhook outcome tracking | ✅ Complete | `export_log.outcome` + `outcome_observed_at` updated from webhook events |
 
 ### What's Missing
 
@@ -64,7 +69,6 @@ send email via Resend to user's auth email
 | Preferences API endpoints | ✅ Complete | GET/PATCH `/api/account/notification-preferences` |
 | Settings UI (Notifications tab) | ✅ Complete | `/settings?tab=notifications` |
 | Unsubscribe mechanism | ❌ Missing | P2 |
-| Resend webhook handling | ❌ Missing | P2 |
 | Email retry logic | ❌ Missing | P3 |
 
 ---
@@ -187,6 +191,7 @@ Preference handling: this notification is controlled by `email_agent_failed` ind
 |----------|-------------|---------|
 | `RESEND_API_KEY` | Resend API key | Required |
 | `RESEND_FROM_EMAIL` | Sender address | `yarnnn <noreply@yarnnn.com>` |
+| `RESEND_WEBHOOK_SECRET` | Webhook signature secret (`whsec_*`) | Optional but recommended |
 | `APP_URL` | Base URL for links | `https://yarnnn.com` |
 
 ### Render Configuration
@@ -225,7 +230,7 @@ services:
 
 - [ ] Unsubscribe links in email footer
 - [ ] `List-Unsubscribe` header for email clients
-- [ ] Resend webhook for bounce/complaint handling
+- [x] Resend webhook for bounce/complaint handling
 - [ ] Retry logic with exponential backoff
 
 ### Phase 3: Advanced Features (Future)
@@ -303,6 +308,13 @@ curl -X POST https://api.yarnnn.com/api/test-email \
 ---
 
 ## Changelog
+
+### 2026-03-11: Delivery Outcome Observability
+
+- Added Resend webhook endpoint: `POST /webhooks/resend/events`
+- Webhook events now update `export_log.outcome` and `outcome_observed_at`
+- Bounce/complaint events propagate to `agent_runs.delivery_status='failed'`
+- Added webhook environment variable docs (`RESEND_WEBHOOK_SECRET`)
 
 ### 2026-02-06: Documentation Created
 

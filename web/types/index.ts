@@ -523,6 +523,8 @@ export interface AgentRun {
     items_fetched?: number;
     sources_used?: string[];
     strategy?: string;
+    // Trigger provenance for runs tab observability (manual vs scheduled vs event)
+    trigger_type?: string;
   };
 }
 

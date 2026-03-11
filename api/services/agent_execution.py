@@ -691,6 +691,8 @@ async def execute_agent_generation(
             "items_fetched": gathered_result.items_fetched,
             "sources_used": gathered_result.sources_used,
             "strategy": context_summary.get("strategy", "unknown"),
+            # Persist trigger provenance so runs can be attributed to scheduler/manual/event paths.
+            "trigger_type": trigger_type,
         }
         await update_version_for_delivery(client, version_id, draft, metadata=version_metadata)
 
