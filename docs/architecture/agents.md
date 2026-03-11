@@ -228,18 +228,16 @@ When a agent is due to run (scheduled, event-triggered, or manual), `execute_age
 8. **Agent (headless mode)** generates the draft via `chat_completion_with_tools()` — system prompt includes directives, memory, and learned preferences (ADR-101); read-only primitives (Search, Read, List, WebSearch, GetSystemState), binding-aware round limits (ADR-081). Research/hybrid types receive a research directive and use WebSearch for web investigation.
 9. `mark_content_retained()` on consumed `platform_content` records (ADR-072)
 10. `DeliveryService.deliver_version()` — email immediately (ADR-066, no approval gate)
-11. `store_platform_content(platform="yarnnn")` — agent output written as searchable content (ADR-102)
+11. `KnowledgeBase.write()` — agent output written to `/knowledge/` filesystem (ADR-107)
 12. `activity_log` event written (non-fatal)
 
 ### Content source
 
-All content comes from `platform_content` (the unified content layer, ADR-073):
-- Retained content (significant, never expires) — accumulated intelligence
-- Recent ephemeral content (TTL-bounded) — fresh platform state
-- yarnnn-generated content (`platform="yarnnn"`) — agent outputs from other agents (ADR-102)
-- Strategy-gathered content provides the baseline; headless mode primitives provide supplementary investigation
+Content comes from two sources:
+- **`platform_content`** (ADR-072) — external platform data (Slack, Gmail, Notion, Calendar). TTL-managed, retained when consumed.
+- **`/knowledge/`** (ADR-107) — agent-produced knowledge artifacts in `workspace_files`. Persistent, version-aware, organized by content class.
 
-`platform_content` is the single source, populated by platform sync (ephemeral) and marked retained by agent execution and signal processing.
+Strategy-gathered content provides the baseline; headless mode primitives provide supplementary investigation via `QueryKnowledge` (searches `/knowledge/` + falls back to `platform_content`).
 
 ### Three storage domains (ADR-107, proposed)
 

@@ -32,7 +32,6 @@ import {
   CheckCircle2,
   XCircle,
   FolderOpen,
-  Globe,
 } from 'lucide-react';
 import { api } from '@/lib/api/client';
 import { formatDistanceToNow } from 'date-fns';
@@ -80,14 +79,9 @@ const PLATFORM_CONFIG: Record<string, {
     icon: <Calendar className="w-4 h-4" />,
     colors: { bg: 'bg-blue-100 dark:bg-blue-900/30', text: 'text-blue-600 dark:text-blue-400' },
   },
-  yarnnn: {
-    label: 'Generated',
-    icon: <Globe className="w-4 h-4" />,
-    colors: { bg: 'bg-indigo-100 dark:bg-indigo-900/30', text: 'text-indigo-600 dark:text-indigo-400' },
-  },
 };
 
-const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar', 'yarnnn'] as const;
+const ALL_PLATFORMS = ['slack', 'gmail', 'notion', 'calendar'] as const;
 
 // =============================================================================
 // Section Navigation
@@ -122,9 +116,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
     platformMap[p.provider] = p;
   }
 
-  // Exclude yarnnn from connection count — it's internal, always available
-  const externalPlatforms = ALL_PLATFORMS.filter((p) => p !== 'yarnnn');
-  const connectedCount = externalPlatforms.filter((p) => platformMap[p]?.status === 'active').length;
+  const connectedCount = ALL_PLATFORMS.filter((p) => platformMap[p]?.status === 'active').length;
 
   return (
     <div className="space-y-6">
@@ -134,7 +126,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
           <p className="text-sm text-muted-foreground mt-0.5">
             {connectedCount === 0
               ? 'Connect platforms to sync your context.'
-              : `${connectedCount} of ${externalPlatforms.length} connected`}
+              : `${connectedCount} of ${ALL_PLATFORMS.length} connected`}
           </p>
         </div>
       </div>
@@ -143,9 +135,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
         {ALL_PLATFORMS.map((platformKey) => {
           const config = PLATFORM_CONFIG[platformKey];
           const summary = platformMap[platformKey];
-          // yarnnn is always "active" — it's internal, no connection needed
-          const isYarnnn = platformKey === 'yarnnn';
-          const isConnected = isYarnnn || summary?.status === 'active';
+          const isConnected = summary?.status === 'active';
           const navTarget = platformKey;
 
           return (
@@ -172,15 +162,12 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
                     <span className={cn("font-medium text-sm", isConnected ? "text-foreground" : "text-muted-foreground")}>
                       {config.label}
                     </span>
-                    {isYarnnn && (
-                      <p className="text-xs text-muted-foreground">Agent outputs</p>
-                    )}
-                    {!isYarnnn && isConnected && summary?.workspace_name && (
+                    {isConnected && summary?.workspace_name && (
                       <p className="text-xs text-muted-foreground truncate max-w-[140px]">
                         {summary.workspace_name}
                       </p>
                     )}
-                    {!isYarnnn && !isConnected && (
+                    {!isConnected && (
                       <p className="text-xs text-muted-foreground/60">Not connected</p>
                     )}
                   </div>
@@ -192,7 +179,7 @@ function PlatformsSection({ platforms, loading, onNavigate }: PlatformsSectionPr
                 )}
               </div>
 
-              {!isYarnnn && isConnected && summary && (
+              {isConnected && summary && (
                 <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
                   <span className="flex items-center gap-1">
                     <CheckCircle2 className="w-3 h-3 text-green-500" />

@@ -1,5 +1,5 @@
 """
-Workspace Primitives — ADR-106
+Workspace Primitives — ADR-106 / ADR-107
 
 Headless-only primitives that let reasoning agents interact with their
 workspace and the shared knowledge base during generation.
@@ -7,7 +7,7 @@ workspace and the shared knowledge base during generation.
 - ReadWorkspace: read from agent's workspace
 - WriteWorkspace: write to agent's workspace (thesis, observations, working notes)
 - SearchWorkspace: full-text search within agent's workspace
-- QueryKnowledge: search the shared knowledge base (platform content)
+- QueryKnowledge: search /knowledge/ filesystem + platform_content fallback
 """
 
 import logging
@@ -105,10 +105,11 @@ Use this to find specific information from your accumulated knowledge.""",
 
 QUERY_KNOWLEDGE_TOOL = {
     "name": "QueryKnowledge",
-    "description": """Search the shared knowledge base for platform content.
+    "description": """Search the shared knowledge base.
 
-The knowledge base contains synced content from the user's connected platforms:
-Slack messages, Gmail threads, Notion pages, Calendar events, and past agent outputs.
+The knowledge base contains:
+- Agent-produced knowledge artifacts (digests, analyses, briefs, research, insights)
+- Synced content from connected platforms (Slack, Gmail, Notion, Calendar) via fallback
 
 Use this to find evidence relevant to your domain. Search by topic, person, keyword.
 Much more targeted than receiving a full platform dump — query for what you need.""",
@@ -119,10 +120,10 @@ Much more targeted than receiving a full platform dump — query for what you ne
                 "type": "string",
                 "description": "Search query (topic, person, keyword)"
             },
-            "platform": {
+            "content_class": {
                 "type": "string",
-                "enum": ["slack", "gmail", "notion", "calendar", "yarnnn"],
-                "description": "Optional: limit to a specific platform"
+                "enum": ["digests", "analyses", "briefs", "research", "insights"],
+                "description": "Optional: limit to a specific knowledge category"
             },
             "limit": {
                 "type": "integer",
@@ -234,25 +235,24 @@ async def handle_search_workspace(auth: Any, input: dict) -> dict:
 
 
 async def handle_query_knowledge(auth: Any, input: dict) -> dict:
-    """Handle QueryKnowledge primitive."""
+    """Handle QueryKnowledge primitive — searches /knowledge/ and falls back to platform_content."""
     from services.workspace import KnowledgeBase
 
     kb = KnowledgeBase(auth.client, auth.user_id)
     query = input.get("query", "")
-    platform = input.get("platform")
+    content_class = input.get("content_class")
     limit = min(input.get("limit", 10), 30)
 
-    results = await kb.search(query, platform=platform, limit=limit)
+    results = await kb.search(query, content_class=content_class, limit=limit)
 
     if not results:
-        # Fall back to searching platform_content directly if knowledge base
-        # hasn't been populated yet (Phase 1 compatibility)
-        return await _fallback_platform_content_search(auth, query, platform, limit)
+        # Fall back to searching platform_content for external data
+        return await _fallback_platform_content_search(auth, query, None, limit)
 
     return {
         "success": True,
         "query": query,
-        "platform": platform,
+        "content_class": content_class,
         "count": len(results),
         "results": [
             {"path": r.path, "summary": r.summary, "content_preview": r.content}
@@ -284,14 +284,15 @@ async def handle_list_workspace(auth: Any, input: dict) -> dict:
 
 async def _fallback_platform_content_search(auth: Any, query: str, platform: str = None, limit: int = 10) -> dict:
     """
-    Phase 1 fallback: search platform_content directly when workspace
-    /knowledge/ hasn't been populated yet.
+    Fallback: search platform_content for external platform data when
+    /knowledge/ has no results. Only searches external platforms (not yarnnn).
     """
     try:
         q = (
             auth.client.table("platform_content")
             .select("id, platform, resource_name, content, author, source_timestamp")
             .eq("user_id", auth.user_id)
+            .neq("platform", "yarnnn")  # Exclude legacy yarnnn rows if any remain
             .textSearch("content", query, {"type": "websearch"})
             .limit(limit)
         )
@@ -304,12 +305,11 @@ async def _fallback_platform_content_search(auth: Any, query: str, platform: str
         return {
             "success": True,
             "query": query,
-            "platform": platform,
             "count": len(items),
-            "source": "platform_content_fallback",
+            "source": "platform_content",
             "results": [
                 {
-                    "path": f"/knowledge/{i['platform']}/{i.get('resource_name', 'unknown')}",
+                    "path": f"platform_content/{i['platform']}/{i.get('resource_name', 'unknown')}",
                     "summary": f"{i['platform']}:{i.get('resource_name', '')} by {i.get('author', 'unknown')}",
                     "content_preview": i["content"][:500],
                 }

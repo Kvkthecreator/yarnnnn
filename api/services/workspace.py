@@ -15,6 +15,7 @@ these classes — agent code doesn't change.
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
 from dataclasses import dataclass
 from typing import Optional
@@ -543,20 +544,109 @@ class AgentWorkspace:
 
 class KnowledgeBase:
     """
-    Shared knowledge base: /knowledge/
+    Shared knowledge base: /knowledge/ (ADR-107)
 
-    Read-only for agents. Written by the perception pipeline.
-    Provides search across all synced platform content.
+    Agent-produced knowledge artifacts, organized by content class:
+    - /knowledge/digests/     — platform-specific recaps
+    - /knowledge/analyses/    — cross-platform synthesis
+    - /knowledge/briefs/      — event-driven preparation
+    - /knowledge/research/    — deep research outputs
+    - /knowledge/insights/    — proactive findings
+
+    Written by the delivery layer after successful agent generation.
+    Read by agents via QueryKnowledge primitive.
     """
+
+    # ADR-107: agent_type → content class directory
+    CONTENT_CLASS_MAP = {
+        "digest": "digests",
+        "status": "analyses",
+        "brief": "briefs",
+        "deep_research": "research",
+        "watch": "insights",
+        "custom": "analyses",
+        "coordinator": "analyses",
+    }
 
     def __init__(self, db_client, user_id: str):
         self._db = db_client
         self._user_id = user_id
         self._base = "/knowledge"
 
-    async def search(self, query: str, platform: str = None, limit: int = 20) -> list[SearchResult]:
-        """Search the knowledge base. Optionally filter by platform."""
-        prefix = f"{self._base}/{platform}" if platform else self._base
+    @classmethod
+    def get_knowledge_path(cls, agent_type: str, title: str, date_str: str = None) -> str:
+        """
+        Generate the /knowledge/ path for an agent output.
+
+        Args:
+            agent_type: The agent's type (digest, status, brief, etc.)
+            title: Agent title — will be slugified (e.g., "Slack Engineering Recap")
+            date_str: Date string YYYY-MM-DD (defaults to today)
+        """
+        content_class = cls.CONTENT_CLASS_MAP.get(agent_type, "analyses")
+        if date_str is None:
+            date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+        # Slugify the title (same logic as get_agent_slug)
+        slug = title.lower().strip()
+        slug = re.sub(r"[^a-z0-9-]", "-", slug)
+        slug = re.sub(r"-+", "-", slug).strip("-")
+        slug = slug[:50]
+
+        if content_class == "research":
+            # Research uses subdirectory with latest.md
+            return f"/knowledge/{content_class}/{slug}/latest.md"
+        else:
+            # All others use {slug}-{date}.md
+            return f"/knowledge/{content_class}/{slug}-{date_str}.md"
+
+    async def write(
+        self,
+        path: str,
+        content: str,
+        summary: str = None,
+        metadata: dict = None,
+        tags: list[str] = None,
+    ) -> bool:
+        """
+        Write a knowledge artifact. Called by delivery layer after successful generation.
+
+        Args:
+            path: Full path under /knowledge/ (use get_knowledge_path() to generate)
+            content: The agent output content (markdown)
+            summary: Brief description for discovery
+            metadata: {agent_id, run_id, content_class, agent_type, version_number}
+            tags: Searchable topic tags
+        """
+        if not path.startswith("/knowledge/"):
+            path = f"{self._base}/{path}"
+        try:
+            data = {
+                "user_id": self._user_id,
+                "path": path,
+                "content": content,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+            if summary is not None:
+                data["summary"] = summary
+            if metadata is not None:
+                data["metadata"] = metadata
+            if tags is not None:
+                data["tags"] = tags
+
+            self._db.table("workspace_files").upsert(
+                data,
+                on_conflict="user_id,path",
+            ).execute()
+            logger.info(f"[KNOWLEDGE] Written: {path}")
+            return True
+        except Exception as e:
+            logger.error(f"[KNOWLEDGE] Write failed: {path}: {e}")
+            return False
+
+    async def search(self, query: str, content_class: str = None, limit: int = 20) -> list[SearchResult]:
+        """Search the knowledge base. Optionally filter by content class directory."""
+        prefix = f"{self._base}/{content_class}" if content_class else self._base
         try:
             result = self._db.rpc("search_workspace", {
                 "p_user_id": self._user_id,
@@ -598,8 +688,8 @@ class KnowledgeBase:
             logger.warning(f"[KNOWLEDGE] Read failed: {full_path}: {e}")
             return None
 
-    async def list_platforms(self) -> list[str]:
-        """List available platforms in the knowledge base."""
+    async def list_classes(self) -> list[str]:
+        """List content class directories in the knowledge base."""
         try:
             result = (
                 self._db.table("workspace_files")
@@ -608,15 +698,47 @@ class KnowledgeBase:
                 .like("path", f"{self._base}/%")
                 .execute()
             )
-            platforms = set()
+            classes = set()
             for r in (result.data or []):
-                # Extract platform from /knowledge/{platform}/...
                 parts = r["path"][len(self._base) + 1:].split("/")
                 if parts:
-                    platforms.add(parts[0])
-            return sorted(platforms)
+                    classes.add(parts[0])
+            return sorted(classes)
         except Exception as e:
-            logger.warning(f"[KNOWLEDGE] List platforms failed: {e}")
+            logger.warning(f"[KNOWLEDGE] List classes failed: {e}")
+            return []
+
+    async def count(self) -> int:
+        """Count total knowledge artifacts."""
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("id", count="exact")
+                .eq("user_id", self._user_id)
+                .like("path", f"{self._base}/%")
+                .execute()
+            )
+            return result.count or 0
+        except Exception as e:
+            logger.warning(f"[KNOWLEDGE] Count failed: {e}")
+            return 0
+
+    async def list_files(self, content_class: str = None, limit: int = 20) -> list[dict]:
+        """List knowledge files, optionally filtered by content class."""
+        prefix = f"{self._base}/{content_class}" if content_class else self._base
+        try:
+            result = (
+                self._db.table("workspace_files")
+                .select("path, summary, metadata, updated_at")
+                .eq("user_id", self._user_id)
+                .like("path", f"{prefix}/%")
+                .order("updated_at", desc=True)
+                .limit(limit)
+                .execute()
+            )
+            return result.data or []
+        except Exception as e:
+            logger.warning(f"[KNOWLEDGE] List files failed: {e}")
             return []
 
 

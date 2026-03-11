@@ -69,8 +69,8 @@ Note: Memory is NOT a search scope — it is already in your working memory cont
             },
             "platform": {
                 "type": "string",
-                "enum": ["slack", "gmail", "notion", "calendar", "yarnnn"],
-                "description": "Filter platform_content by platform (optional). Use 'yarnnn' for agent outputs."
+                "enum": ["slack", "gmail", "notion", "calendar"],
+                "description": "Filter platform_content by platform (optional). For agent outputs, use QueryKnowledge instead."
             },
             "limit": {
                 "type": "integer",

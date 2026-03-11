@@ -34,8 +34,8 @@ logger = logging.getLogger(__name__)
 # Types
 # =============================================================================
 
-PlatformType = Literal["slack", "gmail", "notion", "calendar", "yarnnn"]
-RetainedReason = Literal["agent_execution", "tp_session", "yarnnn_output"]
+PlatformType = Literal["slack", "gmail", "notion", "calendar"]
+RetainedReason = Literal["agent_execution", "tp_session"]
 
 
 @dataclass
@@ -116,7 +116,6 @@ DEFAULT_TTL_HOURS = {
     "gmail": 336,      # 14 days
     "notion": 720,     # 30 days
     "calendar": 24,    # 1 day
-    "yarnnn": 0,       # Always retained (ADR-102) — TTL unused, fallback only
 }
 
 

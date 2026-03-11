@@ -75,7 +75,7 @@ export function usePlatformData(
         options?.skipContext
           ? Promise.resolve({ items: [], total_count: 0, freshest_at: null, platform })
           : api.integrations.getPlatformContext(
-              platform as "slack" | "notion" | "gmail" | "calendar" | "yarnnn",
+              platform as "slack" | "notion" | "gmail" | "calendar",
               { limit: 10 }
             ).catch(() => ({ items: [], total_count: 0, freshest_at: null, platform })),
         // Load available calendars for Calendar platform

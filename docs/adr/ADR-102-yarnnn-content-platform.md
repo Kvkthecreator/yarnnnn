@@ -1,7 +1,7 @@
 # ADR-102: yarnnn as Internal Content Platform
 
 **Date:** 2026-03-09
-**Status:** Implementing
+**Status:** Superseded by [ADR-107](ADR-107-knowledge-filesystem-architecture.md) (Knowledge Filesystem Architecture)
 **Related:**
 - [ADR-072: Unified Content Layer](ADR-072-unified-content-layer.md)
 - [ADR-087: Agent Scoped Context](ADR-087-workspace-scoping-architecture.md)

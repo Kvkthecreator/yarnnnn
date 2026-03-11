@@ -794,38 +794,30 @@ async def execute_agent_generation(
             }).eq("id", version_id).execute()
             logger.info(f"[EXEC] No destination - content ready (version={version_id})")
 
-        # ADR-102: Write agent output as yarnnn platform_content
-        # Closes the accumulation loop — agent outputs become searchable context
+        # ADR-107: Write agent output to /knowledge/ filesystem
+        # Closes the accumulation loop — agent outputs become searchable knowledge
         if final_status == "delivered" and draft:
             try:
-                from services.platform_content import store_platform_content
+                from services.workspace import KnowledgeBase
                 from services.supabase import get_service_client as _get_svc3
-                await store_platform_content(
-                    db_client=_get_svc3(),
-                    user_id=user_id,
-                    platform="yarnnn",
-                    resource_id=str(agent_id),
-                    item_id=str(version_id),
+                kb = KnowledgeBase(_get_svc3(), user_id)
+                knowledge_path = KnowledgeBase.get_knowledge_path(agent_type, title)
+                await kb.write(
+                    path=knowledge_path,
                     content=draft,
-                    content_type=agent_type,
-                    resource_name=title,
-                    title=f"{title} v{next_version}",
-                    author="yarnnn",
-                    is_user_authored=False,
+                    summary=f"{title} v{next_version}",
                     metadata={
+                        "agent_id": str(agent_id),
+                        "run_id": str(version_id),
+                        "content_class": KnowledgeBase.CONTENT_CLASS_MAP.get(agent_type, "analyses"),
                         "agent_type": agent_type,
-                        "mode": agent.get("mode"),
                         "version_number": next_version,
-                        "strategy": strategy.strategy_name,
                     },
-                    source_timestamp=datetime.now(timezone.utc),
-                    retained=True,
-                    retained_reason="yarnnn_output",
-                    retained_ref=str(version_id),
+                    tags=[agent_type, agent.get("mode", "recurring")],
                 )
-                logger.info(f"[EXEC] ADR-102: Stored yarnnn_content for {title} v{next_version}")
+                logger.info(f"[EXEC] ADR-107: Stored knowledge at {knowledge_path}")
             except Exception as e:
-                logger.warning(f"[EXEC] ADR-102: Failed to store yarnnn_content: {e}")
+                logger.warning(f"[EXEC] ADR-107: Failed to store knowledge: {e}")
                 # Non-fatal — don't block delivery
 
         logger.info(

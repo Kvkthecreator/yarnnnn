@@ -1,6 +1,6 @@
 # ADR-107: Knowledge Filesystem Architecture
 
-**Status:** Accepted
+**Status:** Implementing (Phase 1 complete)
 **Date:** 2026-03-11
 **Supersedes:** ADR-102 (yarnnn Content Platform — `platform="yarnnn"` rows replaced by `/knowledge/` filesystem)
 **Related:**

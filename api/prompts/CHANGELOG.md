@@ -6,6 +6,18 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.11.5] - ADR-107 Phase 1: Knowledge filesystem — singular cutover
+
+### Changed
+- `api/services/workspace.py`: `KnowledgeBase` class extended with `write()`, `get_knowledge_path()`, `CONTENT_CLASS_MAP`, `count()`, `list_files()`, `list_classes()`. Search parameter renamed from `platform` to `content_class`.
+- `api/services/agent_execution.py`: Replaced `store_platform_content(platform="yarnnn")` with `KnowledgeBase.write()`. Agent outputs now write to `/knowledge/{class}/{slug}-{date}.md`.
+- `api/services/primitives/workspace.py`: `QueryKnowledge` tool definition updated — removed `platform` enum (was `["slack", "gmail", "notion", "calendar", "yarnnn"]`), replaced with `content_class` enum (`["digests", "analyses", "briefs", "research", "insights"]`). Handler updated to pass `content_class` instead of `platform`. Fallback search excludes `platform='yarnnn'` rows.
+- `api/services/primitives/search.py`: Removed `"yarnnn"` from Search tool platform enum.
+- `api/services/platform_content.py`: Removed `"yarnnn"` from `PlatformType`, `"yarnnn_output"` from `RetainedReason`, and yarnnn TTL entry.
+- Expected behavior: Agent outputs accumulate in `/knowledge/` filesystem (workspace_files) instead of `platform_content`. QueryKnowledge searches `/knowledge/` first, falls back to `platform_content` for external data. TP Search no longer offers `"yarnnn"` platform filter.
+
+---
+
 ## [2026.03.11.4] - ADR-106 Phase 2: Workspace as singular source of truth
 
 ### Changed

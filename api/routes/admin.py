@@ -925,7 +925,7 @@ async def get_pipeline_stats(admin: AdminAuth):
 
         # By platform
         content_by_platform = {}
-        for p in ["slack", "gmail", "notion", "calendar", "yarnnn"]:
+        for p in ["slack", "gmail", "notion", "calendar"]:
             p_result = client.table("platform_content").select(
                 "id", count="exact"
             ).eq("platform", p).or_(
@@ -935,7 +935,7 @@ async def get_pipeline_stats(admin: AdminAuth):
 
         # By retention reason
         content_retained_by_reason = {}
-        for reason in ["agent_execution", "tp_session", "yarnnn_output"]:
+        for reason in ["agent_execution", "tp_session"]:
             r_result = client.table("platform_content").select(
                 "id", count="exact"
             ).eq("retained", True).eq("retained_reason", reason).execute()
