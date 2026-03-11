@@ -113,12 +113,17 @@ Use Render MCP tools (`update_environment_variables`) to check/set env vars acro
 
 ### 8. Hooks (Automated Reminders)
 
-A `UserPromptSubmit` hook auto-injects execution discipline reminders into every prompt. This replaces the need to manually paste reminder text.
+Two hooks auto-inject context so the user doesn't need to manually paste reminders.
 
 - **Config**: `.claude/settings.json` (committed, shared)
-- **Reminder text**: `.claude/hooks/execution-reminders.txt`
-- **How it works**: On every prompt submit, the hook cats the reminder file into context (exit 0 + stdout)
-- **To edit reminders**: Update `.claude/hooks/execution-reminders.txt` — no need to touch hook config
+- **Hook files**: `.claude/hooks/` directory
+
+| Hook | Event | Matcher | Purpose |
+|------|-------|---------|---------|
+| `execution-reminders.txt` | `UserPromptSubmit` | all | Execution disciplines (singular impl, docs, quality checks, etc.) — every message |
+| `session-reorient.sh` | `SessionStart` | `startup\|compact` | Recent git log + orientation checklist — new sessions and post-compaction |
+
+- **To edit reminders**: Update the `.txt` or `.sh` file — no need to touch hook config
 
 ---
 
