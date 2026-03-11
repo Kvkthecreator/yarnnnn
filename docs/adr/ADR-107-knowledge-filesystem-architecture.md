@@ -1,6 +1,6 @@
 # ADR-107: Knowledge Filesystem Architecture
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-03-11
 **Supersedes:** ADR-102 (yarnnn Content Platform — `platform="yarnnn"` rows replaced by `/knowledge/` filesystem)
 **Related:**
@@ -146,31 +146,65 @@ sync pipeline      = kernel drivers  Background I/O management
 
 Agents are processes. Workspace is the filesystem. `platform_content` is the device driver layer. The delivery pipeline is system services. This is an agent-native operating system where the filesystem is the universal interface between agents, between the system and the user, and between perception and reasoning.
 
-## Implementation Phases
+## Implementation Plan
 
-### Phase 1: Knowledge Write Path
-1. Modify delivery layer to write approved outputs to `/knowledge/` instead of `platform_content`
-2. Define content-class → directory mapping per agent type
-3. Implement file naming conventions (slug generation, date handling)
-4. Ensure `/knowledge/` files get embeddings on write (existing `workspace_files` infrastructure)
+**Principle: Singular implementation.** No dual-write. No backwards-compat shims. Pre-launch — existing test data will be wiped. Clean cutover.
 
-### Phase 2: Unified Consumption
-1. Extend Search primitive to search `/knowledge/` alongside `platform_content`
-2. Retire `get_content_summary_for_generation()` — all agents use tool-driven consumption
-3. Update reporter agent strategies to use AnalystStrategy pattern
-4. TP (orchestrator) gains search access to `/knowledge/`
+### Phase 1: Knowledge Write + Read (singular cutover)
 
-### Phase 3: Version Management
-1. Implement supersession logic (new version replaces `latest.md`, archives previous)
+**Write path — replace `store_platform_content(platform="yarnnn")` with `/knowledge/` write:**
+1. Add `write()` method to `KnowledgeBase` class in `workspace.py` (user-scoped, not agent-scoped)
+2. Define content-class → directory mapping per agent type:
+   - `digest` → `/knowledge/digests/{source}-{date}.md`
+   - `status` → `/knowledge/analyses/{slug}-{date}.md`
+   - `brief` → `/knowledge/briefs/{slug}-{date}.md`
+   - `deep_research` → `/knowledge/research/{slug}/latest.md`
+   - `watch` → `/knowledge/insights/{slug}.md`
+   - `custom` → `/knowledge/analyses/{slug}-{date}.md`
+3. Replace `store_platform_content()` call in `agent_execution.py` (lines 797-829) with `KnowledgeBase.write()`. Delete the ADR-102 block entirely.
+4. File metadata: `{agent_id, run_id, content_class, agent_type, version_number}` stored in `workspace_files.metadata` JSONB
+
+**Read path — update consumers to read from `/knowledge/` instead of `platform="yarnnn"`:**
+5. `QueryKnowledge` primitive: remove `"yarnnn"` from platform enum. `KnowledgeBase.search()` already searches `/knowledge/` — the fallback to `platform_content` remains for external data only.
+6. TP Search primitive (`search.py`): remove `"yarnnn"` from platform filter options.
+7. Frontend `context/yarnnn/page.tsx`: redirect to query `workspace_files` under `/knowledge/` path (or remove page if not needed pre-launch).
+8. Admin/system metrics: update `routes/system.py` and `routes/admin.py` to query `/knowledge/` files instead of `platform_content WHERE platform='yarnnn'`.
+
+**Cleanup — delete ADR-102 infrastructure:**
+9. Remove `"yarnnn"` from `PlatformType` literal in `platform_content.py`
+10. Remove `"yarnnn_output"` from `RetainedReason` literal
+11. Delete existing `platform_content` rows where `platform='yarnnn'` (SQL migration — pre-launch data wipe)
+12. Mark ADR-102 as **Superseded by ADR-107** in its header
+
+**Embeddings:** `workspace_files` already has pgvector embeddings via migration 100. `/knowledge/` files get indexed on write automatically — no additional work needed.
+
+### Phase 2: Version Management
+1. Implement supersession logic (new version replaces `latest.md`, archives previous as `v{N}.md`)
 2. Provenance tracking in metadata (agent_id, run_id chain)
 3. Knowledge retention policy (distinct from platform_content TTL)
 4. MCP resource exposure for `/knowledge/` files (ADR-106 Phase 3)
 
-### Phase 4: Agent Type Evolution
+### Phase 3: Agent Type Evolution
 1. Platform-specific agent configurations (channel selection, thread handling per platform)
-2. Synthesis agent workspace cross-reads (`QueryKnowledge` searches `/knowledge/`)
+2. Synthesis agents read from `/knowledge/` (digested context) for cross-cutting analysis
 3. Action framework beyond text output (draft actions, webhooks)
 4. Coordinator orchestration across platform and synthesis agents
+
+### Validation & Testing
+
+**Pre-implementation:**
+- [ ] Verify `workspace_files` RPC `search_workspace` works with `/knowledge/` prefix (user-scoped, not agent-scoped)
+- [ ] Confirm `workspace_files` embeddings trigger on INSERT (migration 100)
+
+**Post-implementation:**
+- [ ] Trigger agent generation → verify output appears in `workspace_files` under `/knowledge/{class}/`
+- [ ] `QueryKnowledge` primitive returns `/knowledge/` results (not platform_content fallback)
+- [ ] `QueryKnowledge` still returns external platform data via fallback
+- [ ] No `platform_content` rows with `platform='yarnnn'` exist
+- [ ] `Search(scope="platform_content", platform="yarnnn")` removed — no longer valid
+- [ ] Frontend `/context/yarnnn` page removed or redirected
+- [ ] System status / admin metrics reflect `/knowledge/` file counts
+- [ ] End-to-end: Agent A produces digest → stored in `/knowledge/digests/` → Agent B's `QueryKnowledge` finds it
 
 ## What This Supersedes
 
