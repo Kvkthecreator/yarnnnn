@@ -9,6 +9,32 @@ psql "postgresql://postgres.noxgqcwynkzqabljjyon:yarNNN%21%21%40%40%23%23%24%24@
 
 ---
 
+### 100 — Workspace Files (2026-03-11) ✅
+
+- ADR-106: Agent Workspace Architecture
+- Creates `workspace_files` table — virtual filesystem over Postgres
+- Columns: `id`, `user_id`, `path` (unique per user), `content`, `summary`, `content_type`, `metadata`, `tags`, `embedding`, `size_bytes` (generated), timestamps
+- Indexes: path (exact + prefix), full-text search (GIN), vector similarity (ivfflat), tags (GIN), updated_at, agent-scoped prefix
+- RLS: users read own files, service role manages all
+- RPC: `search_workspace(p_user_id, p_query, p_path_prefix, p_limit)` — full-text search with path scoping
+- Trigger: auto-update `updated_at`
+
+---
+
+### 099 — Cleanup Stale Deliverable Refs (2026-03-11) ✅
+
+- Post ADR-103 cleanup of remaining deliverable references
+
+---
+
+### 098 — Agentic Terminology Rename (2026-03-11) ✅
+
+- ADR-103: Full rename deliverable → agent across all tables
+- Drops and recreates: `agents`, `agent_runs`, `agent_source_runs`, `agent_validation_results`, `agent_proposals`, `agent_export_preferences`, `agent_context_log`
+- Updated RPCs, indexes, constraints, FK references
+
+---
+
 ### 086 — Cleanup Dead RPCs + Fix Constraints (2026-03-03) ✅
 
 - Drops `get_due_work_templates(TIMESTAMPTZ)` RPC (ADR-017 legacy, referenced columns that don't exist)

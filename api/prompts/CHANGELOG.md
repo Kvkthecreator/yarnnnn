@@ -6,6 +6,27 @@ Format: `[YYYY.MM.DD.N]` where N is the revision number for that day.
 
 ---
 
+## [2026.03.11.1] - ADR-106: Agent Workspace Architecture — workspace primitives and analyst strategy
+
+### Added
+- `api/services/workspace.py`: New module — `AgentWorkspace` and `KnowledgeBase` abstraction classes. Virtual filesystem over Postgres (`workspace_files` table). Path-based operations (read, write, append, list, search, delete). Storage-agnostic design.
+- `api/services/primitives/workspace.py`: Five new headless-only primitives:
+  - `ReadWorkspace` — read from agent's workspace (thesis, memory, working notes)
+  - `WriteWorkspace` — write/append to workspace (persist insights across runs)
+  - `SearchWorkspace` — full-text search within agent's workspace
+  - `QueryKnowledge` — search shared knowledge base (platform content). Falls back to `platform_content` table if workspace `/knowledge/` not yet populated.
+  - `ListWorkspace` — list files in agent's workspace
+- `api/services/execution_strategies.py`: `AnalystStrategy` — workspace-driven context gathering for reasoning agents. Loads thesis + memory + feedback from workspace instead of platform content dump.
+
+### Changed
+- `api/services/execution_strategies.py`: `get_execution_strategy()` now routes reasoning agents (deep_research, watch, coordinator, custom; proactive/coordinator modes) to `AnalystStrategy` instead of `HybridStrategy`. Reporter agents (digest, status, brief) unchanged.
+- `api/services/agent_execution.py`: `HEADLESS_TOOL_ROUNDS` adds `analyst: 8` (reasoning agents need more tool rounds for workspace + knowledge base queries). `generate_draft_inline()` passes full agent dict to headless executor.
+- `api/services/primitives/registry.py`: Workspace primitives registered in PRIMITIVES, HANDLERS, and PRIMITIVE_MODES (all headless-only). `create_headless_executor()` accepts optional `agent` param for workspace primitive context.
+- `api/services/proactive_review.py`: `apply_review_decision()` writes observations to workspace `memory.md` alongside existing `agent_memory` JSONB.
+- Expected behavior: Reasoning agents (Proactive Insights, Watch, Coordinator, Custom) will load their workspace context instead of receiving a chronological platform dump. They drive their own investigation via QueryKnowledge and WebSearch. Reporter agents (Digest, Status, Brief) are completely unchanged. First-run agents with empty workspaces will produce broad output, then focus as workspace accumulates.
+
+---
+
 ## [2026.03.10.4] - ADR-105: Instructions to chat surface migration (prompt guidance)
 
 ### Changed

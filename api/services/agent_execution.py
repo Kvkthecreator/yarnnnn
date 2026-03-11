@@ -303,12 +303,13 @@ You have read-only investigation tools available: Search, Read, List, WebSearch,
     return prompt
 
 
-# ADR-080 + ADR-081: Binding-aware tool round limits
+# ADR-080 + ADR-081 + ADR-106: Binding/archetype-aware tool round limits
 HEADLESS_TOOL_ROUNDS = {
     "platform_bound":  2,   # Rarely needs tools — context is pre-gathered
     "cross_platform":  3,   # Occasionally useful for cross-referencing
     "research":        6,   # Needs room for web search + follow-up
     "hybrid":          6,   # Web research + platform investigation
+    "analyst":         8,   # ADR-106: workspace-driven — agent queries knowledge base + web
 }
 
 
@@ -403,10 +404,16 @@ async def generate_draft_inline(
         learned_preferences=past_versions,
     )
 
-    # ADR-081: Binding-aware tool round limit
+    # ADR-081 + ADR-106: Tool round limit based on strategy or binding
+    # ADR-106 analyst strategy gets higher limit (workspace-driven investigation)
     classification = agent.get("type_classification", {})
     binding = classification.get("binding", "cross_platform")
-    max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(binding, 3)
+
+    # Check if this agent uses analyst strategy (ADR-106)
+    from services.execution_strategies import get_execution_strategy
+    strategy = get_execution_strategy(agent)
+    strategy_key = strategy.strategy_name if strategy.strategy_name in HEADLESS_TOOL_ROUNDS else binding
+    max_tool_rounds = HEADLESS_TOOL_ROUNDS.get(strategy_key, 3)
 
     # Brief (meeting prep) needs more rounds for per-attendee research + WebSearch
     if agent_type == "brief":
@@ -414,8 +421,13 @@ async def generate_draft_inline(
 
     # ADR-080: Mode-gated tools and executor
     # ADR-092: Pass agent sources so headless RefreshPlatformContent can scope to them
+    # ADR-106: Pass agent dict so workspace primitives have agent context
     headless_tools = get_tools_for_mode("headless")
-    executor = create_headless_executor(client, user_id, agent_sources=agent.get("sources"))
+    executor = create_headless_executor(
+        client, user_id,
+        agent_sources=agent.get("sources"),
+        agent=agent,
+    )
 
     import json
 

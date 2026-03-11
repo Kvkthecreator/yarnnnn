@@ -1,15 +1,20 @@
 """
-Execution Strategies - ADR-045 Type-Aware Orchestration + ADR-073 Unified Fetch + ADR-081 Consolidation
+Execution Strategies - ADR-045 + ADR-073 + ADR-081 + ADR-106
 
-Determines HOW an agent is executed based on its type_classification.binding.
+Determines HOW an agent is executed based on its type_classification.binding
+and archetype (ADR-106).
 
-Strategies:
+Reporter strategies (platform dump → generate):
 - platform_bound: Single platform reader → headless agent
 - cross_platform: Multi-platform reader → headless agent
+
+Reasoning strategies (workspace → agent queries → generate):
+- analyst: Load workspace context, agent drives own knowledge base queries (ADR-106)
 - research: Platform grounding + research_directive → headless agent uses WebSearch (ADR-081)
 - hybrid: Platform context + research_directive → headless agent uses WebSearch (ADR-081)
 
 ADR-073: All platform reads come from platform_content (no live API calls).
+ADR-106: Reasoning agents load workspace state instead of receiving platform dumps.
 ADR-081: Research/hybrid strategies no longer call web_research.py. Instead they pass
 a research_directive to the headless agent, which uses the WebSearch primitive directly.
 """
@@ -350,6 +355,96 @@ class HybridStrategy(ExecutionStrategy):
         return result
 
 
+class AnalystStrategy(ExecutionStrategy):
+    """
+    Strategy for reasoning agents (ADR-106).
+
+    Instead of pre-gathering a platform content dump, loads the agent's
+    workspace context (thesis, memory, observations) and lets the agent
+    drive its own knowledge base queries via QueryKnowledge + Search primitives.
+
+    Used by: deep_research (proactive insights), watch, custom reasoning agents.
+    """
+
+    @property
+    def strategy_name(self) -> str:
+        return "analyst"
+
+    async def gather_context(
+        self,
+        client,
+        user_id: str,
+        agent: dict,
+    ) -> GatheredContext:
+        from services.workspace import AgentWorkspace, get_agent_slug
+
+        title = agent.get("title", "")
+        description = agent.get("description", "")
+        agent_id = agent.get("id")
+
+        result = GatheredContext(content="", summary={"strategy": self.strategy_name})
+        context_parts = []
+
+        # 1. Load agent workspace context (thesis + memory + feedback + working notes)
+        ws = AgentWorkspace(client, user_id, get_agent_slug(agent))
+        workspace_context = await ws.load_context()
+
+        if workspace_context:
+            context_parts.append(f"[AGENT WORKSPACE]\n{workspace_context}")
+            result.sources_used.append("workspace")
+
+        # 2. Add user memories (same as other strategies)
+        memories = await _get_user_memories(client, user_id)
+        if memories:
+            context_parts.append(f"[USER CONTEXT]\n{memories}")
+
+        # 3. Add past version feedback
+        past_context = await _get_past_versions_context(client, agent_id)
+        if past_context:
+            context_parts.append(past_context)
+
+        # 4. Build research directive so agent knows to use QueryKnowledge + WebSearch
+        research_directive = _build_analyst_directive(title, description)
+        result.summary["research_directive"] = research_directive
+
+        result.content = "\n\n---\n\n".join(context_parts) if context_parts else "(No workspace context yet — this is a fresh agent. Use QueryKnowledge to explore the knowledge base and WebSearch for external research.)"
+        result.summary["sources_used"] = result.sources_used
+        result.summary["items_fetched"] = result.items_fetched
+        result.summary["has_workspace"] = bool(workspace_context)
+
+        logger.info(
+            f"[ANALYST] Gathered: workspace={'yes' if workspace_context else 'empty'}, "
+            f"title={title[:40]}"
+        )
+
+        return result
+
+
+def _build_analyst_directive(title: str, description: str) -> str:
+    """
+    Build a directive for analyst/reasoning agents (ADR-106).
+
+    Tells the agent to drive its own investigation via workspace + knowledge base,
+    rather than passively synthesizing a pre-gathered dump.
+    """
+    directive = f"You are an autonomous analyst agent. Your domain: {title}"
+    if description:
+        directive += f"\n{description}"
+    directive += """
+
+Investigation approach:
+- Start from your workspace context (thesis, observations, working notes)
+- Use **QueryKnowledge** to search the user's synced platforms (Slack, Gmail, Notion, Calendar) for relevant evidence
+- Use **WebSearch** for external context and trends
+- Focus on what's genuinely significant — not everything that exists
+- After investigating, update your workspace:
+  - Write refined thesis to thesis.md (your evolving domain understanding)
+  - Save research notes to working/{topic}.md
+  - Append key observations to memory.md
+- Then generate your output based on what you found"""
+    return directive
+
+
 def _build_research_directive(title: str, description: str) -> str:
     """
     Build a research directive string for the headless agent (ADR-081).
@@ -377,17 +472,33 @@ Research approach:
 
 def get_execution_strategy(agent: dict) -> ExecutionStrategy:
     """
-    Select execution strategy based on type_classification.binding.
+    Select execution strategy based on agent archetype (ADR-106) or binding (ADR-081).
+
+    ADR-106 reasoning agents use AnalystStrategy (workspace-driven).
+    Reporter agents continue using binding-based strategies (platform dump).
 
     Args:
-        agent: Agent dict with type_classification
+        agent: Agent dict with type_classification and agent_type
 
     Returns:
         Appropriate ExecutionStrategy instance
     """
+    agent_type = agent.get("agent_type", "custom")
+    mode = agent.get("mode", "recurring")
     classification = agent.get("type_classification", {})
     binding = classification.get("binding", "cross_platform")
 
+    # ADR-106: Reasoning agents use AnalystStrategy
+    # These agents drive their own context gathering from workspace
+    REASONING_TYPES = {"deep_research", "watch", "coordinator", "custom"}
+    REASONING_MODES = {"proactive", "coordinator"}
+
+    if agent_type in REASONING_TYPES or mode in REASONING_MODES:
+        strategy = AnalystStrategy()
+        logger.info(f"[STRATEGY] Selected: {strategy.strategy_name} for type={agent_type}, mode={mode} (ADR-106 reasoning agent)")
+        return strategy
+
+    # Reporter agents: binding-based strategy selection (unchanged)
     strategy_map = {
         "platform_bound": PlatformBoundStrategy,
         "cross_platform": CrossPlatformStrategy,
@@ -398,7 +509,7 @@ def get_execution_strategy(agent: dict) -> ExecutionStrategy:
     strategy_class = strategy_map.get(binding, CrossPlatformStrategy)
     strategy = strategy_class()
 
-    logger.info(f"[STRATEGY] Selected: {strategy.strategy_name} for binding={binding}")
+    logger.info(f"[STRATEGY] Selected: {strategy.strategy_name} for binding={binding}, type={agent_type}")
 
     return strategy
 

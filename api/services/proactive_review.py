@@ -394,3 +394,20 @@ def apply_review_decision(
         "agent_memory": updated_memory,
         "proactive_next_review_at": next_review.isoformat(),
     }).eq("id", agent_id).execute()
+
+    # ADR-106: Also write observation to workspace for reasoning agents
+    try:
+        from services.workspace import AgentWorkspace, get_agent_slug
+        import asyncio
+
+        ws = AgentWorkspace(client, agent.get("user_id"), get_agent_slug(agent))
+        observation = f"- [{now.strftime('%Y-%m-%d %H:%M UTC')}] (review/{action}) {note}"
+
+        # Use sync-compatible approach since apply_review_decision is sync
+        loop = asyncio.get_event_loop()
+        if loop.is_running():
+            asyncio.ensure_future(ws.append("memory.md", observation))
+        else:
+            loop.run_until_complete(ws.append("memory.md", observation))
+    except Exception as e:
+        logger.warning(f"[PROACTIVE] Failed to write workspace observation: {e}")

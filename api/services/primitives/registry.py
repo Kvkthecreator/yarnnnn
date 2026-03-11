@@ -27,6 +27,13 @@ from .coordinator import (
     CREATE_AGENT_TOOL, handle_create_agent,
     ADVANCE_AGENT_SCHEDULE_TOOL, handle_advance_agent_schedule,
 )
+from .workspace import (
+    READ_WORKSPACE_TOOL, handle_read_workspace,
+    WRITE_WORKSPACE_TOOL, handle_write_workspace,
+    SEARCH_WORKSPACE_TOOL, handle_search_workspace,
+    QUERY_KNOWLEDGE_TOOL, handle_query_knowledge,
+    LIST_WORKSPACE_TOOL, handle_list_workspace,
+)
 from services.platform_tools import is_platform_tool, handle_platform_tool
 
 
@@ -185,6 +192,12 @@ PRIMITIVES = [
     # Coordinator write primitives — headless only (ADR-092)
     CREATE_AGENT_TOOL,
     ADVANCE_AGENT_SCHEDULE_TOOL,
+    # Workspace primitives — headless only (ADR-106)
+    READ_WORKSPACE_TOOL,
+    WRITE_WORKSPACE_TOOL,
+    SEARCH_WORKSPACE_TOOL,
+    QUERY_KNOWLEDGE_TOOL,
+    LIST_WORKSPACE_TOOL,
 ]
 
 
@@ -205,6 +218,11 @@ HANDLERS: dict[str, Callable] = {
     "list_integrations": handle_list_integrations,
     "CreateAgent": handle_create_agent,
     "AdvanceAgentSchedule": handle_advance_agent_schedule,
+    "ReadWorkspace": handle_read_workspace,
+    "WriteWorkspace": handle_write_workspace,
+    "SearchWorkspace": handle_search_workspace,
+    "QueryKnowledge": handle_query_knowledge,
+    "ListWorkspace": handle_list_workspace,
 }
 
 
@@ -283,6 +301,12 @@ PRIMITIVE_MODES: dict[str, list[str]] = {
     # Coordinator write primitives — headless only (ADR-092)
     "CreateAgent":            ["headless"],
     "AdvanceAgentSchedule":   ["headless"],
+    # Workspace primitives — headless only (ADR-106)
+    "ReadWorkspace":          ["headless"],
+    "WriteWorkspace":         ["headless"],
+    "SearchWorkspace":        ["headless"],
+    "QueryKnowledge":         ["headless"],
+    "ListWorkspace":          ["headless"],
 }
 
 # Note: platform_* tools (dynamic, loaded per user) are chat-only by default.
@@ -307,7 +331,7 @@ def get_tools_for_mode(mode: str) -> list[dict]:
     return tools
 
 
-def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[list] = None, coordinator_agent_id: Optional[str] = None):
+def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[list] = None, coordinator_agent_id: Optional[str] = None, agent: Optional[dict] = None):
     """
     Create a tool executor function for headless mode.
 
@@ -322,17 +346,19 @@ def create_headless_executor(client: Any, user_id: str, agent_sources: Optional[
                              RefreshPlatformContent to scope headless refreshes
         coordinator_agent_id: ADR-092 — ID of the coordinator agent running this
                                     executor, used by CreateAgent for attribution
+        agent: ADR-106 — full agent dict, used by workspace primitives for context
     """
     class HeadlessAuth:
         """Minimal auth context for headless execution."""
-        def __init__(self, client, user_id, agent_sources=None, coordinator_agent_id=None):
+        def __init__(self, client, user_id, agent_sources=None, coordinator_agent_id=None, agent=None):
             self.client = client
             self.user_id = user_id
             self.headless = True  # ADR-092: signals headless mode to primitives
             self.agent_sources = agent_sources  # ADR-092: source scoping
             self.coordinator_agent_id = coordinator_agent_id  # ADR-092: attribution
+            self.agent = agent  # ADR-106: workspace primitives need agent context
 
-    auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id)
+    auth = HeadlessAuth(client, user_id, agent_sources, coordinator_agent_id, agent)
 
     async def executor(tool_name: str, tool_input: dict) -> dict:
         # Verify tool is allowed in headless mode
