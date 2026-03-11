@@ -587,10 +587,4 @@ async def _fetch_other_source(client, source: dict) -> str:
         if desc:
             return f"[SOURCE DESCRIPTION]\n{desc}"
 
-    elif source_type == "url":
-        url = source.get("value", "")
-        if url:
-            # Phase 2: Use WebFetch primitive
-            return f"[URL SOURCE: {url}]\n(URL fetching deferred to Phase 2)"
-
     return ""

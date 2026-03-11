@@ -93,7 +93,7 @@ export function AgentSettingsPanel({
     agent.destination
   );
   // New source input
-  const [newSourceType, setNewSourceType] = useState<DataSourceType>('url');
+  const [newSourceType, setNewSourceType] = useState<DataSourceType>('integration_import');
   const [newSourceValue, setNewSourceValue] = useState('');
   const [newSourceProvider, setNewSourceProvider] = useState<IntegrationProvider>('gmail');
   const [newSourceQuery, setNewSourceQuery] = useState('inbox');
@@ -212,7 +212,7 @@ export function AgentSettingsPanel({
     const newSource: DataSource = {
       type: newSourceType,
       value: newSourceValue.trim(),
-      label: newSourceType === 'url' ? new URL(newSourceValue).hostname : undefined,
+      label: undefined,
     };
 
     setSources([...sources, newSource]);
@@ -378,18 +378,17 @@ export function AgentSettingsPanel({
                 onChange={(e) => setNewSourceType(e.target.value as DataSourceType)}
                 className="px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
               >
-                <option value="url">URL</option>
-                <option value="description">Description</option>
                 <option value="integration_import">Integration</option>
+                <option value="description">Description</option>
               </select>
 
-              {newSourceType !== 'integration_import' && (
+              {newSourceType === 'description' && (
                 <>
                   <input
-                    type={newSourceType === 'url' ? 'url' : 'text'}
+                    type="text"
                     value={newSourceValue}
                     onChange={(e) => setNewSourceValue(e.target.value)}
-                    placeholder={newSourceType === 'url' ? 'https://...' : 'Describe the source...'}
+                    placeholder="Describe the source..."
                     className="flex-1 px-3 py-2 border border-border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
                     onKeyDown={(e) => e.key === 'Enter' && addSource()}
                   />
